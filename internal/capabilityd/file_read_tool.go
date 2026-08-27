@@ -100,10 +100,16 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 	if errorValue != nil {
 		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
 	}
-	hostPath, agentPath, errorValue := service.resolveFileReadPath(input.Path)
+	carried, errorValue := carriedWorkspaceFileOf(request)
 	if errorValue != nil {
-		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "file_not_carried", "transport", false), nil
 	}
+	agentPath := carried.AgentPath
+	hostPath, releaseCarriedFile, errorValue := carried.writeWhileReading()
+	if errorValue != nil {
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "document_read_failed", "document_conversion", true), nil
+	}
+	defer releaseCarriedFile()
 	contentType := detectWorkspaceFileContentType(hostPath)
 	if strings.HasPrefix(contentType, "image/") {
 		return fileReadErrorResponse(request.ToolName, "image files must be read with image_read", "use_image_read", "content_type", false), nil
@@ -143,38 +149,29 @@ func (service Service) invokeDocumentReadTool(ctx context.Context, request capab
 }
 
 func (service Service) invokeImageReadTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodeImageReadInput(request.Input)
-	if errorValue != nil {
+	if _, errorValue := decodeImageReadInput(request.Input); errorValue != nil {
 		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_input", "input_validation", false), nil
 	}
-	hostPath, agentPath, errorValue := service.resolveFileReadPath(input.Path)
+	carried, errorValue := carriedWorkspaceFileOf(request)
 	if errorValue != nil {
-		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "invalid_workspace_path", "path_validation", false), nil
+		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "file_not_carried", "transport", false), nil
 	}
-	contentType := detectWorkspaceFileContentType(hostPath)
+	contentType := detectCarriedFileContentType(carried)
 	if !strings.HasPrefix(contentType, "image/") {
 		return fileReadErrorResponse(request.ToolName, "non-image files must be read with document_read or file_read", "use_document_read", "content_type", false), nil
 	}
-	fileInformation, errorValue := os.Stat(hostPath)
-	if errorValue != nil {
-		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "image_stat_failed", "path_validation", false), nil
-	}
-	if fileInformation.Size() > maximumInputImagePartBytes {
+	if int64(len(carried.Content)) > maximumInputImagePartBytes {
 		return fileReadErrorResponse(request.ToolName, "image is larger than the model input limit", "image_too_large", "image_read", false), nil
-	}
-	document, errorValue := os.ReadFile(hostPath)
-	if errorValue != nil {
-		return fileReadErrorResponse(request.ToolName, errorValue.Error(), "image_read_failed", "image_read", true), nil
 	}
 	result := imageReadResult{
 		Status: "ok",
-		Path:   agentPath,
+		Path:   carried.AgentPath,
 		Attachments: []imageReadAttachment{{
-			DevicePath:    agentPath,
-			Filename:      filepath.Base(agentPath),
+			DevicePath:    carried.AgentPath,
+			Filename:      filepath.Base(carried.AgentPath),
 			ContentType:   contentType,
-			SizeBytes:     fileInformation.Size(),
-			ContentBase64: base64.StdEncoding.EncodeToString(document),
+			SizeBytes:     int64(len(carried.Content)),
+			ContentBase64: base64.StdEncoding.EncodeToString(carried.Content),
 		}},
 	}
 	resultDocument, errorValue := json.Marshal(result)

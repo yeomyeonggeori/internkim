@@ -52,7 +52,7 @@ func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, reque
 			"pin is not supported on platform "+request.Context.Platform+"; send without pin")
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
-	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(input.Attachments)
+	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -152,4 +152,37 @@ func (service Service) chatdPlatformRequest(ctx context.Context, platform string
 		return nil
 	}
 	return json.Unmarshal(body, responseValue)
+}
+
+// chatd deletes a message as the person who wrote it, which it has been able to
+// do since the messenger screen learned to. Only the route from here was
+// missing, so the agent was told deletion did not exist on this platform.
+func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, request capabilities.ToolInvokeRequest, messageIDs []string) (capabilities.ToolInvokeResponse, error) {
+	replyTargetID := strings.TrimSpace(request.Context.ReplyTargetID)
+	if replyTargetID == "" {
+		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
+	}
+	if replyTargetID == "" {
+		failure := mattermostToolStaticFailure("invalid_input", "platform_route",
+			"a message is deleted in the conversation it belongs to, and this call names none")
+		return mattermostToolErrorResponse(request.ToolName, failure), nil
+	}
+	deleted := []string{}
+	for _, messageID := range messageIDs {
+		trimmedMessageID := strings.TrimSpace(messageID)
+		if trimmedMessageID == "" {
+			continue
+		}
+		var response map[string]any
+		requestBody := map[string]any{"replyTargetID": replyTargetID, "messageID": trimmedMessageID}
+		if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "message_delete", requestBody, &response); errorValue != nil {
+			failure := mattermostToolStaticFailure("message_delete_failed", "platform_delete", trimmedMessageID+": "+errorValue.Error())
+			return mattermostToolErrorResponse(request.ToolName, failure), nil
+		}
+		deleted = append(deleted, trimmedMessageID)
+	}
+	return mattermostToolSuccessResponse(request.ToolName, "deleted", platformMessageDeleteResult{
+		MessageIDs:     deleted,
+		DeliveryStatus: "deleted",
+	})
 }
