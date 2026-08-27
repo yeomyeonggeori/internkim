@@ -2,6 +2,7 @@ package admind
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -22,14 +23,16 @@ func validateAndNormalizeAttendanceWorkPolicy(policy *attendanceWorkPolicy) erro
 			return fmt.Errorf("invalid revision %d: %w", index, errorValue)
 		}
 	}
-	latest := revisions[0]
-	for _, revision := range revisions[1:] {
-		if revision.EffectiveDate > latest.EffectiveDate {
-			latest = revision
+	slices.SortStableFunc(revisions, func(left, right attendanceWorkPolicyRevision) int {
+		return strings.Compare(left.EffectiveDate, right.EffectiveDate)
+	})
+	for index := 1; index < len(revisions); index += 1 {
+		if revisions[index].EffectiveDate == revisions[index-1].EffectiveDate {
+			return fmt.Errorf("two revisions take effect on %s", revisions[index].EffectiveDate)
 		}
 	}
-	latest.EffectiveDate = attendanceWorkPolicyInitialEffectiveDate
-	policy.Revisions = []attendanceWorkPolicyRevision{latest}
+	revisions[0].EffectiveDate = attendanceWorkPolicyInitialEffectiveDate
+	policy.Revisions = revisions
 	return nil
 }
 
@@ -135,5 +138,27 @@ func attendanceWorkPolicyRevisionForDate(
 	if errorValue := validateAndNormalizeAttendanceWorkPolicy(&policy); errorValue != nil {
 		return attendanceWorkPolicyRevision{}, errorValue
 	}
-	return policy.Revisions[0], nil
+	inForce, found := attendanceWorkPolicyRevisionInForce(policy.Revisions, date)
+	if !found {
+		return policy.Revisions[0], nil
+	}
+	return inForce, nil
+}
+
+func attendanceWorkPolicyRevisionInForce(
+	revisions []attendanceWorkPolicyRevision,
+	date string,
+) (attendanceWorkPolicyRevision, bool) {
+	inForce := attendanceWorkPolicyRevision{}
+	found := false
+	for _, revision := range revisions {
+		if revision.EffectiveDate > date {
+			continue
+		}
+		if !found || revision.EffectiveDate > inForce.EffectiveDate {
+			inForce = revision
+			found = true
+		}
+	}
+	return inForce, found
 }
