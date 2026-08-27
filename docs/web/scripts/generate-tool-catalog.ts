@@ -15,8 +15,10 @@ type CanonicalTool = {
   namespace: string;
   description: string;
   sideEffectClass: string;
+  requiresApproval?: boolean;
   requiresUserPresence: boolean;
   privacyClass: string;
+  version: string;
 };
 
 type CanonicalCatalog = {
@@ -37,9 +39,12 @@ const catalog = {
     name: tool.name,
     namespace: tool.namespace,
     summary: firstSentence(tool.description),
+    description: tool.description,
     sideEffectClass: tool.sideEffectClass,
+    requiresApproval: tool.requiresApproval ?? false,
     requiresUserPresence: tool.requiresUserPresence,
     privacyClass: tool.privacyClass,
+    version: tool.version,
   })),
 };
 
