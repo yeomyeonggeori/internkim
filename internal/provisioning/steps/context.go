@@ -51,6 +51,7 @@ type Callbacks struct {
 
 	BinariesVersion             func() string
 	InstallBinariesSSH          func(context *Context) error
+	InstallLocalLLMRuntimeSSH   func(context *Context) error
 	InstallBuzzRelayBinariesSSH func(context *Context) error
 	InstallAdmindSSH            func(context *Context) error
 	InstallCapabilitydSSH       func(context *Context) error
