@@ -144,9 +144,15 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 		}));
 }
 
+// The other side of a direct conversation is drawn by their picture wherever
+// the record can place them, and by the account the conversation named them by
+// where it cannot.
 function avatarOfDirect(channel: MessengerChannel, people: MessengerDirectory, viewer: Viewer): string | undefined {
 	const other = channel.participants.find((person) => !isViewer(person, people, viewer));
-	return other ? personPicture.pictureOfExternal(externalIDOf(other, people)) || undefined : undefined;
+	if (!other) return undefined;
+	const memberID = other.memberID ?? (other.externalID ? people.memberOfExternal.get(other.externalID) : undefined);
+	const drawn = memberID ? personPicture.pictureOf({ memberID }) : '';
+	return drawn || personPicture.pictureOfExternal(externalIDOf(other, people)) || undefined;
 }
 
 export async function bridgePeople(): Promise<Person[]> {
@@ -156,7 +162,7 @@ export async function bridgePeople(): Promise<Person[]> {
 		.map(([memberID, name]) => ({
 			id: memberID,
 			name,
-			avatarURL: personPicture.pictureOfExternal(externalIDsOfMember(people, memberID)[0] ?? '') || undefined
+			avatarURL: personPicture.pictureOf({ memberID }) || undefined
 		}))
 		.filter((person) => person.name)
 		.sort((left, right) => left.name.localeCompare(right.name));
