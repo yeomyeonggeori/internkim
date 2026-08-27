@@ -68,7 +68,9 @@ func calculateAttendanceWorkStatus(
 		status.ActualMinutes += day.ActualMinutes
 		status.ActualSeconds += day.ActualSeconds
 		if day.HasBaseline {
-			baselineActualMinutes += day.ActualMinutes + day.ProvisionalMinutes
+			if !attendanceLeaveCoversBaseline(day.HasBaseline, day.TargetMinutes, day.LeaveMinutes) {
+				baselineActualMinutes += day.ActualMinutes + day.ProvisionalMinutes
+			}
 			status.LeaveMinutes += day.LeaveMinutes
 		}
 		status.ProvisionalMinutes += day.ProvisionalMinutes
@@ -204,8 +206,10 @@ func calculateAttendanceWorkDayStatus(
 	status := "actualOnly"
 	if hasBaseline {
 		remainingMinutes = max(0, targetMinutes-fulfilledMinutes)
-		overtimeMinutes = max(0, creditedMinutes-targetMinutes)
-		differenceMinutes = creditedMinutes - targetMinutes
+		if !attendanceLeaveCoversBaseline(hasBaseline, targetMinutes, leaveMinutes) {
+			overtimeMinutes = max(0, creditedMinutes-targetMinutes)
+			differenceMinutes = creditedMinutes - targetMinutes
+		}
 	}
 	_, hasIncompleteWorkRecord := records.IncompleteDates[dateValue]
 	hasLeaveWorkOverlap := attendanceSegmentsOverlap(daySegments, leaveIntervals)
@@ -271,6 +275,9 @@ func attendanceWorkDayStatusLabel(status attendanceWorkDayStatus) string {
 	if !status.HasBaseline {
 		return "actualOnly"
 	}
+	if attendanceLeaveCoversBaseline(status.HasBaseline, status.TargetMinutes, status.LeaveMinutes) {
+		return "leaveCovered"
+	}
 	if status.RemainingMinutes > 0 {
 		return "remaining"
 	}
@@ -302,6 +309,10 @@ func attendanceWorkStatusLabel(status attendanceWorkStatus) string {
 	if !status.HasBaseline {
 		return "actualOnly"
 	}
+	if attendanceLeaveCoversBaseline(status.HasBaseline, status.TargetMinutes, status.LeaveMinutes) &&
+		status.OvertimeMinutes == 0 {
+		return "leaveCovered"
+	}
 	if status.RemainingMinutes > 0 {
 		return "remaining"
 	}
@@ -309,4 +320,8 @@ func attendanceWorkStatusLabel(status attendanceWorkStatus) string {
 		return "overtime"
 	}
 	return "fulfilled"
+}
+
+func attendanceLeaveCoversBaseline(hasBaseline bool, targetMinutes int, leaveMinutes int) bool {
+	return hasBaseline && leaveMinutes > 0 && targetMinutes == 0
 }
