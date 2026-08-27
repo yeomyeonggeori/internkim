@@ -1,4 +1,5 @@
 import { loader } from 'fumadocs-core/source';
+import { openapiPlugin } from 'fumadocs-openapi/server';
 import { defineDocs } from 'fumadocs-mdx/macro';
 import { i18n } from './i18n';
 import { docsContentRoute, docsRoute } from './shared';
@@ -21,6 +22,7 @@ export const source = loader({
   i18n,
   source: docs.toFumadocsSource(),
   baseUrl: docsRoute,
+  plugins: [openapiPlugin()],
 });
 
 export function getPageMarkdownUrl(page: (typeof source)['$inferPage']) {
