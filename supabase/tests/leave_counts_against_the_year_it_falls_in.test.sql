@@ -59,9 +59,9 @@ select is(
 
 select lives_ok($block$do $$
 begin
-  assert public.member_leave_remaining('45000000-0000-0000-0000-0000000000a1', 2026) = 13,
+  assert internal.member_leave_remaining('45000000-0000-0000-0000-0000000000a1', 2026) = 13,
     'only the days that fell in 2026 come off the 2026 balance';
-  assert public.member_leave_remaining('45000000-0000-0000-0000-0000000000a1', 2027) = 13,
+  assert internal.member_leave_remaining('45000000-0000-0000-0000-0000000000a1', 2027) = 13,
     'the days that fell in 2027 come off the 2027 balance';
   raise notice 'balance: a leave across new year is split, not attributed to its start';
 end $$;$block$, 'balance: a leave across new year is split, not attributed to its start');
