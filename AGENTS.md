@@ -516,10 +516,10 @@ and delete the duplicates.
 - Pages custom domains do not accept wildcards. Each company hostname is
   attached explicitly (`web/scripts/pages-domains.ts`), so creating a company
   includes creating its hostname.
-- Moving a hostname between two Pages projects is three steps, and the tool does
-  two of them: detach, attach, then repoint the zone's CNAME at the new
-  project's `pages.dev`. Detaching leaves the record naming a project that no
-  longer answers for it, so the address returns `522` until the record moves.
+- Attaching a hostname writes its DNS too: `--attach` upserts a proxied CNAME at
+  `<project>.pages.dev` in whichever zone hosts it. Moving a hostname between two
+  Pages projects is therefore a detach and then an attach; `--detach` leaves the
+  record alone so the address keeps resolving until the attach repoints it.
 
 ## Bringing Device Data Across
 
