@@ -48,6 +48,7 @@ export async function keepMemberCredential(
 
 export type ConnectedMessengerAccount = {
 	memberID: string;
+	platform: string;
 	kind: string;
 	externalID: string;
 	name: string;
@@ -65,7 +66,7 @@ export async function connectMessengerAccount(
 		secret: account.secret,
 	});
 
-	await rememberMessengerAccount(client, account.memberID, account.kind, account.externalID);
+	await rememberMessengerAccount(client, account.memberID, account.platform, account.externalID);
 }
 
 // Which account on which messenger this member is, kept on the member. The name
@@ -160,17 +161,3 @@ async function storeSecret(
 
 // A company runs one messenger, so a member holds one credential for it, and
 // which kind that is belongs to the messenger rather than to the caller.
-export async function memberMessengerCredential(
-	client: SupabaseClient,
-	memberID: string,
-): Promise<MemberCredential | null> {
-	const { data, error } = await client
-		.from('credential')
-		.select('kind')
-		.eq('member_id', memberID)
-		.limit(1)
-		.maybeSingle<{ kind: string }>();
-	if (error) throw new Error(error.message);
-	if (!data) return null;
-	return memberCredential(client, memberID, data.kind);
-}

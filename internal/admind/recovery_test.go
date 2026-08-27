@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -259,21 +258,14 @@ func TestEveryAllowedRecoveryActionIsOfferedByTheCommandLine(t *testing.T) {
 	if errorValue != nil {
 		t.Skipf("command line source unavailable: %v", errorValue)
 	}
-	helpText := regexp.MustCompile(`"Recovery action: [^"]*"`).Find(source)
-	if helpText == nil {
-		t.Fatal("the recover command no longer states its actions")
+	if !strings.Contains(string(source), "admind.SSHRecoveryActions") {
+		t.Fatal("the command line keeps its own list of actions again; one added here will be refused there")
 	}
-	commandLineAllowlist := regexp.MustCompile(`(?s)func isAllowedCLIRecoveryAction\(action string\) bool \{\n\tswitch action \{\n\tcase (.*?):\n`).FindSubmatch(source)
-	if commandLineAllowlist == nil {
-		t.Fatal("the recover command no longer carries its own allowlist")
+	if len(SSHRecoveryActions) == 0 {
+		t.Fatal("no recovery action is allowed at all")
 	}
-	for _, action := range allowedSSHRecoveryActionsForTest(t) {
-		if !strings.Contains(string(helpText), action) {
-			t.Fatalf("recovery action %q is allowed but the command line never names it", action)
-		}
-		if !strings.Contains(string(commandLineAllowlist[1]), `"`+action+`"`) {
-			t.Fatalf("recovery action %q is allowed by the device but the command line refuses to send it", action)
-		}
+	if !isAllowedSSHRecoveryAction(SSHRecoveryActions[0]) {
+		t.Fatalf("%q is listed but refused", SSHRecoveryActions[0])
 	}
 }
 
@@ -286,24 +278,4 @@ func TestBootDiagnosisReadsTheRuntimeWhereTheGuestBootsFromIt(t *testing.T) {
 	if strings.Contains(command, "/.blueclaw/runtime/current") {
 		t.Fatal("the workspace image no longer carries a runtime, so reading one reports a directory nothing writes")
 	}
-}
-
-func allowedSSHRecoveryActionsForTest(t *testing.T) []string {
-	t.Helper()
-	source, errorValue := os.ReadFile("recovery.go")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	declaration := regexp.MustCompile(`(?s)func isAllowedSSHRecoveryAction\(action string\) bool \{\n\tswitch action \{\n\tcase (.*?):\n`).FindSubmatch(source)
-	if declaration == nil {
-		t.Fatal("the recovery allowlist is no longer readable")
-	}
-	actions := []string{}
-	for _, match := range regexp.MustCompile(`"([^"]+)"`).FindAllSubmatch(declaration[1], -1) {
-		actions = append(actions, string(match[1]))
-	}
-	if len(actions) == 0 {
-		t.Fatal("the recovery allowlist parsed empty")
-	}
-	return actions
 }

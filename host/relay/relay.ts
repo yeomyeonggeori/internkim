@@ -103,16 +103,17 @@ const dispatch = {
 		return member.data?.email ?? null;
 	},
 	messengerCredentialOf: async (memberID: string) => {
+		const kind = await messengerCredentialKind();
 		const held = await askTheRecord<{ credential?: { kind: string; secret: string } | null }>(
 			'GET',
-			`/api/agent/messenger-credential?memberID=${encodeURIComponent(memberID)}`
+			`/api/agent/messenger-credential?memberID=${encodeURIComponent(memberID)}&kind=${encodeURIComponent(kind)}`
 		);
 		if (!held.credential) return null;
 		return { kind: held.credential.kind, secret: held.credential.secret };
 	},
 	connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 		await askTheRecord('POST', '/api/agent/messenger-account', {
-			kind: messengerPlatform,
+			platform: messengerPlatform,
 			memberID,
 			...account
 		});
@@ -120,6 +121,26 @@ const dispatch = {
 };
 
 openGatewayConnection();
+
+let credentialKindAsked: Promise<string> | undefined;
+
+async function messengerCredentialKind(): Promise<string> {
+	const asking = credentialKindAsked ?? askWhichCredentialTheMessengerNeeds();
+	credentialKindAsked = asking;
+	asking.catch(() => {
+		if (credentialKindAsked === asking) credentialKindAsked = undefined;
+	});
+	return asking;
+}
+
+async function askWhichCredentialTheMessengerNeeds(): Promise<string> {
+	const answer = await dispatch.askChatd('person.credential.requirement', {});
+	const named = (answer.body as { credentialKind?: unknown } | null)?.credentialKind;
+	if (typeof named !== 'string' || named === '') {
+		throw new Error(`${messengerPlatform} did not name the credential it needs`);
+	}
+	return named;
+}
 
 async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
