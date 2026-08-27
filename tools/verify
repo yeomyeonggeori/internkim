@@ -74,7 +74,7 @@ GROUPS = [
     ),
     Group(
         "public-api",
-        ["workers/public-api/*", "pkg/capabilityprotocol/generated/*"],
+        ["workers/public-api/*", "pkg/capabilityprotocol/generated/*", "host/relay/asset-store.ts"],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
         working_directory="workers/public-api",
     ),

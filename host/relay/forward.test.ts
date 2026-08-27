@@ -3,16 +3,25 @@ import {
 	admindAPIURL,
 	answerBodyOf,
 	apiRequestCapability,
+	forwardToAdmind,
 	forwardToAdmindAPI,
 	forwardToChatd,
 	isPersonCapability,
 	isRegistrationCapability,
 	isWorkspaceCapability,
+	leafNameOf,
 	mailOperationOf,
 	publicAPIRequestOf,
+	publicAPIFileOf,
 	serveCallForMember,
+	servePublicAPIFile,
 	servePublicAPIRequest,
+	workspaceCallOf,
+	workspaceCapabilityPaths,
+	workspaceUploadURL,
+	type AdmindCall,
 	type ConnectedAccount,
+	type KeptFileReference,
 	type PublicAPIRequest
 } from './forward';
 import { rmSync } from 'node:fs';
@@ -22,9 +31,11 @@ import { join } from 'node:path';
 function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const asked: { capability: string; body: Record<string, unknown> }[] = [];
 	const connected: { memberID: string; account: ConnectedAccount }[] = [];
+	const admindCalls: AdmindCall[] = [];
 	return {
 		asked,
 		connected,
+		admindCalls,
 		dispatch: {
 			connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 				connected.push({ memberID, account });
@@ -54,10 +65,6 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 				}
 				return { status: 200, body: { conversations: [] } };
 			},
-			askAdmind: async (capability: string, body: Record<string, unknown>, requesterEmail: string) => {
-				asked.push({ capability, body: { ...body, requesterEmail } });
-				return { status: 200, body: { served: capability } };
-			},
 			askAdmindAPI: async (request: PublicAPIRequest) => {
 				asked.push({ capability: apiRequestCapability, body: { ...request } });
 				return { status: 200, body: { served: request.path } };
@@ -73,6 +80,11 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 				digest: contentBase64
 			}),
 			keptAlready: async () => null,
+			keptFileBytes: async () => new TextEncoder().encode('kept bytes'),
+			askAdmindAsRequester: async (call: AdmindCall) => {
+				admindCalls.push(call);
+				return { status: 200, body: { served: call.url } };
+			},
 			largestFileBytes: 200_000_000
 		}
 	};
@@ -158,18 +170,36 @@ describe('serveCallForMember', () => {
 	});
 
 	test('a workspace call is asked of the workspace as the person who asked', async () => {
-		const { asked, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
+		const { admindCalls, dispatch } = dispatchThatKnows({ 'U-known': 'member-1' });
 
 		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
 			capability: 'person.memory.graph',
-			body: {}
+			body: { personID: 'person-1' }
 		}, 'member-1');
 
 		expect(served.status).toBe(200);
 		expect(served.replyTo).toBe('member-1');
-		const workspaceCall = asked.find((entry) => entry.capability === 'person.memory.graph');
-		expect(workspaceCall?.body.requesterEmail).toBe('sample@example.test');
+		expect(admindCalls).toEqual([
+			{
+				method: 'GET',
+				url: 'http://internkim/memory/api/graph?personID=person-1',
+				requester: 'sample@example.test'
+			}
+		]);
+	});
+
+	test('a workspace capability the app does not have is refused rather than asked for', async () => {
+		const { admindCalls, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(dispatch, {
+			callID: 'c1',
+			capability: 'person.files.invented',
+			body: {}
+		}, 'member-1');
+
+		expect(served.status).toBe(404);
+		expect(admindCalls).toEqual([]);
 	});
 
 	test('a workspace call for a member the record has no address for is refused', async () => {
@@ -553,6 +583,37 @@ test('a message is still the messenger, not the workspace', () => {
 	expect(isWorkspaceCapability('person.message.send')).toBe(false);
 });
 
+describe('every capability the workspace family names', () => {
+	const capabilities = Object.keys(workspaceCapabilityPaths);
+
+	test('is asked for on the socket admind hears a requester on, never at a loopback port', () => {
+		expect(capabilities.length).toBeGreaterThan(0);
+		for (const capability of capabilities) {
+			const call = workspaceCallOf(capability, {}, 'sample@example.test');
+			expect(`${capability} ${call?.url}`).toBe(
+				`${capability} http://internkim${workspaceCapabilityPaths[capability]}`
+			);
+			expect(call?.requester).toBe('sample@example.test');
+		}
+	});
+
+	test('is one the relay routes to the workspace rather than the messenger', () => {
+		for (const capability of capabilities) {
+			expect(isWorkspaceCapability(capability)).toBe(true);
+		}
+	});
+
+	test('carries what the caller asked for as a query, and never the actor', () => {
+		const call = workspaceCallOf(
+			'person.runs.detail',
+			{ taskRunID: 'run-1', actor: { kind: 'buzz' } },
+			'sample@example.test'
+		);
+
+		expect(call?.url).toBe('http://internkim/runs/api/detail?taskRunID=run-1');
+	});
+});
+
 type ArrivedRequest = {
 	method: string;
 	path: string;
@@ -741,5 +802,321 @@ describe('admindAPIURL', () => {
 	test('the public API is asked for under /api/v1 on the socket', () => {
 		expect(admindAPIURL(read)).toBe('http://internkim/api/v1/tasks?limit=20');
 		expect(admindAPIURL({ ...read, query: '' })).toBe('http://internkim/api/v1/tasks');
+	});
+});
+
+describe('a file the plane already kept in the company bucket', () => {
+	const digest = 'a'.repeat(64);
+	const kept = {
+		requester: 'sample@example.test',
+		permission: 'write',
+		digest,
+		contentType: 'image/png',
+		filename: 'mascot.png'
+	};
+
+	function dispatchWithHome(agentPath: string | null) {
+		const { dispatch, admindCalls } = dispatchThatKnows({});
+		return {
+			admindCalls,
+			dispatch: {
+				...dispatch,
+				askAdmindAsRequester: async (call: AdmindCall) => {
+					admindCalls.push(call);
+					if (call.url.includes('/files/api/roots')) return { status: 200, body: rootsOf(agentPath) };
+					return { status: 200, body: { uploaded: [uploadedNameOf(call)] } };
+				}
+			}
+		};
+	}
+
+	function rootsOf(agentPath: string | null): { roots: unknown[] } {
+		if (!agentPath) return { roots: [] };
+		return {
+			roots: [
+				{ id: 'personal', kind: 'personal', agentPath },
+				{ id: 'public', kind: 'public', agentPath: '/workspace/shared/public' }
+			]
+		};
+	}
+
+	function uploadedNameOf(call: AdmindCall): string {
+		const part = call.body instanceof FormData ? call.body.get('file') : null;
+		return part instanceof File ? part.name : '';
+	}
+
+	test('is read as a digest, a content type and who asked, and never as a destination', () => {
+		expect(publicAPIFileOf({ ...kept, path: '/workspace/etc' })).toEqual(kept);
+		expect(publicAPIFileOf({ requester: 'sample@example.test', permission: 'write', digest })).toEqual({
+			requester: 'sample@example.test',
+			permission: 'write',
+			digest,
+			contentType: 'application/octet-stream',
+			filename: ''
+		});
+	});
+
+	test('is nothing to write when nobody, no permission, or no digest is named', () => {
+		expect(publicAPIFileOf({ ...kept, digest: 'nope' })).toBeNull();
+		expect(publicAPIFileOf({ ...kept, digest: `${digest}/../x` })).toBeNull();
+		expect(publicAPIFileOf({ ...kept, requester: '' })).toBeNull();
+		expect(publicAPIFileOf({ ...kept, permission: '' })).toBeNull();
+	});
+
+	test('is uploaded to admind, into the requester own home, under the inbox a file arrives in', async () => {
+		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+
+		const served = await servePublicAPIFile(dispatch, kept);
+
+		expect(served.status).toBe(200);
+		expect(served.body).toEqual({
+			file: {
+				path: '/workspace/private/people/person-1/inbox/api/mascot.png',
+				sizeBytes: 'kept bytes'.length,
+				digest,
+				contentType: 'image/png'
+			}
+		});
+		expect(admindCalls[1]).toMatchObject({
+			method: 'POST',
+			url: workspaceUploadURL('/workspace/private/people/person-1/inbox/api'),
+			requester: 'sample@example.test',
+			permission: 'write'
+		});
+	});
+
+	test('is asked for under the name admind reports back, never the one the relay offered', async () => {
+		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+		const renaming = {
+			...dispatch,
+			askAdmindAsRequester: async (call: AdmindCall) => {
+				const answer = await dispatch.askAdmindAsRequester(call);
+				if (call.url.includes('/files/api/roots')) return answer;
+				return { status: 200, body: { uploaded: ['mascot-1.png'] } };
+			}
+		};
+
+		const served = await servePublicAPIFile(renaming, kept);
+
+		expect(served.body).toEqual({
+			file: {
+				path: '/workspace/private/people/person-1/inbox/api/mascot-1.png',
+				sizeBytes: 'kept bytes'.length,
+				digest,
+				contentType: 'image/png'
+			}
+		});
+		expect(admindCalls).toHaveLength(2);
+	});
+
+	test('carries the leaf of the name offered, so a caller cannot climb out of the directory', async () => {
+		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+
+		const served = await servePublicAPIFile(dispatch, { ...kept, filename: '../../../etc/passwd' });
+
+		expect(served.body).toEqual({
+			file: {
+				path: '/workspace/private/people/person-1/inbox/api/passwd',
+				sizeBytes: 'kept bytes'.length,
+				digest,
+				contentType: 'image/png'
+			}
+		});
+		expect(admindCalls[1]?.url).toBe(
+			workspaceUploadURL('/workspace/private/people/person-1/inbox/api')
+		);
+	});
+
+	test('takes the digest and its extension when the caller offered no name', async () => {
+		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+
+		const served = await servePublicAPIFile(dispatch, { ...kept, filename: '   ' });
+
+		expect(served.body).toMatchObject({
+			file: { path: `/workspace/private/people/person-1/inbox/api/${digest}.png` }
+		});
+		expect(admindCalls).toHaveLength(2);
+	});
+
+	test('is refused when the address the key resolved to has no home, before anything is uploaded', async () => {
+		const { dispatch, admindCalls } = dispatchWithHome(null);
+
+		const served = await servePublicAPIFile(dispatch, { ...kept, requester: 'stranger@example.test' });
+
+		expect(served.status).toBe(409);
+		expect(admindCalls).toHaveLength(1);
+	});
+
+	test('is refused before admind is asked anything when the call names no file', async () => {
+		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+
+		const served = await servePublicAPIFile(dispatch, { requester: 'sample@example.test' });
+
+		expect(served.status).toBe(400);
+		expect(admindCalls).toEqual([]);
+	});
+
+	test('answers what admind answered when admind refuses the write', async () => {
+		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+		const refusing = {
+			...dispatch,
+			askAdmindAsRequester: async (call: AdmindCall) => {
+				const answer = await dispatch.askAdmindAsRequester(call);
+				if (call.url.includes('/files/api/roots')) return answer;
+				return { status: 403, body: { error: 'workspace path is not accessible' } };
+			}
+		};
+
+		const served = await servePublicAPIFile(refusing, kept);
+
+		expect(served).toEqual({ status: 403, body: { error: 'workspace path is not accessible' } });
+		expect(admindCalls).toHaveLength(2);
+	});
+
+	test('answers a failure when admind takes the call and writes nothing', async () => {
+		const { dispatch } = dispatchWithHome('/workspace/private/people/person-1');
+		const writingNothing = {
+			...dispatch,
+			askAdmindAsRequester: async (call: AdmindCall) => {
+				const answer = await dispatch.askAdmindAsRequester(call);
+				if (call.url.includes('/files/api/roots')) return answer;
+				return { status: 200, body: { uploaded: [] } };
+			}
+		};
+
+		expect((await servePublicAPIFile(writingNothing, kept)).status).toBe(502);
+	});
+});
+
+describe('the name a kept file takes in the workspace', () => {
+	test('is the leaf of what was offered, never a directory the caller chose', () => {
+		expect(leafNameOf('report.pdf', 'fallback')).toBe('report.pdf');
+		expect(leafNameOf('../../etc/passwd', 'fallback')).toBe('passwd');
+		expect(leafNameOf('C:\\Users\\someone\\report.pdf', 'fallback')).toBe('report.pdf');
+	});
+
+	test('is the fallback when nothing usable was offered', () => {
+		expect(leafNameOf('', 'digest.png')).toBe('digest.png');
+		expect(leafNameOf('   ', 'digest.png')).toBe('digest.png');
+		expect(leafNameOf('..', 'digest.png')).toBe('digest.png');
+		expect(leafNameOf('/.blueclaw', 'digest.png')).toBe('digest.png');
+	});
+});
+
+describe('the upload admind is asked for', () => {
+	test('names the directory the relay derived, as a query it cannot be mistaken for a path', () => {
+		expect(workspaceUploadURL('/workspace/private/people/person-1/inbox/api')).toBe(
+			'http://internkim/files/api/upload?path=%2Fworkspace%2Fprivate%2Fpeople%2Fperson-1%2Finbox%2Fapi'
+		);
+	});
+});
+
+describe('the materialising capability, over the socket admind listens on', () => {
+	const digest = 'b'.repeat(64);
+	const uploads: { path: string; search: string; headers: Record<string, string>; filename: string; content: string }[] = [];
+	let socketPath = '';
+	let admind: ReturnType<typeof Bun.serve> | null = null;
+
+	beforeEach(() => {
+		uploads.length = 0;
+		socketPath = join(tmpdir(), `relay-upload-${crypto.randomUUID().slice(0, 8)}.sock`);
+		admind = Bun.serve({
+			unix: socketPath,
+			fetch: async (request) => {
+				const asked = new URL(request.url);
+				if (asked.pathname === '/files/api/roots') {
+					return Response.json({
+						roots: [{ id: 'personal', kind: 'personal', agentPath: '/workspace/private/people/person-1' }]
+					});
+				}
+				const headers: Record<string, string> = {};
+				request.headers.forEach((value, name) => {
+					headers[name] = value;
+				});
+				const part = (await request.formData()).get('file');
+				const file = part instanceof File ? part : new File([], '');
+				uploads.push({
+					path: asked.pathname,
+					search: asked.search,
+					headers,
+					filename: file.name,
+					content: await file.text()
+				});
+				return Response.json({ uploaded: [file.name] });
+			}
+		});
+	});
+
+	afterEach(() => {
+		admind?.stop(true);
+		admind = null;
+		rmSync(socketPath, { force: true });
+	});
+
+	test('posts the bytes as one multipart part, under the two headers only the relay writes', async () => {
+		const { dispatch } = dispatchThatKnows({});
+
+		const served = await servePublicAPIFile(
+			{ ...dispatch, askAdmindAsRequester: (call: AdmindCall) => forwardToAdmind(socketPath, call) },
+			{
+				requester: 'sample@example.test',
+				permission: 'write',
+				digest,
+				contentType: 'text/plain',
+				filename: 'notes.txt'
+			}
+		);
+
+		expect(served.status).toBe(200);
+		expect(served.body).toEqual({
+			file: {
+				path: '/workspace/private/people/person-1/inbox/api/notes.txt',
+				sizeBytes: 'kept bytes'.length,
+				digest,
+				contentType: 'text/plain'
+			}
+		});
+		expect(uploads).toHaveLength(1);
+		expect(uploads[0]?.path).toBe('/files/api/upload');
+		expect(uploads[0]?.search).toBe('?path=%2Fworkspace%2Fprivate%2Fpeople%2Fperson-1%2Finbox%2Fapi');
+		expect(uploads[0]?.filename).toBe('notes.txt');
+		expect(uploads[0]?.content).toBe('kept bytes');
+		expect(uploads[0]?.headers['x-internkim-requester-email']).toBe('sample@example.test');
+		expect(uploads[0]?.headers['x-internkim-requester-permission']).toBe('write');
+	});
+});
+
+describe('a workspace call from a member, over the socket admind listens on', () => {
+	const arrived: ArrivedRequest[] = [];
+	let socketPath = '';
+	let admind: ReturnType<typeof admindListeningOn> | null = null;
+
+	beforeEach(() => {
+		arrived.length = 0;
+		socketPath = join(tmpdir(), `relay-workspace-${crypto.randomUUID().slice(0, 8)}.sock`);
+		admind = admindListeningOn(socketPath, arrived);
+	});
+
+	afterEach(() => {
+		admind?.stop(true);
+		admind = null;
+		rmSync(socketPath, { force: true });
+	});
+
+	test('reaches admind as the person who asked, where a requester header is heard at all', async () => {
+		const { dispatch } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(
+			{ ...dispatch, askAdmindAsRequester: (call: AdmindCall) => forwardToAdmind(socketPath, call) },
+			{ callID: 'c1', capability: 'person.runs.list', body: {} },
+			'member-1'
+		);
+
+		expect(served.status).toBe(200);
+		expect(arrived).toHaveLength(1);
+		expect(arrived[0]?.method).toBe('GET');
+		expect(arrived[0]?.path).toBe('/runs/api');
+		expect(arrived[0]?.headers['x-internkim-requester-email']).toBe('sample@example.test');
+		expect(arrived[0]?.headers['x-internkim-requester-permission']).toBeUndefined();
 	});
 });

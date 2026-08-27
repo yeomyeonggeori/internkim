@@ -256,6 +256,12 @@ func (service *Service) invokePublicTool(responseWriter http.ResponseWriter, req
 	toolRequest.Context = publicToolInvokeContext(actor.Actor, descriptor)
 	toolRequest.PrivacyClass = descriptor.PrivacyClass
 	toolRequest.RequiresUserPresence = descriptor.RequiresUserPresence
+	carriedFiles, refusalStatus, errorValue := service.carriedWorkspaceFiles(request.Context(), actor.Actor, toolRequest.Input)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), refusalStatus)
+		return
+	}
+	toolRequest.Transport.WorkspaceFiles = carriedFiles
 	response, errorValue := service.invokeCapabilityTool(request.Context(), toolRequest)
 	service.writeCapabilityResponse(responseWriter, response, errorValue)
 }
