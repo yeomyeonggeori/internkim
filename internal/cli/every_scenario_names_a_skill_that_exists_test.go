@@ -29,6 +29,12 @@ func TestEveryScenarioNamesASkillThatExists(t *testing.T) {
 	if len(present) == 0 {
 		t.Fatal("no skills were found at all, so this test is reading the wrong place")
 	}
+	// Half the skills live in the plugin submodule. Without it the failure reads
+	// as a scenario naming a skill nobody wrote, and the next person goes looking
+	// for a skill that is right there in another checkout.
+	if entries, errorValue := os.ReadDir(blueclawworkspace.PluginSkillsPath(repositoryRoot)); errorValue != nil || len(entries) == 0 {
+		t.Skip("the internkim-plugin submodule is not checked out: git submodule update --init .dependency/internkim-plugin")
+	}
 
 	scenarios, errorValue := filepath.Glob(filepath.Join(repositoryRoot, "tests", "expensive", "*.json"))
 	if errorValue != nil {

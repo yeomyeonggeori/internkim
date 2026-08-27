@@ -5320,7 +5320,7 @@ func setupCanRunWithoutSSH(arguments []string) bool {
 	if len(onlySteps) != 1 {
 		return false
 	}
-	return onlySteps[0] == "blueclaw-payload-direct" || onlySteps[0] == "cloudflare-access"
+	return onlySteps[0] == "blueclaw-payload-direct"
 }
 
 func applySetupBoardDefaults(boardType string, withGoogle bool, selector setup.Selector) setup.Selector {

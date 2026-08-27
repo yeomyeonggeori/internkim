@@ -141,7 +141,7 @@ type devFleetRunConfiguration struct {
 }
 
 // Reprovision the running local fleet VM in place from the current working tree.
-// The Firecracker guest runs from a baked rootfs, so Blueclaw, skill, prompt, and
+// The guest runs from a baked rootfs, so Blueclaw, skill, prompt, and
 // runtime changes only reach it through a reprovision; copying files onto the host
 // and restarting the service does not update the guest. GO_MOD_CACHE must point at
 // the real module cache or the payload build fails on the empty isolated cache.
@@ -178,7 +178,7 @@ func runDevFleetReprovision(arguments []string) error {
 	command := exec.Command(executablePath, "setup", "--board", "lab", "--ssh", "--host", vmInternetProtocolAddress,
 		"--user", "admin", "--password", "admin",
 		"--admin-email", "local-fleet-admin@internkim.test",
-		"--wait-lock", "--force", "--skip", "wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost,web,blueclaw-runtime-base")
+		"--wait-lock", "--force", "--skip", "wifi,local-llm,google,slack,mattermost,web,blueclaw-runtime-base")
 	command.Env = devFleetReprovisionEnvironment(os.Environ(), goModuleCachePath(), *modelTierArgument)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout

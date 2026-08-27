@@ -8,7 +8,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - The product is moving off per-device hardware onto a central plane the
   customer signs into, with the agent running on a computer they bring. Device
   paths still ship and must keep working; when a section speaks of Jetson,
-  OTA, or Firecracker it is describing that older half, not the direction.
+  OTA, or the guest VM it is describing that older half, not the direction.
 - Prefer existing codebase patterns over new abstractions.
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
@@ -308,10 +308,21 @@ and delete the duplicates.
 - Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
   agent execution that touches `shell`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
+- Anything on the messenger path is verified with
+  `./internkim dev fleet run --scenario buzz-attachment`. Buzz is what a
+  company's messages travel over; the `mattermost-*` scenarios cover the older
+  half. The scenario invites a person, derives their key from the device seed
+  the way `buzzidentity.Secret` does, sends the agent a picture through chatd's
+  person capabilities, and reads the task ledger.
+- The guest's `/workspace` is `/var/lib/blueclaw/workspace.ext4`, attached to
+  the VM. `/root/.blueclaw/workspace` on the host is a different tree, not a
+  mount of that image. A host daemon that writes there and answers with a
+  `/workspace` path has told the agent about a file that is not there; hand the
+  bytes to blueclaw and let it write them as the person instead.
 - The disposable local fleet is an Apple Container VM (`internkim-e2e-<runID>`) with
   its config at `.local/local-fleet/runs/<runID>/config.json`; Blueclaw runs as a
-  Firecracker guest inside it, so skill/Blueclaw/runtime changes only reach it through
-  a reprovision. Push working-tree changes onto the running VM with
+  cloud-hypervisor guest inside it, so skill/Blueclaw/runtime changes only reach it
+  through a reprovision. Push working-tree changes onto the running VM with
   `./internkim dev fleet reprovision`; it reprovisions in place with the required
   `GO_MOD_CACHE` override and resets the policy people and guest Postgres.
 - Reprovision (and OTA) deploy Blueclaw by release SHA (`.dependency/blueclaw` HEAD):
@@ -336,8 +347,9 @@ and delete the duplicates.
   until the relevant Local Fleet run produces the intended result. If Local Fleet verification
   fails, fix the behavior or explicitly report the unresolved failure instead of
   proceeding to deployment.
-- Do not replace this gate with Docker or another executor unless the task
-  explicitly asks for a different executor model.
+- Do not replace this gate with another executor unless the task explicitly asks
+  for a different executor model. Nothing here runs on Docker: the fleet VM is an
+  Apple Container and the guest is cloud-hypervisor.
 - For web, admind, capabilityd, Mattermost connector, or cross-service behavior
   changes, verify the current checkout through the local fleet with
   `./internkim dev fleet run` or a narrower
@@ -677,7 +689,7 @@ and delete the duplicates.
   `INTERNKIM_POC_SSH_PASSWORD=<pw> ./internkim deploy --components <admind,capabilityd,blueclaw,web> --fleet <poc-id>`.
   Component names are shared across kinds; `blueclaw` on a poc-container builds
   the `blueclaw`+`blueclaw-posix-helper` linux/arm64 binaries from
-  `.dependency/blueclaw` and syncs migrations (it does not use the Firecracker
+  `.dependency/blueclaw` and syncs migrations (it does not use the guest VM
   payload). Do not hand-run the build/scp/container steps; use this command.
 - PoC Mattermost runs separately from tenant containers. Interactive action
   URLs for attendance, approvals, and choices must use each tenant's public
@@ -687,7 +699,7 @@ and delete the duplicates.
   generation backend). Generation: gemma-4-E2B QAT (`-UD-Q4_K_XL`) + MTP drafter
   (`--spec-type draft-mtp`, `--chat-template gemma` — gemma-4 returns EMPTY chat output
   without it). Embedding: BGE-M3 Q8 on CPU (`-ngl 0`, frees GPU for
-  generation). gemma-4-E4B does not fit the 8GB Jetson alongside firecracker; use E2B.
+  generation). gemma-4-E4B does not fit the 8GB Jetson alongside the guest VM; use E2B.
   Build the `llama-server` bundle in a local `linux/arm64` container and deploy only that
   artifact. `litert_lm_main` is a legacy fallback path, not the default generation backend;
   Bazel/CUDA builds OOM the 8GB Jetson.
@@ -713,7 +725,7 @@ and delete the duplicates.
   artifact revision does not match the `.dependency/blueclaw` HEAD, telling you to
   rebuild; do not bypass that guard.
 - For uncommitted `.dependency/blueclaw` changes, use
-  `INTERNKIM_BLUECLAW_USE_LOCAL=1`. If those changes must enter the Firecracker
+  `INTERNKIM_BLUECLAW_USE_LOCAL=1`. If those changes must enter the guest VM
   payload, run `make prepare-blueclaw-payload` before deploy.
 - Use `./internkim setup ...` only for first-time bootstrap, Admin HTTPS
   recovery, or explicit SSH provisioning/debug paths. Run `--plan` before any

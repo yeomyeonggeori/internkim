@@ -45,9 +45,12 @@ type platformInputAttachment struct {
 	ContentType string `json:"contentType,omitempty"`
 	SizeBytes   int64  `json:"sizeBytes,omitempty"`
 	Path        string `json:"path,omitempty"`
-	IsAvailable bool   `json:"isAvailable,omitempty"`
-	ErrorCode   string `json:"errorCode,omitempty"`
-	Message     string `json:"message,omitempty"`
+	// ContentBase64 carries the fetched file to the workspace it belongs in.
+	// This daemon has no identity there to write it as.
+	ContentBase64 string `json:"contentBase64,omitempty"`
+	IsAvailable   bool   `json:"isAvailable,omitempty"`
+	ErrorCode     string `json:"errorCode,omitempty"`
+	Message       string `json:"message,omitempty"`
 }
 
 type platformPart struct {

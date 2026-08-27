@@ -1967,73 +1967,19 @@ func TestMattermostImportAttachmentsWritesSanitizedDuplicateFilenames(t *testing
 	if firstAttachment.Path != "/workspace/private/people/person-1/inbox/mattermost/post-1/guide.pdf" {
 		t.Fatalf("expected virtual workspace path, got %q", firstAttachment.Path)
 	}
-	firstContent, errorValue := os.ReadFile(filepath.Join(workspacePath, "private", "people", "person-1", "inbox", "mattermost", "post-1", "guide.pdf"))
+	firstContent, errorValue := base64.StdEncoding.DecodeString(firstAttachment.ContentBase64)
 	if errorValue != nil {
-		t.Fatalf("expected first imported file: %v", errorValue)
+		t.Fatalf("expected the first file to be carried: %v", errorValue)
 	}
-	secondContent, errorValue := os.ReadFile(filepath.Join(workspacePath, "private", "people", "person-1", "inbox", "mattermost", "post-1", "guide-2.pdf"))
+	secondContent, errorValue := base64.StdEncoding.DecodeString(secondAttachment.ContentBase64)
 	if errorValue != nil {
-		t.Fatalf("expected second imported file: %v", errorValue)
+		t.Fatalf("expected the second file to be carried: %v", errorValue)
 	}
 	if string(firstContent) != "file-one" || string(secondContent) != "file-two" {
-		t.Fatalf("expected imported file contents, got %q and %q", string(firstContent), string(secondContent))
+		t.Fatalf("expected carried file contents, got %q and %q", string(firstContent), string(secondContent))
 	}
-}
-
-func TestMattermostImportAttachmentsVerifiesExistingFileContent(t *testing.T) {
-	workspacePath := t.TempDir()
-	downloadCount := 0
-	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/api/v4/files/file-1/info":
-			return testJSONResponse(http.StatusOK, mattermostFileMetadata{ID: "file-1", Name: "report.pdf", SizeBytes: 8, ContentType: "application/pdf"}), nil
-		case "/api/v4/files/file-1":
-			downloadCount++
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader("document")),
-				Header:     http.Header{"Content-Type": []string{"application/pdf"}},
-			}, nil
-		default:
-			t.Fatalf("unexpected mattermost request: %s", request.URL.Path)
-			return testJSONResponse(http.StatusNotFound, map[string]string{}), nil
-		}
-	})}
-	service := Service{
-		Configuration: Configuration{
-			MattermostBaseURL:     "https://mattermost.test",
-			MattermostTokenPath:   writePlatformTestFile(t, "mattermost-token"),
-			BlueclawWorkspacePath: workspacePath,
-		},
-		HTTPClient: httpClient,
-	}
-	payload := json.RawMessage(`{
-		"messageID":"post-1",
-		"targetDirectoryPath":"/workspace/circles/staff/inbox/mattermost/thread-1/post-1",
-		"inputAttachments":[{"platform":"mattermost","fileID":"file-1","messageID":"post-1"}]
-	}`)
-
-	firstResponse, errorValue := service.mattermostImportAttachments(context.Background(), payload)
-	if errorValue != nil {
-		t.Fatalf("expected first import to succeed: %v", errorValue)
-	}
-	secondResponse, errorValue := service.mattermostImportAttachments(context.Background(), payload)
-	if errorValue != nil {
-		t.Fatalf("expected second import to succeed: %v", errorValue)
-	}
-	if downloadCount != 2 {
-		t.Fatalf("expected each import to verify downloaded content, got %d downloads", downloadCount)
-	}
-	if len(firstResponse.InputAttachments) != 1 || len(secondResponse.InputAttachments) != 1 {
-		t.Fatalf("expected imported attachments, got first=%+v second=%+v", firstResponse.InputAttachments, secondResponse.InputAttachments)
-	}
-	firstAttachment := firstResponse.InputAttachments[0]
-	secondAttachment := secondResponse.InputAttachments[0]
-	if firstAttachment.Path != secondAttachment.Path || secondAttachment.Filename != "report.pdf" {
-		t.Fatalf("expected existing import path to be reused, first=%+v second=%+v", firstAttachment, secondAttachment)
-	}
-	if _, errorValue := os.Stat(filepath.Join(workspacePath, "circles", "staff", "inbox", "mattermost", "thread-1", "post-1", "report-2.pdf")); !errors.Is(errorValue, os.ErrNotExist) {
-		t.Fatalf("expected no duplicate import file, stat error=%v", errorValue)
+	if _, errorValue := os.Stat(filepath.Join(workspacePath, "private")); !errors.Is(errorValue, os.ErrNotExist) {
+		t.Fatalf("this daemon writes nothing into a workspace it cannot be anybody in, stat error=%v", errorValue)
 	}
 }
 

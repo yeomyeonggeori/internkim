@@ -39,7 +39,7 @@ var StepBuzzRelay = Step{
 		connection.Run("DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server >/dev/null 2>&1; systemctl enable --now redis-server 2>/dev/null")
 		connection.Run("systemctl start postgresql 2>/dev/null; sleep 1")
 		connection.Run(buzzDatabaseProvisionCommand(ownerPubkey))
-		connection.Run(buzzRelayUnitInstallCommand(blueclaw.BuzzRelayCanonicalWssURL))
+		connection.Run(buzzRelayUnitInstallCommand(blueclaw.RelayPublicURL(context.RelayDomain)))
 
 		fmt.Println("  " + context.T("Buzz 릴레이 설치 완료", "Buzz relay installed"))
 		return nil
