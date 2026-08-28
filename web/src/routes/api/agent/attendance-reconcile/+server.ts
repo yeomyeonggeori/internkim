@@ -13,7 +13,6 @@ import {
 import type { RequestHandler } from './$types';
 
 type ReconcileRequest = {
-	platform?: unknown;
 	workMode?: unknown;
 	workCalendar?: unknown;
 	workPolicy?: unknown;
