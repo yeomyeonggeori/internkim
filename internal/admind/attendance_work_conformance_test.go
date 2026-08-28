@@ -51,6 +51,18 @@ type attendanceWorkConformanceExpected struct {
 	HasBaseline          bool `json:"hasBaseline"`
 	HasIncompleteRecords bool `json:"hasIncompleteRecords"`
 	NeedsReview          bool `json:"needsReview"`
+	CoreTimeMissed       bool `json:"coreTimeMissed"`
+	Late                 bool `json:"late"`
+	EarlyLeave           bool `json:"earlyLeave"`
+}
+
+type attendanceWorkConformanceScheduleEndCase struct {
+	Name            string                              `json:"name"`
+	StartTime       string                              `json:"startTime"`
+	RequiredMinutes int                                 `json:"requiredMinutes"`
+	BreakPeriods    []attendanceWorkScheduleBreakPeriod `json:"breakPeriods"`
+	ExpectedEndTime string                              `json:"expectedEndTime"`
+	Refused         bool                                `json:"refused"`
 }
 
 type attendanceWorkConformanceScenario struct {
@@ -72,7 +84,8 @@ type attendanceWorkConformanceRevision struct {
 }
 
 type attendanceWorkConformanceFile struct {
-	Scenarios []attendanceWorkConformanceScenario `json:"scenarios"`
+	Scenarios        []attendanceWorkConformanceScenario        `json:"scenarios"`
+	ScheduleEndCases []attendanceWorkConformanceScheduleEndCase `json:"scheduleEndCases"`
 }
 
 func TestAttendanceWorkConformanceMatchesSharedScenarios(t *testing.T) {
@@ -139,6 +152,9 @@ func TestAttendanceWorkConformanceMatchesSharedScenarios(t *testing.T) {
 			assertAttendanceWorkConformanceBoolField(t, scenario.Name, "hasBaseline", status.HasBaseline, scenario.Expected.HasBaseline)
 			assertAttendanceWorkConformanceBoolField(t, scenario.Name, "hasIncompleteRecords", status.HasIncompleteRecords, scenario.Expected.HasIncompleteRecords)
 			assertAttendanceWorkConformanceBoolField(t, scenario.Name, "needsReview", status.NeedsReview, scenario.Expected.NeedsReview)
+			assertAttendanceWorkConformanceBoolField(t, scenario.Name, "coreTimeMissed", status.CoreTimeMissed, scenario.Expected.CoreTimeMissed)
+			assertAttendanceWorkConformanceBoolField(t, scenario.Name, "late", status.Late, scenario.Expected.Late)
+			assertAttendanceWorkConformanceBoolField(t, scenario.Name, "earlyLeave", status.EarlyLeave, scenario.Expected.EarlyLeave)
 		})
 	}
 
@@ -295,4 +311,45 @@ type attendanceWorkConformanceUnknownEventKindError struct {
 
 func (errorValue *attendanceWorkConformanceUnknownEventKindError) Error() string {
 	return "unknown conformance event kind: " + errorValue.Kind
+}
+
+func TestAttendanceWorkConformanceScheduleEndMatchesSharedCases(t *testing.T) {
+	raw, errorValue := os.ReadFile("testdata/attendance-work-conformance.json")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var file attendanceWorkConformanceFile
+	if errorValue := json.Unmarshal(raw, &file); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(file.ScheduleEndCases) == 0 {
+		t.Fatal("conformance file has no schedule end cases")
+	}
+
+	for _, endCase := range file.ScheduleEndCases {
+		t.Run(endCase.Name, func(t *testing.T) {
+			startMinute, errorValue := attendanceWorkScheduleTimeMinutes(endCase.StartTime)
+			if errorValue != nil {
+				t.Fatalf("case %s: %v", endCase.Name, errorValue)
+			}
+			endMinute, errorValue := calculateAttendanceWorkScheduleEndMinute(
+				startMinute,
+				endCase.RequiredMinutes,
+				endCase.BreakPeriods,
+			)
+			if endCase.Refused {
+				if errorValue == nil {
+					t.Fatalf("case %s: end minute = %d, want a refusal", endCase.Name, endMinute)
+				}
+				return
+			}
+			if errorValue != nil {
+				t.Fatalf("case %s: %v", endCase.Name, errorValue)
+			}
+			actual := fmt.Sprintf("%02d:%02d", endMinute/60, endMinute%60)
+			if actual != endCase.ExpectedEndTime {
+				t.Fatalf("case %s: end time = %s, want %s", endCase.Name, actual, endCase.ExpectedEndTime)
+			}
+		})
+	}
 }
