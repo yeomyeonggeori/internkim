@@ -226,7 +226,7 @@ export const taskText = {
 			completed: '완료',
 			rejected: '기각',
 			paused: '일시정지',
-			cancelled: '중단'
+			stopped: '중단'
 		},
 		statusDescriptions: {
 			planned: '',
@@ -235,7 +235,7 @@ export const taskText = {
 			completed: '',
 			rejected: '반려됨',
 			paused: '재개 가능',
-			cancelled: '종료 처리'
+			stopped: '종료 처리'
 		},
 		user: {
 			logout: '로그아웃',
@@ -470,7 +470,7 @@ export const taskText = {
 			completed: 'Completed',
 			rejected: 'Rejected',
 			paused: 'Paused',
-			cancelled: 'Stopped'
+			stopped: 'Stopped'
 		},
 		statusDescriptions: {
 			planned: '',
@@ -479,7 +479,7 @@ export const taskText = {
 			completed: '',
 			rejected: 'Rejected',
 			paused: 'Can resume',
-			cancelled: 'Closed out'
+			stopped: 'Closed out'
 		},
 		user: {
 			logout: 'Sign out',

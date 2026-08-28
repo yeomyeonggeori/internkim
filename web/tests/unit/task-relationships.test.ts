@@ -33,7 +33,7 @@ describe('flow task relationships', () => {
 			task({ id: 'requested', parentTaskID: 'parent', status: 'requested' }),
 			task({ id: 'paused', parentTaskID: 'parent', status: 'paused' }),
 			task({ id: 'rejected', parentTaskID: 'parent', status: 'rejected' }),
-			task({ id: 'stopped', parentTaskID: 'parent', status: 'cancelled' })
+			task({ id: 'stopped', parentTaskID: 'parent', status: 'stopped' })
 		]);
 
 		expect(progress).toEqual({ completed: 2, total: 7, percent: 29 });
@@ -44,7 +44,7 @@ describe('flow task relationships', () => {
 			task({ id: 'done', parentTaskID: 'parent', status: 'completed' }),
 			task({ id: 'progress', parentTaskID: 'parent', status: 'in_progress' }),
 			task({ id: 'rejected', parentTaskID: 'parent', status: 'rejected' }),
-			task({ id: 'stopped', parentTaskID: 'parent', status: 'cancelled' })
+			task({ id: 'stopped', parentTaskID: 'parent', status: 'stopped' })
 		]);
 
 		expect(relationships.children.map((task) => task.id)).toEqual(['progress', 'rejected', 'stopped', 'done']);
@@ -55,7 +55,7 @@ describe('flow task relationships', () => {
 			task({ id: 'rejected', parentTaskID: 'parent', status: 'rejected' })
 		])).toEqual({ completed: 0, total: 1, percent: 0 });
 		expect(buildTaskChildProgress('parent', [
-			task({ id: 'stopped', parentTaskID: 'parent', status: 'cancelled' })
+			task({ id: 'stopped', parentTaskID: 'parent', status: 'stopped' })
 		])).toBeUndefined();
 	});
 

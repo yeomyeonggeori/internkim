@@ -9,7 +9,7 @@ const statuses = [
 	['planned', 'planned'],
 	['in_progress', 'in_progress'],
 	['paused', 'paused'],
-	['cancelled', 'cancelled'],
+	['stopped', 'stopped'],
 	['rejected', 'rejected'],
 	['completed', 'completed']
 ] as const;

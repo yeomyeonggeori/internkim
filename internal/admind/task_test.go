@@ -112,7 +112,7 @@ func TestStatusCompletedWhenEnded(t *testing.T) {
 		{status: "planned", endDate: "2026-06-12", want: "planned"},
 		{status: "planned", endDate: "", want: "planned"},
 		{status: "requested", endDate: "2026-06-10", want: "requested"},
-		{status: "cancelled", endDate: "2026-06-10", want: "cancelled"},
+		{status: "stopped", endDate: "2026-06-10", want: "stopped"},
 	} {
 		if got := statusCompletedWhenEnded(testCase.status, testCase.endDate, "2026-06-11"); got != testCase.want {
 			t.Fatalf("statusCompletedWhenEnded(%q, %q) = %q, want %q", testCase.status, testCase.endDate, got, testCase.want)

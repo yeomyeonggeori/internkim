@@ -5,7 +5,7 @@ export const taskStatus = {
 	completed: 'completed',
 	paused: 'paused',
 	rejected: 'rejected',
-	stopped: 'cancelled'
+	stopped: 'stopped'
 } as const;
 
 export type TaskStatus = (typeof taskStatus)[keyof typeof taskStatus];
