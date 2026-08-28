@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { statusOptionsFromSummary } from '../../src/routes/task/task-options';
 import type { TaskSummary, Task } from '../../src/routes/task/task-types';
 
-const allStatuses = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'cancelled'];
-const normalStatuses = ['planned', 'in_progress', 'completed', 'paused', 'cancelled'];
+const allStatuses = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'stopped'];
+const normalStatuses = ['planned', 'in_progress', 'completed', 'paused', 'stopped'];
 
 describe('flow task status options', () => {
 	test('returns the exact normal choices for a central task without requester', () => {

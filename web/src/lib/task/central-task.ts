@@ -6,7 +6,7 @@ export type CentralTaskStatus =
 	| 'planned'
 	| 'in_progress'
 	| 'paused'
-	| 'cancelled'
+	| 'stopped'
 	| 'rejected'
 	| 'completed';
 
