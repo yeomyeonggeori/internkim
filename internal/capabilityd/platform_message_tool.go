@@ -193,6 +193,9 @@ func (service Service) invokePlatformMessageTool(ctx context.Context, request ca
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
+		if service.chatdServesPlatform(request.Context.Platform) {
+			return mattermostToolSuccessResponse(request.ToolName, "inspected", chatdPlatformMessageContextResult(request.Context))
+		}
 		return service.invokeMattermostContextInspect(ctx, request)
 	case "message_search":
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
@@ -225,12 +228,12 @@ func (service Service) authorizePlatformMessageTool(ctx context.Context, request
 }
 
 func (service Service) invokePlatformMessageSearch(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if service.chatdServesPlatform(request.Context.Platform) {
-		return mattermostToolErrorResponse(request.ToolName, service.chatdUnroutedToolFailure(request.ToolName, request.Context.Platform)), nil
-	}
 	input, errorValue := decodePlatformMessageSearchInput(request.Input)
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
+	}
+	if service.chatdServesPlatform(request.Context.Platform) {
+		return service.invokeChatdPlatformMessageSearch(ctx, request, input)
 	}
 	mattermostInput := mattermostPostSearchInput{
 		Scope:       platformMessageSearchScope(input),
@@ -436,12 +439,12 @@ func platformMessageBroadcastIdempotencyKey(baseKey string, recipientUserID stri
 }
 
 func (service Service) invokePlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if service.chatdServesPlatform(request.Context.Platform) {
-		return mattermostToolErrorResponse(request.ToolName, service.chatdUnroutedToolFailure(request.ToolName, request.Context.Platform)), nil
-	}
 	input, errorValue := decodePlatformMessageUpdateInput(request.Input)
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
+	}
+	if service.chatdServesPlatform(request.Context.Platform) {
+		return service.invokeChatdPlatformMessageUpdate(ctx, request, input)
 	}
 	mattermostInput := mattermostPostUpdateInput{
 		PostID:   input.MessageID,
