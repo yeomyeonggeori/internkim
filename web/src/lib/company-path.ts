@@ -10,6 +10,7 @@ export const reservedFirstSegments = [
 	'crm',
 	'files',
 	'flow',
+	'task',
 	'mail',
 	'memory',
 	'messenger',

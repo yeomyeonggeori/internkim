@@ -18,7 +18,7 @@ const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
-const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.flow.'];
+const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.flow.'];
 export const apiRequestCapability = 'person.api.request';
 export const apiFileCapability = 'person.api.file';
 export const workspaceRootsCapability = 'person.files.roots';
@@ -513,7 +513,8 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 };
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
-	'person.flow.quick_task': '/flow/api/tasks/quick'
+	'person.task.quick_task': '/task/api/tasks/quick',
+	'person.flow.quick_task': '/task/api/tasks/quick'
 };
 
 export function workspaceCallOf(

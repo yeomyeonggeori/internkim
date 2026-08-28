@@ -30,7 +30,7 @@ func (service *Service) emailOfMattermostSession(request *http.Request) string {
 		return ""
 	}
 	email := strings.ToLower(strings.TrimSpace(userRecord.Email))
-	if email == "" || !service.isFlowStaffActor(request.Context(), email) {
+	if email == "" || !service.isTaskStaffActor(request.Context(), email) {
 		return ""
 	}
 	return email

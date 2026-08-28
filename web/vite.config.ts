@@ -6,7 +6,7 @@ import { devCalendarMockPlugin } from './dev-calendar-mock-plugin';
 import { devAdminOrganizationMockPlugin } from './dev-admin-organization-mock-plugin';
 import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
 import { devFilesMockPlugin } from './dev-files-mock-plugin';
-import { devFlowMockPlugin } from './dev-flow-mock-plugin';
+import { devTaskMockPlugin } from './dev-task-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
 import { devPersonProfileImageMockPlugin } from './dev-person-profile-image-mock-plugin';
@@ -66,7 +66,7 @@ export default defineConfig(({ mode }) => {
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devPersonProfileImageMockPlugin({ isEnabled: isFlowMockEnabled }),
-			devFlowMockPlugin({
+			devTaskMockPlugin({
 				isEnabled: isAttendanceMockEnabled || isFlowMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
@@ -100,6 +100,7 @@ export default defineConfig(({ mode }) => {
 				'/calendar/ics': admindProxy(admindTarget),
 				'/calendar/oauth': admindProxy(admindTarget),
 				'/crm/api': admindProxy(admindTarget, devUserEmail),
+				'/task/api': admindProxy(admindTarget),
 				'/flow/api': admindProxy(admindTarget),
 				'/mail/api': admindProxy(admindTarget),
 				'/memory/api': admindProxy(admindTarget),

@@ -1,0 +1,255 @@
+package admind
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+func (service *Service) authorizeTaskRequest(request *http.Request, action string, resource string) bool {
+	actorEmail := service.taskActorEmail(request)
+	if actorEmail == "" {
+		return false
+	}
+	if action == taskActionManage && resource == taskResourceDefinition {
+		return service.isTaskAdminActor(request, actorEmail)
+	}
+	if resource == taskResourceSummary && action == taskActionRead {
+		return service.isTaskStaffActor(request.Context(), actorEmail)
+	}
+	if resource == taskResourceTask && (action == taskActionCreate || action == taskActionUpdate || action == taskActionDelete) {
+		return service.isTaskStaffActor(request.Context(), actorEmail)
+	}
+	return false
+}
+
+func (service *Service) taskActorEmail(request *http.Request) string {
+	if actorEmail := strings.ToLower(strings.TrimSpace(request.Header.Get(taskResolvedActorHeader))); actorEmail != "" {
+		return actorEmail
+	}
+	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
+		request.Header.Set(taskResolvedActorHeader, actorEmail)
+		return actorEmail
+	}
+	actorEmail := assertedRequesterEmail(request)
+	if actorEmail != "" {
+		request.Header.Set(taskResolvedActorHeader, actorEmail)
+	}
+	return actorEmail
+}
+
+func (service *Service) webStaffActorEmail(request *http.Request) string {
+	actorEmail := service.webActorEmail(request)
+	if actorEmail == "" || !service.isTaskStaffActor(request.Context(), actorEmail) {
+		return ""
+	}
+	return actorEmail
+}
+
+func (service *Service) webTaskRunActorEmail(request *http.Request) string {
+	actorEmail := service.actorEmailAllowingAssertedRequester(request)
+	if !service.canViewTaskRuns(request.Context(), actorEmail) {
+		return ""
+	}
+	return actorEmail
+}
+
+func (service *Service) canViewTaskRuns(ctx context.Context, actorEmail string) bool {
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	return service.isTaskStaffActor(ctx, actorEmail)
+}
+
+func (service *Service) canManageTaskRuns(ctx context.Context, actorEmail string) bool {
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	return service.isTaskAdminEmail(ctx, actorEmail)
+}
+
+func (service *Service) canAuthenticateWebReturnPath(ctx context.Context, actorEmail string, returnPath string) bool {
+	if isTaskRunWebPath(returnPath) {
+		return service.canViewTaskRuns(ctx, actorEmail)
+	}
+	return service.isTaskStaffActor(ctx, actorEmail)
+}
+
+func isTaskRunWebPath(path string) bool {
+	parsedURL, errorValue := url.Parse(strings.TrimSpace(path))
+	if errorValue != nil {
+		return false
+	}
+	switch {
+	case parsedURL.Path == "/tasks" || strings.HasPrefix(parsedURL.Path, "/tasks/"):
+		return true
+	default:
+		return false
+	}
+}
+
+func (service *Service) authorizeWebStaffRequest(request *http.Request) bool {
+	return service.webStaffActorEmail(request) != ""
+}
+
+func (service *Service) authorizeInternalOrWebStaffRequest(request *http.Request) bool {
+	if isLocalRequest(request) {
+		return true
+	}
+	return service.authorizeWebStaffRequest(request)
+}
+
+func (service *Service) webActorEmail(request *http.Request) string {
+	if hasWebLogoutMarker(request) {
+		return ""
+	}
+	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
+		return actorEmail
+	}
+	if actorEmail := strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request))); actorEmail != "" {
+		return actorEmail
+	}
+	return service.emailOfMattermostSession(request)
+}
+
+func hasWebLogoutMarker(request *http.Request) bool {
+	cookie, errorValue := request.Cookie(webLogoutMarkerCookieName)
+	return errorValue == nil && strings.TrimSpace(cookie.Value) != ""
+}
+
+func mattermostSessionCookieHeader(request *http.Request) string {
+	cookies := make([]string, 0, len(request.Cookies()))
+	for _, cookie := range request.Cookies() {
+		if strings.HasPrefix(strings.ToUpper(cookie.Name), "MM") {
+			cookies = append(cookies, cookie.String())
+		}
+	}
+	return strings.Join(cookies, "; ")
+}
+
+func (service *Service) mattermostSessionUser(request *http.Request, cookieHeader string) (mattermostUserRecord, bool) {
+	if strings.TrimSpace(service.Configuration.MattermostBaseURL) == "" {
+		return mattermostUserRecord{}, false
+	}
+	cacheKey := mattermostSessionCacheKey(cookieHeader)
+	now := time.Now()
+	if userRecord, found := service.mattermostSessions.lookup(cacheKey, now, mattermostSessionFreshTTL); found {
+		return userRecord, true
+	}
+	if userRecord, found := service.fetchMattermostSessionUser(request.Context(), cookieHeader); found {
+		service.mattermostSessions.store(cacheKey, userRecord, now)
+		return userRecord, true
+	}
+	return service.mattermostSessions.lookup(cacheKey, now, mattermostSessionStaleTTL)
+}
+
+func (service *Service) fetchMattermostSessionUser(ctx context.Context, cookieHeader string) (mattermostUserRecord, bool) {
+	lookupContext, cancel := context.WithTimeout(ctx, mattermostSessionLookupTimeout)
+	defer cancel()
+	requestURL := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/api/v4/users/me"
+	mattermostRequest, errorValue := http.NewRequestWithContext(lookupContext, http.MethodGet, requestURL, nil)
+	if errorValue != nil {
+		return mattermostUserRecord{}, false
+	}
+	mattermostRequest.Header.Set("Cookie", cookieHeader)
+	response, errorValue := service.httpClient().Do(mattermostRequest)
+	if errorValue != nil {
+		return mattermostUserRecord{}, false
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		_, _ = io.Copy(io.Discard, response.Body)
+		return mattermostUserRecord{}, false
+	}
+	var userRecord mattermostUserRecord
+	if errorValue := json.NewDecoder(response.Body).Decode(&userRecord); errorValue != nil {
+		return mattermostUserRecord{}, false
+	}
+	if strings.TrimSpace(userRecord.Email) == "" {
+		return mattermostUserRecord{}, false
+	}
+	return userRecord, true
+}
+
+func (service *Service) isTaskStaffActor(ctx context.Context, actorEmail string) bool {
+	if service.isTaskAdminEmail(ctx, actorEmail) {
+		return true
+	}
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID != "" && fleetSecret != "" {
+		if records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
+			for _, record := range records {
+				if strings.EqualFold(record.Email, actorEmail) && isActiveTaskUser(record) {
+					return true
+				}
+			}
+		}
+	}
+	if service.isEmailInBlueclawPolicy(ctx, actorEmail) {
+		return true
+	}
+	return service.isEmailInUsersSyncCache(actorEmail)
+}
+
+func (service *Service) isEmailInBlueclawPolicy(ctx context.Context, actorEmail string) bool {
+	for _, record := range service.blueclawPolicyUserRecords(ctx) {
+		if strings.EqualFold(strings.TrimSpace(record.Email), actorEmail) {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *Service) isEmailInUsersSyncCache(actorEmail string) bool {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(actorEmail))
+	if normalizedEmail == "" {
+		return false
+	}
+	stateDirectory := filepath.Dir(service.stateDatabasePath())
+	content, errorValue := os.ReadFile(filepath.Join(stateDirectory, "users-sync.json"))
+	if errorValue != nil {
+		return false
+	}
+	var cache struct {
+		Users []string `json:"users"`
+	}
+	if json.Unmarshal(content, &cache) != nil {
+		return false
+	}
+	for _, email := range cache.Users {
+		if strings.EqualFold(strings.TrimSpace(email), normalizedEmail) {
+			return true
+		}
+	}
+	return false
+}
+
+func (service *Service) isTaskAdminActor(request *http.Request, actorEmail string) bool {
+	return service.isTaskAdminEmail(request.Context(), actorEmail)
+}
+
+func (service *Service) isTaskAdminEmail(ctx context.Context, actorEmail string) bool {
+	if strings.TrimSpace(actorEmail) == "" {
+		return false
+	}
+	if service.hasDeviceAuth() {
+		return service.isCurrentAdminEmail(ctx, actorEmail) || service.isClaimedAdminEmail(actorEmail)
+	}
+	adminEmail := service.seedAdminEmail()
+	return adminEmail != "" && strings.EqualFold(actorEmail, adminEmail)
+}
+
+func isActiveTaskUser(record adminUserMutation) bool {
+	status := strings.ToLower(strings.TrimSpace(record.Status))
+	return status == "" || status == "active"
+}

@@ -1,9 +1,9 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { CalendarLocaleText } from '../text';
 import type { CalendarParticipant } from './calendar-participants';
 
 export type MobileEventEditorPersistenceContext = {
-	saveEvent: (event: DayFlowEvent) => void | Promise<void>;
+	saveEvent: (event: DayTaskEvent) => void | Promise<void>;
 };
 
 export type MobileEventEditorLocaleContext = {

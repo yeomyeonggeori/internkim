@@ -91,7 +91,7 @@ func changeRecipientsForPeople(people []string, causedByName string, mattermostU
 	return recipients
 }
 
-func flowTaskChangeRecipients(task flowTask, causedByName string, mattermostUsers []mattermostUserRecord) []changeRecipient {
+func taskChangeRecipients(task Task, causedByName string, mattermostUsers []mattermostUserRecord) []changeRecipient {
 	people := append([]string{task.OwnerName}, task.ParticipantNames...)
 	return changeRecipientsForPeople(people, causedByName, mattermostUsers)
 }
@@ -111,8 +111,8 @@ func calendarEventCausedByName(event calendarEvent) string {
 	return strings.TrimSpace(event.CreatedByName)
 }
 
-func (service *Service) deliveredFlowRecipients(ctx context.Context, taskID string, noticeKey string) []string {
-	database, errorValue := service.openFlowDatabase(ctx)
+func (service *Service) deliveredTaskRecipients(ctx context.Context, taskID string, noticeKey string) []string {
+	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
 		return nil
 	}
@@ -124,8 +124,8 @@ func (service *Service) deliveredFlowRecipients(ctx context.Context, taskID stri
 	return decodeDeliveredRecipients(storedValue, noticeKey)
 }
 
-func (service *Service) recordDeliveredFlowRecipients(ctx context.Context, taskID string, noticeKey string, recipients []string) {
-	database, errorValue := service.openFlowDatabase(ctx)
+func (service *Service) recordDeliveredTaskRecipients(ctx context.Context, taskID string, noticeKey string, recipients []string) {
+	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
 		return
 	}

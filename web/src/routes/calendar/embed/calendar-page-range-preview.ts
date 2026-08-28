@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { ViewType } from '../calendar-view-type';
 import {
 	monthRangePreviewSegmentsFromSelection,
@@ -20,7 +20,7 @@ type CalendarPageRangePreviewContext = {
 	getTimelineRangeSelection: () => TimelineRangeSelection | null;
 	getToolbarDate: () => Date;
 	getToolbarView: () => ViewType;
-	getVisibleEvents: () => DayFlowEvent[];
+	getVisibleEvents: () => DayTaskEvent[];
 	isBrowser: () => boolean;
 	setMonthRangePreviewSegments: (segments: MonthRangePreviewSegment[]) => void;
 	setTimelineRangePreviewSegments: (segments: TimelineRangePreviewSegment[]) => void;

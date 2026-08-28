@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { CalendarDraftEventState } from './calendar-draft-events';
 import { calendarEventElementsByID } from './calendar-event-elements';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
@@ -6,11 +6,11 @@ import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-up
 type CalendarDraftEventDOMContext = {
 	isBrowser: () => boolean;
 	getStageElement: () => HTMLElement | null;
-	getCalendarEvents: () => DayFlowEvent[];
-	updateCalendarEvent: (eventID: string, changes: Partial<DayFlowEvent>, shouldRender: boolean) => Promise<void>;
+	getCalendarEvents: () => DayTaskEvent[];
+	updateCalendarEvent: (eventID: string, changes: Partial<DayTaskEvent>, shouldRender: boolean) => Promise<void>;
 	openEventDetails: (eventID: string) => void;
 	resetDraftEventTitle: (eventID: string) => Promise<void>;
-	persistCreatedEvent: (event: DayFlowEvent) => Promise<void>;
+	persistCreatedEvent: (event: DayTaskEvent) => Promise<void>;
 	text: {
 		draftTitlePlaceholder: string;
 	};

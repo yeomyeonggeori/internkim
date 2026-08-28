@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { participatingEventCount, requestedTaskCount } from '../../src/lib/components/app-badge-counts';
 import type { CalendarEvent } from '../../src/routes/calendar/embed/calendar-event-persistence';
-import type { FlowState, FlowTask } from '../../src/routes/flow/flow-types';
+import type { TaskState, Task } from '../../src/routes/task/task-types';
 
 function calendarEvent(id: string, participantEmails: string[], endISO = '2026-07-30T02:00:00+09:00'): CalendarEvent {
 	return {
@@ -22,7 +22,7 @@ function calendarEvent(id: string, participantEmails: string[], endISO = '2026-0
 	};
 }
 
-function flowTask(id: string, status: string, ownerID: string, participantIDs: string[]): FlowTask {
+function task(id: string, status: string, ownerID: string, participantIDs: string[]): Task {
 	return {
 		id,
 		ownerID,
@@ -39,7 +39,7 @@ function flowTask(id: string, status: string, ownerID: string, participantIDs: s
 	};
 }
 
-function flowState(tasks: FlowTask[]): FlowState {
+function taskState(tasks: Task[]): TaskState {
 	return {
 		members: [
 			{
@@ -100,11 +100,11 @@ describe('sidebar badge counts', () => {
 
 	test('counts requested tasks that name the viewer', () => {
 		const tasks = [
-			flowTask('owned-request', '요청', 'member-1', []),
-			flowTask('participating-request', '요청', 'member-2', ['member-1']),
-			flowTask('other-request', '요청', 'member-2', []),
-			flowTask('owned-progress', '진행', 'member-1', [])
+			task('owned-request', '요청', 'member-1', []),
+			task('participating-request', '요청', 'member-2', ['member-1']),
+			task('other-request', '요청', 'member-2', []),
+			task('owned-progress', '진행', 'member-1', [])
 		];
-		expect(requestedTaskCount(flowState(tasks))).toBe(2);
+		expect(requestedTaskCount(taskState(tasks))).toBe(2);
 	});
 });

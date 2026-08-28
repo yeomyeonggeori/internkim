@@ -79,7 +79,7 @@ export async function enableDarkMode(page: Page): Promise<void> {
 }
 
 export async function verifyMobileEditorControls(page: Page): Promise<void> {
-	const editor = dayFlowMobileEditor(page);
+	const editor = dayTaskMobileEditor(page);
 	const startDateInput = editor.locator('input[data-mobile-editor-field="startDate"]');
 	const startTimeInput = editor.locator('input[data-mobile-editor-field="startTime"]');
 	const allDayInput = editor.locator('input[data-mobile-editor-field="allDay"]');
@@ -236,12 +236,12 @@ async function clickFirstVisibleCell(page: Page, selector: string, cellKind: 'al
 	);
 }
 
-export async function closeDayFlowMobileEditor(page: Page): Promise<void> {
-	await dayFlowMobileEditor(page).getByRole('button', { name: '취소' }).click();
-	await expect(dayFlowMobileEditor(page)).toHaveCount(0);
+export async function closeDayTaskMobileEditor(page: Page): Promise<void> {
+	await dayTaskMobileEditor(page).getByRole('button', { name: '취소' }).click();
+	await expect(dayTaskMobileEditor(page)).toHaveCount(0);
 }
 
-export function dayFlowMobileEditor(page: Page): Locator {
+export function dayTaskMobileEditor(page: Page): Locator {
 	return page.locator('.calendar-mobile-event-editor .df-mobile-event-drawer-panel, .df-dialog-container');
 }
 

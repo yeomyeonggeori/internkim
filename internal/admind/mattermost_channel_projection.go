@@ -12,7 +12,7 @@ type sqlContextExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
-func enqueueFlowChannelProjection(ctx context.Context, executor sqlContextExecutor, taskID string) error {
+func enqueueTaskChannelProjection(ctx context.Context, executor sqlContextExecutor, taskID string) error {
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
 		return nil
@@ -47,18 +47,18 @@ func enqueueCalendarChannelProjection(ctx context.Context, executor sqlContextEx
 }
 
 func (service *Service) drainMattermostManagedChannelProjections(ctx context.Context) {
-	service.drainFlowMattermostProjectionOutbox(ctx)
+	service.drainTaskMattermostProjectionOutbox(ctx)
 	service.drainCalendarMattermostProjectionOutbox(ctx)
 }
 
-func (service *Service) drainFlowMattermostProjectionOutbox(ctx context.Context) {
-	taskIDs, errorValue := service.pendingFlowMattermostProjectionTaskIDs(ctx)
+func (service *Service) drainTaskMattermostProjectionOutbox(ctx context.Context) {
+	taskIDs, errorValue := service.pendingTaskMattermostProjectionTaskIDs(ctx)
 	if errorValue != nil {
 		log.Printf("Flow Mattermost projection outbox read failed: %v", errorValue)
 		return
 	}
 	for _, taskID := range taskIDs {
-		if errorValue := service.applyFlowMattermostProjectionByID(ctx, taskID); errorValue != nil {
+		if errorValue := service.applyTaskMattermostProjectionByID(ctx, taskID); errorValue != nil {
 			log.Printf("Flow Mattermost projection failed for %s: %v", taskID, errorValue)
 		}
 	}
@@ -77,8 +77,8 @@ func (service *Service) drainCalendarMattermostProjectionOutbox(ctx context.Cont
 	}
 }
 
-func (service *Service) hasPendingFlowMattermostProjection(ctx context.Context, taskID string) (bool, error) {
-	database, errorValue := service.openFlowDatabase(ctx)
+func (service *Service) hasPendingTaskMattermostProjection(ctx context.Context, taskID string) (bool, error) {
+	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
 		return false, errorValue
 	}
@@ -88,8 +88,8 @@ func (service *Service) hasPendingFlowMattermostProjection(ctx context.Context, 
 	return pendingCount > 0, errorValue
 }
 
-func (service *Service) pendingFlowMattermostProjectionTaskIDs(ctx context.Context) ([]string, error) {
-	database, errorValue := service.openFlowDatabase(ctx)
+func (service *Service) pendingTaskMattermostProjectionTaskIDs(ctx context.Context) ([]string, error) {
+	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -132,27 +132,27 @@ func (service *Service) pendingCalendarMattermostProjectionEventIDs(ctx context.
 	return uniqueNonEmpty(eventIDs), rows.Err()
 }
 
-func (service *Service) applyFlowMattermostProjection(ctx context.Context, task flowTask) flowTask {
-	nextTask, errorValue := service.trySyncFlowMattermostNotification(ctx, task)
+func (service *Service) applyTaskMattermostProjection(ctx context.Context, task Task) Task {
+	nextTask, errorValue := service.trySyncTaskMattermostNotification(ctx, task)
 	if errorValue != nil {
-		_ = service.markFlowMattermostProjectionAttempt(ctx, task.ID, errorValue)
+		_ = service.markTaskMattermostProjectionAttempt(ctx, task.ID, errorValue)
 		return task
 	}
-	_ = service.deleteFlowMattermostProjectionOutbox(ctx, task.ID)
+	_ = service.deleteTaskMattermostProjectionOutbox(ctx, task.ID)
 	return nextTask
 }
 
-func (service *Service) applyFlowMattermostProjectionByID(ctx context.Context, taskID string) error {
-	task, found, errorValue := service.readFlowTaskByID(ctx, taskID)
+func (service *Service) applyTaskMattermostProjectionByID(ctx context.Context, taskID string) error {
+	task, found, errorValue := service.readTaskByID(ctx, taskID)
 	if errorValue != nil {
 		return errorValue
 	}
 	if !found {
-		return service.deleteFlowMattermostProjectionOutbox(ctx, taskID)
+		return service.deleteTaskMattermostProjectionOutbox(ctx, taskID)
 	}
-	nextTask, errorValue := service.trySyncFlowMattermostNotification(ctx, task)
+	nextTask, errorValue := service.trySyncTaskMattermostNotification(ctx, task)
 	if errorValue != nil {
-		if markError := service.markFlowMattermostProjectionAttempt(ctx, taskID, errorValue); markError != nil {
+		if markError := service.markTaskMattermostProjectionAttempt(ctx, taskID, errorValue); markError != nil {
 			return markError
 		}
 		return errorValue
@@ -160,7 +160,7 @@ func (service *Service) applyFlowMattermostProjectionByID(ctx context.Context, t
 	if nextTask.MattermostPostID != task.MattermostPostID {
 		task = nextTask
 	}
-	return service.deleteFlowMattermostProjectionOutbox(ctx, task.ID)
+	return service.deleteTaskMattermostProjectionOutbox(ctx, task.ID)
 }
 
 func (service *Service) applyCalendarMattermostProjection(ctx context.Context, event calendarEvent) calendarEvent {
@@ -221,8 +221,8 @@ func (service *Service) applyCalendarMattermostProjectionGeneration(ctx context.
 	return nil
 }
 
-func (service *Service) markFlowMattermostProjectionAttempt(ctx context.Context, taskID string, cause error) error {
-	database, errorValue := service.openFlowDatabase(ctx)
+func (service *Service) markTaskMattermostProjectionAttempt(ctx context.Context, taskID string, cause error) error {
+	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -255,8 +255,8 @@ func (service *Service) markCalendarMattermostProjectionAttempt(ctx context.Cont
 	return errorValue
 }
 
-func (service *Service) deleteFlowMattermostProjectionOutbox(ctx context.Context, taskID string) error {
-	database, errorValue := service.openFlowDatabase(ctx)
+func (service *Service) deleteTaskMattermostProjectionOutbox(ctx context.Context, taskID string) error {
+	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
 	}

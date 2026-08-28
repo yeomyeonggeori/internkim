@@ -1,5 +1,5 @@
 import { matchesKoreanSearch } from '$lib/korean-search';
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 import { defaultCalendarEventColor } from '../grid/calendar-grid-events';
 import { calendarParticipantsFromUnknown, type CalendarParticipant } from './calendar-participants';
@@ -23,7 +23,7 @@ export type HighlightPart = {
 	isMatch: boolean;
 };
 
-export function searchCalendarEvents(query: string, events: DayFlowEvent[]): CalendarSearchResult[] {
+export function searchCalendarEvents(query: string, events: DayTaskEvent[]): CalendarSearchResult[] {
 	const trimmedQuery = query.trim();
 	if (!trimmedQuery) return [];
 	const normalizedQuery = trimmedQuery.toLocaleLowerCase();

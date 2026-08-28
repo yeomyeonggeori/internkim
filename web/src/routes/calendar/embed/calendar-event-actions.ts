@@ -1,5 +1,5 @@
 import type { CalendarParticipant } from './calendar-participants';
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { CalendarDraftEventState, type DraftEventParams } from './calendar-draft-events';
 import {
 	createCalendarDraftEventDOMActions,
@@ -20,18 +20,18 @@ export type CalendarEventActionsContext = {
 	getStageElement: () => HTMLElement | null;
 	getSelectedAuditEventID: () => string | null;
 	setSelectedAuditEventID: (eventID: string | null) => void;
-	getCalendarEvents: () => DayFlowEvent[];
-	addCalendarEvent: (event: DayFlowEvent) => void;
-	restoreCalendarEvent: (event: DayFlowEvent) => void;
+	getCalendarEvents: () => DayTaskEvent[];
+	addCalendarEvent: (event: DayTaskEvent) => void;
+	restoreCalendarEvent: (event: DayTaskEvent) => void;
 	removeCalendarEvent: (eventID: string) => void;
-	updateCalendarEvent: (eventID: string, changes: Partial<DayFlowEvent>, shouldRender: boolean) => Promise<void>;
+	updateCalendarEvent: (eventID: string, changes: Partial<DayTaskEvent>, shouldRender: boolean) => Promise<void>;
 	setEventCount: (eventCount: number) => void;
-	setVisibleEvents: (events: DayFlowEvent[]) => void;
+	setVisibleEvents: (events: DayTaskEvent[]) => void;
 	setIsSaving: (isSaving: boolean) => void;
 	setStatusMessage: (message: string) => void;
 	setErrorMessage: (message: string) => void;
 	openEventDetails: (eventID: string) => void;
-	openMobileEventEditor: (event: DayFlowEvent) => void;
+	openMobileEventEditor: (event: DayTaskEvent) => void;
 	notifyEventsChanged: () => void;
 	refreshCalendar: () => Promise<void>;
 	invalidatePendingEventLoad: () => void;
@@ -49,18 +49,18 @@ export type CalendarEventActionsContext = {
 };
 
 export type CalendarEventActions = {
-	createAllDaySingleEvent: (dateKey: string) => DayFlowEvent | null;
-	createQuickEvent: () => DayFlowEvent;
+	createAllDaySingleEvent: (dateKey: string) => DayTaskEvent | null;
+	createQuickEvent: () => DayTaskEvent;
 	openAllDaySingleEventMobileEditor: (dateKey: string) => void;
 	openQuickEventMobileEditor: () => void;
 	openTimelineSingleEventMobileEditor: (startDate: Date) => void;
 	openEventMobileEditor: (eventID: string) => void;
-	createMonthRangeEvent: (selection: MonthRangeSelection) => DayFlowEvent;
-	createMonthSingleDayEvent: (dateKey: string) => DayFlowEvent | null;
-	createTimelineSingleEvent: (startDate: Date) => DayFlowEvent | null;
-	createTimelineRangeEvent: (firstDate: Date, secondDate: Date) => DayFlowEvent | null;
-	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
-	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
+	createMonthRangeEvent: (selection: MonthRangeSelection) => DayTaskEvent;
+	createMonthSingleDayEvent: (dateKey: string) => DayTaskEvent | null;
+	createTimelineSingleEvent: (startDate: Date) => DayTaskEvent | null;
+	createTimelineRangeEvent: (firstDate: Date, secondDate: Date) => DayTaskEvent | null;
+	saveCreatedEvent: (event: DayTaskEvent) => Promise<void>;
+	saveUpdatedEvent: (event: DayTaskEvent, previousEvent?: DayTaskEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
 	undoLastDelete: () => boolean;
@@ -102,7 +102,7 @@ export function createCalendarEventActions(
 		resetDraftEventTitle
 	});
 
-	function addDraftEvent(params: DraftEventParams): DayFlowEvent {
+	function addDraftEvent(params: DraftEventParams): DayTaskEvent {
 		context.invalidatePendingEventLoad();
 		const defaultParticipants = context.defaultEventParticipants();
 		const event = draftEvents.createDraftEvent(
@@ -149,7 +149,7 @@ export function createCalendarEventActions(
 		draftEventDOM.scheduleDraftEventVisibilitySync();
 	}
 
-	async function persistCreatedEvent(event: DayFlowEvent): Promise<void> {
+	async function persistCreatedEvent(event: DayTaskEvent): Promise<void> {
 		await persistenceActions.persistCreatedEvent(event);
 	}
 
@@ -164,7 +164,7 @@ export function createCalendarEventActions(
 		context.setVisibleEvents(events);
 	}
 
-	function refreshLocalEventSnapshotWithEvent(event: DayFlowEvent): void {
+	function refreshLocalEventSnapshotWithEvent(event: DayTaskEvent): void {
 		const events = context.getCalendarEvents().filter((calendarEvent) => calendarEvent.id !== event.id);
 		const nextEvents = [...events, event];
 		context.setEventCount(nextEvents.length);

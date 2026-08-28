@@ -16,7 +16,7 @@ test.describe('embedded calendar mini calendar', () => {
 		await routeDefaultCalendarAPI(page);
 	});
 
-	test('enhances the DayFlow mini calendar visual states', async ({ page }) => {
+	test('enhances the DayTask mini calendar visual states', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-14T03:00:00.000Z'));
 		await openCalendarEmbed(page, '일');
 		await page.waitForSelector('.df-mini-calendar-day', { state: 'attached' });
@@ -43,7 +43,7 @@ test.describe('embedded calendar mini calendar', () => {
 		await expect(page.locator('.df-mini-calendar-header-nav .df-mini-calendar-nav-btn').last()).toHaveAttribute('aria-label', '다음');
 	});
 
-	test('keeps a selected weekend today legible in the DayFlow mini calendar', async ({ page }) => {
+	test('keeps a selected weekend today legible in the DayTask mini calendar', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-13T03:00:00.000Z'));
 		await openCalendarEmbed(page, '일');
 		await navigateEmbeddedCalendar(page, '2026-06-13');
@@ -55,7 +55,7 @@ test.describe('embedded calendar mini calendar', () => {
 		await expect(todayButton).toHaveCSS('color', 'rgb(255, 255, 255)');
 	});
 
-	test('keeps an unselected today legible in the DayFlow mini calendar', async ({ page }) => {
+	test('keeps an unselected today legible in the DayTask mini calendar', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-14T03:00:00.000Z'));
 		await openCalendarEmbed(page, '일');
 		await navigateEmbeddedCalendar(page, '2026-06-01');

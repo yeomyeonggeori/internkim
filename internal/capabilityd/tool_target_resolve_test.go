@@ -38,13 +38,13 @@ func calendarApprovalTargetService(t *testing.T, methods *[]string) Service {
 	}
 }
 
-func flowApprovalTargetService(t *testing.T, methods *[]string) Service {
+func taskApprovalTargetService(t *testing.T, methods *[]string) Service {
 	t.Helper()
 	return Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			*methods = append(*methods, request.Method)
-			return flowToolJSONResponse(`{"tasks":[{"id":"task-1","content":"고객지원 분기 결산 검토 완료"},{"id":"task-2","content":"주간 보고"}]}`), nil
+			return taskToolJSONResponse(`{"tasks":[{"id":"task-1","content":"고객지원 분기 결산 검토 완료"},{"id":"task-2","content":"주간 보고"}]}`), nil
 		})},
 	}
 }
@@ -67,8 +67,8 @@ var approvalTargetFixtures = []approvalTargetFixture{
 		absentHint:    "NVIDIA·젯슨 공급 미팅",
 		expectedID:    "task-1",
 		expectedTitle: "고객지원 분기 결산 검토 완료",
-		newService:    flowApprovalTargetService,
-		invoke:        Service.invokeFlowTaskDelete,
+		newService:    taskApprovalTargetService,
+		invoke:        Service.invokeTaskDelete,
 	},
 }
 

@@ -345,13 +345,13 @@ func TestMattermostScenarioRequiresDirectExposureEvidence(t *testing.T) {
 		Name:             "exposure",
 		AllowedTools:     []string{"task_add"},
 		InitialToolNames: []string{"task_add"},
-		SkillNames:       []string{"internkim-flow"},
+		SkillNames:       []string{"internkim-task"},
 		Steps:            []mattermostScenarioStep{{Prompt: "work", ExpectedToolCalls: []string{"task_add"}}},
 	}
 	result := mattermostScenarioResult{ScenarioName: scenario.Name, Steps: []mattermostScenarioStepResult{{
 		Prompt: "work",
 		TaskEvents: []mattermostScenarioTaskEvent{
-			{Name: "agent.instructions_loaded", Body: `{"exposedToolNames":["task_add"],"selectedSkillToolReferences":{"internkim-flow":["task_add"]}}`},
+			{Name: "agent.instructions_loaded", Body: `{"exposedToolNames":["task_add"],"selectedSkillToolReferences":{"internkim-task":["task_add"]}}`},
 			{Name: "agent.step_working_set", Body: `{"exposure":{"exposedToolIDs":["task_add"],"selectedSkillToolIDs":["task_add"],"selectionSource":"selected_skills","usedFallbackGroups":false}}`},
 			{Name: "tool.task_add.requested"},
 		},

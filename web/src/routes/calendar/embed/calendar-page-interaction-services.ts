@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { ViewType } from '../calendar-view-type';
 import type { CalendarViewValue } from '../calendar-navigation-message';
 import type { CalendarEventLoader } from './calendar-event-loader';

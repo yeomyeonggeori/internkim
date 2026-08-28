@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { ViewType } from '../calendar-view-type';
 import type { CalendarConflict } from './calendar-conflicts';
 import type { DraftPopoverState } from './calendar-draft-popover-state';
@@ -16,7 +16,7 @@ type CalendarEmbedPageStateInitialValues = {
 export class CalendarEmbedPageState {
 	isSaving = $state(false);
 	loadErrorMessage = $state('');
-	visibleEvents = $state<DayFlowEvent[]>([]);
+	visibleEvents = $state<DayTaskEvent[]>([]);
 	calendarStageElement = $state<HTMLElement | null>(null);
 	monthRangeSelection = $state<MonthRangeSelection | null>(null);
 	monthRangePreviewSegments = $state<MonthRangePreviewSegment[]>([]);

@@ -1,5 +1,5 @@
 // 캘린더 embed 페이지의 순수 view helper를 제공합니다.
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { ViewType } from '../calendar-view-type';
 import type { CalendarViewValue } from '../calendar-navigation-message';
 import type { MiniCalendarWeekdayLabels } from './calendar-dayflow-mini-calendar-enhancement';
@@ -11,7 +11,7 @@ export function formatMonthScrollOverlayText(date: Date, localeCode: string): st
 	});
 }
 
-export function compareCalendarEventsForDisplay(leftEvent: DayFlowEvent, rightEvent: DayFlowEvent): number {
+export function compareCalendarEventsForDisplay(leftEvent: DayTaskEvent, rightEvent: DayTaskEvent): number {
 	const leftPriority = leftEvent.allDay ? 0 : 1;
 	const rightPriority = rightEvent.allDay ? 0 : 1;
 	if (leftPriority !== rightPriority) return leftPriority - rightPriority;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { CalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-persistence';
-import type { FlowState, FlowTask } from '../../../src/routes/flow/flow-types';
+import type { TaskState, Task } from '../../../src/routes/task/task-types';
 import { buildTeamStatusDayContext, type TeamStatusDayContextLoadState } from '../../../src/routes/attendance/team/team-status-day-context';
 
 describe('team status day context', () => {
@@ -107,19 +107,19 @@ describe('team status day context', () => {
 	});
 
 	test('shows completed flow tasks for the selected person and date', () => {
-		const flowState = flowStateFixture([
-			flowTask('done-owned', '완료', '2026-06-16', 'kim', ['kim'], ['김철수']),
-			flowTask('done-owned-collaborating', '완료', '2026-06-16', 'kim', ['kim', 'park'], ['김철수', '박지민']),
-			flowTask('done-participating', '완료', '2026-06-16', 'park', ['park', 'kim'], ['박지민', '김철수']),
-			flowTask('planned', '예정', '2026-06-16', 'kim', ['kim'], ['김철수']),
-			flowTask('other-date', '완료', '2026-06-17', 'kim', ['kim'], ['김철수'])
+		const taskState = taskStateFixture([
+			task('done-owned', '완료', '2026-06-16', 'kim', ['kim'], ['김철수']),
+			task('done-owned-collaborating', '완료', '2026-06-16', 'kim', ['kim', 'park'], ['김철수', '박지민']),
+			task('done-participating', '완료', '2026-06-16', 'park', ['park', 'kim'], ['박지민', '김철수']),
+			task('planned', '예정', '2026-06-16', 'kim', ['kim'], ['김철수']),
+			task('other-date', '완료', '2026-06-17', 'kim', ['kim'], ['김철수'])
 		]);
 
 		const context = buildTeamStatusDayContext(
 			{ email: 'kim@example.com', displayName: '김철수' },
 			'2026-06-16',
 			[],
-			flowState,
+			taskState,
 			'ko-KR',
 			'종일',
 			loadedContext()
@@ -132,17 +132,17 @@ describe('team status day context', () => {
 	});
 
 	test('uses email matched flow member IDs before name fallback', () => {
-		const flowState = flowStateFixture([
-			flowTask('same-name-other-email', '완료', '2026-06-16', 'same-name', ['same-name'], ['김철수']),
-			flowTask('email-matched', '완료', '2026-06-16', 'kim', ['kim'], ['김철수'])
+		const taskState = taskStateFixture([
+			task('same-name-other-email', '완료', '2026-06-16', 'same-name', ['same-name'], ['김철수']),
+			task('email-matched', '완료', '2026-06-16', 'kim', ['kim'], ['김철수'])
 		]);
-		flowState.members.push(flowMember('same-name', '김철수', 'same-name@example.com'));
+		taskState.members.push(taskMember('same-name', '김철수', 'same-name@example.com'));
 
 		const context = buildTeamStatusDayContext(
 			{ email: 'kim@example.com', displayName: '김철수' },
 			'2026-06-16',
 			[],
-			flowState,
+			taskState,
 			'ko-KR',
 			'종일',
 			loadedContext()
@@ -207,11 +207,11 @@ function calendarEvent(
 	};
 }
 
-function flowStateFixture(tasks: FlowTask[]): FlowState {
+function taskStateFixture(tasks: Task[]): TaskState {
 	return {
 		members: [
-			flowMember('kim', '김철수', 'kim@example.com'),
-			flowMember('park', '박지민', 'park@example.com')
+			taskMember('kim', '김철수', 'kim@example.com'),
+			taskMember('park', '박지민', 'park@example.com')
 		],
 		tasks,
 		metrics: {
@@ -233,7 +233,7 @@ function flowStateFixture(tasks: FlowTask[]): FlowState {
 	};
 }
 
-function flowMember(id: string, name: string, email: string): FlowState['members'][number] {
+function taskMember(id: string, name: string, email: string): TaskState['members'][number] {
 	return {
 		id,
 		name,
@@ -245,14 +245,14 @@ function flowMember(id: string, name: string, email: string): FlowState['members
 	};
 }
 
-function flowTask(
+function task(
 	id: string,
 	status: string,
 	endDate: string,
 	ownerID: string,
 	participantIDs: string[],
 	participantNames: string[]
-): FlowTask {
+): Task {
 	return {
 		id,
 		ownerID,

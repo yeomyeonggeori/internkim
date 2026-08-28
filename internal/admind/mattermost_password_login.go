@@ -39,7 +39,7 @@ func (service *Service) handleMattermostPasswordLogin(responseWriter http.Respon
 			return
 		}
 	}
-	if !service.isFlowStaffActor(request.Context(), email) {
+	if !service.isTaskStaffActor(request.Context(), email) {
 		http.Error(responseWriter, "account not invited", http.StatusForbidden)
 		return
 	}

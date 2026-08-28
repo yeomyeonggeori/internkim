@@ -49,7 +49,7 @@ class AppNavigation {
 
 	apps = $derived<AppRailItem[]>([
 		{ href: this.link('/messenger/'), label: text.messenger, icon: MessagesSquareIcon },
-		{ href: this.link('/flow/'), label: text.flow, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
+		{ href: this.link('/task/'), label: text.flow, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
 		{ href: this.link('/memory/'), label: text.memory, icon: BrainIcon },
 		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
 		{ href: this.link('/mail/'), label: text.mail, icon: MailIcon },

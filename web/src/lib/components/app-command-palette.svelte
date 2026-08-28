@@ -5,9 +5,9 @@
 	import CalendarEventListCard from '../../routes/calendar/embed/calendar-event-list-card.svelte';
 	import type { CalendarSearchResult } from '../../routes/calendar/embed/calendar-search';
 	import { mailMessageSearch } from '$lib/components/mail-message-search.svelte';
-	import { flowTaskSearch } from '$lib/components/flow-task-search.svelte';
-	import FlowTaskBoardCard from '../../routes/flow/flow-task-board-card.svelte';
-	import { flowText } from '../../routes/flow/text';
+	import { taskSearch } from '$lib/components/task-search.svelte';
+	import TaskBoardCard from '../../routes/task/task-board-card.svelte';
+	import { taskText } from '../../routes/task/text';
 	import MailMessageRow from '../../routes/mail/mail-message-row.svelte';
 	import { mailText } from '../../routes/mail/text';
 	import * as Command from '$lib/components/ui/command/index.js';
@@ -22,7 +22,7 @@
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import type { MailMessage } from '../../routes/mail/mail-types';
-	import type { FlowTask } from '../../routes/flow/flow-types';
+	import type { Task } from '../../routes/task/task-types';
 	import CircleIcon from '@lucide/svelte/icons/circle';
 	import LogInIcon from '@lucide/svelte/icons/log-in';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
@@ -36,7 +36,7 @@
 
 	const text = createPageText(appShellText);
 	const attendanceLabels = createPageText(attendanceText);
-	const flowLabels = createPageText(flowText);
+	const taskLabels = createPageText(taskText);
 	const mailLabels = createPageText(mailText);
 	const clockOutShortcut = '0';
 	const locationShortcuts = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -52,7 +52,7 @@
 	const clockOutKeywords = $derived([attendanceLabels.clockOut]);
 
 	const calendarResults = $derived(calendarEventSearch.search(searchValue));
-	const taskResults = $derived(flowTaskSearch.search(searchValue));
+	const taskResults = $derived(taskSearch.search(searchValue));
 	const currentSearchScope = $derived(searchScopeFromPath(appNavigation.currentPath));
 	const hasSuggestionResults = $derived(
 		(currentSearchScope === 'mail' && mailMessageSearch.results.length > 0) ||
@@ -71,7 +71,7 @@
 	$effect(() => {
 		if (!open) return;
 		calendarEventSearch.load();
-		flowTaskSearch.load();
+		taskSearch.load();
 	});
 
 	function searchResultTimeLabel(result: CalendarSearchResult): string {
@@ -85,13 +85,13 @@
 	function searchScopeFromPath(pathname: string) {
 		if (pathname.startsWith('/mail')) return 'mail';
 		if (pathname.startsWith('/calendar')) return 'calendar';
-		if (pathname.startsWith('/flow')) return 'flow';
+		if (pathname.startsWith('/task')) return 'flow';
 		return '';
 	}
 
-	async function openFlowTask(task: FlowTask) {
+	async function openTask(task: Task) {
 		open = false;
-		await goto(`/flow?task=${encodeURIComponent(task.id)}`);
+		await goto(`/task?task=${encodeURIComponent(task.id)}`);
 	}
 
 	function runClockIn(locationID: string) {
@@ -295,14 +295,14 @@
 
 {#snippet taskResultItems()}
 	{#each taskResults as task (task.id)}
-		<Command.Item value="flow-task-{task.id}" forceMount class="p-1 [&>.cn-command-item-indicator]:hidden" onSelect={() => openFlowTask(task)}>
+		<Command.Item value="task-{task.id}" forceMount class="p-1 [&>.cn-command-item-indicator]:hidden" onSelect={() => openTask(task)}>
 			<div class="min-w-0 flex-1">
-				<FlowTaskBoardCard
+				<TaskBoardCard
 					{task}
-					businessColor={flowTaskSearch.businessColor}
-					taskTypeColor={flowTaskSearch.taskTypeColor}
-					businessFallback={flowLabels.task.businessFallback}
-					openTask={() => openFlowTask(task)}
+					businessColor={taskSearch.businessColor}
+					taskTypeColor={taskSearch.taskTypeColor}
+					businessFallback={taskLabels.task.businessFallback}
+					openTask={() => openTask(task)}
 					isDraggable={false}
 					isInteractive={false}
 				/>

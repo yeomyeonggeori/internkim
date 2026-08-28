@@ -42,7 +42,7 @@ func newCalendarEventWindowBenchmarkServiceWithHistory(testContext testing.TB, h
 	service := NewService(Configuration{
 		StateDirectory:        filepath.Join(rootPath, "state"),
 		CalendarDatabasePath:  filepath.Join(rootPath, "state", "calendar.sqlite"),
-		FlowDatabasePath:      filepath.Join(rootPath, "state", "flow.sqlite"),
+		TaskDatabasePath:      filepath.Join(rootPath, "state", "flow.sqlite"),
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        writeBenchmarkFile("admin-email", "admin@example.com"),
 		ClaimedAdminEmailPath: writeBenchmarkFile("claimed-admin-email", "admin@example.com"),
@@ -95,8 +95,8 @@ func seedCalendarEventWindowBenchmarkHistory(testContext testing.TB, service *Se
 func seedCalendarEventWindowBenchmarkEvents(testContext testing.TB, service *Service, idPrefix string, startTime time.Time, eventCount int) {
 	testContext.Helper()
 	participants := []calendarParticipant{
-		{PersonID: stableFlowID("staff@example.com"), Name: "Staff", Email: "staff@example.com"},
-		{PersonID: stableFlowID("other@example.com"), Name: "Other", Email: "other@example.com"},
+		{PersonID: stableTaskID("staff@example.com"), Name: "Staff", Email: "staff@example.com"},
+		{PersonID: stableTaskID("other@example.com"), Name: "Other", Email: "other@example.com"},
 	}
 	for index := 0; index < eventCount; index++ {
 		eventStartTime := startTime.Add(time.Duration(index) * 6 * time.Hour)

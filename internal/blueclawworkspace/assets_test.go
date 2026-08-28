@@ -193,7 +193,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		}
 	}
 
-	workDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "internkim-flow", "SKILL.md"))
+	workDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "internkim-task", "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

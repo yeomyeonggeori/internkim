@@ -1,4 +1,4 @@
-import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayFlowEvent } from '../../../src/routes/calendar/embed/calendar-event-model';
+import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayTaskEvent } from '../../../src/routes/calendar/embed/calendar-event-model';
 import { mock } from 'bun:test';
 
 import { CalendarDraftEventState } from '../../../src/routes/calendar/embed/calendar-draft-events';
@@ -31,8 +31,8 @@ const { createCalendarEventActions } = await import(
 );
 
 export function createPersistenceScenario(
-	initialEvents: DayFlowEvent[],
-	refreshedEvents: () => DayFlowEvent[] = () => initialEvents,
+	initialEvents: DayTaskEvent[],
+	refreshedEvents: () => DayTaskEvent[] = () => initialEvents,
 	persistedOverrides: Partial<CalendarPersistedEventActions> = {},
 	useDefaultNotifier = false,
 	waitForDeleteIntentCancellationRetry: (delay: number) => Promise<void> = async () => {}
@@ -162,7 +162,7 @@ export function createEventActionsForScenario(
 	);
 }
 
-export function calendarTestEvent(eventID: string, title: string): DayFlowEvent {
+export function calendarTestEvent(eventID: string, title: string): DayTaskEvent {
 	return createEvent({
 		id: eventID,
 		title,
@@ -177,7 +177,7 @@ export function calendarVersionedTestEvent(
 	eventID: string,
 	title: string,
 	updatedAt: string
-): DayFlowEvent {
+): DayTaskEvent {
 	return createEvent({
 		id: eventID,
 		title,

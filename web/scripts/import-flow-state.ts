@@ -3,10 +3,10 @@
 import { controlPlane } from '../src/lib/server/control-plane';
 import { readAllRows } from './read-all-rows';
 import { emailByPersonIDOf, matchParticipant, type DevicePerson, type EventCalendar } from '../../host/relay/calendar-event-as-task';
-import { flowTaskAsTask, peopleOnFlowTask, titleOfFlowTask, type DeviceFlowTask } from '../../host/relay/flow-task-as-task';
+import { taskAsTask, peopleOnTask, titleOfTask, type DeviceTask } from '../../host/relay/flow-task-as-task';
 
 type DeviceState = {
-	tasks: DeviceFlowTask[];
+	tasks: DeviceTask[];
 	definitions: { categories: string[]; categoryColors?: Record<string, string>; types: string[] };
 };
 
@@ -78,8 +78,8 @@ const peopleMatchingNoMember = new Set<string>();
 const matchedByName = new Set<string>();
 
 for (const task of state.tasks) {
-	const title = titleOfFlowTask(task);
-	const written = peopleOnFlowTask(task);
+	const title = titleOfTask(task);
+	const written = peopleOnTask(task);
 
 	const memberIDs = new Set<string>();
 	for (const person of written) {
@@ -98,7 +98,7 @@ for (const task of state.tasks) {
 		continue;
 	}
 
-	const asTask = flowTaskAsTask(task, timeZone);
+	const asTask = taskAsTask(task, timeZone);
 	const fields = {
 		company_id: companyID,
 		title: asTask.title,

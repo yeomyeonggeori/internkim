@@ -316,7 +316,7 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	event = persistedEvent
-	service.createPairedFlowTaskForCalendarEvent(request, event)
+	service.createPairedTaskForCalendarEvent(request, event)
 	responseWriter.WriteHeader(http.StatusCreated)
 	event = service.calendarEventWithParticipantImages(request, event)
 	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
@@ -448,7 +448,7 @@ func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.deletePairedFlowTaskForCalendarEvent(request.Context(), eventID)
+	service.deletePairedTaskForCalendarEvent(request.Context(), eventID)
 	responseWriter.WriteHeader(http.StatusNoContent)
 }
 

@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { ViewType } from '../calendar-view-type';
 import type { CalendarLocaleText } from '../text';
 import type { CalendarPageRangePreviewActions } from './calendar-page-range-preview';
@@ -13,7 +13,7 @@ type CalendarPageEffectsContext = {
 	getStageElement: () => HTMLElement | null;
 	getToolbarDate: () => Date;
 	getToolbarView: () => ViewType;
-	getVisibleEvents: () => DayFlowEvent[];
+	getVisibleEvents: () => DayTaskEvent[];
 	rangePreview: CalendarPageRangePreviewActions;
 	renderSync: CalendarPageRenderSyncActions;
 	text: CalendarLocaleText;

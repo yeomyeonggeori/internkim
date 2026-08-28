@@ -101,7 +101,7 @@ test.describe('embedded calendar week drag interactions', () => {
 		expect(movedPosition.eventCenterX).toBeLessThan(movedPosition.targetRight);
 	});
 
-	test('hides DayFlow native drag indicators inside the calendar stage', async ({ page }) => {
+	test('hides DayTask native drag indicators inside the calendar stage', async ({ page }) => {
 		await openCalendarEmbed(page, '월');
 		await page.locator('.calendar-stage').evaluate((stageElement) => {
 			const indicator = document.createElement('div');
@@ -113,7 +113,7 @@ test.describe('embedded calendar week drag interactions', () => {
 		await expect(page.locator('.df-drag-indicator-regular-pill')).toHaveCSS('display', 'none');
 	});
 
-	test('scopes hidden DayFlow panels to the calendar stage', async ({ page }) => {
+	test('scopes hidden DayTask panels to the calendar stage', async ({ page }) => {
 		await openCalendarEmbed(page, '월');
 		await page.evaluate(() => {
 			const outsidePanel = document.createElement('div');

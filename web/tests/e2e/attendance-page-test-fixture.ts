@@ -37,7 +37,7 @@ export const test = base.extend({
 		await page.route('**/calendar/api/events?**', async (route) => {
 			await route.fulfill({ json: { events: [] } });
 		});
-		await page.route('**/flow/api/state', async (route) => {
+		await page.route('**/task/api/state', async (route) => {
 			await route.fulfill({
 				json: {
 					members: [],

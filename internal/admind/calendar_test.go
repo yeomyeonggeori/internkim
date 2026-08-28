@@ -362,7 +362,7 @@ func newCalendarTestService(t *testing.T) *Service {
 		CompanionJobPath:         filepath.Join(rootPath, "state", "companion-jobs.json"),
 		CalendarDatabasePath:     filepath.Join(rootPath, "state", "calendar.sqlite"),
 		CalendarSecretsDirectory: filepath.Join(rootPath, "secrets", "google-oauth"),
-		FlowDatabasePath:         filepath.Join(rootPath, "state", "flow.sqlite"),
+		TaskDatabasePath:         filepath.Join(rootPath, "state", "flow.sqlite"),
 		AdminEmailPath:           writeTestFile(t, "admin@example.com"),
 		AdminUIPath:              adminUIPath,
 		CalendarSyncDisabled:     true,

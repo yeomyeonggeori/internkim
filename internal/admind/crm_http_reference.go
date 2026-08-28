@@ -27,7 +27,7 @@ func (service *Service) listCRMDefinitionsHTTP(responseWriter http.ResponseWrite
 	if _, ok := service.crmHTTPActor(responseWriter, request); !ok {
 		return
 	}
-	definitions, errorValue := service.readFlowDefinitions(request.Context())
+	definitions, errorValue := service.readTaskDefinitions(request.Context())
 	if errorValue != nil {
 		writeCRMHTTPReadError(responseWriter, errorValue)
 		return
