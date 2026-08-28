@@ -4,22 +4,19 @@ import {
 	issueAgentKey,
 	provisionCompany
 } from '../../src/lib/server/control-plane';
+import { projectURL, serviceRoleKey } from './supabase-environment';
 
 mock.module('$env/dynamic/private', () => ({ env: {} }));
 
 type AttendanceReconcileHandler = (typeof import('../../src/routes/api/agent/attendance-reconcile/+server'))['POST'];
 type AttendanceReconcileEvent = Parameters<AttendanceReconcileHandler>[0];
 
-const projectURL = process.env.SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const canReachSupabase = Boolean(projectURL && serviceRoleKey);
-const client = canReachSupabase ? controlPlane({ projectURL, serviceRoleKey }) : null;
+const client = controlPlane({ projectURL, serviceRoleKey });
 const stamp = Date.now();
 let companyID = '';
 let agentKey = '';
 
 beforeAll(async () => {
-	if (!client) return;
 	const company = await provisionCompany(
 		client,
 		{
@@ -37,7 +34,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	if (!client || !companyID) return;
+	if (!companyID) return;
 	const { error } = await client
 		.from('company')
 		.update({ rules: { approvals: { required: true } } })
@@ -46,157 +43,149 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-	if (!client || !companyID) return;
+	if (!companyID) return;
 	await client.from('company').delete().eq('id', companyID);
 });
 
-if (!canReachSupabase) {
-	test('supabase is not reachable, so the attendance reconciliation route is not exercised', () => {
-		expect(canReachSupabase).toBe(false);
+describe('attendance reconciliation route', () => {
+	test('a legacy request reconciles without changing company rules', async () => {
+		const response = await reconcile({
+			platform: 'mattermost',
+			from: '2027-01-01T00:00:00Z',
+			to: '2027-01-02T00:00:00Z',
+			events: []
+		});
+
+		expect(response.status).toBe(200);
+		expect(await companyRules()).toEqual({ approvals: { required: true } });
 	});
-}
 
-if (canReachSupabase) {
-	describe('attendance reconciliation route', () => {
-		test('a legacy request reconciles without changing company rules', async () => {
-			const response = await reconcile({
-				platform: 'mattermost',
-				from: '2027-01-01T00:00:00Z',
-				to: '2027-01-02T00:00:00Z',
-				events: []
-			});
-
-			expect(response.status).toBe(200);
-			expect(await companyRules()).toEqual({ approvals: { required: true } });
+	test('a work policy is stored as the revision that has always applied', async () => {
+		const workPolicy = currentPolicy();
+		const response = await reconcile({
+			platform: 'mattermost',
+			workPolicy,
+			from: '2027-01-01T00:00:00Z',
+			to: '2027-01-02T00:00:00Z',
+			events: []
 		});
 
-		test('a work policy is stored as the revision that has always applied', async () => {
-			const workPolicy = currentPolicy();
-			const response = await reconcile({
-				platform: 'mattermost',
-				workPolicy,
-				from: '2027-01-01T00:00:00Z',
-				to: '2027-01-02T00:00:00Z',
-				events: []
-			});
-
-			expect(response.status).toBe(200);
-			expect(await companyRules()).toEqual({
-				approvals: { required: true },
-				attendanceWorkPolicy: {
-					version: 1,
-					revisions: [{ ...workPolicy, effectiveDate: '1970-01-01' }]
-				}
-			});
-		});
-
-		test('a work calendar from an older device is ignored rather than stored', async () => {
-			const workPolicy = currentPolicy();
-			const response = await reconcile({
-				platform: 'mattermost',
-				workPolicy,
-				workCalendar: [
-					{ date: '2027-01-01', workMode: 'fixed', workingDate: false, holiday: true },
-					{ date: '2027-01-02', workMode: 'fixed', workingDate: true, holiday: false }
-				],
-				from: '2027-01-01T00:00:00Z',
-				to: '2027-01-03T00:00:00Z',
-				events: []
-			});
-
-			expect(response.status).toBe(200);
-			const rules = (await companyRules()) as Record<string, unknown>;
-			expect(Object.keys(rules)).not.toContain('attendanceCalendar');
-			expect(rules.attendanceWorkPolicy).toEqual({
+		expect(response.status).toBe(200);
+		expect(await companyRules()).toEqual({
+			approvals: { required: true },
+			attendanceWorkPolicy: {
 				version: 1,
 				revisions: [{ ...workPolicy, effectiveDate: '1970-01-01' }]
-			});
+			}
 		});
-
-		test('a malformed work calendar from an older device is ignored too', async () => {
-			const response = await reconcile({
-				platform: 'mattermost',
-				workMode: 'fixed',
-				workCalendar: [{ date: '2027-01-01', workMode: 'fixed' }],
-				from: '2027-01-01T00:00:00Z',
-				to: '2027-01-04T00:00:00Z',
-				events: []
-			});
-
-			expect(response.status).toBe(200);
-			expect(await companyRules()).toEqual({ approvals: { required: true } });
-		});
-
-		test('the company holidays a device holds are carried over once', async () => {
-			const holiday = {
-				id: 'company-holiday-founding',
-				title: '창립기념일',
-				date: '2027-03-02',
-				recursAnnually: true
-			};
-			const response = await reconcile({
-				platform: 'mattermost',
-				companyHolidays: [holiday],
-				from: '2027-01-01T00:00:00Z',
-				to: '2027-01-02T00:00:00Z',
-				events: []
-			});
-
-			expect(response.status).toBe(200);
-			const rules = (await companyRules()) as Record<string, unknown>;
-			expect(rules.companyHolidays).toEqual([holiday]);
-
-			await reconcile({
-				platform: 'mattermost',
-				companyHolidays: [holiday],
-				from: '2027-01-01T00:00:00Z',
-				to: '2027-01-02T00:00:00Z',
-				events: []
-			});
-			expect(((await companyRules()) as Record<string, unknown>).companyHolidays).toEqual([holiday]);
-		});
-
-		test('a malformed company holiday returns 400 before persistence', async () => {
-			await expect(
-				reconcile({
-					platform: 'mattermost',
-					companyHolidays: [{ id: 'x', title: '', date: '2027-03-02', recursAnnually: true }],
-					from: '2027-01-01T00:00:00Z',
-					to: '2027-01-02T00:00:00Z',
-					events: []
-				})
-			).rejects.toMatchObject({ status: 400 });
-			expect(await companyRules()).toEqual({ approvals: { required: true } });
-		});
-
-		test('a malformed current work policy returns 400 before persistence', async () => {
-			await expect(
-				reconcile({
-					platform: 'mattermost',
-					workPolicy: { ...currentPolicy(), workMode: 'hybrid' },
-					from: '2027-01-01T00:00:00Z',
-					to: '2027-01-02T00:00:00Z',
-					events: []
-				})
-			).rejects.toMatchObject({ status: 400 });
-			expect(await companyRules()).toEqual({ approvals: { required: true } });
-		});
-
-		test('an invalid current policy time returns 400 before persistence', async () => {
-			await expect(
-				reconcile({
-					platform: 'mattermost',
-					workPolicy: { ...currentPolicy(), nightStartTime: '99:99' },
-					from: '2027-01-01T00:00:00Z',
-					to: '2027-01-02T00:00:00Z',
-					events: []
-				})
-			).rejects.toMatchObject({ status: 400 });
-			expect(await companyRules()).toEqual({ approvals: { required: true } });
-		});
-
 	});
-}
+
+	test('a work calendar from an older device is ignored rather than stored', async () => {
+		const workPolicy = currentPolicy();
+		const response = await reconcile({
+			platform: 'mattermost',
+			workPolicy,
+			workCalendar: [
+				{ date: '2027-01-01', workMode: 'fixed', workingDate: false, holiday: true },
+				{ date: '2027-01-02', workMode: 'fixed', workingDate: true, holiday: false }
+			],
+			from: '2027-01-01T00:00:00Z',
+			to: '2027-01-03T00:00:00Z',
+			events: []
+		});
+
+		expect(response.status).toBe(200);
+		const rules = (await companyRules()) as Record<string, unknown>;
+		expect(Object.keys(rules)).not.toContain('attendanceCalendar');
+		expect(rules.attendanceWorkPolicy).toEqual({
+			version: 1,
+			revisions: [{ ...workPolicy, effectiveDate: '1970-01-01' }]
+		});
+	});
+
+	test('a malformed work calendar from an older device is ignored too', async () => {
+		const response = await reconcile({
+			platform: 'mattermost',
+			workMode: 'fixed',
+			workCalendar: [{ date: '2027-01-01', workMode: 'fixed' }],
+			from: '2027-01-01T00:00:00Z',
+			to: '2027-01-04T00:00:00Z',
+			events: []
+		});
+
+		expect(response.status).toBe(200);
+		expect(await companyRules()).toEqual({ approvals: { required: true } });
+	});
+
+	test('the company holidays a device holds are carried over once', async () => {
+		const holiday = {
+			id: 'company-holiday-founding',
+			title: '창립기념일',
+			date: '2027-03-02',
+			recursAnnually: true
+		};
+		const response = await reconcile({
+			platform: 'mattermost',
+			companyHolidays: [holiday],
+			from: '2027-01-01T00:00:00Z',
+			to: '2027-01-02T00:00:00Z',
+			events: []
+		});
+
+		expect(response.status).toBe(200);
+		const rules = (await companyRules()) as Record<string, unknown>;
+		expect(rules.companyHolidays).toEqual([holiday]);
+
+		await reconcile({
+			platform: 'mattermost',
+			companyHolidays: [holiday],
+			from: '2027-01-01T00:00:00Z',
+			to: '2027-01-02T00:00:00Z',
+			events: []
+		});
+		expect(((await companyRules()) as Record<string, unknown>).companyHolidays).toEqual([holiday]);
+	});
+
+	test('a malformed company holiday returns 400 before persistence', async () => {
+		await expect(
+			reconcile({
+				platform: 'mattermost',
+				companyHolidays: [{ id: 'x', title: '', date: '2027-03-02', recursAnnually: true }],
+				from: '2027-01-01T00:00:00Z',
+				to: '2027-01-02T00:00:00Z',
+				events: []
+			})
+		).rejects.toMatchObject({ status: 400 });
+		expect(await companyRules()).toEqual({ approvals: { required: true } });
+	});
+
+	test('a malformed current work policy returns 400 before persistence', async () => {
+		await expect(
+			reconcile({
+				platform: 'mattermost',
+				workPolicy: { ...currentPolicy(), workMode: 'hybrid' },
+				from: '2027-01-01T00:00:00Z',
+				to: '2027-01-02T00:00:00Z',
+				events: []
+			})
+		).rejects.toMatchObject({ status: 400 });
+		expect(await companyRules()).toEqual({ approvals: { required: true } });
+	});
+
+	test('an invalid current policy time returns 400 before persistence', async () => {
+		await expect(
+			reconcile({
+				platform: 'mattermost',
+				workPolicy: { ...currentPolicy(), nightStartTime: '99:99' },
+				from: '2027-01-01T00:00:00Z',
+				to: '2027-01-02T00:00:00Z',
+				events: []
+			})
+		).rejects.toMatchObject({ status: 400 });
+		expect(await companyRules()).toEqual({ approvals: { required: true } });
+	});
+
+});
 
 function currentPolicy() {
 	return {

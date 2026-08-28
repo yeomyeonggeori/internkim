@@ -53,6 +53,7 @@ GROUPS = [
             BUN_INSTALL,
             ["bun", "run", "check"],
             ["bun", "test", "tests/unit"],
+            ["bun", "run", "test:integration"],
             # Only the Cloudflare build reads what a route exports, and a route that
             # exports a helper is refused there and nowhere else. build:board uses the
             # static adapter, which never looks.
