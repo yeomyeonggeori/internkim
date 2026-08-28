@@ -116,7 +116,7 @@
 		const today = todayDateInTimeZone(summary.timeZone);
 		const anchor =
 			selectedMonth && !today.startsWith(selectedMonth) ? `${selectedMonth}-01` : today;
-		untrack(() => void workStatus.load(period, anchor));
+		untrack(() => void workStatus.load(period, anchor, summary));
 	});
 
 	$effect(() => {
