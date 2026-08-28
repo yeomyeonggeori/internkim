@@ -1406,8 +1406,12 @@ func (state *setupFlowState) installHostDeviceAssetsSSH() error {
 }
 
 func (state *setupFlowState) installDeviceAssetSSH(asset deviceassets.Asset) error {
+	assetSourcePaths, errorValue := asset.SourcePaths(state.scriptDir)
+	if errorValue != nil {
+		return errorValue
+	}
 	sourceDirectoryPaths := []string{}
-	for _, sourceDirectoryPath := range asset.SourcePaths(state.scriptDir) {
+	for _, sourceDirectoryPath := range assetSourcePaths {
 		if info, errorValue := os.Stat(sourceDirectoryPath); errorValue == nil && info.IsDir() {
 			sourceDirectoryPaths = append(sourceDirectoryPaths, sourceDirectoryPath)
 		}
@@ -1418,24 +1422,35 @@ func (state *setupFlowState) installDeviceAssetSSH(asset deviceassets.Asset) err
 		}
 		return fmt.Errorf("device asset %q has no source directory", asset.Name)
 	}
+	remoteTargetPath := func(basePath string, sourceDirectoryPath string) string {
+		if asset.NestSourcesByName {
+			return basePath + "/" + filepath.Base(sourceDirectoryPath)
+		}
+		return basePath
+	}
+	copyInto := func(basePath string) error {
+		for _, sourceDirectoryPath := range sourceDirectoryPaths {
+			targetPath := remoteTargetPath(basePath, sourceDirectoryPath)
+			if targetPath != basePath {
+				state.sshClient.run("mkdir -p " + quoteShellValue(targetPath))
+			}
+			if errorValue := state.sshClient.scpDir(sourceDirectoryPath, targetPath); errorValue != nil {
+				return errorValue
+			}
+		}
+		return nil
+	}
 	if asset.DeviceKind == deviceassets.DeviceKindHost {
 		stagingPath := asset.DevicePath + ".new"
 		state.sshClient.run("rm -rf " + quoteShellValue(stagingPath) + " && mkdir -p " + quoteShellValue(stagingPath))
-		for _, sourceDirectoryPath := range sourceDirectoryPaths {
-			if errorValue := state.sshClient.scpDir(sourceDirectoryPath, stagingPath); errorValue != nil {
-				return errorValue
-			}
+		if errorValue := copyInto(stagingPath); errorValue != nil {
+			return errorValue
 		}
 		state.sshClient.run("rm -rf " + quoteShellValue(asset.DevicePath) + " && mv " + quoteShellValue(stagingPath) + " " + quoteShellValue(asset.DevicePath))
 		return nil
 	}
 	state.sshClient.run("rm -rf " + quoteShellValue(asset.DevicePath) + " && mkdir -p " + quoteShellValue(asset.DevicePath))
-	for _, sourceDirectoryPath := range sourceDirectoryPaths {
-		if errorValue := state.sshClient.scpDir(sourceDirectoryPath, asset.DevicePath); errorValue != nil {
-			return errorValue
-		}
-	}
-	return nil
+	return copyInto(asset.DevicePath)
 }
 
 func (state *setupFlowState) installSkillPythonDependenciesSSH() error {

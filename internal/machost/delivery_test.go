@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 )
 
 func TestTheShareCarriesExactlyWhatTheGuestOpens(t *testing.T) {
@@ -80,10 +82,55 @@ func deliverySourcesForTest(t *testing.T) (Layout, DeliverySources) {
 	writeTestFile(t, filepath.Join(skillsPath, "a-skill", "SKILL.md"), "a skill")
 
 	return NewLayout(filepath.Join(t.TempDir(), "install"), "/tmp/bc"), DeliverySources{
-		PayloadRuntimePath:       payloadRuntimePath,
-		SkillPaths:               []string{skillsPath},
+		PayloadRuntimePath: payloadRuntimePath,
+		Skills: []blueclawworkspace.SkillDirectory{
+			{Name: "a-skill", Path: filepath.Join(skillsPath, "a-skill")},
+		},
 		RuntimeConfigurationJSON: `{"firecracker":{}}`,
 		PolicyJSON:               `{"people":[]}`,
+	}
+}
+
+// Copying whole roots cleared the share per root, so the second root erased
+// the first. Per-skill copies must leave siblings standing.
+func TestEverySkillHandedOverLandsBesideTheOthers(t *testing.T) {
+	layout, sources := deliverySourcesForTest(t)
+	secondSkillRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(secondSkillRoot, "b-skill", "SKILL.md"), "another skill")
+	sources.Skills = append(sources.Skills, blueclawworkspace.SkillDirectory{
+		Name: "b-skill",
+		Path: filepath.Join(secondSkillRoot, "b-skill"),
+	})
+
+	if errorValue := WriteDeliveryDirectory(layout, sources); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	for _, skillName := range []string{"a-skill", "b-skill"} {
+		documentPath := filepath.Join(layout.DeliverySkillsPath(), skillName, "SKILL.md")
+		if _, errorValue := os.Stat(documentPath); errorValue != nil {
+			t.Fatalf("expected %s on the share: %v", documentPath, errorValue)
+		}
+	}
+}
+
+func TestASkillDroppedUpstreamLeavesTheShare(t *testing.T) {
+	layout, sources := deliverySourcesForTest(t)
+	if errorValue := WriteDeliveryDirectory(layout, sources); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if errorValue := WriteDeliveryDirectory(layout, DeliverySources{
+		PayloadRuntimePath:       sources.PayloadRuntimePath,
+		Skills:                   nil,
+		RuntimeConfigurationJSON: sources.RuntimeConfigurationJSON,
+		PolicyJSON:               sources.PolicyJSON,
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, errorValue := os.Stat(filepath.Join(layout.DeliverySkillsPath(), "a-skill")); errorValue == nil {
+		t.Fatal("a skill no longer shipped has to leave the share, or the guest keeps running it")
 	}
 }
 

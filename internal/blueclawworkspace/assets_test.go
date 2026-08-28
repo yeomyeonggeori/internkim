@@ -1101,3 +1101,86 @@ func TestSkillDirectoriesRejectTheSameSkillFromTwoRoots(t *testing.T) {
 		t.Fatal("a skill provided by two roots must be reported, not silently resolved")
 	}
 }
+
+func TestSkillDirectoriesLeaveAClientAudienceSkillOut(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	writeSkillDocument(t, filepath.Join(SkillsPath(repositoryRootPath), "for-the-agent"), `---
+name: for-the-agent
+description: An agent skill.
+---
+Body.`)
+	writeSkillDocument(t, filepath.Join(PluginSkillsPath(repositoryRootPath), "for-clients"), `---
+name: for-clients
+description: Drives the public API from outside.
+metadata:
+  kim.intern.audience: client
+---
+Body.`)
+	writeSkillDocument(t, filepath.Join(PluginSkillsPath(repositoryRootPath), "also-for-the-agent"), `---
+name: also-for-the-agent
+description: A plugin skill the agent runs.
+metadata:
+  kim.intern.other: value
+---
+Body.`)
+
+	skillDirectories, errorValue := SkillDirectories(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	names := []string{}
+	for _, skillDirectory := range skillDirectories {
+		names = append(names, skillDirectory.Name)
+	}
+	if strings.Join(names, ",") != "also-for-the-agent,for-the-agent" {
+		t.Fatalf("the client-audience skill must stay out of the agent bundle, got %v", names)
+	}
+}
+
+// The Agent Skills schema rejects unknown top-level keys, so an audience
+// declared there is a schema violation, not a request — only the metadata map
+// speaks for the skill.
+func TestATopLevelAudienceKeyDoesNotHideASkill(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	writeSkillDocument(t, filepath.Join(SkillsPath(repositoryRootPath), "mislabeled"), `---
+name: mislabeled
+kim.intern.audience: client
+---
+Body.`)
+
+	skillDirectories, errorValue := SkillDirectories(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(skillDirectories) != 1 || skillDirectories[0].Name != "mislabeled" {
+		t.Fatalf("a top-level audience key is not a declaration, got %v", skillDirectories)
+	}
+}
+
+func TestAQuotedClientAudienceStillCounts(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	writeSkillDocument(t, filepath.Join(PluginSkillsPath(repositoryRootPath), "quoted"), `---
+name: quoted
+metadata:
+  kim.intern.audience: "client"
+---
+Body.`)
+
+	skillDirectories, errorValue := SkillDirectories(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(skillDirectories) != 0 {
+		t.Fatalf("a quoted client audience is the same declaration, got %v", skillDirectories)
+	}
+}
+
+func writeSkillDocument(t *testing.T, skillDirectoryPath string, document string) {
+	t.Helper()
+	if errorValue := os.MkdirAll(skillDirectoryPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(skillDirectoryPath, "SKILL.md"), []byte(document), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}

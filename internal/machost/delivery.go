@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 )
 
 const (
@@ -16,7 +18,7 @@ const (
 
 type DeliverySources struct {
 	PayloadRuntimePath       string
-	SkillPaths               []string
+	Skills                   []blueclawworkspace.SkillDirectory
 	RuntimeConfigurationJSON string
 	PolicyJSON               string
 }
@@ -28,8 +30,16 @@ func WriteDeliveryDirectory(layout Layout, sources DeliverySources) error {
 	if errorValue := copyDeliveryTree(sources.PayloadRuntimePath, layout.DeliveryRuntimePath()); errorValue != nil {
 		return errorValue
 	}
-	for _, skillPath := range sources.SkillPaths {
-		if errorValue := copyDeliveryTree(skillPath, layout.DeliverySkillsPath()); errorValue != nil {
+	// One skill lands per directory, under its own name: copying a whole root
+	// over the share began by clearing it, so the second root erased the first.
+	if errorValue := os.RemoveAll(layout.DeliverySkillsPath()); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(layout.DeliverySkillsPath(), deliveryDirectoryMode); errorValue != nil {
+		return errorValue
+	}
+	for _, skill := range sources.Skills {
+		if errorValue := copyDeliveryTree(skill.Path, filepath.Join(layout.DeliverySkillsPath(), skill.Name)); errorValue != nil {
 			return errorValue
 		}
 	}

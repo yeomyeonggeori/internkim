@@ -16,18 +16,24 @@ const (
 
 type Asset struct {
 	Name        string
-	SourcePaths func(repositoryRoot string) []string
-	DevicePath  string
-	DeviceKind  DeviceKind
+	SourcePaths func(repositoryRoot string) ([]string, error)
+	// A source path usually pours its contents into DevicePath. A nested
+	// asset instead lands each source under DevicePath/<its base name>, which
+	// is what lets the skills asset enumerate per skill and leave the
+	// client-audience ones out.
+	NestSourcesByName bool
+	DevicePath        string
+	DeviceKind        DeviceKind
 }
 
 func All() []Asset {
 	return []Asset{
 		{
-			Name:        "skills",
-			SourcePaths: blueclawworkspace.SkillRootPaths,
-			DevicePath:  filepath.Join(blueclaw.BlueclawWorkspacePath, "skills"),
-			DeviceKind:  DeviceKindWorkspace,
+			Name:              "skills",
+			SourcePaths:       agentSkillSourcePaths,
+			NestSourcesByName: true,
+			DevicePath:        filepath.Join(blueclaw.BlueclawWorkspacePath, "skills"),
+			DeviceKind:        DeviceKindWorkspace,
 		},
 		{
 			Name:        "tools",
@@ -61,9 +67,21 @@ func Find(name string) (Asset, bool) {
 	return Asset{}, false
 }
 
-func singleSourcePath(sourcePath func(repositoryRoot string) string) func(repositoryRoot string) []string {
-	return func(repositoryRoot string) []string {
-		return []string{sourcePath(repositoryRoot)}
+func agentSkillSourcePaths(repositoryRoot string) ([]string, error) {
+	skillDirectories, errorValue := blueclawworkspace.SkillDirectories(repositoryRoot)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	sourcePaths := make([]string, 0, len(skillDirectories))
+	for _, skillDirectory := range skillDirectories {
+		sourcePaths = append(sourcePaths, skillDirectory.Path)
+	}
+	return sourcePaths, nil
+}
+
+func singleSourcePath(sourcePath func(repositoryRoot string) string) func(repositoryRoot string) ([]string, error) {
+	return func(repositoryRoot string) ([]string, error) {
+		return []string{sourcePath(repositoryRoot)}, nil
 	}
 }
 

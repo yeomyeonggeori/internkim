@@ -421,27 +421,36 @@ func releaseChannelHistoryKey(channel string) string {
 	return "channels/" + strings.Trim(strings.TrimSpace(channel), "/") + "-history.json"
 }
 
-func deviceAssetSourcePaths(assetName string, repositoryRootPath string) []string {
+func deviceAssetForRelease(assetName string) deviceassets.Asset {
 	asset, found := deviceassets.Find(assetName)
 	if !found {
 		panic("deviceassets: unknown asset " + assetName)
 	}
-	return asset.SourcePaths(repositoryRootPath)
+	return asset
 }
 
 func buildDeviceAssetRelease(assetName string) func(string, string) error {
 	return func(repositoryRootPath string, destinationPath string) error {
+		asset := deviceAssetForRelease(assetName)
+		sourcePaths, errorValue := asset.SourcePaths(repositoryRootPath)
+		if errorValue != nil {
+			return errorValue
+		}
 		if errorValue := os.RemoveAll(destinationPath); errorValue != nil {
 			return errorValue
 		}
 		if errorValue := os.MkdirAll(destinationPath, 0o755); errorValue != nil {
 			return errorValue
 		}
-		for _, sourcePath := range deviceAssetSourcePaths(assetName, repositoryRootPath) {
+		for _, sourcePath := range sourcePaths {
 			if info, statError := os.Stat(sourcePath); statError != nil || !info.IsDir() {
 				continue
 			}
-			if errorValue := copyDirectoryContents(sourcePath, destinationPath); errorValue != nil {
+			targetPath := destinationPath
+			if asset.NestSourcesByName {
+				targetPath = filepath.Join(destinationPath, filepath.Base(sourcePath))
+			}
+			if errorValue := copyDirectoryContents(sourcePath, targetPath); errorValue != nil {
 				return errorValue
 			}
 		}
