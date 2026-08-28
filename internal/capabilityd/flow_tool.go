@@ -20,6 +20,8 @@ type flowTaskAddInput struct {
 	Title                  string   `json:"title"`
 	Size                   string   `json:"size"`
 	Status                 string   `json:"status"`
+	Business               string   `json:"business"`
+	Type                   string   `json:"type"`
 	StartsAt               string   `json:"startsAt"`
 	EndsAt                 string   `json:"endsAt"`
 	ParticipantPersonHints []string `json:"participantPersonHints"`
@@ -31,6 +33,8 @@ type flowTaskCreatePayload struct {
 	Content        string   `json:"content"`
 	Size           string   `json:"size,omitempty"`
 	Status         string   `json:"status,omitempty"`
+	Business       string   `json:"business,omitempty"`
+	Type           string   `json:"type,omitempty"`
 	StartDate      string   `json:"startDate,omitempty"`
 	EndDate        string   `json:"endDate,omitempty"`
 }
@@ -138,6 +142,10 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	members := summary.Members
+	input, labelFailure := resolveFlowTaskAddLabels(input, summary.Definitions)
+	if labelFailure != nil {
+		return flowFailureResponse(request.ToolName, *labelFailure), nil
+	}
 	ownerResolution := service.resolveFlowOwner(ctx, input.ParticipantPersonHints, request.Context.RequesterEmail, members)
 	if ownerResolution.Failure != nil {
 		return flowFailureResponse(request.ToolName, *ownerResolution.Failure), nil
@@ -168,6 +176,8 @@ func (service Service) invokeFlowTaskAdd(ctx context.Context, request capabiliti
 		Content:        input.Title,
 		Size:           input.Size,
 		Status:         input.Status,
+		Business:       input.Business,
+		Type:           input.Type,
 		StartDate:      input.StartsAt,
 		EndDate:        input.EndsAt,
 	}
@@ -451,6 +461,8 @@ func decodeFlowTaskAddInput(document json.RawMessage) (flowTaskAddInput, error) 
 	input.Title = strings.TrimSpace(input.Title)
 	input.Size = strings.ToUpper(strings.TrimSpace(input.Size))
 	input.Status = strings.TrimSpace(input.Status)
+	input.Business = strings.TrimSpace(input.Business)
+	input.Type = strings.TrimSpace(input.Type)
 	input.StartsAt = strings.TrimSpace(input.StartsAt)
 	input.EndsAt = strings.TrimSpace(input.EndsAt)
 	input.ParticipantPersonHints = uniqueTrimmedStringValues(input.ParticipantPersonHints)
