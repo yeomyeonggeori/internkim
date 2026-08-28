@@ -15,7 +15,11 @@ import {
 	revisionForDate,
 	workingDateForDate
 } from '$lib/attendance/work-calendar-derivation';
-import { leaveDayIntervals, type DayMinuteInterval } from '$lib/attendance/leave-day-intervals';
+import {
+	intervalsOverlap,
+	leaveDayIntervals,
+	type DayMinuteInterval
+} from '$lib/attendance/leave-day-intervals';
 import { workCompliance } from '$lib/attendance/work-compliance';
 import { companyTimeInstant } from '$lib/attendance/supabase-work-status-range';
 import { attendanceHolidayDates } from '$lib/attendance/attendance-holidays';
@@ -252,14 +256,16 @@ function dayStatusOf(
 	const remainingMinutes = hasBaseline ? Math.max(0, dayTargetMinutes - fulfilledMinutes) : 0;
 	const overtimeMinutes =
 		hasBaseline && !baselineWaivedByLeave ? Math.max(0, creditedMinutes - dayTargetMinutes) : 0;
-	const hasLeaveWorkOverlap = isOnLeave && workedMinutes + provisionalMinutes > 0;
-	const needsReview = worked.hasIncompleteWorkRecord || hasLeaveWorkOverlap;
 	const dayStart = new Date(companyTimeInstant(day, '00:00', timeZone)).getTime();
+	const workIntervals = worked.spans.map((span) => dayInterval(span.startAt, span.endAt, dayStart));
+	const leaveIntervals = leaveDayIntervals(dayLeave, day, timeZone, revision);
+	const hasLeaveWorkOverlap = intervalsOverlap(workIntervals, leaveIntervals);
+	const needsReview = worked.hasIncompleteWorkRecord || hasLeaveWorkOverlap;
 	const compliance = workCompliance(
 		revision,
 		workingDate,
-		worked.spans.map((span) => dayInterval(span.startAt, span.endAt, dayStart)),
-		leaveDayIntervals(dayLeave, day, timeZone, revision),
+		workIntervals,
+		leaveIntervals,
 		Math.round((now.getTime() - dayStart) / 60_000)
 	);
 
