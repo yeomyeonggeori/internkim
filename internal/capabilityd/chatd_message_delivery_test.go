@@ -117,7 +117,6 @@ func TestChatdMessageSendCarriesAFileSomebodyElseRead(testContext *testing.T) {
 // with no target at all, it says what to name instead of guessing.
 func TestChatdMessageSearchNeedsATargetToRead(testContext *testing.T) {
 	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
-
 	response, errorValue := service.invokePlatformMessageSearch(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_search",
 		Input:    json.RawMessage(`{}`),
@@ -134,16 +133,15 @@ func TestChatdMessageSearchNeedsATargetToRead(testContext *testing.T) {
 
 func TestChatdMessageSearchReadsAChannelsOwnRecord(testContext *testing.T) {
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/v1/platform/buzz/history.fetch" {
+		if request.URL.Path != "/v1/platform/buzz/message.search" {
 			testContext.Fatalf("unexpected chatd path %s", request.URL.Path)
 		}
 		body, _ := io.ReadAll(request.Body)
-		if !strings.Contains(string(body), `"channelName":"잡담"`) {
-			testContext.Fatalf("expected the channel name to travel, got %s", body)
+		if !strings.Contains(string(body), `"channelName":"잡담"`) || !strings.Contains(string(body), `"authoredBy":"assistant"`) {
+			testContext.Fatalf("expected the channel name and author to travel, got %s", body)
 		}
-		writer.Write([]byte(`{"channelID":"channel-1","messages":[
-			{"id":"m1","speaker":"이샘플","senderId":"pub-1","text":"안녕","isBot":false},
-			{"id":"m2","speaker":"김인턴","senderId":"pub-agent","text":"번역 안내","sentAt":"2026-08-28T01:00:00Z","isBot":true}
+		writer.Write([]byte(`{"channelID":"channel-1","candidates":[
+			{"messageID":"m2","channelID":"channel-1","authorPubkeyHex":"pub-agent","authoredByAssistant":true,"createdAt":1787886000000,"text":"번역 안내","score":1}
 		]}`))
 	}))
 	defer chatdServer.Close()
