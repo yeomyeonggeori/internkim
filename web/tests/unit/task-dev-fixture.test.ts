@@ -86,7 +86,7 @@ describe('createDevTaskSummary', () => {
 	test('includes four completed June popup overflow tasks for 김철수', () => {
 		const summary = createDevTaskSummary('26W25', 'admin@example.com');
 		const tasks = summary.tasks
-			.filter((task) => task.ownerName === devPopupOverflowDisplayName && task.status === '완료' && task.endDate === devPopupOverflowDate)
+			.filter((task) => task.ownerName === devPopupOverflowDisplayName && task.status === 'completed' && task.endDate === devPopupOverflowDate)
 			.map((task) => task.content);
 
 		expect(tasks).toEqual(devPopupOverflowCompletedTaskTitles);
@@ -147,7 +147,7 @@ function scoreTask(id: string, size: string, endDate: string) {
 		content: id,
 		goal: '',
 		size,
-		status: '완료',
+		status: 'completed',
 		statusRank: 0,
 		startDate: endDate,
 		endDate,

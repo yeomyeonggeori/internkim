@@ -22,7 +22,7 @@ describe('flow task board save', () => {
 			const result = await saveTaskBoardMove({
 				request: {
 					taskID: 'requested',
-					targetStatus: '진행',
+					targetStatus: 'in_progress',
 					beforeTaskID: null
 				},
 				week: '26W23',

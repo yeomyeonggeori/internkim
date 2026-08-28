@@ -318,7 +318,7 @@ func TestTaskAddPropagatesTypedFields(t *testing.T) {
 
 	_, errorValue := service.invokeTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
-		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","size":" s ","status":"예정","business":" 김인턴 ","type":"문서","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
+		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","size":" s ","status":"planned","business":" 김인턴 ","type":"문서","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -332,7 +332,7 @@ func TestTaskAddPropagatesTypedFields(t *testing.T) {
 	if payload["endDate"] != "2026-07-17" {
 		t.Fatalf("endDate = %#v", payload["endDate"])
 	}
-	if payload["size"] != "S" || payload["status"] != "예정" || payload["startDate"] != "2026-07-15" {
+	if payload["size"] != "S" || payload["status"] != "planned" || payload["startDate"] != "2026-07-15" {
 		t.Fatalf("payload = %#v", payload)
 	}
 	if payload["business"] != "김인턴" || payload["type"] != "문서" {
@@ -387,11 +387,11 @@ func TestDecodeTaskAddInputRejectsLegacyPromptAndContent(t *testing.T) {
 }
 
 func TestDecodeTaskAddInputTrimsCanonicalFields(t *testing.T) {
-	input, errorValue := decodeTaskAddInput([]byte(`{"title":" 정확한 제목 ","size":" m ","status":" 진행 ","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":[" @kim ","@kim"," "]}`))
+	input, errorValue := decodeTaskAddInput([]byte(`{"title":" 정확한 제목 ","size":" m ","status":" in_progress ","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":[" @kim ","@kim"," "]}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if input.Title != "정확한 제목" || input.Size != "M" || input.Status != "진행" || input.StartsAt != "2026-07-15" || input.EndsAt != "2026-07-17" || len(input.ParticipantPersonHints) != 1 || input.ParticipantPersonHints[0] != "@kim" {
+	if input.Title != "정확한 제목" || input.Size != "M" || input.Status != "in_progress" || input.StartsAt != "2026-07-15" || input.EndsAt != "2026-07-17" || len(input.ParticipantPersonHints) != 1 || input.ParticipantPersonHints[0] != "@kim" {
 		t.Fatalf("input = %+v", input)
 	}
 }
@@ -514,7 +514,7 @@ func TestTaskListFiltersTasksByQueryIgnoringSpaces(t *testing.T) {
 			if request.Method != http.MethodGet || request.URL.String() != "http://internkim/task/api/state" {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
-			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"currentWeek":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"견본코리아 기획안 전달","status":"예정","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"사무실 미팅","status":"예정","weekCode":"26W23"}]}`)), nil
+			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"currentWeek":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"견본코리아 기획안 전달","status":"planned","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"사무실 미팅","status":"planned","weekCode":"26W23"}]}`)), nil
 		})},
 	}
 
@@ -545,7 +545,7 @@ func TestTaskAddAddsParticipantPresentations(t *testing.T) {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
 				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"rain","name":"김테스트","email":"rain@example.com","mattermostUsername":"rain"}]}`)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
-				return taskToolJSONResponse(`{"id":"task-1","participantIDs":["rain"],"participantNames":["김테스트"],"content":"경산 일정","status":"진행"}`), nil
+				return taskToolJSONResponse(`{"id":"task-1","participantIDs":["rain"],"participantNames":["김테스트"],"content":"경산 일정","status":"in_progress"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -598,7 +598,7 @@ func TestTaskAddReportsDuplicateAsTypedFailure(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.ErrorCode != "task_task_duplicate" || len(response.Effects) != 0 {
+	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.ErrorCode != "task_duplicate" || len(response.Effects) != 0 {
 		t.Fatalf("response = %+v", response)
 	}
 }
@@ -614,7 +614,7 @@ func TestTaskAddDeduplicatesSameTitleSameOwnerWithinWindow(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
+				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				postCalled = true
 				return taskToolJSONResponse(`{"id":"task-new"}`), nil
@@ -663,7 +663,7 @@ func TestTaskAddCreatesNewTaskForDifferentTitle(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"다른 업무","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
+				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"다른 업무","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				return taskToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
@@ -702,7 +702,7 @@ func TestTaskAddCreatesNewTaskForDifferentOwner(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"kim","ownerName":"Kim","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, recentCreatedAt)), nil
+				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"kim","ownerName":"Kim","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				return taskToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
@@ -741,7 +741,7 @@ func TestTaskAddCreatesNewTaskAfterDuplicateWindowExpires(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"예정","createdAt":%q}]}`, staleCreatedAt)), nil
+				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, staleCreatedAt)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				return taskToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
@@ -781,12 +781,12 @@ func TestTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"진행","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","size":"XS","status":"진행","weekCode":"26W24"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"in_progress","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","size":"XS","status":"in_progress","weekCode":"26W24"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/task/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
-				return taskToolJSONResponse(`{"id":"task-1","content":"15분 회의","status":"진행"}`), nil
+				return taskToolJSONResponse(`{"id":"task-1","content":"15분 회의","status":"in_progress"}`), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				postCalled = true
 				return taskToolJSONResponse(`{"id":"new-task"}`), nil
@@ -807,13 +807,13 @@ func TestTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.IsError || response.Status != "진행" {
+	if response.IsError || response.Status != "in_progress" {
 		t.Fatalf("response = %+v", response)
 	}
 	if postCalled {
 		t.Fatal("update must not call quick create")
 	}
-	if updatedPayload["content"] != "15분 회의" || updatedPayload["status"] != "진행" {
+	if updatedPayload["content"] != "15분 회의" || updatedPayload["status"] != "in_progress" {
 		t.Fatalf("updated payload = %+v", updatedPayload)
 	}
 	if response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 1 || response.Effects[0].ID != "task-1" || response.Effects[0].Effect != "updated" {
@@ -842,7 +842,7 @@ func TestTaskUpdateRejectsMismatchedBackendTaskID(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.ErrorCode != "task_task_result_invalid" || len(response.Effects) != 0 {
+	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.ErrorCode != "task_result_invalid" || len(response.Effects) != 0 {
 		t.Fatalf("response = %+v", response)
 	}
 }
@@ -868,7 +868,7 @@ func TestTaskUpdateRejectsBackendNoOp(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.ErrorCode != "task_task_result_invalid" || len(response.Effects) != 0 {
+	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.ErrorCode != "task_result_invalid" || len(response.Effects) != 0 {
 		t.Fatalf("response = %+v", response)
 	}
 }
@@ -876,9 +876,9 @@ func TestTaskUpdateRejectsBackendNoOp(t *testing.T) {
 func TestDecodeTaskUpdateInputRejectsLegacyAndResolutionFields(t *testing.T) {
 	for _, document := range []string{
 		`{"taskHint":"task-1","content":"이전 제목"}`,
-		`{"taskHint":"task-1","query":"이전 제목","status":"완료"}`,
-		`{"taskHint":"task-1","targetPersonHint":"staff","status":"완료"}`,
-		`{"taskHint":"task-1","weekCode":"26W24","status":"완료"}`,
+		`{"taskHint":"task-1","query":"이전 제목","status":"completed"}`,
+		`{"taskHint":"task-1","targetPersonHint":"staff","status":"completed"}`,
+		`{"taskHint":"task-1","weekCode":"26W24","status":"completed"}`,
 	} {
 		_, errorValue := decodeTaskUpdateInput([]byte(document))
 		if errorValue == nil || !strings.Contains(errorValue.Error(), "unknown field") {
@@ -889,7 +889,7 @@ func TestDecodeTaskUpdateInputRejectsLegacyAndResolutionFields(t *testing.T) {
 
 func TestDecodeTaskUpdateInputRequiresTaskHintAndPatch(t *testing.T) {
 	for _, document := range []string{
-		`{"status":"완료"}`,
+		`{"status":"completed"}`,
 		`{"taskHint":"task-1"}`,
 		`{"taskHint":" "}`,
 	} {
@@ -919,12 +919,12 @@ func TestTaskUpdateResolvesByExactTaskIDAcrossAllTasks(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"business":"샘플거리","type":"문서","content":"IR 덱","status":"진행","weekCode":"26W28"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"business":"샘플거리","type":"문서","content":"IR 덱","status":"in_progress","weekCode":"26W28"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/task/api/tasks/deck-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
-				return taskToolJSONResponse(`{"id":"deck-1","status":"완료"}`), nil
+				return taskToolJSONResponse(`{"id":"deck-1","status":"completed"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -934,7 +934,7 @@ func TestTaskUpdateResolvesByExactTaskIDAcrossAllTasks(t *testing.T) {
 
 	response, errorValue := service.invokeTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_update",
-		Input:    []byte(`{"taskHint":"deck-1","status":"완료"}`),
+		Input:    []byte(`{"taskHint":"deck-1","status":"completed"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
 	})
 	if errorValue != nil {
@@ -943,7 +943,7 @@ func TestTaskUpdateResolvesByExactTaskIDAcrossAllTasks(t *testing.T) {
 	if response.IsError {
 		t.Fatalf("expected exact taskID hint to resolve, got error response %+v", response)
 	}
-	if updatedPayload["status"] != "완료" {
+	if updatedPayload["status"] != "completed" {
 		t.Fatalf("updated payload = %+v", updatedPayload)
 	}
 }
@@ -958,12 +958,12 @@ func TestTaskUpdateResolvesByExactUniqueTitle(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"content":"IR 덱","status":"진행","weekCode":"26W28"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"content":"IR 덱","status":"in_progress","weekCode":"26W28"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/task/api/tasks/deck-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
-				return taskToolJSONResponse(`{"id":"deck-1","status":"완료"}`), nil
+				return taskToolJSONResponse(`{"id":"deck-1","status":"completed"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -973,7 +973,7 @@ func TestTaskUpdateResolvesByExactUniqueTitle(t *testing.T) {
 
 	response, errorValue := service.invokeTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_update",
-		Input:    []byte(`{"taskHint":"IR 덱","status":"완료"}`),
+		Input:    []byte(`{"taskHint":"IR 덱","status":"completed"}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "lee@example.com"},
 	})
 	if errorValue != nil {
@@ -982,7 +982,7 @@ func TestTaskUpdateResolvesByExactUniqueTitle(t *testing.T) {
 	if response.IsError {
 		t.Fatalf("expected exact unique title hint to resolve, got error response %+v", response)
 	}
-	if updatedPayload["status"] != "완료" {
+	if updatedPayload["status"] != "completed" {
 		t.Fatalf("updated payload = %+v", updatedPayload)
 	}
 }
@@ -997,18 +997,18 @@ func TestTaskUpdateAmbiguousTitleReturnsCandidates(t *testing.T) {
 			if request.Method != http.MethodGet {
 				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
 			}
-			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR 덱","status":"진행"},{"id":"task-2","content":"IR 덱","status":"예정"}]}`)), nil
+			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR 덱","status":"in_progress"},{"id":"task-2","content":"IR 덱","status":"planned"}]}`)), nil
 		})},
 	}
 
 	response, errorValue := service.invokeTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_update",
-		Input:    []byte(`{"taskHint":"IR 덱","status":"완료"}`),
+		Input:    []byte(`{"taskHint":"IR 덱","status":"completed"}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "task_task_hint_unresolved" || !response.SafeRetry {
+	if !response.IsError || response.ErrorCode != "task_hint_unresolved" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
 	if !strings.Contains(string(response.Result), "task-1") || !strings.Contains(string(response.Result), "task-2") {
@@ -1027,18 +1027,18 @@ func TestTaskUpdateAHintNothingComesCloseToWritesNothingAndNamesNothing(t *testi
 			if request.Method == http.MethodPut {
 				putCalled = true
 			}
-			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"진행"}]}`)), nil
+			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"in_progress"}]}`)), nil
 		})},
 	}
 
 	response, errorValue := service.invokeTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_update",
-		Input:    []byte(`{"taskHint":"zzzz","status":"완료"}`),
+		Input:    []byte(`{"taskHint":"zzzz","status":"completed"}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "task_task_hint_unresolved" || !response.SafeRetry {
+	if !response.IsError || response.ErrorCode != "task_hint_unresolved" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
 	if strings.Contains(string(response.Result), "task-1") {
@@ -1060,13 +1060,13 @@ func TestTaskUpdateResolvesATitleWhoseCaseDiffers(t *testing.T) {
 			if request.Method == http.MethodPut {
 				putCalled = true
 			}
-			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"진행"}]}`)), nil
+			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"in_progress"}]}`)), nil
 		})},
 	}
 
 	if _, errorValue := service.invokeTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_update",
-		Input:    []byte(`{"taskHint":"ir deck","status":"완료"}`),
+		Input:    []byte(`{"taskHint":"ir deck","status":"completed"}`),
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1085,12 +1085,12 @@ func TestTaskUpdateHintResolutionTrimsWhitespaceBeforeMatching(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR 덱","status":"진행"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR 덱","status":"in_progress"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/task/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
 				}
-				return taskToolJSONResponse(`{"id":"task-1","status":"완료"}`), nil
+				return taskToolJSONResponse(`{"id":"task-1","status":"completed"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -1100,7 +1100,7 @@ func TestTaskUpdateHintResolutionTrimsWhitespaceBeforeMatching(t *testing.T) {
 
 	response, errorValue := service.invokeTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_update",
-		Input:    []byte(`{"taskHint":" IR 덱 ","status":"완료"}`),
+		Input:    []byte(`{"taskHint":" IR 덱 ","status":"completed"}`),
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -1108,7 +1108,7 @@ func TestTaskUpdateHintResolutionTrimsWhitespaceBeforeMatching(t *testing.T) {
 	if response.IsError {
 		t.Fatalf("expected trimmed title hint to resolve, got error response %+v", response)
 	}
-	if updatedPayload["status"] != "완료" {
+	if updatedPayload["status"] != "completed" {
 		t.Fatalf("updated payload = %+v", updatedPayload)
 	}
 }
@@ -1210,7 +1210,7 @@ func TestTaskDeleteAmbiguousTitleReturnsCandidatesWithoutDeleting(t *testing.T) 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "task_task_hint_unresolved" || !response.SafeRetry {
+	if !response.IsError || response.ErrorCode != "task_hint_unresolved" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
 	if !strings.Contains(string(response.Result), "task-1") || !strings.Contains(string(response.Result), "task-2") {
@@ -1228,7 +1228,7 @@ func TestTaskDeleteAHintNothingComesCloseToDeletesNothingAndNamesNothing(t *test
 			if request.Method != http.MethodGet {
 				t.Fatalf("unexpected write request %s %s", request.Method, request.URL.String())
 			}
-			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"진행"}]}`)), nil
+			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[],"tasks":[{"id":"task-1","content":"IR Deck","status":"in_progress"}]}`)), nil
 		})},
 	}
 
@@ -1239,7 +1239,7 @@ func TestTaskDeleteAHintNothingComesCloseToDeletesNothingAndNamesNothing(t *test
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "task_task_hint_unresolved" || !response.SafeRetry {
+	if !response.IsError || response.ErrorCode != "task_hint_unresolved" || !response.SafeRetry {
 		t.Fatalf("response = %+v", response)
 	}
 	if strings.Contains(string(response.Result), "task-1") {
@@ -1283,7 +1283,7 @@ func TestTaskDeleteNotFoundReturnsTypedFailure(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "task_task_not_found" || response.Status == "deleted" {
+	if !response.IsError || response.ErrorCode != "task_not_found" || response.Status == "deleted" {
 		t.Fatalf("response = %+v", response)
 	}
 }
@@ -1309,22 +1309,12 @@ func TestTaskDeleteReturnsTypedNotFoundWithoutExactEvidence(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "task_task_not_found" || response.Status == "deleted" {
+	if !response.IsError || response.ErrorCode != "task_not_found" || response.Status == "deleted" {
 		t.Fatalf("response = %+v error = %v", response, errorValue)
 	}
 }
 
-func TestNormalizeTaskStatusFilter(t *testing.T) {
-	for input, expected := range map[string]string{
-		"예약": "예정", "planned": "예정", "scheduled": "예정", "예정": "예정",
-		"done": "완료", "완료": "완료", "in progress": "진행",
-		"": "", "임의값": "임의값",
-	} {
-		if normalized := normalizeTaskStatus(input); normalized != expected {
-			t.Fatalf("normalizeTaskStatus(%q) = %q, want %q", input, normalized, expected)
-		}
-	}
-}
+
 
 func taskListTwoOwnerStateService(t *testing.T) Service {
 	return Service{
@@ -1336,7 +1326,7 @@ func taskListTwoOwnerStateService(t *testing.T) Service {
 			if request.URL.String() != "http://internkim/task/api/state" {
 				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
 			}
-			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"currentWeek":{"code":"26W25"},"members":[{"id":"rain","name":"김테스트","email":"rain@example.com"},{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"rain-future","ownerID":"rain","ownerName":"김테스트","content":"김테스트 예정 업무","status":"예정","weekCode":"26W30"},{"id":"rain-done","ownerID":"rain","ownerName":"김테스트","content":"김테스트 완료 업무","status":"완료","weekCode":"26W25"},{"id":"lee-task","ownerID":"lee","ownerName":"이샘플","content":"이샘플 업무","status":"예정","weekCode":"26W25"}]}`)), nil
+			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"currentWeek":{"code":"26W25"},"members":[{"id":"rain","name":"김테스트","email":"rain@example.com"},{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"rain-future","ownerID":"rain","ownerName":"김테스트","content":"김테스트 예정 업무","status":"planned","weekCode":"26W30"},{"id":"rain-done","ownerID":"rain","ownerName":"김테스트","content":"김테스트 완료 업무","status":"completed","weekCode":"26W25"},{"id":"lee-task","ownerID":"lee","ownerName":"이샘플","content":"이샘플 업무","status":"planned","weekCode":"26W25"}]}`)), nil
 		})},
 	}
 }
@@ -1405,11 +1395,11 @@ func TestTaskListOwnNameNarrowsToRequester(t *testing.T) {
 	}
 }
 
-func TestTaskListNormalizesStatusAcrossEveryone(t *testing.T) {
+func TestTaskListFiltersByCanonicalStatusAcrossEveryone(t *testing.T) {
 	service := taskListTwoOwnerStateService(t)
 	response, errorValue := service.invokeTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
-		Input:    []byte(`{"scope":"all","status":"예약","weekFrom":-1000}`),
+		Input:    []byte(`{"scope":"all","status":"planned","weekFrom":-1000}`),
 		Context:  capabilities.ToolInvokeContext{RequesterEmail: "rain@example.com"},
 	})
 	if errorValue != nil {
@@ -1419,8 +1409,8 @@ func TestTaskListNormalizesStatusAcrossEveryone(t *testing.T) {
 	if !strings.Contains(result, "rain-future") || !strings.Contains(result, "lee-task") || strings.Contains(result, "rain-done") {
 		t.Fatalf("expected everyone's planned tasks across weeks, got %s", result)
 	}
-	if !strings.Contains(result, `"statusFilter":"예정"`) {
-		t.Fatalf("expected status normalized to 예정, got %s", result)
+	if !strings.Contains(result, `"statusFilter":"planned"`) {
+		t.Fatalf("expected the canonical filter echoed back, got %s", result)
 	}
 }
 
@@ -1471,7 +1461,7 @@ func TestTaskListTargetPersonHintIncludesParticipantTasks(t *testing.T) {
 			if request.URL.String() != "http://internkim/task/api/state" {
 				t.Fatalf("expected all-tasks state endpoint, got %s", request.URL.String())
 			}
-			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"currentWeek":{"code":"26W25"},"members":[{"id":"owner","name":"오너","email":"owner@example.com"},{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"owner-task","ownerID":"owner","ownerName":"오너","participantIDs":["owner","lee"],"participantNames":["오너","이샘플"],"content":"이샘플 참여 업무","status":"진행","weekCode":"26W25"},{"id":"other-task","ownerID":"owner","ownerName":"오너","participantIDs":["owner"],"participantNames":["오너"],"content":"오너 단독 업무","status":"진행","weekCode":"26W25"}]}`)), nil
+			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"currentWeek":{"code":"26W25"},"members":[{"id":"owner","name":"오너","email":"owner@example.com"},{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"owner-task","ownerID":"owner","ownerName":"오너","participantIDs":["owner","lee"],"participantNames":["오너","이샘플"],"content":"이샘플 참여 업무","status":"in_progress","weekCode":"26W25"},{"id":"other-task","ownerID":"owner","ownerName":"오너","participantIDs":["owner"],"participantNames":["오너"],"content":"오너 단독 업무","status":"in_progress","weekCode":"26W25"}]}`)), nil
 		})},
 	}
 	response, errorValue := service.invokeTaskList(context.Background(), capabilities.ToolInvokeRequest{
@@ -1493,7 +1483,7 @@ func TestTaskListTreatsAvailablePlannedAndPausedAsCurrentWeek(t *testing.T) {
 	thisWeek := weekCodeForTaskDate(now)
 	priorWeek := weekCodeForTaskDate(now.AddDate(0, 0, -14))
 	futureStartDate := now.AddDate(0, 0, 14).Format("2006-01-02")
-	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"planned-old-week","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"예정 업무","status":"예정","weekCode":%q},{"id":"planned-future-start","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"미래 예정 업무","status":"예정","startDate":%q,"weekCode":%q},{"id":"paused-old-week","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"일시정지 업무","status":"일시정지","weekCode":%q}]}`, thisWeek, priorWeek, futureStartDate, priorWeek, priorWeek)
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"planned-old-week","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"예정 업무","status":"planned","weekCode":%q},{"id":"planned-future-start","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"미래 예정 업무","status":"planned","startDate":%q,"weekCode":%q},{"id":"paused-old-week","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"일시정지 업무","status":"paused","weekCode":%q}]}`, thisWeek, priorWeek, futureStartDate, priorWeek, priorWeek)
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1529,7 +1519,7 @@ func TestTaskListClassifiesFinishedInactiveTasksByDates(t *testing.T) {
 	oldWeek := weekCodeForTaskDate(now.AddDate(0, 0, -28))
 	thisWeekDate := now.Format("2006-01-02")
 	priorWeekDate := now.AddDate(0, 0, -7).Format("2006-01-02")
-	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"completed-current-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"완료 업무","status":"완료","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"rejected-current-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"기각 업무","status":"기각","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"stopped-current-start","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"중단 시작일 업무","status":"중단","startDate":%q,"weekCode":%q},{"id":"stopped-prior-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"중단 종료일 우선 업무","status":"중단","startDate":%q,"endDate":%q,"weekCode":%q}]}`, thisWeek, priorWeekDate, thisWeekDate, oldWeek, priorWeekDate, thisWeekDate, oldWeek, thisWeekDate, oldWeek, thisWeekDate, priorWeekDate, oldWeek)
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"completed-current-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"완료 업무","status":"completed","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"rejected-current-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"기각 업무","status":"rejected","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"stopped-current-start","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"중단 시작일 업무","status":"cancelled","startDate":%q,"weekCode":%q},{"id":"stopped-prior-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"중단 종료일 우선 업무","status":"cancelled","startDate":%q,"endDate":%q,"weekCode":%q}]}`, thisWeek, priorWeekDate, thisWeekDate, oldWeek, priorWeekDate, thisWeekDate, oldWeek, thisWeekDate, oldWeek, thisWeekDate, priorWeekDate, oldWeek)
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1602,7 +1592,7 @@ func TestTaskListWeekCodes(t *testing.T) {
 func TestTaskListDefaultsToThisWeekOnly(t *testing.T) {
 	thisWeek := "26W30"
 	priorWeek := "26W29"
-	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"this-week-task","ownerID":"lee","ownerName":"이샘플","content":"이번주 업무","status":"진행","weekCode":%q},{"id":"prior-week-task","ownerID":"lee","ownerName":"이샘플","content":"지난 업무","status":"진행","weekCode":%q}]}`, thisWeek, thisWeek, priorWeek)
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"this-week-task","ownerID":"lee","ownerName":"이샘플","content":"이번주 업무","status":"in_progress","weekCode":%q},{"id":"prior-week-task","ownerID":"lee","ownerName":"이샘플","content":"지난 업무","status":"in_progress","weekCode":%q}]}`, thisWeek, thisWeek, priorWeek)
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1636,12 +1626,12 @@ func taskToolJSONResponse(document string) *http.Response {
 
 func TestTaskAddTakesTheStatusesTheSchemaPromises(t *testing.T) {
 	for _, promised := range []struct{ english, stored string }{
-		{"planned", "예정"},
-		{"in_progress", "진행"},
-		{"completed", "완료"},
-		{"paused", "일시정지"},
-		{"rejected", "기각"},
-		{"cancelled", "중단"},
+		{"planned", "planned"},
+		{"in_progress", "in_progress"},
+		{"completed", "completed"},
+		{"paused", "paused"},
+		{"rejected", "rejected"},
+		{"cancelled", "cancelled"},
 	} {
 		document := json.RawMessage(`{"title":"운동","status":"` + promised.english + `"}`)
 		input, errorValue := decodeTaskAddInput(document)
@@ -1662,7 +1652,7 @@ func TestTaskUpdateTakesTheStatusesTheSchemaPromises(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("task_update refused a status its schema offers: %v", errorValue)
 	}
-	if input.Status == nil || *input.Status != "완료" {
+	if input.Status == nil || *input.Status != "completed" {
 		t.Fatalf("status = %v", input.Status)
 	}
 }
@@ -1715,7 +1705,7 @@ func taskParticipantService(t *testing.T, capturedPayload *string) Service {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"},{"id":"shin","name":"신견본","email":"shin@example.com"}],"tasks":[{"id":"task-1","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"content":"운동","status":"완료"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"},{"id":"shin","name":"신견본","email":"shin@example.com"}],"tasks":[{"id":"task-1","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"content":"운동","status":"completed"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/task/api/tasks/task-1":
 				body, _ := io.ReadAll(request.Body)
 				*capturedPayload = string(body)
@@ -1728,7 +1718,7 @@ func taskParticipantService(t *testing.T, capturedPayload *string) Service {
 					t.Fatalf("payload = %s", body)
 				}
 				participants, _ := json.Marshal(payload.ParticipantIDs)
-				return taskToolJSONResponse(`{"id":"task-1","ownerID":"` + payload.OwnerID + `","participantIDs":` + string(participants) + `,"content":"` + payload.Content + `","status":"완료"}`), nil
+				return taskToolJSONResponse(`{"id":"task-1","ownerID":"` + payload.OwnerID + `","participantIDs":` + string(participants) + `,"content":"` + payload.Content + `","status":"completed"}`), nil
 			default:
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 				return nil, nil
@@ -1787,7 +1777,7 @@ func TestTaskUpdateExplainsWhoMayChangeParticipants(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			if request.Method == http.MethodGet {
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"},{"id":"shin","name":"신견본","email":"shin@example.com"}],"tasks":[{"id":"task-1","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee","shin"],"content":"운동","status":"완료"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"},{"id":"shin","name":"신견본","email":"shin@example.com"}],"tasks":[{"id":"task-1","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee","shin"],"content":"운동","status":"completed"}]}`)), nil
 			}
 			return &http.Response{StatusCode: http.StatusForbidden, Body: io.NopCloser(strings.NewReader("flow access required")), Header: http.Header{}}, nil
 		})},
@@ -1801,7 +1791,7 @@ func TestTaskUpdateExplainsWhoMayChangeParticipants(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("a refusal must be a typed tool failure, not a transport error: %v", errorValue)
 	}
-	if !response.IsError || response.ErrorCode != "task_task_assignment_forbidden" {
+	if !response.IsError || response.ErrorCode != "task_assignment_forbidden" {
 		t.Fatalf("response = %+v", response)
 	}
 	if !strings.Contains(response.Message, "이샘플") {

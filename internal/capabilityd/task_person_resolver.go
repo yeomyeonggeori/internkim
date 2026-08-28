@@ -261,13 +261,13 @@ func taskWriteRefusal(errorValue error, task taskForTool, participantIDs *[]stri
 	}
 	if participantIDs == nil {
 		return taskWriteRefusalFailure{
-			ErrorCode:    "task_task_write_forbidden",
+			ErrorCode:    "task_write_forbidden",
 			FailureStage: "authorization",
 			Message:      "the requester may not change this task; only its owner, a participant, or an admin can",
 		}, true
 	}
 	return taskWriteRefusalFailure{
-		ErrorCode:    "task_task_assignment_forbidden",
+		ErrorCode:    "task_assignment_forbidden",
 		FailureStage: "authorization",
 		Message: "only " + taskOwnerLabel(task, members) + " or an admin can change who takes part in this task, " +
 			"so the requester cannot. Tell the user who has to make this change instead of retrying.",

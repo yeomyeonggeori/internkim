@@ -22,7 +22,7 @@ func TestReconcileSiteSourcesToStaffCircle(t *testing.T) {
 
 	writeSiteSourceFile(t, filepath.Join(workspaceRoot, "sites", "oldest", "app", "src", "App.tsx"), "oldest source")
 	writeSiteSourceFile(t, filepath.Join(workspaceRoot, "private", "people", "person-1", "sites", "newer", "draft", "app", "src", "App.tsx"), "newer source")
-	writeSiteSourceFile(t, filepath.Join(workspaceRoot, "circles", "staff", "sites", "done", "draft", "app", "src", "App.tsx"), "done source")
+	writeSiteSourceFile(t, filepath.Join(workspaceRoot, "circles", "staff", "sites", "completed", "draft", "app", "src", "App.tsx"), "done source")
 	writeSiteSourceFile(t, filepath.Join(workspaceRoot, "circles", "staff", "sites", "slugged-id", "draft", "app", "src", "App.tsx"), "slugged source")
 	writeSiteSourceFile(t, filepath.Join(workspaceRoot, "circles", "staff", "sites", "rootlegacy", "app", "src", "App.tsx"), "root legacy source")
 	writeSiteSourceFile(t, filepath.Join(workspaceRoot, "circles", "staff", "sites", "preexisting-alias", "draft", "app", "src", "App.tsx"), "preexisting alias source")
@@ -32,7 +32,7 @@ func TestReconcileSiteSourcesToStaffCircle(t *testing.T) {
 	service.sites = map[string]*SiteRecord{
 		"oldest":     {SiteID: "oldest", Slug: "oldest", Status: SiteStatusPublished, SourceWorkspacePath: "/workspace/sites/oldest", WorkspacePath: "/workspace/sites/oldest"},
 		"newer":      {SiteID: "newer", Slug: "newer", Status: SiteStatusDraft, SourceWorkspacePath: "home/sites/newer/draft", WorkspacePath: "home/sites/newer"},
-		"done":       {SiteID: "done", Slug: "done", Status: SiteStatusDraft, SourceWorkspacePath: "/workspace/circles/staff/sites/done/draft", WorkspacePath: "/workspace/circles/staff/sites/done", DraftPath: "/workspace/circles/staff/sites/done/draft", AppWorkspacePath: "/workspace/circles/staff/sites/done/draft/app"},
+		"completed":       {SiteID: "completed", Slug: "completed", Status: SiteStatusDraft, SourceWorkspacePath: "/workspace/circles/staff/sites/done/draft", WorkspacePath: "/workspace/circles/staff/sites/done", DraftPath: "/workspace/circles/staff/sites/done/draft", AppWorkspacePath: "/workspace/circles/staff/sites/done/draft/app"},
 		"slugged-id": {SiteID: "slugged-id", Slug: "pretty-gyul", Status: SiteStatusPublished, SourceWorkspacePath: "/workspace/circles/staff/sites/slugged-id/draft", WorkspacePath: "/workspace/circles/staff/sites/slugged-id"},
 		"rootlegacy": {SiteID: "rootlegacy", Slug: "root-legacy", Status: SiteStatusDraft, SourceWorkspacePath: "/workspace/circles/staff/sites/rootlegacy", WorkspacePath: "/workspace/circles/staff/sites/rootlegacy"},
 		"preexisting": {SiteID: "preexisting", Slug: "preexisting-alias", Status: SiteStatusDraft,
@@ -46,7 +46,7 @@ func TestReconcileSiteSourcesToStaffCircle(t *testing.T) {
 
 	assertSiteSourceMigrated(t, service, workspaceRoot, "oldest", "oldest source")
 	assertSiteSourceMigrated(t, service, workspaceRoot, "newer", "newer source")
-	assertSiteSourceMigrated(t, service, workspaceRoot, "done", "done source")
+	assertSiteSourceMigrated(t, service, workspaceRoot, "completed", "done source")
 	assertSiteSourceMigrated(t, service, workspaceRoot, "slugged-id", "slugged source")
 	assertSiteSourceMigrated(t, service, workspaceRoot, "rootlegacy", "root legacy source")
 	assertSiteSourceMigrated(t, service, workspaceRoot, "preexisting", "preexisting alias source")
@@ -71,7 +71,7 @@ func TestReconcileSiteSourcesToStaffCircle(t *testing.T) {
 
 	service.reconcileSiteSourcesToStaffCircle()
 	assertSiteSourceMigrated(t, service, workspaceRoot, "oldest", "oldest source")
-	assertSiteSourceMigrated(t, service, workspaceRoot, "done", "done source")
+	assertSiteSourceMigrated(t, service, workspaceRoot, "completed", "done source")
 }
 
 func assertMissingSiteSourceCanonicalized(t *testing.T, service *Service, workspaceRoot string, siteID string) {

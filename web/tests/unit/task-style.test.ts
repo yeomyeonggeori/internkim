@@ -6,13 +6,13 @@ import {
 
 describe('flow status icon styles', () => {
 	const cases: Array<[string, string]> = [
-		['완료', 'text-[#16a34a]'],
-		['진행', 'text-[#0284c7]'],
-		['예정', 'text-[#d97706]'],
-		['요청', 'text-[#7c3aed]'],
-		['일시정지', 'text-[#e11d48]'],
-		['기각', 'text-[#dc2626]'],
-		['중단', 'text-[#dc2626]']
+		['completed', 'text-[#16a34a]'],
+		['in_progress', 'text-[#0284c7]'],
+		['planned', 'text-[#d97706]'],
+		['requested', 'text-[#7c3aed]'],
+		['paused', 'text-[#e11d48]'],
+		['rejected', 'text-[#dc2626]'],
+		['cancelled', 'text-[#dc2626]']
 	];
 
 	for (const [status, expected] of cases) {
@@ -28,17 +28,17 @@ describe('flow status icon styles', () => {
 
 describe('flow relationship status icon styles', () => {
 	test('uses completed styling only for completed work', () => {
-		expect(relationshipStatusIconClass('완료')).toBe('text-[#16a34a]');
+		expect(relationshipStatusIconClass('completed')).toBe('text-[#16a34a]');
 	});
 
 	test('uses one incomplete style for active statuses', () => {
-		for (const status of ['요청', '예정', '진행', '일시정지']) {
+		for (const status of ['requested', 'planned', 'in_progress', 'paused']) {
 			expect(relationshipStatusIconClass(status)).toBe('text-[#7c3aed]');
 		}
 	});
 
 	test('uses the incomplete style for statuses excluded from progress', () => {
-		for (const status of ['기각', '중단']) {
+		for (const status of ['rejected', 'cancelled']) {
 			expect(relationshipStatusIconClass(status)).toBe('text-[#7c3aed]');
 		}
 	});

@@ -19,7 +19,7 @@ export type TaskOption = {
 	image?: string;
 };
 
-const taskListStatusOrder = ['요청', '예정', '진행', '일시정지', '중단', '기각', '완료'];
+const taskListStatusOrder = ['requested', 'planned', 'in_progress', 'paused', 'cancelled', 'rejected', 'completed'];
 
 export function buildTaskTabs(): TaskWorkspaceTab[] {
 	return ['tasks', 'report', 'definitions', 'members'];

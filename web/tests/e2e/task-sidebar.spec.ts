@@ -8,7 +8,7 @@ import {
 	useMemberTaskSession
 } from './task-helpers';
 
-const requestedStatusLabels = ['요청', '예정', '진행', '완료', '일시정지', '기각', '중단'];
+const requestedStatusLabels = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'cancelled'];
 
 test.describe('flow task sidebar', () => {
 	test.beforeEach(async ({ request }) => {
@@ -98,7 +98,7 @@ test.describe('flow task sidebar', () => {
 
 		await statusTrigger.click();
 		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(requestedStatusLabels);
-		await page.getByRole('option', { name: '진행', exact: true }).click();
+		await page.getByRole('option', { name: 'in_progress', exact: true }).click();
 		await statusTrigger.click();
 		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(requestedStatusLabels);
 	});
@@ -139,7 +139,7 @@ test.describe('flow task sidebar', () => {
 		await page.getByRole('dialog').getByRole('button', { name: '업무 수정', exact: true }).click();
 
 		for (const selection of [
-			{ trigger: '상태', option: '완료', expected: '완료' },
+			{ trigger: '상태', option: 'completed', expected: 'completed' },
 			{ trigger: '사업', option: '김인턴', expected: '김인턴' },
 			{ trigger: '종류', option: '운동', expected: '운동' },
 			{ trigger: '크기', option: 'L · 5km · 16h', expected: 'L · 5km · 16h' }

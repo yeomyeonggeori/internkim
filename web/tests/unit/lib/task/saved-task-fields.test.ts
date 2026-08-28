@@ -17,7 +17,7 @@ function taskWith(fields: Partial<Task> = {}): Task {
 		type: '기능',
 		content: '마켓컬리 CMO 미팅',
 		size: 'XS',
-		status: '예정',
+		status: 'planned',
 		statusRank: 0,
 		startDate: '2026-08-20',
 		endDate: '2026-08-20',
@@ -29,13 +29,13 @@ function taskWith(fields: Partial<Task> = {}): Task {
 describe('what the board writes back', () => {
 	test('maps every task status to its central status without falling back', () => {
 		const mappings = [
-			['요청', 'requested'],
-			['예정', 'todo'],
-			['진행', 'in_progress'],
-			['일시정지', 'paused'],
-			['중단', 'cancelled'],
-			['기각', 'rejected'],
-			['완료', 'done']
+			['requested', 'requested'],
+			['planned', 'planned'],
+			['in_progress', 'in_progress'],
+			['paused', 'paused'],
+			['cancelled', 'cancelled'],
+			['rejected', 'rejected'],
+			['completed', 'completed']
 		] as const;
 
 		for (const [status, storedStatus] of mappings) {
@@ -61,7 +61,7 @@ describe('what the board writes back', () => {
 		expect(supabaseTaskRPCArguments(task)).toEqual({
 			target_task_id: 'task-1',
 			target_title: '마켓컬리 CMO 미팅',
-			target_status: 'todo',
+			target_status: 'planned',
 			target_note: null,
 			target_business: '샘플거리',
 			target_type: '기능',
@@ -77,7 +77,7 @@ describe('what the board writes back', () => {
 		// Who asked is the company's to stamp: it reads the status and fills
 		// requester_id itself, so the caller never sends one.
 		expect(
-			supabaseTaskRPCArguments(taskWith({ id: '', status: '요청', requesterID: 'requester-1' }))
+			supabaseTaskRPCArguments(taskWith({ id: '', status: 'requested', requesterID: 'requester-1' }))
 				.target_status
 		).toBe('requested');
 		expect(
@@ -112,9 +112,9 @@ describe('what the board writes back', () => {
 	});
 
 	test('writes every user-facing workflow status to its Supabase enum value', () => {
-		expect(savedTaskFields(taskWith({ status: '요청' })).status).toBe('requested');
-		expect(savedTaskFields(taskWith({ status: '기각' })).status).toBe('rejected');
-		expect(savedTaskFields(taskWith({ status: '중단' })).status).toBe('cancelled');
+		expect(savedTaskFields(taskWith({ status: 'requested' })).status).toBe('requested');
+		expect(savedTaskFields(taskWith({ status: 'rejected' })).status).toBe('rejected');
+		expect(savedTaskFields(taskWith({ status: 'cancelled' })).status).toBe('cancelled');
 	});
 });
 

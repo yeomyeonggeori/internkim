@@ -111,7 +111,7 @@ export const adminText = {
 				installing: '설치 중',
 				restarting: '재시작 중',
 				running: '진행 중',
-				completed: '완료',
+				completed: 'completed',
 				failed: '실패',
 				alreadyCurrent: '최신 상태'
 			}

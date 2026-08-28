@@ -130,7 +130,7 @@ select throws_ok(
 	$$select public.task_save(
 	  target_task_id => null,
 	  target_title => 'Atomic child',
-	  target_status => 'todo',
+	  target_status => 'planned',
 	  target_note => null,
 	  target_business => null,
 	  target_type => null,

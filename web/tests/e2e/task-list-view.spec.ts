@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { isUnknownRecord, openTaskBoard, requestedTaskID, visibleBoundingBox } from './task-helpers';
 
-const normalStatusLabels = ['예정', '진행', '완료', '일시정지', '중단'];
-const requestedStatusLabels = ['요청', '예정', '진행', '완료', '일시정지', '기각', '중단'];
+const normalStatusLabels = ['planned', 'in_progress', 'completed', 'paused', 'cancelled'];
+const requestedStatusLabels = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'cancelled'];
 
 test.describe('flow task list view', () => {
 	test.beforeEach(async ({ request }) => {
@@ -16,10 +16,10 @@ test.describe('flow task list view', () => {
 		await page.getByRole('tab', { name: '목록', exact: true }).click();
 
 		const taskRow = page.getByRole('row', { name: /메일 분류 규칙 정리.*2026-06-04/ });
-		await taskRow.getByRole('button', { name: '예정', exact: true }).click();
-		await page.getByRole('option', { name: '진행', exact: true }).click();
+		await taskRow.getByRole('button', { name: 'planned', exact: true }).click();
+		await page.getByRole('option', { name: 'in_progress', exact: true }).click();
 
-		await expect(taskRow.getByRole('button', { name: '진행', exact: true })).toBeVisible();
+		await expect(taskRow.getByRole('button', { name: 'in_progress', exact: true })).toBeVisible();
 	});
 
 	test('offers five statuses for normal work and seven for requested work after status changes', async ({ page }) => {
@@ -29,15 +29,15 @@ test.describe('flow task list view', () => {
 		await page.getByRole('tab', { name: '목록', exact: true }).click();
 
 		const normalTaskRow = page.getByRole('row', { name: /메일 분류 규칙 정리.*2026-06-04/ });
-		await normalTaskRow.getByRole('button', { name: '예정', exact: true }).click();
+		await normalTaskRow.getByRole('button', { name: 'planned', exact: true }).click();
 		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(normalStatusLabels);
 		await page.keyboard.press('Escape');
 
 		const requestedTaskRow = page.getByRole('row', { name: /근태 위치 정책 초안 작성.*2026-06-03/ });
-		await requestedTaskRow.getByRole('button', { name: '요청', exact: true }).click();
+		await requestedTaskRow.getByRole('button', { name: 'requested', exact: true }).click();
 		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(requestedStatusLabels);
-		await page.getByRole('option', { name: '진행', exact: true }).click();
-		await requestedTaskRow.getByRole('button', { name: '진행', exact: true }).click();
+		await page.getByRole('option', { name: 'in_progress', exact: true }).click();
+		await requestedTaskRow.getByRole('button', { name: 'in_progress', exact: true }).click();
 		await expect(page.getByRole('listbox').getByRole('option')).toHaveText(requestedStatusLabels);
 	});
 

@@ -305,10 +305,10 @@ function metricsOf(tasks: Task[]): TaskMetrics {
 	}
 	return {
 		totalTasks: tasks.length,
-		completedTasks: statusCounts['완료'] ?? 0,
-		requestedTasks: statusCounts['요청'] ?? 0,
-		pausedTasks: statusCounts['일시정지'] ?? 0,
-		stoppedTasks: statusCounts['중단'] ?? 0,
+		completedTasks: statusCounts['completed'] ?? 0,
+		requestedTasks: statusCounts['requested'] ?? 0,
+		pausedTasks: statusCounts['paused'] ?? 0,
+		stoppedTasks: statusCounts['cancelled'] ?? 0,
 		statusCounts,
 		businessCounts,
 		typeCounts

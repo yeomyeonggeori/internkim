@@ -169,12 +169,12 @@ describe('flow task workspace model', () => {
 
 	test('sorts the task list by status group, end date, and created date', () => {
 		const tasks = [
-			taskOf({ id: 'done-new', status: '완료', endDate: '2026-06-12', createdAt: '2026-06-01T10:00:00Z' }),
-			taskOf({ id: 'requested-old', status: '요청', endDate: '2026-06-01', createdAt: '2026-06-03T10:00:00Z' }),
-			taskOf({ id: 'stopped', status: '중단', endDate: '2026-06-15', createdAt: '2026-06-04T10:00:00Z' }),
-			taskOf({ id: 'requested-new', status: '요청', endDate: '2026-06-05', createdAt: '2026-06-02T10:00:00Z' }),
-			taskOf({ id: 'scheduled-created-new', status: '예정', endDate: '', createdAt: '2026-06-09T10:00:00Z' }),
-			taskOf({ id: 'scheduled-created-old', status: '예정', endDate: '', createdAt: '2026-06-08T10:00:00Z' })
+			taskOf({ id: 'done-new', status: 'completed', endDate: '2026-06-12', createdAt: '2026-06-01T10:00:00Z' }),
+			taskOf({ id: 'requested-old', status: 'requested', endDate: '2026-06-01', createdAt: '2026-06-03T10:00:00Z' }),
+			taskOf({ id: 'stopped', status: 'cancelled', endDate: '2026-06-15', createdAt: '2026-06-04T10:00:00Z' }),
+			taskOf({ id: 'requested-new', status: 'requested', endDate: '2026-06-05', createdAt: '2026-06-02T10:00:00Z' }),
+			taskOf({ id: 'scheduled-created-new', status: 'planned', endDate: '', createdAt: '2026-06-09T10:00:00Z' }),
+			taskOf({ id: 'scheduled-created-old', status: 'planned', endDate: '', createdAt: '2026-06-08T10:00:00Z' })
 		];
 
 		expect(sortTaskList(tasks).map((task) => task.id)).toEqual([
@@ -248,7 +248,7 @@ function taskOf(overrides: Partial<Task>): Task {
 		type: '기능',
 		content: '업무',
 		size: 'M',
-		status: '예정',
+		status: 'planned',
 		statusRank: 0,
 		weekCode: '26W23',
 		...overrides

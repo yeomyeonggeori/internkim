@@ -220,22 +220,22 @@ export const taskText = {
 			empty: '구성원이 아직 없습니다.'
 		},
 		status: {
-			예정: '예정',
-			요청: '요청',
-			진행: '진행',
-			완료: '완료',
-			기각: '기각',
-			일시정지: '일시정지',
-			중단: '중단'
+			planned: '예정',
+			requested: '요청',
+			in_progress: '진행',
+			completed: '완료',
+			rejected: '기각',
+			paused: '일시정지',
+			cancelled: '중단'
 		},
 		statusDescriptions: {
-			예정: '',
-			요청: '',
-			진행: '',
-			완료: '',
-			기각: '반려됨',
-			일시정지: '재개 가능',
-			중단: '종료 처리'
+			planned: '',
+			requested: '',
+			in_progress: '',
+			completed: '',
+			rejected: '반려됨',
+			paused: '재개 가능',
+			cancelled: '종료 처리'
 		},
 		user: {
 			logout: '로그아웃',
@@ -464,22 +464,22 @@ export const taskText = {
 			empty: 'No members yet.'
 		},
 		status: {
-			예정: 'Planned',
-			요청: 'Requested',
-			진행: 'In progress',
-			완료: 'Completed',
-			기각: 'Rejected',
-			일시정지: 'Paused',
-			중단: 'Stopped'
+			planned: 'Planned',
+			requested: 'Requested',
+			in_progress: 'In progress',
+			completed: 'Completed',
+			rejected: 'Rejected',
+			paused: 'Paused',
+			cancelled: 'Stopped'
 		},
 		statusDescriptions: {
-			예정: '',
-			요청: '',
-			진행: '',
-			완료: '',
-			기각: 'Rejected',
-			일시정지: 'Can resume',
-			중단: 'Closed out'
+			planned: '',
+			requested: '',
+			in_progress: '',
+			completed: '',
+			rejected: 'Rejected',
+			paused: 'Can resume',
+			cancelled: 'Closed out'
 		},
 		user: {
 			logout: 'Sign out',
