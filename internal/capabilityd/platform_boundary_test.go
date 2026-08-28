@@ -2025,8 +2025,14 @@ func TestMattermostImportAttachmentsBuildsImageInputPart(t *testing.T) {
 	if part.Type != "image" || part.Image == nil || part.Image.MimeType != "image/png" {
 		t.Fatalf("expected image part, got %+v", part)
 	}
-	if part.Image.DataBase64 != base64.StdEncoding.EncodeToString(imageDocument) {
-		t.Fatalf("expected image bytes to be base64 encoded, got %q", part.Image.DataBase64)
+	// The bytes travel on the attachment; blueclaw's connector layer is the one
+	// owner of putting a message's picture in front of the model, whatever
+	// messenger it came over.
+	if part.Image.DataBase64 != "" {
+		t.Fatalf("expected the part to carry no bytes of its own, got %d bytes", len(part.Image.DataBase64))
+	}
+	if len(response.InputAttachments) != 1 || response.InputAttachments[0].ContentBase64 != base64.StdEncoding.EncodeToString(imageDocument) {
+		t.Fatalf("expected the bytes on the attachment, got %+v", response.InputAttachments)
 	}
 	if part.File == nil || part.File.Path != "/workspace/private/people/person-1/inbox/mattermost/post-1/mascot.png" {
 		t.Fatalf("expected image file metadata, got %+v", part.File)
