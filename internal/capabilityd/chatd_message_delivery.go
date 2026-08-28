@@ -91,8 +91,18 @@ func chatdMessagePostTarget(toolContext capabilities.ToolInvokeContext, target p
 		}
 		return chatdMessagePostRequest{ChannelID: channelID}, mattermostToolFailure{}, false
 	case "channel":
+		channelID := strings.TrimSpace(target.ChannelID)
+		// The id a model passes is whatever id it last saw, and in a direct
+		// conversation that is the conversation's own. A channel post aimed at
+		// the room the request came from is not a channel post; asking for the
+		// channel's name is what keeps the copy out of the DM.
+		if channelID != "" && channelID == strings.TrimSpace(toolContext.ChannelID) &&
+			strings.EqualFold(strings.TrimSpace(toolContext.ConversationType), "direct") {
+			return chatdMessagePostRequest{}, mattermostToolStaticFailure("invalid_target", "input_decode",
+				"channelID "+channelID+" is this direct conversation, not a channel; name the channel with channelName, or use targetType=currentChannel to reply here"), true
+		}
 		return chatdMessagePostRequest{
-			ChannelID:   strings.TrimSpace(target.ChannelID),
+			ChannelID:   channelID,
 			ChannelName: strings.TrimSpace(target.ChannelName),
 		}, mattermostToolFailure{}, false
 	default:
