@@ -61,12 +61,12 @@ class MyAttendanceToday {
 		return this.summary;
 	};
 
-	clock = async (kind: AttendanceKind, locationID: string) => {
+	clock = async (kind: AttendanceKind, locationID: string, confirmedEarlyReturn = false) => {
 		if (this.isSubmitting) return;
 		this.isSubmitting = true;
 		this.clockFailure = '';
 		try {
-			await toggleAttendanceOnServer(kind, locationID);
+			await toggleAttendanceOnServer(kind, locationID, confirmedEarlyReturn);
 			await this.load();
 			toast.success(this.recordedClockMessage(kind));
 		} catch (failure) {
