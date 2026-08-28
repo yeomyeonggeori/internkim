@@ -166,14 +166,18 @@ func TestChatdMessageSearchReadsAChannelsOwnRecord(testContext *testing.T) {
 }
 
 // The edit contract is a quoted span, the same one the Mattermost path holds:
-// the current text comes from the conversation's own record, the span is
-// applied once, and the whole result is sent.
+// the current text comes from the platform's record of that exact message, the
+// span is applied once, and the whole result is sent.
 func TestChatdMessageUpdateAppliesTheQuotedSpan(testContext *testing.T) {
 	edited := ""
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
-		case "/v1/platform/buzz/history.fetch":
-			writer.Write([]byte(`{"channelID":"channel-1","messages":[{"id":"m2","speaker":"김인턴","text":"번역 안내입니다","isBot":true}]}`))
+		case "/v1/platform/buzz/message.search":
+			body, _ := io.ReadAll(request.Body)
+			if !strings.Contains(string(body), `"messageIDs":["m2"]`) {
+				testContext.Fatalf("expected the lookup to name the message ID, got %s", body)
+			}
+			writer.Write([]byte(`{"channelID":"channel-1","candidates":[{"messageID":"m2","channelID":"channel-1","authorPubkeyHex":"pub-agent","authoredByAssistant":true,"createdAt":1787886000000,"text":"번역 안내입니다","score":1}]}`))
 		case "/v1/platform/buzz/message.edit":
 			body, _ := io.ReadAll(request.Body)
 			edited = string(body)
@@ -204,7 +208,7 @@ func TestChatdMessageUpdateAppliesTheQuotedSpan(testContext *testing.T) {
 
 func TestChatdMessageUpdateRefusesASpanItCannotAnchor(testContext *testing.T) {
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Write([]byte(`{"channelID":"channel-1","messages":[{"id":"m2","speaker":"김인턴","text":"안내 안내","isBot":true}]}`))
+		writer.Write([]byte(`{"channelID":"channel-1","candidates":[{"messageID":"m2","channelID":"channel-1","authorPubkeyHex":"pub-agent","authoredByAssistant":true,"createdAt":1787886000000,"text":"안내 안내","score":1}]}`))
 	}))
 	defer chatdServer.Close()
 	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
@@ -220,6 +224,67 @@ func TestChatdMessageUpdateRefusesASpanItCannotAnchor(testContext *testing.T) {
 	}
 	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "occurs once") {
 		testContext.Fatalf("expected the ambiguous span to be refused, answered %q", response.Content)
+	}
+}
+
+// A post found by message_search lives wherever it lives; editing it from the
+// thread the request came from must not depend on the post being in that
+// thread's recent history. The lookup reads the exact message by ID, so a
+// channel post stays editable from a conversation elsewhere.
+func TestChatdMessageUpdateEditsAPostOutsideTheCurrentThread(testContext *testing.T) {
+	edited := ""
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/platform/buzz/message.search":
+			writer.Write([]byte(`{"channelID":"channel-2","candidates":[{"messageID":"post-9","channelID":"channel-2","authorPubkeyHex":"pub-agent","authoredByAssistant":true,"createdAt":1787886000000,"text":"조언 모음","score":1}]}`))
+		case "/v1/platform/buzz/message.edit":
+			body, _ := io.ReadAll(request.Body)
+			edited = string(body)
+			writer.Write([]byte(`{"dispatchID":"post-9"}`))
+		default:
+			testContext.Fatalf("unexpected chatd path %s", request.URL.Path)
+		}
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
+
+	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"post-9","oldText":"조언 모음","newText":"조언 모음 (원본 이미지 포함)"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1:thread-7"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		testContext.Fatalf("expected the cross-thread edit to land, got %q", response.Content)
+	}
+	if !strings.Contains(edited, `"message":"조언 모음 (원본 이미지 포함)"`) {
+		testContext.Fatalf("expected the edited text to travel, got %s", edited)
+	}
+}
+
+// A message the platform no longer has, or never had, fails as not found
+// instead of pretending the conversation window was too small.
+func TestChatdMessageUpdateSaysADeletedMessageIsGone(testContext *testing.T) {
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Write([]byte(`{"channelID":"","candidates":[]}`))
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
+
+	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"gone-1","oldText":"안내","newText":"공지"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "deleted") {
+		testContext.Fatalf("expected a not-found refusal, answered %q", response.Content)
 	}
 }
 
