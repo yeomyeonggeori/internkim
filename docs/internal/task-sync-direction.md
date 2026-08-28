@@ -146,7 +146,7 @@ admind's flow HTTP API:
 
 | Consumer | Through |
 |---|---|
-| the agent's flow tools in capabilityd | `/flow/api/state`, `/flow/api/summary`, `/flow/api/tasks` |
+| the agent's flow tools in capabilityd | `/task/api/state`, `/task/api/summary`, `/task/api/tasks` |
 | the device board UI | the same three |
 
 So there is one seam, the way `calendar_event_persistence.go` is the seam for

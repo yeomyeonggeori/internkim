@@ -1,4 +1,4 @@
-export const dayFlowSelector = {
+export const dayTaskSelector = {
 	dayAllDayRow: '.df-day-content-all-day-row',
 	dayAllDayLane: '.df-day-content-all-day-lane',
 	dayTimedEvent: '.df-day-event.df-event-timed',
@@ -14,32 +14,32 @@ export const dayFlowSelector = {
 	weekTimedEvent: '.df-week-event.df-event-timed'
 } as const;
 
-export function dayFlowEventSelectorForID(eventID: string): string {
+export function dayTaskEventSelectorForID(eventID: string): string {
 	const escapedEventID = cssEscape(eventID);
 	return `[data-calendar-event-id="${escapedEventID}"], [data-event-id="${escapedEventID}"], [data-event-id^="${escapedEventID}::"]`;
 }
 
-export function visibleDayFlowElements(rootElement: HTMLElement, selector: string): HTMLElement[] {
-	return Array.from(rootElement.querySelectorAll<HTMLElement>(selector)).filter(isVisibleDayFlowElement);
+export function visibleDayTaskElements(rootElement: HTMLElement, selector: string): HTMLElement[] {
+	return Array.from(rootElement.querySelectorAll<HTMLElement>(selector)).filter(isVisibleDayTaskElement);
 }
 
-export function isVisibleDayFlowElement(element: HTMLElement): boolean {
+export function isVisibleDayTaskElement(element: HTMLElement): boolean {
 	const rectangle = element.getBoundingClientRect();
 	const style = window.getComputedStyle(element);
 	return rectangle.width > 0 && rectangle.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
 }
 
-export function dayFlowMonthEventContentElement(eventElement: HTMLElement): HTMLElement | null {
-	return eventElement.querySelector<HTMLElement>(dayFlowSelector.monthEventContent);
+export function dayTaskMonthEventContentElement(eventElement: HTMLElement): HTMLElement | null {
+	return eventElement.querySelector<HTMLElement>(dayTaskSelector.monthEventContent);
 }
 
-export function dayFlowWeekAllDayCells(rowElement: HTMLElement): HTMLElement[] {
-	return Array.from(rowElement.querySelectorAll<HTMLElement>(dayFlowSelector.weekAllDayCell));
+export function dayTaskWeekAllDayCells(rowElement: HTMLElement): HTMLElement[] {
+	return Array.from(rowElement.querySelectorAll<HTMLElement>(dayTaskSelector.weekAllDayCell));
 }
 
-export function dayFlowTimedEventElements(stageElement: HTMLElement): HTMLElement[] {
+export function dayTaskTimedEventElements(stageElement: HTMLElement): HTMLElement[] {
 	return Array.from(
-		stageElement.querySelectorAll<HTMLElement>(`${dayFlowSelector.dayTimedEvent}, ${dayFlowSelector.weekTimedEvent}`)
+		stageElement.querySelectorAll<HTMLElement>(`${dayTaskSelector.dayTimedEvent}, ${dayTaskSelector.weekTimedEvent}`)
 	);
 }
 

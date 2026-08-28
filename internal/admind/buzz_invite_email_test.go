@@ -28,8 +28,8 @@ func TestBuildBuzzInviteMessageFallsBackToGenericGreeting(t *testing.T) {
 	}
 }
 
-func TestMessengerPublicURLPrefersFlowPublicURL(t *testing.T) {
-	service := &Service{Configuration: Configuration{FlowPublicURL: "https://example.test/"}}
+func TestMessengerPublicURLPrefersTaskPublicURL(t *testing.T) {
+	service := &Service{Configuration: Configuration{TaskPublicURL: "https://example.test/"}}
 	if got := service.messengerPublicURL(); got != "https://example.test/messenger" {
 		t.Fatalf("expected flow public URL based link, got %q", got)
 	}

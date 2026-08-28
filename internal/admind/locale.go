@@ -17,8 +17,8 @@ type adminLocaleUpdateRequest struct {
 }
 
 type localizedAdminText struct {
-	FlowOpen                  string
-	FlowEntryMessage          string
+	TaskOpen                  string
+	TaskEntryMessage          string
 	CalendarOpen              string
 	CalendarReminder          string
 	Time                      string
@@ -83,8 +83,8 @@ func normalizeAdminLocale(value string) string {
 func localizedAdminTextForLocale(locale string) localizedAdminText {
 	if normalizeAdminLocale(locale) == "en" {
 		return localizedAdminText{
-			FlowOpen:                  "Open Flow",
-			FlowEntryMessage:          "View, request, and organize this week's work in Flow.",
+			TaskOpen:                  "Open Flow",
+			TaskEntryMessage:          "View, request, and organize this week's work in Flow.",
 			CalendarOpen:              "Open Calendar",
 			CalendarReminder:          "Calendar reminder",
 			Time:                      "Time",
@@ -102,8 +102,8 @@ func localizedAdminTextForLocale(locale string) localizedAdminText {
 		}
 	}
 	return localizedAdminText{
-		FlowOpen:                  "업무 열기",
-		FlowEntryMessage:          "업무에서 이번 주 일을 보고, 요청하고, 정리합니다.",
+		TaskOpen:                  "업무 열기",
+		TaskEntryMessage:          "업무에서 이번 주 일을 보고, 요청하고, 정리합니다.",
 		CalendarOpen:              "일정 열기",
 		CalendarReminder:          "일정 알림",
 		Time:                      "시간",

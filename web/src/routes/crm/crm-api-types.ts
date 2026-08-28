@@ -7,7 +7,7 @@ import type {
 	CRMOpportunityContact,
 	CRMProgressKind
 } from './crm-types';
-import type { TaskVocabulary } from '$lib/flow/task-vocabulary';
+import type { TaskVocabulary } from '$lib/task/task-vocabulary';
 
 export type CRMAuditResponse = {
 	createdAt: string;

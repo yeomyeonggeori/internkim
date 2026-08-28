@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { dayFlowEventFromCalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-mapping';
+import { dayTaskEventFromCalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-mapping';
 import { createCalendarPersistedEventActions } from '../../../src/routes/calendar/embed/calendar-persisted-event-actions';
 import { CalendarProgrammaticUpdateState } from '../../../src/routes/calendar/embed/calendar-programmatic-updates';
 import { calendarServerEvent } from './calendar-event-persistence-scenario';
@@ -12,7 +12,7 @@ test('includes the current server version only in PUT payloads', async () => {
 		...calendarServerEvent('versioned-write', 'Versioned event'),
 		updatedAt: '2026-07-17T03:04:05Z'
 	};
-	const event = dayFlowEventFromCalendarEvent(serverEvent);
+	const event = dayTaskEventFromCalendarEvent(serverEvent);
 	globalThis.fetch = Object.assign(
 		async (_input: RequestInfo | URL, init?: RequestInit) => {
 			if (typeof init?.body !== 'string') throw new Error('calendar write request body is missing');
@@ -84,7 +84,7 @@ test('includes the expected persisted version in direct DELETE payloads', async 
 		},
 		{ preconnect: originalFetch.preconnect }
 	);
-	const event = dayFlowEventFromCalendarEvent(calendarServerEvent('delete-version', 'Delete version'));
+	const event = dayTaskEventFromCalendarEvent(calendarServerEvent('delete-version', 'Delete version'));
 	const actions = createCalendarPersistedEventActions(
 		{
 			getCalendarEvents: () => [event],
@@ -136,7 +136,7 @@ test('creates and cancels a delete intent with keepalive and the same operation 
 		},
 		{ preconnect: originalFetch.preconnect }
 	);
-	const event = dayFlowEventFromCalendarEvent(calendarServerEvent('delete-intent-event', 'Delete intent'));
+	const event = dayTaskEventFromCalendarEvent(calendarServerEvent('delete-intent-event', 'Delete intent'));
 	const actions = createCalendarPersistedEventActions(
 		{
 			getCalendarEvents: () => [event],

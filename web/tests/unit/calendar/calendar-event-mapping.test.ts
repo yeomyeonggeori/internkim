@@ -3,8 +3,8 @@ import { createCalendarModelEvent as createEvent } from '../../../src/routes/cal
 import { expect, test } from 'bun:test';
 
 import {
-	calendarEventPayloadFromDayFlowEvent,
-	dayFlowEventFromCalendarEvent,
+	calendarEventPayloadFromDayTaskEvent,
+	dayTaskEventFromCalendarEvent,
 	eventEndDate,
 	eventStartDate
 } from '../../../src/routes/calendar/embed/calendar-event-mapping';
@@ -24,7 +24,7 @@ test('maps all-day event display dates to local midnight', () => {
 });
 
 test('maps calendar participants through event meta and payload', () => {
-	const event = dayFlowEventFromCalendarEvent({
+	const event = dayTaskEventFromCalendarEvent({
 		id: 'participants-event',
 		uid: 'participants-event@internkim',
 		title: 'Participants event',
@@ -49,7 +49,7 @@ test('maps calendar participants through event meta and payload', () => {
 		{ personID: 'person-yeomyeong', name: '김예시', email: 'yeomyeong@example.com' }
 	]);
 
-	const payload = calendarEventPayloadFromDayFlowEvent(event, '#2563eb', 'Asia/Seoul');
+	const payload = calendarEventPayloadFromDayTaskEvent(event, '#2563eb', 'Asia/Seoul');
 
 	expect(payload.participants).toEqual([
 		{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com' },
@@ -58,7 +58,7 @@ test('maps calendar participants through event meta and payload', () => {
 });
 
 test('maps leave source and read-only state into event meta', () => {
-	const event = dayFlowEventFromCalendarEvent({
+	const event = dayTaskEventFromCalendarEvent({
 		id: 'leave:leave-1',
 		uid: 'leave:leave-1',
 		title: '이샘플 · 휴가',

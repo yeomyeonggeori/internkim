@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { CalendarEventActionsContext } from './calendar-event-actions';
 import {
 	calendarDeleteUndoTimeoutMs,
@@ -39,7 +39,7 @@ type CalendarDeleteIntentResult =
 const calendarDeleteIntentCancellationRetryDelaysMs = [100, 200] as const;
 
 type PendingCalendarDelete = {
-	event: DayFlowEvent;
+	event: DayTaskEvent;
 	operationID: string;
 	timeoutID: ReturnType<typeof setTimeout>;
 };
@@ -195,7 +195,7 @@ export function createCalendarDeletePersistenceActions(
 		if (shouldDismissToast) options.dismissUndoToast();
 	}
 
-	function deleteExpectedUpdatedAt(event: DayFlowEvent): string {
+	function deleteExpectedUpdatedAt(event: DayTaskEvent): string {
 		const visibleUpdatedAt = typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined;
 		return options.persistenceOrder.persistedUpdatedAt(
 			event.id,

@@ -30,7 +30,7 @@
 	const mobilePrimaryItems = $derived<AppMobileNavigationItem[]>([
 		{ href: appNavigation.link('/messenger/'), label: text.messenger, icon: MessagesSquareIcon },
 		{ href: appNavigation.link('/attendance/'), label: text.attendance, icon: ClipboardCheckIcon },
-		{ href: appNavigation.link('/flow/'), label: text.flow, icon: ListChecksIcon },
+		{ href: appNavigation.link('/task/'), label: text.flow, icon: ListChecksIcon },
 		{ href: appNavigation.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon }
 	]);
 

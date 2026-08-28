@@ -7,8 +7,8 @@
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CalendarEventListCard from '../../calendar/embed/calendar-event-list-card.svelte';
 	import { calendarParticipantsFromUnknown } from '../../calendar/embed/calendar-participants';
-	import FlowTaskBoardCard from '../../flow/flow-task-board-card.svelte';
-	import { flowText } from '../../flow/text';
+	import TaskBoardCard from '../../task/task-board-card.svelte';
+	import { taskText } from '../../task/text';
 	import type { AttendanceText } from '../text';
 	import type { TeamStatusDayDetail } from './team-status-day-detail';
 	import TeamStatusWorkRecordSection from './team-status-work-record-section.svelte';
@@ -21,16 +21,16 @@
 	let { text, detail }: Props = $props();
 	const sectionCountBadgeClass = 'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground';
 
-	const flowBusinessFallback = $derived(
-		text.dateLocale === 'ko-KR' ? flowText.ko.task.businessFallback : flowText.en.task.businessFallback
+	const taskBusinessFallback = $derived(
+		text.dateLocale === 'ko-KR' ? taskText.ko.task.businessFallback : taskText.en.task.businessFallback
 	);
 
 	function openCalendarEvent(eventID: string): void {
 		void goto(`/calendar/?date=${encodeURIComponent(detail.day.date)}&event=${encodeURIComponent(eventID)}`);
 	}
 
-	function openFlowTask(task: TeamStatusDayDetail['context']['completedTasks'][number]['task']): void {
-		void goto(`/flow/?task=${encodeURIComponent(task.id)}`);
+	function openTask(task: TeamStatusDayDetail['context']['completedTasks'][number]['task']): void {
+		void goto(`/task/?task=${encodeURIComponent(task.id)}`);
 	}
 </script>
 
@@ -145,10 +145,10 @@
 				<div class="grid gap-2">
 					{#each detail.context.completedTasks as task (task.id)}
 						<div data-testid="team-status-completed-task">
-							<FlowTaskBoardCard
+							<TaskBoardCard
 								task={task.task}
-								businessFallback={flowBusinessFallback}
-								openTask={openFlowTask}
+								businessFallback={taskBusinessFallback}
+								openTask={openTask}
 								isDraggable={false}
 							/>
 						</div>

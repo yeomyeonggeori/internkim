@@ -1,4 +1,4 @@
-import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayFlowEvent } from '../../../src/routes/calendar/embed/calendar-event-model';
+import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayTaskEvent } from '../../../src/routes/calendar/embed/calendar-event-model';
 import { expect, test } from 'bun:test';
 
 import { createCalendarEventLoader } from '../../../src/routes/calendar/embed/calendar-event-loader';
@@ -77,7 +77,7 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 
 test('reports a localized warning while keeping calendar events when holiday loading fails', async () => {
 	const errorMessages: string[] = [];
-	let visibleEvents: DayFlowEvent[] = [];
+	let visibleEvents: DayTaskEvent[] = [];
 	const loader = createCalendarEventLoader(
 		{
 			isBrowser: () => true,
@@ -117,7 +117,7 @@ test('reports a localized warning while keeping calendar events when holiday loa
 
 test('reports a localized warning while keeping stale holidays in degraded mode', async () => {
 	const errorMessages: string[] = [];
-	let visibleEvents: DayFlowEvent[] = [];
+	let visibleEvents: DayTaskEvent[] = [];
 	const loader = createCalendarEventLoader(
 		{
 			isBrowser: () => true,
@@ -152,7 +152,7 @@ test('reports a localized warning while keeping stale holidays in degraded mode'
 	expect(errorMessages).toEqual(['', '공휴일을 불러오지 못했습니다.']);
 });
 
-function calendarTestEvent(eventID: string, title: string): DayFlowEvent {
+function calendarTestEvent(eventID: string, title: string): DayTaskEvent {
 	return createEvent({
 		id: eventID,
 		title,

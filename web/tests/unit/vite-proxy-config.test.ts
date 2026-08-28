@@ -11,7 +11,7 @@ const admindProxyPaths = [
 	'/calendar/dav',
 	'/calendar/ics',
 	'/calendar/oauth',
-	'/flow/api',
+	'/task/api',
 	'/mail/api',
 	'/memory/api'
 ];

@@ -50,7 +50,7 @@ type Configuration struct {
 	MattermostTeamName             string
 	BotUsername                    string
 	MattermostPublicURL            string
-	FlowPublicURL                  string
+	TaskPublicURL                  string
 	APIBaseURL                     string
 	BlueclawBaseURL                string
 	BlueclawPolicyDeliveryPath     string
@@ -58,7 +58,7 @@ type Configuration struct {
 	StateDirectory                 string
 	CompanionJobPath               string
 	DatabasePath                   string
-	FlowDatabasePath               string
+	TaskDatabasePath               string
 	CalendarDatabasePath           string
 	CalendarSecretsDirectory       string
 	MailDatabasePath               string
@@ -86,7 +86,7 @@ type Configuration struct {
 	APIURLPath                     string
 	FleetIDPath                    string
 	DeviceURLPath                  string
-	FlowPublicURLPath              string
+	TaskPublicURLPath              string
 	MattermostSessionSignInPath    string
 	FleetSecretPath                string
 	AdminUIPath                    string
@@ -317,7 +317,7 @@ func DefaultConfiguration() Configuration {
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
 		StateDirectory:                 "/root/.internkim/state/admin",
 		CompanionJobPath:               "/root/.internkim/state/companion-jobs.json",
-		FlowDatabasePath:               "/root/.internkim/state/flow.sqlite",
+		TaskDatabasePath:               "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:           "/root/.internkim/state/calendar.sqlite",
 		CalendarSecretsDirectory:       "/root/.internkim/secrets/google-oauth",
 		MailDatabasePath:               "/root/.internkim/state/mail.sqlite",
@@ -344,7 +344,7 @@ func DefaultConfiguration() Configuration {
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
 		BuzzRelayPublicURLPath:         blueclawruntime.BuzzRelayPublicURLFilePath,
-		FlowPublicURLPath:              "/root/.internkim/env/flow-public-url",
+		TaskPublicURLPath:              "/root/.internkim/env/flow-public-url",
 		MattermostSessionSignInPath:    "/root/.internkim/env/mattermost-session-signin",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
@@ -567,9 +567,12 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/admin/api/", service.handleAdmin)
 	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
 	multiplexer.HandleFunc("/api/v1/", service.handlePublicAPI)
-	multiplexer.HandleFunc("/flow", service.serveFlowPage)
-	multiplexer.HandleFunc("/flow/api/", service.handleFlow)
-	multiplexer.HandleFunc("/flow/", service.serveFlowPage)
+	multiplexer.HandleFunc("/task", service.serveTaskPage)
+	multiplexer.HandleFunc("/task/api/", service.handleTask)
+	multiplexer.HandleFunc("/task/", service.serveTaskPage)
+	multiplexer.HandleFunc("/flow", service.serveTaskPage)
+	multiplexer.HandleFunc("/flow/api/", service.handleTask)
+	multiplexer.HandleFunc("/flow/", service.serveTaskPage)
 	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
 	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
 	multiplexer.HandleFunc("/agent/api/dm", service.handleAgentDirectMessage)
@@ -678,6 +681,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 
 func isInternKimCORSPath(path string) bool {
 	return path == "/admin" ||
+		path == "/task" ||
 		path == "/flow" ||
 		path == "/memory" ||
 		path == "/calendar" ||
@@ -689,6 +693,7 @@ func isInternKimCORSPath(path string) bool {
 		path == "/.well-known/caldav" ||
 		strings.HasPrefix(path, "/api/v1/") ||
 		strings.HasPrefix(path, "/admin/") ||
+		strings.HasPrefix(path, "/task/") ||
 		strings.HasPrefix(path, "/flow/") ||
 		strings.HasPrefix(path, "/memory/") ||
 		strings.HasPrefix(path, "/calendar/") ||
@@ -911,7 +916,7 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
 		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
 	case request.Method == http.MethodGet && path == "/flow/status":
-		service.writeFlowStatus(responseWriter)
+		service.writeTaskStatus(responseWriter)
 	case request.Method == http.MethodGet && path == "/bot-profile":
 		service.writeBotProfile(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/bot-profile":
@@ -1884,7 +1889,7 @@ func (service *Service) isAuthorized(request *http.Request) bool {
 	if callerEmail == "" {
 		return false
 	}
-	return service.isFlowAdminEmail(request.Context(), callerEmail)
+	return service.isTaskAdminEmail(request.Context(), callerEmail)
 }
 
 func (service *Service) adminConsoleActorEmail(request *http.Request) string {
@@ -2594,11 +2599,11 @@ func (configuration Configuration) withDefaults() Configuration {
 			configuration.CompanionJobPath = filepath.Join(configuration.StateDirectory, "companion-jobs.json")
 		}
 	}
-	if configuration.FlowDatabasePath == "" {
+	if configuration.TaskDatabasePath == "" {
 		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
-			configuration.FlowDatabasePath = defaultConfiguration.FlowDatabasePath
+			configuration.TaskDatabasePath = defaultConfiguration.TaskDatabasePath
 		} else {
-			configuration.FlowDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "flow.sqlite")
+			configuration.TaskDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "flow.sqlite")
 		}
 	}
 	if configuration.CalendarDatabasePath == "" {
@@ -2695,8 +2700,8 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.BuzzRelayPublicURLPath == "" {
 		configuration.BuzzRelayPublicURLPath = defaultConfiguration.BuzzRelayPublicURLPath
 	}
-	if configuration.FlowPublicURLPath == "" {
-		configuration.FlowPublicURLPath = defaultConfiguration.FlowPublicURLPath
+	if configuration.TaskPublicURLPath == "" {
+		configuration.TaskPublicURLPath = defaultConfiguration.TaskPublicURLPath
 	}
 	if configuration.MattermostSessionSignInPath == "" {
 		configuration.MattermostSessionSignInPath = defaultConfiguration.MattermostSessionSignInPath

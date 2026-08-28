@@ -536,7 +536,7 @@ and delete the duplicates.
 ## Bringing Device Data Across
 
 - Pull a device's data over **HTTP**, not SSH: sign into its own web app and
-  read the endpoints it already serves (`/flow/api/state`,
+  read the endpoints it already serves (`/task/api/state`,
   `/attendance/api/summary`, `/calendar/api/events`), then feed the JSON to
   `web/scripts/import-flow-state.ts` and `import-attendance-events.ts`. Short
   requests survive a flapping uplink; an SSH session does not.

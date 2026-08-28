@@ -13,7 +13,7 @@ import (
 const operationsAdminInvalidRequestBody = "invalid request body"
 
 func (service *Service) adminSessionRole(ctx context.Context, callerEmail string) string {
-	if service.isFlowAdminEmail(ctx, callerEmail) {
+	if service.isTaskAdminEmail(ctx, callerEmail) {
 		return adminUserRoleAdmin
 	}
 	return service.currentAdminUserRole(ctx, callerEmail)

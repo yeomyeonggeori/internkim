@@ -1,7 +1,7 @@
 import { announceToTheCompany } from './announce-attendance';
 import { supabase } from '$lib/supabase';
 import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
-import { colourOf, type NamedColour } from '$lib/flow/task-vocabulary';
+import { colourOf, type NamedColour } from '$lib/task/task-vocabulary';
 import { membersInReadingOrder } from '$lib/member-order';
 import type {
 	AttendanceAbsence,

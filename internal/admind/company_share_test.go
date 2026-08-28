@@ -361,7 +361,7 @@ func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testin
 	temporaryDirectory := t.TempDir()
 	service := NewService(Configuration{
 		StateDirectory:         temporaryDirectory,
-		FlowDatabasePath:       temporaryDirectory + "/flow.sqlite",
+		TaskDatabasePath:       temporaryDirectory + "/flow.sqlite",
 		AttendanceDatabasePath: temporaryDirectory + "/attendance.sqlite",
 	})
 	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul", Language: workspaceLanguageEnglish}); errorValue != nil {
@@ -481,12 +481,12 @@ INSERT INTO attendance_events (
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	flowDatabase, errorValue := service.openFlowDatabase(t.Context())
+	taskDatabase, errorValue := service.openTaskDatabase(t.Context())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	defer flowDatabase.Close()
-	_, errorValue = flowDatabase.ExecContext(t.Context(), `
+	defer taskDatabase.Close()
+	_, errorValue = taskDatabase.ExecContext(t.Context(), `
 INSERT INTO flow_tasks (
 	id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size,
 	status, status_rank, start_date, end_date, created_at, updated_at

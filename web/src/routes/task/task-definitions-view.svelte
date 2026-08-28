@@ -1,0 +1,147 @@
+<script lang="ts">
+	import TaskEditableDefinitionListCard from './task-editable-definition-list-card.svelte';
+	import { taskBusinessColor, taskTypeColor } from './task-definition-colors';
+	import TaskSizeDefinitionsCard from './task-size-definitions-card.svelte';
+	import type { TaskDefinitions } from './task-types';
+
+	type DefinitionsText = {
+		size: string;
+		sizeDescription: string;
+		sizeName: string;
+		distance: string;
+		maxHours: string;
+		developmentExample: string;
+		otherExample: string;
+		note: string;
+		business: string;
+		businessDescription: string;
+		color: string;
+		type: string;
+		typeDescription: string;
+		adminOnly: string;
+		saving: string;
+		save: string;
+		removeAction: string;
+		add: string;
+		autoSave: string;
+		saved: string;
+		saveError: string;
+	};
+	type DefinitionSaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+	type Props = {
+		definitions: TaskDefinitions;
+		categoryDrafts: string[];
+		setCategoryColor: (index: number, color: string) => void;
+		newCategoryColor: string;
+		newTypeColor: string;
+		setNewCategoryColor: (color: string) => void;
+		setNewTypeColor: (color: string) => void;
+		setTypeColor: (index: number, color: string) => void;
+		typeDrafts: string[];
+		newCategoryText: string;
+		newTypeText: string;
+		isAdmin: boolean;
+		canEditDefinitions: boolean;
+		isSavingDefinitions: boolean;
+		definitionSaveState: DefinitionSaveState;
+		definitionErrorMessage: string;
+		loadError: string;
+		text: DefinitionsText;
+		updateCategory: (index: number, value: string) => void;
+		updateType: (index: number, value: string) => void;
+		removeCategory: (index: number) => void;
+		removeType: (index: number) => void;
+		addCategory: () => void;
+		addType: () => void;
+		setNewCategoryText: (value: string) => void;
+		setNewTypeText: (value: string) => void;
+		saveDefinitions: () => void;
+	};
+
+	let {
+		definitions,
+		categoryDrafts,
+		setCategoryColor,
+		newCategoryColor,
+		newTypeColor,
+		setNewCategoryColor,
+		setNewTypeColor,
+		setTypeColor,
+		typeDrafts,
+		newCategoryText,
+		newTypeText,
+		isAdmin,
+		canEditDefinitions,
+		isSavingDefinitions,
+		definitionSaveState,
+		definitionErrorMessage,
+		loadError,
+		text,
+		updateCategory,
+		updateType,
+		removeCategory,
+		removeType,
+		addCategory,
+		addType,
+		setNewCategoryText,
+		setNewTypeText,
+		saveDefinitions
+	}: Props = $props();
+
+</script>
+
+{#if canEditDefinitions}
+	<section class="grid gap-4">
+		<TaskSizeDefinitionsCard {definitions} {text} />
+		<div class="grid gap-4 lg:grid-cols-2">
+			<TaskEditableDefinitionListCard
+				title={text.business}
+				description={text.businessDescription}
+				items={categoryDrafts}
+				newValue={newCategoryText}
+				{isAdmin}
+				removeLabel={text.removeAction}
+				addLabel={text.add}
+				update={updateCategory}
+				remove={removeCategory}
+				add={addCategory}
+				setNewValue={setNewCategoryText}
+				{saveDefinitions}
+				itemColor={(index) => taskBusinessColor(categoryDrafts[index] ?? '', definitions)}
+				setItemColor={setCategoryColor}
+				newColor={newCategoryColor}
+				setNewColor={setNewCategoryColor}
+				colorLabel={text.color}
+			/>
+			<TaskEditableDefinitionListCard
+				title={text.type}
+				description={text.typeDescription}
+				items={typeDrafts}
+				newValue={newTypeText}
+				{isAdmin}
+				removeLabel={text.removeAction}
+				addLabel={text.add}
+				update={updateType}
+				remove={removeType}
+				add={addType}
+				setNewValue={setNewTypeText}
+				{saveDefinitions}
+				itemColor={(index) => taskTypeColor(typeDrafts[index] ?? '', definitions)}
+				setItemColor={setTypeColor}
+				newColor={newTypeColor}
+				setNewColor={setNewTypeColor}
+				colorLabel={text.color}
+			/>
+		</div>
+		{#if isAdmin}
+			<p class="text-muted-foreground text-sm">{text.autoSave}</p>
+		{:else}
+			<p class="text-sm text-muted-foreground">{text.adminOnly}</p>
+		{/if}
+	</section>
+{:else}
+	<div class="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+		{loadError}
+	</div>
+{/if}

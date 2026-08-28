@@ -1,0 +1,51 @@
+package admind
+
+import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"testing"
+)
+
+func TestTheStatusWordsMatchTheRelay(t *testing.T) {
+	source, errorValue := os.ReadFile(filepath.FromSlash("../../host/relay/flow-task-as-task.ts"))
+	if errorValue != nil {
+		t.Skipf("the relay's copy is unavailable: %v", errorValue)
+	}
+	declaration := regexp.MustCompile(`(?s)const statusOfDevice: Record<string, string> = \{(.*?)\}`).FindSubmatch(source)
+	if declaration == nil {
+		t.Fatal("the relay no longer declares the statuses this reads")
+	}
+
+	relayStatuses := map[string]string{}
+	for _, pair := range regexp.MustCompile(`(\S+): '([a-z_]+)'`).FindAllSubmatch(declaration[1], -1) {
+		relayStatuses[string(pair[1])] = string(pair[2])
+	}
+	if len(relayStatuses) == 0 {
+		t.Fatal("the relay's statuses parsed empty")
+	}
+
+	for deviceStatus, centralStatus := range relayStatuses {
+		if centralTaskStatus(deviceStatus) != centralStatus {
+			t.Fatalf("the relay sends %s as %s and this sends it as %s; two crossings of the same border have to agree",
+				deviceStatus, centralStatus, centralTaskStatus(deviceStatus))
+		}
+	}
+	for deviceStatus := range centralStatusOfDeviceStatus {
+		if _, known := relayStatuses[deviceStatus]; !known {
+			t.Fatalf("%s is mapped here and nowhere in the relay", deviceStatus)
+		}
+	}
+}
+func TestATaskWithNeitherHasNoNote(t *testing.T) {
+	if note := centralTaskNote(Task{}); note != "" {
+		t.Fatalf("an empty note is stored as nothing, not as blank lines: %q", note)
+	}
+}
+
+func TestEveryDeviceWordHasAnEnumValueOfItsOwn(t *testing.T) {
+	if len(deviceStatusOfCentralStatus) != len(centralStatusOfDeviceStatus) {
+		t.Fatalf("%d device words share %d central ones; a word that shares cannot come back",
+			len(centralStatusOfDeviceStatus), len(deviceStatusOfCentralStatus))
+	}
+}

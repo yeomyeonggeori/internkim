@@ -3,6 +3,7 @@ import { companyPathOf, companySlugOf, routePathOf } from '$lib/company-path';
 const appShellSections = [
 	'/settings/',
 	'/messenger/',
+	'/task/',
 	'/flow/',
 	'/memory/',
 	'/calendar/',

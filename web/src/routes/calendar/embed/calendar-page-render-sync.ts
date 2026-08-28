@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { ViewType } from '../calendar-view-type';
 import type { CalendarEventLoader } from './calendar-event-loader';
 import { syncRemoteCalendarAndRefreshConflicts } from './calendar-remote-sync';
@@ -6,7 +6,7 @@ import { syncRemoteCalendarAndRefreshConflicts } from './calendar-remote-sync';
 type CalendarPageRenderSyncContext = {
 	broadcastCalendarEventsChanged: () => void;
 	errorFallback: () => string;
-	getCalendarEvents: () => DayFlowEvent[];
+	getCalendarEvents: () => DayTaskEvent[];
 	getStageElement: () => HTMLElement | null;
 	getSelectedEventID: () => string | null;
 	getToolbarDate: () => Date;

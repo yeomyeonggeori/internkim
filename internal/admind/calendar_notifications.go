@@ -224,7 +224,7 @@ func (service *Service) mattermostCalendarURL(startISO string) string {
 	if startTime, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(startISO)); errorValue == nil {
 		path += "?date=" + url.QueryEscape(startTime.Format("2006-01-02"))
 	}
-	baseURL := strings.TrimRight(strings.TrimSpace(service.flowLinkBaseURL()), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(service.taskLinkBaseURL()), "/")
 	if baseURL == "" {
 		return path
 	}
@@ -242,11 +242,11 @@ func (service *Service) linkedCalendarEventID(eventID string) string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	task, found, errorValue := service.readFlowTaskByCalendarEventID(ctx, eventID)
+	task, found, errorValue := service.readTaskByCalendarEventID(ctx, eventID)
 	if errorValue != nil || !found {
 		return ""
 	}
-	recordID, errorValue := service.readFlowCentralIdentityByTaskID(ctx, task.ID)
+	recordID, errorValue := service.readTaskCentralIdentityByTaskID(ctx, task.ID)
 	if errorValue != nil {
 		return ""
 	}
@@ -265,7 +265,7 @@ func (service *Service) mattermostCalendarEventURL(event calendarEvent) string {
 	if encodedQuery := query.Encode(); encodedQuery != "" {
 		path += "?" + encodedQuery
 	}
-	baseURL := strings.TrimRight(strings.TrimSpace(service.flowLinkBaseURL()), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(service.taskLinkBaseURL()), "/")
 	if baseURL == "" {
 		return path
 	}

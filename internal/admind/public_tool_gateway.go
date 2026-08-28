@@ -124,7 +124,7 @@ func (service *Service) createPublicAPIToken(responseWriter http.ResponseWriter,
 	}
 	service.writeJSON(responseWriter, publicAPITokenCreateResponse{
 		Token:  token,
-		Actor:  publicAPIActorContext(record, service.isFlowAdminEmail(request.Context(), actorEmail), publicAPIActorSourceToken),
+		Actor:  publicAPIActorContext(record, service.isTaskAdminEmail(request.Context(), actorEmail), publicAPIActorSourceToken),
 		Record: publicAPITokenSummary{ID: record.ID, Label: record.Label, Email: record.Email, Scopes: record.Scopes, CreatedAt: record.CreatedAt},
 	})
 }

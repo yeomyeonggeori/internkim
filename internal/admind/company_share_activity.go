@@ -258,7 +258,7 @@ func maxTime(left time.Time, right time.Time) time.Time {
 }
 
 func (service *Service) readCompanyShareWorkActivity(ctx context.Context, startDate string, endDate string) (map[string]int, []companyShareWorkRow, map[string]int, []companyShareMemberSource, error) {
-	activity, errorValue := service.readFlowTaskShareActivity(ctx, startDate, endDate)
+	activity, errorValue := service.readTaskShareActivity(ctx, startDate, endDate)
 	if errorValue != nil {
 		return nil, nil, nil, nil, errorValue
 	}
@@ -293,16 +293,16 @@ func buildCompanyShareActivityDays(now time.Time, attendanceByDate map[string]in
 }
 
 func publicCompanyShareWorkStatus(status string) string {
-	switch cleanFlowStatus(status) {
-	case flowStatusRequested, flowStatusPlanned:
+	switch cleanTaskStatus(status) {
+	case taskStatusRequested, taskStatusPlanned:
 		return "planned"
-	case flowStatusInProgress:
+	case taskStatusInProgress:
 		return "inProgress"
-	case flowStatusCompleted:
+	case taskStatusCompleted:
 		return "completed"
-	case flowStatusPaused:
+	case taskStatusPaused:
 		return "paused"
-	case flowStatusStopped, flowStatusRejected:
+	case taskStatusStopped, taskStatusRejected:
 		return "closed"
 	default:
 		return ""
@@ -353,7 +353,7 @@ func (service *Service) enrichCompanyShareMemberSources(ctx context.Context, sou
 	directoryByMemberID := make(map[string]companyShareMemberSource, len(records))
 	for _, record := range records {
 		source := companyShareMemberSource{
-			MemberID: stableFlowID(record.Email), Name: record.Name, JobTitle: record.JobTitle,
+			MemberID: stableTaskID(record.Email), Name: record.Name, JobTitle: record.JobTitle,
 		}
 		directoryByMemberID[source.MemberID] = source
 	}
@@ -375,7 +375,7 @@ func companyShareMemberSeed(key []byte, memberID string) string {
 func companySharePersonID(value string) string {
 	trimmedValue := strings.TrimSpace(value)
 	if strings.Contains(trimmedValue, "@") {
-		return stableFlowID(strings.ToLower(trimmedValue))
+		return stableTaskID(strings.ToLower(trimmedValue))
 	}
 	return trimmedValue
 }
@@ -439,7 +439,7 @@ func (service *Service) serveCompanyShareMemberImage(responseWriter http.Respons
 		http.NotFound(responseWriter, request)
 		return
 	}
-	for _, member := range service.flowMembers(request) {
+	for _, member := range service.taskMembers(request) {
 		if hmac.Equal([]byte(companyShareMemberSeed(key, member.ID)), []byte(seed)) {
 			path := "/participants/" + url.PathEscape(member.ID) + "/image"
 			service.serveCalendarParticipantImage(responseWriter, request, path)
