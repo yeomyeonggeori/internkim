@@ -288,6 +288,74 @@ func TestChatdMessageUpdateSaysADeletedMessageIsGone(testContext *testing.T) {
 	}
 }
 
+// "Add the original image to that post" names no text span: attachments alone
+// re-publish the message as it reads, with the file carried the way a send
+// carries one — read by the requester, handed over as content.
+func TestChatdMessageUpdateAddsAFileWithoutChangingTheText(testContext *testing.T) {
+	workspaceDirectory := testContext.TempDir()
+
+	var editBody map[string]any
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/platform/buzz/message.search":
+			writer.Write([]byte(`{"channelID":"channel-2","candidates":[{"messageID":"post-9","channelID":"channel-2","authorPubkeyHex":"pub-agent","authoredByAssistant":true,"createdAt":1787886000000,"text":"조언 모음","score":1}]}`))
+		case "/v1/platform/buzz/message.edit":
+			json.NewDecoder(request.Body).Decode(&editBody)
+			writer.Write([]byte(`{"dispatchID":"post-9"}`))
+		default:
+			testContext.Fatalf("unexpected chatd path %s", request.URL.Path)
+		}
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{
+		ChatdEndpoint:         chatdServer.URL,
+		ChatdPlatform:         "buzz",
+		BlueclawWorkspacePath: workspaceDirectory,
+	}}
+
+	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"post-9","attachments":["/workspace/원본.png"]}`),
+		Transport: capabilities.ToolInvokeTransport{
+			WorkspaceFiles: []capabilities.WorkspaceFile{{
+				WorkspacePath: "/workspace/원본.png",
+				Filename:      "원본.png",
+				ContentBase64: base64.StdEncoding.EncodeToString([]byte("png")),
+			}},
+		},
+		Context: capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		testContext.Fatalf("expected the attachment-only edit to land, got %q", response.Content)
+	}
+	if editBody["message"] != "조언 모음" {
+		testContext.Fatalf("an attachment-only edit must keep the text, sent %v", editBody["message"])
+	}
+	attachments, _ := editBody["attachments"].([]any)
+	if len(attachments) != 1 {
+		testContext.Fatalf("expected the file to travel with the edit, got %v", editBody["attachments"])
+	}
+}
+
+func TestMattermostMessageUpdateRefusesAttachmentsLoudly(testContext *testing.T) {
+	service := Service{}
+	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"post-1","attachments":["/workspace/원본.png"]}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "mattermost"},
+	})
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "cannot be added") {
+		testContext.Fatalf("attachments on a Mattermost update must refuse loudly, answered %q", response.Content)
+	}
+}
+
 func TestChatdMessageSendRefusesDirectMessagesLoudly(testContext *testing.T) {
 	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
 	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
