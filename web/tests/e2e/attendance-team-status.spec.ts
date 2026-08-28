@@ -457,7 +457,9 @@ test.describe('attendance team status', () => {
 			'opacity',
 			'0.4'
 		);
-		await expect(dialog.getByText('박지민')).toBeVisible();
+		const completedTaskCard = dialog.locator('[data-flow-board-card="completed-personal-task"]');
+		await expect(completedTaskCard.getByText('김철수')).toBeVisible();
+		await expect(completedTaskCard.getByText('+1')).toBeVisible();
 		await expect(dialog.getByText('아직 예정 업무')).toHaveCount(0);
 		await expect(dialog.getByText('다른 사람 완료 업무')).toHaveCount(0);
 		await expect(dialog.getByTestId('team-status-section-scroll-fade')).toHaveCount(0);
