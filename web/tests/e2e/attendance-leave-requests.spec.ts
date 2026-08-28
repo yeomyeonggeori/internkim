@@ -148,6 +148,7 @@ test.describe('employee leave requests', () => {
 		await expect(preview.getByText('1일').last()).toBeVisible();
 		await expect(dialog.getByLabel('신청 사유 (선택)')).toHaveValue('');
 
+		const summaryRequestsBeforeSubmission = attendanceSummaryRequestCount;
 		await dialog.getByRole('button', { name: '승인 요청' }).click();
 
 		await expect(dialog).toBeHidden();
@@ -181,7 +182,7 @@ test.describe('employee leave requests', () => {
 			reason: '',
 			attachments: []
 		});
-		expect(attendanceSummaryRequestCount).toBe(2);
+		expect(attendanceSummaryRequestCount - summaryRequestsBeforeSubmission).toBe(1);
 		expect(svelteOwnershipWarnings).toEqual([]);
 	});
 
