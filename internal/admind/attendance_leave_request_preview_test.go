@@ -99,7 +99,7 @@ func TestAttendanceLeaveRequestPreviewExcludesCompanyHolidays(t *testing.T) {
 	}
 }
 
-func TestAttendanceLeaveRequestPreviewUsesCurrentWorkPolicyForEveryDate(t *testing.T) {
+func TestAttendanceLeaveRequestPreviewUsesTheWorkPolicyOfEachDate(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	revision := defaultAttendanceWorkPolicyRevision()
 	revision.WorkMode = attendanceWorkModeFixed
@@ -135,12 +135,14 @@ func TestAttendanceLeaveRequestPreviewUsesCurrentWorkPolicyForEveryDate(t *testi
 	}
 	if len(preview.Occurrences) != 2 ||
 		preview.Occurrences[0].Date != "2027-05-07" ||
-		preview.Occurrences[0].StartTime != "10:00" ||
-		preview.Occurrences[0].EndTime != "16:00" ||
-		preview.Occurrences[1].Date != "2027-05-10" ||
+		preview.Occurrences[0].StartTime != "09:00" ||
+		preview.Occurrences[0].EndTime != "18:00" {
+		t.Fatalf("a date before the change keeps the hours it had: %+v", preview.Occurrences)
+	}
+	if preview.Occurrences[1].Date != "2027-05-10" ||
 		preview.Occurrences[1].StartTime != "10:00" ||
 		preview.Occurrences[1].EndTime != "16:00" {
-		t.Fatalf("preview occurrences = %+v", preview.Occurrences)
+		t.Fatalf("the day the change takes effect uses the new hours: %+v", preview.Occurrences)
 	}
 }
 

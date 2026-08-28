@@ -41,7 +41,7 @@ insert into public.company (id, name, slug, country, locale, timezone, leave_day
     'ko',
     'Asia/Seoul',
     15,
-    '{"attendanceCalendar": [{"date": "2026-07-01", "holiday": false, "workMode": "autonomous", "workingDate": true}]}'
+    '{"unrelatedSetting": {"kept": true}}'
   ),
   (
     '64200000-0000-0000-0000-0000000000b0',
@@ -164,7 +164,8 @@ begin
 end $$;$block$, 'settings: an admin saves the work policy');
 
 select is(
-  (select rules #>> '{attendanceWorkPolicy,workMode}' from public.company where id = '64200000-0000-0000-0000-0000000000a0'),
+  (select rules #>> '{attendanceWorkPolicy,revisions,-1,workMode}'
+   from public.company where id = '64200000-0000-0000-0000-0000000000a0'),
   'autonomous',
   'settings: the saved work mode is the one the admin sent'
 );
@@ -285,9 +286,9 @@ begin
 end $$;$block$, '22023', null, 'settings: managed leave without a granting annual type is refused');
 
 select is(
-  (select rules #>> '{attendanceCalendar,0,date}' from public.company where id = '64200000-0000-0000-0000-0000000000a0'),
-  '2026-07-01',
-  'settings: saving a policy leaves the attendance calendar where it was'
+  (select rules #>> '{unrelatedSetting,kept}' from public.company where id = '64200000-0000-0000-0000-0000000000a0'),
+  'true',
+  'settings: saving a policy leaves an unrelated setting where it was'
 );
 
 select lives_ok($block$do $$

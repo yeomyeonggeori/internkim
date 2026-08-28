@@ -1617,6 +1617,114 @@
         "hasIncompleteRecords": false,
         "needsReview": false
       }
+    },
+    {
+      "name": "break-period-change-mid-period",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-05T00:00:00Z",
+      "periodStart": "2026-08-03",
+      "periodEnd": "2026-08-06",
+      "revisions": [
+        {
+          "effectiveDate": "1970-01-01",
+          "workMode": "fixed",
+          "workingWeekdays": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "dailyTargetMinutes": 480,
+          "referenceStartTime": "09:00",
+          "fixedStartTime": "09:00",
+          "fixedEndTime": "18:00",
+          "coreTimeEnabled": false,
+          "coreStartTime": "",
+          "coreEndTime": "",
+          "breakPeriods": [
+            {
+              "startTime": "12:00",
+              "endTime": "13:00"
+            }
+          ],
+          "nightStartTime": "22:00",
+          "nightEndTime": "06:00"
+        },
+        {
+          "effectiveDate": "2026-08-05",
+          "workMode": "fixed",
+          "workingWeekdays": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "dailyTargetMinutes": 420,
+          "referenceStartTime": "09:00",
+          "fixedStartTime": "09:00",
+          "fixedEndTime": "18:00",
+          "coreTimeEnabled": false,
+          "coreStartTime": "",
+          "coreEndTime": "",
+          "breakPeriods": [
+            {
+              "startTime": "12:00",
+              "endTime": "14:00"
+            }
+          ],
+          "nightStartTime": "22:00",
+          "nightEndTime": "06:00"
+        }
+      ],
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-03T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-03T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-04T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-04T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-05T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-05T09:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-06T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-06T09:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 108000,
+        "actualMinutes": 1800,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 1800,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false
+      }
     }
   ]
 }
