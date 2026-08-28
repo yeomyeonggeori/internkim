@@ -642,4 +642,112 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			expect(day.earlyLeave).toBe(false);
 		}
 	});
+	test('work after a half-day leave is not an overlap', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-20T06:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-20T09:00:00Z' }
+			],
+			leave: [
+				{
+					member_id: member.id,
+					days: 0.5,
+					starts_at: '2026-08-20T00:00:00Z',
+					ends_at: '2026-08-20T05:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
+			now: new Date('2026-08-21T00:00:00Z')
+		});
+
+		expect(status.days[0]?.leaveMinutes).toBe(240);
+		expect(status.days[0]?.actualMinutes).toBe(180);
+		expect(status.days[0]?.hasLeaveWorkOverlap).toBe(false);
+		expect(status.days[0]?.needsReview).toBe(false);
+	});
+
+	test('work inside a half-day leave is an overlap', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-20T01:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-20T02:00:00Z' }
+			],
+			leave: [
+				{
+					member_id: member.id,
+					days: 0.5,
+					starts_at: '2026-08-20T00:00:00Z',
+					ends_at: '2026-08-20T05:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
+			now: new Date('2026-08-21T00:00:00Z')
+		});
+
+		expect(status.days[0]?.hasLeaveWorkOverlap).toBe(true);
+		expect(status.days[0]?.needsReview).toBe(true);
+	});
+
+	test('work touching the end of a leave without entering it is not an overlap', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-20T05:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-20T09:00:00Z' }
+			],
+			leave: [
+				{
+					member_id: member.id,
+					days: 0.5,
+					starts_at: '2026-08-20T00:00:00Z',
+					ends_at: '2026-08-20T05:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
+			now: new Date('2026-08-21T00:00:00Z')
+		});
+
+		expect(status.days[0]?.hasLeaveWorkOverlap).toBe(false);
+	});
+
+	test('a full-day leave still overlaps work inside the scheduled day', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-20T02:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-20T03:00:00Z' }
+			],
+			leave: [
+				{
+					member_id: member.id,
+					days: 1,
+					starts_at: '2026-08-19T15:00:00Z',
+					ends_at: '2026-08-20T15:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
+			now: new Date('2026-08-21T00:00:00Z')
+		});
+
+		expect(status.days[0]?.hasLeaveWorkOverlap).toBe(true);
+		expect(status.days[0]?.needsReview).toBe(true);
+	});
 });
