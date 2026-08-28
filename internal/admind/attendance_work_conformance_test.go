@@ -35,6 +35,8 @@ type attendanceWorkConformanceEvent struct {
 type attendanceWorkConformanceLeave struct {
 	StartDate string  `json:"startDate"`
 	EndDate   string  `json:"endDate"`
+	StartTime string  `json:"startTime"`
+	EndTime   string  `json:"endTime"`
 	Days      float64 `json:"days"`
 }
 
@@ -185,8 +187,8 @@ func attendanceWorkConformanceLeaveOccurrences(
 				occurrences = append(occurrences, attendanceApprovedLeaveOccurrence{
 					Email:              attendanceWorkConformanceEmail,
 					Date:               date.Format(time.DateOnly),
-					StartTime:          "00:00",
-					EndTime:            "23:59",
+					StartTime:          leave.StartTime,
+					EndTime:            leave.EndTime,
 					DeductionMilliDays: 1000,
 					Paid:               true,
 				})
@@ -196,8 +198,8 @@ func attendanceWorkConformanceLeaveOccurrences(
 		occurrences = append(occurrences, attendanceApprovedLeaveOccurrence{
 			Email:              attendanceWorkConformanceEmail,
 			Date:               leave.StartDate,
-			StartTime:          "00:00",
-			EndTime:            "23:59",
+			StartTime:          leave.StartTime,
+			EndTime:            leave.EndTime,
 			DeductionMilliDays: int(leave.Days*1000 + 0.5),
 			Paid:               true,
 		})
