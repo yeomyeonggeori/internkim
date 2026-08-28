@@ -1,12 +1,13 @@
 import { getContext, setContext } from 'svelte';
 import {
-	fetchAttendanceWorkStatus,
+	fetchAttendanceWorkStatusPair,
 	type AttendanceWorkStatus,
 	type AttendanceWorkStatusPeriod
 } from '../attendance-api';
 
 export class WorkStatusState {
 	payload = $state<AttendanceWorkStatus | null>(null);
+	monthPayload = $state<AttendanceWorkStatus | null>(null);
 	isLoading = $state(false);
 	errorMessage = $state('');
 	private requestSequence = 0;
@@ -17,9 +18,13 @@ export class WorkStatusState {
 		this.isLoading = true;
 		this.errorMessage = '';
 		try {
-			const payload = await fetchAttendanceWorkStatus({ period, anchor });
+			const answered = await fetchAttendanceWorkStatusPair(
+				{ period, anchor },
+				{ period: 'month', anchor }
+			);
 			if (requestSequence !== this.requestSequence) return;
-			this.payload = payload;
+			this.payload = answered.period;
+			this.monthPayload = answered.month;
 		} catch (error) {
 			if (requestSequence !== this.requestSequence) return;
 			this.errorMessage = error instanceof Error ? error.message : String(error);
@@ -36,17 +41,11 @@ export function setWorkStatusState(state: WorkStatusState): void {
 }
 
 export function getWorkStatusState(): WorkStatusState {
-	const state = getContext<WorkStatusState | undefined>(workStatusStateKey);
+	const state = optionalWorkStatusState();
 	if (!state) throw new Error('WorkStatusState not provided');
 	return state;
 }
 
-const teamWorkStatusStateKey = Symbol('team-work-status-state');
-
-export function setTeamWorkStatusState(state: WorkStatusState): void {
-	setContext(teamWorkStatusStateKey, state);
-}
-
-export function getTeamWorkStatusState(): WorkStatusState | undefined {
-	return getContext<WorkStatusState | undefined>(teamWorkStatusStateKey);
+export function optionalWorkStatusState(): WorkStatusState | undefined {
+	return getContext<WorkStatusState | undefined>(workStatusStateKey);
 }

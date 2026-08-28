@@ -4,7 +4,11 @@ import {
 	setSupabaseTeamViewVisibility,
 	supabaseAttendanceSummary
 } from '$lib/attendance/supabase-attendance';
-import { supabaseWorkStatus } from '$lib/attendance/supabase-work-status';
+import {
+	attendanceWorkStatusFrom,
+	supabaseWorkStatus,
+	supabaseWorkStatusInputs
+} from '$lib/attendance/supabase-work-status';
 import type { AttendanceWorkMode } from '$lib/attendance/work-mode';
 import { isSupabaseConfigured } from '$lib/supabase';
 import type {
@@ -121,6 +125,29 @@ export async function fetchAttendanceSummary(request: AttendanceSummaryRequest):
 	const response = await fetch(path, { credentials: 'include', cache: 'no-store' });
 	if (!response.ok) throw new Error(await response.text());
 	return (await response.json()) as AttendanceSummary;
+}
+
+export type AttendanceWorkStatusPair = {
+	period: AttendanceWorkStatus;
+	month: AttendanceWorkStatus;
+};
+
+export async function fetchAttendanceWorkStatusPair(
+	period: AttendanceWorkStatusRequest,
+	month: AttendanceWorkStatusRequest
+): Promise<AttendanceWorkStatusPair> {
+	if (isSupabaseConfigured()) {
+		const inputs = await supabaseWorkStatusInputs([period, month]);
+		return {
+			period: attendanceWorkStatusFrom(inputs, period),
+			month: attendanceWorkStatusFrom(inputs, month)
+		};
+	}
+	const [periodStatus, monthStatus] = await Promise.all([
+		fetchAttendanceWorkStatus(period),
+		fetchAttendanceWorkStatus(month)
+	]);
+	return { period: periodStatus, month: monthStatus };
 }
 
 export async function fetchAttendanceWorkStatus(
