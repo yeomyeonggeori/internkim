@@ -225,18 +225,50 @@ func TestEveryToolThatResolvesATargetAheadNamesARequiredFieldOfItsOwnInputSchema
 	}
 }
 
+// A preview route answers words for the approval question instead of a
+// resolved identity, so the hint round-trip fixtures cannot exercise it; each
+// one is proven by its own resolver tests (message_delete:
+// TestMessageDeleteApprovalPreviewQuotesTheTargets and the route-path test
+// below).
+var previewApprovalTargetRouteNames = []string{"message_delete"}
+
 func TestEveryTargetRouteIsCoveredByAFixture(t *testing.T) {
-	if len(capabilityToolTargetRoutes) != len(approvalTargetFixtures) {
-		t.Fatalf("every route that resolves a target ahead needs the round trip proven, got %d routes and %d fixtures", len(capabilityToolTargetRoutes), len(approvalTargetFixtures))
+	if len(capabilityToolTargetRoutes) != len(approvalTargetFixtures)+len(previewApprovalTargetRouteNames) {
+		t.Fatalf("every route that resolves a target ahead needs the round trip proven, got %d routes and %d fixtures", len(capabilityToolTargetRoutes), len(approvalTargetFixtures)+len(previewApprovalTargetRouteNames))
 	}
 	for _, route := range capabilityToolTargetRoutes {
 		isCovered := false
 		for _, fixture := range approvalTargetFixtures {
 			isCovered = isCovered || fixture.toolName == route.ToolName
 		}
+		for _, previewRouteName := range previewApprovalTargetRouteNames {
+			isCovered = isCovered || previewRouteName == route.ToolName
+		}
 		if !isCovered {
 			t.Fatalf("%s resolves a target no test resolves back", route.ToolName)
 		}
+	}
+}
+
+func TestTheMessageDeleteTargetRouteAnswersOnItsOwnPath(t *testing.T) {
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		json.NewEncoder(writer).Encode(chatdMessageSearchResponse{Candidates: []chatdMessageSearchCandidate{
+			{MessageID: "m1", Text: "중복으로 올라간 공지", AuthoredByAssistant: true},
+		}})
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}}
+	requestBody := `{"input":{"messageIDs":["m1"]},"context":{"requesterEmail":"staff@example.com","platform":"buzz"}}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/tools/message_delete/target.resolve", strings.NewReader(requestBody))
+	responseRecorder := httptest.NewRecorder()
+
+	service.router().ServeHTTP(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("expected the route to answer, got %d %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	if !strings.Contains(responseRecorder.Body.String(), "중복으로 올라간 공지") {
+		t.Fatalf("expected the target's own words, got %s", responseRecorder.Body.String())
 	}
 }
 
