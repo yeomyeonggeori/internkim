@@ -8,6 +8,7 @@ import {
 	type SupabaseWorkStatusLeave
 } from '../../../src/lib/attendance/supabase-work-status';
 import { companyTimeInstant, shiftedDay } from '../../../src/lib/attendance/supabase-work-status-range';
+import { scheduleEndTime } from '../../../src/lib/attendance/work-schedule-window';
 
 const noHolidays = new Set<string>();
 
@@ -51,6 +52,18 @@ type AttendanceWorkConformanceExpected = {
 	hasBaseline: boolean;
 	hasIncompleteRecords: boolean;
 	needsReview: boolean;
+	coreTimeMissed: boolean;
+	late: boolean;
+	earlyLeave: boolean;
+};
+
+type AttendanceWorkConformanceScheduleEndCase = {
+	name: string;
+	startTime: string;
+	requiredMinutes: number;
+	breakPeriods: { startTime: string; endTime: string }[];
+	expectedEndTime?: string;
+	refused?: boolean;
 };
 
 type AttendanceWorkConformanceRevision = AttendanceWorkConformancePolicy & {
@@ -72,6 +85,7 @@ type AttendanceWorkConformanceScenario = {
 
 type AttendanceWorkConformanceFile = {
 	scenarios: AttendanceWorkConformanceScenario[];
+	scheduleEndCases: AttendanceWorkConformanceScheduleEndCase[];
 };
 
 const conformanceFilePath = join(
@@ -227,10 +241,35 @@ describe('attendance work conformance', () => {
 			expect(status.hasBaseline).toBe(scenario.expected.hasBaseline);
 			expect(status.hasIncompleteRecords).toBe(scenario.expected.hasIncompleteRecords);
 			expect(status.needsReview).toBe(scenario.expected.needsReview);
+			expect(status.coreTimeMissed).toBe(scenario.expected.coreTimeMissed);
+			expect(status.late).toBe(scenario.expected.late);
+			expect(status.earlyLeave).toBe(scenario.expected.earlyLeave);
 		});
 	}
 
 	test('every scenario in the file was executed', () => {
 		expect(executed).toBe(file.scenarios.length);
 	});
+});
+
+describe('the central plane walks a scheduled day the way the device does', () => {
+	const file = readConformanceFile();
+
+	test('the shared schedule end cases are non-empty', () => {
+		expect(file.scheduleEndCases.length > 0).toBe(true);
+	});
+
+	for (const endCase of file.scheduleEndCases) {
+		test(endCase.name, () => {
+			if (endCase.refused) {
+				expect(() =>
+					scheduleEndTime(endCase.startTime, endCase.requiredMinutes, endCase.breakPeriods)
+				).toThrow('crosses the day boundary');
+				return;
+			}
+			expect(scheduleEndTime(endCase.startTime, endCase.requiredMinutes, endCase.breakPeriods)).toBe(
+				endCase.expectedEndTime
+			);
+		});
+	}
 });

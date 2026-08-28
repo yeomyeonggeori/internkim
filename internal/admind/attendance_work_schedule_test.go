@@ -255,62 +255,6 @@ func TestAttendanceWorkScheduleWorkingInstantUsesCompanyTimeZone(t *testing.T) {
 	}
 }
 
-func TestAttendanceWorkScheduleCalculatesPartialLeaveAcrossBreaks(t *testing.T) {
-	schedule := defaultAttendanceWorkSchedule()
-	tests := []struct {
-		name      string
-		startTime string
-		unit      string
-		expected  string
-	}{
-		{name: "full day", startTime: "09:00", unit: attendanceWorkScheduleFullDay, expected: "18:00"},
-		{name: "half day", startTime: "09:00", unit: attendanceWorkScheduleHalfDay, expected: "14:00"},
-		{name: "quarter day", startTime: "09:00", unit: attendanceWorkScheduleQuarterDay, expected: "11:00"},
-		{name: "quarter overlaps break", startTime: "11:30", unit: attendanceWorkScheduleQuarterDay, expected: "14:30"},
-		{name: "starts inside break", startTime: "12:30", unit: attendanceWorkScheduleQuarterDay, expected: "15:00"},
-	}
-
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			endTime, errorValue := calculateAttendanceWorkScheduleEndTime(
-				schedule,
-				"2026-07-28",
-				testCase.startTime,
-				testCase.unit,
-				time.UTC,
-			)
-			if errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			if actual := endTime.Format("15:04"); actual != testCase.expected {
-				t.Fatalf("end time = %s", actual)
-			}
-		})
-	}
-}
-
-func TestAttendanceWorkScheduleCalculatesAcrossAdjacentBreaks(t *testing.T) {
-	schedule := defaultAttendanceWorkSchedule()
-	schedule.BreakPeriods = []attendanceWorkScheduleBreakPeriod{
-		{StartTime: "12:00", EndTime: "13:00"},
-		{StartTime: "13:00", EndTime: "14:00"},
-	}
-
-	endTime, errorValue := calculateAttendanceWorkScheduleEndTime(
-		schedule,
-		"2026-07-28",
-		"12:30",
-		attendanceWorkScheduleQuarterDay,
-		time.UTC,
-	)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if actual := endTime.Format("15:04"); actual != "16:00" {
-		t.Fatalf("end time = %s", actual)
-	}
-}
-
 func TestAttendanceWorkScheduleRejectsDayBoundaryAndMissingWallTime(t *testing.T) {
 	schedule := defaultAttendanceWorkSchedule()
 	if _, errorValue := calculateAttendanceWorkScheduleEndTime(
