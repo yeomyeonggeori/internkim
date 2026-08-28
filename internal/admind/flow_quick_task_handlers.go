@@ -36,6 +36,7 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
+	owner = quickTaskOwner(inferredTask.ParticipantIDs, members, owner)
 	writeRequest := flowTaskWriteRequest{
 		OwnerID:        owner.ID,
 		ParticipantIDs: firstNonEmptySlice(inferredTask.ParticipantIDs, payload.ParticipantIDs, []string{owner.ID}),

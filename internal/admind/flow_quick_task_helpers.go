@@ -57,13 +57,13 @@ func memberIDForEmail(members []flowMember, email string) string {
 	return ""
 }
 
-func cleanParticipantIDs(values []string, members []flowMember, ownerID string) []string {
+func cleanParticipantIDs(values []string, members []flowMember) []string {
 	allowed := map[string]bool{}
 	for _, member := range members {
 		allowed[member.ID] = true
 	}
-	result := []string{ownerID}
-	seen := map[string]bool{ownerID: true}
+	result := []string{}
+	seen := map[string]bool{}
 	for _, value := range values {
 		trimmedValue := strings.TrimSpace(value)
 		if !allowed[trimmedValue] || seen[trimmedValue] {
@@ -73,4 +73,20 @@ func cleanParticipantIDs(values []string, members []flowMember, ownerID string) 
 		result = append(result, trimmedValue)
 	}
 	return result
+}
+
+// A note that names nobody is the requester's own task; one that includes the
+// requester is shared work they keep; one that names only other people hands
+// the work to the first person named, and the requester-versus-owner gate then
+// turns it into a request.
+func quickTaskOwner(participantIDs []string, members []flowMember, requester flowMember) flowMember {
+	if len(participantIDs) == 0 || containsString(participantIDs, requester.ID) {
+		return requester
+	}
+	for _, member := range members {
+		if member.ID == participantIDs[0] {
+			return member
+		}
+	}
+	return requester
 }

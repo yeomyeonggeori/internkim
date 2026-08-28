@@ -48,7 +48,7 @@ func (service *Service) inferFlowTask(ctx context.Context, prompt string, weekCo
 	}
 	task.StartDate = strings.TrimSpace(task.StartDate)
 	task.EndDate = strings.TrimSpace(task.EndDate)
-	task.ParticipantIDs = cleanParticipantIDs(task.ParticipantIDs, members, owner.ID)
+	task.ParticipantIDs = cleanParticipantIDs(task.ParticipantIDs, members)
 	return task, nil
 }
 
