@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"log"
 	"net/http"
@@ -40,6 +41,7 @@ type buzzStrangerMembersReport struct {
 	NoticesRemoved   int      `json:"noticesRemoved"`
 	ImportNotices    int      `json:"importNotices"`
 	ImportRemoved    int      `json:"importRemoved"`
+	UnaccountedGone  int      `json:"unaccountedMembershipsRemoved"`
 	Unaccounted      []string `json:"unaccounted"`
 	Emails           []string `json:"emails"`
 }
@@ -158,7 +160,65 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 	if errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
+	report.UnaccountedGone, errorValue = service.removeUnaccountedMemberships(ctx, database, report.Unaccounted)
+	if errorValue != nil {
+		return buzzStrangerMembersReport{}, errorValue
+	}
 	return report, nil
+}
+
+// A key the messenger deleted so hard that nothing names it any more still sits
+// in the rooms it was added to, where a member list reads it as bare hex. It is
+// taken out of every room, and the rooms it was in are told, so a client sees
+// the list it will get on its next read.
+func (service *Service) removeUnaccountedMemberships(
+	ctx context.Context,
+	database *sql.DB,
+	unaccounted []string,
+) (int, error) {
+	if len(unaccounted) == 0 {
+		return 0, nil
+	}
+	for _, pubkey := range unaccounted {
+		if _, errorValue := hex.DecodeString(pubkey); errorValue != nil {
+			return 0, errorValue
+		}
+	}
+	const asBytea = "ARRAY(SELECT decode(unnest($1::text[]), 'hex'))"
+	rooms, errorValue := roomsHoldingMembers(ctx, database, unaccounted)
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	removed, errorValue := rowsChangedBy(ctx, database,
+		"DELETE FROM channel_members WHERE pubkey = ANY("+asBytea+")", pq.Array(unaccounted))
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	for _, channelID := range rooms {
+		if errorValue := service.tellClientsWhoIsInTheRoom(ctx, database, channelID); errorValue != nil {
+			return removed, errorValue
+		}
+	}
+	return removed, nil
+}
+
+func roomsHoldingMembers(ctx context.Context, database *sql.DB, pubkeys []string) ([]string, error) {
+	const asBytea = "ARRAY(SELECT decode(unnest($1::text[]), 'hex'))"
+	rows, errorValue := database.QueryContext(ctx,
+		"SELECT DISTINCT channel_id::text FROM channel_members WHERE pubkey = ANY("+asBytea+")", pq.Array(pubkeys))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	rooms := []string{}
+	for rows.Next() {
+		var channelID string
+		if errorValue := rows.Scan(&channelID); errorValue != nil {
+			return nil, errorValue
+		}
+		rooms = append(rooms, channelID)
+	}
+	return rooms, rows.Err()
 }
 
 // A messenger that forgot an account cannot say who it was, so asking it which
