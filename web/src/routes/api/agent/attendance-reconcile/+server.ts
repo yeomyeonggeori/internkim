@@ -3,8 +3,11 @@ import { callingAgent, environmentOf } from '$lib/server/agent-request';
 import {
 	attendanceWorkModeFromDevice,
 	attendanceWorkPolicyFromDevice,
+	companyHolidaysFromDevice,
 	InvalidAttendanceWorkModeError,
 	InvalidAttendanceWorkPolicyError,
+	InvalidCompanyHolidayError,
+	mergeCompanyHolidays,
 	saveAttendanceReconciliationSettings
 } from '$lib/server/attendance-work-policy-reconcile';
 import type { RequestHandler } from './$types';
@@ -14,6 +17,7 @@ type ReconcileRequest = {
 	workMode?: unknown;
 	workCalendar?: unknown;
 	workPolicy?: unknown;
+	companyHolidays?: unknown;
 	from?: unknown;
 	to?: unknown;
 };
@@ -27,8 +31,12 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (from >= to) error(400, 'the window ends before it begins');
 	askedWorkMode(asked.workMode);
 	const workPolicy = askedWorkPolicy(asked.workPolicy);
+	const companyHolidays = askedCompanyHolidays(asked.companyHolidays);
 	if (workPolicy !== undefined) {
 		await saveAttendanceReconciliationSettings(client, companyID, workPolicy);
+	}
+	if (companyHolidays !== undefined) {
+		await mergeCompanyHolidays(client, companyID, companyHolidays);
 	}
 
 	// A device still sends its own clocks here and they are ignored. Attendance
@@ -43,6 +51,15 @@ function askedWorkPolicy(offered: unknown) {
 		return attendanceWorkPolicyFromDevice(offered);
 	} catch (thrown) {
 		if (!(thrown instanceof InvalidAttendanceWorkPolicyError)) throw thrown;
+		error(400, thrown.message);
+	}
+}
+
+function askedCompanyHolidays(offered: unknown) {
+	try {
+		return companyHolidaysFromDevice(offered);
+	} catch (thrown) {
+		if (!(thrown instanceof InvalidCompanyHolidayError)) throw thrown;
 		error(400, thrown.message);
 	}
 }
