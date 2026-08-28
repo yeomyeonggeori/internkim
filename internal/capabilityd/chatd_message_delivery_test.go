@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -112,26 +113,115 @@ func TestChatdMessageSendCarriesAFileSomebodyElseRead(testContext *testing.T) {
 	}
 }
 
-func TestChatdPlatformKeepsMattermostToolsHonestlyUnrouted(testContext *testing.T) {
+// The search a chatd platform answers is the conversation's own record. Asked
+// with no target at all, it says what to name instead of guessing.
+func TestChatdMessageSearchNeedsATargetToRead(testContext *testing.T) {
 	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
-	for toolName, invoke := range map[string]func(context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error){
-		"message_search": service.invokePlatformMessageSearch,
-		"message_update": service.invokePlatformMessageUpdate,
-	} {
-		response, errorValue := invoke(context.Background(), capabilities.ToolInvokeRequest{
-			ToolName: toolName,
-			Input:    json.RawMessage(`{}`),
-			Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
-		})
-		if errorValue != nil {
-			testContext.Fatalf("%s failed: %v", toolName, errorValue)
+
+	response, errorValue := service.invokePlatformMessageSearch(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_search",
+		Input:    json.RawMessage(`{}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "channelName") {
+		testContext.Fatalf("expected guidance toward a channel, answered %q", response.Content)
+	}
+}
+
+func TestChatdMessageSearchReadsAChannelsOwnRecord(testContext *testing.T) {
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/platform/buzz/history.fetch" {
+			testContext.Fatalf("unexpected chatd path %s", request.URL.Path)
 		}
-		if response.Outcome != capabilities.ToolOutcomeFailed {
-			testContext.Fatalf("%s should refuse on a chatd platform", toolName)
+		body, _ := io.ReadAll(request.Body)
+		if !strings.Contains(string(body), `"channelName":"잡담"`) {
+			testContext.Fatalf("expected the channel name to travel, got %s", body)
 		}
-		if !strings.Contains(response.Content, "not yet available") {
-			testContext.Fatalf("%s answered %q", toolName, response.Content)
+		writer.Write([]byte(`{"channelID":"channel-1","messages":[
+			{"id":"m1","speaker":"이샘플","senderId":"pub-1","text":"안녕","isBot":false},
+			{"id":"m2","speaker":"김인턴","senderId":"pub-agent","text":"번역 안내","sentAt":"2026-08-28T01:00:00Z","isBot":true}
+		]}`))
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
+
+	response, errorValue := service.invokePlatformMessageSearch(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_search",
+		Input:    json.RawMessage(`{"channelName":"잡담","authoredBy":"assistant"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		testContext.Fatalf("expected the search to answer, got %q", response.Content)
+	}
+	result := string(response.Result)
+	if !strings.Contains(result, `"m2"`) || strings.Contains(result, `"m1"`) {
+		testContext.Fatalf("expected only the agent's own message, got %s", result)
+	}
+}
+
+// The edit contract is a quoted span, the same one the Mattermost path holds:
+// the current text comes from the conversation's own record, the span is
+// applied once, and the whole result is sent.
+func TestChatdMessageUpdateAppliesTheQuotedSpan(testContext *testing.T) {
+	edited := ""
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/platform/buzz/history.fetch":
+			writer.Write([]byte(`{"channelID":"channel-1","messages":[{"id":"m2","speaker":"김인턴","text":"번역 안내입니다","isBot":true}]}`))
+		case "/v1/platform/buzz/message.edit":
+			body, _ := io.ReadAll(request.Body)
+			edited = string(body)
+			writer.Write([]byte(`{"dispatchID":"m2"}`))
+		default:
+			testContext.Fatalf("unexpected chatd path %s", request.URL.Path)
 		}
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
+
+	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"m2","oldText":"번역 안내","newText":"수정된 안내"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		testContext.Fatalf("expected the edit to land, got %q", response.Content)
+	}
+	if !strings.Contains(edited, `"message":"수정된 안내입니다"`) {
+		testContext.Fatalf("expected the span applied to the current text, got %s", edited)
+	}
+}
+
+func TestChatdMessageUpdateRefusesASpanItCannotAnchor(testContext *testing.T) {
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Write([]byte(`{"channelID":"channel-1","messages":[{"id":"m2","speaker":"김인턴","text":"안내 안내","isBot":true}]}`))
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
+
+	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"m2","oldText":"안내","newText":"공지"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "occurs once") {
+		testContext.Fatalf("expected the ambiguous span to be refused, answered %q", response.Content)
 	}
 }
 
