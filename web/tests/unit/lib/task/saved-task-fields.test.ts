@@ -33,7 +33,7 @@ describe('what the board writes back', () => {
 			['planned', 'planned'],
 			['in_progress', 'in_progress'],
 			['paused', 'paused'],
-			['cancelled', 'cancelled'],
+			['stopped', 'stopped'],
 			['rejected', 'rejected'],
 			['completed', 'completed']
 		] as const;
@@ -114,7 +114,7 @@ describe('what the board writes back', () => {
 	test('writes every user-facing workflow status to its Supabase enum value', () => {
 		expect(savedTaskFields(taskWith({ status: 'requested' })).status).toBe('requested');
 		expect(savedTaskFields(taskWith({ status: 'rejected' })).status).toBe('rejected');
-		expect(savedTaskFields(taskWith({ status: 'cancelled' })).status).toBe('cancelled');
+		expect(savedTaskFields(taskWith({ status: 'stopped' })).status).toBe('stopped');
 	});
 });
 

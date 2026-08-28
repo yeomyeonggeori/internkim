@@ -308,7 +308,7 @@ function metricsOf(tasks: Task[]): TaskMetrics {
 		completedTasks: statusCounts['completed'] ?? 0,
 		requestedTasks: statusCounts['requested'] ?? 0,
 		pausedTasks: statusCounts['paused'] ?? 0,
-		stoppedTasks: statusCounts['cancelled'] ?? 0,
+		stoppedTasks: statusCounts['stopped'] ?? 0,
 		statusCounts,
 		businessCounts,
 		typeCounts
