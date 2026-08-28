@@ -15,6 +15,7 @@ import (
 )
 
 type buzzGhostRoom struct {
+	membersRaw           []byte
 	ChannelID            string   `json:"channelID"`
 	Members              []string `json:"members"`
 	MetadataParticipants []string `json:"metadataParticipants"`
@@ -42,7 +43,19 @@ func (service *Service) handleBuzzGhostRooms(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, "staff access required", http.StatusForbidden)
 		return
 	}
-	report, errorValue := service.retireGhostRooms(request.Context(), request.URL.Query().Get("apply") == "true")
+	named := strings.TrimSpace(request.URL.Query().Get("room"))
+	apply := request.URL.Query().Get("apply") == "true"
+	if named != "" {
+		report, errorValue := service.retireNamedRooms(request.Context(), strings.Split(named, ","), apply)
+		if errorValue != nil {
+			log.Printf("buzz named room retire failed: %v", errorValue)
+			http.Error(responseWriter, "buzz_ghost_rooms_failed: "+errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		service.writeJSON(responseWriter, report)
+		return
+	}
+	report, errorValue := service.retireGhostRooms(request.Context(), apply)
 	if errorValue != nil {
 		log.Printf("buzz ghost rooms failed: %v", errorValue)
 		http.Error(responseWriter, "buzz_ghost_rooms_failed: "+errorValue.Error(), http.StatusBadGateway)
@@ -300,4 +313,68 @@ func counterpartNoLongerExists(room buzzDirectRoom, keys buzzServiceKeySet) bool
 		}
 	}
 	return counterparts > 0
+}
+
+// A room somebody decided is finished. The decision is theirs; this only
+// carries it out, by the same writes a ghost room is retired with, and says
+// what each named room held when it went.
+func (service *Service) retireNamedRooms(ctx context.Context, channelIDs []string, apply bool) (buzzGhostRoomsReport, error) {
+	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
+	if databaseURL == "" {
+		return buzzGhostRoomsReport{}, errors.New("buzz database url must be configured")
+	}
+	database, errorValue := sql.Open("postgres", databaseURL)
+	if errorValue != nil {
+		return buzzGhostRoomsReport{}, errorValue
+	}
+	defer database.Close()
+
+	report := buzzGhostRoomsReport{Ghosts: []buzzGhostRoom{}, HeldBack: []buzzGhostRoom{}}
+	for _, named := range channelIDs {
+		channelID := strings.TrimSpace(named)
+		if channelID == "" {
+			continue
+		}
+		room, isKnown, errorValue := describeOneRoom(ctx, database, channelID)
+		if errorValue != nil {
+			return report, errorValue
+		}
+		report.Scanned++
+		if !isKnown {
+			room.Reason = "no room of that id is open"
+			report.HeldBack = append(report.HeldBack, room)
+			continue
+		}
+		room.Reason = "named for retirement"
+		report.Ghosts = append(report.Ghosts, room)
+		if !apply {
+			continue
+		}
+		if errorValue := retireOneRoom(ctx, database, channelID); errorValue != nil {
+			return report, errorValue
+		}
+		report.Retired++
+		log.Printf("room retired by name: %s", channelID)
+	}
+	return report, nil
+}
+
+func describeOneRoom(ctx context.Context, database *sql.DB, channelID string) (buzzGhostRoom, bool, error) {
+	room := buzzGhostRoom{ChannelID: channelID, Members: []string{}}
+	var name string
+	errorValue := database.QueryRowContext(ctx, `
+		SELECT c.name,
+			coalesce(array_agg(encode(m.pubkey,'hex')) FILTER (WHERE m.removed_at IS NULL), '{}'),
+			coalesce((SELECT count(*) FROM events e WHERE e.channel_id::text = c.id::text AND e.kind = 9), 0)
+		FROM channels c LEFT JOIN channel_members m ON m.channel_id = c.id
+		WHERE c.id::text = $1 AND c.deleted_at IS NULL
+		GROUP BY c.id, c.name`, channelID).Scan(&name, &room.membersRaw, &room.Messages)
+	if errors.Is(errorValue, sql.ErrNoRows) {
+		return room, false, nil
+	}
+	if errorValue != nil {
+		return room, false, errorValue
+	}
+	room.Members = parsePostgresTextArray(string(room.membersRaw))
+	return room, true, nil
 }
