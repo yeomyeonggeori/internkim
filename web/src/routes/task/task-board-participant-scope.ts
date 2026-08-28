@@ -10,7 +10,7 @@ export function taskBoardParticipantScope(
 }
 
 export function canCreateTaskInColumn(status: string, scope: TaskBoardParticipantScope): boolean {
-	return scope !== 'other' || status === '요청';
+	return scope !== 'other' || status === 'requested';
 }
 
 export function shouldHideEmptyRequestColumn(scope: TaskBoardParticipantScope): boolean {

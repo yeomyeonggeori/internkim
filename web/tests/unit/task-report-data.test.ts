@@ -195,7 +195,7 @@ describe('buildTaskReportSections', () => {
 						business: '샘플거리',
 						type: '구현',
 						size: 'M',
-						status: '완료',
+						status: 'completed',
 						startDate: '',
 						endDate: '2026-06-02'
 					},
@@ -204,7 +204,7 @@ describe('buildTaskReportSections', () => {
 						business: '샘플거리',
 						type: '구현',
 						size: 'M',
-						status: '완료',
+						status: 'completed',
 						startDate: '',
 						endDate: ''
 					}
@@ -278,7 +278,7 @@ describe('buildTaskReportSections', () => {
 			members: taskReportFixtureMembers,
 			tasks: [
 				...taskReportFixtureTasks,
-				{ participantNames: ['정의'], business: '', type: '구현', size: 'S', status: '완료', startDate: '2026-06-01', endDate: '2026-06-01' }
+				{ participantNames: ['정의'], business: '', type: '구현', size: 'S', status: 'completed', startDate: '2026-06-01', endDate: '2026-06-01' }
 			],
 			definitions: taskReportFixtureDefinitions,
 			weekStartISO: '2026-06-01'

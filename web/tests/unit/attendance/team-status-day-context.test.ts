@@ -108,11 +108,11 @@ describe('team status day context', () => {
 
 	test('shows completed flow tasks for the selected person and date', () => {
 		const taskState = taskStateFixture([
-			task('done-owned', '완료', '2026-06-16', 'kim', ['kim'], ['김철수']),
-			task('done-owned-collaborating', '완료', '2026-06-16', 'kim', ['kim', 'park'], ['김철수', '박지민']),
-			task('done-participating', '완료', '2026-06-16', 'park', ['park', 'kim'], ['박지민', '김철수']),
-			task('planned', '예정', '2026-06-16', 'kim', ['kim'], ['김철수']),
-			task('other-date', '완료', '2026-06-17', 'kim', ['kim'], ['김철수'])
+			task('done-owned', 'completed', '2026-06-16', 'kim', ['kim'], ['김철수']),
+			task('done-owned-collaborating', 'completed', '2026-06-16', 'kim', ['kim', 'park'], ['김철수', '박지민']),
+			task('done-participating', 'completed', '2026-06-16', 'park', ['park', 'kim'], ['박지민', '김철수']),
+			task('planned', 'planned', '2026-06-16', 'kim', ['kim'], ['김철수']),
+			task('other-date', 'completed', '2026-06-17', 'kim', ['kim'], ['김철수'])
 		]);
 
 		const context = buildTeamStatusDayContext(
@@ -133,8 +133,8 @@ describe('team status day context', () => {
 
 	test('uses email matched flow member IDs before name fallback', () => {
 		const taskState = taskStateFixture([
-			task('same-name-other-email', '완료', '2026-06-16', 'same-name', ['same-name'], ['김철수']),
-			task('email-matched', '완료', '2026-06-16', 'kim', ['kim'], ['김철수'])
+			task('same-name-other-email', 'completed', '2026-06-16', 'same-name', ['same-name'], ['김철수']),
+			task('email-matched', 'completed', '2026-06-16', 'kim', ['kim'], ['김철수'])
 		]);
 		taskState.members.push(taskMember('same-name', '김철수', 'same-name@example.com'));
 

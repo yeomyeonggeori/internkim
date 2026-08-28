@@ -222,7 +222,7 @@ describe('flow API', () => {
 
 			await moveTaskOnBoard({
 				taskID: 'task-1',
-				targetStatus: '진행',
+				targetStatus: 'in_progress',
 				beforeTaskID: 'task-2'
 			}, 'Could not save the task.');
 
@@ -230,7 +230,7 @@ describe('flow API', () => {
 			expect(requestMethod).toBe('POST');
 			expect(requestBody).toEqual({
 				taskID: 'task-1',
-				targetStatus: '진행',
+				targetStatus: 'in_progress',
 				beforeTaskID: 'task-2'
 			});
 		} finally {
@@ -462,7 +462,7 @@ function taskOf(id: string) {
 		content: 'Task',
 		goal: '',
 		size: 'S',
-		status: '완료',
+		status: 'completed',
 		statusRank: 0,
 		weekCode: '26W23',
 		flag: 0

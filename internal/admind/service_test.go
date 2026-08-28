@@ -1898,7 +1898,7 @@ func TestTaskAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if task.Status != "진행" || task.OwnerID != stableTaskID("staff@example.com") {
+	if task.Status != "in_progress" || task.OwnerID != stableTaskID("staff@example.com") {
 		t.Fatalf("task = %+v", task)
 	}
 }
@@ -1990,10 +1990,10 @@ func TestTaskSummaryIncludesDistanceReport(t *testing.T) {
 	staffID := stableTaskID("staff@example.com")
 	otherID := stableTaskID("other@example.com")
 	tasks := []Task{
-		taskReportTestTask("current", "26W18", []string{staffID, otherID}, []string{"Staff", "Other"}, "M", "완료", "2026-04-27", "2026-04-29"),
-		taskReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "완료", "2026-04-20", "2026-04-21"),
-		taskReportTestTask("previous-month", "26W10", []string{staffID}, []string{"Staff"}, "XS", "완료", "2026-03-03", "2026-03-03"),
-		taskReportTestTask("future-week", "26W19", []string{staffID}, []string{"Staff"}, "XS", "예정", "2026-05-04", ""),
+		taskReportTestTask("current", "26W18", []string{staffID, otherID}, []string{"Staff", "Other"}, "M", "completed", "2026-04-27", "2026-04-29"),
+		taskReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "completed", "2026-04-20", "2026-04-21"),
+		taskReportTestTask("previous-month", "26W10", []string{staffID}, []string{"Staff"}, "XS", "completed", "2026-03-03", "2026-03-03"),
+		taskReportTestTask("future-week", "26W19", []string{staffID}, []string{"Staff"}, "XS", "planned", "2026-05-04", ""),
 	}
 	for _, task := range tasks {
 		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
@@ -2048,8 +2048,8 @@ func TestTaskStateIncludesCurrentGlobalData(t *testing.T) {
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
 	tasks := []Task{
-		taskReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
-		taskReportTestTask("older", weekCodeForDate(currentWeekStart.AddDate(0, 0, -7*2)), []string{otherID}, []string{"Other"}, "XS", "진행", currentWeekStart.AddDate(0, 0, -14).Format("2006-01-02"), ""),
+		taskReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "completed", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
+		taskReportTestTask("older", weekCodeForDate(currentWeekStart.AddDate(0, 0, -7*2)), []string{otherID}, []string{"Other"}, "XS", "in_progress", currentWeekStart.AddDate(0, 0, -14).Format("2006-01-02"), ""),
 	}
 	for _, task := range tasks {
 		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
@@ -2111,9 +2111,9 @@ func TestTaskSummaryMemberScoresUseCurrentWeek(t *testing.T) {
 	selectedWeekStart := currentWeekStart.AddDate(0, 0, -7*30)
 	selectedWeekCode := weekCodeForDate(selectedWeekStart)
 	tasks := []Task{
-		taskReportTestTask("selected-score", selectedWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", selectedWeekStart.Format("2006-01-02"), selectedWeekStart.Format("2006-01-02")),
-		taskReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
-		taskReportTestTask("previous-current-score", previousCurrentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", previousCurrentWeekStart.Format("2006-01-02"), previousCurrentWeekStart.Format("2006-01-02")),
+		taskReportTestTask("selected-score", selectedWeekCode, []string{staffID}, []string{"Staff"}, "M", "completed", selectedWeekStart.Format("2006-01-02"), selectedWeekStart.Format("2006-01-02")),
+		taskReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "completed", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
+		taskReportTestTask("previous-current-score", previousCurrentWeekCode, []string{staffID}, []string{"Staff"}, "M", "completed", previousCurrentWeekStart.Format("2006-01-02"), previousCurrentWeekStart.Format("2006-01-02")),
 	}
 	for _, task := range tasks {
 		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
@@ -2419,7 +2419,7 @@ func TestTaskAPIForcesStaffTaskForOtherMemberToRequestWithoutRequesterParticipan
 	if errorValue := json.NewDecoder(response.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if task.Status != "요청" {
+	if task.Status != "requested" {
 		t.Fatalf("status = %q", task.Status)
 	}
 	if containsString(task.ParticipantIDs, stableTaskID("staff@example.com")) {
@@ -2457,7 +2457,7 @@ func TestTaskAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testin
 		Type:           "회의",
 		Content:        "같이 10분 회의",
 		Size:           "XS",
-		Status:         "진행",
+		Status:         "in_progress",
 		WeekCode:       "26W18",
 	}
 	document, _ := json.Marshal(payload)
@@ -2528,7 +2528,7 @@ func TestTaskAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
 
 func TestTaskMattermostNotificationDirectMessagesTaskPeople(t *testing.T) {
 	service, requests := newTaskNotificationTestService(t)
-	task := taskNotificationTestTask("요청")
+	task := taskNotificationTestTask("requested")
 	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -2543,7 +2543,7 @@ func TestTaskMattermostNotificationDirectMessagesTaskPeople(t *testing.T) {
 		t.Fatalf("a direct message must not be tracked as a channel post, got %q", task.MattermostPostID)
 	}
 
-	task.Status = "완료"
+	task.Status = "completed"
 	task.Content = "회의 완료"
 	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
@@ -2556,7 +2556,7 @@ func TestTaskMattermostNotificationDirectMessagesTaskPeople(t *testing.T) {
 		t.Fatalf("a change must arrive as a new notice, not an edit: updated=%+v deleted=%+v", requests.updatedMessages, requests.deletedPostIDs)
 	}
 
-	task.Status = "일시정지"
+	task.Status = "paused"
 	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -2607,7 +2607,7 @@ func TestTaskMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	task := taskNotificationTestTask("요청")
+	task := taskNotificationTestTask("requested")
 	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -2640,7 +2640,7 @@ func assertTaskProjectionOutboxCount(t *testing.T, service *Service, expectedCou
 
 func TestTaskMattermostNotificationSkipsQuietStatuses(t *testing.T) {
 	service, requests := newTaskNotificationTestService(t)
-	for _, status := range []string{"예정", "일시정지"} {
+	for _, status := range []string{"planned", "paused"} {
 		task := taskNotificationTestTask(status)
 		task.ID = "task-" + status
 		task = service.syncTaskMattermostNotification(context.Background(), task)
@@ -2665,7 +2665,7 @@ func TestTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 		Type:           "회의",
 		Content:        "10분 회의",
 		Size:           "XS",
-		Status:         "진행",
+		Status:         "in_progress",
 		WeekCode:       "26W18",
 	}
 	document, errorValue := json.Marshal(payload)
@@ -2682,7 +2682,7 @@ func TestTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if task.Status != "요청" {
+	if task.Status != "requested" {
 		t.Fatalf("status = %q", task.Status)
 	}
 }
@@ -2881,7 +2881,7 @@ func newTaskRequest(callerEmail string, ownerEmail string) *http.Request {
 		Type:           "회의",
 		Content:        "10분 회의",
 		Size:           "XS",
-		Status:         "진행",
+		Status:         "in_progress",
 		WeekCode:       "26W18",
 	}
 	document, _ := json.Marshal(payload)

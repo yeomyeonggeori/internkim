@@ -15,10 +15,10 @@ describe('flow board participant scope', () => {
 	});
 
 	test('allows adding only requests while another person is filtered', () => {
-		expect(canCreateTaskInColumn('요청', 'other')).toBe(true);
-		expect(canCreateTaskInColumn('예정', 'other')).toBe(false);
-		expect(canCreateTaskInColumn('예정', 'self')).toBe(true);
-		expect(canCreateTaskInColumn('예정', 'everyone')).toBe(true);
+		expect(canCreateTaskInColumn('requested', 'other')).toBe(true);
+		expect(canCreateTaskInColumn('planned', 'other')).toBe(false);
+		expect(canCreateTaskInColumn('planned', 'self')).toBe(true);
+		expect(canCreateTaskInColumn('planned', 'everyone')).toBe(true);
 	});
 
 	test('hides an empty request column only for the viewer own filter', () => {

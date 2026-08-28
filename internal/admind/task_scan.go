@@ -31,6 +31,8 @@ func scanTask(rows *sql.Rows) (Task, error) {
 	if errorValue != nil {
 		return Task{}, errorValue
 	}
+	// Rows written before the English canonicalization carry Korean statuses.
+	task.Status = cleanTaskStatus(task.Status)
 	_ = json.Unmarshal([]byte(participantIDsDocument), &task.ParticipantIDs)
 	_ = json.Unmarshal([]byte(participantNamesDocument), &task.ParticipantNames)
 	return task, nil

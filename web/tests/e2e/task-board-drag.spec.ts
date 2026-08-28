@@ -33,13 +33,13 @@ test.describe('flow task board drag interactions', () => {
 		await expect(page.locator('[data-task-active-tab="tasks"]')).toBeVisible();
 		await expect(page.getByRole('button', { name: '김철수', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('tab', { name: '보드', exact: true })).toHaveAttribute('aria-selected', 'true');
-		await expect(taskColumn(page, '진행')).toBeVisible();
-		await expect(taskColumn(page, '진행').locator('[data-task-board-task-count]')).toHaveText('3');
-		await expect(taskColumn(page, '진행').locator('[data-task-board-footer-add-task="진행"]')).toHaveCSS('opacity', '0');
-		await taskColumn(page, '진행').hover();
-		await expect(taskColumn(page, '진행').locator('[data-task-board-footer-add-task="진행"]')).toHaveCSS('opacity', '1');
+		await expect(taskColumn(page, 'in_progress')).toBeVisible();
+		await expect(taskColumn(page, 'in_progress').locator('[data-task-board-task-count]')).toHaveText('3');
+		await expect(taskColumn(page, 'in_progress').locator('[data-task-board-footer-add-task="in_progress"]')).toHaveCSS('opacity', '0');
+		await taskColumn(page, 'in_progress').hover();
+		await expect(taskColumn(page, 'in_progress').locator('[data-task-board-footer-add-task="in_progress"]')).toHaveCSS('opacity', '1');
 		const taskDashboardGoal = '업무 진행도 화면에서 상태와 거리 흐름을 빠르게 본다.';
-		await expect(taskColumn(page, '진행').getByText(taskDashboardGoal)).toHaveCount(0);
+		await expect(taskColumn(page, 'in_progress').getByText(taskDashboardGoal)).toHaveCount(0);
 		await taskCard(page, taskDashboardTaskID).click();
 		await page.getByRole('dialog').getByRole('button', { name: '업무 수정', exact: true }).click();
 		await expect(page.getByPlaceholder('완료 기준')).toHaveValue(taskDashboardGoal);
@@ -75,13 +75,13 @@ test.describe('flow task board drag interactions', () => {
 	test('moves cards across columns and preserves reordered cards after reload', async ({ page }) => {
 		await openTaskBoard(page);
 
-		await dragToLocator(taskCard(page, requestedTaskID), columnAppendTarget(page, '진행'));
-		await expect(taskColumn(page, '진행').locator(`[data-task-board-card="${requestedTaskID}"]`)).toBeVisible();
+		await dragToLocator(taskCard(page, requestedTaskID), columnAppendTarget(page, 'in_progress'));
+		await expect(taskColumn(page, 'in_progress').locator(`[data-task-board-card="${requestedTaskID}"]`)).toBeVisible();
 
 		const roadmapReviewTaskID = '26W23-roadmap-review';
 		await showUpperInsertionIndicator(page, taskCard(page, roadmapReviewTaskID), taskCard(page, taskDashboardTaskID));
-		await expect(insertionIndicator(page, '진행', taskDashboardTaskID)).toBeVisible();
-		await expectInsertionSlotAbove(insertionIndicator(page, '진행', taskDashboardTaskID), taskCard(page, taskDashboardTaskID));
+		await expect(insertionIndicator(page, 'in_progress', taskDashboardTaskID)).toBeVisible();
+		await expectInsertionSlotAbove(insertionIndicator(page, 'in_progress', taskDashboardTaskID), taskCard(page, taskDashboardTaskID));
 
 		await dragToUpperHalf(taskCard(page, roadmapReviewTaskID), taskCard(page, taskDashboardTaskID));
 		await expect(progressCardIDs(page)).resolves.toEqual([
@@ -167,12 +167,12 @@ test.describe('flow task board drag interactions', () => {
 		});
 
 		await openTaskBoard(page);
-		await dragToLocator(taskCard(page, scheduledTaskID), columnAppendTarget(page, '진행'));
+		await dragToLocator(taskCard(page, scheduledTaskID), columnAppendTarget(page, 'in_progress'));
 
 		await expect(taskCard(page, scheduledTaskID)).toHaveAttribute('data-task-board-pending', 'true');
 		await expect(page.getByText('업무를 저장하지 못했습니다.')).toBeVisible();
-		await expect(taskColumn(page, '예정').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toBeVisible();
-		await expect(taskColumn(page, '진행').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toHaveCount(0);
+		await expect(taskColumn(page, 'planned').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toBeVisible();
+		await expect(taskColumn(page, 'in_progress').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toHaveCount(0);
 	});
 
 	test('keeps the board visible when reload fails after a saved board move', async ({ page }) => {
@@ -188,11 +188,11 @@ test.describe('flow task board drag interactions', () => {
 			await route.fulfill({ status: 503, body: 'reload failed' });
 		});
 
-		await dragToLocator(taskCard(page, scheduledTaskID), columnAppendTarget(page, '진행'));
+		await dragToLocator(taskCard(page, scheduledTaskID), columnAppendTarget(page, 'in_progress'));
 
 		await expect(page.getByText('업무 데이터를 불러오지 못했습니다.')).toBeVisible();
 		await expect(page.getByRole('tab', { name: '보드', exact: true })).toHaveAttribute('aria-selected', 'true');
-		await expect(taskColumn(page, '진행').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toBeVisible();
+		await expect(taskColumn(page, 'in_progress').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toBeVisible();
 	});
 
 	test('ignores external drag payloads that did not start from a board card', async ({ page }) => {
@@ -208,14 +208,14 @@ test.describe('flow task board drag interactions', () => {
 		await page.evaluate((taskID) => {
 			const dataTransfer = new DataTransfer();
 			dataTransfer.setData('text/plain', taskID);
-			const target = document.querySelector('[data-task-board-drop-zone="진행"]');
+			const target = document.querySelector('[data-task-board-drop-zone="in_progress"]');
 			if (!target) throw new Error('progress drop zone was not found');
 			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, clientY: 4, dataTransfer }));
 			target.dispatchEvent(new DragEvent('drop', { bubbles: true, clientY: 4, dataTransfer }));
 		}, scheduledTaskID);
 
-		await expect(taskColumn(page, '예정').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toBeVisible();
-		await expect(taskColumn(page, '진행').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toHaveCount(0);
+		await expect(taskColumn(page, 'planned').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toBeVisible();
+		await expect(taskColumn(page, 'in_progress').locator(`[data-task-board-card="${scheduledTaskID}"]`)).toHaveCount(0);
 		await page.waitForTimeout(50);
 		expect(boardMoveRequestCount).toBe(0);
 	});
@@ -262,7 +262,7 @@ test.describe('flow task board drag interactions', () => {
 		});
 
 		await openTaskBoard(page);
-		await dragToLocator(taskCard(page, scheduledTaskID), columnAppendTarget(page, '진행'));
+		await dragToLocator(taskCard(page, scheduledTaskID), columnAppendTarget(page, 'in_progress'));
 		await page.getByRole('button', { name: '다음 주', exact: true }).click();
 		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('다음 주');
 		shouldCountOldWeekReload = true;
@@ -303,11 +303,11 @@ test.describe('flow task board drag interactions', () => {
 	test('resizes board columns with the viewport height', async ({ page }) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await openTaskBoard(page);
-		const mediumHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		const mediumHeight = await taskColumn(page, 'in_progress').evaluate((element) => element.getBoundingClientRect().height);
 
 		await page.setViewportSize({ width: 1440, height: 1200 });
 		await expect.poll(async () => {
-			return taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+			return taskColumn(page, 'in_progress').evaluate((element) => element.getBoundingClientRect().height);
 		}).toBeGreaterThan(mediumHeight + 80);
 	});
 
@@ -316,16 +316,16 @@ test.describe('flow task board drag interactions', () => {
 		await openTaskBoard(page);
 		await setTaskPageScrollTop(page, 0);
 		await waitForTaskBoardHeightUpdate(page);
-		const restingHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		const restingHeight = await taskColumn(page, 'in_progress').evaluate((element) => element.getBoundingClientRect().height);
 
 		await scrollTaskBoardToTop(page);
 		await waitForTaskBoardHeightUpdate(page);
-		const alignedHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		const alignedHeight = await taskColumn(page, 'in_progress').evaluate((element) => element.getBoundingClientRect().height);
 		expect(Math.abs(alignedHeight - restingHeight)).toBeLessThanOrEqual(1);
 
 		await scrollTaskPageBy(page, 2000);
 		await waitForTaskBoardHeightUpdate(page);
-		const scrolledHeight = await taskColumn(page, '진행').evaluate((element) => element.getBoundingClientRect().height);
+		const scrolledHeight = await taskColumn(page, 'in_progress').evaluate((element) => element.getBoundingClientRect().height);
 		expect(Math.abs(scrolledHeight - restingHeight)).toBeLessThanOrEqual(1);
 	});
 	test('confirms a definition edit once it is saved', async ({ page }) => {
@@ -344,8 +344,8 @@ async function expectBoardScrollerToFillMainViewport(page: import('@playwright/t
 	const measurement = await page.evaluate(() => {
 		const mainElement = document.querySelector('main');
 		const scrollElement = document.querySelector('[data-task-board-scroll]');
-		const firstColumnElement = document.querySelector('[data-task-board-column="요청"]');
-		const fourthColumnElement = document.querySelector('[data-task-board-column="완료"]');
+		const firstColumnElement = document.querySelector('[data-task-board-column="requested"]');
+		const fourthColumnElement = document.querySelector('[data-task-board-column="completed"]');
 		if (!mainElement) throw new Error('main element was not found');
 		if (!scrollElement) throw new Error('flow board scroll element was not found');
 		if (!firstColumnElement) throw new Error('requested flow board column was not found');

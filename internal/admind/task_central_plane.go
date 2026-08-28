@@ -25,7 +25,7 @@ func (service *Service) saveCentralTask(request *http.Request, task Task, people
 		ActorPlatform:    "email",
 		ActorExternalID:  requesterEmail,
 		Title:            task.Content,
-		Status:           centralTaskStatus(task.Status),
+		Status:           cleanTaskStatus(task.Status),
 		Note:             centralTaskNote(task),
 		Business:         task.Business,
 		Type:             task.Type,

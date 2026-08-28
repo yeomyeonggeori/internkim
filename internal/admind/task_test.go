@@ -74,7 +74,7 @@ func TestTaskMembersWithoutFleetCredentialsDoesNotReturnSeedMembers(t *testing.T
 func TestNormalizeTaskDatesSetsCompletedStartEndAndWeek(t *testing.T) {
 	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, taskDateLocation())
 
-	dates := normalizeTaskDates(taskWriteRequest{}, "완료", now)
+	dates := normalizeTaskDates(taskWriteRequest{}, "completed", now)
 
 	if dates.StartDate != "2026-06-11" || dates.EndDate != "2026-06-11" || dates.WeekCode != "26W24" {
 		t.Fatalf("dates = %+v", dates)
@@ -84,7 +84,7 @@ func TestNormalizeTaskDatesSetsCompletedStartEndAndWeek(t *testing.T) {
 func TestNormalizeTaskDatesPreservesExplicitCompletedDates(t *testing.T) {
 	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, taskDateLocation())
 
-	dates := normalizeTaskDates(taskWriteRequest{StartDate: "2026-06-09", EndDate: "2026-06-10"}, "완료", now)
+	dates := normalizeTaskDates(taskWriteRequest{StartDate: "2026-06-09", EndDate: "2026-06-10"}, "completed", now)
 
 	if dates.StartDate != "2026-06-09" || dates.EndDate != "2026-06-10" || dates.WeekCode != "26W24" {
 		t.Fatalf("dates = %+v", dates)
@@ -94,7 +94,7 @@ func TestNormalizeTaskDatesPreservesExplicitCompletedDates(t *testing.T) {
 func TestNormalizeTaskDatesLeavesPlannedWorkUndated(t *testing.T) {
 	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, taskDateLocation())
 
-	dates := normalizeTaskDates(taskWriteRequest{}, "예정", now)
+	dates := normalizeTaskDates(taskWriteRequest{}, "planned", now)
 
 	if dates.StartDate != "" || dates.EndDate != "" || dates.WeekCode != "26W24" {
 		t.Fatalf("dates = %+v", dates)
@@ -107,12 +107,12 @@ func TestStatusCompletedWhenEnded(t *testing.T) {
 		endDate string
 		want    string
 	}{
-		{status: "예정", endDate: "2026-06-11", want: "완료"},
-		{status: "진행", endDate: "2026-06-10", want: "완료"},
-		{status: "예정", endDate: "2026-06-12", want: "예정"},
-		{status: "예정", endDate: "", want: "예정"},
-		{status: "요청", endDate: "2026-06-10", want: "요청"},
-		{status: "중단", endDate: "2026-06-10", want: "중단"},
+		{status: "planned", endDate: "2026-06-11", want: "completed"},
+		{status: "in_progress", endDate: "2026-06-10", want: "completed"},
+		{status: "planned", endDate: "2026-06-12", want: "planned"},
+		{status: "planned", endDate: "", want: "planned"},
+		{status: "requested", endDate: "2026-06-10", want: "requested"},
+		{status: "cancelled", endDate: "2026-06-10", want: "cancelled"},
 	} {
 		if got := statusCompletedWhenEnded(testCase.status, testCase.endDate, "2026-06-11"); got != testCase.want {
 			t.Fatalf("statusCompletedWhenEnded(%q, %q) = %q, want %q", testCase.status, testCase.endDate, got, testCase.want)
@@ -127,7 +127,7 @@ func TestBuildTaskMetricsCountsCompletedDistanceAndKeepsLegacyScoreAliases(t *te
 			Business:         "샘플거리",
 			Type:             "기능",
 			Size:             "M",
-			Status:           "완료",
+			Status:           "completed",
 			EndDate:          "2026-06-02",
 		},
 		{
@@ -135,14 +135,14 @@ func TestBuildTaskMetricsCountsCompletedDistanceAndKeepsLegacyScoreAliases(t *te
 			Business:         "샘플거리",
 			Type:             "개선",
 			Size:             "M",
-			Status:           "완료",
+			Status:           "completed",
 		},
 		{
 			ParticipantNames: []string{"김철수"},
 			Business:         "김인턴",
 			Type:             "문서",
 			Size:             "S",
-			Status:           "진행",
+			Status:           "in_progress",
 		},
 	}, taskDefinitions{
 		Sizes: []taskSizeDefinition{
@@ -188,14 +188,14 @@ func TestBuildTaskMemberScoresUsesSpreadsheetWeights(t *testing.T) {
 			ParticipantIDs:   []string{"member-a"},
 			ParticipantNames: []string{"김철수"},
 			Size:             "S",
-			Status:           "완료",
+			Status:           "completed",
 			EndDate:          "2026-06-01",
 		},
 		{
 			ParticipantIDs:   []string{"member-b"},
 			ParticipantNames: []string{"이영희"},
 			Size:             "M",
-			Status:           "진행",
+			Status:           "in_progress",
 			EndDate:          "2026-06-01",
 		},
 	}, members, definitions, weekStart)
@@ -236,7 +236,7 @@ func TestBuildTaskMemberScoresKeepsDuplicateNamesSeparate(t *testing.T) {
 			ParticipantIDs:   []string{"member-a"},
 			ParticipantNames: []string{"김철수"},
 			Size:             "S",
-			Status:           "완료",
+			Status:           "completed",
 			EndDate:          "2026-06-01",
 		},
 	}, members, definitions, weekStart)

@@ -344,7 +344,7 @@ begin
   saved_task := public.crm_task_save(
     null,
     'CRM calendar task',
-    'todo',
+    'planned',
     'Shared CRM and Flow content',
     'Sample business',
     'meeting',
@@ -391,7 +391,7 @@ begin
   perform public.crm_task_save(
     null,
     'Manual stage change',
-    'todo',
+    'planned',
     null,
     null,
     'stage_change',
