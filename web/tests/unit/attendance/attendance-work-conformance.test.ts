@@ -9,6 +9,8 @@ import {
 } from '../../../src/lib/attendance/supabase-work-status';
 import { companyTimeInstant, shiftedDay } from '../../../src/lib/attendance/supabase-work-status-range';
 
+const noHolidays = new Set<string>();
+
 type AttendanceWorkConformancePolicy = {
 	workMode: 'autonomous' | 'flexible' | 'fixed';
 	workingWeekdays: number[];
@@ -49,13 +51,18 @@ type AttendanceWorkConformanceExpected = {
 	needsReview: boolean;
 };
 
+type AttendanceWorkConformanceRevision = AttendanceWorkConformancePolicy & {
+	effectiveDate: string;
+};
+
 type AttendanceWorkConformanceScenario = {
 	name: string;
 	timeZone: string;
 	now: string;
 	periodStart: string;
 	periodEnd: string;
-	policy: AttendanceWorkConformancePolicy;
+	policy?: AttendanceWorkConformancePolicy;
+	revisions?: AttendanceWorkConformanceRevision[];
 	events: AttendanceWorkConformanceEvent[];
 	leave: AttendanceWorkConformanceLeave[];
 	expected: AttendanceWorkConformanceExpected;
@@ -94,31 +101,43 @@ function conformanceDays(periodStart: string, periodEnd: string): string[] {
 	return days;
 }
 
-function conformancePolicy(source: AttendanceWorkConformancePolicy) {
+function conformanceRevision(source: AttendanceWorkConformanceRevision) {
 	const weeklyTargetMinutes =
 		source.workMode === 'autonomous' ? 0 : source.dailyTargetMinutes * source.workingWeekdays.length;
+	return {
+		effectiveDate: source.effectiveDate,
+		workMode: source.workMode,
+		workingWeekdays: source.workingWeekdays,
+		dailyTargetMinutes: source.dailyTargetMinutes,
+		weeklyTargetMinutes,
+		referenceStartTime: source.referenceStartTime,
+		fixedStartTime: source.fixedStartTime,
+		fixedEndTime: source.fixedEndTime,
+		coreTimeEnabled: source.coreTimeEnabled,
+		coreStartTime: source.coreStartTime,
+		coreEndTime: source.coreEndTime,
+		breakPeriods: source.breakPeriods,
+		nightStartTime: source.nightStartTime,
+		nightEndTime: source.nightEndTime
+	};
+}
+
+function conformancePolicy(scenario: AttendanceWorkConformanceScenario) {
+	if (scenario.policy && scenario.revisions) {
+		throw new Error(`${scenario.name} states a policy or revisions, not both`);
+	}
+	const sources: AttendanceWorkConformanceRevision[] =
+		scenario.revisions ??
+		(scenario.policy ? [{ ...scenario.policy, effectiveDate: '1970-01-01' }] : []);
+	if (sources.length === 0) throw new Error(`${scenario.name} states a policy or revisions`);
+	const revisions = sources.map(conformanceRevision);
 	const policies = parseSupabaseWorkPolicies([
 		{
 			member_id: conformanceMember.id,
 			work_hours: null,
-			minimum_daily_minutes: source.dailyTargetMinutes,
-			work_mode: source.workMode,
-			work_calendar: null,
-			work_policy: {
-				workMode: source.workMode,
-				workingWeekdays: source.workingWeekdays,
-				dailyTargetMinutes: source.dailyTargetMinutes,
-				weeklyTargetMinutes,
-				referenceStartTime: source.referenceStartTime,
-				fixedStartTime: source.fixedStartTime,
-				fixedEndTime: source.fixedEndTime,
-				coreTimeEnabled: source.coreTimeEnabled,
-				coreStartTime: source.coreStartTime,
-				coreEndTime: source.coreEndTime,
-				breakPeriods: source.breakPeriods,
-				nightStartTime: source.nightStartTime,
-				nightEndTime: source.nightEndTime
-			}
+			minimum_daily_minutes: revisions[revisions.length - 1].dailyTargetMinutes,
+			work_mode: revisions[revisions.length - 1].workMode,
+			work_policy: { version: 1, revisions }
 		}
 	]);
 	const policy = policies.get(conformanceMember.id);
@@ -179,7 +198,7 @@ describe('attendance work conformance', () => {
 	for (const scenario of file.scenarios) {
 		test(scenario.name, () => {
 			executed += 1;
-			const policy = conformancePolicy(scenario.policy);
+			const policy = conformancePolicy(scenario);
 			const days = conformanceDays(scenario.periodStart, scenario.periodEnd);
 			const status = calculateSupabaseEmployeeWorkStatus({
 				member: conformanceMember,
@@ -188,6 +207,7 @@ describe('attendance work conformance', () => {
 				attendance: conformanceEvents(scenario),
 				leave: conformanceLeave(scenario),
 				policy,
+				holidays: noHolidays,
 				now: new Date(scenario.now)
 			});
 

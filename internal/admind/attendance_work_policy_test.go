@@ -59,9 +59,6 @@ func TestAttendanceWorkPolicySavePreservesLeavePolicy(t *testing.T) {
 	if document.LeavePolicy.FiscalYearStartMonth != 4 {
 		t.Fatalf("leave policy changed = %+v", document.LeavePolicy)
 	}
-	if len(document.WorkPolicy.Revisions) != 1 {
-		t.Fatalf("work policy revisions = %+v", document.WorkPolicy.Revisions)
-	}
 	if document.WorkPolicy.Revisions[0].EffectiveDate != attendanceWorkPolicyInitialEffectiveDate {
 		t.Fatalf("work policy revision = %+v", document.WorkPolicy.Revisions[0])
 	}
@@ -74,7 +71,7 @@ func TestAttendanceWorkPolicySavePreservesLeavePolicy(t *testing.T) {
 	}
 }
 
-func TestAttendanceWorkPolicySaveReplacesTheCurrentPolicyForEveryDate(t *testing.T) {
+func TestAttendanceWorkPolicySaveLeavesEarlierDatesOnTheRevisionTheyHad(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	now := time.Date(2026, time.July, 31, 3, 0, 0, 0, time.UTC)
 
@@ -109,8 +106,8 @@ func TestAttendanceWorkPolicySaveReplacesTheCurrentPolicyForEveryDate(t *testing
 		t.Fatal(errorValue)
 	}
 
-	if len(policy.Revisions) != 1 {
-		t.Fatalf("revisions = %+v", policy.Revisions)
+	if len(policy.Revisions) != 2 {
+		t.Fatalf("saving twice on one date must replace that date's revision: %+v", policy.Revisions)
 	}
 	current, errorValue := attendanceWorkPolicyRevisionForDate(policy, "2026-07-31")
 	if errorValue != nil {
@@ -123,13 +120,46 @@ func TestAttendanceWorkPolicySaveReplacesTheCurrentPolicyForEveryDate(t *testing
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if past.WorkMode != attendanceWorkModeAutonomous ||
+	if past.WorkMode != attendanceWorkModeFlexible ||
 		past.EffectiveDate != attendanceWorkPolicyInitialEffectiveDate {
-		t.Fatalf("past revision = %+v", past)
+		t.Fatalf("the day before the policy took effect must keep the policy it had: %+v", past)
 	}
 }
 
-func TestAttendanceWorkPolicyNormalizesLegacyRevisionsToLatestCurrentPolicy(t *testing.T) {
+func TestAttendanceWorkPolicySaveAddsNothingWhenThePolicyIsUnchanged(t *testing.T) {
+	service, _ := newAttendanceActionTestService(t)
+	now := time.Date(2026, time.July, 31, 3, 0, 0, 0, time.UTC)
+
+	fixed := defaultAttendanceWorkPolicyRevision()
+	fixed.WorkMode = attendanceWorkModeFixed
+	fixed.FixedStartTime = "08:00"
+	fixed.FixedEndTime = "17:00"
+	fixed.CoreTimeEnabled = false
+	fixed.CoreStartTime = ""
+	fixed.CoreEndTime = ""
+	if _, errorValue := service.saveAttendanceWorkPolicyRevision(
+		t.Context(),
+		fixed,
+		"2026-07-31",
+		now,
+	); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy, errorValue := service.saveAttendanceWorkPolicyRevision(
+		t.Context(),
+		fixed,
+		"2026-08-15",
+		now.Add(24*time.Hour),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(policy.Revisions) != 2 {
+		t.Fatalf("saving the same policy again must not add a revision: %+v", policy.Revisions)
+	}
+}
+
+func TestAttendanceWorkPolicyKeepsEveryRevisionInEffectiveDateOrder(t *testing.T) {
 	fixed := defaultAttendanceWorkPolicyRevision()
 	fixed.WorkMode = attendanceWorkModeFixed
 	fixed.FixedStartTime = "08:00"
@@ -149,10 +179,22 @@ func TestAttendanceWorkPolicyNormalizesLegacyRevisionsToLatestCurrentPolicy(t *t
 	if errorValue := validateAndNormalizeAttendanceWorkPolicy(&policy); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(policy.Revisions) != 1 ||
-		policy.Revisions[0].EffectiveDate != attendanceWorkPolicyInitialEffectiveDate ||
-		policy.Revisions[0].WorkMode != attendanceWorkModeAutonomous {
-		t.Fatalf("policy = %+v", policy)
+	if len(policy.Revisions) != 2 {
+		t.Fatalf("both revisions must survive: %+v", policy.Revisions)
+	}
+	if policy.Revisions[0].EffectiveDate != attendanceWorkPolicyInitialEffectiveDate ||
+		policy.Revisions[0].WorkMode != attendanceWorkModeFixed {
+		t.Fatalf("the earliest revision must cover every date before it: %+v", policy.Revisions[0])
+	}
+	if policy.Revisions[1].EffectiveDate != "2026-08-01" ||
+		policy.Revisions[1].WorkMode != attendanceWorkModeAutonomous {
+		t.Fatalf("the later revision must keep its own effective date: %+v", policy.Revisions[1])
+	}
+
+	duplicated := defaultAttendanceWorkPolicy()
+	duplicated.Revisions = []attendanceWorkPolicyRevision{autonomous, autonomous}
+	if errorValue := validateAndNormalizeAttendanceWorkPolicy(&duplicated); errorValue == nil {
+		t.Fatal("two revisions taking effect on one date must be refused")
 	}
 }
 
@@ -268,9 +310,8 @@ func TestAttendanceWorkPolicyHTTPRoundtripUsesCompanyDate(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(saved.Revisions) != 1 ||
-		current.WorkMode != attendanceWorkModeFixed ||
-		current.EffectiveDate != attendanceWorkPolicyInitialEffectiveDate {
+	if current.WorkMode != attendanceWorkModeFixed ||
+		current.EffectiveDate != now.In(service.workspaceTimeZone().location).Format(time.DateOnly) {
 		t.Fatalf("current revision = %+v", current)
 	}
 

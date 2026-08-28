@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -51,15 +52,21 @@ type attendanceWorkConformanceExpected struct {
 }
 
 type attendanceWorkConformanceScenario struct {
-	Name        string                            `json:"name"`
-	TimeZone    string                            `json:"timeZone"`
-	Now         string                            `json:"now"`
-	PeriodStart string                            `json:"periodStart"`
-	PeriodEnd   string                            `json:"periodEnd"`
-	Policy      attendanceWorkConformancePolicy   `json:"policy"`
-	Events      []attendanceWorkConformanceEvent  `json:"events"`
-	Leave       []attendanceWorkConformanceLeave  `json:"leave"`
-	Expected    attendanceWorkConformanceExpected `json:"expected"`
+	Name        string                              `json:"name"`
+	TimeZone    string                              `json:"timeZone"`
+	Now         string                              `json:"now"`
+	PeriodStart string                              `json:"periodStart"`
+	PeriodEnd   string                              `json:"periodEnd"`
+	Policy      *attendanceWorkConformancePolicy    `json:"policy"`
+	Revisions   []attendanceWorkConformanceRevision `json:"revisions"`
+	Events      []attendanceWorkConformanceEvent    `json:"events"`
+	Leave       []attendanceWorkConformanceLeave    `json:"leave"`
+	Expected    attendanceWorkConformanceExpected   `json:"expected"`
+}
+
+type attendanceWorkConformanceRevision struct {
+	attendanceWorkConformancePolicy
+	EffectiveDate string `json:"effectiveDate"`
 }
 
 type attendanceWorkConformanceFile struct {
@@ -99,7 +106,10 @@ func TestAttendanceWorkConformanceMatchesSharedScenarios(t *testing.T) {
 			if errorValue != nil {
 				t.Fatalf("scenario %s: %v", scenario.Name, errorValue)
 			}
-			policy := attendanceWorkConformanceGoPolicy(scenario.Policy)
+			policy, errorValue := attendanceWorkConformanceGoPolicy(scenario)
+			if errorValue != nil {
+				t.Fatalf("scenario %s: %v", scenario.Name, errorValue)
+			}
 
 			status, errorValue := calculateAttendanceWorkStatus(
 				attendanceWorkConformanceEmail,
@@ -196,14 +206,41 @@ func attendanceWorkConformanceLeaveOccurrences(
 }
 
 func attendanceWorkConformanceGoPolicy(
-	source attendanceWorkConformancePolicy,
-) attendanceWorkPolicy {
+	scenario attendanceWorkConformanceScenario,
+) (attendanceWorkPolicy, error) {
+	if scenario.Policy != nil && len(scenario.Revisions) > 0 {
+		return attendanceWorkPolicy{}, fmt.Errorf("a scenario states a policy or revisions, not both")
+	}
+	sources := scenario.Revisions
+	if scenario.Policy != nil {
+		sources = []attendanceWorkConformanceRevision{{
+			attendanceWorkConformancePolicy: *scenario.Policy,
+			EffectiveDate:                   attendanceWorkPolicyInitialEffectiveDate,
+		}}
+	}
+	if len(sources) == 0 {
+		return attendanceWorkPolicy{}, fmt.Errorf("a scenario states a policy or revisions")
+	}
+	revisions := make([]attendanceWorkPolicyRevision, 0, len(sources))
+	for _, source := range sources {
+		revisions = append(revisions, attendanceWorkConformanceGoRevision(source))
+	}
+	return attendanceWorkPolicy{
+		Version:   attendanceWorkPolicyVersion,
+		UpdatedAt: time.Unix(0, 0).UTC().Format(time.RFC3339),
+		Revisions: revisions,
+	}, nil
+}
+
+func attendanceWorkConformanceGoRevision(
+	source attendanceWorkConformanceRevision,
+) attendanceWorkPolicyRevision {
 	weeklyTargetMinutes := 0
 	if source.WorkMode != attendanceWorkModeAutonomous {
 		weeklyTargetMinutes = source.DailyTargetMinutes * len(source.WorkingWeekdays)
 	}
-	revision := attendanceWorkPolicyRevision{
-		EffectiveDate:       attendanceWorkPolicyInitialEffectiveDate,
+	return attendanceWorkPolicyRevision{
+		EffectiveDate:       source.EffectiveDate,
 		WorkMode:            source.WorkMode,
 		WorkingWeekdays:     source.WorkingWeekdays,
 		DailyTargetMinutes:  source.DailyTargetMinutes,
@@ -217,11 +254,6 @@ func attendanceWorkConformanceGoPolicy(
 		BreakPeriods:        source.BreakPeriods,
 		NightStartTime:      source.NightStartTime,
 		NightEndTime:        source.NightEndTime,
-	}
-	return attendanceWorkPolicy{
-		Version:   attendanceWorkPolicyVersion,
-		UpdatedAt: time.Unix(0, 0).UTC().Format(time.RFC3339),
-		Revisions: []attendanceWorkPolicyRevision{revision},
 	}
 }
 

@@ -37,7 +37,7 @@ func TestAttendanceReconciliationCarriesTheActualWorkMode(t *testing.T) {
 	}
 }
 
-func TestAttendanceReconciliationCarriesOneCurrentWorkPolicy(t *testing.T) {
+func TestAttendanceReconciliationCarriesEveryPolicyRevision(t *testing.T) {
 	var carried map[string]json.RawMessage
 	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if errorValue := json.NewDecoder(request.Body).Decode(&carried); errorValue != nil {
@@ -49,12 +49,27 @@ func TestAttendanceReconciliationCarriesOneCurrentWorkPolicy(t *testing.T) {
 	defer plane.Close()
 
 	policy := ReconciledWorkPolicy{
-		WorkMode:            "fixed",
-		WorkingWeekdays:     []int{1, 2, 3, 4, 5},
-		DailyTargetMinutes:  480,
-		WeeklyTargetMinutes: 2400,
-		NightStartTime:      "22:00",
-		NightEndTime:        "06:00",
+		Version: 1,
+		Revisions: []ReconciledWorkPolicyRevision{
+			{
+				EffectiveDate:       "1970-01-01",
+				WorkMode:            "flexible",
+				WorkingWeekdays:     []int{1, 2, 3, 4, 5},
+				DailyTargetMinutes:  480,
+				WeeklyTargetMinutes: 2400,
+				NightStartTime:      "22:00",
+				NightEndTime:        "06:00",
+			},
+			{
+				EffectiveDate:       "2026-08-01",
+				WorkMode:            "fixed",
+				WorkingWeekdays:     []int{1, 2, 3, 4, 5},
+				DailyTargetMinutes:  480,
+				WeeklyTargetMinutes: 2400,
+				NightStartTime:      "22:00",
+				NightEndTime:        "06:00",
+			},
+		},
 	}
 	client := New(Settings{AppURL: plane.URL, AgentAPIKey: "agent-key"})
 	_, errorValue := client.ReconcileAttendance(context.Background(), ReconcileWindow{
@@ -71,12 +86,21 @@ func TestAttendanceReconciliationCarriesOneCurrentWorkPolicy(t *testing.T) {
 	if errorValue := json.Unmarshal(carried["workPolicy"], &decoded); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if decoded.WorkMode != "fixed" || decoded.NightStartTime != "22:00" || decoded.NightEndTime != "06:00" {
+	if decoded.Version != 1 || len(decoded.Revisions) != 2 {
 		t.Fatalf("work policy = %+v", decoded)
+	}
+	if decoded.Revisions[0].EffectiveDate != "1970-01-01" ||
+		decoded.Revisions[0].WorkMode != "flexible" {
+		t.Fatalf("the revision that covers the past did not travel: %+v", decoded.Revisions[0])
+	}
+	if decoded.Revisions[1].EffectiveDate != "2026-08-01" ||
+		decoded.Revisions[1].WorkMode != "fixed" ||
+		decoded.Revisions[1].NightStartTime != "22:00" {
+		t.Fatalf("the current revision did not travel: %+v", decoded.Revisions[1])
 	}
 }
 
-func TestAttendanceReconciliationCarriesTheDateLevelWorkCalendar(t *testing.T) {
+func TestAttendanceReconciliationCarriesTheCompanyHolidays(t *testing.T) {
 	var carried map[string]json.RawMessage
 	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if errorValue := json.NewDecoder(request.Body).Decode(&carried); errorValue != nil {
@@ -92,23 +116,26 @@ func TestAttendanceReconciliationCarriesTheDateLevelWorkCalendar(t *testing.T) {
 		Platform: "mattermost",
 		From:     time.Date(2027, time.January, 1, 0, 0, 0, 0, time.UTC),
 		To:       time.Date(2027, time.January, 2, 0, 0, 0, 0, time.UTC),
-		WorkCalendar: []ReconciledWorkCalendarDay{{
-			Date: "2027-01-01", WorkMode: "flexible", WorkingDate: false, Holiday: true,
+		CompanyHolidays: []ReconciledCompanyHoliday{{
+			ID: "company-holiday-1", Title: "창립기념일", Date: "2027-01-02", RecursAnnually: true,
 		}},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	var workCalendar []map[string]any
-	if errorValue := json.Unmarshal(carried["workCalendar"], &workCalendar); errorValue != nil {
+	if _, carriedCalendar := carried["workCalendar"]; carriedCalendar {
+		t.Fatal("a day per date is derived now and must not be sent")
+	}
+	var holidays []map[string]any
+	if errorValue := json.Unmarshal(carried["companyHolidays"], &holidays); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(workCalendar) != 1 ||
-		workCalendar[0]["date"] != "2027-01-01" ||
-		workCalendar[0]["workMode"] != "flexible" ||
-		workCalendar[0]["workingDate"] != false ||
-		workCalendar[0]["holiday"] != true {
-		t.Fatalf("work calendar = %#v", workCalendar)
+	if len(holidays) != 1 ||
+		holidays[0]["id"] != "company-holiday-1" ||
+		holidays[0]["title"] != "창립기념일" ||
+		holidays[0]["date"] != "2027-01-02" ||
+		holidays[0]["recursAnnually"] != true {
+		t.Fatalf("company holidays = %#v", holidays)
 	}
 }
 
