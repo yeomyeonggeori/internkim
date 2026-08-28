@@ -4,7 +4,7 @@ import type { TaskMemberScoreDetail, Task } from '../../routes/task/task-types';
 const scorePeriodCount = 5;
 const periodWeights = [1.5, 1.4, 1.3, 1.2, 1.1];
 const completedStatus = 'completed';
-const inactiveStatuses = new Set(['rejected', 'cancelled']);
+const inactiveStatuses = new Set(['rejected', 'stopped']);
 
 const distanceBySizeName = new Map(taskSizes().map((size) => [size.name.toUpperCase(), size.distanceKm]));
 

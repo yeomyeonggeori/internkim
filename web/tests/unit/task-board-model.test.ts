@@ -7,7 +7,7 @@ describe('flow task board model', () => {
 		const board = buildTaskBoard([
 			task({ id: 'requested-1', status: 'requested', statusRank: 100 }),
 			task({ id: 'rejected-1', status: 'rejected', statusRank: 100 }),
-			task({ id: 'stopped-1', status: 'cancelled', statusRank: 100 }),
+			task({ id: 'stopped-1', status: 'stopped', statusRank: 100 }),
 			task({ id: 'paused-1', status: 'paused', statusRank: 100 })
 		]);
 

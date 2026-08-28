@@ -16,7 +16,7 @@ export type DevTaskSpec = {
 };
 
 export const devTaskTypes = ['운동', '마케팅', '데이터 분석', '운영', '기획', '미팅', '회의', '문서', '보안', '연동', '변경', '설계', 'UI', '기능 추가', '리팩터링', '버그 수정', '기능', '개선', '검증', '디자인', '기타'];
-export const devTaskStatuses = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'cancelled'];
+export const devTaskStatuses = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'stopped'];
 export const devTaskBaselineWeekStartISO = '2026-06-01';
 
 export const devTaskMembers: TaskMember[] = [
@@ -39,7 +39,7 @@ export const devTaskSpecs: DevTaskSpec[] = [
 	taskSpec('mail-triage', 'kim-intern', ['kim-intern'], '김인턴', '문서', '메일 분류 규칙 정리', 'S', 'planned', 3, 0, { parentTaskID: 'task-dashboard' }),
 	taskSpec('design-pass', 'designer', ['designer'], '샘플거리', '디자인', 'Flow 모바일 간격 점검', 'S', 'completed', 4, 4, { parentTaskID: 'task-dashboard' }),
 	taskSpec('mattermost-smoke', 'operator', ['operator', 'engineer'], '김인턴', '검증', 'Mattermost smoke 시나리오 재정리', 'M', 'paused', 2, 0, { parentTaskID: 'task-dashboard' }),
-	taskSpec('memory-graph', 'engineer', ['engineer', 'kim-intern'], '샘플거리', '기능', 'Memory 그래프 빈 상태 처리', 'L', 'cancelled', 5, 0, { parentTaskID: 'task-dashboard' }),
+	taskSpec('memory-graph', 'engineer', ['engineer', 'kim-intern'], '샘플거리', '기능', 'Memory 그래프 빈 상태 처리', 'L', 'stopped', 5, 0, { parentTaskID: 'task-dashboard' }),
 	taskSpec('launch-brief', 'designer', ['designer', 'operator'], '김인턴', '문서', '내부 데모 브리프 작성', 'XS', 'completed', 1, 3),
 	taskSpec('roadmap-review', 'planner', ['planner'], '샘플거리', '기획', '다음 스프린트 로드맵 정리', 'M', 'in_progress', 1, 0),
 	taskSpec('campaign-copy', 'marketer', ['marketer'], '김인턴', '마케팅', '온보딩 캠페인 문구 작성', 'S', 'completed', 2, 4),
