@@ -74,6 +74,14 @@ func (service *Service) createQuickFlowTask(responseWriter http.ResponseWriter, 
 			return
 		}
 	}
+	if saved, answered, saveError := service.saveCentralFlowTask(request, task, service.flowPeopleByID(request.Context())); answered {
+		if saveError != nil {
+			http.Error(responseWriter, saveError.Error(), http.StatusBadGateway)
+			return
+		}
+		service.writeJSON(responseWriter, saved)
+		return
+	}
 	task = flowTaskWithCreatedAt(task)
 	if errorValue := service.writeFlowTask(request.Context(), task); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)

@@ -18,7 +18,7 @@ const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
-const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.'];
+const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.flow.'];
 export const apiRequestCapability = 'person.api.request';
 export const apiFileCapability = 'person.api.file';
 export const workspaceRootsCapability = 'person.files.roots';
@@ -512,11 +512,26 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 	'person.buzz.relay': '/agent/api/buzz-relay-config'
 };
 
+export const workspaceWriteCapabilityPaths: Record<string, string> = {
+	'person.flow.quick_task': '/flow/api/tasks/quick'
+};
+
 export function workspaceCallOf(
 	capability: string,
 	body: Record<string, unknown>,
 	requester: string
 ): AdmindCall | null {
+	const writePath = workspaceWriteCapabilityPaths[capability];
+	if (writePath) {
+		const { actor: _actor, ...written } = body;
+		return {
+			method: 'POST',
+			url: `${admindHost}${writePath}`,
+			requester,
+			contentType: 'application/json',
+			body: JSON.stringify(written)
+		};
+	}
 	const path = workspaceCapabilityPaths[capability];
 	if (!path) return null;
 	const query = new URLSearchParams();
