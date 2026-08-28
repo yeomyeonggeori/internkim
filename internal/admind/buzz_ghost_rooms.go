@@ -138,7 +138,7 @@ func readDirectRooms(ctx context.Context, database *sql.DB) ([]buzzDirectRoom, e
 	rows, errorValue := database.QueryContext(ctx, `
 		SELECT c.id::text,
 			coalesce(array_agg(encode(m.pubkey,'hex')) FILTER (WHERE m.removed_at IS NULL), '{}'),
-			coalesce((SELECT count(*) FROM events e WHERE e.channel_id = c.id::text AND e.kind = 9), 0)
+			coalesce((SELECT count(*) FROM events e WHERE e.channel_id::text = c.id::text AND e.kind = 9), 0)
 		FROM channels c LEFT JOIN channel_members m ON m.channel_id = c.id
 		WHERE c.channel_type = 'dm' AND c.deleted_at IS NULL
 		GROUP BY c.id`)
@@ -163,7 +163,7 @@ func readDirectRooms(ctx context.Context, database *sql.DB) ([]buzzDirectRoom, e
 	}
 
 	tagRows, errorValue := database.QueryContext(ctx,
-		"SELECT channel_id, tags FROM events WHERE kind IN (39000, 39002) AND channel_id IS NOT NULL")
+		"SELECT channel_id::text, tags FROM events WHERE kind IN (39000, 39002) AND channel_id IS NOT NULL")
 	if errorValue != nil {
 		return nil, errorValue
 	}
