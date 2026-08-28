@@ -86,7 +86,6 @@ async function createQuickFlowTaskThroughCompanyApp(
 		capability: 'person.flow.quick_task',
 		body: {
 			prompt: request.prompt,
-			weekCode: request.weekCode,
 			allowDuplicate: request.allowDuplicate ?? false
 		}
 	});
