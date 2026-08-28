@@ -98,14 +98,19 @@ func attendanceLeaveByDate(
 
 func attendanceLeaveIntervals(
 	date time.Time,
+	revision attendanceWorkPolicyRevision,
 	occurrences []attendanceApprovedLeaveOccurrence,
 	location *time.Location,
 ) []attendanceWorkSegment {
 	intervals := make([]attendanceWorkSegment, 0, len(occurrences))
 	for _, occurrence := range occurrences {
-		startMinute, startError := attendanceWorkScheduleTimeMinutes(occurrence.StartTime)
-		endMinute, endError := attendanceWorkScheduleTimeMinutes(occurrence.EndTime)
-		if startError != nil || endError != nil || endMinute <= startMinute {
+		startMinute, endMinute, found := attendanceLeaveOccurrenceMinutes(
+			date,
+			revision,
+			occurrence,
+			location,
+		)
+		if !found {
 			continue
 		}
 		dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, location)
@@ -115,6 +120,52 @@ func attendanceLeaveIntervals(
 		})
 	}
 	return intervals
+}
+
+func attendanceLeaveOccurrenceMinutes(
+	date time.Time,
+	revision attendanceWorkPolicyRevision,
+	occurrence attendanceApprovedLeaveOccurrence,
+	location *time.Location,
+) (int, int, bool) {
+	if strings.TrimSpace(occurrence.StartTime) == "" &&
+		strings.TrimSpace(occurrence.EndTime) == "" {
+		return attendanceScheduledDayMinutes(date, revision, location)
+	}
+	startMinute, startError := attendanceWorkScheduleTimeMinutes(occurrence.StartTime)
+	endMinute, endError := attendanceWorkScheduleTimeMinutes(occurrence.EndTime)
+	if startError != nil || endError != nil || endMinute <= startMinute {
+		return 0, 0, false
+	}
+	return startMinute, endMinute, true
+}
+
+func attendanceScheduledDayMinutes(
+	date time.Time,
+	revision attendanceWorkPolicyRevision,
+	location *time.Location,
+) (int, int, bool) {
+	schedule := attendanceWorkScheduleFromPolicyRevision(revision)
+	startTime := attendanceWorkSchedulePartialLeaveStartTime(schedule)
+	startMinute, startError := attendanceWorkScheduleTimeMinutes(startTime)
+	if startError != nil {
+		return 0, 0, false
+	}
+	endTime, endError := calculateAttendanceWorkScheduleEndTime(
+		schedule,
+		date.Format(time.DateOnly),
+		startTime,
+		attendanceWorkScheduleFullDay,
+		location,
+	)
+	if endError != nil {
+		return 0, 0, false
+	}
+	endMinute := endTime.In(location).Hour()*60 + endTime.In(location).Minute()
+	if endMinute <= startMinute {
+		return 0, 0, false
+	}
+	return startMinute, endMinute, true
 }
 
 func attendanceSegmentsOverlap(

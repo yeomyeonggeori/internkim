@@ -27,6 +27,18 @@ export function leaveDayIntervals(
 	return intervals;
 }
 
+export function intervalsOverlap(
+	left: DayMinuteInterval[],
+	right: DayMinuteInterval[]
+): boolean {
+	return left.some((one) =>
+		right.some(
+			(other) =>
+				Math.min(one.endMinute, other.endMinute) > Math.max(one.startMinute, other.startMinute)
+		)
+	);
+}
+
 export function scheduledDayInterval(
 	revision: AttendanceWorkPolicyRevision
 ): DayMinuteInterval | undefined {

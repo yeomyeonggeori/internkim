@@ -843,3 +843,70 @@ func TestAttendanceWorkMetricsKeepPeriodOvertimeWhenLeaveWeekHasNonWorkingDayWor
 		t.Fatalf("status = %+v", status)
 	}
 }
+
+func TestAttendanceWorkMetricsLeaveWithoutTimesCoversTheScheduledDay(t *testing.T) {
+	location, errorValue := time.LoadLocation("Asia/Seoul")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	policy := defaultAttendanceWorkPolicy()
+	policy.Revisions[0].WorkMode = attendanceWorkModeFixed
+	policy.Revisions[0].FixedStartTime = "09:00"
+	policy.Revisions[0].FixedEndTime = "18:00"
+	policy.Revisions[0].CoreTimeEnabled = false
+	policy.Revisions[0].CoreStartTime = ""
+	policy.Revisions[0].CoreEndTime = ""
+	timeless := []attendanceApprovedLeaveOccurrence{{
+		Email:              "kim@example.com",
+		Date:               "2026-08-20",
+		DeductionMilliDays: 1000,
+		Paid:               true,
+	}}
+
+	inside, errorValue := calculateAttendanceWorkStatus(
+		"kim@example.com",
+		"이샘플",
+		"2026-08-20",
+		"2026-08-20",
+		[]attendanceEvent{
+			workMetricEvent("in", attendanceKindClockIn, "2026-08-20T02:00:00Z"),
+			workMetricEvent("out", attendanceKindClockOut, "2026-08-20T03:00:00Z"),
+		},
+		timeless,
+		policy,
+		map[string]struct{}{},
+		location,
+		time.Date(2026, time.August, 21, 0, 0, 0, 0, location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !inside.Days[0].HasLeaveWorkOverlap ||
+		!inside.Days[0].NeedsReview ||
+		inside.Days[0].Late ||
+		inside.Days[0].EarlyLeave {
+		t.Fatalf("work inside the scheduled day = %+v", inside.Days[0])
+	}
+
+	outside, errorValue := calculateAttendanceWorkStatus(
+		"kim@example.com",
+		"이샘플",
+		"2026-08-20",
+		"2026-08-20",
+		[]attendanceEvent{
+			workMetricEvent("in", attendanceKindClockIn, "2026-08-20T11:00:00Z"),
+			workMetricEvent("out", attendanceKindClockOut, "2026-08-20T12:00:00Z"),
+		},
+		timeless,
+		policy,
+		map[string]struct{}{},
+		location,
+		time.Date(2026, time.August, 21, 0, 0, 0, 0, location),
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if outside.Days[0].HasLeaveWorkOverlap || outside.Days[0].NeedsReview {
+		t.Fatalf("work after the scheduled day = %+v", outside.Days[0])
+	}
+}
