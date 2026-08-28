@@ -40,3 +40,13 @@ export function getWorkStatusState(): WorkStatusState {
 	if (!state) throw new Error('WorkStatusState not provided');
 	return state;
 }
+
+const teamWorkStatusStateKey = Symbol('team-work-status-state');
+
+export function setTeamWorkStatusState(state: WorkStatusState): void {
+	setContext(teamWorkStatusStateKey, state);
+}
+
+export function getTeamWorkStatusState(): WorkStatusState | undefined {
+	return getContext<WorkStatusState | undefined>(teamWorkStatusStateKey);
+}
