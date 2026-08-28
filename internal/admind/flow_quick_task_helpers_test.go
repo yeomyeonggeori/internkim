@@ -19,3 +19,25 @@ func TestPreferExplicitFlowTaskValueFallsBackToInference(t *testing.T) {
 		t.Fatalf("value = %q", value)
 	}
 }
+
+func TestQuickTaskOwnerFollowsWhoTheNoteNames(t *testing.T) {
+	requester := flowMember{ID: "lee", Email: "lee@example.com"}
+	colleague := flowMember{ID: "kim", Email: "kim@example.com"}
+	members := []flowMember{requester, colleague}
+
+	if owner := quickTaskOwner(nil, members, requester); owner.ID != "lee" {
+		t.Fatalf("a note naming nobody stays the requester's, got %q", owner.ID)
+	}
+	if owner := quickTaskOwner([]string{"kim", "lee"}, members, requester); owner.ID != "lee" {
+		t.Fatalf("a note including the requester stays theirs, got %q", owner.ID)
+	}
+	if owner := quickTaskOwner([]string{"kim"}, members, requester); owner.ID != "kim" {
+		t.Fatalf("a note naming only others hands the work to the first named, got %q", owner.ID)
+	}
+	if !shouldForceQuickTaskRequest(colleague, "lee@example.com") {
+		t.Fatal("handing the work to someone else must take the request form")
+	}
+	if shouldForceQuickTaskRequest(requester, "lee@example.com") {
+		t.Fatal("keeping the work must not take the request form")
+	}
+}
