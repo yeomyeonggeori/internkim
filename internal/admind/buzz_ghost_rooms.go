@@ -104,10 +104,11 @@ func (service *Service) retireGhostRooms(ctx context.Context, apply bool) (buzzG
 type buzzServiceKeySet struct {
 	bookkeeping map[string]bool
 	agent       map[string]bool
+	derivable   map[string]bool
 }
 
 func buzzServiceKeys(ctx context.Context, service *Service, seed string) (buzzServiceKeySet, error) {
-	keys := buzzServiceKeySet{bookkeeping: map[string]bool{}, agent: map[string]bool{}}
+	keys := buzzServiceKeySet{bookkeeping: map[string]bool{}, agent: map[string]bool{}, derivable: map[string]bool{}}
 	bootstrapPubkey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
 	if errorValue != nil {
 		return keys, errorValue
@@ -123,6 +124,26 @@ func buzzServiceKeys(ctx context.Context, service *Service, seed string) (buzzSe
 		if errorValue == nil {
 			keys.bookkeeping[pubkey] = true
 		}
+	}
+	emails, errorValue := service.companyPeopleEmails(ctx)
+	if errorValue != nil {
+		return keys, errorValue
+	}
+	for _, email := range emails {
+		version := service.buzzIdentityVersion(service.buzzVaultSubject(ctx, email))
+		for held := 1; held <= version; held++ {
+			pubkey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, versionedSubject(email, held)))
+			if errorValue != nil {
+				return keys, errorValue
+			}
+			keys.derivable[pubkey] = true
+		}
+	}
+	for pubkey := range keys.bookkeeping {
+		keys.derivable[pubkey] = true
+	}
+	for pubkey := range keys.agent {
+		keys.derivable[pubkey] = true
 	}
 	return keys, nil
 }
@@ -218,6 +239,9 @@ func classifyDirectRoom(room buzzDirectRoom, keys buzzServiceKeySet) (buzzGhostR
 	case len(room.members) <= 1 && room.messages == 0:
 		classified.Reason = "at most one member and nothing said"
 		return classified, true, false
+	case len(room.members) <= 1 && counterpartNoLongerExists(room, keys):
+		classified.Reason = "the counterpart's key no longer belongs to anybody"
+		return classified, true, false
 	case len(room.members) <= 1:
 		classified.Reason = "one member but messages exist"
 		return classified, false, true
@@ -259,4 +283,21 @@ func contains(values []string, wanted string) bool {
 		}
 	}
 	return false
+}
+
+// The room's metadata names who it was opened between. When every named
+// counterpart is a key that is not a member and that no identity this device
+// can derive owns, the other side of the conversation does not exist any more.
+func counterpartNoLongerExists(room buzzDirectRoom, keys buzzServiceKeySet) bool {
+	counterparts := 0
+	for _, participant := range room.metadataParticipants {
+		if contains(room.members, participant) {
+			continue
+		}
+		counterparts++
+		if keys.derivable[participant] {
+			return false
+		}
+	}
+	return counterparts > 0
 }
