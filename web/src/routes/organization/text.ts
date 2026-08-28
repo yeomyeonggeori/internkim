@@ -8,7 +8,7 @@ export const organizationDirectoryText = {
 		inviteHandOver: '본인에게 전달하세요. 로그인 후 패스키를 등록하면 비밀번호는 더 필요 없습니다.',
 		inviteFailed: '초대하지 못했습니다.',
 		cancel: '취소',
-		done: '완료',
+		done: 'completed',
 		search: '검색',
 		selectEmployee: '직원 선택',
 		selectOrganization: '조직 선택',

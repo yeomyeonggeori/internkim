@@ -11,7 +11,7 @@ describe('dev flow mock plugin', () => {
 			'근무 기록 카드 UI 정리',
 			'날짜별 근태 편집 흐름 검증'
 		]);
-		expect(previewTasks.every((task) => task.status === '완료')).toBe(true);
+		expect(previewTasks.every((task) => task.status === 'completed')).toBe(true);
 	});
 
 	test('creates a task with a generated id when the draft sends a blank id', async () => {
@@ -33,14 +33,14 @@ describe('dev flow mock plugin', () => {
 				participantNames: [member.name],
 				parentTaskID: parent.id,
 				content: '새 업무',
-				status: '진행'
+				status: 'in_progress'
 			})
 		});
 		const createdTask = state.taskState.tasks.at(-1);
 
 		expect(response).toEqual({ status: 200, body: { ok: true } });
 		expect(createdTask?.id.startsWith('dev-task-task-')).toBe(true);
-		expect(createdTask?.status).toBe('진행');
+		expect(createdTask?.status).toBe('in_progress');
 		expect(createdTask?.parentTaskID).toBe(parent.id);
 	});
 
@@ -51,13 +51,13 @@ describe('dev flow mock plugin', () => {
 			pathname: '/task/api/state',
 			searchParams: new URLSearchParams()
 		}))?.body as TaskState;
-		const task = currentState.tasks.find((value) => value.status === '요청') as Task;
+		const task = currentState.tasks.find((value) => value.status === 'requested') as Task;
 
 		const response = await createDevTaskMockResponse(state, {
 			method: 'PUT',
 			pathname: `/task/api/tasks/${task.id}`,
 			searchParams: new URLSearchParams(),
-			body: JSON.stringify({ ...task, status: '예정', statusRank: 4096 })
+			body: JSON.stringify({ ...task, status: 'planned', statusRank: 4096 })
 		});
 		const updatedState = (await createDevTaskMockResponse(state, {
 			method: 'GET',
@@ -67,7 +67,7 @@ describe('dev flow mock plugin', () => {
 
 		expect(response).toEqual({ status: 200, body: { ok: true } });
 		expect(updatedState.tasks.find((value) => value.id === task.id)).toMatchObject({
-			status: '예정',
+			status: 'planned',
 			statusRank: 4096
 		});
 	});
@@ -167,8 +167,8 @@ describe('dev flow mock plugin', () => {
 			pathname: '/task/api/state',
 			searchParams: new URLSearchParams()
 		}))?.body as TaskState;
-		const movedTask = currentState.tasks.find((value) => value.status === '요청') as Task;
-		const beforeTask = currentState.tasks.find((value) => value.status === '진행') as Task;
+		const movedTask = currentState.tasks.find((value) => value.status === 'requested') as Task;
+		const beforeTask = currentState.tasks.find((value) => value.status === 'in_progress') as Task;
 
 		const response = await createDevTaskMockResponse(state, {
 			method: 'POST',
@@ -176,7 +176,7 @@ describe('dev flow mock plugin', () => {
 			searchParams: new URLSearchParams(),
 			body: JSON.stringify({
 				taskID: movedTask.id,
-				targetStatus: '진행',
+				targetStatus: 'in_progress',
 				beforeTaskID: beforeTask.id
 			})
 		});
@@ -190,7 +190,7 @@ describe('dev flow mock plugin', () => {
 
 		expect(response).toEqual({ status: 200, body: { ok: true } });
 		expect(updatedTask).toMatchObject({
-			status: '진행'
+			status: 'in_progress'
 		});
 		expect((updatedTask?.statusRank ?? 0) < (updatedBeforeTask?.statusRank ?? 0)).toBe(true);
 	});
@@ -202,7 +202,7 @@ describe('dev flow mock plugin', () => {
 			pathname: '/task/api/state',
 			searchParams: new URLSearchParams()
 		}))?.body as TaskState;
-		const movedTask = currentState.tasks.find((value) => value.status === '요청') as Task;
+		const movedTask = currentState.tasks.find((value) => value.status === 'requested') as Task;
 
 		await createDevTaskMockResponse(state, {
 			method: 'POST',
@@ -210,7 +210,7 @@ describe('dev flow mock plugin', () => {
 			searchParams: new URLSearchParams(),
 			body: JSON.stringify({
 				taskID: movedTask.id,
-				targetStatus: '진행',
+				targetStatus: 'in_progress',
 				beforeTaskID: null
 			})
 		});
@@ -228,7 +228,7 @@ describe('dev flow mock plugin', () => {
 
 		expect(response).toEqual({ status: 200, body: { ok: true } });
 		expect(resetState.tasks.find((value) => value.id === movedTask.id)).toMatchObject({
-			status: '요청',
+			status: 'requested',
 			statusRank: movedTask.statusRank
 		});
 	});
@@ -240,7 +240,7 @@ describe('dev flow mock plugin', () => {
 			pathname: '/task/api/state',
 			searchParams: new URLSearchParams()
 		}))?.body as TaskState;
-		const plannedTasks = currentState.tasks.filter((value) => value.status === '예정');
+		const plannedTasks = currentState.tasks.filter((value) => value.status === 'planned');
 		const lastTask = plannedTasks.at(-1) as Task;
 
 		const response = await createDevTaskMockResponse(state, {
@@ -264,27 +264,27 @@ describe('dev flow mock plugin', () => {
 			pathname: '/task/api/state',
 			searchParams: new URLSearchParams()
 		}))?.body as TaskState;
-		const requestedTask = currentState.tasks.find((value) => value.status === '요청') as Task;
-		const plannedTask = currentState.tasks.find((value) => value.status === '예정') as Task;
+		const requestedTask = currentState.tasks.find((value) => value.status === 'requested') as Task;
+		const plannedTask = currentState.tasks.find((value) => value.status === 'planned') as Task;
 		const invalidMoveRequests = [
 			{
-				body: { taskID: ' ', targetStatus: '진행', beforeTaskID: null },
+				body: { taskID: ' ', targetStatus: 'in_progress', beforeTaskID: null },
 				status: 400
 			},
 			{
-				body: { taskID: 'missing-task', targetStatus: '진행', beforeTaskID: null },
+				body: { taskID: 'missing-task', targetStatus: 'in_progress', beforeTaskID: null },
 				status: 404
 			},
 			{
-				body: { taskID: requestedTask.id, targetStatus: '기각', beforeTaskID: null },
+				body: { taskID: requestedTask.id, targetStatus: 'rejected', beforeTaskID: null },
 				status: 400
 			},
 			{
-				body: { taskID: requestedTask.id, targetStatus: '요청', beforeTaskID: requestedTask.id },
+				body: { taskID: requestedTask.id, targetStatus: 'requested', beforeTaskID: requestedTask.id },
 				status: 400
 			},
 			{
-				body: { taskID: requestedTask.id, targetStatus: '진행', beforeTaskID: plannedTask.id },
+				body: { taskID: requestedTask.id, targetStatus: 'in_progress', beforeTaskID: plannedTask.id },
 				status: 400
 			}
 		];

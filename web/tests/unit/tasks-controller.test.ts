@@ -140,7 +140,7 @@ describe('flow tasks controller', () => {
 		const controller = await syncedController();
 		controller.setParticipantFilterIDs(['target']);
 
-		controller.createTask('예정');
+		controller.createTask('planned');
 
 		expect(controller.taskDraft?.participantIDs).toEqual(['requester']);
 		expect(controller.taskDraft?.ownerID).toBe('requester');
@@ -152,7 +152,7 @@ describe('flow tasks controller', () => {
 		const controller = await syncedController();
 		controller.setParticipantFilterIDs(['target']);
 
-		controller.createTask('요청');
+		controller.createTask('requested');
 
 		expect(controller.taskDraft?.requesterID).toBe('requester');
 		expect(controller.taskDraft?.requesterName).toBe('요청자');
@@ -170,7 +170,7 @@ describe('flow tasks controller', () => {
 		]);
 		controller.setParticipantFilterIDs(['target-left']);
 
-		controller.createTask('요청');
+		controller.createTask('requested');
 
 		expect(controller.taskDraft?.participantIDs).toEqual(['target-left']);
 		expect(controller.taskDraft?.ownerID).toBe('target-left');
@@ -180,7 +180,7 @@ describe('flow tasks controller', () => {
 		const controller = await syncedController();
 		controller.setParticipantFilterIDs([]);
 
-		controller.createTask('요청');
+		controller.createTask('requested');
 
 		expect(controller.taskDraft?.requesterID).toBe('requester');
 		expect(controller.taskDraft?.participantIDs).toEqual(['requester']);
@@ -308,7 +308,7 @@ function taskOf(overrides: Partial<Task>): Task {
 		type: '기능',
 		content: '업무',
 		size: 'M',
-		status: '예정',
+		status: 'planned',
 		statusRank: 0,
 		weekCode: '26W23',
 		...overrides

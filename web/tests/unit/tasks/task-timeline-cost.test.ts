@@ -57,7 +57,7 @@ describe('task detail share text', () => {
 				taskRunID: 'task-1',
 				status: 'completed',
 				prompt: '요청',
-				result: '완료',
+				result: 'completed',
 				createdAt: '2026-06-25T01:00:00Z',
 				updatedAt: '2026-06-25T01:01:00Z'
 			},

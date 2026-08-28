@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { statusOptionsFromSummary } from '../../src/routes/task/task-options';
 import type { TaskSummary, Task } from '../../src/routes/task/task-types';
 
-const allStatuses = ['요청', '예정', '진행', '완료', '일시정지', '기각', '중단'];
-const normalStatuses = ['예정', '진행', '완료', '일시정지', '중단'];
+const allStatuses = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'cancelled'];
+const normalStatuses = ['planned', 'in_progress', 'completed', 'paused', 'cancelled'];
 
 describe('flow task status options', () => {
 	test('returns the exact normal choices for a central task without requester', () => {
@@ -16,12 +16,12 @@ describe('flow task status options', () => {
 
 	test('keeps legacy request statuses available for device tasks without requester provenance', () => {
 		const deviceSummary = summary({ source: 'sqlite', statusOptions: allStatuses });
-		expect(statusOptionsFromSummary(deviceSummary, task({ status: '요청', requesterID: '' }))).toEqual(allStatuses);
-		expect(statusOptionsFromSummary(deviceSummary, task({ status: '기각', requesterID: '' }))).toEqual(allStatuses);
+		expect(statusOptionsFromSummary(deviceSummary, task({ status: 'requested', requesterID: '' }))).toEqual(allStatuses);
+		expect(statusOptionsFromSummary(deviceSummary, task({ status: 'rejected', requesterID: '' }))).toEqual(allStatuses);
 	});
 
 	test('preserves the existing global status contract for ordinary device tasks', () => {
-		expect(statusOptionsFromSummary(summary({ source: 'sqlite', statusOptions: allStatuses }), task({ status: '진행', requesterID: '' }))).toEqual(allStatuses);
+		expect(statusOptionsFromSummary(summary({ source: 'sqlite', statusOptions: allStatuses }), task({ status: 'in_progress', requesterID: '' }))).toEqual(allStatuses);
 	});
 });
 
@@ -52,7 +52,7 @@ function task(fields: Partial<Task>): Task {
 		type: '',
 		content: '',
 		size: '',
-		status: '예정',
+		status: 'planned',
 		statusRank: 0,
 		weekCode: '',
 		...fields

@@ -203,7 +203,7 @@ select throws_ok(
     );
 
     update public.task
-    set status = 'done', requester_id = null
+    set status = 'completed', requester_id = null
     where id = '45000000-0000-0000-0000-000000000101';
   end $$;$block$,
   '42501',

@@ -90,7 +90,7 @@ function task(fields: Partial<Task> = {}): Task {
 		type: '',
 		content: '업무',
 		size: 'M',
-		status: '예정',
+		status: 'planned',
 		statusRank: 0,
 		weekCode: '26W23',
 		...fields

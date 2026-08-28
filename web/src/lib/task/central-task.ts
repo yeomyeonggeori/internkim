@@ -3,12 +3,12 @@ import { taskStatus } from '../../routes/task/task-status';
 
 export type CentralTaskStatus =
 	| 'requested'
-	| 'todo'
+	| 'planned'
 	| 'in_progress'
 	| 'paused'
 	| 'cancelled'
 	| 'rejected'
-	| 'done';
+	| 'completed';
 
 type CentralRequesterIdentity = {
 	name: string | null;
@@ -34,26 +34,20 @@ export type CentralTaskRow = {
 	task_participant: { member_id: string }[];
 };
 
-const centralStatusPairs: readonly (readonly [CentralTaskStatus, string])[] = [
-	['requested', taskStatus.requested],
-	['todo', taskStatus.planned],
-	['in_progress', taskStatus.inProgress],
-	['done', taskStatus.completed],
-	['paused', taskStatus.paused],
-	['rejected', taskStatus.rejected],
-	['cancelled', taskStatus.stopped]
+const centralStatuses: readonly CentralTaskStatus[] = [
+	taskStatus.requested,
+	taskStatus.planned,
+	taskStatus.inProgress,
+	taskStatus.completed,
+	taskStatus.paused,
+	taskStatus.rejected,
+	taskStatus.stopped
 ];
-
-const centralStatusByWord = new Map<string, CentralTaskStatus>(
-	centralStatusPairs.map(([status, word]) => [word, status])
-);
-
-const centralStatusWordByStatus = new Map<string, string>(centralStatusPairs);
 
 export const centralTaskSelection =
 	'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester:member!task_requester_id_fkey (name, email), task_participant (member_id)';
 
-export const centralTaskStatusOptions = centralStatusPairs.map(([, word]) => word);
+export const centralTaskStatusOptions: string[] = [...centralStatuses];
 
 export function centralTaskFromRow(
 	row: CentralTaskRow,
@@ -109,15 +103,14 @@ export function centralTaskWriteFields(
 }
 
 export function centralStatusFromWord(status: string): CentralTaskStatus {
-	const centralStatus = centralStatusByWord.get(status);
-	if (!centralStatus) throw new Error(`unsupported Flow task status: ${status}`);
-	return centralStatus;
+	if (!centralStatuses.includes(status as CentralTaskStatus)) {
+		throw new Error(`unsupported task status: ${status}`);
+	}
+	return status as CentralTaskStatus;
 }
 
 export function centralStatusWord(status: string): string {
-	const word = centralStatusWordByStatus.get(status);
-	if (!word) throw new Error(`unsupported central task status: ${status}`);
-	return word;
+	return centralStatusFromWord(status);
 }
 
 export function compatibilityOwnerOf(participants: { id: string; name: string }[]): { id: string; name: string } {

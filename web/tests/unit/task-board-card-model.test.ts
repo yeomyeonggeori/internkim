@@ -66,7 +66,7 @@ function task(overrides: Partial<Task>): Task {
 		type: '기능',
 		content: '업무',
 		size: 'M',
-		status: '예정',
+		status: 'planned',
 		statusRank: 0,
 		weekCode: '26W23',
 		...overrides

@@ -207,7 +207,7 @@ function createFlowTaskFallback(state: DevFlowMockState): Task {
 		type: state.taskState.definitions.types[0] ?? '',
 		content: '',
 		size: firstSize?.name ?? '',
-		status: state.taskState.statusOptions[0] ?? '요청',
+		status: state.taskState.statusOptions[0] ?? 'requested',
 		statusRank: statusRankStep,
 		weekCode: state.taskState.currentWeek?.code ?? '',
 		createdAt: new Date().toISOString()

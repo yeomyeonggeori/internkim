@@ -53,7 +53,7 @@ func TestTaskNoticeRetryDoesNotRepeatDeliveredRecipients(t *testing.T) {
 	failSecondRecipientOnce := true
 	postedChannels := []string{}
 	service := newTwoRecipientTaskService(t, &failSecondRecipientOnce, &postedChannels)
-	task := taskNotificationTestTask("요청")
+	task := taskNotificationTestTask("requested")
 	task.ParticipantNames = []string{"김민수", "박예시"}
 	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)

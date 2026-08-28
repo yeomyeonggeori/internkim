@@ -1,11 +1,11 @@
 export const taskStatus = {
-	requested: '요청',
-	planned: '예정',
-	inProgress: '진행',
-	completed: '완료',
-	paused: '일시정지',
-	rejected: '기각',
-	stopped: '중단'
+	requested: 'requested',
+	planned: 'planned',
+	inProgress: 'in_progress',
+	completed: 'completed',
+	paused: 'paused',
+	rejected: 'rejected',
+	stopped: 'cancelled'
 } as const;
 
 export type TaskStatus = (typeof taskStatus)[keyof typeof taskStatus];

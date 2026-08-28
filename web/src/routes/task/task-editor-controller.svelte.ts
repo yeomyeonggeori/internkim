@@ -79,7 +79,7 @@ export class TaskEditorController {
 		this.isEditingTask = true;
 		if (typeof status === 'string' && status) this.taskDraft.status = status;
 		if (this.summary.source === 'supabase') {
-			const isRequest = status === '요청';
+			const isRequest = status === 'requested';
 			this.taskDraft.requesterID = isRequest ? owner.id : '';
 			this.taskDraft.requesterName = isRequest ? owner.name : '';
 			if (isRequest) {
