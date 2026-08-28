@@ -16,7 +16,7 @@ func newMailTestService(t *testing.T) *Service {
 	stateDirectory := t.TempDir()
 	return NewService(Configuration{
 		StateDirectory:   stateDirectory,
-		FlowDatabasePath: filepath.Join(stateDirectory, "flow.sqlite"),
+		TaskDatabasePath: filepath.Join(stateDirectory, "flow.sqlite"),
 		MailDatabasePath: filepath.Join(stateDirectory, "mail.sqlite"),
 		AdminEmailPath:   writeTestFile(t, "admin@example.com"),
 	})

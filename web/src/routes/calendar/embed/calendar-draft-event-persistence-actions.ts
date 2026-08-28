@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { CalendarDraftEventDOMActions } from './calendar-draft-event-dom';
 import { CalendarDraftEventState } from './calendar-draft-events';
 import type { CalendarEventActionsContext } from './calendar-event-actions';
@@ -20,15 +20,15 @@ type CalendarDraftEventPersistenceOptions = {
 
 export type CalendarDraftEventPersistenceActions = {
 	deleteEvent: (eventID: string) => boolean;
-	persistCreatedEvent: (event: DayFlowEvent) => Promise<void>;
-	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
-	saveUpdatedEvent: (event: DayFlowEvent) => Promise<void>;
+	persistCreatedEvent: (event: DayTaskEvent) => Promise<void>;
+	saveCreatedEvent: (event: DayTaskEvent) => Promise<void>;
+	saveUpdatedEvent: (event: DayTaskEvent) => Promise<void>;
 };
 
 export function createCalendarDraftEventPersistenceActions(
 	options: CalendarDraftEventPersistenceOptions
 ): CalendarDraftEventPersistenceActions {
-	async function saveCreatedEvent(event: DayFlowEvent): Promise<void> {
+	async function saveCreatedEvent(event: DayTaskEvent): Promise<void> {
 		options.context.invalidatePendingEventLoad();
 		options.draftEvents.addCreatedEvent(event);
 		if (options.draftEvents.isPlaceholderTitle(event.title)) {
@@ -38,7 +38,7 @@ export function createCalendarDraftEventPersistenceActions(
 		options.draftEventDOM.scheduleDraftEventVisibilitySync();
 	}
 
-	async function saveUpdatedEvent(event: DayFlowEvent): Promise<void> {
+	async function saveUpdatedEvent(event: DayTaskEvent): Promise<void> {
 		if (!options.draftEvents.hasMeaningfulTitle(event)) {
 			void options.resetDraftEventTitle(event.id);
 			options.draftEventDOM.scheduleDraftTitleInputPlaceholderUpdates();
@@ -68,11 +68,11 @@ export function createCalendarDraftEventPersistenceActions(
 		options.refreshEventCountAfterRender();
 	}
 
-	async function persistCreatedEvent(event: DayFlowEvent): Promise<void> {
+	async function persistCreatedEvent(event: DayTaskEvent): Promise<void> {
 		await options.draftEvents.trackCreatedEvent(event, createEventOnServer);
 	}
 
-	async function createEventOnServer(event: DayFlowEvent): Promise<void> {
+	async function createEventOnServer(event: DayTaskEvent): Promise<void> {
 		if (options.draftEvents.isPlaceholderTitle(event.title)) return;
 		options.beginPersistence();
 		let persistedRevision = options.draftEvents.draftEventRevision(event.id);

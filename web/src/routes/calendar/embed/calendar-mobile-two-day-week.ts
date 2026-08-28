@@ -1,12 +1,12 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { ViewType, type ViewType as CalendarViewType } from '../calendar-view-type';
-import { dayFlowEventSelectorForID } from './calendar-dayflow-dom-adapter';
+import { dayTaskEventSelectorForID } from './calendar-dayflow-dom-adapter';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 
 export type CalendarMobileTwoDayWeekLayoutContext = {
 	stageElement: HTMLElement | null;
 	currentDate: Date;
-	events: DayFlowEvent[];
+	events: DayTaskEvent[];
 	isMobileTwoDayWeekView: boolean;
 	localeCode: string;
 };
@@ -81,7 +81,7 @@ export function clearCalendarMobileTwoDayWeekLayout(stageElement: HTMLElement | 
 	}
 }
 
-function syncTwoDayAllDayEvents(stageElement: HTMLElement, currentDate: Date, events: DayFlowEvent[]): void {
+function syncTwoDayAllDayEvents(stageElement: HTMLElement, currentDate: Date, events: DayTaskEvent[]): void {
 	const visibleStartDate = mobileTwoDayWeekStartDate(currentDate);
 	for (const event of events) {
 		if (!event.allDay) continue;
@@ -91,7 +91,7 @@ function syncTwoDayAllDayEvents(stageElement: HTMLElement, currentDate: Date, ev
 	}
 }
 
-function applyAllDayEventLayout(eventElement: HTMLElement, visibleStartDate: Date, event: DayFlowEvent): void {
+function applyAllDayEventLayout(eventElement: HTMLElement, visibleStartDate: Date, event: DayTaskEvent): void {
 	const visibleStartIndex = localDayDiff(visibleStartDate, eventStartDate(event));
 	const visibleEndIndex = localDayDiff(visibleStartDate, eventEndDate(event));
 	if (visibleEndIndex < 0 || visibleStartIndex >= mobileTwoDayWeekDayCount) {
@@ -122,11 +122,11 @@ function clearAllDayEventLayout(stageElement: HTMLElement): void {
 
 function allDayEventElements(stageElement: HTMLElement, eventID: string): HTMLElement[] {
 	return Array.from(
-		stageElement.querySelectorAll<HTMLElement>(`.df-week-all-day-event-layer ${dayFlowEventSelectorForID(eventID)}`)
+		stageElement.querySelectorAll<HTMLElement>(`.df-week-all-day-event-layer ${dayTaskEventSelectorForID(eventID)}`)
 	);
 }
 
-function syncTwoDayTimedEvents(stageElement: HTMLElement, currentDate: Date, events: DayFlowEvent[]): void {
+function syncTwoDayTimedEvents(stageElement: HTMLElement, currentDate: Date, events: DayTaskEvent[]): void {
 	const visibleStartDate = mobileTwoDayWeekStartDate(currentDate);
 	const columnCells = activeTimeColumnCells(stageElement);
 	for (const event of events) {
@@ -140,7 +140,7 @@ function syncTwoDayTimedEvents(stageElement: HTMLElement, currentDate: Date, eve
 function applyTimedEventLayout(
 	eventElement: HTMLElement,
 	visibleStartDate: Date,
-	event: DayFlowEvent,
+	event: DayTaskEvent,
 	columnCells: HTMLElement[]
 ): void {
 	const visibleStartIndex = localDayDiff(visibleStartDate, eventStartDate(event));
@@ -166,7 +166,7 @@ function applyTimedEventLayout(
 }
 
 function timedEventElements(stageElement: HTMLElement, eventID: string): HTMLElement[] {
-	return Array.from(stageElement.querySelectorAll<HTMLElement>(dayFlowEventSelectorForID(eventID))).filter(
+	return Array.from(stageElement.querySelectorAll<HTMLElement>(dayTaskEventSelectorForID(eventID))).filter(
 		(element) => element.classList.contains('df-week-event') && element.classList.contains('df-event-timed')
 	);
 }

@@ -27,7 +27,7 @@ func newAttendanceSummaryBenchmarkService(testContext testing.TB) *Service {
 	service := NewService(Configuration{
 		StateDirectory:         stateDirectory,
 		AttendanceDatabasePath: filepath.Join(stateDirectory, "attendance.sqlite"),
-		FlowDatabasePath:       filepath.Join(stateDirectory, "flow.sqlite"),
+		TaskDatabasePath:       filepath.Join(stateDirectory, "flow.sqlite"),
 	})
 	seedAttendanceSummaryBenchmark(testContext, service)
 	return service

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
-	import type { FlowState } from '../../flow/flow-types';
+	import type { TaskState } from '../../task/task-types';
 	import type { AttendanceText } from '../text';
 	import TeamStatusDateHeader from './team-status-date-header.svelte';
 	import TeamStatusDayCell from './team-status-day-cell.svelte';
@@ -44,11 +44,11 @@
 	let isDetailOpen = $state(false);
 	let selectedDetailKey = $state<{ email: string; date: string } | null>(null);
 	let calendarEvents = $state<CalendarEvent[]>([]);
-	let flowState = $state<FlowState | null>(null);
+	let taskState = $state<TaskState | null>(null);
 	let isCalendarContextLoading = $state(false);
-	let isFlowContextLoading = $state(false);
+	let isTaskContextLoading = $state(false);
 	let hasCalendarContextLoadFailed = $state(false);
-	let hasFlowContextLoadFailed = $state(false);
+	let hasTaskContextLoadFailed = $state(false);
 	let openPersonHeaderEmail = $state<string | null>(null);
 	let openDayTooltipKey = $state<string | null>(null);
 	let lastScrollKey = $state('');
@@ -94,14 +94,14 @@
 			selectedDetailBase,
 			selectedDetailBase.day.date,
 			calendarEvents,
-			flowState,
+			taskState,
 			text.dateLocale,
 			text.calendarAllDay,
 			{
 				isCalendarEventsLoading: isCalendarContextLoading,
-				isCompletedWorkLoading: isFlowContextLoading,
+				isCompletedWorkLoading: isTaskContextLoading,
 				hasCalendarEventsLoadFailed: hasCalendarContextLoadFailed,
-				hasCompletedWorkLoadFailed: hasFlowContextLoadFailed
+				hasCompletedWorkLoadFailed: hasTaskContextLoadFailed
 			}
 		)
 	} : null);
@@ -205,7 +205,7 @@
 		const hasLoadedContext = lastContextLoadKey === loadKey;
 		const hasFreshSuccessfulContext = hasLoadedContext
 			&& !hasCalendarContextLoadFailed
-			&& !hasFlowContextLoadFailed
+			&& !hasTaskContextLoadFailed
 			&& Date.now() - lastContextLoadedAt <= contextReloadTTLMilliseconds;
 		if (hasFreshSuccessfulContext) return;
 		if (!options.force && hasLoadedContext) return;
@@ -213,17 +213,17 @@
 		const requestID = contextRequestID + 1;
 		contextRequestID = requestID;
 		isCalendarContextLoading = true;
-		isFlowContextLoading = true;
+		isTaskContextLoading = true;
 		hasCalendarContextLoadFailed = false;
-		hasFlowContextLoadFailed = false;
+		hasTaskContextLoadFailed = false;
 		const contextData = await loadTeamStatusDayContextData(firstDate, lastDate, text.loadFailed);
 		if (requestID !== contextRequestID) return;
 		calendarEvents = contextData.calendarEvents;
-		flowState = contextData.flowState;
+		taskState = contextData.taskState;
 		hasCalendarContextLoadFailed = contextData.hasCalendarEventsLoadFailed;
-		hasFlowContextLoadFailed = contextData.hasCompletedWorkLoadFailed;
+		hasTaskContextLoadFailed = contextData.hasCompletedWorkLoadFailed;
 		isCalendarContextLoading = false;
-		isFlowContextLoading = false;
+		isTaskContextLoading = false;
 		lastContextLoadKey = loadKey;
 		lastContextLoadedAt = contextData.hasCalendarEventsLoadFailed || contextData.hasCompletedWorkLoadFailed ? 0 : Date.now();
 		activeContextLoadKey = '';

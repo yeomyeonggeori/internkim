@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { CalendarEventActions } from './calendar-event-actions';
 import {
 	draftPopoverStateFromEvent,
@@ -27,7 +27,7 @@ export type CalendarDraftPopoverActions = {
 	openMonthRangeDraftPopover: (selection: MonthRangeSelection, anchor?: DraftPopoverAnchor | null) => void;
 	openTimelineSingleDraftPopover: (startDate: Date, anchor: DraftPopoverAnchor) => void;
 	openTimelineRangeDraftPopover: (firstDate: Date, secondDate: Date, anchor: DraftPopoverAnchor) => void;
-	openEventDraftPopover: (event: DayFlowEvent, mode: DraftPopoverMode, anchor?: DraftPopoverAnchor | null) => void;
+	openEventDraftPopover: (event: DayTaskEvent, mode: DraftPopoverMode, anchor?: DraftPopoverAnchor | null) => void;
 	updateDraftPopover: (changes: Partial<DraftPopoverState>) => void;
 	saveDraftPopover: () => Promise<void>;
 	cancelDraftPopover: () => Promise<void>;
@@ -39,10 +39,10 @@ type CalendarDraftPopoverActionsContext = {
 	untitledEventTitle: () => string;
 	getDraftPopover: () => DraftPopoverState | null;
 	setDraftPopover: (popover: DraftPopoverState | null) => void;
-	getCalendarEvents: () => DayFlowEvent[];
+	getCalendarEvents: () => DayTaskEvent[];
 	getStageElement: () => HTMLElement | null;
 	selectEvent: (eventID: string) => void;
-	replaceLocalEvent: (event: DayFlowEvent) => void;
+	replaceLocalEvent: (event: DayTaskEvent) => void;
 };
 
 const renderedEventAnchorRetryDelay = 50;
@@ -87,7 +87,7 @@ export function createCalendarDraftPopoverActions(
 		openDraftPopoverForEvent(draftEvent, 'create', anchor, true);
 	}
 
-	function openEventDraftPopover(event: DayFlowEvent, mode: DraftPopoverMode, anchor: DraftPopoverAnchor | null = null): void {
+	function openEventDraftPopover(event: DayTaskEvent, mode: DraftPopoverMode, anchor: DraftPopoverAnchor | null = null): void {
 		const eventAnchor = calendarEventAnchorForEventID(context.getStageElement(), event.id, anchor) ?? anchor ?? recentCalendarEventAnchorForID(event.id);
 		openDraftPopoverForEvent(event, mode, eventAnchor, false);
 	}
@@ -99,7 +99,7 @@ export function createCalendarDraftPopoverActions(
 	}
 
 	function openDraftPopoverForEvent(
-		event: DayFlowEvent,
+		event: DayTaskEvent,
 		mode: DraftPopoverMode,
 		anchor: DraftPopoverAnchor | null,
 		shouldWaitForRenderedAnchor: boolean

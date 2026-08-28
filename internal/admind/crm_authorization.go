@@ -24,7 +24,7 @@ func (service *Service) resolveCRMActor(request *http.Request) (crmActor, error)
 	if email == "" {
 		return crmActor{}, errCRMAuthenticationRequired
 	}
-	if !service.isFlowStaffActor(request.Context(), email) {
+	if !service.isTaskStaffActor(request.Context(), email) {
 		return crmActor{}, errCRMPermissionDenied
 	}
 	personID := ""
@@ -46,7 +46,7 @@ func (service *Service) resolveCRMActor(request *http.Request) (crmActor, error)
 		Email:     email,
 		PersonID:  personID,
 		CircleIDs: circleIDs,
-		IsAdmin:   service.isFlowAdminEmail(request.Context(), email),
+		IsAdmin:   service.isTaskAdminEmail(request.Context(), email),
 	}, nil
 }
 

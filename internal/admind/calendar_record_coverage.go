@@ -61,9 +61,9 @@ func (service *Service) calendarCoverageOfTheRecord(request *http.Request) (cale
 }
 
 func (service *Service) pairedEventIntoTheRecord(request *http.Request, event calendarEvent) bool {
-	if _, found, errorValue := service.readFlowTaskByCalendarEventID(request.Context(), event.ID); errorValue != nil || found {
+	if _, found, errorValue := service.readTaskByCalendarEventID(request.Context(), event.ID); errorValue != nil || found {
 		return false
 	}
-	service.createPairedFlowTaskForCalendarEvent(request, event)
+	service.createPairedTaskForCalendarEvent(request, event)
 	return true
 }

@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 
-import { dayFlowEventFromCalendarHoliday } from '../../../src/routes/calendar/embed/calendar-event-mapping';
+import { dayTaskEventFromCalendarHoliday } from '../../../src/routes/calendar/embed/calendar-event-mapping';
 
 test('maps a holiday to the read-only holiday calendar', () => {
-	const event = dayFlowEventFromCalendarHoliday({
+	const event = dayTaskEventFromCalendarHoliday({
 		id: 'holiday:holiday_api:KR:2026:2026-08-15:광복절',
 		title: '광복절',
 		date: '2026-08-15',

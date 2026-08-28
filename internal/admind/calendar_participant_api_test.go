@@ -14,7 +14,7 @@ import (
 )
 
 func TestCalendarParticipantsFromMembersIncludesImagePath(t *testing.T) {
-	participants := calendarParticipantsFromMembers([]flowMember{
+	participants := calendarParticipantsFromMembers([]taskMember{
 		{ID: "person-gamyeong", Name: "이샘플", Email: "gamyeong@example.com"},
 	})
 
@@ -60,12 +60,12 @@ func TestCalendarEventsWithParticipantImagesRestoresCurrentMemberImage(t *testin
 	})}
 	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events", nil)
 	event := calendarEvent{
-		Participants: []calendarParticipant{{PersonID: stableFlowID("gamyeong@example.com"), Name: "이샘플", Email: "gamyeong@example.com"}},
+		Participants: []calendarParticipant{{PersonID: stableTaskID("gamyeong@example.com"), Name: "이샘플", Email: "gamyeong@example.com"}},
 	}
 
 	events := service.calendarEventsWithParticipantImages(request, []calendarEvent{event})
 
-	expectedImage := "/calendar/api/participants/" + url.PathEscape(stableFlowID("gamyeong@example.com")) + "/image"
+	expectedImage := "/calendar/api/participants/" + url.PathEscape(stableTaskID("gamyeong@example.com")) + "/image"
 	if len(events) != 1 || len(events[0].Participants) != 1 || events[0].Participants[0].Image != expectedImage {
 		t.Fatalf("events = %+v", events)
 	}
@@ -84,7 +84,7 @@ func TestCalendarNoopUpdateKeepsParticipantImage(t *testing.T) {
 	})}
 	startTime := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
 	endTime := startTime.Add(time.Hour)
-	personID := stableFlowID("gamyeong@example.com")
+	personID := stableTaskID("gamyeong@example.com")
 	event := calendarEvent{
 		ID:          "noop-participant-image",
 		UID:         "noop-participant-image@internkim",
@@ -154,7 +154,7 @@ func TestCalendarParticipantImageServesMattermostImage(t *testing.T) {
 		}
 		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 	})}
-	personID := stableFlowID("gamyeong@example.com")
+	personID := stableTaskID("gamyeong@example.com")
 	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/calendar/api/participants/"+url.PathEscape(personID)+"/image", nil)
 	request.RemoteAddr = "127.0.0.1:49152"
 	responseRecorder := httptest.NewRecorder()
@@ -188,7 +188,7 @@ func TestCalendarParticipantImageFallsBackWhenMattermostProfileImageIsMissing(t 
 		}
 		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 	})}
-	personID := stableFlowID("gamyeong@example.com")
+	personID := stableTaskID("gamyeong@example.com")
 	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/calendar/api/participants/"+url.PathEscape(personID)+"/image", nil)
 	request.RemoteAddr = "127.0.0.1:49152"
 	responseRecorder := httptest.NewRecorder()

@@ -48,7 +48,7 @@ test.describe('embedded calendar month layout', () => {
 		await expectMonthTimedEventTitleOnly(page, 'single-24h-timed-event', 'Single 24h Timed Event 00:00');
 	});
 
-	test('renders month events through a direct event layer instead of DayFlow post-processing', async ({ page }) => {
+	test('renders month events through a direct event layer instead of DayTask post-processing', async ({ page }) => {
 		await routeCalendarEvents(page, [
 			{
 				id: 'direct-layer-event',

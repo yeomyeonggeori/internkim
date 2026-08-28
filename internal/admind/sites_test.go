@@ -1900,7 +1900,7 @@ func newTestSiteService(t *testing.T) (*Service, *[]string) {
 		SiteSecretDirectory:   filepath.Join(rootPath, "secrets", "sites"),
 		SiteSystemdDirectory:  filepath.Join(rootPath, "systemd"),
 		CompanionJobPath:      filepath.Join(rootPath, "state", "admin", "jobs.json"),
-		FlowDatabasePath:      filepath.Join(rootPath, "state", "admin", "flow.sqlite"),
+		TaskDatabasePath:      filepath.Join(rootPath, "state", "admin", "flow.sqlite"),
 		MattermostBaseURL:     "http://mattermost.local",
 		BlueclawWorkspacePath: filepath.Join(rootPath, "blueclaw"),
 	})

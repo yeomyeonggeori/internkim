@@ -10,7 +10,7 @@ func profileImagePathForEmail(email string) string {
 	if normalizedEmail == "" {
 		return ""
 	}
-	return calendarParticipantImagePath(stableFlowID(normalizedEmail))
+	return calendarParticipantImagePath(stableTaskID(normalizedEmail))
 }
 
 func adminUserRecordsWithProfileImages(records []adminUserMutation) []adminUserMutation {

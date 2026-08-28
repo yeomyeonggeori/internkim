@@ -1,6 +1,6 @@
 {
   "name": "other-person-task-capture",
-  "skillNames": ["internkim-flow"],
+  "skillNames": ["internkim-task"],
   "allowedTools": ["conversation_history", "memory_search", "task_add", "task_list", "task_update"],
   "capabilityToolNames": ["task_add", "task_list", "task_update"],
   "initialToolNames": ["task_add"],

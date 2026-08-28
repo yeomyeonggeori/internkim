@@ -473,12 +473,12 @@ func TestCRMHTTPDefinitionsListsBusinessesAndRequiresAuthorization(t *testing.T)
 		t.Fatalf("businesses with no categories = %#v", emptyDocument.Definitions.Businesses)
 	}
 
-	definitions, errorValue := service.readFlowDefinitions(context.Background())
+	definitions, errorValue := service.readTaskDefinitions(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	definitions.Categories = []string{"제조업", "유통업"}
-	if errorValue := service.writeFlowDefinitions(context.Background(), definitions); errorValue != nil {
+	if errorValue := service.writeTaskDefinitions(context.Background(), definitions); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
