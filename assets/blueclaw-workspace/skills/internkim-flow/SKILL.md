@@ -22,4 +22,4 @@ Use the typed work capability operations for work items; descriptors define fiel
 
 ## Replies and failures
 
-Report successful created, updated, or listed work in a compact Markdown table, including status, category, kind, size, participants, content, goal, and week code. Use participant presentation data in the order mention, display name, then participant name; never invent an @mention. If an owner is ambiguous, show the returned handle candidates; if an operation fails, explain it honestly and do not fabricate a task.
+Report successful created, updated, or listed work as a Markdown table with exactly these columns, one row per task: `상태 | 업무 | 유형 | 크기 | 참여자`. `업무` is the task title. `참여자` uses participant presentation data in the order mention, display name, then participant name; never invent an @mention. Translate the headers only when replying in another language. Task IDs, week codes, goals, content, and categories stay out of the table; give one in prose only when the user asks for it. If an owner is ambiguous, show the returned handle candidates; if an operation fails, explain it honestly and do not fabricate a task.
