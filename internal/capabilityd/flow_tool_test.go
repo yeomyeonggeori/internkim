@@ -303,7 +303,7 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state":
-				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"},{"id":"kim","name":"김인턴","email":"kim@example.com","mattermostUsername":"internkim"}]}`)), nil
+				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"},{"id":"kim","name":"김인턴","email":"kim@example.com","mattermostUsername":"internkim"}],"definitions":{"categories":["여명거리","김인턴"],"types":["기능","문서"]}}`)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/flow/api/tasks":
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -318,7 +318,7 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 
 	_, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
-		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","size":" s ","status":"예정","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
+		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","size":" s ","status":"예정","business":" 김인턴 ","type":"문서","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "staff@example.com",
 		},
@@ -335,6 +335,9 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 	if payload["size"] != "S" || payload["status"] != "예정" || payload["startDate"] != "2026-07-15" {
 		t.Fatalf("payload = %#v", payload)
 	}
+	if payload["business"] != "김인턴" || payload["type"] != "문서" {
+		t.Fatalf("labels = business %#v type %#v", payload["business"], payload["type"])
+	}
 	for _, fieldName := range []string{"prompt", "title", "targetPersonHint", "participantPersonHints", "requesterEmail", "source", "weekCode", "allowDuplicate", "duplicatePolicy"} {
 		if _, found := payload[fieldName]; found {
 			t.Fatalf("unexpected payload field %q in %#v", fieldName, payload)
@@ -344,6 +347,34 @@ func TestFlowTaskAddPropagatesTypedFields(t *testing.T) {
 	// Naming a colleague makes the task theirs; the person filing it is not added.
 	if !ok || len(participantIDs) != 1 || participantIDs[0] != "kim" {
 		t.Fatalf("participantIDs = %#v", payload["participantIDs"])
+	}
+}
+
+func TestFlowTaskAddRefusesUnregisteredBusinessWithoutPosting(t *testing.T) {
+	service := Service{
+		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isDirectoryPeopleRequest(request) {
+				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
+			}
+			if request.Method == http.MethodGet && request.URL.String() == "http://internkim/flow/api/state" {
+				return flowToolJSONResponse(useDirectoryPeopleOfFlowStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"definitions":{"categories":["여명거리","김인턴"],"types":["기능","문서"]}}`)), nil
+			}
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		})},
+	}
+
+	response, errorValue := service.invokeFlowTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "task_add",
+		Input:    []byte(`{"title":"업무","business":"없는사업"}`),
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.IsError || response.ErrorCode != "flow_label_not_registered" {
+		t.Fatalf("response = %+v", response)
 	}
 }
 
