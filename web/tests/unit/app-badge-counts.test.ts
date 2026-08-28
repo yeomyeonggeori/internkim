@@ -100,10 +100,10 @@ describe('sidebar badge counts', () => {
 
 	test('counts requested tasks that name the viewer', () => {
 		const tasks = [
-			task('owned-request', '요청', 'member-1', []),
-			task('participating-request', '요청', 'member-2', ['member-1']),
-			task('other-request', '요청', 'member-2', []),
-			task('owned-progress', '진행', 'member-1', [])
+			task('owned-request', 'requested', 'member-1', []),
+			task('participating-request', 'requested', 'member-2', ['member-1']),
+			task('other-request', 'requested', 'member-2', []),
+			task('owned-progress', 'in_progress', 'member-1', [])
 		];
 		expect(requestedTaskCount(taskState(tasks))).toBe(2);
 	});

@@ -49,9 +49,9 @@ describe('the task a flow task becomes', () => {
 		);
 		expect(statuses).toEqual([
 			'requested',
-			'todo',
+			'planned',
 			'in_progress',
-			'done',
+			'completed',
 			'paused',
 			'rejected',
 			'cancelled'
@@ -60,7 +60,7 @@ describe('the task a flow task becomes', () => {
 	});
 
 	test('treats a status it has never seen as work not started', () => {
-		expect(deviceTaskAsTask(taskWith({ status: '누가 새로 만든 상태' }), seoul).status).toBe('todo');
+		expect(deviceTaskAsTask(taskWith({ status: '누가 새로 만든 상태' }), seoul).status).toBe('planned');
 	});
 
 	test('spans the day in the company that owns it, not in UTC', () => {

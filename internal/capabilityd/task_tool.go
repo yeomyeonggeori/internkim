@@ -256,7 +256,7 @@ func (service Service) invokeTaskList(ctx context.Context, request capabilities.
 	if failure != nil {
 		return taskErrorResponse(request.ToolName, *failure), nil
 	}
-	statusFilter := normalizeTaskStatus(input.Status)
+	statusFilter := strings.TrimSpace(input.Status)
 	weekCodes, errorValue := taskListWeekCodes(input.WeekFrom, input.WeekTo, summary.Week.Code)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -472,7 +472,7 @@ func decodeTaskAddInput(document json.RawMessage) (taskAddInput, error) {
 	if input.Size != "" && !containsString(taskAddSizes(), input.Size) {
 		return taskAddInput{}, fmt.Errorf("size is not allowed")
 	}
-	input.Status = normalizeTaskStatus(input.Status)
+	input.Status = strings.TrimSpace(input.Status)
 	if input.Status != "" && !containsString(taskAddStatuses(), input.Status) {
 		return taskAddInput{}, fmt.Errorf("status is not allowed")
 	}
@@ -484,11 +484,11 @@ func taskAddSizes() []string {
 }
 
 func taskAddStatuses() []string {
-	return []string{"예정", "진행", "완료", "일시정지", "기각", "중단"}
+	return []string{"planned", "in_progress", "completed", "paused", "rejected", "cancelled"}
 }
 
 func taskUpdateStatuses() []string {
-	return append(taskAddStatuses(), "요청")
+	return append(taskAddStatuses(), "requested")
 }
 
 func decodeTaskListInput(document json.RawMessage) (taskListInput, error) {
@@ -544,7 +544,7 @@ func decodeTaskUpdateInput(document json.RawMessage) (taskUpdateInput, error) {
 		return taskUpdateInput{}, fmt.Errorf("task_update requires at least one mutable field")
 	}
 	if input.Status != nil {
-		normalizedStatus := normalizeTaskStatus(*input.Status)
+		normalizedStatus := strings.TrimSpace(*input.Status)
 		input.Status = &normalizedStatus
 		if !containsString(taskUpdateStatuses(), normalizedStatus) {
 			return taskUpdateInput{}, fmt.Errorf("status is not allowed")
@@ -861,29 +861,7 @@ func weekCodeForTaskDate(date time.Time) string {
 	return fmt.Sprintf("%02dW%02d", year%100, week)
 }
 
-func normalizeTaskStatus(status string) string {
-	trimmedStatus := strings.TrimSpace(status)
-	switch strings.ToLower(trimmedStatus) {
-	case "":
-		return ""
-	case "예정", "예약", "planned", "scheduled", "upcoming", "todo", "to do":
-		return "예정"
-	case "요청", "requested", "request":
-		return "요청"
-	case "진행", "in_progress", "in progress", "doing", "progress", "wip":
-		return "진행"
-	case "완료", "done", "complete", "completed", "finished":
-		return "완료"
-	case "일시정지", "paused", "hold", "on hold":
-		return "일시정지"
-	case "기각", "rejected", "reject":
-		return "기각"
-	case "중단", "stopped", "stop", "cancelled", "canceled":
-		return "중단"
-	default:
-		return trimmedStatus
-	}
-}
+
 
 func filterTasks(tasks []taskForTool, filter taskFilter) []taskForTool {
 	filteredTasks := []taskForTool{}
@@ -932,11 +910,11 @@ func taskMatchesWeekCodes(task taskForTool, weekCodes map[string]bool, currentWe
 
 func taskFilterWeekCodes(task taskForTool, currentWeekCode string) []string {
 	switch strings.TrimSpace(task.Status) {
-	case "예정":
+	case "planned":
 		return plannedTaskWeekCodes(task, currentWeekCode)
-	case "일시정지":
+	case "paused":
 		return firstTaskWeekCode(currentWeekCode, task.WeekCode)
-	case "완료", "기각", "중단":
+	case "completed", "rejected", "cancelled":
 		return firstTaskWeekCode(taskDateWeekCode(task.EndDate), taskDateWeekCode(task.StartDate), task.WeekCode)
 	default:
 		return firstTaskWeekCode(task.WeekCode)
@@ -1057,7 +1035,7 @@ func taskOwnership(requesterOwnerID string) func(taskForTool) bool {
 
 func taskHintUnresolvedFailure(resolution hintResolution[taskForTool]) taskUpdateFailure {
 	return taskUpdateFailure{
-		ErrorCode:    "task_task_hint_unresolved",
+		ErrorCode:    "task_hint_unresolved",
 		FailureStage: "target_resolution",
 		Message:      unresolvedHintMessage("task", "taskHint", "task_list", resolution.Outcome),
 		Candidates:   taskHintCandidates(resolution.Candidates),
@@ -1076,7 +1054,7 @@ func taskHintCandidates(tasks []taskForTool) []taskHintCandidate {
 
 func taskNotFoundFailure(toolName string) taskUpdateFailure {
 	return taskUpdateFailure{
-		ErrorCode:    "task_task_not_found",
+		ErrorCode:    "task_not_found",
 		FailureStage: "target_resolution",
 		Message:      toolName + " target was not found; it may have been deleted since task_list was called",
 		Retryable:    true,
@@ -1086,7 +1064,7 @@ func taskNotFoundFailure(toolName string) taskUpdateFailure {
 
 func taskDuplicateFailure() taskUpdateFailure {
 	return taskUpdateFailure{
-		ErrorCode:    "task_task_duplicate",
+		ErrorCode:    "task_duplicate",
 		FailureStage: "duplicate_guard",
 		Message:      "task_add skipped an existing duplicate; use task_list to inspect it before deciding whether to add another task",
 	}
@@ -1094,7 +1072,7 @@ func taskDuplicateFailure() taskUpdateFailure {
 
 func taskInvalidResultFailure(toolName string) taskUpdateFailure {
 	return taskUpdateFailure{
-		ErrorCode:    "task_task_result_invalid",
+		ErrorCode:    "task_result_invalid",
 		FailureStage: "result_contract",
 		Message:      toolName + " returned a result that does not identify the requested task",
 	}

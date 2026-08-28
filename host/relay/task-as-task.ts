@@ -42,9 +42,9 @@ const untitledTask = '(제목 없음)';
 // its board draws. The enum has one for each of them.
 const statusOfDevice: Record<string, string> = {
 	요청: 'requested',
-	예정: 'todo',
+	예정: 'planned',
 	진행: 'in_progress',
-	완료: 'done',
+	완료: 'completed',
 	일시정지: 'paused',
 	기각: 'rejected',
 	중단: 'cancelled'
@@ -77,7 +77,7 @@ export function deviceTaskAsTask(task: DeviceTask, timeZone: string): TaskRow {
 		business: task.business?.trim() || null,
 		type: task.type?.trim() || null,
 		size: task.size?.trim() || null,
-		status: statusOfDevice[task.status?.trim() ?? ''] ?? 'todo',
+		status: statusOfDevice[task.status?.trim() ?? ''] ?? 'planned',
 		startsAt: startDay ? `${startDay}T00:00:00${offsetOn(startDay, timeZone)}` : null,
 		endsAt: endDay ? `${endDay}T23:59:00${offsetOn(endDay, timeZone)}` : null,
 		isWholeDay: Boolean(startDay && endDay),
