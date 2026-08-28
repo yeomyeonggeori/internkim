@@ -12,7 +12,7 @@ func flowLLMRequest(prompt string, weekCode string, owner flowMember, members []
 		"messages": []map[string]string{
 			{
 				"role":    "system",
-				"content": "You convert short task notes into a weekly work tracker task. Return only values allowed by the schema. Keep Korean task content concise. Pick the closest type and size. Use status 예정 unless the note clearly says 진행, 완료, 요청, 기각, 일시정지, or 중단. Use YYYY-MM-DD dates only when the note clearly names a date; otherwise use empty strings.",
+				"content": "You convert short task notes into a weekly work tracker task. Return only values allowed by the schema. Keep Korean task content concise. Pick the closest type and size. Use status todo unless the note clearly says the work is in_progress, done, requested, rejected, paused, or cancelled. Use YYYY-MM-DD dates only when the note clearly names a date; otherwise use empty strings. participantIDs: the IDs from Members of the people the note assigns the work to, in the note's order. Leave it empty when the note names nobody — never add a member the note does not name. 전체, 모두, or everyone means every member.",
 			},
 			{
 				"role":    "user",
@@ -32,7 +32,7 @@ func flowLLMRequest(prompt string, weekCode string, owner flowMember, members []
 					"content":        map[string]any{"type": "string"},
 					"goal":           map[string]any{"type": "string"},
 					"size":           map[string]any{"type": "string", "enum": flowSizeNames(definitions.Sizes)},
-					"status":         map[string]any{"type": "string", "enum": flowStatusOptions()},
+					"status":         map[string]any{"type": "string", "enum": centralFlowStatusOptions()},
 					"startDate":      map[string]any{"type": "string"},
 					"endDate":        map[string]any{"type": "string"},
 					"participantIDs": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": memberIDOptions(members)}},
