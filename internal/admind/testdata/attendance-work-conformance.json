@@ -52,7 +52,10 @@
         "nightMinutes": 0,
         "hasBaseline": false,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -139,7 +142,10 @@
         "nightMinutes": 0,
         "hasBaseline": false,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -354,7 +360,10 @@
         "nightMinutes": 0,
         "hasBaseline": false,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -409,7 +418,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -496,7 +508,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -711,7 +726,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -766,7 +784,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -853,7 +874,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1068,7 +1092,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1131,7 +1158,10 @@
         "nightMinutes": 0,
         "hasBaseline": false,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1182,7 +1212,10 @@
         "nightMinutes": 0,
         "hasBaseline": false,
         "hasIncompleteRecords": true,
-        "needsReview": true
+        "needsReview": true,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1233,7 +1266,10 @@
         "nightMinutes": 0,
         "hasBaseline": false,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1292,7 +1328,10 @@
         "nightMinutes": 0,
         "hasBaseline": false,
         "hasIncompleteRecords": true,
-        "needsReview": true
+        "needsReview": true,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1343,7 +1382,10 @@
         "nightMinutes": 0,
         "hasBaseline": false,
         "hasIncompleteRecords": true,
-        "needsReview": true
+        "needsReview": true,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1398,7 +1440,10 @@
         "nightMinutes": 180,
         "hasBaseline": false,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1437,6 +1482,8 @@
         {
           "startDate": "2026-08-19",
           "endDate": "2026-08-19",
+          "startTime": "09:00",
+          "endTime": "14:00",
           "days": 0.5
         }
       ],
@@ -1450,7 +1497,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": true,
+        "earlyLeave": true
       }
     },
     {
@@ -1489,6 +1539,8 @@
         {
           "startDate": "2026-08-19",
           "endDate": "2026-08-19",
+          "startTime": "09:00",
+          "endTime": "11:00",
           "days": 0.25
         }
       ],
@@ -1502,7 +1554,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": true,
+        "earlyLeave": true
       }
     },
     {
@@ -1541,6 +1596,8 @@
         {
           "startDate": "2026-08-18",
           "endDate": "2026-08-20",
+          "startTime": "09:00",
+          "endTime": "18:00",
           "days": 3
         }
       ],
@@ -1554,7 +1611,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": true,
+        "earlyLeave": true
       }
     },
     {
@@ -1615,7 +1675,10 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
     },
     {
@@ -1723,8 +1786,443 @@
         "nightMinutes": 0,
         "hasBaseline": true,
         "hasIncompleteRecords": false,
-        "needsReview": false
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
       }
+    },
+    {
+      "name": "fixed-late-and-early-leave",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-20T14:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "09:00",
+        "fixedEndTime": "18:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T01:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T08:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 21600,
+        "actualMinutes": 360,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 480,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": true,
+        "earlyLeave": true
+      }
+    },
+    {
+      "name": "fixed-leave-and-work-on-one-day",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-20T14:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "fixed",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "09:00",
+        "fixedEndTime": "18:00",
+        "coreTimeEnabled": false,
+        "coreStartTime": "",
+        "coreEndTime": "",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T02:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T03:00:00Z"
+        }
+      ],
+      "leave": [
+        {
+          "startDate": "2026-08-20",
+          "endDate": "2026-08-20",
+          "startTime": "09:00",
+          "endTime": "18:00",
+          "days": 1
+        }
+      ],
+      "expected": {
+        "actualSeconds": 3600,
+        "actualMinutes": 60,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 0,
+        "leaveMinutes": 480,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": true,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
+      }
+    },
+    {
+      "name": "flexible-core-time-missed",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-20T14:00:00Z",
+      "periodStart": "2026-08-20",
+      "periodEnd": "2026-08-20",
+      "policy": {
+        "workMode": "flexible",
+        "workingWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "dailyTargetMinutes": 480,
+        "referenceStartTime": "09:00",
+        "fixedStartTime": "",
+        "fixedEndTime": "",
+        "coreTimeEnabled": true,
+        "coreStartTime": "11:00",
+        "coreEndTime": "16:00",
+        "breakPeriods": [
+          {
+            "startTime": "12:00",
+            "endTime": "13:00"
+          }
+        ],
+        "nightStartTime": "22:00",
+        "nightEndTime": "06:00"
+      },
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-19T21:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T01:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 14400,
+        "actualMinutes": 240,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 480,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false,
+        "coreTimeMissed": true,
+        "late": false,
+        "earlyLeave": false
+      }
+    },
+    {
+      "name": "core-time-change-mid-period",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-08-21T00:00:00Z",
+      "periodStart": "2026-08-17",
+      "periodEnd": "2026-08-20",
+      "revisions": [
+        {
+          "workMode": "flexible",
+          "workingWeekdays": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "dailyTargetMinutes": 480,
+          "referenceStartTime": "09:00",
+          "fixedStartTime": "",
+          "fixedEndTime": "",
+          "coreTimeEnabled": true,
+          "coreStartTime": "11:00",
+          "coreEndTime": "16:00",
+          "breakPeriods": [
+            {
+              "startTime": "12:00",
+              "endTime": "13:00"
+            }
+          ],
+          "nightStartTime": "22:00",
+          "nightEndTime": "06:00",
+          "effectiveDate": "1970-01-01"
+        },
+        {
+          "workMode": "flexible",
+          "workingWeekdays": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "dailyTargetMinutes": 480,
+          "referenceStartTime": "09:00",
+          "fixedStartTime": "",
+          "fixedEndTime": "",
+          "coreTimeEnabled": true,
+          "coreStartTime": "09:00",
+          "coreEndTime": "10:00",
+          "breakPeriods": [
+            {
+              "startTime": "12:00",
+              "endTime": "13:00"
+            }
+          ],
+          "nightStartTime": "22:00",
+          "nightEndTime": "06:00",
+          "effectiveDate": "2026-08-19"
+        }
+      ],
+      "events": [
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-17T02:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-17T07:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-18T02:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-18T07:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-19T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-19T01:00:00Z"
+        },
+        {
+          "kind": "clock_in",
+          "occurredAt": "2026-08-20T00:00:00Z"
+        },
+        {
+          "kind": "clock_out",
+          "occurredAt": "2026-08-20T01:00:00Z"
+        }
+      ],
+      "leave": [],
+      "expected": {
+        "actualSeconds": 36000,
+        "actualMinutes": 600,
+        "provisionalSeconds": 0,
+        "provisionalMinutes": 0,
+        "targetMinutes": 1920,
+        "leaveMinutes": 0,
+        "nightMinutes": 0,
+        "hasBaseline": true,
+        "hasIncompleteRecords": false,
+        "needsReview": false,
+        "coreTimeMissed": false,
+        "late": false,
+        "earlyLeave": false
+      }
+    }
+  ],
+  "scheduleEndCases": [
+    {
+      "name": "a full day ends after the break it spans",
+      "startTime": "09:00",
+      "requiredMinutes": 480,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        }
+      ],
+      "expectedEndTime": "18:00"
+    },
+    {
+      "name": "a half day ends an hour past the break",
+      "startTime": "09:00",
+      "requiredMinutes": 240,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        }
+      ],
+      "expectedEndTime": "14:00"
+    },
+    {
+      "name": "a quarter day ends before the break",
+      "startTime": "09:00",
+      "requiredMinutes": 120,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        }
+      ],
+      "expectedEndTime": "11:00"
+    },
+    {
+      "name": "a quarter day overlapping the break resumes after it",
+      "startTime": "11:30",
+      "requiredMinutes": 120,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        }
+      ],
+      "expectedEndTime": "14:30"
+    },
+    {
+      "name": "a start inside the break counts from the end of it",
+      "startTime": "12:30",
+      "requiredMinutes": 120,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        }
+      ],
+      "expectedEndTime": "15:00"
+    },
+    {
+      "name": "adjacent breaks are stepped over together",
+      "startTime": "12:30",
+      "requiredMinutes": 120,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        },
+        {
+          "startTime": "13:00",
+          "endTime": "14:00"
+        }
+      ],
+      "expectedEndTime": "16:00"
+    },
+    {
+      "name": "a day with two breaks lays both on top of the target",
+      "startTime": "09:00",
+      "requiredMinutes": 480,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        },
+        {
+          "startTime": "15:00",
+          "endTime": "15:30"
+        }
+      ],
+      "expectedEndTime": "18:30"
+    },
+    {
+      "name": "a day without breaks is the target added to the start",
+      "startTime": "09:00",
+      "requiredMinutes": 480,
+      "breakPeriods": [],
+      "expectedEndTime": "17:00"
+    },
+    {
+      "name": "a target consumed just before midnight is allowed",
+      "startTime": "23:00",
+      "requiredMinutes": 59,
+      "breakPeriods": [],
+      "expectedEndTime": "23:59"
+    },
+    {
+      "name": "a target landing exactly on midnight is refused",
+      "startTime": "23:00",
+      "requiredMinutes": 60,
+      "breakPeriods": [],
+      "refused": true
+    },
+    {
+      "name": "a target running past midnight is refused",
+      "startTime": "20:00",
+      "requiredMinutes": 480,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        }
+      ],
+      "refused": true
+    },
+    {
+      "name": "asking for no minutes returns the start untouched",
+      "startTime": "12:30",
+      "requiredMinutes": 0,
+      "breakPeriods": [
+        {
+          "startTime": "12:00",
+          "endTime": "13:00"
+        }
+      ],
+      "expectedEndTime": "12:30"
     }
   ]
 }

@@ -196,7 +196,7 @@ function validatePolicySchedule(
 	if (coreStart >= coreEnd) throw new Error('workPolicy core hours are invalid');
 }
 
-function requiredClockMinute(value: string, field: string): number {
+export function requiredClockMinute(value: string, field: string): number {
 	if (!/^\d{2}:\d{2}$/.test(value)) throw new Error(`workPolicy ${field} is invalid`);
 	const [hour, minute] = value.split(':').map(Number);
 	if (hour > 23 || minute > 59) throw new Error(`workPolicy ${field} is invalid`);

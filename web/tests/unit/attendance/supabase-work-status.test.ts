@@ -511,4 +511,135 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(status.days.at(-1)?.leaveMinutes).toBe(0);
 		expect(status.days.at(-1)?.overtimeMinutes).toBe(180);
 	});
+	test('a fixed day started late and ended early says so', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-20T01:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-20T08:00:00Z' }
+			],
+			leave: [],
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
+			now: new Date('2026-08-20T14:00:00Z')
+		});
+
+		expect(status.days[0]?.late).toBe(true);
+		expect(status.days[0]?.earlyLeave).toBe(true);
+		expect(status.days[0]?.coreTimeMissed).toBe(false);
+		expect(status.late).toBe(true);
+		expect(status.earlyLeave).toBe(true);
+	});
+
+	test('a fixed day worked start to end says nothing', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-20T00:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-20T09:00:00Z' }
+			],
+			leave: [],
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
+			now: new Date('2026-08-20T14:00:00Z')
+		});
+
+		expect(status.days[0]?.late).toBe(false);
+		expect(status.days[0]?.earlyLeave).toBe(false);
+	});
+
+	test('a flexible day that skips core time says so', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-19T21:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-20T01:00:00Z' }
+			],
+			leave: [],
+			policy: policyFrom('flexible'),
+			holidays: noHolidays,
+			now: new Date('2026-08-20T14:00:00Z')
+		});
+
+		expect(status.days[0]?.coreTimeMissed).toBe(true);
+		expect(status.days[0]?.late).toBe(false);
+		expect(status.coreTimeMissed).toBe(true);
+	});
+
+	test('a full-day leave answers for the whole scheduled day', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [
+				{
+					member_id: member.id,
+					days: 1,
+					starts_at: '2026-08-19T15:00:00Z',
+					ends_at: '2026-08-20T15:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
+			now: new Date('2026-08-20T14:00:00Z')
+		});
+
+		expect(status.days[0]?.leaveMinutes).toBe(480);
+		expect(status.days[0]?.late).toBe(false);
+		expect(status.days[0]?.earlyLeave).toBe(false);
+	});
+
+	test('an autonomous day is judged by none of the three', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [
+				{ member_id: member.id, kind: 'clock_in', occurred_at: '2026-08-20T03:00:00Z' },
+				{ member_id: member.id, kind: 'clock_out', occurred_at: '2026-08-20T05:00:00Z' }
+			],
+			leave: [],
+			policy: policyFrom('autonomous'),
+			holidays: noHolidays,
+			now: new Date('2026-08-20T14:00:00Z')
+		});
+
+		expect(status.days[0]?.coreTimeMissed).toBe(false);
+		expect(status.days[0]?.late).toBe(false);
+		expect(status.days[0]?.earlyLeave).toBe(false);
+	});
+	test('every day of a multi-day leave is answered for, including the last', () => {
+		const status = calculateSupabaseEmployeeWorkStatus({
+			member,
+			days: ['2026-08-18', '2026-08-19', '2026-08-20'],
+			timeZone: 'Asia/Seoul',
+			attendance: [],
+			leave: [
+				{
+					member_id: member.id,
+					days: 3,
+					starts_at: '2026-08-17T15:00:00Z',
+					ends_at: '2026-08-20T15:00:00Z',
+					status: 'approved'
+				}
+			],
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
+			now: new Date('2026-08-21T14:00:00Z')
+		});
+
+		for (const day of status.days) {
+			expect(day.leaveMinutes).toBe(480);
+			expect(day.late).toBe(false);
+			expect(day.earlyLeave).toBe(false);
+		}
+	});
 });
