@@ -271,3 +271,27 @@ func TestChatdPlatformDeletesAMessageThroughChatd(testContext *testing.T) {
 		testContext.Fatalf("expected chatd to be asked to delete, it was asked %q", askedPath)
 	}
 }
+
+// Run f06ce78f posted the full translation into the DM: the model passed the
+// direct conversation's own channel id as the channel target, and nothing
+// examined it. An id equal to the room the request came from is not a channel.
+func TestAChannelPostAimedAtTheConversationItselfIsRefused(testContext *testing.T) {
+	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
+
+	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    json.RawMessage(`{"targetType":"channel","channelID":"6955ae67-dm","message":"안내"}`),
+		Context: capabilities.ToolInvokeContext{
+			Platform:         "buzz",
+			ConversationType: "direct",
+			ChannelID:        "6955ae67-dm",
+		},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "channelName") {
+		testContext.Fatalf("expected guidance toward naming the channel, answered %q", response.Content)
+	}
+}
