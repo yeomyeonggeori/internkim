@@ -70,10 +70,31 @@ if (canReachSupabase) {
 			expect(await companyRules()).toEqual({ approvals: { required: true } });
 		});
 
-		test('a valid work calendar is persisted without replacing unrelated rules', async () => {
+		test('a work policy is stored as the revision that has always applied', async () => {
+			const workPolicy = currentPolicy();
 			const response = await reconcile({
 				platform: 'mattermost',
-				workMode: 'fixed',
+				workPolicy,
+				from: '2027-01-01T00:00:00Z',
+				to: '2027-01-02T00:00:00Z',
+				events: []
+			});
+
+			expect(response.status).toBe(200);
+			expect(await companyRules()).toEqual({
+				approvals: { required: true },
+				attendanceWorkPolicy: {
+					version: 1,
+					revisions: [{ ...workPolicy, effectiveDate: '1970-01-01' }]
+				}
+			});
+		});
+
+		test('a work calendar from an older device is ignored rather than stored', async () => {
+			const workPolicy = currentPolicy();
+			const response = await reconcile({
+				platform: 'mattermost',
+				workPolicy,
 				workCalendar: [
 					{ date: '2027-01-01', workMode: 'fixed', workingDate: false, holiday: true },
 					{ date: '2027-01-02', workMode: 'fixed', workingDate: true, holiday: false }
@@ -84,35 +105,26 @@ if (canReachSupabase) {
 			});
 
 			expect(response.status).toBe(200);
-			expect(await companyRules()).toEqual({
-				approvals: { required: true },
-				attendanceCalendar: [
-					{ date: '2027-01-01', workMode: 'fixed', workingDate: false, holiday: true },
-					{ date: '2027-01-02', workMode: 'fixed', workingDate: true, holiday: false }
-				]
+			const rules = (await companyRules()) as Record<string, unknown>;
+			expect(Object.keys(rules)).not.toContain('attendanceCalendar');
+			expect(rules.attendanceWorkPolicy).toEqual({
+				version: 1,
+				revisions: [{ ...workPolicy, effectiveDate: '1970-01-01' }]
 			});
 		});
 
-		test('current policy and calendar are persisted together without replacing unrelated rules', async () => {
-			const workPolicy = currentPolicy();
-			const workCalendar = [
-				{ date: '2027-01-01', workMode: 'fixed', workingDate: false, holiday: true }
-			];
+		test('a malformed work calendar from an older device is ignored too', async () => {
 			const response = await reconcile({
 				platform: 'mattermost',
-				workPolicy,
-				workCalendar,
+				workMode: 'fixed',
+				workCalendar: [{ date: '2027-01-01', workMode: 'fixed' }],
 				from: '2027-01-01T00:00:00Z',
-				to: '2027-01-02T00:00:00Z',
+				to: '2027-01-04T00:00:00Z',
 				events: []
 			});
 
 			expect(response.status).toBe(200);
-			expect(await companyRules()).toEqual({
-				approvals: { required: true },
-				attendanceCalendar: workCalendar,
-				attendanceWorkPolicy: workPolicy
-			});
+			expect(await companyRules()).toEqual({ approvals: { required: true } });
 		});
 
 		test('an invalid platform returns 400 before settings persistence', async () => {
@@ -154,82 +166,6 @@ if (canReachSupabase) {
 			expect(await companyRules()).toEqual({ approvals: { required: true } });
 		});
 
-		test('an explicitly malformed work calendar returns 400', async () => {
-			await expect(
-				reconcile({
-					platform: 'mattermost',
-					workMode: 'fixed',
-					workCalendar: [{ date: '2027-01-01', workMode: 'fixed' }],
-					from: '2027-01-01T00:00:00Z',
-					to: '2027-01-02T00:00:00Z',
-					events: []
-				})
-			).rejects.toMatchObject({ status: 400 });
-		});
-
-		test('a window over one month returns 400 before date enumeration or persistence', async () => {
-			const originalSetUTCDate = Date.prototype.setUTCDate;
-			Date.prototype.setUTCDate = function (): number {
-				throw new Error('calendar date enumeration started');
-			};
-			try {
-				await expect(
-					reconcile({
-						platform: 'mattermost',
-						workMode: 'fixed',
-						workCalendar: [],
-						from: '0100-01-01T00:00:00Z',
-						to: '9999-01-01T00:00:00Z',
-						events: []
-					})
-				).rejects.toMatchObject({ status: 400 });
-				expect(await companyRules()).toEqual({ approvals: { required: true } });
-			} finally {
-				Date.prototype.setUTCDate = originalSetUTCDate;
-			}
-		});
-
-		const completeWindow = [
-			{ date: '2027-01-01', workMode: 'fixed', workingDate: true },
-			{ date: '2027-01-02', workMode: 'fixed', workingDate: true },
-			{ date: '2027-01-03', workMode: 'fixed', workingDate: false }
-		];
-		const invalidCalendars = [
-			{ name: 'empty', workCalendar: [] },
-			{ name: 'duplicate', workCalendar: [completeWindow[0], completeWindow[0], completeWindow[2]] },
-			{ name: 'missing', workCalendar: [completeWindow[0], completeWindow[2]] },
-			{ name: 'reversed', workCalendar: [completeWindow[1], completeWindow[0], completeWindow[2]] },
-			{
-				name: 'out-of-window',
-				workCalendar: [
-					{ date: '2026-12-31', workMode: 'fixed', workingDate: true },
-					completeWindow[0],
-					completeWindow[1]
-				]
-			},
-			{
-				name: 'oversized',
-				workCalendar: [
-					...completeWindow,
-					{ date: '2027-01-04', workMode: 'fixed', workingDate: true }
-				]
-			}
-		];
-		for (const invalid of invalidCalendars) {
-			test(`an explicitly ${invalid.name} work calendar returns 400 before persistence`, async () => {
-				await expect(
-					reconcile({
-						platform: 'mattermost',
-						workMode: 'fixed',
-						workCalendar: invalid.workCalendar,
-						from: '2027-01-01T00:00:00Z',
-						to: '2027-01-04T00:00:00Z',
-						events: []
-					})
-				).rejects.toMatchObject({ status: 400 });
-				expect(await companyRules()).toEqual({ approvals: { required: true } });
-			});
-		}
 	});
 }
 

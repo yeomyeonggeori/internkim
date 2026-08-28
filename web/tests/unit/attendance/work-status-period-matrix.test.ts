@@ -6,6 +6,8 @@ import {
 } from '../../../src/lib/attendance/supabase-work-status';
 import { shiftedDay } from '../../../src/lib/attendance/supabase-work-status-range';
 
+const noHolidays = new Set<string>();
+
 type WorkMode = 'autonomous' | 'flexible' | 'fixed';
 
 const matrixMember = {
@@ -24,7 +26,6 @@ function matrixPolicy(workMode: WorkMode) {
 			work_hours: null,
 			minimum_daily_minutes: 480,
 			work_mode: workMode,
-			work_calendar: null,
 			work_policy: {
 				workMode,
 				workingWeekdays: [1, 2, 3, 4, 5],
@@ -166,6 +167,7 @@ describe('calculateSupabaseEmployeeWorkStatus period x work-mode matrix', () => 
 				attendance: fullWorkdayEvents(days),
 				leave: [],
 				policy: matrixPolicy(matrixCase.workMode),
+				holidays: noHolidays,
 				now: new Date('2026-09-05T00:00:00Z')
 			});
 
