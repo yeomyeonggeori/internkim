@@ -12,7 +12,6 @@
 		description: string;
 		items: CRMDefinition[];
 		isAdmin: boolean;
-		disabled: boolean;
 		addLabel: string;
 		removeLabel: string;
 		colorLabel: string;
@@ -28,7 +27,6 @@
 		description,
 		items,
 		isAdmin,
-		disabled,
 		addLabel,
 		removeLabel,
 		colorLabel,
@@ -58,7 +56,7 @@
 	<Card.Content class="space-y-2">
 		{#each items as item (item.id)}
 			<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-				{#if isAdmin && !disabled}
+				{#if isAdmin}
 					<ColorPicker
 						value={item.color ?? '#64748b'}
 						label={colorLabel}
@@ -70,14 +68,14 @@
 				{/if}
 				<Input
 					value={item.name}
-					disabled={!isAdmin || disabled}
+					disabled={!isAdmin}
 					oninput={(event) => onNameInput(item.id, event.currentTarget.value)}
 					onblur={onCommit}
 				/>
 				<Button
 					variant="ghost"
 					size="icon"
-					disabled={!isAdmin || disabled}
+					disabled={!isAdmin}
 					onclick={() => onRemove(item.id)}
 					aria-label={removeLabel}
 				>
@@ -90,12 +88,11 @@
 				<ColorPicker value={newColor} label={colorLabel} class="size-7" onChange={(color) => (newColor = color)} />
 				<Input
 					value={newName}
-					disabled={disabled}
 					placeholder={title}
 					oninput={(event) => (newName = event.currentTarget.value)}
 					onkeydown={(event) => event.key === 'Enter' && add()}
 				/>
-				<Button variant="outline" size="icon" disabled={disabled || !newName.trim()} onclick={add} aria-label={addLabel}>
+				<Button variant="outline" size="icon" disabled={!newName.trim()} onclick={add} aria-label={addLabel}>
 					<PlusIcon class="size-4" />
 				</Button>
 			</div>

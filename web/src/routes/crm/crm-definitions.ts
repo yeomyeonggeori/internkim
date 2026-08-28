@@ -10,8 +10,6 @@ export type CRMDefinitionTarget =
 	| { kind: 'organization_type'; id: string }
 	| { kind: 'pipeline'; id: string };
 
-export type CRMDefinitionDeleteRequest = CRMDefinitionTarget;
-
 export type CRMDefinitionCollection = 'organization_type' | 'pipeline';
 
 export type CRMDefinitionsText = {
