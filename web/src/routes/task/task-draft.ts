@@ -20,7 +20,7 @@ export function createTaskDraft(owner: TaskMember, definitions: TaskDefinitions,
 		type: definitions.types[0] ?? '',
 		content: '',
 			size: 'M',
-		status: '예정',
+		status: 'planned',
 		statusRank: 0,
 		weekCode,
 		};

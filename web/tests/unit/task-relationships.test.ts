@@ -26,14 +26,14 @@ describe('flow task relationships', () => {
 
 	test('counts completed children and excludes only stopped children', () => {
 		const progress = buildTaskChildProgress('parent', [
-			task({ id: 'done-1', parentTaskID: 'parent', status: '완료' }),
-			task({ id: 'done-2', parentTaskID: 'parent', status: '완료' }),
-			task({ id: 'progress', parentTaskID: 'parent', status: '진행' }),
-			task({ id: 'planned', parentTaskID: 'parent', status: '예정' }),
-			task({ id: 'requested', parentTaskID: 'parent', status: '요청' }),
-			task({ id: 'paused', parentTaskID: 'parent', status: '일시정지' }),
-			task({ id: 'rejected', parentTaskID: 'parent', status: '기각' }),
-			task({ id: 'stopped', parentTaskID: 'parent', status: '중단' })
+			task({ id: 'done-1', parentTaskID: 'parent', status: 'completed' }),
+			task({ id: 'done-2', parentTaskID: 'parent', status: 'completed' }),
+			task({ id: 'progress', parentTaskID: 'parent', status: 'in_progress' }),
+			task({ id: 'planned', parentTaskID: 'parent', status: 'planned' }),
+			task({ id: 'requested', parentTaskID: 'parent', status: 'requested' }),
+			task({ id: 'paused', parentTaskID: 'parent', status: 'paused' }),
+			task({ id: 'rejected', parentTaskID: 'parent', status: 'rejected' }),
+			task({ id: 'stopped', parentTaskID: 'parent', status: 'cancelled' })
 		]);
 
 		expect(progress).toEqual({ completed: 2, total: 7, percent: 29 });
@@ -41,10 +41,10 @@ describe('flow task relationships', () => {
 
 	test('shows every direct child with incomplete work before completed work', () => {
 		const relationships = buildTaskRelationships(task({ id: 'parent' }), [
-			task({ id: 'done', parentTaskID: 'parent', status: '완료' }),
-			task({ id: 'progress', parentTaskID: 'parent', status: '진행' }),
-			task({ id: 'rejected', parentTaskID: 'parent', status: '기각' }),
-			task({ id: 'stopped', parentTaskID: 'parent', status: '중단' })
+			task({ id: 'done', parentTaskID: 'parent', status: 'completed' }),
+			task({ id: 'progress', parentTaskID: 'parent', status: 'in_progress' }),
+			task({ id: 'rejected', parentTaskID: 'parent', status: 'rejected' }),
+			task({ id: 'stopped', parentTaskID: 'parent', status: 'cancelled' })
 		]);
 
 		expect(relationships.children.map((task) => task.id)).toEqual(['progress', 'rejected', 'stopped', 'done']);
@@ -52,10 +52,10 @@ describe('flow task relationships', () => {
 
 	test('keeps rejected children in progress and hides progress when only stopped children remain', () => {
 		expect(buildTaskChildProgress('parent', [
-			task({ id: 'rejected', parentTaskID: 'parent', status: '기각' })
+			task({ id: 'rejected', parentTaskID: 'parent', status: 'rejected' })
 		])).toEqual({ completed: 0, total: 1, percent: 0 });
 		expect(buildTaskChildProgress('parent', [
-			task({ id: 'stopped', parentTaskID: 'parent', status: '중단' })
+			task({ id: 'stopped', parentTaskID: 'parent', status: 'cancelled' })
 		])).toBeUndefined();
 	});
 
@@ -103,7 +103,7 @@ function task(overrides: Partial<Task>): Task {
 		type: '기능',
 		content: '업무',
 		size: 'M',
-		status: '예정',
+		status: 'planned',
 		statusRank: 0,
 		weekCode: '2026-08-10',
 		...overrides

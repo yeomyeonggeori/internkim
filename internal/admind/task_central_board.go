@@ -70,7 +70,7 @@ func taskOfBoardTask(task centralplane.BoardTask, memberByEmail map[string]taskM
 		Type:      task.Type,
 		Content:   task.Title,
 		Size:      task.Size,
-		Status:    deviceTaskStatus(task.Status),
+		Status:    cleanTaskStatus(task.Status),
 		StartDate: taskDayOfInstant(task.StartsAt),
 		EndDate:   taskDayOfInstant(firstFilled(task.EndsAt, task.DueAt)),
 		CreatedAt: task.CreatedAt,

@@ -13,7 +13,7 @@ export async function openTaskBoard(page: Page): Promise<void> {
 	await page.locator('[data-task-filter-panel]').getByRole('combobox', { name: '참여자', exact: true }).click();
 	await page.getByRole('option', { name: '전체', exact: true }).click();
 	await page.keyboard.press('Escape');
-	await expect(taskColumn(page, '진행')).toBeVisible();
+	await expect(taskColumn(page, 'in_progress')).toBeVisible();
 }
 
 export async function useMemberTaskSession(page: Page, email: string, name: string): Promise<void> {
@@ -57,7 +57,7 @@ export async function visibleBoundingBox(locator: Locator): Promise<{ x: number;
 }
 
 export async function progressCardIDs(page: Page): Promise<string[]> {
-	return taskColumn(page, '진행').locator('[data-task-board-card]').evaluateAll((elements) =>
+	return taskColumn(page, 'in_progress').locator('[data-task-board-card]').evaluateAll((elements) =>
 		elements.map((element) => element.getAttribute('data-task-board-card') ?? '')
 			.filter((taskID) => taskID.startsWith('26W23-'))
 	);

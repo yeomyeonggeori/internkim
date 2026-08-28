@@ -2,32 +2,42 @@ package admind
 
 import "testing"
 
-func TestCleanTaskStatusNormalizesNaturalVariants(t *testing.T) {
-	cases := map[string]string{
-		"진행 중":        taskStatusInProgress,
-		"진행중":         taskStatusInProgress,
-		"in progress": taskStatusInProgress,
-		"in_progress": taskStatusInProgress,
-		"진행":          taskStatusInProgress,
-		"완료":          taskStatusCompleted,
-		"done":        taskStatusCompleted,
-		"예정":          taskStatusPlanned,
-		"planned":     taskStatusPlanned,
-		"보류":          taskStatusPaused,
-		"취소":          taskStatusStopped,
-		"cancelled":   taskStatusStopped,
+func TestCleanTaskStatusTranslatesOnlyStoredValues(t *testing.T) {
+	stored := map[string]string{
+		"요청":   taskStatusRequested,
+		"예정":   taskStatusPlanned,
+		"진행":   taskStatusInProgress,
+		"완료":   taskStatusCompleted,
+		"일시정지": taskStatusPaused,
+		"기각":   taskStatusRejected,
+		"중단":   taskStatusStopped,
 	}
-	for input, want := range cases {
+	for input, want := range stored {
 		if got := cleanTaskStatus(input); got != want {
 			t.Errorf("cleanTaskStatus(%q) = %q, want %q", input, got, want)
 		}
 	}
 	for _, status := range taskStatusOptions() {
+		if cleanTaskStatus(status) != status {
+			t.Errorf("canonical status %q must pass through unchanged", status)
+		}
 		if !isAllowedTaskStatus(status) {
 			t.Errorf("canonical status %q should be allowed", status)
 		}
 	}
-	if !isAllowedTaskStatus("진행 중") {
-		t.Error("natural variant '진행 중' should normalize to an allowed status")
+	if isAllowedTaskStatus("doing") {
+		t.Error("a natural-language variant is the model's to interpret, never this map's")
+	}
+}
+
+func TestTaskStatusLabelSpeaksKorean(t *testing.T) {
+	if label := taskStatusLabel("completed"); label != "완료" {
+		t.Fatalf("label = %q", label)
+	}
+	if label := taskStatusLabel("완료"); label != "완료" {
+		t.Fatalf("legacy label = %q", label)
+	}
+	if label := taskStatusLabel("unknown"); label != "unknown" {
+		t.Fatalf("unknown label = %q", label)
 	}
 }

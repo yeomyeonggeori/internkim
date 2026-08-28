@@ -256,7 +256,7 @@ func TestTaskCreateDefaultsBusinessAndUpdatePreservesOmittedBusiness(t *testing.
 	if createdTask.Business != "제품" {
 		t.Fatalf("created business = %q", createdTask.Business)
 	}
-	updateDocument := `{"ownerID":"` + createdTask.OwnerID + `","participantIDs":["` + createdTask.OwnerID + `"],"type":"회의","content":"10분 회의","size":"XS","status":"진행","weekCode":"26W18"}`
+	updateDocument := `{"ownerID":"` + createdTask.OwnerID + `","participantIDs":["` + createdTask.OwnerID + `"],"type":"회의","content":"10분 회의","size":"XS","status":"in_progress","weekCode":"26W18"}`
 	updateRequest := httptest.NewRequest(http.MethodPut, "/flow/api/tasks/"+createdTask.ID, strings.NewReader(updateDocument))
 	updateRequest.RemoteAddr = "198.51.100.10:443"
 	updateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
