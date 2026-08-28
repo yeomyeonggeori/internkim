@@ -44,6 +44,8 @@ func mergeFlowTaskAddInputIntoDuplicate(task flowTaskForTool, input flowTaskAddI
 	}
 	applyValue(&task.Size, input.Size)
 	applyValue(&task.Status, input.Status)
+	applyValue(&task.Business, input.Business)
+	applyValue(&task.Type, input.Type)
 	applyValue(&task.StartDate, input.StartsAt)
 	applyValue(&task.EndDate, input.EndsAt)
 	return task, hasNewValues
