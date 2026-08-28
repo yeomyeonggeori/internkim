@@ -2,6 +2,7 @@ import { supabase } from '$lib/supabase';
 import { companySettings, type CompanySettings } from '$lib/company/company-settings';
 import { companyHolidayDatesInMonth } from './company-holiday-dates';
 import { currentAttendanceWorkPolicy } from './current-work-policy';
+import { storedWorkPolicyRevisions } from './stored-work-policy';
 import { defaultWorkPolicy, initialWorkPolicyEffectiveDate } from './work-policy-defaults';
 import type {
 	AttendanceWorkPolicyResponse,
@@ -25,12 +26,12 @@ export async function saveSupabaseAttendanceWorkPolicy(
 export function workPolicyResponse(settings: CompanySettings): AttendanceWorkPolicyResponse {
 	const stored = settings.rules.attendanceWorkPolicy;
 	const currentMonth = monthIn(settings.timeZone);
-	const revision: AttendanceWorkPolicyRevision = {
-		effectiveDate: initialWorkPolicyEffectiveDate,
-		...(stored === undefined ? defaultWorkPolicy() : currentAttendanceWorkPolicy(stored))
-	};
+	const revisions: AttendanceWorkPolicyRevision[] =
+		stored === undefined
+			? [{ effectiveDate: initialWorkPolicyEffectiveDate, ...defaultWorkPolicy() }]
+			: storedWorkPolicyRevisions(stored, 'this company');
 	return {
-		policy: { version: 1, updatedAt: '', revisions: [revision] },
+		policy: { version: 1, updatedAt: '', revisions },
 		currentMonth,
 		holidayDates: companyHolidayDatesInMonth(settings.rules.companyHolidays ?? [], currentMonth),
 		timeZone: settings.timeZone

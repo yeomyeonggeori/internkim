@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	companyWeekday,
-	initialEffectiveDate,
 	revisionForDate,
 	workingDateForDate,
 	workModeForDate,
 	type AttendanceWorkPolicyRevision
 } from '../../../src/lib/attendance/work-calendar-derivation';
+import { initialWorkPolicyEffectiveDate } from '../../../src/lib/attendance/work-policy-defaults';
 
 function revision(
 	effectiveDate: string,
@@ -43,7 +43,7 @@ describe('companyWeekday', () => {
 
 describe('revisionForDate', () => {
 	const revisions = [
-		revision(initialEffectiveDate, { workMode: 'fixed' }),
+		revision(initialWorkPolicyEffectiveDate, { workMode: 'fixed' }),
 		revision('2026-08-01', { workMode: 'autonomous' }),
 		revision('2026-09-01', { workMode: 'flexible' })
 	];
@@ -74,7 +74,7 @@ describe('revisionForDate', () => {
 describe('workModeForDate', () => {
 	test('reads the mode off the revision in force', () => {
 		const revisions = [
-			revision(initialEffectiveDate, { workMode: 'fixed' }),
+			revision(initialWorkPolicyEffectiveDate, { workMode: 'fixed' }),
 			revision('2026-08-01', { workMode: 'autonomous' })
 		];
 		expect(workModeForDate(revisions, '2026-07-31')).toBe('fixed');
@@ -84,20 +84,20 @@ describe('workModeForDate', () => {
 
 describe('workingDateForDate', () => {
 	test('a weekday the policy works is a working date', () => {
-		expect(workingDateForDate(revision(initialEffectiveDate), '2026-08-03', noHolidays)).toBe(true);
+		expect(workingDateForDate(revision(initialWorkPolicyEffectiveDate), '2026-08-03', noHolidays)).toBe(true);
 	});
 
 	test('a weekday the policy does not work is not', () => {
-		expect(workingDateForDate(revision(initialEffectiveDate), '2026-08-08', noHolidays)).toBe(false);
+		expect(workingDateForDate(revision(initialWorkPolicyEffectiveDate), '2026-08-08', noHolidays)).toBe(false);
 	});
 
 	test('a holiday is never a working date, whatever the weekday', () => {
 		const holidays = new Set(['2026-08-17']);
-		expect(workingDateForDate(revision(initialEffectiveDate), '2026-08-17', holidays)).toBe(false);
+		expect(workingDateForDate(revision(initialWorkPolicyEffectiveDate), '2026-08-17', holidays)).toBe(false);
 	});
 
 	test('a revision that works weekends works them', () => {
-		const weekends = revision(initialEffectiveDate, {
+		const weekends = revision(initialWorkPolicyEffectiveDate, {
 			workingWeekdays: [6, 7],
 			weeklyTargetMinutes: 960
 		});
@@ -107,7 +107,7 @@ describe('workingDateForDate', () => {
 
 	test('a working-weekday change does not reach back past its effective date', () => {
 		const revisions = [
-			revision(initialEffectiveDate),
+			revision(initialWorkPolicyEffectiveDate),
 			revision('2026-08-08', { workingWeekdays: [1, 2, 3, 4, 5, 6], weeklyTargetMinutes: 2880 })
 		];
 		const earlierSaturday = '2026-08-01';
