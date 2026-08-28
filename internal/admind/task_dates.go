@@ -64,7 +64,8 @@ func normalizeTaskStatusDates(startDate string, endDate string, weekCode string,
 		weekCode = weekCodeForTaskDate(endDate, now)
 	case isTaskPlannedStatus(status):
 		if startDate == "" {
-			startDate = today
+			weekCode = weekCodeForDate(now)
+			break
 		}
 		weekCode = weekCodeForTaskDate(startDate, now)
 	default:

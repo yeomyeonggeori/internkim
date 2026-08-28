@@ -91,13 +91,32 @@ func TestNormalizeTaskDatesPreservesExplicitCompletedDates(t *testing.T) {
 	}
 }
 
-func TestNormalizeTaskDatesSetsPlannedStartAndWeek(t *testing.T) {
+func TestNormalizeTaskDatesLeavesPlannedWorkUndated(t *testing.T) {
 	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, taskDateLocation())
 
 	dates := normalizeTaskDates(taskWriteRequest{}, "예정", now)
 
-	if dates.StartDate != "2026-06-11" || dates.EndDate != "" || dates.WeekCode != "26W24" {
+	if dates.StartDate != "" || dates.EndDate != "" || dates.WeekCode != "26W24" {
 		t.Fatalf("dates = %+v", dates)
+	}
+}
+
+func TestStatusCompletedWhenEnded(t *testing.T) {
+	for _, testCase := range []struct {
+		status  string
+		endDate string
+		want    string
+	}{
+		{status: "예정", endDate: "2026-06-11", want: "완료"},
+		{status: "진행", endDate: "2026-06-10", want: "완료"},
+		{status: "예정", endDate: "2026-06-12", want: "예정"},
+		{status: "예정", endDate: "", want: "예정"},
+		{status: "요청", endDate: "2026-06-10", want: "요청"},
+		{status: "중단", endDate: "2026-06-10", want: "중단"},
+	} {
+		if got := statusCompletedWhenEnded(testCase.status, testCase.endDate, "2026-06-11"); got != testCase.want {
+			t.Fatalf("statusCompletedWhenEnded(%q, %q) = %q, want %q", testCase.status, testCase.endDate, got, testCase.want)
+		}
 	}
 }
 
