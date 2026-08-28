@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strconv"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -15,6 +16,7 @@ type capabilityToolTarget struct {
 	ID         string `json:"id,omitempty"`
 	Title      string `json:"title,omitempty"`
 	StartsAt   string `json:"startsAt,omitempty"`
+	Preview    string `json:"preview,omitempty"`
 }
 
 type capabilityToolTargetRoute struct {
@@ -25,6 +27,7 @@ type capabilityToolTargetRoute struct {
 var capabilityToolTargetRoutes = []capabilityToolTargetRoute{
 	{ToolName: "event_delete", Resolver: Service.resolveCalendarEventDeleteTarget},
 	{ToolName: "task_delete", Resolver: Service.resolveFlowTaskDeleteTarget},
+	{ToolName: "message_delete", Resolver: Service.resolveMessageDeleteTarget},
 }
 
 func capabilityToolTargetRouteFor(toolName string) (capabilityToolTargetRoute, bool) {
@@ -116,4 +119,85 @@ func capabilityToolWithoutTargetResponse(toolName string) capabilities.ToolInvok
 		Status:          "no_target",
 		Result:          json.RawMessage(`{}`),
 	}
+}
+
+const messageDeletePreviewMessageLimit = 5
+const messageDeletePreviewCharacterLimit = 160
+
+// A deletion is approved against the words it removes, so the approval
+// question needs the messages' own text, not their IDs. The preview never
+// narrows the replayed input; a lookup that fails resolves to no target and
+// the question falls back to what the input alone can say.
+func (service Service) resolveMessageDeleteTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodePlatformMessageDeleteInput(request.Input)
+	if errorValue != nil {
+		return capabilityToolWithoutTargetResponse(request.ToolName), nil
+	}
+	messageTexts := service.messageTextsForApproval(ctx, request.Context, input.MessageIDs)
+	if len(messageTexts) == 0 {
+		return capabilityToolWithoutTargetResponse(request.ToolName), nil
+	}
+	return capabilityToolTargetResponse(request.ToolName, capabilityToolTarget{
+		Preview: messageDeletePreview(messageTexts, len(input.MessageIDs)),
+	}), nil
+}
+
+func (service Service) messageTextsForApproval(ctx context.Context, toolContext capabilities.ToolInvokeContext, messageIDs []string) []string {
+	limitedMessageIDs := messageIDs
+	if len(limitedMessageIDs) > messageDeletePreviewMessageLimit {
+		limitedMessageIDs = limitedMessageIDs[:messageDeletePreviewMessageLimit]
+	}
+	if service.chatdServesPlatform(toolContext.Platform) {
+		return service.chatdMessageTexts(ctx, toolContext.Platform, limitedMessageIDs)
+	}
+	return service.mattermostMessageTexts(ctx, limitedMessageIDs)
+}
+
+func (service Service) chatdMessageTexts(ctx context.Context, platform string, messageIDs []string) []string {
+	var response chatdMessageSearchResponse
+	searchRequest := chatdMessageSearchRequest{MessageIDs: messageIDs, Queries: []string{}, Limit: len(messageIDs)}
+	if service.chatdPlatformRequest(ctx, platform, "message.search", searchRequest, &response) != nil {
+		return nil
+	}
+	messageTexts := []string{}
+	for _, candidate := range response.Candidates {
+		if text := strings.TrimSpace(candidate.Text); text != "" {
+			messageTexts = append(messageTexts, text)
+		}
+	}
+	return messageTexts
+}
+
+func (service Service) mattermostMessageTexts(ctx context.Context, messageIDs []string) []string {
+	messageTexts := []string{}
+	for _, messageID := range messageIDs {
+		post, _, hasFailure := service.mattermostToolPost(ctx, messageID)
+		if hasFailure {
+			continue
+		}
+		if text := strings.TrimSpace(post.Message); text != "" {
+			messageTexts = append(messageTexts, text)
+		}
+	}
+	return messageTexts
+}
+
+func messageDeletePreview(messageTexts []string, totalMessageCount int) string {
+	previews := make([]string, 0, len(messageTexts))
+	for _, text := range messageTexts {
+		previews = append(previews, "“"+clippedMessagePreview(text)+"”")
+	}
+	preview := strings.Join(previews, "\n")
+	if totalMessageCount > len(messageTexts) {
+		preview += "\n(+" + strconv.Itoa(totalMessageCount-len(messageTexts)) + ")"
+	}
+	return preview
+}
+
+func clippedMessagePreview(text string) string {
+	runes := []rune(strings.Join(strings.Fields(text), " "))
+	if len(runes) <= messageDeletePreviewCharacterLimit {
+		return string(runes)
+	}
+	return string(runes[:messageDeletePreviewCharacterLimit]) + "…"
 }
