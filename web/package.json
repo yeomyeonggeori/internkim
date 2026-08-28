@@ -29,6 +29,7 @@
 		"test:e2e:crm:central": "./scripts/e2e-crm-central.sh",
 		"test:e2e:attendance:central": "./scripts/e2e-central.sh tests/e2e/attendance-settings-central.spec.ts 5196",
 		"test:e2e:attendance:compliance:central": "./scripts/e2e-central.sh tests/e2e/attendance-compliance-central.spec.ts 5197",
+		"test:e2e:attendance:early-return:central": "./scripts/e2e-central.sh tests/e2e/attendance-early-return-central.spec.ts 5198",
 		"verify:flow": "bun run check && bun run test:unit && bun run build:board && bun run test:e2e:flow",
 		"test:e2e:mattermost-expensive": "bunx playwright test tests/e2e/mattermost-expensive-artifacts.spec.ts",
 		"test:e2e:public": "bunx playwright test tests/e2e/public-url.spec.ts",

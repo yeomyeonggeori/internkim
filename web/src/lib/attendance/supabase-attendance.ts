@@ -1,5 +1,6 @@
 import { announceToTheCompany } from './announce-attendance';
 import { supabase } from '$lib/supabase';
+import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
 import { colourOf, type NamedColour } from '$lib/flow/task-vocabulary';
 import { membersInReadingOrder } from '$lib/member-order';
 import type {
@@ -101,6 +102,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		absences: leave.data.flatMap((row) => absencesOf(row, byID.get(row.member_id), timeZone)),
 		members: membersInReadingOrder(members.data, me?.id).map(memberOf),
 		todayStatus: todayStatusOf(events, me?.email ?? '', timeZone),
+		activeLeave: me ? await supabaseActiveLeave(me.id, timeZone, new Date(serverTime.data)) : undefined,
 		locations: locationsOf(company.data.work_locations),
 		teamViewVisibleToAll: company.data.rules.teamViewVisibleToAll !== false,
 		teamViewBlocked: false
@@ -118,7 +120,11 @@ export async function setSupabaseTeamViewVisibility(visible: boolean): Promise<v
 	if (error) throw new Error(error.message);
 }
 
-export async function recordSupabaseAttendance(kind?: AttendanceKind, locationID?: string): Promise<void> {
+export async function recordSupabaseAttendance(
+	kind?: AttendanceKind,
+	locationID?: string,
+	confirmedEarlyReturn = false
+): Promise<void> {
 	const client = supabase();
 	const { data: auth } = await client.auth.getSession();
 	const accountID = auth.session?.user.id;
@@ -128,6 +134,11 @@ export async function recordSupabaseAttendance(kind?: AttendanceKind, locationID
 	if (member.error) throw new Error(member.error.message);
 
 	const recorded = kind ?? (await nextKindFor(member.data.id));
+	if (confirmedEarlyReturn && recorded === 'clock_in') {
+		await returnEarlyFromSupabaseLeave(locationID);
+		void announceToTheCompany('clock');
+		return;
+	}
 	const { error } = await client.from('attendance').insert({
 		member_id: member.data.id,
 		kind: recorded,
