@@ -241,12 +241,38 @@ func TestChatdMessageSendRefusesDirectMessagesLoudly(testContext *testing.T) {
 	}
 }
 
-// A DM aimed at another person has no working substitute: posting the content
-// into the current conversation answers a different request than the one that
-// was made, and the completion judge then reports a delivery that never
-// happened. The refusal must forbid the substitute, not suggest it.
-func TestChatdMessageSendToAnotherPersonForbidsTheSubstitute(testContext *testing.T) {
-	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
+func TestChatdMessageSendDeliversADirectMessageToAMember(testContext *testing.T) {
+	memberPubkey := strings.Repeat("2", 64)
+	var buzzKeyEmail string
+	admindServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/admin/api/directory/people":
+			json.NewEncoder(writer).Encode(map[string]any{"people": []map[string]any{{"memberID": "m-1", "email": "sample@example.com", "name": "이샘플"}}})
+		case "/admin/api/directory/buzz-key":
+			var payload struct {
+				Email string `json:"email"`
+			}
+			json.NewDecoder(request.Body).Decode(&payload)
+			buzzKeyEmail = payload.Email
+			json.NewEncoder(writer).Encode(map[string]string{"pubkeyHex": memberPubkey})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer admindServer.Close()
+	var receivedPath string
+	var receivedPost struct {
+		CounterpartPubkeyHex string `json:"counterpartPubkeyHex"`
+		Message              string `json:"message"`
+	}
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedPath = request.URL.Path
+		json.NewDecoder(request.Body).Decode(&receivedPost)
+		json.NewEncoder(writer).Encode(map[string]string{"channelID": "dm-uuid", "messageID": "event-9"})
+	}))
+	defer chatdServer.Close()
+
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz", AdmindBaseURL: admindServer.URL}}
 	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
 		Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"이샘플","message":"안내"}`),
@@ -255,14 +281,49 @@ func TestChatdMessageSendToAnotherPersonForbidsTheSubstitute(testContext *testin
 	if errorValue != nil {
 		testContext.Fatalf("send failed: %v", errorValue)
 	}
+	if response.Outcome == capabilities.ToolOutcomeFailed {
+		testContext.Fatalf("send answered failure: %s", response.Content)
+	}
+	if buzzKeyEmail != "sample@example.com" {
+		testContext.Fatalf("buzz key was asked for %q", buzzKeyEmail)
+	}
+	if receivedPath != "/v1/platform/buzz/dm.post" {
+		testContext.Fatalf("chatd received %q", receivedPath)
+	}
+	if receivedPost.CounterpartPubkeyHex != memberPubkey || receivedPost.Message != "안내" {
+		testContext.Fatalf("chatd received %+v", receivedPost)
+	}
+	var result platformMessageSendResult
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
+		testContext.Fatalf("result decode failed: %v", errorValue)
+	}
+	if len(result.MessageIDs) != 1 || result.MessageIDs[0] != "event-9" {
+		testContext.Fatalf("result carries %+v", result)
+	}
+}
+
+// A hint the company cannot place must fail the send, never fall back to the
+// conversation the request came from.
+func TestChatdMessageSendToAStrangerFailsClosed(testContext *testing.T) {
+	admindServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/admin/api/directory/people" {
+			json.NewEncoder(writer).Encode(map[string]any{"people": []map[string]any{{"memberID": "m-1", "email": "sample@example.com", "name": "이샘플"}}})
+			return
+		}
+		http.NotFound(writer, request)
+	}))
+	defer admindServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz", AdmindBaseURL: admindServer.URL}}
+	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"모르는사람","message":"안내"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("send failed: %v", errorValue)
+	}
 	if response.Outcome != capabilities.ToolOutcomeFailed {
-		testContext.Fatal("a DM to another person is not routed yet and must refuse loudly")
-	}
-	if strings.Contains(response.Content, "currentChannel") {
-		testContext.Fatalf("refusal must not steer the DM into the current conversation, answered %q", response.Content)
-	}
-	if !strings.Contains(response.Content, "could not be sent") {
-		testContext.Fatalf("refusal should demand an honest failure report, answered %q", response.Content)
+		testContext.Fatal("a stranger hint must fail the DM")
 	}
 }
 
