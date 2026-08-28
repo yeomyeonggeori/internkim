@@ -12,7 +12,7 @@ import (
 // asked and the answer comes back carrying the identifier the company gave it.
 // This is the path an event already takes; a task and an event are one row.
 func (service *Service) saveCentralFlowTask(request *http.Request, task flowTask, people map[string]adminUserMutation) (flowTask, bool, error) {
-	requesterEmail := strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email")))
+	requesterEmail := service.flowActorEmail(request)
 	if requesterEmail == "" {
 		return flowTask{}, false, nil
 	}
@@ -44,7 +44,7 @@ func (service *Service) saveCentralFlowTask(request *http.Request, task flowTask
 }
 
 func (service *Service) removeCentralFlowTask(request *http.Request, taskID string) (bool, error) {
-	requesterEmail := strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email")))
+	requesterEmail := service.flowActorEmail(request)
 	if requesterEmail == "" {
 		return false, nil
 	}

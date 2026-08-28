@@ -13,6 +13,7 @@ import {
 	updateSupabaseTaskParents
 } from '$lib/flow/supabase-task-relationships';
 import { isSupabaseConfigured } from '$lib/supabase';
+import { callCompanyApp } from '$lib/host-bridge';
 
 export type FlowQuickTaskRequest = {
 	prompt: string;
@@ -66,6 +67,7 @@ export function mergeFlowSummary(state: FlowState, weeklySummary: FlowWeeklySumm
 }
 
 export async function createQuickFlowTask(request: FlowQuickTaskRequest, fallbackMessage: string): Promise<FlowQuickTaskResult> {
+	if (isSupabaseConfigured()) return createQuickFlowTaskThroughCompanyApp(request, fallbackMessage);
 	const response = await fetch('/flow/api/tasks/quick', {
 		method: 'POST',
 		credentials: 'include',
@@ -74,6 +76,27 @@ export async function createQuickFlowTask(request: FlowQuickTaskRequest, fallbac
 	});
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
 	return quickTaskResultFromResponse(await responseJSON(response));
+}
+
+async function createQuickFlowTaskThroughCompanyApp(
+	request: FlowQuickTaskRequest,
+	fallbackMessage: string
+): Promise<FlowQuickTaskResult> {
+	const answer = await callCompanyApp({
+		capability: 'person.flow.quick_task',
+		body: {
+			prompt: request.prompt,
+			weekCode: request.weekCode,
+			allowDuplicate: request.allowDuplicate ?? false
+		}
+	});
+	if (answer.status >= 400) throw new Error(companyAppErrorMessage(answer.body, fallbackMessage));
+	return quickTaskResultFromResponse(answer.body);
+}
+
+function companyAppErrorMessage(body: unknown, fallback: string): string {
+	if (isRecord(body) && typeof body.error === 'string' && body.error.trim() !== '') return body.error;
+	return fallback;
 }
 
 export async function saveFlowTask(task: FlowTask, fallbackMessage: string): Promise<void> {
