@@ -204,20 +204,22 @@ func (service Service) mattermostInputPart(ctx context.Context, attachment platf
 	return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
 }
 
+// The picture's bytes are not filled here: blueclaw's connector layer is the
+// one owner of showing a message's picture to the model, whatever messenger it
+// came over. This import hands back the file's content on the attachment and a
+// part that names where the file will live.
 func mattermostImageInputPart(content []byte, attachment platformInputAttachment, filePart platformFilePart, source platformPartSource) platformPart {
 	if len(content) > maximumInputImagePartBytes {
 		filePart.ConversionStatus = "image_too_large"
 		filePart.ConversionMessage = "image is larger than the model input limit"
 		return platformPart{Type: "file", File: &filePart, Source: source, Visibility: "llm"}
 	}
-	document := content
 	return platformPart{
 		Type: "image",
 		Image: &platformImagePart{
-			MimeType:   strings.TrimSpace(attachment.ContentType),
-			DataBase64: base64.StdEncoding.EncodeToString(document),
-			Path:       strings.TrimSpace(attachment.Path),
-			Filename:   strings.TrimSpace(attachment.Filename),
+			MimeType: strings.TrimSpace(attachment.ContentType),
+			Path:     strings.TrimSpace(attachment.Path),
+			Filename: strings.TrimSpace(attachment.Filename),
 		},
 		File:       &filePart,
 		Source:     source,
