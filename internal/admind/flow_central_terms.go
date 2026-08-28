@@ -17,6 +17,14 @@ var centralStatusOfDeviceStatus = map[string]string{
 	"중단":   "cancelled",
 }
 
+func centralFlowStatusOptions() []string {
+	options := make([]string, 0, len(flowStatusOptions()))
+	for _, deviceStatus := range flowStatusOptions() {
+		options = append(options, centralFlowStatus(deviceStatus))
+	}
+	return options
+}
+
 func centralFlowStatus(deviceStatus string) string {
 	if central, known := centralStatusOfDeviceStatus[strings.TrimSpace(deviceStatus)]; known {
 		return central
