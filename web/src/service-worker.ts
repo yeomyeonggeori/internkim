@@ -33,7 +33,7 @@ worker.addEventListener('push', (event) => {
 		worker.registration.showNotification(arriving.title, {
 			body: arriving.body,
 			tag: arriving.tag,
-			icon: '/icon-192.png',
+			icon: '/app-icon-192.png',
 			data: { openPath: arriving.openPath }
 		})
 	);
