@@ -12,7 +12,7 @@ source_repository="https://github.com/block/buzz"
 # https://<project>.supabase.co/storage/v1/s3. Fix: durch/rust-s3#474.
 patched_s3_repository="https://github.com/eastriverlee/rust-s3.git"
 patched_s3_revision="786653e1b4abd47cb046ef1227aa646d97073c2c"
-built_revision="$pinned_revision+rust-s3-$patched_s3_revision"
+built_revision="$pinned_revision+rust-s3-$patched_s3_revision+traceless-delete-1"
 
 relay_binary="$artifact_directory/buzz-relay"
 admin_binary="$artifact_directory/buzz-admin"
@@ -50,6 +50,35 @@ if [ ! -d "$source_directory/.git" ]; then
 fi
 git -C "$source_directory" fetch --depth 1 origin "$pinned_revision"
 git -C "$source_directory" checkout --detach "$pinned_revision"
+
+# A deletion leaves a relay-signed kind:40099 "removed a message" row in the
+# channel, and the desktop app renders it forever. The app already removes the
+# deleted message from every timeline off the kind:9005 delete event itself
+# (formatTimelineMessages.ts treats 5/9005 as deletion markers), so the room
+# notice is the only trace. Keep it solely for moderation deletes that carry a
+# sanitized public_reason; a plain delete vanishes without a tombstone.
+python3 - "$source_directory/crates/buzz-relay/src/handlers/side_effects.rs" <<'PATCH'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+text = source.read_text()
+unconditional = """    copy_optional_string_field(event, &mut tombstone, "public_reason");
+
+    emit_system_message(tenant, state, channel_id, tombstone).await?;
+"""
+conditional = """    copy_optional_string_field(event, &mut tombstone, "public_reason");
+
+    if tombstone.get("public_reason").is_some() {
+        emit_system_message(tenant, state, channel_id, tombstone).await?;
+    }
+"""
+if conditional in text:
+    sys.exit(0)
+if unconditional not in text:
+    raise SystemExit("buzz moved the deletion tombstone; re-anchor the traceless-delete patch")
+source.write_text(text.replace(unconditional, conditional, 1))
+PATCH
 
 python3 - "$source_directory/Cargo.toml" "$patched_s3_repository" "$patched_s3_revision" <<'PATCH'
 import pathlib
