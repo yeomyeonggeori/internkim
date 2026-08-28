@@ -53,18 +53,20 @@ const statusWords: Record<LeaveStatus, EmployeeLeaveStatus> = {
 	rejected: 'rejected'
 };
 
+async function leaveInFull(): Promise<LeaveRow[]> {
+	const rows = await supabase().rpc('leave_in_full');
+	if (rows.error) throw new Error(rows.error.message);
+	return (rows.data ?? []) as LeaveRow[];
+}
+
 export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 	const directory = await supabaseLeaveTypeDirectory();
 	const memberID = await myMemberID();
-	const leave = await supabase()
-		.from('leave')
-		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
-		.eq('member_id', memberID)
-		.order('starts_at', { ascending: false })
-		.returns<LeaveRow[]>();
-	if (leave.error) throw new Error(leave.error.message);
+	const rows = (await leaveInFull())
+		.filter((row) => row.member_id === memberID)
+		.sort((left, right) => right.starts_at.localeCompare(left.starts_at));
 	const timeZone = await memberTimeZone(memberID);
-	const mappedLeave = leave.data.map((row) => ({
+	const mappedLeave = rows.map((row) => ({
 		row,
 		request: employeeLeaveRequestOfRow(row, timeZone, directory.nameOf)
 	}));
@@ -139,16 +141,12 @@ export async function cancelSupabaseLeaveRequest(requestID: string): Promise<voi
 
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
 	const directory = await supabaseLeaveTypeDirectory();
-	const leave = await supabase()
-		.from('leave')
-		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
-		.eq('status', 'requested')
-		.order('starts_at')
-		.returns<LeaveRow[]>();
-	if (leave.error) throw new Error(leave.error.message);
+	const rows = (await leaveInFull())
+		.filter((row) => row.status === 'requested')
+		.sort((left, right) => left.starts_at.localeCompare(right.starts_at));
 
 	const members = await memberDirectory();
-	const pending = leave.data.map((row) => approvalOf(row, members, directory));
+	const pending = rows.map((row) => approvalOf(row, members, directory));
 	return { pendingCount: pending.length, pending, recentChanges: [] };
 }
 
@@ -160,10 +158,12 @@ export async function decideSupabaseLeave(
 		.from('leave')
 		.update({ status: decision.action === 'approve' ? 'approved' : 'rejected' })
 		.eq('id', requestID)
-		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
-		.single<LeaveRow>();
+		.select('id')
+		.single<{ id: string }>();
 	if (decided.error) throw new Error(decided.error.message);
-	return approvalOf(decided.data, await memberDirectory(), await supabaseLeaveTypeDirectory());
+	const row = (await leaveInFull()).find((each) => each.id === requestID);
+	if (!row) throw new EmployeeLeaveAPIError('requestNotFound', 404);
+	return approvalOf(row, await memberDirectory(), await supabaseLeaveTypeDirectory());
 }
 
 export function employeeLeaveRequestOfRow(
