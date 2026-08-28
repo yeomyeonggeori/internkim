@@ -178,7 +178,7 @@ func calculateAttendanceWorkDayStatus(
 		}
 	}
 	provisionalMinutes := provisionalSeconds / 60
-	leaveIntervals := attendanceLeaveIntervals(date, leaveOccurrences, location)
+	leaveIntervals := attendanceLeaveIntervals(date, revision, leaveOccurrences, location)
 	leaveSegmentDetails := make([]attendanceLeaveIntervalDetail, 0, len(leaveOccurrences))
 	for _, occurrence := range leaveOccurrences {
 		leaveSegmentDetails = append(leaveSegmentDetails, attendanceLeaveIntervalDetail{
