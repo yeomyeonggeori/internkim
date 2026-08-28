@@ -166,3 +166,51 @@ func TestChatdMessageContextAnswersFromTheConversationItself(testContext *testin
 		testContext.Fatalf("bot identity reads %+v", result)
 	}
 }
+
+func TestMessageDeleteApprovalPreviewQuotesTheTargets(testContext *testing.T) {
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/platform/buzz/message.search" {
+			http.NotFound(writer, request)
+			return
+		}
+		json.NewEncoder(writer).Encode(chatdMessageSearchResponse{Candidates: []chatdMessageSearchCandidate{
+			{MessageID: "m1", Text: "2026년에 SaaS를 만든다고? 제가 드리는 최고의 조언", AuthoredByAssistant: true},
+		}})
+	}))
+	defer chatdServer.Close()
+
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}}
+	response, errorValue := service.resolveMessageDeleteTarget(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_delete",
+		Input:    json.RawMessage(`{"messageIDs":["m1"]}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("resolve failed: %v", errorValue)
+	}
+	var target capabilityToolTarget
+	if errorValue := json.Unmarshal(response.Result, &target); errorValue != nil {
+		testContext.Fatalf("target decode failed: %v", errorValue)
+	}
+	if !strings.Contains(target.Preview, "2026년에 SaaS를 만든다고?") {
+		testContext.Fatalf("preview reads %q, want the message's own words", target.Preview)
+	}
+	if target.InputField != "" || target.ID != "" {
+		testContext.Fatalf("a preview must not narrow the replayed input, got %+v", target)
+	}
+}
+
+func TestMessageDeleteApprovalPreviewNeverBlocksOnALookupFailure(testContext *testing.T) {
+	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:1", ChatdPlatform: "buzz"}}
+	response, errorValue := service.resolveMessageDeleteTarget(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_delete",
+		Input:    json.RawMessage(`{"messageIDs":["m1"]}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("resolve failed: %v", errorValue)
+	}
+	if response.Status != "no_target" {
+		testContext.Fatalf("an unreachable lookup must resolve to no target, got %q", response.Status)
+	}
+}
