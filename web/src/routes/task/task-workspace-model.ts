@@ -19,7 +19,7 @@ export type TaskOption = {
 	image?: string;
 };
 
-const taskListStatusOrder = ['requested', 'planned', 'in_progress', 'paused', 'cancelled', 'rejected', 'completed'];
+const taskListStatusOrder = ['requested', 'planned', 'in_progress', 'paused', 'stopped', 'rejected', 'completed'];
 
 export function buildTaskTabs(): TaskWorkspaceTab[] {
 	return ['tasks', 'report', 'definitions', 'members'];

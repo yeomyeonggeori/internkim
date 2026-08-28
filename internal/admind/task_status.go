@@ -9,7 +9,7 @@ const (
 	taskStatusCompleted  = "completed"
 	taskStatusPaused     = "paused"
 	taskStatusRejected   = "rejected"
-	taskStatusStopped    = "cancelled"
+	taskStatusStopped    = "stopped"
 )
 
 var koreanTaskStatusLabels = map[string]string{

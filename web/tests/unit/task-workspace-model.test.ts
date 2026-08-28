@@ -171,7 +171,7 @@ describe('flow task workspace model', () => {
 		const tasks = [
 			taskOf({ id: 'done-new', status: 'completed', endDate: '2026-06-12', createdAt: '2026-06-01T10:00:00Z' }),
 			taskOf({ id: 'requested-old', status: 'requested', endDate: '2026-06-01', createdAt: '2026-06-03T10:00:00Z' }),
-			taskOf({ id: 'stopped', status: 'cancelled', endDate: '2026-06-15', createdAt: '2026-06-04T10:00:00Z' }),
+			taskOf({ id: 'stopped', status: 'stopped', endDate: '2026-06-15', createdAt: '2026-06-04T10:00:00Z' }),
 			taskOf({ id: 'requested-new', status: 'requested', endDate: '2026-06-05', createdAt: '2026-06-02T10:00:00Z' }),
 			taskOf({ id: 'scheduled-created-new', status: 'planned', endDate: '', createdAt: '2026-06-09T10:00:00Z' }),
 			taskOf({ id: 'scheduled-created-old', status: 'planned', endDate: '', createdAt: '2026-06-08T10:00:00Z' })

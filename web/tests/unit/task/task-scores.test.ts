@@ -112,7 +112,7 @@ describe('member task tallies', () => {
 	});
 
 	test('leaves rejected and stopped work out of the active count', () => {
-		const tasks = ['rejected', 'cancelled', 'paused', 'planned'].map((status) => ({
+		const tasks = ['rejected', 'stopped', 'paused', 'planned'].map((status) => ({
 			...completedTask(['sample-member'], '2026-08-10', 'M'),
 			id: status,
 			status
