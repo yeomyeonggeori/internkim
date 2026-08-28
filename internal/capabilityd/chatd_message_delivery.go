@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
@@ -185,4 +186,216 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 		MessageIDs:     deleted,
 		DeliveryStatus: "deleted",
 	})
+}
+
+type chatdHistoryFetchRequest struct {
+	ThreadID    string `json:"threadID,omitempty"`
+	ChannelID   string `json:"channelID,omitempty"`
+	ChannelName string `json:"channelName,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+}
+
+type chatdHistoryMessage struct {
+	ID           string `json:"id"`
+	ThreadRootID string `json:"threadRootId,omitempty"`
+	Speaker      string `json:"speaker"`
+	SenderID     string `json:"senderId,omitempty"`
+	Text         string `json:"text"`
+	SentAt       string `json:"sentAt,omitempty"`
+	IsBot        bool   `json:"isBot,omitempty"`
+}
+
+type chatdHistoryFetchResponse struct {
+	Messages  []chatdHistoryMessage `json:"messages"`
+	ChannelID string                `json:"channelID,omitempty"`
+}
+
+// The search a chatd platform can answer is the conversation's own record: the
+// recent messages of the current thread or of a named channel, newest first,
+// which is what finding a message to delete or edit needs.
+func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (capabilities.ToolInvokeResponse, error) {
+	scope := firstNonEmpty(strings.TrimSpace(input.Scope), "currentChannel")
+	queries := input.Queries
+	if queries == nil {
+		queries = []string{}
+	}
+	authoredBy := firstNonEmpty(strings.TrimSpace(input.AuthoredBy), "anyone")
+	if len(input.MessageIDs) > 0 {
+		return mattermostToolSuccessResponse(request.ToolName, "searched", platformMessageSearchResult{
+			Scope:      scope,
+			Queries:    queries,
+			AuthoredBy: authoredBy,
+			MessageIDs: input.MessageIDs,
+			Candidates: chatdSearchCandidatesForIDs(input.MessageIDs, request.Context.ChannelID),
+		})
+	}
+	historyRequest, failure, hasFailure := chatdHistoryFetchTarget(request.Context, input)
+	if hasFailure {
+		return mattermostToolErrorResponse(request.ToolName, failure), nil
+	}
+	var response chatdHistoryFetchResponse
+	if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "history.fetch", historyRequest, &response); errorValue != nil {
+		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("history_fetch", "platform_unavailable", errorValue)), nil
+	}
+	candidates := chatdSearchCandidates(response, input)
+	messageIDs := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		messageIDs = append(messageIDs, candidate.MessageID)
+	}
+	return mattermostToolSuccessResponse(request.ToolName, "searched", platformMessageSearchResult{
+		Scope:      scope,
+		Queries:    queries,
+		AuthoredBy: authoredBy,
+		MessageIDs: messageIDs,
+		Candidates: candidates,
+	})
+}
+
+func chatdHistoryFetchTarget(toolContext capabilities.ToolInvokeContext, input platformMessageSearchInput) (chatdHistoryFetchRequest, mattermostToolFailure, bool) {
+	limit := input.Limit
+	if limit <= 0 || limit > 50 {
+		limit = 25
+	}
+	if channelID, channelName := strings.TrimSpace(input.ChannelID), strings.TrimSpace(input.ChannelName); channelID != "" || channelName != "" {
+		return chatdHistoryFetchRequest{ChannelID: channelID, ChannelName: channelName, Limit: limit}, mattermostToolFailure{}, false
+	}
+	if replyTargetID := strings.TrimSpace(toolContext.ReplyTargetID); replyTargetID != "" {
+		return chatdHistoryFetchRequest{ThreadID: replyTargetID, Limit: limit}, mattermostToolFailure{}, false
+	}
+	return chatdHistoryFetchRequest{}, mattermostToolStaticFailure("channel_not_available", "context",
+		"name a channelName or channelID to search; the current conversation is not available"), true
+}
+
+func chatdSearchCandidates(response chatdHistoryFetchResponse, input platformMessageSearchInput) []platformMessageSearchCandidateResult {
+	candidates := []platformMessageSearchCandidateResult{}
+	for index := len(response.Messages) - 1; index >= 0; index-- {
+		message := response.Messages[index]
+		if strings.TrimSpace(message.ID) == "" {
+			continue
+		}
+		authoredBy := "anyone"
+		if message.IsBot {
+			authoredBy = "assistant"
+		}
+		if wanted := strings.TrimSpace(input.AuthoredBy); wanted != "" && wanted != "anyone" && !strings.EqualFold(wanted, authoredBy) {
+			continue
+		}
+		if !chatdMessageMatchesQueries(message.Text, input.Queries) {
+			continue
+		}
+		candidates = append(candidates, platformMessageSearchCandidateResult{
+			MessageID:     message.ID,
+			Text:          message.Text,
+			ChannelID:     firstNonEmpty(response.ChannelID, message.ThreadRootID, message.ID),
+			RootMessageID: message.ThreadRootID,
+			UserID:        firstNonEmpty(message.SenderID, message.Speaker, "unknown"),
+			AuthoredBy:    authoredBy,
+			CreatedAt:     chatdMessageCreatedAt(message.SentAt),
+			Preview:       message.Text,
+			Deletable:     message.IsBot,
+		})
+	}
+	return candidates
+}
+
+func chatdMessageCreatedAt(sentAt string) int64 {
+	parsed, errorValue := time.Parse(time.RFC3339, strings.TrimSpace(sentAt))
+	if errorValue != nil {
+		return 0
+	}
+	return parsed.UnixMilli()
+}
+
+func chatdMessageMatchesQueries(text string, queries []string) bool {
+	if len(queries) == 0 {
+		return true
+	}
+	loweredText := strings.ToLower(text)
+	for _, query := range queries {
+		if query = strings.ToLower(strings.TrimSpace(query)); query != "" && strings.Contains(loweredText, query) {
+			return true
+		}
+	}
+	return false
+}
+
+func chatdSearchCandidatesForIDs(messageIDs []string, channelID string) []platformMessageSearchCandidateResult {
+	candidates := make([]platformMessageSearchCandidateResult, 0, len(messageIDs))
+	for _, messageID := range messageIDs {
+		candidates = append(candidates, platformMessageSearchCandidateResult{
+			MessageID:  messageID,
+			ChannelID:  firstNonEmpty(channelID, messageID),
+			UserID:     "unknown",
+			AuthoredBy: "anyone",
+			Deletable:  true,
+		})
+	}
+	return candidates
+}
+
+func chatdPlatformMessageContextResult(toolContext capabilities.ToolInvokeContext) platformMessageContextResult {
+	return platformMessageContextResult{
+		Platform:                toolContext.Platform,
+		ConversationID:          toolContext.ConversationID,
+		ConversationType:        toolContext.ConversationType,
+		ChannelID:               toolContext.ChannelID,
+		ChannelName:             toolContext.ChannelName,
+		ReplyTargetID:           toolContext.ReplyTargetID,
+		RequesterPersonID:       toolContext.RequesterPersonID,
+		RequesterPlatformUserID: toolContext.RequesterPlatformUserID,
+	}
+}
+
+// An edit names a quoted span of the message it changes, the same contract the
+// Mattermost path holds. The current text comes from the conversation's own
+// record, the span is applied to it, and the whole result is sent, because that
+// is the only edit the platform itself has.
+func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageUpdateInput) (capabilities.ToolInvokeResponse, error) {
+	messageID := strings.TrimSpace(input.MessageID)
+	if input.NewText == nil || input.OldText == nil {
+		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode",
+			"pass oldText with the exact current span and newText with its replacement")), nil
+	}
+	replyTargetID := strings.TrimSpace(request.Context.ReplyTargetID)
+	if replyTargetID == "" {
+		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
+	}
+	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, request.Context.Platform, replyTargetID, messageID)
+	if hasFailure {
+		return mattermostToolErrorResponse(request.ToolName, failure), nil
+	}
+	matchCount := strings.Count(currentText, *input.OldText)
+	if matchCount != 1 {
+		return mattermostToolErrorResponse(request.ToolName, platformMessageEditMatchFailure(matchCount, currentText)), nil
+	}
+	editedText := strings.Replace(currentText, *input.OldText, *input.NewText, 1)
+	requestBody := map[string]any{"replyTargetID": replyTargetID, "messageID": messageID, "message": editedText}
+	var response map[string]any
+	if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "message.edit", requestBody, &response); errorValue != nil {
+		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("message_update", "platform_unavailable", errorValue)), nil
+	}
+	return mattermostToolSuccessResponse(request.ToolName, "updated", map[string]any{
+		"messageID":      messageID,
+		"deliveryStatus": "updated",
+		"messageUpdated": true,
+	})
+}
+
+func (service Service) chatdCurrentMessageText(ctx context.Context, platform string, replyTargetID string, messageID string) (string, mattermostToolFailure, bool) {
+	if replyTargetID == "" {
+		return "", mattermostToolStaticFailure("invalid_input", "platform_route",
+			"a message is edited in the conversation it belongs to, and this call names none"), true
+	}
+	var response chatdHistoryFetchResponse
+	historyRequest := chatdHistoryFetchRequest{ThreadID: replyTargetID, Limit: 50}
+	if errorValue := service.chatdPlatformRequest(ctx, platform, "history.fetch", historyRequest, &response); errorValue != nil {
+		return "", mattermostToolFailureForError("history_fetch", "platform_unavailable", errorValue), true
+	}
+	for _, message := range response.Messages {
+		if strings.TrimSpace(message.ID) == messageID {
+			return message.Text, mattermostToolFailure{}, false
+		}
+	}
+	return "", mattermostToolStaticFailure("not_found", "message_lookup",
+		"message "+messageID+" is not in the recent record of this conversation"), true
 }
