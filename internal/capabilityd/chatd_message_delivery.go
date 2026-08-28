@@ -206,9 +206,13 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 // sent, because that is the only edit the platform itself has.
 func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageUpdateInput) (capabilities.ToolInvokeResponse, error) {
 	messageID := strings.TrimSpace(input.MessageID)
-	if input.NewText == nil || input.OldText == nil {
+	if input.OldText == nil && len(input.Attachments) == 0 {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode",
-			"pass oldText with the exact current span and newText with its replacement")), nil
+			"pass oldText with the exact current span and newText with its replacement, or attachments to add files without changing the text")), nil
+	}
+	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
+	if hasFailure {
+		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
 	replyTargetID := strings.TrimSpace(request.Context.ReplyTargetID)
 	if replyTargetID == "" {
@@ -218,12 +222,18 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
-	matchCount := strings.Count(currentText, *input.OldText)
-	if matchCount != 1 {
-		return mattermostToolErrorResponse(request.ToolName, platformMessageEditMatchFailure(matchCount, currentText)), nil
+	editedText := currentText
+	if input.OldText != nil {
+		matchCount := strings.Count(currentText, *input.OldText)
+		if matchCount != 1 {
+			return mattermostToolErrorResponse(request.ToolName, platformMessageEditMatchFailure(matchCount, currentText)), nil
+		}
+		editedText = strings.Replace(currentText, *input.OldText, *input.NewText, 1)
 	}
-	editedText := strings.Replace(currentText, *input.OldText, *input.NewText, 1)
 	requestBody := map[string]any{"replyTargetID": replyTargetID, "messageID": messageID, "message": editedText}
+	if len(attachmentFiles) > 0 {
+		requestBody["attachments"] = chatdMessagePostAttachments(attachmentFiles)
+	}
 	var response map[string]any
 	if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "message.edit", requestBody, &response); errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("message_update", "platform_unavailable", errorValue)), nil
