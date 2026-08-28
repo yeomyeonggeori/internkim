@@ -1,16 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { createClient } from '@supabase/supabase-js';
 import { leaveDaysInYear } from '../../src/lib/attendance/leave-year-share';
+import { projectURL, serviceRoleKey } from './supabase-environment';
 
 
-const projectURL = process.env.SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const canReachSupabase = Boolean(projectURL && serviceRoleKey);
-const client = canReachSupabase
-	? createClient(projectURL, serviceRoleKey, {
-			auth: { autoRefreshToken: false, persistSession: false }
-		})
-	: null;
+const client = createClient(projectURL, serviceRoleKey, {
+	auth: { autoRefreshToken: false, persistSession: false }
+});
 
 const timeZone = 'Asia/Seoul';
 
@@ -96,37 +92,27 @@ const cases: ShareCase[] = [
 	}
 ];
 
-if (!canReachSupabase) {
-	describe('leave_days_in_year agrees with leaveDaysInYear', () => {
-		test('needs SUPABASE_URL and a service role key to check anything', () => {
-			expect(canReachSupabase).toBe(false);
-		});
+describe('leave_days_in_year agrees with leaveDaysInYear', () => {
+for (const shareCase of cases) {
+	test(shareCase.name, async () => {
+		for (const year of shareCase.years) {
+			const answered = await client.rpc('leave_days_in_year', {
+				starts_at: shareCase.startsAt,
+				ends_at: shareCase.endsAt,
+				total_days: shareCase.totalDays,
+				time_zone: shareCase.timeZone ?? timeZone,
+				target_year: year
+			});
+			expect(answered.error).toBeNull();
+
+			const inTypeScript = leaveDaysInYear(
+				shareCase.totalDays,
+				shareCase.localStartDate,
+				shareCase.localEndDate,
+				year
+			);
+			expect(rounded(Number(answered.data))).toBe(rounded(inTypeScript));
+		}
 	});
 }
-
-if (canReachSupabase) {
-	describe('leave_days_in_year agrees with leaveDaysInYear', () => {
-	for (const shareCase of cases) {
-		test(shareCase.name, async () => {
-			for (const year of shareCase.years) {
-				const answered = await client!.rpc('leave_days_in_year', {
-					starts_at: shareCase.startsAt,
-					ends_at: shareCase.endsAt,
-					total_days: shareCase.totalDays,
-					time_zone: shareCase.timeZone ?? timeZone,
-					target_year: year
-				});
-				expect(answered.error).toBeNull();
-
-				const inTypeScript = leaveDaysInYear(
-					shareCase.totalDays,
-					shareCase.localStartDate,
-					shareCase.localEndDate,
-					year
-				);
-				expect(rounded(Number(answered.data))).toBe(rounded(inTypeScript));
-			}
-		});
-	}
-	});
-}
+});
