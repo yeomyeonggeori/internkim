@@ -9,16 +9,13 @@ import {
 	sessionForPlatformIdentity,
 } from '../../src/lib/server/control-plane';
 import { connectMessengerAccount } from '../../src/lib/server/member-credential';
+import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
 
 const networkHookTimeout = 60_000;
 
-const projectURL = process.env.SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
-const canReachSupabase = Boolean(projectURL && serviceRoleKey && publishableKey);
 const credentials = { projectURL, serviceRoleKey };
 
-const client = canReachSupabase ? controlPlane(credentials) : null;
+const client = controlPlane(credentials);
 const stamp = Date.now();
 let ourCompanyID = '';
 let theirCompanyID = '';
@@ -27,16 +24,15 @@ let ourAgentID = '';
 let speakerID = '';
 
 async function withAccount(memberID: string): Promise<void> {
-	const { data } = await client!.from('member').select('email').eq('id', memberID).single();
-	const { data: account } = await client!.auth.admin.createUser({
+	const { data } = await client.from('member').select('email').eq('id', memberID).single();
+	const { data: account } = await client.auth.admin.createUser({
 		email: data!.email!,
 		email_confirm: true,
 	});
-	await client!.from('member').update({ user_id: account.user!.id }).eq('id', memberID);
+	await client.from('member').update({ user_id: account.user!.id }).eq('id', memberID);
 }
 
 beforeAll(async () => {
-	if (!client) return;
 	const ours = await provisionCompany(
 		client,
 		{ name: 'Ours', slug: `agent-ours-${stamp}`, country: 'KR', locale: 'ko', timezone: 'Asia/Seoul' },
@@ -77,7 +73,6 @@ beforeAll(async () => {
 }, networkHookTimeout);
 
 afterAll(async () => {
-	if (!client) return;
 	for (const companyID of [ourCompanyID, theirCompanyID].filter(Boolean)) {
 		const { data: members } = await client.from('member').select('user_id').eq('company_id', companyID);
 		await client.from('company').delete().eq('id', companyID);
@@ -87,71 +82,63 @@ afterAll(async () => {
 	}
 }, networkHookTimeout);
 
-if (!canReachSupabase) {
-	test('supabase is not reachable, so the agent path is not exercised', () => {
-		expect(canReachSupabase).toBe(false);
+test('an agent acts as the member who spoke on its own platform', async () => {
+	const session = await sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`);
+	expect(session.memberID).toBe(speakerID);
+
+	const asMember = createClient(projectURL, publishableKey, {
+		global: { headers: { Authorization: `Bearer ${session.accessToken}` } },
+		auth: { persistSession: false, autoRefreshToken: false },
 	});
-}
+	const { error: writeError } = await asMember
+		.from('attendance')
+		.insert({ member_id: speakerID, kind: 'clock_in' });
+	expect(writeError).toBeNull();
+});
 
-if (canReachSupabase) {
-	test('an agent acts as the member who spoke on its own platform', async () => {
-		const session = await sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`);
-		expect(session.memberID).toBe(speakerID);
+test('an agent cannot act for somebody at another company', async () => {
+	await expect(
+		sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `outsider-${stamp}`),
+	).rejects.toThrow('no member here');
+});
 
-		const asMember = createClient(projectURL, publishableKey, {
-			global: { headers: { Authorization: `Bearer ${session.accessToken}` } },
-			auth: { persistSession: false, autoRefreshToken: false },
-		});
-		const { error: writeError } = await asMember
-			.from('attendance')
-			.insert({ member_id: speakerID, kind: 'clock_in' });
-		expect(writeError).toBeNull();
-	});
+test('an identity nobody claims is refused', async () => {
+	await expect(
+		sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', 'nobody-at-all'),
+	).rejects.toThrow('no member');
+});
 
-	test('an agent cannot act for somebody at another company', async () => {
-		await expect(
-			sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `outsider-${stamp}`),
-		).rejects.toThrow('no member here');
-	});
+test('a made-up key is refused', async () => {
+	await expect(
+		sessionForPlatformIdentity(credentials, 'not-a-real-key', 'buzz', `speaker-${stamp}`),
+	).rejects.toThrow('no agent');
+});
 
-	test('an identity nobody claims is refused', async () => {
-		await expect(
-			sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', 'nobody-at-all'),
-		).rejects.toThrow('no member');
-	});
+test('the key is not stored in a usable form', async () => {
+	const { data } = await client.from('agent').select('api_key_hash').eq('id', ourAgentID).single();
 
-	test('a made-up key is refused', async () => {
-		await expect(
-			sessionForPlatformIdentity(credentials, 'not-a-real-key', 'buzz', `speaker-${stamp}`),
-		).rejects.toThrow('no agent');
-	});
+	expect(data!.api_key_hash).not.toBe(ourAgentKey);
+	expect(data!.api_key_hash).toHaveLength(64);
+});
 
-	test('the key is not stored in a usable form', async () => {
-		const { data } = await client!.from('agent').select('api_key_hash').eq('id', ourAgentID).single();
+test('a second agent can run before the first is retired', async () => {
+	const spare = await issueAgentKey(client, ourCompanyID, 'spare');
 
-		expect(data!.api_key_hash).not.toBe(ourAgentKey);
-		expect(data!.api_key_hash).toHaveLength(64);
-	});
+	const bySpare = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
+	const byFirst = await sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`);
+	expect(bySpare.memberID).toBe(speakerID);
+	expect(byFirst.memberID).toBe(speakerID);
 
-	test('a second agent can run before the first is retired', async () => {
-		const spare = await issueAgentKey(client!, ourCompanyID, 'spare');
+	await revokeAgent(client, ourAgentID);
+	await expect(
+		sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`),
+	).rejects.toThrow('no agent');
+	const stillWorks = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
+	expect(stillWorks.memberID).toBe(speakerID);
+});
 
-		const bySpare = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
-		const byFirst = await sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`);
-		expect(bySpare.memberID).toBe(speakerID);
-		expect(byFirst.memberID).toBe(speakerID);
+test('an agent that has connected is seen', async () => {
+	const { data } = await client.from('agent').select('last_seen_at').eq('id', ourAgentID).single();
 
-		await revokeAgent(client!, ourAgentID);
-		await expect(
-			sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`),
-		).rejects.toThrow('no agent');
-		const stillWorks = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
-		expect(stillWorks.memberID).toBe(speakerID);
-	});
-
-	test('an agent that has connected is seen', async () => {
-		const { data } = await client!.from('agent').select('last_seen_at').eq('id', ourAgentID).single();
-
-		expect(data!.last_seen_at).not.toBeNull();
-	});
-}
+	expect(data!.last_seen_at).not.toBeNull();
+});
