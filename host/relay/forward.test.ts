@@ -612,6 +612,25 @@ describe('every capability the workspace family names', () => {
 
 		expect(call?.url).toBe('http://internkim/runs/api/detail?taskRunID=run-1');
 	});
+
+	test('a quick task is posted as a json body, and never the actor', () => {
+		expect(isWorkspaceCapability('person.flow.quick_task')).toBe(true);
+		const call = workspaceCallOf(
+			'person.flow.quick_task',
+			{ prompt: '내일까지 보고서', weekCode: '26W35', allowDuplicate: false, actor: { kind: 'buzz' } },
+			'sample@example.test'
+		);
+
+		expect(call?.method).toBe('POST');
+		expect(call?.url).toBe('http://internkim/flow/api/tasks/quick');
+		expect(call?.contentType).toBe('application/json');
+		expect(JSON.parse(String(call?.body))).toEqual({
+			prompt: '내일까지 보고서',
+			weekCode: '26W35',
+			allowDuplicate: false
+		});
+		expect(call?.requester).toBe('sample@example.test');
+	});
 });
 
 type ArrivedRequest = {
