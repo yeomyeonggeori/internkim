@@ -18,6 +18,24 @@ type flowSizeDefinitionForTool struct {
 	Name string `json:"name"`
 }
 
+func resolveFlowTaskAddLabels(input flowTaskAddInput, definitions flowDefinitionsForTool) (flowTaskAddInput, *flowTaskLabelFailure) {
+	if input.Business != "" {
+		resolvedCategory, failure := resolveFlowLabel(input.Business, "business", definitions.Categories)
+		if failure != nil {
+			return flowTaskAddInput{}, failure
+		}
+		input.Business = resolvedCategory
+	}
+	if input.Type != "" {
+		resolvedType, failure := resolveFlowLabel(input.Type, "type", definitions.Types)
+		if failure != nil {
+			return flowTaskAddInput{}, failure
+		}
+		input.Type = resolvedType
+	}
+	return input, nil
+}
+
 func resolveFlowTaskLabels(input flowTaskUpdateInput, definitions flowDefinitionsForTool) (flowTaskUpdateInput, *flowTaskLabelFailure) {
 	if input.Business != nil {
 		resolvedCategory, failure := resolveFlowLabel(*input.Business, "business", definitions.Categories)
