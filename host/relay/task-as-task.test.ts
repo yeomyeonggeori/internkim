@@ -54,7 +54,7 @@ describe('the task a flow task becomes', () => {
 			'completed',
 			'paused',
 			'rejected',
-			'cancelled'
+			'stopped'
 		]);
 		expect(new Set(statuses).size).toBe(statuses.length);
 	});

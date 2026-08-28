@@ -1519,7 +1519,7 @@ func TestTaskListClassifiesFinishedInactiveTasksByDates(t *testing.T) {
 	oldWeek := weekCodeForTaskDate(now.AddDate(0, 0, -28))
 	thisWeekDate := now.Format("2006-01-02")
 	priorWeekDate := now.AddDate(0, 0, -7).Format("2006-01-02")
-	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"completed-current-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"완료 업무","status":"completed","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"rejected-current-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"기각 업무","status":"rejected","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"stopped-current-start","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"중단 시작일 업무","status":"cancelled","startDate":%q,"weekCode":%q},{"id":"stopped-prior-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"중단 종료일 우선 업무","status":"cancelled","startDate":%q,"endDate":%q,"weekCode":%q}]}`, thisWeek, priorWeekDate, thisWeekDate, oldWeek, priorWeekDate, thisWeekDate, oldWeek, thisWeekDate, oldWeek, thisWeekDate, priorWeekDate, oldWeek)
+	stateBody := fmt.Sprintf(`{"currentWeek":{"code":%q},"members":[{"id":"lee","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"completed-current-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"완료 업무","status":"completed","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"rejected-current-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"기각 업무","status":"rejected","startDate":%q,"endDate":%q,"weekCode":%q},{"id":"stopped-current-start","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"중단 시작일 업무","status":"stopped","startDate":%q,"weekCode":%q},{"id":"stopped-prior-end","ownerID":"lee","ownerName":"이샘플","participantIDs":["lee"],"participantNames":["이샘플"],"content":"중단 종료일 우선 업무","status":"stopped","startDate":%q,"endDate":%q,"weekCode":%q}]}`, thisWeek, priorWeekDate, thisWeekDate, oldWeek, priorWeekDate, thisWeekDate, oldWeek, thisWeekDate, oldWeek, thisWeekDate, priorWeekDate, oldWeek)
 	service := Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -1631,7 +1631,7 @@ func TestTaskAddTakesTheStatusesTheSchemaPromises(t *testing.T) {
 		{"completed", "completed"},
 		{"paused", "paused"},
 		{"rejected", "rejected"},
-		{"cancelled", "cancelled"},
+		{"stopped", "stopped"},
 	} {
 		document := json.RawMessage(`{"title":"운동","status":"` + promised.english + `"}`)
 		input, errorValue := decodeTaskAddInput(document)

@@ -12,7 +12,7 @@ describe('flow status icon styles', () => {
 		['requested', 'text-[#7c3aed]'],
 		['paused', 'text-[#e11d48]'],
 		['rejected', 'text-[#dc2626]'],
-		['cancelled', 'text-[#dc2626]']
+		['stopped', 'text-[#dc2626]']
 	];
 
 	for (const [status, expected] of cases) {
@@ -38,7 +38,7 @@ describe('flow relationship status icon styles', () => {
 	});
 
 	test('uses the incomplete style for statuses excluded from progress', () => {
-		for (const status of ['rejected', 'cancelled']) {
+		for (const status of ['rejected', 'stopped']) {
 			expect(relationshipStatusIconClass(status)).toBe('text-[#7c3aed]');
 		}
 	});

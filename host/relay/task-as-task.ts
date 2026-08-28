@@ -47,7 +47,7 @@ const statusOfDevice: Record<string, string> = {
 	완료: 'completed',
 	일시정지: 'paused',
 	기각: 'rejected',
-	중단: 'cancelled'
+	중단: 'stopped'
 };
 
 export function titleOfDeviceTask(task: DeviceTask): string {

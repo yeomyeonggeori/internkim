@@ -484,7 +484,7 @@ func taskAddSizes() []string {
 }
 
 func taskAddStatuses() []string {
-	return []string{"planned", "in_progress", "completed", "paused", "rejected", "cancelled"}
+	return []string{"planned", "in_progress", "completed", "paused", "rejected", "stopped"}
 }
 
 func taskUpdateStatuses() []string {
@@ -914,7 +914,7 @@ func taskFilterWeekCodes(task taskForTool, currentWeekCode string) []string {
 		return plannedTaskWeekCodes(task, currentWeekCode)
 	case "paused":
 		return firstTaskWeekCode(currentWeekCode, task.WeekCode)
-	case "completed", "rejected", "cancelled":
+	case "completed", "rejected", "stopped":
 		return firstTaskWeekCode(taskDateWeekCode(task.EndDate), taskDateWeekCode(task.StartDate), task.WeekCode)
 	default:
 		return firstTaskWeekCode(task.WeekCode)
