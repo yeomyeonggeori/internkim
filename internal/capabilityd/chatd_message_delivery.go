@@ -44,12 +44,10 @@ func (service Service) chatdServesPlatform(platform string) bool {
 func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
 	if input.DeliveryTarget.Type == "directMessage" {
 		if strings.TrimSpace(input.DeliveryTarget.PersonHint) != "" || len(input.DeliveryTarget.PersonHints) > 0 {
-			failure := mattermostToolStaticFailure("unsupported_target", "platform_route",
-				"a direct message to another person is not yet routed for platform "+request.Context.Platform+"; the DM cannot be delivered. Do not post its content into the current conversation as a substitute — report to the requester that the DM could not be sent")
-			return mattermostToolErrorResponse(request.ToolName, failure), nil
+			return service.invokeChatdDirectMessageSend(ctx, request, input)
 		}
 		failure := mattermostToolStaticFailure("unsupported_target", "platform_route",
-			"targetType=directMessage is not yet routed for platform "+request.Context.Platform+"; reply in the current conversation with targetType=currentChannel or currentThread")
+			"targetType=directMessage without personHint answers the requester, and on platform "+request.Context.Platform+" that is this conversation; reply with targetType=currentChannel or currentThread")
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
 	if input.Pin {
