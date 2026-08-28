@@ -249,9 +249,10 @@ export async function updateAttendanceTeamViewVisibility(visible: boolean): Prom
 
 export async function toggleAttendanceOnServer(
 	kind?: AttendanceKind,
-	locationID?: string
+	locationID?: string,
+	confirmedEarlyReturn = false
 ): Promise<void> {
-	return recordSupabaseAttendance(kind, locationID);
+	return recordSupabaseAttendance(kind, locationID, confirmedEarlyReturn);
 }
 
 function attendanceSummaryPath(request: AttendanceSummaryRequest): string {
