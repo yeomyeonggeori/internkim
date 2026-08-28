@@ -235,7 +235,7 @@ func (service *Service) updateFlowTask(responseWriter http.ResponseWriter, reque
 		writeFlowRequestError(responseWriter, errorValue)
 		return
 	}
-	existingTask, found, errorValue := service.readFlowTaskByID(request.Context(), task.ID)
+	existingTask, found, errorValue := service.readFlowTaskAnswering(request.Context(), task.ID, members)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -328,7 +328,7 @@ func (service *Service) deleteFlowTask(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, "task id is required", http.StatusBadRequest)
 		return
 	}
-	task, found, errorValue := service.readFlowTaskByID(request.Context(), taskID)
+	task, found, errorValue := service.readFlowTaskAnswering(request.Context(), taskID, service.flowMembers(request))
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
