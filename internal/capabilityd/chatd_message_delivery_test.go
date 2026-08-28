@@ -227,7 +227,7 @@ func TestChatdMessageSendRefusesDirectMessagesLoudly(testContext *testing.T) {
 	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
 	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
-		Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"이샘플","message":"안내"}`),
+		Input:    json.RawMessage(`{"targetType":"directMessage","message":"안내"}`),
 		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
 	})
 	if errorValue != nil {
@@ -238,6 +238,31 @@ func TestChatdMessageSendRefusesDirectMessagesLoudly(testContext *testing.T) {
 	}
 	if !strings.Contains(response.Content, "currentChannel") {
 		testContext.Fatalf("refusal should point at a working target, answered %q", response.Content)
+	}
+}
+
+// A DM aimed at another person has no working substitute: posting the content
+// into the current conversation answers a different request than the one that
+// was made, and the completion judge then reports a delivery that never
+// happened. The refusal must forbid the substitute, not suggest it.
+func TestChatdMessageSendToAnotherPersonForbidsTheSubstitute(testContext *testing.T) {
+	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
+	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"이샘플","message":"안내"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("send failed: %v", errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed {
+		testContext.Fatal("a DM to another person is not routed yet and must refuse loudly")
+	}
+	if strings.Contains(response.Content, "currentChannel") {
+		testContext.Fatalf("refusal must not steer the DM into the current conversation, answered %q", response.Content)
+	}
+	if !strings.Contains(response.Content, "could not be sent") {
+		testContext.Fatalf("refusal should demand an honest failure report, answered %q", response.Content)
 	}
 }
 
