@@ -1,8 +1,6 @@
 import type { CurrentAttendanceWorkPolicy } from './current-work-policy';
 import type { AttendanceWorkMode } from '$lib/attendance/work-mode';
 
-export const initialEffectiveDate = '1970-01-01';
-
 export type AttendanceWorkPolicyRevision = CurrentAttendanceWorkPolicy & {
 	effectiveDate: string;
 };

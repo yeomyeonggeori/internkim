@@ -5,10 +5,9 @@ import {
 } from './current-work-policy';
 import { isAttendanceWorkMode, type AttendanceWorkMode } from '$lib/attendance/work-mode';
 import { defaultWorkPolicy } from './work-policy-defaults';
-import {
-	initialEffectiveDate,
-	type AttendanceWorkPolicyRevision
-} from '$lib/attendance/work-calendar-derivation';
+import type { AttendanceWorkPolicyRevision } from '$lib/attendance/work-calendar-derivation';
+import { initialWorkPolicyEffectiveDate } from '$lib/attendance/work-policy-defaults';
+import { storedWorkPolicyRevisions } from '$lib/attendance/stored-work-policy';
 import type { WorkHoursCycle } from '$lib/attendance/supabase-work-calendar';
 
 export type SupabaseWorkPolicy = {
@@ -55,10 +54,10 @@ export function parseSupabaseWorkPolicies(value: unknown): Map<string, SupabaseW
 				? [
 						{
 							...legacyCurrentPolicy(row.work_mode, row.minimum_daily_minutes),
-							effectiveDate: initialEffectiveDate
+							effectiveDate: initialWorkPolicyEffectiveDate
 						}
 					]
-				: policyRevisions(stored, row.member_id);
+				: storedWorkPolicyRevisions(stored, `member ${row.member_id}`);
 		const currentPolicy = revisions[revisions.length - 1];
 		const policy: SupabaseWorkPolicy = {
 			memberID: row.member_id,
@@ -84,30 +83,6 @@ function legacyCurrentPolicy(
 		dailyTargetMinutes,
 		weeklyTargetMinutes: dailyTargetMinutes * fallback.workingWeekdays.length
 	};
-}
-
-function policyRevisions(value: unknown, memberID: string): AttendanceWorkPolicyRevision[] {
-	if (typeof value !== 'object' || value === null) {
-		throw new Error(`attendance work policy is invalid for member ${memberID}`);
-	}
-	const offered = value as Record<string, unknown>;
-	if (!('revisions' in offered)) {
-		return [{ ...currentAttendanceWorkPolicy(offered), effectiveDate: initialEffectiveDate }];
-	}
-	if (!Array.isArray(offered.revisions) || offered.revisions.length === 0) {
-		throw new Error(`attendance work policy revisions are invalid for member ${memberID}`);
-	}
-	const revisions = offered.revisions.map((revision) => {
-		if (typeof revision !== 'object' || revision === null || !('effectiveDate' in revision)) {
-			throw new Error(`attendance work policy revision is invalid for member ${memberID}`);
-		}
-		const effectiveDate = (revision as Record<string, unknown>).effectiveDate;
-		if (typeof effectiveDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) {
-			throw new Error(`attendance work policy revision date is invalid for member ${memberID}`);
-		}
-		return { ...currentAttendanceWorkPolicy(revision), effectiveDate };
-	});
-	return revisions.sort((left, right) => left.effectiveDate.localeCompare(right.effectiveDate));
 }
 
 function workHoursCycle(value: unknown, memberID: string): WorkHoursCycle {
