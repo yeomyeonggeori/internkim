@@ -5,6 +5,7 @@ import {
 	coveredDaysOf,
 	type SupabaseWorkStatusInputs
 } from '../../../src/lib/attendance/supabase-work-status';
+import { attendanceWorkStatusPairFrom } from '../../../src/routes/attendance/attendance-api';
 
 const timeZone = 'Asia/Seoul';
 const now = new Date('2026-09-07T00:00:00Z');
@@ -130,5 +131,37 @@ describe('attendanceWorkStatusFrom', () => {
 		expect(attendanceWorkStatusFrom(inputs, august).period).toBe('month');
 		expect(attendanceWorkStatusFrom(inputs, oneDay).period).toBe('day');
 		expect(attendanceWorkStatusFrom(inputs, oneDay).anchor).toBe('2026-08-20');
+	});
+});
+
+describe('attendanceWorkStatusPairFrom', () => {
+	test('rows that cover both periods answer both without going out again', () => {
+		const answered = attendanceWorkStatusPairFrom(inputsFor([august, oneDay]), oneDay, august);
+
+		expect(answered?.period.periodStart).toBe('2026-08-20');
+		expect(answered?.month.periodStart).toBe('2026-08-01');
+		expect(answered?.month.periodEnd).toBe('2026-08-31');
+	});
+
+	test('rows that fall short of a period answer nothing, so the caller fetches', () => {
+		expect(
+			attendanceWorkStatusPairFrom(inputsFor([august, oneDay]), crossingWeek, august)
+		).toBeUndefined();
+	});
+
+	test('rows fetched for a crossing week still answer the plain month', () => {
+		const answered = attendanceWorkStatusPairFrom(
+			inputsFor([august, crossingWeek]),
+			oneDay,
+			august
+		);
+
+		expect(answered?.period.periodStart).toBe('2026-08-20');
+		expect(answered?.month.periodEnd).toBe('2026-08-31');
+	});
+
+	test('the rows are handed back so the caller can offer them again', () => {
+		const rows = inputsFor([august, oneDay]);
+		expect(attendanceWorkStatusPairFrom(rows, oneDay, august)?.rows).toBe(rows);
 	});
 });
