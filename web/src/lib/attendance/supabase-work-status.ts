@@ -186,6 +186,17 @@ export function coveredDaysOf(
 	return covered;
 }
 
+export function rangeCovers(
+	coveredDays: string[],
+	requests: AttendanceWorkStatusRequest[],
+	timeZone: string,
+	now: Date
+): boolean {
+	if (coveredDays.length === 0) return false;
+	const wanted = coveredDaysOf(requests, timeZone, now);
+	return wanted[0] >= coveredDays[0] && wanted[wanted.length - 1] <= coveredDays[coveredDays.length - 1];
+}
+
 export async function supabaseWorkStatus(
 	request: AttendanceWorkStatusRequest
 ): Promise<AttendanceWorkStatus> {

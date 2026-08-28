@@ -6,8 +6,10 @@ import {
 } from '$lib/attendance/supabase-attendance';
 import {
 	attendanceWorkStatusFrom,
+	rangeCovers,
 	supabaseWorkStatus,
-	supabaseWorkStatusInputs
+	supabaseWorkStatusInputs,
+	type SupabaseWorkStatusInputs
 } from '$lib/attendance/supabase-work-status';
 import type { AttendanceWorkMode } from '$lib/attendance/work-mode';
 import { isSupabaseConfigured } from '$lib/supabase';
@@ -130,17 +132,33 @@ export async function fetchAttendanceSummary(request: AttendanceSummaryRequest):
 export type AttendanceWorkStatusPair = {
 	period: AttendanceWorkStatus;
 	month: AttendanceWorkStatus;
+	rows?: SupabaseWorkStatusInputs;
 };
+
+export function attendanceWorkStatusPairFrom(
+	rows: SupabaseWorkStatusInputs,
+	period: AttendanceWorkStatusRequest,
+	month: AttendanceWorkStatusRequest
+): AttendanceWorkStatusPair | undefined {
+	const asked = { ...rows, now: new Date() };
+	if (!rangeCovers(rows.coveredDays, [period, month], rows.timeZone, asked.now)) return undefined;
+	return {
+		period: attendanceWorkStatusFrom(asked, period),
+		month: attendanceWorkStatusFrom(asked, month),
+		rows
+	};
+}
 
 export async function fetchAttendanceWorkStatusPair(
 	period: AttendanceWorkStatusRequest,
 	month: AttendanceWorkStatusRequest
 ): Promise<AttendanceWorkStatusPair> {
 	if (isSupabaseConfigured()) {
-		const inputs = await supabaseWorkStatusInputs([period, month]);
+		const rows = await supabaseWorkStatusInputs([period, month]);
 		return {
-			period: attendanceWorkStatusFrom(inputs, period),
-			month: attendanceWorkStatusFrom(inputs, month)
+			period: attendanceWorkStatusFrom(rows, period),
+			month: attendanceWorkStatusFrom(rows, month),
+			rows
 		};
 	}
 	const [periodStatus, monthStatus] = await Promise.all([
