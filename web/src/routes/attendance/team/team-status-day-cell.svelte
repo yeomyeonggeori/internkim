@@ -7,6 +7,10 @@
 	import { ABSENCE_TONE } from '../shared/color-tokens';
 	import TeamStatusLeaveSegmentSummary from './team-status-leave-segment-summary.svelte';
 	import type { TeamStatusPersonDay } from './team-status-table-model';
+	import { teamComplianceMarks } from './team-status-compliance';
+	import { getTeamWorkStatusState } from '../work-status/work-status-state.svelte';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { attendanceText } from '../text';
 
 	type Props = {
 		day: TeamStatusPersonDay;
@@ -28,6 +32,11 @@
 		onOpenDayDetail
 	}: Props = $props();
 	const isMobile = new IsMobile();
+	const complianceText = createPageText(attendanceText);
+	const teamWorkStatus = getTeamWorkStatusState();
+	const complianceMarks = $derived(
+		teamComplianceMarks(teamWorkStatus?.payload?.employees ?? [], personEmail, day.date)
+	);
 
 	function cellDividerClass(): string {
 		if (columnIndex === 0) return isLastColumn ? 'border-r' : '';
@@ -85,6 +94,17 @@
 			<DurationText minutes={day.durationMinutes} size="extraSmall" tone="default" />
 		{:else if hasVisibleLabel}
 			<span class="min-w-0 max-w-full whitespace-normal break-all leading-tight text-foreground">{day.label}</span>
+		{/if}
+		{#if complianceMarks.length > 0}
+			<span class="absolute right-1 top-1 flex gap-0.5" data-testid="team-status-compliance-{personEmail}-{day.date}">
+				{#each complianceMarks as kind (kind)}
+					<span
+						class="size-1.5 rounded-full bg-destructive"
+						title={complianceText.workStatus[kind]}
+						aria-label={complianceText.workStatus[kind]}
+					></span>
+				{/each}
+			</span>
 		{/if}
 		{#if day.detailLabel && day.segments.length === 0}
 			<span class="max-w-full whitespace-normal break-all text-[10px] leading-tight text-foreground/70">
