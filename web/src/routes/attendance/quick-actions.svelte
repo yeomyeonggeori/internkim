@@ -70,12 +70,16 @@
 	let isToggling = $state(false);
 	let errorMessage = $state('');
 
-	async function handleToggle() {
+	async function handleToggle(confirmedEarlyReturn = false) {
 		if (isToggling) return;
 		isToggling = true;
 		errorMessage = '';
 		try {
-			await myAttendanceToday.clock(nextKind, nextKind === 'clock_in' ? selectedLocationID : '');
+			await myAttendanceToday.clock(
+				nextKind,
+				nextKind === 'clock_in' ? selectedLocationID : '',
+				confirmedEarlyReturn
+			);
 			await attendance.load();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.processingFailed;
@@ -228,7 +232,7 @@
 					</AlertDialog.Header>
 					<AlertDialog.Footer>
 						<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
-						<AlertDialog.Action onclick={() => handleToggle()}>
+						<AlertDialog.Action onclick={() => handleToggle(true)}>
 							{text.earlyReturnConfirmAction}
 						</AlertDialog.Action>
 					</AlertDialog.Footer>
