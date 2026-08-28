@@ -44,8 +44,9 @@ type LeaveManagementSource = {
 	leaveTypes: LeaveTypeDirectory;
 };
 
-const leaveColumns = 'id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note';
-const memberColumns = 'id, email, name, leave_days, timezone';
+type LeaveManagementRows = { members: MemberRow[]; leaves: LeaveRow[] };
+
+const leaveColumns = 'id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at';
 
 function timeZoneOf(member: MemberRow, source: LeaveManagementSource): string {
 	return member.timezone || source.company.timezone;
@@ -168,21 +169,14 @@ export async function correctSupabaseManagedLeaveTime(
 
 async function readLeaveManagementSource(): Promise<LeaveManagementSource> {
 	const company = await readCompany();
-	const members = await supabase()
-		.from('member')
-		.select(memberColumns)
-		.order('email')
-		.returns<MemberRow[]>();
-	if (members.error) throw new Error(members.error.message);
-	const leaves = await supabase().from('leave').select(leaveColumns).returns<LeaveRow[]>();
-	if (leaves.error) throw new Error(leaves.error.message);
+	const rows = await leaveManagementRows();
 	const targetYear = Number(
 		companyDateOfTimestamp(new Date().toISOString(), company.timezone).slice(0, 4)
 	);
 	return {
 		company,
-		members: members.data,
-		leaves: leaves.data,
+		members: rows.members,
+		leaves: rows.leaves,
 		targetYear,
 		leaveTypes: await supabaseLeaveTypeDirectory()
 	};
@@ -198,14 +192,23 @@ async function readCompany(): Promise<CompanyRow> {
 	return company.data;
 }
 
+async function leaveManagementRows(): Promise<LeaveManagementRows> {
+	const source = await supabase().rpc('leave_management_source');
+	if (source.error) throw new Error(source.error.message);
+	const rows = source.data as LeaveManagementRows | null;
+	if (!rows) throw new Error('the leave management source returned nothing');
+	return {
+		members: [...rows.members].sort((left, right) =>
+			(left.email ?? '').localeCompare(right.email ?? '')
+		),
+		leaves: rows.leaves
+	};
+}
+
 async function readMemberByEmail(email: string): Promise<MemberRow> {
-	const member = await supabase()
-		.from('member')
-		.select(memberColumns)
-		.eq('email', email)
-		.single<MemberRow>();
-	if (member.error) throw new EmployeeLeaveAPIError('requestNotFound', 404);
-	return member.data;
+	const member = (await leaveManagementRows()).members.find((row) => row.email === email);
+	if (!member) throw new EmployeeLeaveAPIError('requestNotFound', 404);
+	return member;
 }
 
 function trackingModeOf(source: LeaveManagementSource): EmployeeLeaveBalanceTrackingMode {

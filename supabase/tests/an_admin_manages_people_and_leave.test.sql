@@ -143,8 +143,8 @@ begin
   assert saved->>'phoneNumber' = '010-0000-0000', 'a member keeps its own contact details';
   assert saved->>'hireDate' = '2026-01-02', 'a member keeps its own hire date';
 
-  select leave_days into granted from public.member
-    where id = '44000000-0000-0000-0000-0000000000a2';
+  select leave_days into granted
+    from public.member_hr_file('44000000-0000-0000-0000-0000000000a2');
   assert granted = 18, 'saving a profile leaves the granted leave days alone';
 
   reset role;
