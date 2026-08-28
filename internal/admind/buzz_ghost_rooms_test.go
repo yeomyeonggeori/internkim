@@ -6,6 +6,7 @@ func testGhostKeys() buzzServiceKeySet {
 	return buzzServiceKeySet{
 		bookkeeping: map[string]bool{"bootstrap-key": true, "old-bot-key": true},
 		agent:       map[string]bool{"agent-key": true},
+		derivable:   map[string]bool{"bootstrap-key": true, "old-bot-key": true, "agent-key": true, "person-1": true, "person-2": true},
 	}
 }
 
@@ -21,6 +22,8 @@ func TestClassifyDirectRoomFindsTheGhosts(t *testing.T) {
 		{"one member and nothing said", buzzDirectRoom{members: []string{"person-1"}}, true, false},
 		{"empty room", buzzDirectRoom{}, true, false},
 		{"one member but messages exist", buzzDirectRoom{members: []string{"person-1"}, messages: 3}, false, true},
+		{"counterpart key belongs to nobody", buzzDirectRoom{members: []string{"person-1"}, metadataParticipants: []string{"person-1", "dead-key"}, messages: 6}, true, false},
+		{"counterpart is a real person who left", buzzDirectRoom{members: []string{"person-1"}, metadataParticipants: []string{"person-1", "person-2"}, messages: 6}, false, true},
 		{"a person's real agent conversation", buzzDirectRoom{members: []string{"person-1", "agent-key"}, messages: 88}, false, false},
 		{"two people talking", buzzDirectRoom{members: []string{"person-1", "person-2"}, messages: 5}, false, false},
 	}
