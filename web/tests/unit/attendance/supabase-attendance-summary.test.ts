@@ -13,6 +13,7 @@ type LeaveRow = {
 };
 
 let leaveRows: LeaveRow[] = [];
+let coveringLeaveRows: LeaveRow[] = [];
 
 function leaveRow(startsAt: string, endsAt: string): LeaveRow {
 	return {
@@ -61,7 +62,14 @@ const client = {
 		return {
 			select: () => ({
 				eq: () => ({
-					lt: () => ({ gte: () => ({ returns: () => response(leaveRows) }) })
+					lt: () => ({ gte: () => ({ returns: () => response(leaveRows) }) }),
+					eq: () => ({
+						lte: () => ({
+							gt: () => ({
+								order: () => ({ limit: () => ({ returns: () => response(coveringLeaveRows) }) })
+							})
+						})
+					})
 				})
 			})
 		};
@@ -80,6 +88,30 @@ const { supabaseAttendanceSummary } = await import('../../../src/lib/attendance/
 describe('supabaseAttendanceSummary', () => {
 	beforeEach(() => {
 		leaveRows = [];
+		coveringLeaveRows = [];
+	});
+
+	test('reports no active leave when nothing covers the moment', async () => {
+		const summary = await supabaseAttendanceSummary('2026-08');
+
+		expect(summary.activeLeave).toBeUndefined();
+	});
+
+	test('reports the leave covering the moment in the company time zone', async () => {
+		coveringLeaveRows = [
+			{
+				...leaveRow('2026-08-18T00:30:00.000Z', '2026-08-18T04:30:00.000Z'),
+				days: 0.5
+			} as LeaveRow & { days: number }
+		];
+
+		const summary = await supabaseAttendanceSummary('2026-08');
+
+		expect(summary.activeLeave?.requestID).toBe('leave-one');
+		expect(summary.activeLeave?.occurrenceID).toBe('leave-one');
+		expect(summary.activeLeave?.startTime).toBe('09:30');
+		expect(summary.activeLeave?.endTime).toBe('13:30');
+		expect(summary.activeLeave?.deductionMilliDays).toBe(500);
 	});
 
 	test('uses the database RPC timestamp instead of the browser clock', async () => {
