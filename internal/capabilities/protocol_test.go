@@ -222,14 +222,14 @@ func TestWebDescriptorsUseCanonicalSearchAndHideFetch(t *testing.T) {
 func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 	schema := descriptorSchema(t, FlowDescriptors(), "task_add")
 
-	assertSchemaHasProperties(t, schema, "title", "size", "status", "startsAt", "endsAt", "participantPersonHints")
+	assertSchemaHasProperties(t, schema, "title", "size", "status", "business", "type", "startsAt", "endsAt", "participantPersonHints")
 	assertSchemaRequires(t, schema, "title")
 	if stringSliceContains(schema.Required, "goal") || stringSliceContains(schema.Required, "endDate") {
 		t.Fatalf("expected goal and endDate to be optional in %+v", schema.Required)
 	}
 	assertSchemaOmitsProperties(t, schema, "prompt", "content", "description", "assignee", "dueDate", "ownerID", "participantIDs", "weekCode", "allowDuplicate")
 	for _, descriptor := range FlowDescriptors() {
-		if descriptor.Name == "task_add" && descriptor.Version != "3" {
+		if descriptor.Name == "task_add" && descriptor.Version != "4" {
 			t.Fatalf("task_add version = %q", descriptor.Version)
 		}
 	}
