@@ -4,7 +4,7 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 artifact_directory="$repository_root/.dependency/buzz-relay"
 source_directory="$artifact_directory/src"
-pinned_revision="485d03a358b6d695aaf97879f3fbaf2f308d0755"
+pinned_revision="973386351646d01efca2735ad4921c0d219cff85"
 source_repository="https://github.com/block/buzz"
 
 # rust-s3 puts the endpoint's path in the Host header, so an S3 endpoint that
