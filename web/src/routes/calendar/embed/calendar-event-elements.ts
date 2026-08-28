@@ -1,4 +1,4 @@
-import { dayFlowEventSelectorForID } from './calendar-dayflow-dom-adapter';
+import { dayTaskEventSelectorForID } from './calendar-dayflow-dom-adapter';
 
 const calendarEventTargetSelector =
 	'[data-event-id].df-event, [data-event-id].df-month-segment-event, .calendar-multi-day-all-day-proxy[data-event-id], .calendar-month-more-popover-event[data-event-id]';
@@ -64,7 +64,7 @@ export function clearFocusedCalendarEventElements(stageElement: HTMLElement | nu
 
 export function calendarEventElementsByID(stageElement: HTMLElement | null, eventID: string): HTMLElement[] {
 	if (!stageElement) return [];
-	return Array.from(stageElement.querySelectorAll<HTMLElement>(dayFlowEventSelectorForID(eventID)));
+	return Array.from(stageElement.querySelectorAll<HTMLElement>(dayTaskEventSelectorForID(eventID)));
 }
 
 export function isVisibleCalendarEventElement(element: HTMLElement): boolean {

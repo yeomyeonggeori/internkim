@@ -2,7 +2,7 @@
   "name": "task-lifecycle",
   "requiresModelProvenance": true,
   "expectedLLMProvider": "openrouter",
-  "skillNames": ["internkim-flow"],
+  "skillNames": ["internkim-task"],
   "allowedTools": [
     "conversation_history",
     "memory_search",

@@ -1,7 +1,7 @@
 import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
-import type { FlowState } from '../../flow/flow-types';
+import type { TaskState } from '../../task/task-types';
 import { calendarEventDetailsForPersonDay } from './team-status-calendar-context';
-import { completedFlowTasksForPersonDay } from './team-status-flow-context';
+import { completedTasksForPersonDay } from './team-status-task-context';
 
 export type TeamStatusDayContextPerson = {
 	email: string;
@@ -22,7 +22,7 @@ export type TeamStatusCompletedTaskDetail = {
 	title: string;
 	ownerName: string;
 	collaboratorNames: string[];
-	task: FlowState['tasks'][number];
+	task: TaskState['tasks'][number];
 };
 
 export type TeamStatusDayContext = {
@@ -45,14 +45,14 @@ export function buildTeamStatusDayContext(
 	person: TeamStatusDayContextPerson,
 	date: string,
 	calendarEvents: CalendarEvent[],
-	flowState: FlowState | null,
+	taskState: TaskState | null,
 	localeCode: string,
 	allDayLabel: string,
 	loadState: TeamStatusDayContextLoadState
 ): TeamStatusDayContext {
 	return {
 		calendarEvents: calendarEventDetailsForPersonDay(person, date, calendarEvents, localeCode, allDayLabel),
-		completedTasks: completedFlowTasksForPersonDay(person, date, flowState),
+		completedTasks: completedTasksForPersonDay(person, date, taskState),
 		isCalendarEventsLoading: loadState.isCalendarEventsLoading,
 		isCompletedWorkLoading: loadState.isCompletedWorkLoading,
 		hasCalendarEventsLoadFailed: loadState.hasCalendarEventsLoadFailed,

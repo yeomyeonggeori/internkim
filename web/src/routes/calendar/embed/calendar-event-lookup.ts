@@ -1,9 +1,9 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 
 export function findCalendarEventByID(
-	appEvents: DayFlowEvent[],
-	fallbackEvents: DayFlowEvent[],
+	appEvents: DayTaskEvent[],
+	fallbackEvents: DayTaskEvent[],
 	eventID: string
-): DayFlowEvent | undefined {
+): DayTaskEvent | undefined {
 	return appEvents.find((event) => event.id === eventID) ?? fallbackEvents.find((event) => event.id === eventID);
 }

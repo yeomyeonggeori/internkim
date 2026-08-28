@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from '../embed/calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from '../embed/calendar-event-model';
 import { eventEndDate, eventStartDate } from '../embed/calendar-event-mapping';
 import { calendarParticipantsFromUnknown } from '../embed/calendar-participants';
 import { addCalendarGridDays, startOfCalendarGridDay } from './calendar-grid-dates';
@@ -6,7 +6,7 @@ import type { CalendarGridEvent } from './calendar-grid-layout';
 
 export const defaultCalendarEventColor = '#3b82f6';
 
-export function calendarGridEventFromDayFlowEvent(event: DayFlowEvent): CalendarGridEvent {
+export function calendarGridEventFromDayTaskEvent(event: DayTaskEvent): CalendarGridEvent {
 	const isAllDay = event.allDay ?? false;
 	const start = eventStartDate(event);
 	const end = eventEndDate(event);
@@ -23,6 +23,6 @@ export function calendarGridEventFromDayFlowEvent(event: DayFlowEvent): Calendar
 	};
 }
 
-export function calendarGridEventsFromDayFlowEvents(events: DayFlowEvent[]): CalendarGridEvent[] {
-	return events.map(calendarGridEventFromDayFlowEvent);
+export function calendarGridEventsFromDayTaskEvents(events: DayTaskEvent[]): CalendarGridEvent[] {
+	return events.map(calendarGridEventFromDayTaskEvent);
 }

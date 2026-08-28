@@ -15,7 +15,7 @@ import type {
 	CRMImportance,
 	CRMProgressKind
 } from './crm-types';
-import { vocabularyOf } from '$lib/flow/task-vocabulary';
+import { vocabularyOf } from '$lib/task/task-vocabulary';
 import { crmPipelinesOf } from './crm-mappers';
 
 export type CRMAuditRow = {

@@ -1790,7 +1790,7 @@ func TestPlatformAttachmentRejectsOutsideDevicePath(t *testing.T) {
 	}
 }
 
-func TestSlackReplyUploadsAttachmentsWithExternalFlow(t *testing.T) {
+func TestSlackReplyUploadsAttachmentsWithExternalTask(t *testing.T) {
 	companionDirectory := t.TempDir()
 	attachmentPath := companionDirectory + "/screen.png"
 	if errorValue := os.WriteFile(attachmentPath, []byte("png"), 0o600); errorValue != nil {

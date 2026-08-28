@@ -13,7 +13,7 @@ import (
 // The device mints its own identifier and it rides across in the same place an
 // event's identities ride, so a task already carried over can be found again
 // without the device having been told what it was called. The relay writes the
-// same source name in host/relay/flow-task-as-task.ts.
+// same source name in host/relay/task-as-task.ts.
 const DeviceMirrorSource = "internkim-device"
 
 // TaskCarrying answers which task already carries that device identifier, or an

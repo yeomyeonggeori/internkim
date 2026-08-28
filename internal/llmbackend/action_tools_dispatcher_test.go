@@ -11,7 +11,7 @@ func multiToolActionDescriptors(t *testing.T) []capabilities.Descriptor {
 	t.Helper()
 	descriptors := []capabilities.Descriptor{}
 	descriptors = append(descriptors, capabilities.FileDescriptors()...)
-	descriptors = append(descriptors, capabilities.FlowDescriptors()...)
+	descriptors = append(descriptors, capabilities.TaskToolDescriptors()...)
 	descriptors = append(descriptors, capabilities.CalendarDescriptors()...)
 	descriptors = append(descriptors, capabilities.WebDescriptors()...)
 	if len(descriptors) <= formerDispatcherThreshold {

@@ -2,8 +2,8 @@ import { buildAttendanceSummaryFixture } from '../../dev-attendance-summary-fixt
 import { expect, test } from './attendance-page-test-fixture';
 import {
 	calendarEvent,
-	flowStateFixture,
-	flowTask,
+	taskStateFixture,
+	task,
 	overflowTargetDate,
 	routeOverflowStatusDay,
 	routePersonalDayContext,
@@ -275,9 +275,9 @@ test.describe('attendance team status', () => {
 		await page.route('**/calendar/api/events?**', async (route) => {
 			await route.fulfill({ json: { events: [] } });
 		});
-		await page.unroute('**/flow/api/state');
-		await page.route('**/flow/api/state', async (route) => {
-			await route.fulfill({ json: flowStateFixture([]) });
+		await page.unroute('**/task/api/state');
+		await page.route('**/task/api/state', async (route) => {
+			await route.fulfill({ json: taskStateFixture([]) });
 		});
 
 		await page.goto('/attendance');
@@ -383,16 +383,16 @@ test.describe('attendance team status', () => {
 				}
 			});
 		});
-		await page.unroute('**/flow/api/state');
-		await page.route('**/flow/api/state', async (route) => {
+		await page.unroute('**/task/api/state');
+		await page.route('**/task/api/state', async (route) => {
 			await route.fulfill({
-				json: flowStateFixture([
-					flowTask('completed-personal-task', '월간 현황 팝업 구현', '완료', targetDate, 'kim', [
+				json: taskStateFixture([
+					task('completed-personal-task', '월간 현황 팝업 구현', '완료', targetDate, 'kim', [
 						'kim',
 						'park'
 					]),
-					flowTask('planned-personal-task', '아직 예정 업무', '예정', targetDate, 'kim', ['kim']),
-					flowTask('other-person-task', '다른 사람 완료 업무', '완료', targetDate, 'park', ['park'])
+					task('planned-personal-task', '아직 예정 업무', '예정', targetDate, 'kim', ['kim']),
+					task('other-person-task', '다른 사람 완료 업무', '완료', targetDate, 'park', ['park'])
 				])
 			});
 		});
@@ -442,22 +442,22 @@ test.describe('attendance team status', () => {
 		await expect(dialog.getByText('전체 캘린더 일정')).toHaveCount(0);
 		await expect(dialog.getByText('다른 사람 일정')).toHaveCount(0);
 		await expect(dialog.getByText('월간 현황 팝업 구현')).toBeVisible();
-		await expect(dialog.locator('[data-flow-board-card="completed-personal-task"]')).toBeVisible();
+		await expect(dialog.locator('[data-task-board-card="completed-personal-task"]')).toBeVisible();
 		const taskDateRange = dialog.locator(
-			'[data-flow-board-card="completed-personal-task"] [data-slot="flow-task-date-range"]'
+			'[data-task-board-card="completed-personal-task"] [data-slot="task-date-range"]'
 		);
 		await expect(taskDateRange).toHaveAccessibleName('06/15 - 06/17');
 		await expect(taskDateRange).toHaveClass(/font-mono/);
-		await expect(taskDateRange.locator('[data-slot="flow-task-date-separator"]')).toHaveCount(2);
-		await expect(taskDateRange.locator('[data-slot="flow-task-date-separator"]').first()).toHaveCSS(
+		await expect(taskDateRange.locator('[data-slot="task-date-separator"]')).toHaveCount(2);
+		await expect(taskDateRange.locator('[data-slot="task-date-separator"]').first()).toHaveCSS(
 			'opacity',
 			'0.4'
 		);
-		await expect(taskDateRange.locator('[data-slot="flow-task-date-range-separator"]')).toHaveCSS(
+		await expect(taskDateRange.locator('[data-slot="task-date-range-separator"]')).toHaveCSS(
 			'opacity',
 			'0.4'
 		);
-		const completedTaskCard = dialog.locator('[data-flow-board-card="completed-personal-task"]');
+		const completedTaskCard = dialog.locator('[data-task-board-card="completed-personal-task"]');
 		await expect(completedTaskCard.getByText('김철수')).toBeVisible();
 		await expect(completedTaskCard.getByText('+1')).toBeVisible();
 		await expect(dialog.getByText('아직 예정 업무')).toHaveCount(0);
@@ -661,8 +661,8 @@ test.describe('attendance team status', () => {
 		await page.route('**/calendar/api/events?**', async (route) => {
 			await route.fulfill({ status: 500, body: 'calendar failed' });
 		});
-		await page.unroute('**/flow/api/state');
-		await page.route('**/flow/api/state', async (route) => {
+		await page.unroute('**/task/api/state');
+		await page.route('**/task/api/state', async (route) => {
 			await route.fulfill({ status: 500, body: 'flow failed' });
 		});
 

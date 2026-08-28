@@ -45,7 +45,7 @@ func (service *Service) authorizeMailRequest(request *http.Request) bool {
 	if actorEmail == "" {
 		return false
 	}
-	return isLocalRequest(request) || service.isFlowStaffActor(request.Context(), actorEmail)
+	return isLocalRequest(request) || service.isTaskStaffActor(request.Context(), actorEmail)
 }
 
 func (service *Service) writeMailAccount(responseWriter http.ResponseWriter, request *http.Request) {

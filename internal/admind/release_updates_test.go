@@ -356,7 +356,7 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 		CalendarSecretsDirectory:    t.TempDir(),
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
-		FlowDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
+		TaskDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
 		CalendarDatabasePath:        filepath.Join(t.TempDir(), "calendar.sqlite"),
 		MailDatabasePath:            filepath.Join(t.TempDir(), "mail.sqlite"),
 		AttendanceDatabasePath:      filepath.Join(t.TempDir(), "attendance.sqlite"),

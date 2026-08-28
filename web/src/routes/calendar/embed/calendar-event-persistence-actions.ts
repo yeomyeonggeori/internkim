@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { toast } from 'svelte-sonner';
 import { CalendarDraftEventState } from './calendar-draft-events';
 import type { CalendarDraftEventDOMActions } from './calendar-draft-event-dom';
@@ -33,12 +33,12 @@ type CalendarEventPersistenceActionsContext = {
 };
 
 export type CalendarEventPersistenceActions = {
-	saveCreatedEvent: (event: DayFlowEvent) => Promise<void>;
-	saveUpdatedEvent: (event: DayFlowEvent, previousEvent?: DayFlowEvent) => Promise<void>;
+	saveCreatedEvent: (event: DayTaskEvent) => Promise<void>;
+	saveUpdatedEvent: (event: DayTaskEvent, previousEvent?: DayTaskEvent) => Promise<void>;
 	deleteEvent: (eventID: string) => Promise<void>;
 	flushPendingDelete: () => Promise<void>;
 	undoLastDelete: () => boolean;
-	persistCreatedEvent: (event: DayFlowEvent) => Promise<void>;
+	persistCreatedEvent: (event: DayTaskEvent) => Promise<void>;
 };
 
 type CalendarEventPersistenceDependencies = {
@@ -87,7 +87,7 @@ export function createCalendarEventPersistenceActions(
 		waitForCancellationRetry: dependencies.waitForDeleteIntentCancellationRetry
 	});
 
-	async function saveUpdatedEvent(event: DayFlowEvent, previousEvent?: DayFlowEvent): Promise<void> {
+	async function saveUpdatedEvent(event: DayTaskEvent, previousEvent?: DayTaskEvent): Promise<void> {
 		if (options.programmaticUpdates.isActive(event.id)) return;
 		options.context.invalidatePendingEventLoad();
 		if (options.draftEvents.isDraftEvent(event.id)) {
@@ -110,8 +110,8 @@ export function createCalendarEventPersistenceActions(
 	}
 
 	async function persistUpdatedEvent(
-		event: DayFlowEvent,
-		previousEvent: DayFlowEvent | undefined,
+		event: DayTaskEvent,
+		previousEvent: DayTaskEvent | undefined,
 		revision: number
 	): Promise<void> {
 		beginEventPersistence();
@@ -165,7 +165,7 @@ export function createCalendarEventPersistenceActions(
 		}
 	}
 
-	async function rollbackUpdatedEvent(previousEvent?: DayFlowEvent): Promise<void> {
+	async function rollbackUpdatedEvent(previousEvent?: DayTaskEvent): Promise<void> {
 		if (!previousEvent) {
 			await options.context.refreshCalendar();
 			return;

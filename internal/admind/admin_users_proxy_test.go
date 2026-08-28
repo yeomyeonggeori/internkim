@@ -59,7 +59,7 @@ func TestAdminUserProxyGetMergesOrganizationMetadata(t *testing.T) {
 	if record.JobTitle != "Design Lead" || record.GroupID != "design" || record.SupervisorID != "user-admin" {
 		t.Fatalf("record organization metadata = %#v", record)
 	}
-	expectedImage := calendarParticipantImagePath(stableFlowID("member@example.com"))
+	expectedImage := calendarParticipantImagePath(stableTaskID("member@example.com"))
 	if record.Image != expectedImage {
 		t.Fatalf("record image = %q; want %q", record.Image, expectedImage)
 	}
@@ -341,8 +341,8 @@ func adminUsersProxyCommonMattermostResponse(t *testing.T, request *http.Request
 		return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil), true
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/members":
 		return jsonResponse(http.StatusCreated, `{}`, nil), true
-	case isMattermostFlowSetupRequest(request):
-		return mattermostFlowSetupResponse(t, request), true
+	case isMattermostTaskSetupRequest(request):
+		return mattermostTaskSetupResponse(t, request), true
 	case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
 		return jsonResponse(http.StatusOK, `{}`, nil), true
 	case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":

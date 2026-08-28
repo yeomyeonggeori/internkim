@@ -1,13 +1,13 @@
-import { dayFlowEventFromCalendarEvent } from '../../routes/calendar/embed/calendar-event-mapping';
+import { dayTaskEventFromCalendarEvent } from '../../routes/calendar/embed/calendar-event-mapping';
 import { fetchCalendarEvents } from '../../routes/calendar/embed/calendar-event-persistence';
 import { searchCalendarEvents, type CalendarSearchResult } from '../../routes/calendar/embed/calendar-search';
-import type { CalendarModelEvent as DayFlowEvent } from '../../routes/calendar/embed/calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from '../../routes/calendar/embed/calendar-event-model';
 
 const monthsBefore = 1;
 const monthsAfter = 3;
 
 class CalendarEventSearch {
-	events = $state<DayFlowEvent[]>([]);
+	events = $state<DayTaskEvent[]>([]);
 
 	load = async () => {
 		const now = new Date();
@@ -15,7 +15,7 @@ class CalendarEventSearch {
 		const endDate = new Date(now.getFullYear(), now.getMonth() + monthsAfter + 1, 0);
 		try {
 			const calendarEvents = await fetchCalendarEvents(startDate, endDate, '');
-			this.events = calendarEvents.map(dayFlowEventFromCalendarEvent);
+			this.events = calendarEvents.map(dayTaskEventFromCalendarEvent);
 		} catch {
 			this.events = [];
 		}

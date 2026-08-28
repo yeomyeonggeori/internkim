@@ -1,6 +1,6 @@
-import { isFlowStatusRequested } from '../../routes/flow/flow-status';
-import { currentFlowMember } from '../../routes/flow/flow-task-workspace-model';
-import type { FlowState } from '../../routes/flow/flow-types';
+import { isTaskStatusRequested } from '../../routes/task/task-status';
+import { currentTaskMember } from '../../routes/task/task-workspace-model';
+import type { TaskState } from '../../routes/task/task-types';
 import type { CalendarEvent } from '../../routes/calendar/embed/calendar-event-persistence';
 
 export function participatingEventCount(events: CalendarEvent[], viewerEmail: string, now: Date): number {
@@ -21,12 +21,12 @@ function includesViewer(event: CalendarEvent, normalizedViewerEmail: string): bo
 	);
 }
 
-export function requestedTaskCount(state: FlowState): number {
-	const viewer = currentFlowMember(state);
+export function requestedTaskCount(state: TaskState): number {
+	const viewer = currentTaskMember(state);
 	if (!viewer) return 0;
 	return state.tasks.filter(
 		(task) =>
-			isFlowStatusRequested(task.status) &&
+			isTaskStatusRequested(task.status) &&
 			(task.ownerID === viewer.id || task.participantIDs.includes(viewer.id))
 	).length;
 }

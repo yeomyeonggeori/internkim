@@ -686,7 +686,7 @@ func (service *Service) mattermostServiceSettingsPatch() map[string]any {
 		"EnableUserAccessTokens":              true,
 		"ManagedResourcePaths":                mattermostdefaults.ManagedResourcePathSetting(),
 	}
-	if siteURL := strings.TrimRight(strings.TrimSpace(service.mattermostFlowBaseURL()), "/"); siteURL != "" {
+	if siteURL := strings.TrimRight(strings.TrimSpace(service.mattermostTaskBaseURL()), "/"); siteURL != "" {
 		settings["SiteURL"] = siteURL
 		settings["AllowCorsFrom"] = siteURL
 		settings["CorsAllowCredentials"] = true
@@ -748,7 +748,7 @@ func (service *Service) allowedMattermostUsers(ctx context.Context, token string
 	}
 	users := make([]mattermostUserRecord, 0, len(records))
 	for _, record := range records {
-		if !isActiveFlowUser(record) {
+		if !isActiveTaskUser(record) {
 			continue
 		}
 		userRecord, found, errorValue := service.mattermostUserRecordForAdminRecord(ctx, token, record)
@@ -971,7 +971,7 @@ func (service *Service) cleanupSavedMattermostManagedChannelSystemPosts(ctx cont
 }
 
 func (service *Service) cleanupMattermostManagedChannelSystemPosts(ctx context.Context, token string, channelID string) error {
-	for _, postRecord := range service.mattermostFlowPosts(ctx, token, channelID, 100) {
+	for _, postRecord := range service.mattermostTaskPosts(ctx, token, channelID, 100) {
 		if !isMattermostManagedChannelSystemPost(postRecord) || strings.TrimSpace(postRecord.ID) == "" {
 			continue
 		}
@@ -982,13 +982,13 @@ func (service *Service) cleanupMattermostManagedChannelSystemPosts(ctx context.C
 	return nil
 }
 
-func (service *Service) syncMattermostFlowEntryPost(ctx context.Context, adminToken string, channelID string) {
-	if errorValue := service.deleteMattermostFlowEntryPost(ctx, adminToken, channelID); errorValue != nil {
+func (service *Service) syncMattermostTaskEntryPost(ctx context.Context, adminToken string, channelID string) {
+	if errorValue := service.deleteMattermostTaskEntryPost(ctx, adminToken, channelID); errorValue != nil {
 		log.Printf("Mattermost Flow entry post sync failed: %v", errorValue)
 	}
 }
 
-func (service *Service) deleteMattermostFlowEntryPost(ctx context.Context, adminToken string, channelID string) error {
+func (service *Service) deleteMattermostTaskEntryPost(ctx context.Context, adminToken string, channelID string) error {
 	botToken, errorValue := service.mattermostBotToken()
 	if errorValue != nil {
 		return errorValue
@@ -997,7 +997,7 @@ func (service *Service) deleteMattermostFlowEntryPost(ctx context.Context, admin
 	if errorValue != nil {
 		return errorValue
 	}
-	post, found := service.mattermostFlowEntryPost(ctx, adminToken, channelID)
+	post, found := service.mattermostTaskEntryPost(ctx, adminToken, channelID)
 	if !found || strings.TrimSpace(post.ID) == "" || strings.TrimSpace(post.UserID) != botUserID {
 		return nil
 	}
@@ -1008,16 +1008,16 @@ func (service *Service) deleteMattermostFlowEntryPost(ctx context.Context, admin
 	return nil
 }
 
-func (service *Service) mattermostFlowEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
-	for _, postRecord := range service.mattermostFlowPosts(ctx, token, channelID, 50) {
-		if isMattermostFlowEntryPost(postRecord) {
+func (service *Service) mattermostTaskEntryPost(ctx context.Context, token string, channelID string) (mattermostPostRecord, bool) {
+	for _, postRecord := range service.mattermostTaskPosts(ctx, token, channelID, 50) {
+		if isMattermostTaskEntryPost(postRecord) {
 			return postRecord, true
 		}
 	}
 	return mattermostPostRecord{}, false
 }
 
-func (service *Service) mattermostFlowPosts(ctx context.Context, token string, channelID string, limit int) []mattermostPostRecord {
+func (service *Service) mattermostTaskPosts(ctx context.Context, token string, channelID string, limit int) []mattermostPostRecord {
 	var response mattermostPostsResponse
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=" + strconv.Itoa(limit)
 	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &response); errorValue != nil {
@@ -1038,7 +1038,7 @@ func (service *Service) mattermostFlowPosts(ctx context.Context, token string, c
 	return posts
 }
 
-func isMattermostFlowEntryPost(post mattermostPostRecord) bool {
+func isMattermostTaskEntryPost(post mattermostPostRecord) bool {
 	if post.Props == nil {
 		return false
 	}

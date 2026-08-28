@@ -17,7 +17,7 @@ type personForTool struct {
 }
 
 func (service Service) invokePersonList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	summary, errorValue := service.fetchFlowAllTasks(ctx, request.Context.RequesterEmail)
+	summary, errorValue := service.fetchTaskAllTasks(ctx, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -29,7 +29,7 @@ func (service Service) invokePersonList(ctx context.Context, request capabilitie
 	return capabilitySuccessResponse(request.ToolName, "ok", result)
 }
 
-func peopleForTool(members []flowMemberForTool, responseLanguage string) []personForTool {
+func peopleForTool(members []taskMemberForTool, responseLanguage string) []personForTool {
 	people := make([]personForTool, 0, len(members))
 	for _, member := range members {
 		people = append(people, personForTool{
@@ -37,7 +37,7 @@ func peopleForTool(members []flowMemberForTool, responseLanguage string) []perso
 			Name:               personname.Render(member.Name, responseLanguage),
 			Email:              member.Email,
 			MattermostUsername: member.MattermostUsername,
-			Mention:            flowTaskAddMention(member),
+			Mention:            taskAddMention(member),
 		})
 	}
 	return people

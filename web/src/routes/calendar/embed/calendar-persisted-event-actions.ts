@@ -1,6 +1,6 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { calendarColors } from './calendar-config';
-import { calendarEventPayloadFromDayFlowEvent } from './calendar-event-mapping';
+import { calendarEventPayloadFromDayTaskEvent } from './calendar-event-mapping';
 import {
 	cancelCalendarEventDeleteIntent,
 	createCalendarEventDeleteIntent,
@@ -12,9 +12,9 @@ import {
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
 
 type CalendarPersistedEventActionsContext = {
-	getCalendarEvents: () => DayFlowEvent[];
-	updateCalendarEvent: (eventID: string, changes: Partial<DayFlowEvent>, shouldRender: boolean) => Promise<void>;
-	setVisibleEvents: (events: DayFlowEvent[]) => void;
+	getCalendarEvents: () => DayTaskEvent[];
+	updateCalendarEvent: (eventID: string, changes: Partial<DayTaskEvent>, shouldRender: boolean) => Promise<void>;
+	setVisibleEvents: (events: DayTaskEvent[]) => void;
 	text: {
 		deleteError: string;
 		saveError: string;
@@ -25,7 +25,7 @@ export type CalendarPersistedEventActions = {
 	writeEvent: (
 		path: string,
 		method: 'POST' | 'PUT',
-		event: DayFlowEvent,
+		event: DayTaskEvent,
 		expectedUpdatedAt?: string,
 		mutationClientID?: string,
 		mutationSequence?: number
@@ -49,7 +49,7 @@ export function createCalendarPersistedEventActions(
 	async function writeEvent(
 		path: string,
 		method: 'POST' | 'PUT',
-		event: DayFlowEvent,
+		event: DayTaskEvent,
 		expectedUpdatedAt?: string,
 		mutationClientID?: string,
 		mutationSequence?: number
@@ -58,7 +58,7 @@ export function createCalendarPersistedEventActions(
 		const currentExpectedUpdatedAt = expectedUpdatedAt
 			?? (typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined);
 		const payload = {
-			...calendarEventPayloadFromDayFlowEvent(event, calendarColors.lineColor, timeZone),
+			...calendarEventPayloadFromDayTaskEvent(event, calendarColors.lineColor, timeZone),
 			...(method === 'PUT' && currentExpectedUpdatedAt !== undefined
 				? { expectedUpdatedAt: currentExpectedUpdatedAt }
 				: {}),

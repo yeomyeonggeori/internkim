@@ -220,7 +220,7 @@ func TestWebDescriptorsUseCanonicalSearchAndHideFetch(t *testing.T) {
 }
 
 func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
-	schema := descriptorSchema(t, FlowDescriptors(), "task_add")
+	schema := descriptorSchema(t, TaskToolDescriptors(), "task_add")
 
 	assertSchemaHasProperties(t, schema, "title", "size", "status", "business", "type", "startsAt", "endsAt", "participantPersonHints")
 	assertSchemaRequires(t, schema, "title")
@@ -228,7 +228,7 @@ func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 		t.Fatalf("expected goal and endDate to be optional in %+v", schema.Required)
 	}
 	assertSchemaOmitsProperties(t, schema, "prompt", "content", "description", "assignee", "dueDate", "ownerID", "participantIDs", "weekCode", "allowDuplicate")
-	for _, descriptor := range FlowDescriptors() {
+	for _, descriptor := range TaskToolDescriptors() {
 		if descriptor.Name == "task_add" && descriptor.Version != "4" {
 			t.Fatalf("task_add version = %q", descriptor.Version)
 		}
@@ -236,14 +236,14 @@ func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 }
 
 func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
-	schema := descriptorSchema(t, FlowDescriptors(), "task_list")
+	schema := descriptorSchema(t, TaskToolDescriptors(), "task_list")
 
 	assertSchemaHasProperties(t, schema, "query", "participantPersonHint", "scope", "weekFrom", "weekTo", "status", "limit")
 	assertSchemaOmitsProperties(t, schema, "weekCode", "title", "description", "assignee", "dueDate")
 }
 
 func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
-	schema := descriptorSchema(t, FlowDescriptors(), "task_update")
+	schema := descriptorSchema(t, TaskToolDescriptors(), "task_update")
 
 	assertSchemaHasProperties(t, schema, "taskHint", "title", "status", "size", "business", "type", "startsAt", "endsAt", "participantPersonHints")
 	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "ownerPersonHint", "requestReason", "decisionReason", "weekCode", "prompt", "allowDuplicate", "content", "taskID")
@@ -251,23 +251,23 @@ func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	if schema.MinProperties != 2 {
 		t.Fatalf("task_update minProperties = %d", schema.MinProperties)
 	}
-	if descriptorForTool(t, FlowDescriptors(), "task_update").Version != "3" {
+	if descriptorForTool(t, TaskToolDescriptors(), "task_update").Version != "3" {
 		t.Fatal("task_update descriptor must use the canonical-result v3 contract")
 	}
-	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task_update", "success", "write_task", "task")
+	assertDescriptorCompletionEvidence(t, TaskToolDescriptors(), "task_update", "success", "write_task", "task")
 }
 
 func TestFlowDescriptorIncludesTaskDeleteInput(t *testing.T) {
-	schema := descriptorSchema(t, FlowDescriptors(), "task_delete")
+	schema := descriptorSchema(t, TaskToolDescriptors(), "task_delete")
 
 	assertSchemaHasProperties(t, schema, "taskHint")
 	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "ownerPersonHint", "requestReason", "decisionReason", "weekCode", "prompt", "allowDuplicate", "content", "taskID")
 	assertSchemaRequires(t, schema, "taskHint")
-	if descriptorForTool(t, FlowDescriptors(), "task_delete").Version != "3" {
+	if descriptorForTool(t, TaskToolDescriptors(), "task_delete").Version != "3" {
 		t.Fatal("task_delete descriptor must use the canonical-result v3 contract")
 	}
-	assertDescriptorApproval(t, FlowDescriptors(), "task_delete", true)
-	assertDescriptorCompletionEvidence(t, FlowDescriptors(), "task_delete", "success", "delete_task", "task")
+	assertDescriptorApproval(t, TaskToolDescriptors(), "task_delete", true)
+	assertDescriptorCompletionEvidence(t, TaskToolDescriptors(), "task_delete", "success", "delete_task", "task")
 }
 
 func TestFlowDescriptorsDeclareCanonicalTaskResults(t *testing.T) {
@@ -277,7 +277,7 @@ func TestFlowDescriptorsDeclareCanonicalTaskResults(t *testing.T) {
 		"task_delete": "deleted",
 	}
 	for toolName, expectedEffect := range expectedEffects {
-		descriptor := descriptorForTool(t, FlowDescriptors(), toolName)
+		descriptor := descriptorForTool(t, TaskToolDescriptors(), toolName)
 		if descriptor.ResultContract == nil {
 			t.Fatalf("%s result contract is missing", toolName)
 		}
@@ -299,7 +299,7 @@ func TestFlowDescriptorsDeclareCanonicalTaskResults(t *testing.T) {
 			t.Fatalf("%s effects = %+v", toolName, descriptor.ResultContract.Effects)
 		}
 	}
-	listDescriptor := descriptorForTool(t, FlowDescriptors(), "task_list")
+	listDescriptor := descriptorForTool(t, TaskToolDescriptors(), "task_list")
 	if listDescriptor.ResultContract == nil || len(listDescriptor.ResultContract.Effects) != 0 {
 		t.Fatalf("task_list result contract = %+v", listDescriptor.ResultContract)
 	}
@@ -786,7 +786,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		FileDescriptors(),
 		PlatformMessageDescriptors(),
 		MattermostDescriptors(),
-		FlowDescriptors(),
+		TaskToolDescriptors(),
 		CalendarDescriptors(),
 		MailDescriptors(),
 		SiteAppDescriptors(),
@@ -833,7 +833,7 @@ func TestSendDescriptorsOwnIdempotencyMetadata(t *testing.T) {
 			t.Fatalf("%s must explicitly support operation idempotency: %+v", toolName, descriptor)
 		}
 	}
-	if descriptorForTool(t, FlowDescriptors(), "task_add").Idempotency.Supported {
+	if descriptorForTool(t, TaskToolDescriptors(), "task_add").Idempotency.Supported {
 		t.Fatal("task_add must not inherit idempotency from its name")
 	}
 }

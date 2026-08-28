@@ -13,11 +13,11 @@ import (
 )
 
 func TestARequesterHeaderOnTheTCPListenerNamesNobody(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+	service := newTaskAuthorizationTestService(t)
 	tcpServer := httptest.NewServer(service.router())
 	defer tcpServer.Close()
 
-	response := getFlowStateAsRequester(t, tcpServer.Client(), tcpServer.URL, "staff@example.com")
+	response := getTaskStateAsRequester(t, tcpServer.Client(), tcpServer.URL, "staff@example.com")
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusForbidden {
@@ -27,17 +27,17 @@ func TestARequesterHeaderOnTheTCPListenerNamesNobody(t *testing.T) {
 }
 
 func TestARequesterHeaderOnTheSocketNamesThePerson(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+	service := newTaskAuthorizationTestService(t)
 	socketPath, socketClient := serveOnARequesterSocket(t, service)
 
-	response := getFlowStateAsRequester(t, socketClient, "http://internkim", "staff@example.com")
+	response := getTaskStateAsRequester(t, socketClient, "http://internkim", "staff@example.com")
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
 		t.Fatalf("%s answered %d %s", socketPath, response.StatusCode, string(body))
 	}
-	var state flowStateResponse
+	var state taskStateResponse
 	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -47,7 +47,7 @@ func TestARequesterHeaderOnTheSocketNamesThePerson(t *testing.T) {
 }
 
 func TestTheRequesterSocketIsReachableOnlyByItsOwnGroup(t *testing.T) {
-	socketPath, _ := serveOnARequesterSocket(t, newFlowAuthorizationTestService(t))
+	socketPath, _ := serveOnARequesterSocket(t, newTaskAuthorizationTestService(t))
 
 	information, errorValue := os.Stat(socketPath)
 	if errorValue != nil {
@@ -82,7 +82,7 @@ func serveOnARequesterSocket(t *testing.T, service *Service) (string, *http.Clie
 	return socketPath, socketClient
 }
 
-func getFlowStateAsRequester(t *testing.T, client *http.Client, baseURL string, requesterEmail string) *http.Response {
+func getTaskStateAsRequester(t *testing.T, client *http.Client, baseURL string, requesterEmail string) *http.Response {
 	t.Helper()
 	request, errorValue := http.NewRequest(http.MethodGet, baseURL+"/flow/api/state", nil)
 	if errorValue != nil {

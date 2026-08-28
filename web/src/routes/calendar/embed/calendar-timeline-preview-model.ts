@@ -1,5 +1,5 @@
 import { ViewType, type ViewType as CalendarViewType } from '../calendar-view-type';
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 import {
 	calendarTimelineDisplayDayCount,
@@ -25,7 +25,7 @@ type TimelineRangePreviewContext = {
 	currentView: CalendarViewType;
 	currentDate: Date;
 	isMobileTwoDayWeekView: boolean;
-	events: DayFlowEvent[];
+	events: DayTaskEvent[];
 };
 
 type TimelineLayout = {
@@ -79,7 +79,7 @@ export function orderedTimelineRangeDates(firstDate: Date, secondDate: Date): [D
 	return [startDate, endDate];
 }
 
-export function timelineEventsOverlappingRange(events: DayFlowEvent[], startDate: Date, endDate: Date): DayFlowEvent[] {
+export function timelineEventsOverlappingRange(events: DayTaskEvent[], startDate: Date, endDate: Date): DayTaskEvent[] {
 	return events.filter((event) => {
 		if (event.allDay || event.id.startsWith('timeline-')) return false;
 		const candidateStartDate = eventStartDate(event);
