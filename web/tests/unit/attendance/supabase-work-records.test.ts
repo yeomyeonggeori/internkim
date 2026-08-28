@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { parseSupabaseWorkPolicies } from '../../../src/lib/attendance/supabase-work-policy';
 import { calculateSupabaseEmployeeWorkStatus } from '../../../src/lib/attendance/supabase-work-status';
 
+const noHolidays = new Set<string>();
+
 const member = {
 	id: 'member-records',
 	name: '박예시',
@@ -18,7 +20,6 @@ function fixedPolicy() {
 			work_hours: null,
 			minimum_daily_minutes: 480,
 			work_mode: 'fixed',
-			work_calendar: null,
 			work_policy: {
 				workMode: 'fixed',
 				workingWeekdays: [1, 2, 3, 4, 5],
@@ -54,6 +55,7 @@ describe('calculateSupabaseEmployeeWorkStatus event pairing', () => {
 			],
 			leave: [],
 			policy: fixedPolicy(),
+			holidays: noHolidays,
 			now: new Date('2026-08-15T00:00:00Z')
 		});
 		const day = status.days[0];
@@ -74,6 +76,7 @@ describe('calculateSupabaseEmployeeWorkStatus event pairing', () => {
 			],
 			leave: [],
 			policy: fixedPolicy(),
+			holidays: noHolidays,
 			now: new Date('2026-08-15T00:00:00Z')
 		});
 		const day = status.days[0];
@@ -95,6 +98,7 @@ describe('calculateSupabaseEmployeeWorkStatus event pairing', () => {
 			],
 			leave: [],
 			policy: fixedPolicy(),
+			holidays: noHolidays,
 			now: new Date('2026-08-15T01:00:00Z')
 		});
 		const day = status.days[0];
@@ -115,6 +119,7 @@ describe('calculateSupabaseEmployeeWorkStatus event pairing', () => {
 			],
 			leave: [],
 			policy: fixedPolicy(),
+			holidays: noHolidays,
 			now: new Date('2026-08-15T09:00:00Z')
 		});
 		const day = status.days[0];
@@ -148,6 +153,7 @@ describe('calculateSupabaseEmployeeWorkStatus event pairing', () => {
 			],
 			leave: [],
 			policy: fixedPolicy(),
+			holidays: noHolidays,
 			now: new Date('2026-08-15T00:00:00Z')
 		});
 		const day = status.days[0];
@@ -180,6 +186,7 @@ describe('calculateSupabaseEmployeeWorkStatus event pairing', () => {
 			],
 			leave: [],
 			policy: fixedPolicy(),
+			holidays: noHolidays,
 			now: new Date('2026-08-15T00:00:00Z')
 		});
 		const day = status.days[0];
@@ -218,6 +225,7 @@ describe('calculateSupabaseEmployeeWorkStatus event pairing', () => {
 			],
 			leave: [],
 			policy: fixedPolicy(),
+			holidays: noHolidays,
 			now: new Date('2026-08-15T00:00:00Z')
 		});
 		const day = status.days[0];

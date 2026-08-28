@@ -9,6 +9,8 @@ import {
 } from '../../../src/lib/attendance/supabase-work-status';
 import { companyTimeInstant, shiftedDay } from '../../../src/lib/attendance/supabase-work-status-range';
 
+const noHolidays = new Set<string>();
+
 type AttendanceWorkConformancePolicy = {
 	workMode: 'autonomous' | 'flexible' | 'fixed';
 	workingWeekdays: number[];
@@ -103,7 +105,6 @@ function conformancePolicy(source: AttendanceWorkConformancePolicy) {
 			work_hours: null,
 			minimum_daily_minutes: source.dailyTargetMinutes,
 			work_mode: source.workMode,
-			work_calendar: null,
 			work_policy: {
 				workMode: source.workMode,
 				workingWeekdays: source.workingWeekdays,
@@ -188,6 +189,7 @@ describe('attendance work conformance', () => {
 				attendance: conformanceEvents(scenario),
 				leave: conformanceLeave(scenario),
 				policy,
+				holidays: noHolidays,
 				now: new Date(scenario.now)
 			});
 
