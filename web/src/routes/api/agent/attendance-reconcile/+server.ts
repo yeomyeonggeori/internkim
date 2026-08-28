@@ -1,14 +1,15 @@
 import { error, json } from '@sveltejs/kit';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
 import {
-	attendanceWorkCalendarFromDevice,
 	attendanceWorkModeFromDevice,
 	attendanceWorkPolicyFromDevice,
-	InvalidAttendanceWorkCalendarError,
+	companyHolidaysFromDevice,
 	InvalidAttendanceWorkModeError,
 	InvalidAttendanceWorkPolicyError,
+	InvalidCompanyHolidayError,
+	mergeCompanyHolidays,
 	saveAttendanceReconciliationSettings
-} from '$lib/server/attendance-work-calendar-reconcile';
+} from '$lib/server/attendance-work-policy-reconcile';
 import type { RequestHandler } from './$types';
 
 type ReconcileRequest = {
@@ -16,6 +17,7 @@ type ReconcileRequest = {
 	workMode?: unknown;
 	workCalendar?: unknown;
 	workPolicy?: unknown;
+	companyHolidays?: unknown;
 	from?: unknown;
 	to?: unknown;
 };
@@ -29,15 +31,18 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (from >= to) error(400, 'the window ends before it begins');
 	askedWorkMode(asked.workMode);
 	const workPolicy = askedWorkPolicy(asked.workPolicy);
-	const workCalendar = askedWorkCalendar(asked.workCalendar, from, to);
-	if (workPolicy !== undefined || workCalendar !== undefined) {
-		await saveAttendanceReconciliationSettings(client, companyID, workPolicy, workCalendar);
+	const companyHolidays = askedCompanyHolidays(asked.companyHolidays);
+	if (workPolicy !== undefined) {
+		await saveAttendanceReconciliationSettings(client, companyID, workPolicy);
+	}
+	if (companyHolidays !== undefined) {
+		await mergeCompanyHolidays(client, companyID, companyHolidays);
 	}
 
 	// A device still sends its own clocks here and they are ignored. Attendance
 	// is kept in one place; this route used to make that place match a device,
-	// which deleted every clock made in a browser. The work policy and calendar
-	// stay because that request is still the only way either reaches the record.
+	// which deleted every clock made in a browser. The work policy stays because
+	// that request is still the only way it reaches the record.
 	return json({ added: 0, removed: 0, refused: [], rejected: [] });
 };
 
@@ -50,11 +55,11 @@ function askedWorkPolicy(offered: unknown) {
 	}
 }
 
-function askedWorkCalendar(offered: unknown, from: string, to: string) {
+function askedCompanyHolidays(offered: unknown) {
 	try {
-		return attendanceWorkCalendarFromDevice(offered, from, to);
+		return companyHolidaysFromDevice(offered);
 	} catch (thrown) {
-		if (!(thrown instanceof InvalidAttendanceWorkCalendarError)) throw thrown;
+		if (!(thrown instanceof InvalidCompanyHolidayError)) throw thrown;
 		error(400, thrown.message);
 	}
 }
@@ -67,10 +72,6 @@ function askedWorkMode(offered: unknown) {
 		error(400, thrown.message);
 	}
 }
-
-
-
-
 
 function moment(offered: unknown, named: string): string {
 	if (typeof offered !== 'string' || Number.isNaN(Date.parse(offered))) error(400, `${named} must be a time`);

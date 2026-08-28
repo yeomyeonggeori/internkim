@@ -35,21 +35,57 @@ func TestMonthWindowIsTheMonthAndNotAMinuteMore(t *testing.T) {
 	}
 }
 
-func TestReconciledWorkPolicyCarriesTheCurrentCalculationSettings(t *testing.T) {
-	revision := defaultAttendanceWorkPolicyRevision()
-	revision.WorkMode = attendanceWorkModeFixed
-	revision.NightStartTime = "21:30"
-	revision.NightEndTime = "05:30"
+func TestReconciledWorkPolicyCarriesEveryRevisionWithTheDateItTookEffect(t *testing.T) {
+	earlier := defaultAttendanceWorkPolicyRevision()
+	earlier.NightStartTime = "21:30"
+	earlier.NightEndTime = "05:30"
+	later := earlier
+	later.EffectiveDate = "2026-08-01"
+	later.WorkMode = attendanceWorkModeFixed
+	later.FixedStartTime = "09:00"
+	later.FixedEndTime = "18:00"
+	later.CoreTimeEnabled = false
+	later.CoreStartTime = ""
+	later.CoreEndTime = ""
+	policy := defaultAttendanceWorkPolicy()
+	policy.Revisions = []attendanceWorkPolicyRevision{earlier, later}
 
-	reconciled := reconciledWorkPolicyOf(revision)
+	reconciled := reconciledWorkPolicyOf(policy)
 
-	if reconciled.WorkMode != attendanceWorkModeFixed ||
-		reconciled.NightStartTime != "21:30" ||
-		reconciled.NightEndTime != "05:30" {
+	if reconciled.Version != attendanceWorkPolicyVersion || len(reconciled.Revisions) != 2 {
 		t.Fatalf("work policy = %+v", reconciled)
 	}
-	if len(reconciled.WorkingWeekdays) != 5 || len(reconciled.BreakPeriods) != 1 {
-		t.Fatalf("work policy schedule = %+v", reconciled)
+	if reconciled.Revisions[0].EffectiveDate != attendanceWorkPolicyInitialEffectiveDate ||
+		reconciled.Revisions[0].NightStartTime != "21:30" ||
+		reconciled.Revisions[0].NightEndTime != "05:30" {
+		t.Fatalf("the revision covering the past = %+v", reconciled.Revisions[0])
+	}
+	if reconciled.Revisions[1].EffectiveDate != "2026-08-01" ||
+		reconciled.Revisions[1].WorkMode != attendanceWorkModeFixed {
+		t.Fatalf("the current revision = %+v", reconciled.Revisions[1])
+	}
+	if len(reconciled.Revisions[1].WorkingWeekdays) != 5 ||
+		len(reconciled.Revisions[1].BreakPeriods) != 1 {
+		t.Fatalf("work policy schedule = %+v", reconciled.Revisions[1])
+	}
+}
+
+func TestReconciledCompanyHolidaysCarryWhatTheDeviceRecorded(t *testing.T) {
+	reconciled := reconciledCompanyHolidaysOf([]calendarCompanyHoliday{{
+		ID:             "company-holiday-1",
+		Title:          "창립기념일",
+		Date:           "2027-03-02",
+		RecursAnnually: true,
+		CreatedAt:      "2026-01-01T00:00:00Z",
+		UpdatedAt:      "2026-01-01T00:00:00Z",
+	}})
+
+	if len(reconciled) != 1 ||
+		reconciled[0].ID != "company-holiday-1" ||
+		reconciled[0].Title != "창립기념일" ||
+		reconciled[0].Date != "2027-03-02" ||
+		!reconciled[0].RecursAnnually {
+		t.Fatalf("company holidays = %+v", reconciled)
 	}
 }
 

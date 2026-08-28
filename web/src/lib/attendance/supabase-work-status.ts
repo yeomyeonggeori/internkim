@@ -11,6 +11,13 @@ import {
 	supabaseWorkPolicies,
 	type SupabaseWorkPolicy
 } from '$lib/attendance/supabase-work-policy';
+import {
+	revisionForDate,
+	workingDateForDate
+} from '$lib/attendance/work-calendar-derivation';
+import { attendanceHolidayDates } from '$lib/attendance/attendance-holidays';
+import { companyHolidayDatesBetween } from '$lib/attendance/company-holiday-dates';
+import { supabaseCompanyHolidays } from '$lib/attendance/supabase-company-holidays';
 import type {
 	AttendanceEmployeeWorkStatus,
 	AttendanceWorkDayStatus,
@@ -47,6 +54,7 @@ export type SupabaseEmployeeWorkStatusInput = {
 	attendance: SupabaseWorkStatusAttendance[];
 	leave: SupabaseWorkStatusLeave[];
 	policy: SupabaseWorkPolicy;
+	holidays: ReadonlySet<string>;
 	now?: Date;
 };
 
@@ -94,6 +102,7 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 	if (leave.error) throw new Error(leave.error.message);
 
 	const policiesByMember = await supabaseWorkPolicies(client);
+	const holidays = await workStatusHolidays(days);
 
 	const me = members.data.find((member) => member.user_id === accountID);
 	const employees = membersInReadingOrder(members.data, me?.id).map((member) =>
@@ -104,6 +113,7 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 			attendance: attendance.data,
 			leave: leave.data,
 			policy: requiredPolicy(policiesByMember.get(member.id), member.id),
+			holidays,
 			now: requestNow
 		})
 	);
@@ -128,17 +138,25 @@ function requiredPolicy(
 	return policy;
 }
 
+async function workStatusHolidays(days: string[]): Promise<ReadonlySet<string>> {
+	if (days.length === 0) return new Set<string>();
+	const range = { from: days[0], to: shiftedDay(days[days.length - 1], 1) };
+	return attendanceHolidayDates(
+		range,
+		companyHolidayDatesBetween(await supabaseCompanyHolidays(), range.from, range.to)
+	);
+}
+
 export function calculateSupabaseEmployeeWorkStatus(
 	input: SupabaseEmployeeWorkStatusInput
 ): AttendanceEmployeeWorkStatus {
-	const { member, days, timeZone, attendance, leave, policy } = input;
+	const { member, days, timeZone, attendance, leave, policy, holidays } = input;
 	const now = input.now ?? new Date();
-	const targetMinutes = policy.currentPolicy.dailyTargetMinutes;
 	const mine = attendance.filter((row) => row.member_id === member.id);
 	const myLeave = leave.filter((row) => row.member_id === member.id);
 	const records = supabaseWorkRecordsFromEvents(mine, now, timeZone);
 	const dayStatuses = days.map((day) =>
-		dayStatusOf(day, timeZone, records, myLeave, targetMinutes, policy)
+		dayStatusOf(day, timeZone, records, myLeave, policy, holidays)
 	);
 	const total = (pick: (day: AttendanceWorkDayStatus) => number) =>
 		dayStatuses.reduce((sum, day) => sum + pick(day), 0);
@@ -198,10 +216,11 @@ function dayStatusOf(
 	timeZone: string,
 	records: SupabaseWorkRecords,
 	leave: SupabaseWorkStatusLeave[],
-	targetMinutes: number,
-	policy: SupabaseWorkPolicy
+	policy: SupabaseWorkPolicy,
+	holidays: ReadonlySet<string>
 ): AttendanceWorkDayStatus {
-	const worked = supabaseWorkedDay(records, day, timeZone, policy.currentPolicy);
+	const revision = revisionForDate(policy.revisions, day);
+	const worked = supabaseWorkedDay(records, day, timeZone, revision);
 	const segments = worked.spans.map((span) => ({
 		startTime: timeIn(span.startAt, timeZone),
 		endTime: timeIn(span.endAt, timeZone),
@@ -211,14 +230,10 @@ function dayStatusOf(
 	const workedSeconds = worked.actualSeconds;
 	const provisionalMinutes = worked.provisionalMinutes;
 	const provisionalSeconds = worked.provisionalSeconds;
-	const projected = policy.workCalendar?.find((candidate) => candidate.date === day);
-	const currentWorkingDate = policy.currentPolicy.workingWeekdays.includes(companyWeekday(day));
-	const workingDate = policy.currentPolicyStored
-		? currentWorkingDate && projected?.holiday !== true
-		: projected?.workingDate ?? currentWorkingDate;
-	const workMode = policy.currentPolicy.workMode;
+	const workingDate = workingDateForDate(revision, day, holidays);
+	const workMode = revision.workMode;
 	const hasBaseline = workMode !== 'autonomous';
-	const grossTargetMinutes = workingDate && hasBaseline ? targetMinutes : 0;
+	const grossTargetMinutes = workingDate && hasBaseline ? revision.dailyTargetMinutes : 0;
 	const dayLeave = leave.filter((row) => leaveRowAppliesToDay(row, day, timeZone));
 	const isOnLeave = dayLeave.length > 0;
 	const leaveMinutes = leaveMinutesForDay(dayLeave, grossTargetMinutes);
@@ -308,9 +323,4 @@ function daysOf(request: AttendanceWorkStatusRequest, timeZone: string, now: Dat
 
 function timeIn(instant: Date, timeZone: string): string {
 	return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(instant);
-}
-
-function companyWeekday(day: string): number {
-	const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
-	return weekday === 0 ? 7 : weekday;
 }
