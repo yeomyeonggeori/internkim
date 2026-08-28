@@ -1,5 +1,5 @@
 import { supabase } from '$lib/supabase';
-import { sizeOfHours, sizeOfWholeDays } from '$lib/flow/task-sizes';
+import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
 import type { Locale } from '../i18n/locale.svelte';

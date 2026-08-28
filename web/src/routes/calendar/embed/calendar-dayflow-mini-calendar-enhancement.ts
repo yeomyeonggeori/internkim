@@ -1,12 +1,12 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { eventEndDate, eventStartDate } from './calendar-event-mapping';
 
 export type MiniCalendarWeekdayLabels = readonly [string, string, string, string, string, string, string];
 
-export type DayFlowMiniCalendarEnhancementContext = {
+export type DayTaskMiniCalendarEnhancementContext = {
 	stageElement: HTMLElement | null;
 	currentDate: Date;
-	events: DayFlowEvent[];
+	events: DayTaskEvent[];
 	localeCode: string;
 	weekdayLabels: MiniCalendarWeekdayLabels;
 	previousLabel: string;
@@ -16,12 +16,12 @@ export type DayFlowMiniCalendarEnhancementContext = {
 
 const sundayFirstWeekdayIndexes = [0, 1, 2, 3, 4, 5, 6];
 
-export function enhanceDayFlowMiniCalendar(context: DayFlowMiniCalendarEnhancementContext): void {
+export function enhanceDayTaskMiniCalendar(context: DayTaskMiniCalendarEnhancementContext): void {
 	if (!context.stageElement) return;
 	removeRightPanelCalendarHeader(context.stageElement);
 	const month = new Date(context.currentDate.getFullYear(), context.currentDate.getMonth(), 1);
 	const firstDate = miniCalendarGridStartDate(month);
-	const eventDateKeys = new Set(context.events.flatMap(eventDateKeysFromDayFlowEvent));
+	const eventDateKeys = new Set(context.events.flatMap(eventDateKeysFromDayTaskEvent));
 	const todayDateKey = dateKey(new Date());
 	const selectedDateKey = dateKey(context.currentDate);
 	const dayButtons = context.stageElement.querySelectorAll<HTMLElement>('.df-mini-calendar-day');
@@ -35,7 +35,7 @@ export function enhanceDayFlowMiniCalendar(context: DayFlowMiniCalendarEnhanceme
 	enhanceMiniCalendarNavigationButtons(context.stageElement, context.currentDate, context.previousLabel, context.nextLabel, context.selectDateKey);
 }
 
-export function installDayFlowMiniCalendarDateSelection(selectDateKey: (dateKey: string) => void): () => void {
+export function installDayTaskMiniCalendarDateSelection(selectDateKey: (dateKey: string) => void): () => void {
 	const handleClick = (event: MouseEvent): void => {
 		const target =
 			event.target instanceof Element
@@ -193,7 +193,7 @@ function miniCalendarGridStartDate(month: Date): Date {
 	return firstDate;
 }
 
-function eventDateKeysFromDayFlowEvent(event: DayFlowEvent): string[] {
+function eventDateKeysFromDayTaskEvent(event: DayTaskEvent): string[] {
 	const startDate = eventStartDate(event);
 	const endDate = adjustedInclusiveEndDate(startDate, eventEndDate(event));
 	const keys: string[] = [];

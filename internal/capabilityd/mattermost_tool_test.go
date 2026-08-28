@@ -540,7 +540,7 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 		t.Fatalf("expected protected post denial, got %+v", protectedResponse)
 	}
 
-	protectedFlowResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
+	protectedTaskResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_delete",
 		Input:    mustJSON(t, map[string]any{"messageIDs": []string{"protected-flow-post"}}),
 		Context: capabilities.ToolInvokeContext{
@@ -551,8 +551,8 @@ func TestMattermostPostUpdateAndDeleteGuardrails(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if protectedFlowResponse.Status != "error" || protectedFlowResponse.Outcome != capabilities.ToolOutcomeFailed || len(protectedFlowResponse.Effects) != 0 || protectedFlowResponse.ErrorCode != "post_delete_not_completed" {
-		t.Fatalf("expected protected Flow post delete denial, got %+v", protectedFlowResponse)
+	if protectedTaskResponse.Status != "error" || protectedTaskResponse.Outcome != capabilities.ToolOutcomeFailed || len(protectedTaskResponse.Effects) != 0 || protectedTaskResponse.ErrorCode != "post_delete_not_completed" {
+		t.Fatalf("expected protected Flow post delete denial, got %+v", protectedTaskResponse)
 	}
 
 	deleteResponse, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{

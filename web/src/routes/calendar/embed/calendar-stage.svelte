@@ -5,12 +5,12 @@
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import TrashIcon from '@lucide/svelte/icons/trash';
 	import { ViewType } from '../calendar-view-type';
-	import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+	import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarMonthView from '../grid/calendar-month-view.svelte';
 	import CalendarTimeView from '../grid/calendar-time-view.svelte';
-	import { calendarGridEventsFromDayFlowEvents } from '../grid/calendar-grid-events';
+	import { calendarGridEventsFromDayTaskEvents } from '../grid/calendar-grid-events';
 	import { calendarGridDateKey } from '../grid/calendar-grid-dates';
 	import type { CalendarGridEvent } from '../grid/calendar-grid-layout';
 	import CalendarMonthRangePreview from './calendar-month-range-preview.svelte';
@@ -43,7 +43,7 @@
 		activeMobileEditorEventID: string | null;
 		clearActiveMobileEditorEvent: (eventID: string) => void;
 		clearSelectedEvent: () => void;
-		events: DayFlowEvent[];
+		events: DayTaskEvent[];
 		participantCandidates: CalendarParticipant[];
 		isMobileTwoDayWeekView: boolean;
 		localeCode: string;
@@ -64,7 +64,7 @@
 		addEventOnTimeRange: (start: Date, end: Date) => void;
 		deleteEvent: (eventID: string) => void;
 		openEvent: (eventID: string, anchor: DraftPopoverAnchor) => void;
-		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
+		saveMovedEvent: (event: DayTaskEvent) => void | Promise<void>;
 		selectDate: (dateKey: string) => void;
 		selectedEventID: string | null;
 		timelineRangePreviewSegments: TimelineRangePreviewSegment[];
@@ -144,7 +144,7 @@
 	const replayedContextMenuEventKey = 'calendarStageReplayedContextMenu';
 
 	const gridEvents = $derived(
-		calendarGridEventsFromDayFlowEvents(events).map((event) =>
+		calendarGridEventsFromDayTaskEvents(events).map((event) =>
 			event.id === editingEvent?.id ? { ...event, ...editingEvent } : event
 		)
 	);

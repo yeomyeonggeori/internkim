@@ -614,15 +614,15 @@ describe('every capability the workspace family names', () => {
 	});
 
 	test('a quick task is posted as a json body, and never the actor', () => {
-		expect(isWorkspaceCapability('person.flow.quick_task')).toBe(true);
+		expect(isWorkspaceCapability('person.task.quick_task')).toBe(true);
 		const call = workspaceCallOf(
-			'person.flow.quick_task',
+			'person.task.quick_task',
 			{ prompt: '내일까지 보고서', weekCode: '26W35', allowDuplicate: false, actor: { kind: 'buzz' } },
 			'sample@example.test'
 		);
 
 		expect(call?.method).toBe('POST');
-		expect(call?.url).toBe('http://internkim/flow/api/tasks/quick');
+		expect(call?.url).toBe('http://internkim/task/api/tasks/quick');
 		expect(call?.contentType).toBe('application/json');
 		expect(JSON.parse(String(call?.body))).toEqual({
 			prompt: '내일까지 보고서',

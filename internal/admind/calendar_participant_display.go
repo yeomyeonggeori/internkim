@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func calendarParticipantsFromMembers(members []flowMember) []calendarParticipant {
+func calendarParticipantsFromMembers(members []taskMember) []calendarParticipant {
 	participants := make([]calendarParticipantIdentity, 0, len(members))
 	for _, member := range members {
 		participants = append(participants, calendarParticipantIdentity{
@@ -22,7 +22,7 @@ func calendarParticipantsFromMembers(members []flowMember) []calendarParticipant
 }
 
 func (service *Service) calendarEventsWithParticipantImages(request *http.Request, events []calendarEvent) []calendarEvent {
-	members := service.flowMembers(request)
+	members := service.taskMembers(request)
 	result := append([]calendarEvent(nil), events...)
 	for index := range result {
 		result[index].Participants = calendarParticipantsWithMemberImages(result[index].Participants, members)
@@ -39,7 +39,7 @@ func (service *Service) calendarEventWithParticipantImages(request *http.Request
 	return events[0]
 }
 
-func calendarParticipantsWithMemberImages(participants []calendarParticipant, members []flowMember) []calendarParticipant {
+func calendarParticipantsWithMemberImages(participants []calendarParticipant, members []taskMember) []calendarParticipant {
 	memberParticipants := calendarParticipantsFromMembers(members)
 	result := normalizeCalendarParticipants(participants)
 	for index := range result {

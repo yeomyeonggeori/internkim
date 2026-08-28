@@ -26,7 +26,7 @@ type capabilityToolTargetRoute struct {
 
 var capabilityToolTargetRoutes = []capabilityToolTargetRoute{
 	{ToolName: "event_delete", Resolver: Service.resolveCalendarEventDeleteTarget},
-	{ToolName: "task_delete", Resolver: Service.resolveFlowTaskDeleteTarget},
+	{ToolName: "task_delete", Resolver: Service.resolveTaskDeleteTarget},
 	{ToolName: "message_delete", Resolver: Service.resolveMessageDeleteTarget},
 }
 
@@ -76,18 +76,18 @@ func (service Service) resolveCalendarEventDeleteTarget(ctx context.Context, req
 	}), nil
 }
 
-func (service Service) resolveFlowTaskDeleteTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodeFlowTaskDeleteInput(request.Input)
+func (service Service) resolveTaskDeleteTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	input, errorValue := decodeTaskDeleteInput(request.Input)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	summary, errorValue := service.fetchFlowAllTasks(ctx, request.Context.RequesterEmail)
+	summary, errorValue := service.fetchTaskAllTasks(ctx, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	task, hintFailure := resolveFlowTaskHint(input.TaskHint, service.requesterFlowOwnerID(ctx, request.Context.RequesterEmail, summary.Members), summary.Tasks)
+	task, hintFailure := resolveTaskHint(input.TaskHint, service.requesterTaskOwnerID(ctx, request.Context.RequesterEmail, summary.Members), summary.Tasks)
 	if hintFailure != nil {
-		return flowFailureResponse(request.ToolName, *hintFailure), nil
+		return taskFailureResponse(request.ToolName, *hintFailure), nil
 	}
 	return capabilityToolTargetResponse(request.ToolName, capabilityToolTarget{
 		InputField: "taskHint",

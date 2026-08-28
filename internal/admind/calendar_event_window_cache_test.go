@@ -83,7 +83,7 @@ func TestCalendarEventWindowCacheReusesStoredProjection(t *testing.T) {
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
 		CreatedByEmail:    "staff@example.com",
 		Participants: []calendarParticipant{
-			{PersonID: stableFlowID("staff@example.com"), Name: "Staff", Email: "staff@example.com"},
+			{PersonID: stableTaskID("staff@example.com"), Name: "Staff", Email: "staff@example.com"},
 		},
 	}
 	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {

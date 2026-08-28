@@ -62,7 +62,7 @@ func experimentVariants() []experimentVariant {
 func experimentScenarios(t *testing.T) []experimentScenario {
 	t.Helper()
 	calendarAddDescriptor := findLiveDescriptor(t, capabilities.CalendarDescriptors(), "event_add")
-	taskAddDescriptor := findLiveDescriptor(t, capabilities.FlowDescriptors(), "task_add")
+	taskAddDescriptor := findLiveDescriptor(t, capabilities.TaskToolDescriptors(), "task_add")
 	return []experimentScenario{
 		{
 			Name:                  "calendar-full",

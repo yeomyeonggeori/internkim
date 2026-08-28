@@ -10,19 +10,19 @@ import (
 
 func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 	stateDirectory := t.TempDir()
-	legacyFlowPath := filepath.Join(stateDirectory, "flow.sqlite")
+	legacyTaskPath := filepath.Join(stateDirectory, "flow.sqlite")
 	legacyCalendarPath := filepath.Join(stateDirectory, "calendar.sqlite")
-	seedLegacyStateDatabase(t, legacyFlowPath, "CREATE TABLE flow_definitions (kind TEXT NOT NULL, value TEXT NOT NULL, position INTEGER NOT NULL, color TEXT NOT NULL DEFAULT '', PRIMARY KEY(kind, value))",
+	seedLegacyStateDatabase(t, legacyTaskPath, "CREATE TABLE flow_definitions (kind TEXT NOT NULL, value TEXT NOT NULL, position INTEGER NOT NULL, color TEXT NOT NULL DEFAULT '', PRIMARY KEY(kind, value))",
 		"INSERT INTO flow_definitions(kind, value, position, color) VALUES ('category', '샘플거리', 0, '#db2777')")
 	seedLegacyStateDatabase(t, legacyCalendarPath, "CREATE TABLE calendar_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
 		"INSERT INTO calendar_settings(key, value) VALUES ('ics_token', 'legacy-token')")
 
 	service := NewService(Configuration{
 		StateDirectory:       stateDirectory,
-		FlowDatabasePath:     legacyFlowPath,
+		TaskDatabasePath:     legacyTaskPath,
 		CalendarDatabasePath: legacyCalendarPath,
 	})
-	definitions, errorValue := service.readFlowDefinitions(context.Background())
+	definitions, errorValue := service.readTaskDefinitions(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -40,7 +40,7 @@ func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 	if _, errorValue := os.Stat(unifiedPath); errorValue != nil {
 		t.Fatalf("unified database missing: %v", errorValue)
 	}
-	for _, legacyPath := range []string{legacyFlowPath, legacyCalendarPath} {
+	for _, legacyPath := range []string{legacyTaskPath, legacyCalendarPath} {
 		if _, errorValue := os.Stat(legacyPath); !os.IsNotExist(errorValue) {
 			t.Fatalf("legacy database still in place: %s", legacyPath)
 		}

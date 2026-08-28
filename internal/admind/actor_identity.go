@@ -38,7 +38,7 @@ func (service *Service) resolveUserActorFromUserRecords(ctx context.Context, ema
 		return userActor{}, false, errorValue
 	}
 	for _, record := range records {
-		if strings.EqualFold(record.Email, email) && isActiveFlowUser(record) {
+		if strings.EqualFold(record.Email, email) && isActiveTaskUser(record) {
 			return userActorFromAdminUserRecord(record), true, nil
 		}
 	}

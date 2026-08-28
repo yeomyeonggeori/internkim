@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { CalendarDraftEventState } from './calendar-draft-events';
 
 type DraftPopoverEventReference = {
@@ -6,10 +6,10 @@ type DraftPopoverEventReference = {
 } | null;
 
 export function visibleEventsWithPreservedLocalEvents(
-	visibleEvents: DayFlowEvent[],
-	localEvents: DayFlowEvent[],
-	shouldPreserveLocalEvent: (event: DayFlowEvent) => boolean
-): DayFlowEvent[] {
+	visibleEvents: DayTaskEvent[],
+	localEvents: DayTaskEvent[],
+	shouldPreserveLocalEvent: (event: DayTaskEvent) => boolean
+): DayTaskEvent[] {
 	const visibleEventIDs = new Set(visibleEvents.map((event) => event.id));
 	const preservedLocalEvents = localEvents
 		.filter(shouldPreserveLocalEvent)
@@ -18,10 +18,10 @@ export function visibleEventsWithPreservedLocalEvents(
 }
 
 export function calendarStageEventsWithDraftPopover(
-	calendarEvents: DayFlowEvent[],
-	createdDraftEvents: DayFlowEvent[],
+	calendarEvents: DayTaskEvent[],
+	createdDraftEvents: DayTaskEvent[],
 	popover: DraftPopoverEventReference
-): DayFlowEvent[] {
+): DayTaskEvent[] {
 	const popoverDraftEvent = popover
 		? createdDraftEvents.find((event) => event.id === popover.eventID)
 		: undefined;
@@ -33,12 +33,12 @@ export function calendarStageEventsWithDraftPopover(
 
 export function shouldPreserveLocalCalendarEvent(
 	draftEvents: CalendarDraftEventState,
-	event: DayFlowEvent
+	event: DayTaskEvent
 ): boolean {
 	return draftEvents.isDraftEvent(event.id) || draftEvents.hasPendingCreate(event.id);
 }
 
-function uniqueEventsByID(events: DayFlowEvent[]): DayFlowEvent[] {
+function uniqueEventsByID(events: DayTaskEvent[]): DayTaskEvent[] {
 	const eventsByID = new Map(events.map((event) => [event.id, event]));
 	return Array.from(eventsByID.values());
 }

@@ -1,4 +1,4 @@
-import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { CalendarEvent, CalendarEventPayload } from './calendar-event-persistence';
 import type { CalendarHoliday } from './calendar-holiday-persistence';
 import { calendarParticipantInputs, calendarParticipantsFromUnknown } from './calendar-participants';
@@ -9,7 +9,7 @@ export type CalendarDateParts = {
 	day: number;
 };
 
-export function dayFlowEventFromCalendarEvent(event: CalendarEvent): DayFlowEvent {
+export function dayTaskEventFromCalendarEvent(event: CalendarEvent): DayTaskEvent {
 	return createEvent({
 		id: event.id,
 		title: event.title,
@@ -38,7 +38,7 @@ export function dayFlowEventFromCalendarEvent(event: CalendarEvent): DayFlowEven
 	});
 }
 
-export function dayFlowEventFromCalendarHoliday(holiday: CalendarHoliday): DayFlowEvent {
+export function dayTaskEventFromCalendarHoliday(holiday: CalendarHoliday): DayTaskEvent {
 	const date = localDateFromCalendarDateParts(calendarDatePartsFromISODate(holiday.date));
 	return createEvent({
 		id: holiday.id,
@@ -57,13 +57,13 @@ export function dayFlowEventFromCalendarHoliday(holiday: CalendarHoliday): DayFl
 	});
 }
 
-export function calendarEventPayloadFromDayFlowEvent(
-	event: DayFlowEvent,
+export function calendarEventPayloadFromDayTaskEvent(
+	event: DayTaskEvent,
 	color: string,
 	timeZone: string
 ): CalendarEventPayload {
-	const startDate = calendarDateFromDayFlowEventStart(event);
-	const endDate = calendarDateFromDayFlowEventEnd(event);
+	const startDate = calendarDateFromDayTaskEventStart(event);
+	const endDate = calendarDateFromDayTaskEventEnd(event);
 	return {
 		eventID: event.id,
 		title: event.title || 'Untitled event',
@@ -78,20 +78,20 @@ export function calendarEventPayloadFromDayFlowEvent(
 	};
 }
 
-export function eventStartDate(event: DayFlowEvent): Date {
+export function eventStartDate(event: DayTaskEvent): Date {
 	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromDate(event.start)) : new Date(event.start);
 }
 
-export function eventEndDate(event: DayFlowEvent): Date {
+export function eventEndDate(event: DayTaskEvent): Date {
 	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromDate(event.end)) : new Date(event.end);
 }
 
-function calendarDateFromDayFlowEventStart(event: DayFlowEvent): Date {
+function calendarDateFromDayTaskEventStart(event: DayTaskEvent): Date {
 	if (event.allDay) return dateFromCalendarDateParts(calendarDatePartsFromDate(event.start));
 	return new Date(event.start);
 }
 
-function calendarDateFromDayFlowEventEnd(event: DayFlowEvent): Date {
+function calendarDateFromDayTaskEventEnd(event: DayTaskEvent): Date {
 	if (event.allDay) return dateFromCalendarDateParts(nextCalendarDateParts(calendarDatePartsFromDate(event.end)));
 	return new Date(event.end);
 }

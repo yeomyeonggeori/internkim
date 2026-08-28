@@ -1,4 +1,4 @@
-import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 
 const localSortMetadataKey = 'localSortAt';
 
@@ -7,12 +7,12 @@ export type DraftEventParams = Omit<Parameters<typeof createEvent>[0], 'title'> 
 export class CalendarDraftEventState {
 	readonly pendingCreateEvents = new Map<string, Promise<void>>();
 	private readonly draftEventIDs = new Set<string>();
-	private readonly draftEventsByID = new Map<string, DayFlowEvent>();
+	private readonly draftEventsByID = new Map<string, DayTaskEvent>();
 	private readonly draftEventOriginalTitles = new Map<string, string>();
 	private readonly draftEventRevisions = new Map<string, number>();
 	private readonly eventsDeletedDuringCreate = new Set<string>();
 
-	addCreatedEvent(event: DayFlowEvent): void {
+	addCreatedEvent(event: DayTaskEvent): void {
 		this.draftEventIDs.add(event.id);
 		this.draftEventsByID.set(event.id, event);
 		this.draftEventOriginalTitles.set(event.id, (event.title ?? '').trim());
@@ -30,13 +30,13 @@ export class CalendarDraftEventState {
 		this.draftEventRevisions.delete(eventID);
 	}
 
-	retainDraftEvent(event: DayFlowEvent): void {
+	retainDraftEvent(event: DayTaskEvent): void {
 		if (!this.isDraftEvent(event.id)) return;
 		this.draftEventsByID.set(event.id, event);
 		this.draftEventRevisions.set(event.id, (this.draftEventRevisions.get(event.id) ?? 0) + 1);
 	}
 
-	draftEvent(eventID: string): DayFlowEvent | undefined {
+	draftEvent(eventID: string): DayTaskEvent | undefined {
 		return this.draftEventsByID.get(eventID);
 	}
 
@@ -44,7 +44,7 @@ export class CalendarDraftEventState {
 		return this.draftEventRevisions.get(eventID) ?? 0;
 	}
 
-	createdEvents(): DayFlowEvent[] {
+	createdEvents(): DayTaskEvent[] {
 		return Array.from(this.draftEventsByID.values());
 	}
 
@@ -64,7 +64,7 @@ export class CalendarDraftEventState {
 		return !this.eventsDeletedDuringCreate.has(eventID);
 	}
 
-	async trackCreatedEvent(event: DayFlowEvent, createEventOnServer: (event: DayFlowEvent) => Promise<void>): Promise<void> {
+	async trackCreatedEvent(event: DayTaskEvent, createEventOnServer: (event: DayTaskEvent) => Promise<void>): Promise<void> {
 		const existingCommit = this.pendingCreateEvents.get(event.id);
 		if (existingCommit) {
 			await existingCommit;
@@ -81,7 +81,7 @@ export class CalendarDraftEventState {
 		}
 	}
 
-	hasMeaningfulTitle(event: DayFlowEvent): boolean {
+	hasMeaningfulTitle(event: DayTaskEvent): boolean {
 		const currentTitle = (event.title ?? '').trim();
 		if (this.isPlaceholderTitle(currentTitle)) return false;
 		const originalTitle = this.draftEventOriginalTitles.get(event.id);
@@ -93,7 +93,7 @@ export class CalendarDraftEventState {
 		return (title ?? '').trim() === '';
 	}
 
-	createDraftEvent(params: DraftEventParams): DayFlowEvent {
+	createDraftEvent(params: DraftEventParams): DayTaskEvent {
 		return createEvent({
 			...params,
 			title: '',
@@ -133,7 +133,7 @@ export class CalendarDraftEventState {
 		}
 	}
 
-	syncVisibility(events: DayFlowEvent[], stageElement: HTMLElement, eventElementsByID: (eventID: string) => HTMLElement[]): void {
+	syncVisibility(events: DayTaskEvent[], stageElement: HTMLElement, eventElementsByID: (eventID: string) => HTMLElement[]): void {
 		for (const element of stageElement.querySelectorAll<HTMLElement>('.draft-empty-title-event')) {
 			element.classList.remove('draft-empty-title-event');
 		}

@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 
 import { findCalendarEventByID } from '../../../src/routes/calendar/embed/calendar-event-lookup';
 
-test('finds events from the DayFlow app store before the fallback array', () => {
+test('finds events from the DayTask app store before the fallback array', () => {
 	const appEvent = createEvent({
 		id: 'target-event',
 		title: 'App Store Event',
@@ -22,7 +22,7 @@ test('finds events from the DayFlow app store before the fallback array', () => 
 	expect(findCalendarEventByID([appEvent], [fallbackEvent], 'target-event')).toBe(appEvent);
 });
 
-test('falls back to calendar events when the DayFlow app store has not caught up', () => {
+test('falls back to calendar events when the DayTask app store has not caught up', () => {
 	const fallbackEvent = createEvent({
 		id: 'fallback-only-event',
 		title: 'Fallback Only Event',

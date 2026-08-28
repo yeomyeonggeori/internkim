@@ -44,22 +44,22 @@ func (service *Service) attendanceUserRecordsForMembers(request *http.Request) (
 func attendanceMembersFromAdminUserRecords(records []adminUserMutation) []attendanceMember {
 	members := membersFromUserRecords(records)
 	result := make([]attendanceMember, 0, len(members))
-	for _, flowMember := range members {
-		email := strings.ToLower(strings.TrimSpace(flowMember.Email))
+	for _, taskMember := range members {
+		email := strings.ToLower(strings.TrimSpace(taskMember.Email))
 		if email == "" {
 			continue
 		}
-		displayName := strings.TrimSpace(flowMember.Name)
+		displayName := strings.TrimSpace(taskMember.Name)
 		if displayName == "" {
 			displayName = email
 		}
 		result = append(result, attendanceMember{
 			Email:              email,
 			DisplayName:        displayName,
-			Image:              flowMember.Image,
-			MattermostUsername: strings.TrimSpace(flowMember.MattermostUsername),
-			UserID:             flowMember.ID,
-			HireDate:           flowMember.HireDate,
+			Image:              taskMember.Image,
+			MattermostUsername: strings.TrimSpace(taskMember.MattermostUsername),
+			UserID:             taskMember.ID,
+			HireDate:           taskMember.HireDate,
 		})
 	}
 	return result

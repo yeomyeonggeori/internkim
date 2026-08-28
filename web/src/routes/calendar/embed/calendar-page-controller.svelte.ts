@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { ViewType } from '../calendar-view-type';
 import { createCalendarEventStore } from './calendar-event-store.svelte';
 import type { CalendarLocaleText } from '../text';

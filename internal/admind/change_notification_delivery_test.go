@@ -8,13 +8,13 @@ import (
 	"testing"
 )
 
-func newTwoRecipientFlowService(t *testing.T, failSecondRecipientOnce *bool, postedChannels *[]string) *Service {
+func newTwoRecipientTaskService(t *testing.T, failSecondRecipientOnce *bool, postedChannels *[]string) *Service {
 	t.Helper()
 	service := NewService(Configuration{
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
 		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
-		FlowDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
+		TaskDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -39,8 +39,8 @@ func newTwoRecipientFlowService(t *testing.T, failSecondRecipientOnce *bool, pos
 			}
 			*postedChannels = append(*postedChannels, channelID)
 			return jsonResponse(http.StatusCreated, `{"id":"post-1"}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostExistingFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostExistingTaskSetupResponse(t, request), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -49,28 +49,28 @@ func newTwoRecipientFlowService(t *testing.T, failSecondRecipientOnce *bool, pos
 	return service
 }
 
-func TestFlowNoticeRetryDoesNotRepeatDeliveredRecipients(t *testing.T) {
+func TestTaskNoticeRetryDoesNotRepeatDeliveredRecipients(t *testing.T) {
 	failSecondRecipientOnce := true
 	postedChannels := []string{}
-	service := newTwoRecipientFlowService(t, &failSecondRecipientOnce, &postedChannels)
-	task := flowNotificationTestTask("요청")
+	service := newTwoRecipientTaskService(t, &failSecondRecipientOnce, &postedChannels)
+	task := taskNotificationTestTask("요청")
 	task.ParticipantNames = []string{"김민수", "박예시"}
-	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	service.applyFlowMattermostProjection(context.Background(), task)
+	service.applyTaskMattermostProjection(context.Background(), task)
 	if strings.Join(postedChannels, "|") != "direct-user-owner" {
 		t.Fatalf("first attempt delivered %+v", postedChannels)
 	}
-	assertFlowProjectionOutboxCount(t, service, 1)
+	assertTaskProjectionOutboxCount(t, service, 1)
 
-	service.drainFlowMattermostProjectionOutbox(context.Background())
+	service.drainTaskMattermostProjectionOutbox(context.Background())
 
 	if strings.Join(postedChannels, "|") != "direct-user-owner|direct-user-mate" {
 		t.Fatalf("retry must reach only the recipient that missed the notice, got %+v", postedChannels)
 	}
-	assertFlowProjectionOutboxCount(t, service, 0)
+	assertTaskProjectionOutboxCount(t, service, 0)
 }
 
 func TestChangeNoticeKeepsDetailWhenWordingIsUnavailable(t *testing.T) {

@@ -29,7 +29,7 @@ test.describe('embedded calendar touch event activation', () => {
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 	});
 
-	test('lets DayFlow finish touch cleanup after a stationary tap', async ({ page }) => {
+	test('lets DayTask finish touch cleanup after a stationary tap', async ({ page }) => {
 		await openCalendarEmbed(page, '일');
 
 		const eventBlock = touchActivationEvent(page);

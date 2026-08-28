@@ -12,7 +12,7 @@ import type {
 	CRMOpportunityResponse
 } from './crm-api-types';
 import type { CRMVocabulary } from './crm-api-types';
-import type { TaskVocabulary } from '$lib/flow/task-vocabulary';
+import type { TaskVocabulary } from '$lib/task/task-vocabulary';
 import { crmStages } from './crm-stages';
 import type {
 	CRMOrganization,

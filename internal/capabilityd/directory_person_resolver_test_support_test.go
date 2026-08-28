@@ -11,7 +11,7 @@ import (
 // The company is what decides who a name refers to, so a test that asks about a
 // person has to say who works there. Members carry the addresses the board rows
 // were written with, which is what joins the two.
-func serviceWithDirectoryOf(t *testing.T, members []flowMemberForTool) Service {
+func serviceWithDirectoryOf(t *testing.T, members []taskMemberForTool) Service {
 	t.Helper()
 	people := make([]directoryPerson, 0, len(members))
 	for _, member := range members {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+	import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 	import { ViewType } from '../calendar-view-type';
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarConflict } from './calendar-conflicts';
@@ -55,12 +55,12 @@
 		participantFilterKey: string;
 		selectParticipantFilter: (participantKey: string) => void;
 		refreshConflicts: () => void;
-		saveMovedEvent: (event: DayFlowEvent) => void | Promise<void>;
+		saveMovedEvent: (event: DayTaskEvent) => void | Promise<void>;
 		savePopover: () => void;
 		cancelPopover: () => void;
 		selectDate: (dateKey: string) => void;
 		selectedEventID: string | null;
-		stageEvents: DayFlowEvent[];
+		stageEvents: DayTaskEvent[];
 		text: CalendarLocaleText;
 		timelineRangePreviewSegments: TimelineRangePreviewSegment[];
 		timelineRangePreviewTitle: string;
