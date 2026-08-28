@@ -6,13 +6,9 @@ export async function myNotificationSettings(): Promise<NotificationSettings> {
 	const accountID = data.session?.user.id;
 	if (!accountID) return readNotificationSettings({});
 
-	const member = await supabase()
-		.from('member')
-		.select('notification_settings')
-		.eq('user_id', accountID)
-		.maybeSingle<{ notification_settings: unknown }>();
-	if (member.error) throw new Error(member.error.message);
-	return readNotificationSettings(member.data?.notification_settings);
+	const settings = await supabase().rpc('my_notification_settings');
+	if (settings.error) throw new Error(settings.error.message);
+	return readNotificationSettings(settings.data);
 }
 
 export async function chooseNotificationSettings(chosen: NotificationSettings): Promise<void> {

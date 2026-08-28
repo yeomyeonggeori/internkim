@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(42);
 
 delete from public.company;
 
@@ -1139,6 +1139,165 @@ begin
 
   raise notice 'messenger: a member holds one account per messenger, on the member';
 end $$;$block$, 'messenger: a member holds one account per messenger, on the member');
+
+-- The blocks above spend six hundred lines mutating the companies they set up,
+-- so these bring their own rather than read whatever is left.
+insert into auth.users (id, email) values
+  ('0f000000-0000-0000-0000-000000000001', 'hr-member@example.test'),
+  ('0f000000-0000-0000-0000-000000000009', 'hr-admin@example.test');
+
+insert into public.company (id, name, slug, country, locale, timezone) values
+  ('0f000000-0000-0000-0000-0000000000c0', 'HR File Company', 'company-hr-file', 'KR', 'ko', 'Asia/Seoul');
+
+insert into public.member (id, company_id, email, name, user_id, status, is_admin,
+                           phone_number, leave_days, note) values
+  ('0f0000aa-0000-0000-0000-000000000001', '0f000000-0000-0000-0000-0000000000c0',
+   'hr-member@example.test', '이샘플', '0f000000-0000-0000-0000-000000000001', 'active', false,
+   '010-0000-0001', 20, 'kept about them'),
+  ('0f0000aa-0000-0000-0000-000000000002', '0f000000-0000-0000-0000-0000000000c0',
+   'hr-colleague@example.test', '박예시', null, 'active', false,
+   '010-0000-0002', 15, 'kept about the colleague'),
+  ('0f0000aa-0000-0000-0000-000000000009', '0f000000-0000-0000-0000-0000000000c0',
+   'hr-admin@example.test', '최견본', '0f000000-0000-0000-0000-000000000009', 'active', true,
+   '010-0000-0009', 25, 'kept about the admin');
+
+select lives_ok($block$do $$
+declare
+  directory_rows integer;
+  entitlement_refused boolean := false;
+  preferences_refused boolean := false;
+  note_refused boolean := false;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"0f000000-0000-0000-0000-000000000001"}', true);
+
+  select count(*) into directory_rows from public.member
+  where id = '0f0000aa-0000-0000-0000-000000000002';
+  assert directory_rows = 1, 'a colleague is still in the directory';
+
+  perform id, name, email, job_title, phone_number, messenger, timezone,
+          work_hours, minimum_daily_minutes, locale
+  from public.member where id = '0f0000aa-0000-0000-0000-000000000002';
+
+  begin
+    perform leave_days from public.member;
+  exception when insufficient_privilege then
+    entitlement_refused := true;
+  end;
+  begin
+    perform notification_settings from public.member;
+  exception when insufficient_privilege then
+    preferences_refused := true;
+  end;
+  begin
+    perform note from public.member;
+  exception when insufficient_privilege then
+    note_refused := true;
+  end;
+
+  assert entitlement_refused, 'a colleague cannot read what leave somebody is granted';
+  assert preferences_refused, 'a colleague cannot read somebody notification settings';
+  assert note_refused, 'a colleague cannot read the note kept about somebody';
+
+  reset role;
+  raise notice 'member: a colleague reads the directory and not the HR file';
+end $$;$block$, 'member: a colleague reads the directory and not the HR file');
+
+select lives_ok($block$do $$
+declare
+  entitlement numeric;
+  colleague_rows integer;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"0f000000-0000-0000-0000-000000000001"}', true);
+
+  select leave_days into entitlement
+  from public.member_hr_file('0f0000aa-0000-0000-0000-000000000001');
+  assert entitlement = 20, 'a member reads their own entitlement';
+
+  select count(*) into colleague_rows
+  from public.member_hr_file('0f0000aa-0000-0000-0000-000000000002');
+  assert colleague_rows = 0, 'and is told nothing about a colleague';
+
+  perform set_config('request.jwt.claims', '{"sub":"0f000000-0000-0000-0000-000000000009"}', true);
+  select leave_days into entitlement
+  from public.member_hr_file('0f0000aa-0000-0000-0000-000000000002');
+  assert entitlement = 15, 'an administrator reads the file of somebody they administer';
+
+  reset role;
+  raise notice 'member: the HR file answers for the caller and for an administrator';
+end $$;$block$, 'member: the HR file answers for the caller and for an administrator');
+
+select lives_ok($block$do $$
+declare
+  visible_leave integer;
+  reason_refused boolean := false;
+begin
+  insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at, note)
+    values ('0f0000aa-0000-0000-0000-000000000002', '연차', true, 1, 'requested',
+            '2026-09-01 00:00+09', '2026-09-01 23:59+09', 'a reason of their own');
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"0f000000-0000-0000-0000-000000000001"}', true);
+  select count(*) into visible_leave from public.leave
+  where member_id = '0f0000aa-0000-0000-0000-000000000002';
+  assert visible_leave = 0, 'a colleague request nobody has decided yet is not their business';
+  reset role;
+
+  update public.leave set status = 'approved'
+    where member_id = '0f0000aa-0000-0000-0000-000000000002';
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"0f000000-0000-0000-0000-000000000001"}', true);
+  select count(*) into visible_leave from public.leave
+  where member_id = '0f0000aa-0000-0000-0000-000000000002';
+  assert visible_leave = 1, 'a day somebody is off shows once it is approved';
+
+  begin
+    perform note from public.leave;
+  exception when insufficient_privilege then
+    reason_refused := true;
+  end;
+  assert reason_refused, 'why somebody took the day off stays theirs';
+
+  reset role;
+  raise notice 'leave: a colleague sees the day off and not the reason';
+end $$;$block$, 'leave: a colleague sees the day off and not the reason');
+
+-- Revoking select on the table and granting it per column leaves a column added
+-- later closed rather than open, so what this holds shut is somebody granting
+-- the whole table again, which would put every column back at once.
+select is_empty(
+  $$
+  select column_name
+  from information_schema.column_privileges
+  where grantee in ('anon', 'authenticated')
+    and table_schema = 'public' and table_name = 'member'
+    and privilege_type = 'SELECT'
+    and column_name not in (
+      'id', 'company_id', 'email', 'user_id', 'status', 'is_admin', 'joined_at',
+      'locale', 'timezone', 'work_hours', 'minimum_daily_minutes',
+      'team_id', 'supervisor_id', 'job_title', 'name', 'profile_image',
+      'phone_number', 'messenger'
+    )
+  $$,
+  'no column of member is readable by a colleague that was not meant to be'
+);
+
+select is_empty(
+  $$
+  select column_name
+  from information_schema.column_privileges
+  where grantee in ('anon', 'authenticated')
+    and table_schema = 'public' and table_name = 'leave'
+    and privilege_type = 'SELECT'
+    and column_name not in (
+      'id', 'member_id', 'kind', 'is_paid', 'is_deducted', 'days', 'status',
+      'starts_at', 'ends_at'
+    )
+  $$,
+  'no column of leave is readable by a colleague that was not meant to be'
+);
 
 select * from finish();
 rollback;
