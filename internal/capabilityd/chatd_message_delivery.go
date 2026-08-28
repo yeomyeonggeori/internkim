@@ -200,32 +200,10 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 	})
 }
 
-type chatdHistoryFetchRequest struct {
-	ThreadID    string `json:"threadID,omitempty"`
-	ChannelID   string `json:"channelID,omitempty"`
-	ChannelName string `json:"channelName,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-}
-
-type chatdHistoryMessage struct {
-	ID           string `json:"id"`
-	ThreadRootID string `json:"threadRootId,omitempty"`
-	Speaker      string `json:"speaker"`
-	SenderID     string `json:"senderId,omitempty"`
-	Text         string `json:"text"`
-	SentAt       string `json:"sentAt,omitempty"`
-	IsBot        bool   `json:"isBot,omitempty"`
-}
-
-type chatdHistoryFetchResponse struct {
-	Messages  []chatdHistoryMessage `json:"messages"`
-	ChannelID string                `json:"channelID,omitempty"`
-}
-
 // An edit names a quoted span of the message it changes, the same contract the
-// Mattermost path holds. The current text comes from the conversation's own
-// record, the span is applied to it, and the whole result is sent, because that
-// is the only edit the platform itself has.
+// Mattermost path holds. The current text comes from the platform's own record
+// of that exact message, the span is applied to it, and the whole result is
+// sent, because that is the only edit the platform itself has.
 func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageUpdateInput) (capabilities.ToolInvokeResponse, error) {
 	messageID := strings.TrimSpace(input.MessageID)
 	if input.NewText == nil || input.OldText == nil {
@@ -236,7 +214,7 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	if replyTargetID == "" {
 		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
 	}
-	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, request.Context.Platform, replyTargetID, messageID)
+	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, request.Context.Platform, messageID)
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -257,21 +235,20 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	})
 }
 
-func (service Service) chatdCurrentMessageText(ctx context.Context, platform string, replyTargetID string, messageID string) (string, mattermostToolFailure, bool) {
-	if replyTargetID == "" {
-		return "", mattermostToolStaticFailure("invalid_input", "platform_route",
-			"a message is edited in the conversation it belongs to, and this call names none"), true
+// The record an edit reads must be the record message_search answered from: an
+// ID search crosses channels and applies later edits, so a post found in one
+// channel stays editable from the conversation the request came from.
+func (service Service) chatdCurrentMessageText(ctx context.Context, platform string, messageID string) (string, mattermostToolFailure, bool) {
+	searchRequest := chatdMessageSearchRequest{MessageIDs: []string{messageID}, Queries: []string{}}
+	var response chatdMessageSearchResponse
+	if errorValue := service.chatdPlatformRequest(ctx, platform, "message.search", searchRequest, &response); errorValue != nil {
+		return "", mattermostToolFailureForError("message_lookup", "platform_unavailable", errorValue), true
 	}
-	var response chatdHistoryFetchResponse
-	historyRequest := chatdHistoryFetchRequest{ThreadID: replyTargetID, Limit: 50}
-	if errorValue := service.chatdPlatformRequest(ctx, platform, "history.fetch", historyRequest, &response); errorValue != nil {
-		return "", mattermostToolFailureForError("history_fetch", "platform_unavailable", errorValue), true
-	}
-	for _, message := range response.Messages {
-		if strings.TrimSpace(message.ID) == messageID {
-			return message.Text, mattermostToolFailure{}, false
+	for _, candidate := range response.Candidates {
+		if strings.TrimSpace(candidate.MessageID) == messageID {
+			return candidate.Text, mattermostToolFailure{}, false
 		}
 	}
 	return "", mattermostToolStaticFailure("not_found", "message_lookup",
-		"message "+messageID+" is not in the recent record of this conversation"), true
+		"message "+messageID+" does not exist on this platform or was deleted"), true
 }
