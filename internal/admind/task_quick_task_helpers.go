@@ -48,6 +48,19 @@ func preferExplicitTaskValue(explicitValue string, inferredValue string) string 
 	return firstNonEmpty(strings.TrimSpace(explicitValue), inferredValue)
 }
 
+// Work whose end date has already passed is finished work, whatever the note's
+// tense suggested; statuses that say why the work stopped are left alone.
+func statusCompletedWhenEnded(status string, endDate string, today string) string {
+	if !isTaskPlannedStatus(status) && !isTaskInProgressStatus(status) {
+		return status
+	}
+	trimmedEndDate := strings.TrimSpace(endDate)
+	if trimmedEndDate == "" || trimmedEndDate > today {
+		return status
+	}
+	return taskStatusCompleted
+}
+
 func memberIDForEmail(members []taskMember, email string) string {
 	for _, member := range members {
 		if strings.EqualFold(member.Email, strings.TrimSpace(email)) {
