@@ -100,6 +100,25 @@ ORDER BY start_date, owner_name, updated_at DESC`, startDate, endDate, startDate
 // A caller names a task by the identifier it was answered with, which is the
 // company's. The device still files its own copy under an identifier of its
 // own, so the company's is turned back into it before the row is looked up.
+// A task born on the company board has no device row to look up, so a miss in
+// the device store is answered from the board the reads already come from.
+func (service *Service) readFlowTaskAnswering(ctx context.Context, taskID string, members []flowMember) (flowTask, bool, error) {
+	task, found, errorValue := service.readFlowTaskByID(ctx, taskID)
+	if found || errorValue != nil {
+		return task, found, errorValue
+	}
+	boardTasks, answered := service.companyBoardTasks(ctx, members)
+	if !answered {
+		return flowTask{}, false, nil
+	}
+	for _, boardTask := range boardTasks {
+		if boardTask.ID == strings.TrimSpace(taskID) {
+			return boardTask, true, nil
+		}
+	}
+	return flowTask{}, false, nil
+}
+
 func (service *Service) readFlowTaskByID(ctx context.Context, taskID string) (flowTask, bool, error) {
 	database, errorValue := service.openFlowDatabase(ctx)
 	if errorValue != nil {
