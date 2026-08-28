@@ -35,6 +35,8 @@ type AttendanceWorkConformanceEvent = {
 type AttendanceWorkConformanceLeave = {
 	startDate: string;
 	endDate: string;
+	startTime: string;
+	endTime: string;
 	days: number;
 };
 
@@ -167,8 +169,12 @@ function conformanceLeave(scenario: AttendanceWorkConformanceScenario): Supabase
 			return {
 				member_id: conformanceMember.id,
 				days: leave.days,
-				starts_at: companyTimeInstant(leave.startDate, '00:00', scenario.timeZone),
-				ends_at: companyTimeInstant(shiftedDay(leave.endDate, 1), '00:00', scenario.timeZone),
+				starts_at: companyTimeInstant(leave.startDate, leave.startTime, scenario.timeZone),
+				ends_at: companyTimeInstant(
+					shiftedDay(leave.endDate, 1),
+					leave.startTime,
+					scenario.timeZone
+				),
 				status: 'approved'
 			};
 		}
@@ -180,8 +186,8 @@ function conformanceLeave(scenario: AttendanceWorkConformanceScenario): Supabase
 		return {
 			member_id: conformanceMember.id,
 			days: leave.days,
-			starts_at: companyTimeInstant(leave.startDate, '09:00', scenario.timeZone),
-			ends_at: companyTimeInstant(leave.startDate, '14:00', scenario.timeZone),
+			starts_at: companyTimeInstant(leave.startDate, leave.startTime, scenario.timeZone),
+			ends_at: companyTimeInstant(leave.startDate, leave.endTime, scenario.timeZone),
 			status: 'approved'
 		};
 	});
