@@ -30,6 +30,7 @@ import {
 	browserTimeZone,
 	contactPayload,
 	contactPayloadFromDraft,
+	crmPipelinesOf,
 	mapCRMViewData,
 	opportunityPayload,
 	opportunityPayloadFromDraft,
@@ -52,6 +53,7 @@ import type {
 import type { CRMTransitionPayload, CRMVocabulary } from './crm-api-types';
 import type { TaskVocabulary } from '$lib/flow/task-vocabulary';
 import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
+import { cloneCRMVocabulary } from './crm-definitions';
 import { crmErrorMessage, CRMPageError } from './crm-error-text';
 import { crmLabel } from './crm-labels';
 import {
@@ -234,7 +236,20 @@ export class CRMPageController {
 	}
 
 	async saveVocabulary(vocabulary: CRMVocabulary): Promise<void> {
-		await this.mutate(() => saveCRMVocabulary(vocabulary));
+		if (fixtureMode) throw new Error(this.text.fixtureModeReadOnly);
+		this.isSaving = true;
+		this.error = null;
+		this.permissionDenied = false;
+		try {
+			await saveCRMVocabulary(vocabulary);
+			this.vocabulary = cloneCRMVocabulary(vocabulary);
+			this.pipelines = crmPipelinesOf(vocabulary);
+		} catch (error) {
+			this.applyError(error);
+			throw new Error(this.errorMessage);
+		} finally {
+			this.isSaving = false;
+		}
 	}
 
 	async moveOpportunity(request: CRMPipelineBoardMoveRequest): Promise<void> {

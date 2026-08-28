@@ -328,3 +328,28 @@ test('a definition added while an earlier save runs is not lost', async ({ page 
 	}
 	await expect(names).toHaveCount(nameCount);
 });
+
+test('a renamed pipeline reaches the rest of the workspace without a reload', async ({ page }) => {
+	await signIn(page);
+	await page.getByRole('tab', { name: '정의' }).click();
+
+	const definitions = page.getByRole('region', { name: '정의', exact: true });
+	const card = definitions.locator('[data-slot="card"]').filter({ hasText: '진행 유형' });
+	const firstName = card.getByRole('textbox').first();
+	await expect(firstName).toBeVisible();
+	const originalName = await firstName.inputValue();
+	const renamedName = `${originalName} 개명`;
+
+	const saved = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	await firstName.fill(renamedName);
+	await firstName.blur();
+	await saved;
+
+	await expect(page.locator('[data-crm-metrics]')).toContainText(renamedName);
+
+	const restored = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	await firstName.fill(originalName);
+	await firstName.blur();
+	await restored;
+	await expect(page.locator('[data-crm-metrics]')).toContainText(originalName);
+});

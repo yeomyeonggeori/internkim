@@ -23,7 +23,8 @@ import type {
 	CRMNextAction,
 	CRMOpportunity,
 	CRMPipeline,
-	CRMPipelineStage
+	CRMPipelineStage,
+	CRMProgressKind
 } from './crm-types';
 
 export type CRMViewData = {
@@ -72,6 +73,15 @@ export function mapCRMViewData(
 		vocabulary: structuredClone(data.vocabulary),
 		taskVocabulary: structuredClone(data.taskVocabulary)
 	};
+}
+
+export function crmPipelinesOf(vocabulary: CRMVocabulary): CRMPipeline[] {
+	return vocabulary.pipelines.map((pipeline) => ({
+		pipeline: pipeline.id as CRMProgressKind,
+		label: pipeline.name,
+		direction: pipeline.direction ?? '',
+		isActive: true
+	}));
 }
 
 export function organizationPayload(organization: CRMOrganization): CRMOrganizationPayload {
