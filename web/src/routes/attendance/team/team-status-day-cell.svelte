@@ -8,7 +8,7 @@
 	import TeamStatusLeaveSegmentSummary from './team-status-leave-segment-summary.svelte';
 	import type { TeamStatusPersonDay } from './team-status-table-model';
 	import { teamComplianceMarks } from './team-status-compliance';
-	import { getTeamWorkStatusState } from '../work-status/work-status-state.svelte';
+	import { optionalWorkStatusState } from '../work-status/work-status-state.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../text';
 
@@ -33,9 +33,9 @@
 	}: Props = $props();
 	const isMobile = new IsMobile();
 	const complianceText = createPageText(attendanceText);
-	const teamWorkStatus = getTeamWorkStatusState();
+	const workStatus = optionalWorkStatusState();
 	const complianceMarks = $derived(
-		teamComplianceMarks(teamWorkStatus?.payload?.employees ?? [], personEmail, day.date)
+		teamComplianceMarks(workStatus?.monthPayload?.employees ?? [], personEmail, day.date)
 	);
 
 	function cellDividerClass(): string {

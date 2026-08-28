@@ -65,7 +65,21 @@ export type SupabaseEmployeeWorkStatusInput = {
 	now?: Date;
 };
 
-export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): Promise<AttendanceWorkStatus> {
+export type SupabaseWorkStatusInputs = {
+	timeZone: string;
+	members: SupabaseWorkStatusMember[];
+	me: SupabaseWorkStatusMember | undefined;
+	attendance: SupabaseWorkStatusAttendance[];
+	leave: SupabaseWorkStatusLeave[];
+	policiesByMember: Map<string, SupabaseWorkPolicy>;
+	holidays: ReadonlySet<string>;
+	coveredDays: string[];
+	now: Date;
+};
+
+export async function supabaseWorkStatusInputs(
+	requests: AttendanceWorkStatusRequest[]
+): Promise<SupabaseWorkStatusInputs> {
 	const requestNow = new Date();
 	const client = supabase();
 	const { data: auth } = await client.auth.getSession();
@@ -86,9 +100,12 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 	if (members.error) throw new Error(members.error.message);
 
 	const timeZone = company.data.timezone;
-	const days = daysOf(request, timeZone, requestNow);
-	const { from, until } = supabaseWorkStatusTimeRange(days, timeZone);
-	const attendanceFrom = supabaseWorkStatusTimeRange([shiftedDay(days[0], -1)], timeZone).from;
+	const coveredDays = coveredDaysOf(requests, timeZone, requestNow);
+	const { from, until } = supabaseWorkStatusTimeRange(coveredDays, timeZone);
+	const attendanceFrom = supabaseWorkStatusTimeRange(
+		[shiftedDay(coveredDays[0], -1)],
+		timeZone
+	).from;
 
 	const attendance = await client
 		.from('attendance')
@@ -108,20 +125,34 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 		.returns<SupabaseWorkStatusLeave[]>();
 	if (leave.error) throw new Error(leave.error.message);
 
-	const policiesByMember = await supabaseWorkPolicies(client);
-	const holidays = await workStatusHolidays(days);
+	return {
+		timeZone,
+		members: members.data,
+		me: members.data.find((member) => member.user_id === accountID),
+		attendance: attendance.data,
+		leave: leave.data,
+		policiesByMember: await supabaseWorkPolicies(client),
+		holidays: await workStatusHolidays(coveredDays),
+		coveredDays,
+		now: requestNow
+	};
+}
 
-	const me = members.data.find((member) => member.user_id === accountID);
-	const employees = membersInReadingOrder(members.data, me?.id).map((member) =>
+export function attendanceWorkStatusFrom(
+	inputs: SupabaseWorkStatusInputs,
+	request: AttendanceWorkStatusRequest
+): AttendanceWorkStatus {
+	const days = daysOf(request, inputs.timeZone, inputs.now);
+	const employees = membersInReadingOrder(inputs.members, inputs.me?.id).map((member) =>
 		calculateSupabaseEmployeeWorkStatus({
 			member,
 			days,
-			timeZone,
-			attendance: attendance.data,
-			leave: leave.data,
-			policy: requiredPolicy(policiesByMember.get(member.id), member.id),
-			holidays,
-			now: requestNow
+			timeZone: inputs.timeZone,
+			attendance: inputs.attendance,
+			leave: inputs.leave,
+			policy: requiredPolicy(inputs.policiesByMember.get(member.id), member.id),
+			holidays: inputs.holidays,
+			now: inputs.now
 		})
 	);
 
@@ -130,11 +161,46 @@ export async function supabaseWorkStatus(request: AttendanceWorkStatusRequest): 
 		anchor: request.anchor,
 		periodStart: days[0],
 		periodEnd: days[days.length - 1],
-		timeZone,
-		isAdmin: me?.is_admin ?? false,
-		personal: employees.find((employee) => employee.email === me?.email),
+		timeZone: inputs.timeZone,
+		isAdmin: inputs.me?.is_admin ?? false,
+		personal: employees.find((employee) => employee.email === inputs.me?.email),
 		employees
 	};
+}
+
+export function coveredDaysOf(
+	requests: AttendanceWorkStatusRequest[],
+	timeZone: string,
+	now: Date
+): string[] {
+	if (requests.length === 0) throw new Error('a work status range needs at least one period');
+	const days = new Set<string>();
+	for (const request of requests) {
+		for (const day of daysOf(request, timeZone, now)) days.add(day);
+	}
+	const sorted = [...days].sort();
+	const covered: string[] = [];
+	for (let day = sorted[0]; day <= sorted[sorted.length - 1]; day = shiftedDay(day, 1)) {
+		covered.push(day);
+	}
+	return covered;
+}
+
+export function rangeCovers(
+	coveredDays: string[],
+	requests: AttendanceWorkStatusRequest[],
+	timeZone: string,
+	now: Date
+): boolean {
+	if (coveredDays.length === 0) return false;
+	const wanted = coveredDaysOf(requests, timeZone, now);
+	return wanted[0] >= coveredDays[0] && wanted[wanted.length - 1] <= coveredDays[coveredDays.length - 1];
+}
+
+export async function supabaseWorkStatus(
+	request: AttendanceWorkStatusRequest
+): Promise<AttendanceWorkStatus> {
+	return attendanceWorkStatusFrom(await supabaseWorkStatusInputs([request]), request);
 }
 
 function requiredPolicy(
