@@ -3,6 +3,7 @@
 	import { attendanceText } from '../text';
 	import { formatWorkStatusDuration } from '../work-status/work-status-format';
 	import { getWorkStatusState } from '../work-status/work-status-state.svelte';
+	import { workStatusCompliance } from '../work-status/work-status-compliance';
 	import DurationText from '../shared/duration-text.svelte';
 	import WorkStandardCapacityBar from './work-standard-capacity-bar.svelte';
 	import { calculateCalendarCapacitySeconds } from './work-standard-capacity';
@@ -24,6 +25,7 @@
 	const workingCapacitySeconds = $derived(
 		status?.workingCapacitySeconds ?? calendarCapacitySeconds
 	);
+	const compliance = $derived(workStatusCompliance(status?.days ?? []));
 </script>
 
 <div class="mt-3 border-t pt-3" data-testid="personal-work-standard">
@@ -80,6 +82,14 @@
 					<span class="whitespace-nowrap text-muted-foreground">{text.workStatus.shortfallDuration}</span>
 					<DurationText minutes={status.remainingMinutes} showZero size="inherit" tone="default" />
 				</div>
+				{#each compliance as entry (entry.kind)}
+					<div class="flex items-baseline justify-between gap-2" data-testid="work-standard-compliance-{entry.kind}">
+						<span class="whitespace-nowrap text-muted-foreground">{text.workStatus[entry.kind]}</span>
+						<span class="tabular-nums font-medium text-destructive">
+							{text.workStatus.complianceDayCountTemplate.replace('{count}', String(entry.dayCount))}
+						</span>
+					</div>
+				{/each}
 			</div>
 		{/if}
 	{/if}

@@ -24,6 +24,7 @@
 	import { todayDateInTimeZone } from './shared/attendance-date';
 	import { attendanceText } from './text';
 	import {
+		setTeamWorkStatusState,
 		setWorkStatusState,
 		WorkStatusState
 	} from './work-status/work-status-state.svelte';
@@ -34,6 +35,7 @@
 	const attendance = new AttendanceState(text.loadFailed);
 	const attendanceView = new AttendanceViewState();
 	const personalWorkStatus = new WorkStatusState();
+	const teamWorkStatus = new WorkStatusState();
 
 	async function refreshAfterEmployeeLeaveMutation(): Promise<void> {
 		const refreshes: Promise<void>[] = [attendance.load()];
@@ -71,6 +73,7 @@
 	setLeaveApprovalState(leaveApproval);
 	setLeaveManagementState(leaveManagement);
 	setWorkStatusState(personalWorkStatus);
+	setTeamWorkStatusState(teamWorkStatus);
 
 	function refreshServerClock(): void {
 		void attendance.refreshServerClock();
@@ -117,6 +120,7 @@
 		const anchor =
 			selectedMonth && !today.startsWith(selectedMonth) ? `${selectedMonth}-01` : today;
 		untrack(() => void personalWorkStatus.load(period, anchor));
+		untrack(() => void teamWorkStatus.load('month', anchor));
 	});
 
 	$effect(() => {
