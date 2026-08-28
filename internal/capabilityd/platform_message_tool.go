@@ -52,10 +52,11 @@ type platformMessageSendInput struct {
 }
 
 type platformMessageUpdateInput struct {
-	MessageID string  `json:"messageID"`
-	OldText   *string `json:"oldText"`
-	NewText   *string `json:"newText"`
-	IsPinned  *bool   `json:"isPinned"`
+	MessageID   string   `json:"messageID"`
+	OldText     *string  `json:"oldText"`
+	NewText     *string  `json:"newText"`
+	IsPinned    *bool    `json:"isPinned"`
+	Attachments []string `json:"attachments"`
 }
 
 type platformMessageDeleteInput struct {
@@ -446,6 +447,10 @@ func (service Service) invokePlatformMessageUpdate(ctx context.Context, request 
 	if service.chatdServesPlatform(request.Context.Platform) {
 		return service.invokeChatdPlatformMessageUpdate(ctx, request, input)
 	}
+	if len(input.Attachments) > 0 {
+		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode",
+			"attachments cannot be added to a Mattermost message after it was sent; send a new message with the files instead")), nil
+	}
 	mattermostInput := mattermostPostUpdateInput{
 		PostID:   input.MessageID,
 		IsPinned: input.IsPinned,
@@ -594,17 +599,21 @@ func decodePlatformMessageUpdateInput(document json.RawMessage) (platformMessage
 		return platformMessageUpdateInput{}, errorValue
 	}
 	input.MessageID = strings.TrimSpace(input.MessageID)
+	input.Attachments = uniqueTrimmedPlatformMessageHints(input.Attachments)
 	if input.MessageID == "" {
 		return platformMessageUpdateInput{}, fmt.Errorf("messageID is required")
 	}
 	if (input.OldText == nil) != (input.NewText == nil) {
 		return platformMessageUpdateInput{}, fmt.Errorf("oldText and newText must be given together")
 	}
-	if input.OldText == nil && input.IsPinned == nil {
-		return platformMessageUpdateInput{}, fmt.Errorf("oldText with newText, or isPinned, is required")
+	if input.OldText == nil && input.IsPinned == nil && len(input.Attachments) == 0 {
+		return platformMessageUpdateInput{}, fmt.Errorf("oldText with newText, isPinned, or attachments is required")
 	}
 	if input.OldText != nil && strings.TrimSpace(*input.OldText) == "" {
 		return platformMessageUpdateInput{}, fmt.Errorf("oldText cannot be empty")
+	}
+	if len(input.Attachments) > platformMessageAttachmentLimit {
+		return platformMessageUpdateInput{}, fmt.Errorf("attachments accepts at most %d workspace paths per call", platformMessageAttachmentLimit)
 	}
 	return input, nil
 }
