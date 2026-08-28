@@ -127,6 +127,48 @@ if (canReachSupabase) {
 			expect(await companyRules()).toEqual({ approvals: { required: true } });
 		});
 
+		test('the company holidays a device holds are carried over once', async () => {
+			const holiday = {
+				id: 'company-holiday-founding',
+				title: '창립기념일',
+				date: '2027-03-02',
+				recursAnnually: true
+			};
+			const response = await reconcile({
+				platform: 'mattermost',
+				companyHolidays: [holiday],
+				from: '2027-01-01T00:00:00Z',
+				to: '2027-01-02T00:00:00Z',
+				events: []
+			});
+
+			expect(response.status).toBe(200);
+			const rules = (await companyRules()) as Record<string, unknown>;
+			expect(rules.companyHolidays).toEqual([holiday]);
+
+			await reconcile({
+				platform: 'mattermost',
+				companyHolidays: [holiday],
+				from: '2027-01-01T00:00:00Z',
+				to: '2027-01-02T00:00:00Z',
+				events: []
+			});
+			expect(((await companyRules()) as Record<string, unknown>).companyHolidays).toEqual([holiday]);
+		});
+
+		test('a malformed company holiday returns 400 before persistence', async () => {
+			await expect(
+				reconcile({
+					platform: 'mattermost',
+					companyHolidays: [{ id: 'x', title: '', date: '2027-03-02', recursAnnually: true }],
+					from: '2027-01-01T00:00:00Z',
+					to: '2027-01-02T00:00:00Z',
+					events: []
+				})
+			).rejects.toMatchObject({ status: 400 });
+			expect(await companyRules()).toEqual({ approvals: { required: true } });
+		});
+
 		test('an invalid platform returns 400 before settings persistence', async () => {
 			await expect(
 				reconcile({

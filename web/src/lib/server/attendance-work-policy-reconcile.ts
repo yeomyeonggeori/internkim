@@ -50,3 +50,49 @@ export async function saveAttendanceReconciliationSettings(
 	});
 	if (failed) throw new Error(failed.message);
 }
+
+export type ReconciledCompanyHoliday = {
+	id: string;
+	title: string;
+	date: string;
+	recursAnnually: boolean;
+};
+
+export class InvalidCompanyHolidayError extends Error {
+	constructor() {
+		super('companyHolidays must carry an id, a title, a YYYY-MM-DD date and a recursAnnually flag');
+		this.name = 'InvalidCompanyHolidayError';
+	}
+}
+
+export function companyHolidaysFromDevice(offered: unknown): ReconciledCompanyHoliday[] | undefined {
+	if (offered === undefined) return undefined;
+	if (!Array.isArray(offered) || !offered.every(isReconciledCompanyHoliday)) {
+		throw new InvalidCompanyHolidayError();
+	}
+	return offered;
+}
+
+export async function mergeCompanyHolidays(
+	client: SupabaseClient,
+	companyID: string,
+	holidays: ReconciledCompanyHoliday[]
+): Promise<void> {
+	if (holidays.length === 0) return;
+	const { error: failed } = await client.rpc('company_holidays_merge', {
+		target_company: companyID,
+		target_holidays: holidays
+	});
+	if (failed) throw new Error(failed.message);
+}
+
+function isReconciledCompanyHoliday(offered: unknown): offered is ReconciledCompanyHoliday {
+	if (typeof offered !== 'object' || offered === null) return false;
+	const holiday = offered as Record<string, unknown>;
+	if (typeof holiday.id !== 'string' || holiday.id.trim() === '') return false;
+	if (typeof holiday.title !== 'string' || holiday.title.trim() === '') return false;
+	if (typeof holiday.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(holiday.date)) return false;
+	const parsed = new Date(`${holiday.date}T00:00:00Z`);
+	if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== holiday.date) return false;
+	return typeof holiday.recursAnnually === 'boolean';
+}

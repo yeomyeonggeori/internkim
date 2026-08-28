@@ -10,11 +10,11 @@ import (
 	"time"
 )
 
-type ReconciledWorkCalendarDay struct {
-	Date        string `json:"date"`
-	WorkMode    string `json:"workMode"`
-	WorkingDate bool   `json:"workingDate"`
-	Holiday     bool   `json:"holiday"`
+type ReconciledCompanyHoliday struct {
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	Date           string `json:"date"`
+	RecursAnnually bool   `json:"recursAnnually"`
 }
 
 type ReconciledWorkBreakPeriod struct {
@@ -22,7 +22,8 @@ type ReconciledWorkBreakPeriod struct {
 	EndTime   string `json:"endTime"`
 }
 
-type ReconciledWorkPolicy struct {
+type ReconciledWorkPolicyRevision struct {
+	EffectiveDate       string                      `json:"effectiveDate"`
 	WorkMode            string                      `json:"workMode"`
 	WorkingWeekdays     []int                       `json:"workingWeekdays"`
 	DailyTargetMinutes  int                         `json:"dailyTargetMinutes"`
@@ -38,13 +39,18 @@ type ReconciledWorkPolicy struct {
 	NightEndTime        string                      `json:"nightEndTime"`
 }
 
+type ReconciledWorkPolicy struct {
+	Version   int                            `json:"version"`
+	Revisions []ReconciledWorkPolicyRevision `json:"revisions"`
+}
+
 type ReconcileWindow struct {
-	Platform     string
-	WorkMode     string
-	WorkPolicy   *ReconciledWorkPolicy
-	From         time.Time
-	To           time.Time
-	WorkCalendar []ReconciledWorkCalendarDay
+	Platform        string
+	WorkMode        string
+	WorkPolicy      *ReconciledWorkPolicy
+	CompanyHolidays []ReconciledCompanyHoliday
+	From            time.Time
+	To              time.Time
 }
 
 type ReconcileResult struct {
@@ -54,15 +60,15 @@ type ReconcileResult struct {
 }
 
 func (client *Client) ReconcileAttendance(ctx context.Context, window ReconcileWindow) (ReconcileResult, error) {
-	if window.WorkCalendar == nil {
-		window.WorkCalendar = []ReconciledWorkCalendarDay{}
+	if window.CompanyHolidays == nil {
+		window.CompanyHolidays = []ReconciledCompanyHoliday{}
 	}
 	offered := map[string]any{
-		"platform":     window.Platform,
-		"workMode":     window.WorkMode,
-		"from":         window.From.UTC().Format(time.RFC3339),
-		"to":           window.To.UTC().Format(time.RFC3339),
-		"workCalendar": window.WorkCalendar,
+		"platform":        window.Platform,
+		"workMode":        window.WorkMode,
+		"from":            window.From.UTC().Format(time.RFC3339),
+		"to":              window.To.UTC().Format(time.RFC3339),
+		"companyHolidays": window.CompanyHolidays,
 	}
 	if window.WorkPolicy != nil {
 		offered["workPolicy"] = window.WorkPolicy
