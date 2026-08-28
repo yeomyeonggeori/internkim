@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(32);
+select plan(38);
 
 select has_function(
   'public',
@@ -392,6 +392,126 @@ select is(
   1,
   'settings: two device holidays on one date arrive as one'
 );
+
+create function pg_temp.settings_revisions() returns jsonb
+language sql as $$
+  select rules -> 'attendanceWorkPolicy' -> 'revisions'
+  from public.company where id = '64200000-0000-0000-0000-0000000000a0'
+$$;
+
+create function pg_temp.settings_today() returns text
+language sql as $$
+  select to_char((now() at time zone timezone)::date, 'YYYY-MM-DD')
+  from public.company where id = '64200000-0000-0000-0000-0000000000a0'
+$$;
+
+create function pg_temp.settings_starts_at(policy jsonb) returns void
+language sql as $$
+  update public.company
+    set rules = rules || jsonb_build_object('attendanceWorkPolicy', jsonb_build_object(
+      'version', 1,
+      'revisions', jsonb_build_array(policy || '{"effectiveDate":"1970-01-01"}'::jsonb)
+    ))
+    where id = '64200000-0000-0000-0000-0000000000a0'
+$$;
+
+create function pg_temp.save_as_settings_admin(policy jsonb) returns void
+language plpgsql as $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"64200000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+  perform public.attendance_work_policy_save(policy);
+  reset role;
+end $$;
+
+select lives_ok($block$do $$
+begin
+  perform pg_temp.settings_starts_at(pg_temp.work_policy('flexible'));
+  perform pg_temp.save_as_settings_admin(pg_temp.work_policy('autonomous'));
+
+  assert jsonb_array_length(pg_temp.settings_revisions()) = 2,
+    'a changed policy is a second revision, not a replacement';
+  assert pg_temp.settings_revisions() -> 0 ->> 'effectiveDate' = '1970-01-01'
+     and pg_temp.settings_revisions() -> 0 ->> 'workMode' = 'flexible',
+    'what the company worked under before the save is still there';
+  assert pg_temp.settings_revisions() -> 1 ->> 'effectiveDate' = pg_temp.settings_today()
+     and pg_temp.settings_revisions() -> 1 ->> 'workMode' = 'autonomous',
+    'the new policy takes effect on the company date it was saved on';
+end $$;$block$, 'settings: saving a changed policy keeps the one it replaced');
+
+select lives_ok($block$do $$
+begin
+  perform pg_temp.settings_starts_at(pg_temp.work_policy('flexible'));
+  perform pg_temp.save_as_settings_admin(pg_temp.work_policy('flexible'));
+
+  assert jsonb_array_length(pg_temp.settings_revisions()) = 1,
+    'saving a policy that has not changed adds nothing';
+end $$;$block$, 'settings: saving an unchanged policy adds no revision');
+
+select lives_ok($block$do $$
+begin
+  perform pg_temp.settings_starts_at(pg_temp.work_policy('flexible'));
+  perform pg_temp.save_as_settings_admin(pg_temp.work_policy('autonomous'));
+  perform pg_temp.save_as_settings_admin(
+    jsonb_set(pg_temp.work_policy('flexible'), '{referenceStartTime}', '"10:00"')
+  );
+
+  assert jsonb_array_length(pg_temp.settings_revisions()) = 2,
+    'a second save on one day replaces that day rather than stacking on it';
+  assert pg_temp.settings_revisions() -> 1 ->> 'effectiveDate' = pg_temp.settings_today()
+     and pg_temp.settings_revisions() -> 1 ->> 'referenceStartTime' = '10:00',
+    'the day carries what was saved last';
+end $$;$block$, 'settings: a second save the same day replaces that day revision');
+
+select lives_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"64200000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+  perform public.attendance_work_policy_save(pg_temp.work_policy('flexible'));
+  reset role;
+
+  assert (
+    select jsonb_array_length(rules -> 'attendanceWorkPolicy' -> 'revisions')
+    from public.company where id = '64200000-0000-0000-0000-0000000000b0'
+  ) = 1, 'a company with nothing stored ends on one revision';
+  assert (
+    select rules #>> '{attendanceWorkPolicy,revisions,0,effectiveDate}'
+    from public.company where id = '64200000-0000-0000-0000-0000000000b0'
+  ) = '1970-01-01', 'with no history to keep, the first save covers every date';
+end $$;$block$, 'settings: the first save a company makes covers every date');
+
+select lives_ok($block$do $$
+declare
+  pushed jsonb;
+begin
+  pushed := jsonb_build_object('version', 1, 'revisions', jsonb_build_array(
+    pg_temp.work_policy('flexible') || '{"effectiveDate":"1970-01-01"}'::jsonb,
+    pg_temp.work_policy('autonomous') || '{"effectiveDate":"2026-08-01"}'::jsonb
+  ));
+  perform public.attendance_reconciliation_save(
+    '64200000-0000-0000-0000-0000000000a0', pushed, null
+  );
+  assert jsonb_array_length(pg_temp.settings_revisions()) = 2,
+    'a device list is stored as it was sent';
+
+  perform public.attendance_reconciliation_save(
+    '64200000-0000-0000-0000-0000000000a0', pushed, null
+  );
+  assert jsonb_array_length(pg_temp.settings_revisions()) = 2,
+    'pushing the same list again does not stack it onto itself';
+end $$;$block$, 'reconciliation: a device list replaces rather than accumulates');
+
+select lives_ok($block$do $$
+declare
+  before_save jsonb;
+begin
+  perform pg_temp.settings_starts_at(pg_temp.work_policy('flexible'));
+  before_save := pg_temp.settings_revisions() -> 0;
+  perform pg_temp.save_as_settings_admin(pg_temp.work_policy('autonomous'));
+
+  assert pg_temp.settings_revisions() -> 0 = before_save,
+    'the revision a past day is judged by is byte for byte what it was';
+end $$;$block$, 'settings: a save does not move how a past day is judged');
 
 select * from finish();
 rollback;
