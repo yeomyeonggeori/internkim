@@ -130,7 +130,7 @@
 							<span
 								class={cn(
 									'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums',
-									column.status === '요청' && column.tasks.length > 0
+									column.status === 'requested' && column.tasks.length > 0
 										? 'bg-destructive text-white'
 										: 'bg-muted text-muted-foreground'
 								)}

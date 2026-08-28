@@ -5,13 +5,13 @@ import {
 } from '../../../../src/lib/task/central-task';
 
 const statuses = [
-	['requested', '요청'],
-	['todo', '예정'],
-	['in_progress', '진행'],
-	['paused', '일시정지'],
-	['cancelled', '중단'],
-	['rejected', '기각'],
-	['done', '완료']
+	['requested', 'requested'],
+	['planned', 'planned'],
+	['in_progress', 'in_progress'],
+	['paused', 'paused'],
+	['cancelled', 'cancelled'],
+	['rejected', 'rejected'],
+	['completed', 'completed']
 ] as const;
 
 describe('central flow task rows', () => {
@@ -33,7 +33,7 @@ describe('central flow task rows', () => {
 
 	test('rejects an unknown inbound central status', () => {
 		expect(() => centralTaskFromRow(row({ status: 'blocked' }), names, dayOf)).toThrow(
-			'unsupported central task status: blocked'
+			'unsupported task status: blocked'
 		);
 	});
 
@@ -113,7 +113,7 @@ function row(overrides: Record<string, unknown> = {}) {
 		id: 'task-1',
 		parent_task_id: null,
 		title: '업무',
-		status: 'todo' as const,
+		status: 'planned' as const,
 		note: null,
 		business: null,
 		type: null,

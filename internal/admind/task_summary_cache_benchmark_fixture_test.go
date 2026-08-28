@@ -53,10 +53,10 @@ func seedTaskSummaryBenchmarkFixture(testContext testing.TB, service *Service) {
 	staffID := stableTaskID("staff@example.com")
 	otherID := stableTaskID("other@example.com")
 	tasks := []Task{
-		taskReportTestTask("requested-week", "26W28", []string{staffID}, []string{"Staff"}, "M", "완료", "2026-07-06", "2026-07-08"),
-		taskReportTestTask("previous-week", "26W27", []string{otherID}, []string{"Other"}, "S", "완료", "2026-06-29", "2026-07-01"),
-		taskReportTestTask("current-month", "26W30", []string{staffID}, []string{"Staff"}, "XS", "완료", "2026-07-20", "2026-07-20"),
-		taskReportTestTask("previous-month", "26W24", []string{otherID}, []string{"Other"}, "XS", "완료", "2026-06-10", "2026-06-10"),
+		taskReportTestTask("requested-week", "26W28", []string{staffID}, []string{"Staff"}, "M", "completed", "2026-07-06", "2026-07-08"),
+		taskReportTestTask("previous-week", "26W27", []string{otherID}, []string{"Other"}, "S", "completed", "2026-06-29", "2026-07-01"),
+		taskReportTestTask("current-month", "26W30", []string{staffID}, []string{"Staff"}, "XS", "completed", "2026-07-20", "2026-07-20"),
+		taskReportTestTask("previous-month", "26W24", []string{otherID}, []string{"Other"}, "XS", "completed", "2026-06-10", "2026-06-10"),
 	}
 	for _, task := range tasks {
 		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {

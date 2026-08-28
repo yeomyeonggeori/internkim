@@ -136,10 +136,10 @@ export const taskReportFixtureDefinitions: TaskReportFixtureDefinitions = {
 };
 
 export const taskReportFixtureTasks: TaskReportFixtureTask[] = [
-	{ participantNames: ['김예시'], business: '샘플거리', type: '구현', size: 'L', status: '완료', startDate: '2026-06-01', endDate: '2026-06-01' },
-	{ participantNames: ['김예시', '박예시'], business: '샘플거리', type: '검증', size: 'M', status: '진행', startDate: '2026-06-02' },
-	{ participantNames: ['박예시'], business: '김인턴', type: '회의', size: 'S', status: '완료', startDate: '2026-06-03', endDate: '2026-06-03' },
-	{ participantNames: ['최견본'], business: '김인턴', type: '문서', size: 'XL', status: '일시정지', startDate: '2026-06-04' }
+	{ participantNames: ['김예시'], business: '샘플거리', type: '구현', size: 'L', status: 'completed', startDate: '2026-06-01', endDate: '2026-06-01' },
+	{ participantNames: ['김예시', '박예시'], business: '샘플거리', type: '검증', size: 'M', status: 'in_progress', startDate: '2026-06-02' },
+	{ participantNames: ['박예시'], business: '김인턴', type: '회의', size: 'S', status: 'completed', startDate: '2026-06-03', endDate: '2026-06-03' },
+	{ participantNames: ['최견본'], business: '김인턴', type: '문서', size: 'XL', status: 'paused', startDate: '2026-06-04' }
 ];
 
 export const taskReportFixtureSnapshot: TaskReportFixtureSnapshot = {

@@ -46,7 +46,7 @@ export const companyPageText = {
 			activeTeam: '최근 활동한 팀', people: '활동 인원', activeDays: '활동한 날', checkIns: '출근 인원', workUpdates: '업무 업데이트', activityRhythm: '최근 30일 활동 리듬', activityGrid: '날짜별 활동',
 			attendanceSignals: '출근 인원', workHours: '총 근무시간', workSignals: '업무 업데이트', workDistribution: '업무 상태 분포', recentWork: '최근 업무 흐름',
 			teamMember: '팀원', defaultJobTitle: '사원', otherBusiness: '기타',
-			statusLabels: { planned: '준비', inProgress: '진행 중', completed: '완료', paused: '잠시 멈춤', closed: '종료' }
+			statusLabels: { planned: '준비', inProgress: '진행 중', completed: 'completed', paused: '잠시 멈춤', closed: '종료' }
 		}
 	},
 	en: {

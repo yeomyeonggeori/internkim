@@ -109,7 +109,7 @@ end $$;$block$, 'request provenance: a colleague transition is safely filtered')
 
 select is(
   (select status::text from public.task where id = '46000000-0000-0000-0000-000000000103'),
-  'todo',
+  'planned',
   'request provenance: a non-participant cannot turn work into their request'
 );
 
@@ -170,7 +170,7 @@ select throws_ok(
     insert into public.task (company_id, title, status, requester_id) values (
       '46000000-0000-0000-0000-0000000000a0',
       'Forged normal provenance',
-      'todo',
+      'planned',
       '46000000-0000-0000-0000-0000000000a1'
     );
   end $$;$block$,
@@ -216,7 +216,7 @@ begin
   perform public.task_save(
     target_task_id => '46000000-0000-0000-0000-000000000101',
     target_title => 'A assigned C',
-    target_status => 'done',
+    target_status => 'completed',
     target_note => null,
     target_business => null,
     target_type => null,
@@ -254,7 +254,7 @@ select throws_ok(
     perform public.task_save(
       target_task_id => '46000000-0000-0000-0000-000000000102',
       target_title => 'Shared assignment forgery',
-      target_status => 'todo',
+      target_status => 'planned',
       target_note => null,
       target_business => null,
       target_type => null,
@@ -279,7 +279,7 @@ select throws_ok(
     perform public.task_save(
       target_task_id => '46000000-0000-0000-0000-000000000105',
       target_title => 'Sole participant replaced self',
-      target_status => 'done',
+      target_status => 'completed',
       target_note => null,
       target_business => null,
       target_type => null,
@@ -435,7 +435,7 @@ begin
   perform public.task_save(
     target_task_id => '46000000-0000-0000-0000-000000000106',
     target_title => 'Admin reassigned task',
-    target_status => 'done',
+    target_status => 'completed',
     target_note => null,
     target_business => null,
     target_type => null,

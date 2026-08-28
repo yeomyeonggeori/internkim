@@ -63,7 +63,7 @@ func (service *Service) taskMattermostNotificationMessage(task Task, mattermostU
 	return mattermostMarkdownTable(
 		[]string{"상태", "업무", "유형", "크기", "참여자"},
 		[][]string{{
-			task.Status,
+			taskStatusLabel(task.Status),
 			mattermostMarkdownLink(task.Content, service.mattermostTaskURL(task)),
 			task.Type,
 			task.Size,
@@ -178,7 +178,7 @@ func (service *Service) mattermostTaskBaseURL() string {
 func taskNoticeFacts(task Task) []string {
 	return []string{
 		"업무: " + strings.TrimSpace(task.Content),
-		"상태: " + strings.TrimSpace(task.Status),
+		"상태: " + taskStatusLabel(task.Status),
 		"담당자: " + strings.TrimSpace(task.OwnerName),
 		"참여자: " + strings.Join(task.ParticipantNames, ", "),
 		"기간: " + strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(task.StartDate+" ~ "+task.EndDate), "~")),

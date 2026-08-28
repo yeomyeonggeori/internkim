@@ -15,7 +15,7 @@ func TestTaskAPICreatesAndPreservesCreatedAt(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "생성 시각 업무", "진행", 0, []string{staffID}))
+	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "생성 시각 업무", "in_progress", 0, []string{staffID}))
 	if _, errorValue := time.Parse(time.RFC3339, task.CreatedAt); errorValue != nil {
 		t.Fatalf("created at = %q error = %v", task.CreatedAt, errorValue)
 	}
@@ -29,7 +29,7 @@ func TestTaskAPICreatesAndPreservesCreatedAt(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	updatedTask := updateTaskForTest(t, handler, "staff@example.com", task.ID, newTaskPayload("staff@example.com", "수정된 생성 시각 업무", "진행", task.StatusRank, []string{staffID}))
+	updatedTask := updateTaskForTest(t, handler, "staff@example.com", task.ID, newTaskPayload("staff@example.com", "수정된 생성 시각 업무", "in_progress", task.StatusRank, []string{staffID}))
 	reloadedTask := readTaskByIDForTest(t, service, task.ID)
 
 	if updatedTask.CreatedAt != createdAt {
@@ -121,7 +121,7 @@ INSERT INTO flow_tasks (
 		"기존 업무",
 		"정렬 보존",
 		"M",
-		"예정",
+		"planned",
 		"2026-06-01",
 		"",
 		0,
@@ -153,8 +153,8 @@ INSERT INTO flow_tasks (
 func TestTaskAPIAssignsStatusRankAtEndOfStatusColumn(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	firstTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "첫 번째 업무", "진행", 0, []string{stableTaskID("staff@example.com")}))
-	secondTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "두 번째 업무", "진행", 0, []string{stableTaskID("staff@example.com")}))
+	firstTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "첫 번째 업무", "in_progress", 0, []string{stableTaskID("staff@example.com")}))
+	secondTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "두 번째 업무", "in_progress", 0, []string{stableTaskID("staff@example.com")}))
 
 	if firstTask.StatusRank <= 0 {
 		t.Fatalf("first status rank = %d, want positive", firstTask.StatusRank)
@@ -168,13 +168,13 @@ func TestTaskAPIAssignsMovedTaskToEndOfTargetStatusColumn(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	targetTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "대상 컬럼 기존 업무", "완료", 0, []string{staffID}))
-	movedTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "이동할 업무", "진행", 0, []string{staffID}))
-	payload := newTaskPayload("staff@example.com", movedTask.Content, "완료", movedTask.StatusRank, []string{staffID})
+	targetTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "대상 컬럼 기존 업무", "completed", 0, []string{staffID}))
+	movedTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "이동할 업무", "in_progress", 0, []string{staffID}))
+	payload := newTaskPayload("staff@example.com", movedTask.Content, "completed", movedTask.StatusRank, []string{staffID})
 
 	updatedTask := updateTaskForTest(t, handler, "staff@example.com", movedTask.ID, payload)
 
-	if updatedTask.Status != "완료" {
+	if updatedTask.Status != "completed" {
 		t.Fatalf("status = %q, want 완료", updatedTask.Status)
 	}
 	if updatedTask.StatusRank <= targetTask.StatusRank {
@@ -186,12 +186,12 @@ func TestTaskAPIBoardMoveToCompletedSetsEndDate(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "완료로 이동할 업무", "진행", 0, []string{staffID}))
+	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "완료로 이동할 업무", "in_progress", 0, []string{staffID}))
 	if task.EndDate != "" {
 		t.Fatalf("initial end date = %q, want empty", task.EndDate)
 	}
 
-	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "완료", nil)
+	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "completed", nil)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
@@ -199,7 +199,7 @@ func TestTaskAPIBoardMoveToCompletedSetsEndDate(t *testing.T) {
 	reloadedTask := readTaskByIDForTest(t, service, task.ID)
 	now := taskDateNow()
 	expectedEndDate := now.Format("2006-01-02")
-	if reloadedTask.Status != "완료" {
+	if reloadedTask.Status != "completed" {
 		t.Fatalf("status = %q, want 완료", reloadedTask.Status)
 	}
 	if reloadedTask.EndDate != expectedEndDate {
@@ -214,8 +214,8 @@ func TestTaskAPIPersistsStatusRankForSameStatusUpdate(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "순서 변경 업무", "진행", 0, []string{staffID}))
-	payload := newTaskPayload("staff@example.com", task.Content, "진행", task.StatusRank+2048, []string{staffID})
+	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "순서 변경 업무", "in_progress", 0, []string{staffID}))
+	payload := newTaskPayload("staff@example.com", task.Content, "in_progress", task.StatusRank+2048, []string{staffID})
 
 	updatedTask := updateTaskForTest(t, handler, "staff@example.com", task.ID, payload)
 
@@ -228,8 +228,8 @@ func TestTaskAPIPersistsExplicitZeroStatusRankForSameStatusUpdate(t *testing.T) 
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "첫 번째 이동 업무", "진행", 0, []string{staffID}))
-	payload := newTaskPayload("staff@example.com", task.Content, "진행", 0, []string{staffID})
+	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "첫 번째 이동 업무", "in_progress", 0, []string{staffID}))
+	payload := newTaskPayload("staff@example.com", task.Content, "in_progress", 0, []string{staffID})
 
 	updatedTask := updateTaskForTest(t, handler, "staff@example.com", task.ID, payload)
 
@@ -242,13 +242,13 @@ func TestTaskAPIMovesBoardTaskWithNormalizedRanksInOneRequest(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	firstTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "첫 번째 진행 업무", "진행", 0, []string{staffID}))
-	secondTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "두 번째 진행 업무", "진행", 0, []string{staffID}))
-	movedTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "이동할 요청 업무", "요청", 0, []string{staffID}))
-	firstTask = updateTaskForTest(t, handler, "staff@example.com", firstTask.ID, newTaskPayload("staff@example.com", firstTask.Content, "진행", 1, []string{staffID}))
-	secondTask = updateTaskForTest(t, handler, "staff@example.com", secondTask.ID, newTaskPayload("staff@example.com", secondTask.Content, "진행", 2, []string{staffID}))
+	firstTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "첫 번째 진행 업무", "in_progress", 0, []string{staffID}))
+	secondTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "두 번째 진행 업무", "in_progress", 0, []string{staffID}))
+	movedTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "이동할 요청 업무", "requested", 0, []string{staffID}))
+	firstTask = updateTaskForTest(t, handler, "staff@example.com", firstTask.ID, newTaskPayload("staff@example.com", firstTask.Content, "in_progress", 1, []string{staffID}))
+	secondTask = updateTaskForTest(t, handler, "staff@example.com", secondTask.ID, newTaskPayload("staff@example.com", secondTask.Content, "in_progress", 2, []string{staffID}))
 
-	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", movedTask.ID, "진행", &secondTask.ID)
+	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", movedTask.ID, "in_progress", &secondTask.ID)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
@@ -256,7 +256,7 @@ func TestTaskAPIMovesBoardTaskWithNormalizedRanksInOneRequest(t *testing.T) {
 	reloadedFirstTask := readTaskByIDForTest(t, service, firstTask.ID)
 	reloadedMovedTask := readTaskByIDForTest(t, service, movedTask.ID)
 	reloadedSecondTask := readTaskByIDForTest(t, service, secondTask.ID)
-	if reloadedMovedTask.Status != "진행" {
+	if reloadedMovedTask.Status != "in_progress" {
 		t.Fatalf("moved status = %q, want 진행", reloadedMovedTask.Status)
 	}
 	if reloadedFirstTask.StatusRank != 1024 || reloadedMovedTask.StatusRank != 2048 || reloadedSecondTask.StatusRank != 3072 {
@@ -268,14 +268,14 @@ func TestTaskAPIMovesBoardTaskWithoutQueueingNeighborRankProjections(t *testing.
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	firstTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "첫 번째 진행 업무", "진행", 0, []string{staffID}))
-	secondTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "두 번째 진행 업무", "진행", 0, []string{staffID}))
-	movedTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "이동할 요청 업무", "요청", 0, []string{staffID}))
-	firstTask = updateTaskForTest(t, handler, "staff@example.com", firstTask.ID, newTaskPayload("staff@example.com", firstTask.Content, "진행", 1, []string{staffID}))
-	secondTask = updateTaskForTest(t, handler, "staff@example.com", secondTask.ID, newTaskPayload("staff@example.com", secondTask.Content, "진행", 2, []string{staffID}))
+	firstTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "첫 번째 진행 업무", "in_progress", 0, []string{staffID}))
+	secondTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "두 번째 진행 업무", "in_progress", 0, []string{staffID}))
+	movedTask := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "이동할 요청 업무", "requested", 0, []string{staffID}))
+	firstTask = updateTaskForTest(t, handler, "staff@example.com", firstTask.ID, newTaskPayload("staff@example.com", firstTask.Content, "in_progress", 1, []string{staffID}))
+	secondTask = updateTaskForTest(t, handler, "staff@example.com", secondTask.ID, newTaskPayload("staff@example.com", secondTask.Content, "in_progress", 2, []string{staffID}))
 	clearTaskChannelOutboxForTest(t, service)
 
-	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", movedTask.ID, "진행", &secondTask.ID)
+	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", movedTask.ID, "in_progress", &secondTask.ID)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
@@ -293,15 +293,15 @@ func TestTaskAPIRejectsBoardTaskMoveFromUnrelatedUser(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	ownerID := stableTaskID("other@example.com")
-	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "타인 보드 업무", "요청", 0, []string{ownerID}))
+	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "타인 보드 업무", "requested", 0, []string{ownerID}))
 
-	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "진행", nil)
+	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "in_progress", nil)
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
 	}
 	reloadedTask := readTaskByIDForTest(t, service, task.ID)
-	if reloadedTask.Status != "요청" {
+	if reloadedTask.Status != "requested" {
 		t.Fatalf("status = %q, want 요청", reloadedTask.Status)
 	}
 }
@@ -311,7 +311,7 @@ func TestTaskAPIRejectsBoardTaskMoveWhenTransactionAuthorizationFails(t *testing
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
 	otherID := stableTaskID("other@example.com")
-	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "권한 재확인 업무", "요청", 0, []string{staffID}))
+	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "권한 재확인 업무", "requested", 0, []string{staffID}))
 	task.OwnerID = otherID
 	task.OwnerName = "other@example.com"
 	task.ParticipantIDs = []string{otherID}
@@ -322,7 +322,7 @@ func TestTaskAPIRejectsBoardTaskMoveWhenTransactionAuthorizationFails(t *testing
 
 	_, errorValue := service.writeTaskBoardMove(context.Background(), taskBoardMoveRequest{
 		TaskID:       task.ID,
-		TargetStatus: "진행",
+		TargetStatus: "in_progress",
 	}, func(transactionTask Task) bool {
 		return containsString(transactionTask.ParticipantIDs, staffID)
 	})
@@ -331,7 +331,7 @@ func TestTaskAPIRejectsBoardTaskMoveWhenTransactionAuthorizationFails(t *testing
 		t.Fatalf("move error = %v, want %v", errorValue, errTaskBoardMoveForbidden)
 	}
 	reloadedTask := readTaskByIDForTest(t, service, task.ID)
-	if reloadedTask.Status != "요청" {
+	if reloadedTask.Status != "requested" {
 		t.Fatalf("status = %q, want 요청", reloadedTask.Status)
 	}
 }
@@ -340,15 +340,15 @@ func TestTaskAPIRejectsBoardTaskMoveToNonBoardStatus(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "기각 이동 제한 업무", "요청", 0, []string{staffID}))
+	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "기각 이동 제한 업무", "requested", 0, []string{staffID}))
 
-	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "기각", nil)
+	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "rejected", nil)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
 	}
 	reloadedTask := readTaskByIDForTest(t, service, task.ID)
-	if reloadedTask.Status != "요청" {
+	if reloadedTask.Status != "requested" {
 		t.Fatalf("status = %q, want 요청", reloadedTask.Status)
 	}
 }
@@ -357,16 +357,16 @@ func TestTaskAPIRejectsBoardTaskMoveBeforeMissingTask(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "누락 before 이동 제한 업무", "요청", 0, []string{staffID}))
+	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "누락 before 이동 제한 업무", "requested", 0, []string{staffID}))
 	missingTaskID := "missing-before-task"
 
-	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "진행", &missingTaskID)
+	response := moveTaskOnBoardResponseForTest(t, handler, "staff@example.com", task.ID, "in_progress", &missingTaskID)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
 	}
 	reloadedTask := readTaskByIDForTest(t, service, task.ID)
-	if reloadedTask.Status != "요청" {
+	if reloadedTask.Status != "requested" {
 		t.Fatalf("status = %q, want 요청", reloadedTask.Status)
 	}
 }
@@ -375,8 +375,8 @@ func TestTaskAPIRejectsNegativeStatusRank(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	staffID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "잘못된 순서 업무", "진행", 0, []string{staffID}))
-	payload := newTaskPayload("staff@example.com", task.Content, "진행", -1, []string{staffID})
+	task := createTaskForTest(t, handler, "staff@example.com", newTaskPayload("staff@example.com", "잘못된 순서 업무", "in_progress", 0, []string{staffID}))
+	payload := newTaskPayload("staff@example.com", task.Content, "in_progress", -1, []string{staffID})
 
 	response := updateTaskResponseForTest(t, handler, "staff@example.com", task.ID, payload)
 
@@ -399,12 +399,12 @@ func TestTaskAPIAllowsParticipantToUpdateTask(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 	participantID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "공동 업무", "진행", 0, []string{stableTaskID("other@example.com"), participantID}))
-	payload := newTaskPayload("other@example.com", task.Content, "일시정지", task.StatusRank, []string{stableTaskID("other@example.com"), participantID})
+	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "공동 업무", "in_progress", 0, []string{stableTaskID("other@example.com"), participantID}))
+	payload := newTaskPayload("other@example.com", task.Content, "paused", task.StatusRank, []string{stableTaskID("other@example.com"), participantID})
 
 	updatedTask := updateTaskForTest(t, handler, "staff@example.com", task.ID, payload)
 
-	if updatedTask.Status != "일시정지" {
+	if updatedTask.Status != "paused" {
 		t.Fatalf("status = %q, want 일시정지", updatedTask.Status)
 	}
 }
@@ -414,7 +414,7 @@ func TestTaskAPIRejectsParticipantOwnerChange(t *testing.T) {
 	handler := service.router()
 	ownerID := stableTaskID("other@example.com")
 	participantID := stableTaskID("staff@example.com")
-	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "담당자 변경 제한 업무", "진행", 0, []string{ownerID, participantID}))
+	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "담당자 변경 제한 업무", "in_progress", 0, []string{ownerID, participantID}))
 	payload := newTaskPayload("staff@example.com", task.Content, task.Status, task.StatusRank, []string{participantID})
 
 	response := updateTaskResponseForTest(t, handler, "staff@example.com", task.ID, payload)
@@ -443,7 +443,7 @@ func TestTaskAPIRejectsParticipantListChange(t *testing.T) {
 	ownerID := stableTaskID("other@example.com")
 	participantID := stableTaskID("staff@example.com")
 	adminID := stableTaskID("admin@example.com")
-	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "참여자 변경 제한 업무", "진행", 0, []string{ownerID, participantID}))
+	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "참여자 변경 제한 업무", "in_progress", 0, []string{ownerID, participantID}))
 	payload := newTaskPayload("other@example.com", task.Content, task.Status, task.StatusRank, []string{ownerID, participantID, adminID})
 
 	response := updateTaskResponseForTest(t, handler, "staff@example.com", task.ID, payload)
@@ -469,7 +469,7 @@ func TestTaskAPIAllowsOwnerToChangeParticipantList(t *testing.T) {
 	ownerID := stableTaskID("other@example.com")
 	participantID := stableTaskID("staff@example.com")
 	adminID := stableTaskID("admin@example.com")
-	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "담당자 참여자 변경 업무", "진행", 0, []string{ownerID, participantID}))
+	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "담당자 참여자 변경 업무", "in_progress", 0, []string{ownerID, participantID}))
 	payload := newTaskPayload("other@example.com", task.Content, task.Status, task.StatusRank, []string{ownerID, adminID})
 
 	updatedTask := updateTaskForTest(t, handler, "other@example.com", task.ID, payload)
@@ -484,7 +484,7 @@ func TestTaskAPIAllowsAdminToChangeOwner(t *testing.T) {
 	handler := service.router()
 	ownerID := stableTaskID("other@example.com")
 	adminID := stableTaskID("admin@example.com")
-	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "관리자 담당자 변경 업무", "진행", 0, []string{ownerID}))
+	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "관리자 담당자 변경 업무", "in_progress", 0, []string{ownerID}))
 	payload := newTaskPayload("admin@example.com", task.Content, task.Status, task.StatusRank, []string{adminID})
 
 	updatedTask := updateTaskForTest(t, handler, "admin@example.com", task.ID, payload)
@@ -497,8 +497,8 @@ func TestTaskAPIAllowsAdminToChangeOwner(t *testing.T) {
 func TestTaskAPIRejectsUpdatingUnrelatedTask(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "타인 업무", "진행", 0, []string{stableTaskID("other@example.com")}))
-	payload := newTaskPayload("other@example.com", task.Content, "완료", task.StatusRank, []string{stableTaskID("other@example.com")})
+	task := createTaskForTest(t, handler, "other@example.com", newTaskPayload("other@example.com", "타인 업무", "in_progress", 0, []string{stableTaskID("other@example.com")}))
+	payload := newTaskPayload("other@example.com", task.Content, "completed", task.StatusRank, []string{stableTaskID("other@example.com")})
 
 	response := updateTaskResponseForTest(t, handler, "staff@example.com", task.ID, payload)
 
@@ -512,7 +512,7 @@ func TestTaskAPIRejectsUpdatingUnrelatedTask(t *testing.T) {
 	if !found {
 		t.Fatal("expected task to remain")
 	}
-	if reloadedTask.Status != "진행" {
+	if reloadedTask.Status != "in_progress" {
 		t.Fatalf("status = %q, want 진행", reloadedTask.Status)
 	}
 }

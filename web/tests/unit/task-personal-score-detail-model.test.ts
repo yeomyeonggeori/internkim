@@ -12,7 +12,7 @@ describe('flow personal score detail model', () => {
 				task({ id: 'current-week', endDate: '2026-06-03', size: 'D4' }),
 				task({ id: 'previous-week', endDate: '2026-05-27', size: 'D2' }),
 				task({ id: 'other-member', participantIDs: ['member-2'], participantNames: ['다른 사람'], endDate: '2026-06-04', size: 'D4' }),
-				task({ id: 'not-completed', status: '진행', endDate: '2026-06-05', size: 'D4' })
+				task({ id: 'not-completed', status: 'in_progress', endDate: '2026-06-05', size: 'D4' })
 			]
 		});
 
@@ -104,7 +104,7 @@ function task(overrides: Partial<Task>): Task {
 		type: '기능',
 		content: '업무',
 		size: 'D2',
-		status: '완료',
+		status: 'completed',
 		statusRank: 0,
 		startDate: '2026-06-01',
 		endDate: '2026-06-03',

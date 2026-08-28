@@ -21,7 +21,7 @@ function completedTask(memberIDs: string[], endDate: string, size: string): Task
 		type: '',
 		content: '완료된 업무',
 		size,
-		status: '완료',
+		status: 'completed',
 		statusRank: 0,
 		endDate,
 		weekCode: ''
@@ -69,7 +69,7 @@ describe('member score details', () => {
 	});
 
 	test('ignores work that is not complete', () => {
-		const planned = { ...completedTask(['sample-member'], '2026-08-10', 'M'), status: '진행' };
+		const planned = { ...completedTask(['sample-member'], '2026-08-10', 'M'), status: 'in_progress' };
 
 		const details = memberScoreDetails([planned], ['sample-member'], weekStart);
 
@@ -101,7 +101,7 @@ describe('member task tallies', () => {
 	test('counts distance only for completed work', () => {
 		const tasks = [
 			completedTask(['sample-member'], '2026-08-10', 'M'),
-			{ ...completedTask(['sample-member'], '2026-08-10', 'XL'), status: '진행' }
+			{ ...completedTask(['sample-member'], '2026-08-10', 'XL'), status: 'in_progress' }
 		];
 
 		const tallies = memberTaskTallies(tasks, ['sample-member']);
@@ -112,7 +112,7 @@ describe('member task tallies', () => {
 	});
 
 	test('leaves rejected and stopped work out of the active count', () => {
-		const tasks = ['기각', '중단', '일시정지', '예정'].map((status) => ({
+		const tasks = ['rejected', 'cancelled', 'paused', 'planned'].map((status) => ({
 			...completedTask(['sample-member'], '2026-08-10', 'M'),
 			id: status,
 			status

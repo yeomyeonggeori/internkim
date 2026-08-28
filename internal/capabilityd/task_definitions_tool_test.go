@@ -20,8 +20,8 @@ const taskDefinitionsStateBody = `{
 		"sizes": [{"name": "XS"}, {"name": "S"}, {"name": "M"}]
 	},
 	"members": [{"id": "staff", "name": "Staff", "email": "staff@example.com"}],
-	"tasks": [{"id": "task-1", "ownerID": "staff", "participantIDs": ["staff"], "content": "운동", "status": "예정"}],
-	"statusOptions": ["예정", "진행", "완료"]
+	"tasks": [{"id": "task-1", "ownerID": "staff", "participantIDs": ["staff"], "content": "운동", "status": "planned"}],
+	"statusOptions": ["planned", "in_progress", "completed"]
 }`
 
 func taskLabelService(t *testing.T, capturedPayload *string) Service {
@@ -104,7 +104,7 @@ func TestTaskUpdateLeavesLabelsAloneWhenTheWorkspaceRegistersNone(t *testing.T) 
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet:
-				return taskToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","participantIDs":["staff"],"content":"운동","status":"예정"}]}`), nil
+				return taskToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","participantIDs":["staff"],"content":"운동","status":"planned"}]}`), nil
 			default:
 				capturedPayload = readTaskRequestBody(t, request)
 				return taskToolJSONResponse(echoedTaskResponse(t, capturedPayload)), nil

@@ -61,7 +61,7 @@ export const memoryText = {
 		scheduleDescription: '김인턴이 실행할 예정인 예약 작업입니다.',
 		scheduleIncludeExpired: '만료된 예약 포함',
 		scheduleTitle: '예약 작업',
-		schedulePrompt: '요청',
+		schedulePrompt: 'requested',
 		scheduleStatus: '상태',
 		scheduleKind: '유형',
 		scheduleNextRun: '다음 실행',
