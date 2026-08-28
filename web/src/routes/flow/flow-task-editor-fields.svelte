@@ -3,7 +3,14 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import FlowTaskPersonChip from './flow-task-person-chip.svelte';
-	import { isFlowStatusRejected, isFlowStatusRequested, isFlowStatusStopped } from './flow-status';
+	import {
+		flowStatus,
+		isFlowStatusInProgress,
+		isFlowStatusPlanned,
+		isFlowStatusRejected,
+		isFlowStatusRequested,
+		isFlowStatusStopped
+	} from './flow-status';
 	import { hasFlowTaskRequestProvenance } from './flow-task-options';
 	import { flowBusinessLabel, flowBusinessOptionValue, flowBusinessValueFromOption } from './flow-task-workspace-model';
 	import type { FlowTaskEditorOption, FlowTaskEditorText } from './flow-task-editor-types';
@@ -37,6 +44,17 @@
 
 	function updateBusiness(value: string): void {
 		taskDraft.business = flowBusinessValueFromOption(value);
+	}
+
+	function completeWhenEndDatePassed(): void {
+		if (!isFlowStatusPlanned(taskDraft.status) && !isFlowStatusInProgress(taskDraft.status)) return;
+		if (!taskDraft.endDate || taskDraft.endDate > localTodayISO()) return;
+		taskDraft.status = flowStatus.completed;
+	}
+
+	function localTodayISO(): string {
+		const now = new Date();
+		return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 	}
 </script>
 
@@ -118,6 +136,6 @@
 	</label>
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.endDate}
-		<Input type="date" bind:value={taskDraft.endDate} disabled={!canEditTask} />
+		<Input type="date" bind:value={taskDraft.endDate} disabled={!canEditTask} onchange={completeWhenEndDatePassed} />
 	</label>
 </div>
