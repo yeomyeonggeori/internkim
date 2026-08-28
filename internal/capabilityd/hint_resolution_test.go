@@ -7,12 +7,12 @@ import (
 )
 
 func TestAHintThatNamesPartOfOneTitleResolvesToIt(t *testing.T) {
-	tasks := []flowTaskForTool{
+	tasks := []taskForTool{
 		{ID: "task-1", Content: "8월 18일 상하이 acme 미팅 후속"},
 		{ID: "task-2", Content: "주간 결산 확인"},
 	}
 
-	task, failure := resolveFlowTaskHint("상하이 acme 미팅", "", tasks)
+	task, failure := resolveTaskHint("상하이 acme 미팅", "", tasks)
 	if failure != nil {
 		t.Fatalf("expected the only task naming the meeting to resolve, got failure = %+v", failure)
 	}
@@ -22,12 +22,12 @@ func TestAHintThatNamesPartOfOneTitleResolvesToIt(t *testing.T) {
 }
 
 func TestAnExactTitleWinsOverALongerTitleThatContainsIt(t *testing.T) {
-	tasks := []flowTaskForTool{
+	tasks := []taskForTool{
 		{ID: "task-1", Content: "결산 확인 후속 정리"},
 		{ID: "task-2", Content: "결산 확인"},
 	}
 
-	task, failure := resolveFlowTaskHint("결산 확인", "", tasks)
+	task, failure := resolveTaskHint("결산 확인", "", tasks)
 	if failure != nil {
 		t.Fatalf("expected the exact title to resolve, got failure = %+v", failure)
 	}
@@ -37,13 +37,13 @@ func TestAnExactTitleWinsOverALongerTitleThatContainsIt(t *testing.T) {
 }
 
 func TestAHintInsideSeveralTitlesOffersOnlyThoseTitles(t *testing.T) {
-	tasks := []flowTaskForTool{
+	tasks := []taskForTool{
 		{ID: "task-1", Content: "상하이 미팅 준비"},
 		{ID: "task-2", Content: "상하이 미팅 후속"},
 		{ID: "task-3", Content: "전혀 다른 업무"},
 	}
 
-	_, failure := resolveFlowTaskHint("상하이 미팅", "", tasks)
+	_, failure := resolveTaskHint("상하이 미팅", "", tasks)
 	if failure == nil {
 		t.Fatal("expected two containing titles to stay ambiguous")
 	}
@@ -56,9 +56,9 @@ func TestAHintInsideSeveralTitlesOffersOnlyThoseTitles(t *testing.T) {
 }
 
 func TestAHintThatMatchesNothingSaysNothingMatchedAndNamesNothing(t *testing.T) {
-	tasks := []flowTaskForTool{{ID: "task-1", Content: "휴가"}}
+	tasks := []taskForTool{{ID: "task-1", Content: "휴가"}}
 
-	_, failure := resolveFlowTaskHint("zzzz", "", tasks)
+	_, failure := resolveTaskHint("zzzz", "", tasks)
 	if failure == nil {
 		t.Fatal("expected a hint naming nothing to fail")
 	}
@@ -98,25 +98,25 @@ func TestACalendarHintThatMatchesNothingSaysNothingMatched(t *testing.T) {
 }
 
 func TestOwnershipStillBreaksATieBetweenIdenticalTitles(t *testing.T) {
-	tasks := []flowTaskForTool{
+	tasks := []taskForTool{
 		{ID: "task-1", OwnerID: "someone-else", Content: "결산 확인"},
 		{ID: "task-2", OwnerID: "me", Content: "결산 확인"},
 	}
 
-	task, failure := resolveFlowTaskHint("결산 확인", "me", tasks)
+	task, failure := resolveTaskHint("결산 확인", "me", tasks)
 	if failure != nil || task.ID != "task-2" {
 		t.Fatalf("expected the requester-owned task to win, got %+v failure = %+v", task, failure)
 	}
 }
 
 func TestIdenticalTitlesDoNotFallThroughToASearchOfEveryTitle(t *testing.T) {
-	tasks := []flowTaskForTool{
+	tasks := []taskForTool{
 		{ID: "task-1", Content: "결산 확인"},
 		{ID: "task-2", Content: "결산 확인"},
 		{ID: "task-3", Content: "결산 확인 후속"},
 	}
 
-	_, failure := resolveFlowTaskHint("결산 확인", "", tasks)
+	_, failure := resolveTaskHint("결산 확인", "", tasks)
 	if failure == nil {
 		t.Fatal("expected two identical titles to stay ambiguous")
 	}
@@ -156,16 +156,16 @@ func TestAnEventIDOneCharacterOffIsNeverProposed(t *testing.T) {
 }
 
 func TestAMistypedNameIsProposedRatherThanGuessed(t *testing.T) {
-	members := []flowMemberForTool{
+	members := []taskMemberForTool{
 		{ID: "person-1", Name: "김예시", Email: "kimyesi@example.com", MattermostUsername: "pyobon"},
 		{ID: "person-2", Name: "박예시", Email: "parkyesi@example.com", MattermostUsername: "minjun"},
 	}
 
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "김여시", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveTaskOwnerHint(context.Background(), "김여시", members)
 	if resolution.Failure == nil {
 		t.Fatal("a name nobody has must not resolve on its own")
 	}
-	if resolution.Failure.ErrorCode != "flow_owner_approximate" {
+	if resolution.Failure.ErrorCode != "task_owner_approximate" {
 		t.Fatalf("a name a character off is a typo, got %q", resolution.Failure.ErrorCode)
 	}
 	if len(resolution.Failure.Candidates) != 1 || resolution.Failure.Candidates[0].Name != "김예시" {
@@ -174,32 +174,32 @@ func TestAMistypedNameIsProposedRatherThanGuessed(t *testing.T) {
 }
 
 func TestAMistypedEmailDomainIsProposedAndAWrongLocalPartIsNot(t *testing.T) {
-	members := []flowMemberForTool{
+	members := []taskMemberForTool{
 		{ID: "person-1", Name: "김예시", Email: "kimyesi@example.com"},
 		{ID: "person-2", Name: "박예시", Email: "parkyesi@example.com"},
 	}
 
-	domainSlip := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "kimyesi@example.con", members)
-	if domainSlip.Failure == nil || domainSlip.Failure.ErrorCode != "flow_owner_approximate" {
+	domainSlip := serviceWithDirectoryOf(t, members).resolveTaskOwnerHint(context.Background(), "kimyesi@example.con", members)
+	if domainSlip.Failure == nil || domainSlip.Failure.ErrorCode != "task_owner_approximate" {
 		t.Fatalf("a domain everyone shares is a slip, got %+v", domainSlip.Failure)
 	}
 	if len(domainSlip.Failure.Candidates) != 1 || domainSlip.Failure.Candidates[0].Email != "kimyesi@example.com" {
 		t.Fatalf("the local part says whose address it is, got %+v", domainSlip.Failure.Candidates)
 	}
 
-	otherPerson := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "parkyesi@example.com", members)
+	otherPerson := serviceWithDirectoryOf(t, members).resolveTaskOwnerHint(context.Background(), "parkyesi@example.com", members)
 	if otherPerson.Failure != nil || otherPerson.OwnerID != "person-2" {
 		t.Fatalf("an address that exists is that person, got %+v", otherPerson)
 	}
 }
 
 func TestAnExactNameOutranksEveryApproximation(t *testing.T) {
-	members := []flowMemberForTool{
+	members := []taskMemberForTool{
 		{ID: "person-1", Name: "이샘플", Email: "sample@example.com"},
 		{ID: "person-2", Name: "이샘풀", Email: "pool@example.com"},
 	}
 
-	resolution := serviceWithDirectoryOf(t, members).resolveFlowOwnerHint(context.Background(), "이샘플", members)
+	resolution := serviceWithDirectoryOf(t, members).resolveTaskOwnerHint(context.Background(), "이샘플", members)
 	if resolution.Failure != nil || resolution.OwnerID != "person-1" {
 		t.Fatalf("an exact name is taken as given, got %+v", resolution)
 	}

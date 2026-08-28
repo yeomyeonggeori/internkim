@@ -97,7 +97,7 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, FileDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
 	descriptors = append(descriptors, MattermostDescriptors()...)
-	descriptors = append(descriptors, FlowDescriptors()...)
+	descriptors = append(descriptors, TaskToolDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
@@ -152,7 +152,7 @@ func MattermostDescriptors() []Descriptor {
 	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors("channel_update"))
 }
 
-func FlowDescriptors() []Descriptor {
+func TaskToolDescriptors() []Descriptor {
 	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
 		"task_add",
 		"task_list",
@@ -379,7 +379,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, FileDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
 	descriptors = append(descriptors, MattermostDescriptors()...)
-	descriptors = append(descriptors, FlowDescriptors()...)
+	descriptors = append(descriptors, TaskToolDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)

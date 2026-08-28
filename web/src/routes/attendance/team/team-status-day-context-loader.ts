@@ -1,12 +1,12 @@
 import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
 import { fetchCalendarEvents } from '../../calendar/embed/calendar-event-persistence';
-import { fetchFlowState } from '../../flow/flow-api';
-import type { FlowState } from '../../flow/flow-types';
+import { fetchTaskState } from '../../task/task-api';
+import type { TaskState } from '../../task/task-types';
 import { addDays } from '../shared/attendance-date';
 
 export type TeamStatusDayContextData = {
 	calendarEvents: CalendarEvent[];
-	flowState: FlowState | null;
+	taskState: TaskState | null;
 	hasCalendarEventsLoadFailed: boolean;
 	hasCompletedWorkLoadFailed: boolean;
 };
@@ -18,15 +18,15 @@ export async function loadTeamStatusDayContextData(
 ): Promise<TeamStatusDayContextData> {
 	const startDate = dateFromKey(firstDate);
 	const endDate = dateFromKey(addDays(lastDate, 1));
-	const [calendarResult, flowResult] = await Promise.allSettled([
+	const [calendarResult, taskResult] = await Promise.allSettled([
 		fetchCalendarEvents(startDate, endDate, fallbackMessage),
-		fetchFlowState(fallbackMessage)
+		fetchTaskState(fallbackMessage)
 	]);
 	return {
 		calendarEvents: calendarResult.status === 'fulfilled' ? calendarResult.value : [],
-		flowState: flowResult.status === 'fulfilled' ? flowResult.value : null,
+		taskState: taskResult.status === 'fulfilled' ? taskResult.value : null,
 		hasCalendarEventsLoadFailed: calendarResult.status === 'rejected',
-		hasCompletedWorkLoadFailed: flowResult.status === 'rejected'
+		hasCompletedWorkLoadFailed: taskResult.status === 'rejected'
 	};
 }
 

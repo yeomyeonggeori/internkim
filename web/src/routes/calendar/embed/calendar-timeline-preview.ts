@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { TimelineRangeSelection } from './calendar-timeline-range-action';
 import {
 	orderedTimelineRangeDates,
@@ -12,7 +12,7 @@ export { timelineRangePreviewSegments, type TimelineRangePreviewSegment } from '
 export function syncTimelinePreviewOverlapLayout(
 	stageElement: HTMLElement | null,
 	selection: TimelineRangeSelection | null,
-	events: DayFlowEvent[]
+	events: DayTaskEvent[]
 ): void {
 	if (!stageElement) return;
 	clearTimelineOverlapLayout(stageElement);

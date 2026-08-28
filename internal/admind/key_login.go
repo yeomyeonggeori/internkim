@@ -140,7 +140,7 @@ func (service *Service) handleKeyLogin(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, "signature does not match this email", http.StatusUnauthorized)
 		return
 	}
-	if !service.isFlowStaffActor(request.Context(), email) {
+	if !service.isTaskStaffActor(request.Context(), email) {
 		http.Error(responseWriter, "account not invited", http.StatusForbidden)
 		return
 	}

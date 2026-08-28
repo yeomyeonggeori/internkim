@@ -11,14 +11,14 @@ type calendarParticipantsResponse struct {
 }
 
 func (service *Service) listCalendarParticipants(responseWriter http.ResponseWriter, request *http.Request) {
-	members := service.flowMembers(request)
+	members := service.taskMembers(request)
 	service.writeJSON(responseWriter, calendarParticipantsResponse{
 		Participants: calendarParticipantsFromMembers(members),
 	})
 }
 
 func (service *Service) serveCalendarParticipantImage(responseWriter http.ResponseWriter, request *http.Request, path string) {
-	member, found := calendarParticipantImageMember(service.flowMembers(request), path)
+	member, found := calendarParticipantImageMember(service.taskMembers(request), path)
 	if !found {
 		http.NotFound(responseWriter, request)
 		return
@@ -48,21 +48,21 @@ func calendarParticipantImagePath(personID string) string {
 	return "/calendar/api/participants/" + url.PathEscape(trimmedPersonID) + "/image"
 }
 
-func calendarParticipantImageMember(members []flowMember, path string) (flowMember, bool) {
+func calendarParticipantImageMember(members []taskMember, path string) (taskMember, bool) {
 	participantPath := strings.TrimPrefix(path, "/participants/")
 	personID, suffix, found := strings.Cut(participantPath, "/image")
 	if !found || suffix != "" || strings.TrimSpace(personID) == "" || strings.Contains(personID, "/") {
-		return flowMember{}, false
+		return taskMember{}, false
 	}
 	for _, member := range members {
 		if strings.EqualFold(strings.TrimSpace(member.ID), personID) {
 			return member, true
 		}
 	}
-	return flowMember{}, false
+	return taskMember{}, false
 }
 
-func (service *Service) calendarParticipantMattermostUser(request *http.Request, token string, member flowMember) (mattermostUserRecord, bool, error) {
+func (service *Service) calendarParticipantMattermostUser(request *http.Request, token string, member taskMember) (mattermostUserRecord, bool, error) {
 	username := strings.TrimSpace(member.MattermostUsername)
 	if username != "" {
 		userRecord, found, errorValue := service.findMattermostUserByUsername(request.Context(), token, username)

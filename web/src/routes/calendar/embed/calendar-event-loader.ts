@@ -1,7 +1,7 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import {
-	dayFlowEventFromCalendarEvent,
-	dayFlowEventFromCalendarHoliday,
+	dayTaskEventFromCalendarEvent,
+	dayTaskEventFromCalendarHoliday,
 	eventEndDate,
 	eventStartDate
 } from './calendar-event-mapping';
@@ -16,18 +16,18 @@ type CalendarEventLoaderContext = {
 	getLocale: () => CalendarHolidayLocale;
 	errorFallback: () => string;
 	holidayErrorFallback: () => string;
-	getCalendarEvents: () => DayFlowEvent[];
-	getVisibleEvents: () => DayFlowEvent[];
-	applyCalendarEventsChanges: (changes: { delete: string[]; add: DayFlowEvent[] }) => void;
+	getCalendarEvents: () => DayTaskEvent[];
+	getVisibleEvents: () => DayTaskEvent[];
+	applyCalendarEventsChanges: (changes: { delete: string[]; add: DayTaskEvent[] }) => void;
 	triggerCalendarRender: () => void;
-	setVisibleEvents: (events: DayFlowEvent[]) => void;
+	setVisibleEvents: (events: DayTaskEvent[]) => void;
 	setEventCount: (eventCount: number) => void;
 	setIsLoading: (isLoading: boolean) => void;
 	setErrorMessage: (message: string) => void;
 	refreshSelectedMonthDateCell: () => void;
-	preservedLocalEvents?: () => DayFlowEvent[];
-	shouldPreserveLocalEvent?: (event: DayFlowEvent) => boolean;
-	afterRenderEvents?: (events: DayFlowEvent[]) => void;
+	preservedLocalEvents?: () => DayTaskEvent[];
+	shouldPreserveLocalEvent?: (event: DayTaskEvent) => boolean;
+	afterRenderEvents?: (events: DayTaskEvent[]) => void;
 };
 
 export type CalendarEventLoader = {
@@ -35,7 +35,7 @@ export type CalendarEventLoader = {
 	invalidatePendingLoad: () => void;
 	loadEvents: (startDate: Date, endDate: Date) => Promise<void>;
 	refreshCurrentRange: () => Promise<void>;
-	renderVisibleEvents: (events: DayFlowEvent[]) => void;
+	renderVisibleEvents: (events: DayTaskEvent[]) => void;
 };
 
 type CalendarEventLoaderDependencies = {
@@ -73,8 +73,8 @@ export function createCalendarEventLoader(
 			]);
 			if (requestID !== loadEventsRequestID) return;
 			const events = mergePreservedLocalEvents([
-				...calendarEvents.map(dayFlowEventFromCalendarEvent),
-				...holidayResult.holidays.map(dayFlowEventFromCalendarHoliday)
+				...calendarEvents.map(dayTaskEventFromCalendarEvent),
+				...holidayResult.holidays.map(dayTaskEventFromCalendarHoliday)
 			]);
 			const mergedEvents = eventsOutsideRange(context.getVisibleEvents(), startDate, endDate).concat(events);
 			context.setVisibleEvents(mergedEvents);
@@ -107,12 +107,12 @@ export function createCalendarEventLoader(
 		await loadEvents(visibleRange.startDate, visibleRange.endDate);
 	}
 
-	function renderVisibleEvents(events: DayFlowEvent[]): void {
+	function renderVisibleEvents(events: DayTaskEvent[]): void {
 		if (!visibleRange) return;
 		replaceCalendarEvents(events);
 	}
 
-	function replaceCalendarEvents(events: DayFlowEvent[]): void {
+	function replaceCalendarEvents(events: DayTaskEvent[]): void {
 		const eventIDs = context.getCalendarEvents().map((event) => event.id);
 		context.applyCalendarEventsChanges({
 			delete: eventIDs,
@@ -122,11 +122,11 @@ export function createCalendarEventLoader(
 		context.refreshSelectedMonthDateCell();
 	}
 
-	function eventsOutsideRange(events: DayFlowEvent[], startDate: Date, endDate: Date): DayFlowEvent[] {
+	function eventsOutsideRange(events: DayTaskEvent[], startDate: Date, endDate: Date): DayTaskEvent[] {
 		return events.filter((event) => eventEndDate(event) <= startDate || eventStartDate(event) >= endDate);
 	}
 
-	function mergePreservedLocalEvents(events: DayFlowEvent[]): DayFlowEvent[] {
+	function mergePreservedLocalEvents(events: DayTaskEvent[]): DayTaskEvent[] {
 		const preservedEvents = [
 			...(context.preservedLocalEvents?.() ?? []),
 			...context.getCalendarEvents().filter((event) => context.shouldPreserveLocalEvent?.(event) ?? false)
@@ -137,7 +137,7 @@ export function createCalendarEventLoader(
 		return [...events, ...uniqueEventsByID(uniquePreservedEvents)];
 	}
 
-	function uniqueEventsByID(events: DayFlowEvent[]): DayFlowEvent[] {
+	function uniqueEventsByID(events: DayTaskEvent[]): DayTaskEvent[] {
 		const eventsByID = new Map(events.map((event) => [event.id, event]));
 		return Array.from(eventsByID.values());
 	}

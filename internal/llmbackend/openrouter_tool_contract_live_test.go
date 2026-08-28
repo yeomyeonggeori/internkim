@@ -20,7 +20,7 @@ type toolArgumentContractCase struct {
 func toolArgumentContractCases(t *testing.T) []toolArgumentContractCase {
 	t.Helper()
 	webDescriptors := capabilities.WebDescriptors()
-	flowDescriptors := capabilities.FlowDescriptors()
+	flowDescriptors := capabilities.TaskToolDescriptors()
 	return []toolArgumentContractCase{
 		{
 			Name:          "web.search.query",
@@ -91,7 +91,7 @@ func TestOpenRouterLiveNativeEitherOrToolFilledInLargeToolSetFromEnv(t *testing.
 	backend, _ := liveOpenRouterBackendFromEnv(t)
 	descriptors := []capabilities.Descriptor{}
 	descriptors = append(descriptors, capabilities.FileDescriptors()...)
-	descriptors = append(descriptors, capabilities.FlowDescriptors()...)
+	descriptors = append(descriptors, capabilities.TaskToolDescriptors()...)
 	descriptors = append(descriptors, capabilities.CalendarDescriptors()...)
 	descriptors = append(descriptors, capabilities.WebDescriptors()...)
 	schemaDocument := testActionSchemaForDescriptors(t, descriptors)

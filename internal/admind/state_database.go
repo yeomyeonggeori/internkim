@@ -29,7 +29,7 @@ func resolvedStateDatabasePath(configuration Configuration, defaultConfiguration
 		return configuredPath
 	}
 	for _, providedPath := range []string{
-		configuration.FlowDatabasePath,
+		configuration.TaskDatabasePath,
 		configuration.CalendarDatabasePath,
 		configuration.MailDatabasePath,
 		configuration.AttendanceDatabasePath,
@@ -44,12 +44,12 @@ func resolvedStateDatabasePath(configuration Configuration, defaultConfiguration
 	if strings.TrimSpace(configuration.StateDirectory) != "" && configuration.StateDirectory != defaultConfiguration.StateDirectory {
 		return filepath.Join(configuration.StateDirectory, stateDatabaseFileName)
 	}
-	return filepath.Join(filepath.Dir(defaultConfiguration.FlowDatabasePath), stateDatabaseFileName)
+	return filepath.Join(filepath.Dir(defaultConfiguration.TaskDatabasePath), stateDatabaseFileName)
 }
 
 func (service *Service) legacyStateDatabaseCandidates() []legacyStateDatabase {
 	return []legacyStateDatabase{
-		{name: "flow", path: service.Configuration.FlowDatabasePath},
+		{name: "flow", path: service.Configuration.TaskDatabasePath},
 		{name: "calendar", path: service.Configuration.CalendarDatabasePath},
 		{name: "mail", path: service.Configuration.MailDatabasePath},
 		{name: "attendance", path: service.Configuration.AttendanceDatabasePath},

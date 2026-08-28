@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 
-test('keeps DayFlow global styles out of the attendance route', async () => {
+test('keeps DayTask global styles out of the attendance route', async () => {
 	const attendanceSourceDirectory = resolve(import.meta.dir, '../../../src/routes/attendance');
 	const sourceFiles = new Bun.Glob('**/*.{svelte,ts}').scanSync({
 		cwd: attendanceSourceDirectory,

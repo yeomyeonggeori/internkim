@@ -82,7 +82,7 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 		Authenticated: true,
 		Email:         email,
 		Image:         profileImagePathForEmail(email),
-		IsAdmin:       isTaskRunAdmin || service.isFlowAdminEmail(request.Context(), email),
+		IsAdmin:       isTaskRunAdmin || service.isTaskAdminEmail(request.Context(), email),
 		CanViewTasks:  service.canViewTaskRuns(request.Context(), email),
 	})
 }

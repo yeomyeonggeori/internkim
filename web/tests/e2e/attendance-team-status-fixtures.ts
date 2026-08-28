@@ -5,7 +5,7 @@ import type {
 	AttendanceSummary
 } from '../../src/routes/attendance/attendance-context.svelte';
 import type { CalendarEvent } from '../../src/routes/calendar/embed/calendar-event-persistence';
-import type { FlowState, FlowTask } from '../../src/routes/flow/flow-types';
+import type { TaskState, Task } from '../../src/routes/task/task-types';
 
 export const overflowTargetDate = '2026-06-16';
 
@@ -22,11 +22,11 @@ export async function routePersonalDayContext(page: Page, targetDate: string): P
 			}
 		});
 	});
-	await page.unroute('**/flow/api/state');
-	await page.route('**/flow/api/state', async (route) => {
+	await page.unroute('**/task/api/state');
+	await page.route('**/task/api/state', async (route) => {
 		await route.fulfill({
-			json: flowStateFixture([
-				flowTask('completed-personal-task', '월간 현황 팝업 구현', '완료', targetDate, 'kim', ['kim'])
+			json: taskStateFixture([
+				task('completed-personal-task', '월간 현황 팝업 구현', '완료', targetDate, 'kim', ['kim'])
 			])
 		});
 	});
@@ -48,13 +48,13 @@ export async function routeSourceSeparatedDayContext(page: Page, targetDate: str
 			}
 		});
 	});
-	await page.unroute('**/flow/api/state');
-	await page.route('**/flow/api/state', async (route) => {
+	await page.unroute('**/task/api/state');
+	await page.route('**/task/api/state', async (route) => {
 		await route.fulfill({
-			json: flowStateFixture([
-				flowTask('flow-shaped-as-calendar', '캘린더 일정처럼 보이는 완료 업무', '완료', targetDate, 'kim', ['kim']),
-				flowTask('flow-planned-calendar-title', '캘린더 일정처럼 보이는 예정 업무', '예정', targetDate, 'kim', ['kim']),
-				flowTask('flow-other-person-calendar-title', '다른 사람 캘린더 일정처럼 보이는 완료 업무', '완료', targetDate, 'park', ['park'])
+			json: taskStateFixture([
+				task('task-shaped-as-calendar', '캘린더 일정처럼 보이는 완료 업무', '완료', targetDate, 'kim', ['kim']),
+				task('task-planned-calendar-title', '캘린더 일정처럼 보이는 예정 업무', '예정', targetDate, 'kim', ['kim']),
+				task('task-other-person-calendar-title', '다른 사람 캘린더 일정처럼 보이는 완료 업무', '완료', targetDate, 'park', ['park'])
 			])
 		});
 	});
@@ -90,14 +90,14 @@ export async function routeOverflowStatusDay(page: Page): Promise<void> {
 			}
 		});
 	});
-	await page.unroute('**/flow/api/state');
-	await page.route('**/flow/api/state', async (route) => {
+	await page.unroute('**/task/api/state');
+	await page.route('**/task/api/state', async (route) => {
 		await route.fulfill({
-			json: flowStateFixture([
-				flowTask('overflow-task-1', '출결 대시보드 점검', '완료', overflowTargetDate, 'kim', ['kim']),
-				flowTask('overflow-task-2', '근무 기록 정합성 확인', '완료', overflowTargetDate, 'kim', ['kim']),
-				flowTask('overflow-task-3', '월간 현황 QA', '완료', overflowTargetDate, 'kim', ['kim']),
-				flowTask('overflow-task-4', '일정 연동 확인', '완료', overflowTargetDate, 'kim', ['kim'])
+			json: taskStateFixture([
+				task('overflow-1', '출결 대시보드 점검', '완료', overflowTargetDate, 'kim', ['kim']),
+				task('overflow-2', '근무 기록 정합성 확인', '완료', overflowTargetDate, 'kim', ['kim']),
+				task('overflow-3', '월간 현황 QA', '완료', overflowTargetDate, 'kim', ['kim']),
+				task('overflow-4', '일정 연동 확인', '완료', overflowTargetDate, 'kim', ['kim'])
 			])
 		});
 	});
@@ -175,11 +175,11 @@ function overflowAttendanceEvent(
 	};
 }
 
-export function flowStateFixture(tasks: FlowTask[]): FlowState {
+export function taskStateFixture(tasks: Task[]): TaskState {
 	return {
 		members: [
-			flowMember('kim', '김철수', 'kim@example.com'),
-			flowMember('park', '박지민', 'park@example.com')
+			taskMember('kim', '김철수', 'kim@example.com'),
+			taskMember('park', '박지민', 'park@example.com')
 		],
 		tasks,
 		metrics: {
@@ -201,7 +201,7 @@ export function flowStateFixture(tasks: FlowTask[]): FlowState {
 	};
 }
 
-function flowMember(id: string, name: string, email: string): FlowState['members'][number] {
+function taskMember(id: string, name: string, email: string): TaskState['members'][number] {
 	return {
 		id,
 		name,
@@ -213,14 +213,14 @@ function flowMember(id: string, name: string, email: string): FlowState['members
 	};
 }
 
-export function flowTask(
+export function task(
 	id: string,
 	content: string,
 	status: string,
 	endDate: string,
 	ownerID: string,
 	participantIDs: string[]
-): FlowTask {
+): Task {
 	const namesByID: Record<string, string> = { kim: '김철수', park: '박지민' };
 	return {
 		id,

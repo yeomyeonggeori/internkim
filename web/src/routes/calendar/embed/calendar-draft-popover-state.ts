@@ -1,4 +1,4 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-anchor-types';
 import {
@@ -43,7 +43,7 @@ const defaultTimedStartTime = '09:00';
 const defaultTimedEndTime = '10:00';
 
 export function draftPopoverStateFromEvent(
-	event: DayFlowEvent,
+	event: DayTaskEvent,
 	mode: DraftPopoverMode,
 	anchor: DraftPopoverAnchor | null,
 	stageElement: HTMLElement | null
@@ -119,7 +119,7 @@ export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEve
 	};
 }
 
-export function hasDraftPopoverEventChanges(popover: DraftPopoverState, event: DayFlowEvent): boolean {
+export function hasDraftPopoverEventChanges(popover: DraftPopoverState, event: DayTaskEvent): boolean {
 	const changes = draftPopoverChanges(popover);
 	return (
 		normalizedText(event.title) !== changes.title ||
@@ -156,7 +156,7 @@ function dateFromEventValue(value: Date): Date {
 	return new Date(value);
 }
 
-function eventLocation(event: DayFlowEvent): string {
+function eventLocation(event: DayTaskEvent): string {
 	return normalizedText(event.meta?.location);
 }
 

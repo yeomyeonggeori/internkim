@@ -1,0 +1,96 @@
+package admind
+
+import (
+	"context"
+	"net/http"
+	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
+)
+
+// The company holds the board, so a task is written there as the person who
+// asked and the answer comes back carrying the identifier the company gave it.
+// This is the path an event already takes; a task and an event are one row.
+func (service *Service) saveCentralTask(request *http.Request, task Task, people map[string]adminUserMutation) (Task, bool, error) {
+	requesterEmail := service.taskActorEmail(request)
+	if requesterEmail == "" {
+		return Task{}, false, nil
+	}
+	client := service.centralPlane()
+	if client == nil {
+		return Task{}, false, nil
+	}
+	savedID, errorValue := client.SaveTask(request.Context(), centralplane.Task{
+		CentralID:        centralTaskIdentityOf(task),
+		ActorPlatform:    "email",
+		ActorExternalID:  requesterEmail,
+		Title:            task.Content,
+		Status:           centralTaskStatus(task.Status),
+		Note:             centralTaskNote(task),
+		Business:         task.Business,
+		Type:             task.Type,
+		Size:             task.Size,
+		StartsAt:         task.StartDate,
+		EndsAt:           task.EndDate,
+		WritesDates:      strings.TrimSpace(task.StartDate) != "" || strings.TrimSpace(task.EndDate) != "",
+		ParticipantMails: participantAddresses(task, people),
+	})
+	if errorValue != nil {
+		return Task{}, true, errorValue
+	}
+	saved := task
+	saved.ID = savedID
+	return saved, true, nil
+}
+
+func (service *Service) removeCentralTask(request *http.Request, taskID string) (bool, error) {
+	requesterEmail := service.taskActorEmail(request)
+	if requesterEmail == "" {
+		return false, nil
+	}
+	client := service.centralPlane()
+	if client == nil {
+		return false, nil
+	}
+	return true, client.DeleteTask(request.Context(), "email", requesterEmail, taskID)
+}
+
+// A task the company already holds carries the identifier the company gave it;
+// one it has never seen carries none. Sending the device's own asks the company
+// to change a row nobody has.
+func centralTaskIdentityOf(task Task) string {
+	identity := strings.TrimSpace(task.ID)
+	if len(identity) == 36 && strings.Count(identity, "-") == 4 {
+		return identity
+	}
+	return ""
+}
+
+// A session is issued for a messenger account, which the account directory
+// carries and the organization chart drops. Only the request's context is read.
+func (service *Service) taskPeopleByID(ctx context.Context) map[string]adminUserMutation {
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost", nil)
+	if errorValue != nil {
+		return map[string]adminUserMutation{}
+	}
+	people := map[string]adminUserMutation{}
+	for _, record := range service.accountDirectoryUserRecords(request) {
+		people[taskMemberIdentifier(record)] = record
+	}
+	return people
+}
+
+// The people a task names are device identifiers; the central plane knows
+// addresses. Anyone the org chart does not carry is left out, and task_save
+// decides whether the rest may be there.
+func participantAddresses(task Task, people map[string]adminUserMutation) []string {
+	addresses := []string{}
+	for _, participantID := range task.ParticipantIDs {
+		person, known := people[participantID]
+		if !known || strings.TrimSpace(person.Email) == "" {
+			continue
+		}
+		addresses = append(addresses, person.Email)
+	}
+	return addresses
+}

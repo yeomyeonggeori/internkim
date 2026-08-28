@@ -176,8 +176,8 @@ func TestAdminRequestDiagnosticsReturnsRecentSlowRequests(t *testing.T) {
 }
 
 func TestOpenSQLiteDatabaseUsesWALAndBusyTimeout(t *testing.T) {
-	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
-	database, errorValue := service.openFlowDatabase(context.Background())
+	service := NewService(Configuration{TaskDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
+	database, errorValue := service.openTaskDatabase(context.Background())
 	if errorValue != nil {
 		t.Fatalf("expected flow database to open: %v", errorValue)
 	}
@@ -624,8 +624,8 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/members":
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostTaskSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
@@ -799,8 +799,8 @@ func TestAdminSessionReturnsFirstAdminTemporaryPasswordOnce(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/members":
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostTaskSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -900,8 +900,8 @@ func TestAdminSessionResetsExistingFirstAdminMattermostPassword(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/members":
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostTaskSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
@@ -985,8 +985,8 @@ func TestAdminSessionRepairsClaimedFirstAdminPasswordFromOldBootstrap(t *testing
 			return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/members":
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostTaskSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
@@ -1189,8 +1189,8 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 			return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/members":
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostTaskSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -1419,8 +1419,8 @@ func TestAdminInvitePreservesCurrentAdminRole(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/members":
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostTaskSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -1828,20 +1828,20 @@ identityExtension: "Be crisp."
 	}
 }
 
-func TestFlowSizeDefinitionsPersist(t *testing.T) {
-	service := NewService(Configuration{FlowDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
+func TestTaskSizeDefinitionsPersist(t *testing.T) {
+	service := NewService(Configuration{TaskDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
 	ctx := context.Background()
-	definitions, errorValue := service.readFlowDefinitions(ctx)
+	definitions, errorValue := service.readTaskDefinitions(ctx)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	definitions.Sizes = []flowSizeDefinition{
+	definitions.Sizes = []taskSizeDefinition{
 		sizeDefinition("T", 21, 64, "테스트 개발", "테스트 기타", "테스트 비고"),
 	}
-	if errorValue := service.writeFlowDefinitions(ctx, definitions); errorValue != nil {
+	if errorValue := service.writeTaskDefinitions(ctx, definitions); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	reloadedDefinitions, errorValue := service.readFlowDefinitions(ctx)
+	reloadedDefinitions, errorValue := service.readTaskDefinitions(ctx)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1850,8 +1850,8 @@ func TestFlowSizeDefinitionsPersist(t *testing.T) {
 	}
 }
 
-func TestFlowAPIRejectsUnauthenticatedRemoteCaller(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+func TestTaskAPIRejectsUnauthenticatedRemoteCaller(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
 	for _, request := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil),
 		httptest.NewRequest(http.MethodGet, "/flow/api/state", nil),
@@ -1868,8 +1868,8 @@ func TestFlowAPIRejectsUnauthenticatedRemoteCaller(t *testing.T) {
 	}
 }
 
-func TestFlowAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+func TestTaskAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 
 	stateRequest := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
@@ -1880,7 +1880,7 @@ func TestFlowAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 	if stateResponse.Code != http.StatusOK {
 		t.Fatalf("state status = %d body = %s", stateResponse.Code, stateResponse.Body.String())
 	}
-	var state flowStateResponse
+	var state taskStateResponse
 	if errorValue := json.NewDecoder(stateResponse.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1888,31 +1888,31 @@ func TestFlowAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
 	}
 
-	taskRequest := newFlowTaskRequest("staff@example.com", "staff@example.com")
+	taskRequest := newTaskRequest("staff@example.com", "staff@example.com")
 	taskResponse := httptest.NewRecorder()
 	handler.ServeHTTP(taskResponse, taskRequest)
 	if taskResponse.Code != http.StatusOK {
 		t.Fatalf("task status = %d body = %s", taskResponse.Code, taskResponse.Body.String())
 	}
-	var task flowTask
+	var task Task
 	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if task.Status != "진행" || task.OwnerID != stableFlowID("staff@example.com") {
+	if task.Status != "진행" || task.OwnerID != stableTaskID("staff@example.com") {
 		t.Fatalf("task = %+v", task)
 	}
 }
 
-func TestFlowAPIDeletesOwnTask(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+func TestTaskAPIDeletesOwnTask(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	taskRequest := newFlowTaskRequest("staff@example.com", "staff@example.com")
+	taskRequest := newTaskRequest("staff@example.com", "staff@example.com")
 	taskResponse := httptest.NewRecorder()
 	handler.ServeHTTP(taskResponse, taskRequest)
 	if taskResponse.Code != http.StatusOK {
 		t.Fatalf("task status = %d body = %s", taskResponse.Code, taskResponse.Body.String())
 	}
-	var task flowTask
+	var task Task
 	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1924,7 +1924,7 @@ func TestFlowAPIDeletesOwnTask(t *testing.T) {
 	if deleteResponse.Code != http.StatusOK {
 		t.Fatalf("delete status = %d body = %s", deleteResponse.Code, deleteResponse.Body.String())
 	}
-	_, found, errorValue := service.readFlowTaskByID(context.Background(), task.ID)
+	_, found, errorValue := service.readTaskByID(context.Background(), task.ID)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1933,16 +1933,16 @@ func TestFlowAPIDeletesOwnTask(t *testing.T) {
 	}
 }
 
-func TestFlowAPIRejectsDeletingOtherUserTask(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+func TestTaskAPIRejectsDeletingOtherUserTask(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	taskRequest := newFlowTaskRequest("other@example.com", "other@example.com")
+	taskRequest := newTaskRequest("other@example.com", "other@example.com")
 	taskResponse := httptest.NewRecorder()
 	handler.ServeHTTP(taskResponse, taskRequest)
 	if taskResponse.Code != http.StatusOK {
 		t.Fatalf("task status = %d body = %s", taskResponse.Code, taskResponse.Body.String())
 	}
-	var task flowTask
+	var task Task
 	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1954,7 +1954,7 @@ func TestFlowAPIRejectsDeletingOtherUserTask(t *testing.T) {
 	if deleteResponse.Code != http.StatusForbidden {
 		t.Fatalf("delete status = %d body = %s", deleteResponse.Code, deleteResponse.Body.String())
 	}
-	_, found, errorValue := service.readFlowTaskByID(context.Background(), task.ID)
+	_, found, errorValue := service.readTaskByID(context.Background(), task.ID)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1963,8 +1963,8 @@ func TestFlowAPIRejectsDeletingOtherUserTask(t *testing.T) {
 	}
 }
 
-func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+func TestTaskAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
 	cookieValue := webSessionCookieForTest(t, service, "staff@example.com")
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
 	request.RemoteAddr = "198.51.100.10:443"
@@ -1976,7 +1976,7 @@ func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
 	}
-	var state flowStateResponse
+	var state taskStateResponse
 	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1985,18 +1985,18 @@ func TestFlowAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	}
 }
 
-func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
-	staffID := stableFlowID("staff@example.com")
-	otherID := stableFlowID("other@example.com")
-	tasks := []flowTask{
-		flowReportTestTask("current", "26W18", []string{staffID, otherID}, []string{"Staff", "Other"}, "M", "완료", "2026-04-27", "2026-04-29"),
-		flowReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "완료", "2026-04-20", "2026-04-21"),
-		flowReportTestTask("previous-month", "26W10", []string{staffID}, []string{"Staff"}, "XS", "완료", "2026-03-03", "2026-03-03"),
-		flowReportTestTask("future-week", "26W19", []string{staffID}, []string{"Staff"}, "XS", "예정", "2026-05-04", ""),
+func TestTaskSummaryIncludesDistanceReport(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
+	staffID := stableTaskID("staff@example.com")
+	otherID := stableTaskID("other@example.com")
+	tasks := []Task{
+		taskReportTestTask("current", "26W18", []string{staffID, otherID}, []string{"Staff", "Other"}, "M", "완료", "2026-04-27", "2026-04-29"),
+		taskReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "완료", "2026-04-20", "2026-04-21"),
+		taskReportTestTask("previous-month", "26W10", []string{staffID}, []string{"Staff"}, "XS", "완료", "2026-03-03", "2026-03-03"),
+		taskReportTestTask("future-week", "26W19", []string{staffID}, []string{"Staff"}, "XS", "예정", "2026-05-04", ""),
 	}
 	for _, task := range tasks {
-		if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 			t.Fatal(errorValue)
 		}
 	}
@@ -2012,7 +2012,7 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
 	}
 	body := response.Body.Bytes()
-	var summary flowSummaryResponse
+	var summary taskSummaryResponse
 	if errorValue := json.NewDecoder(bytes.NewReader(body)).Decode(&summary); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -2040,19 +2040,19 @@ func TestFlowSummaryIncludesDistanceReport(t *testing.T) {
 	assertJSONFieldsAbsent(t, body, "members", "tasks", "definitions", "statusOptions", "currentUserEmail", "currentUserName", "isAdmin")
 }
 
-func TestFlowStateIncludesCurrentGlobalData(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
-	staffID := stableFlowID("staff@example.com")
-	otherID := stableFlowID("other@example.com")
+func TestTaskStateIncludesCurrentGlobalData(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
+	staffID := stableTaskID("staff@example.com")
+	otherID := stableTaskID("other@example.com")
 	now := time.Now()
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
-	tasks := []flowTask{
-		flowReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
-		flowReportTestTask("older", weekCodeForDate(currentWeekStart.AddDate(0, 0, -7*2)), []string{otherID}, []string{"Other"}, "XS", "진행", currentWeekStart.AddDate(0, 0, -14).Format("2006-01-02"), ""),
+	tasks := []Task{
+		taskReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
+		taskReportTestTask("older", weekCodeForDate(currentWeekStart.AddDate(0, 0, -7*2)), []string{otherID}, []string{"Other"}, "XS", "진행", currentWeekStart.AddDate(0, 0, -14).Format("2006-01-02"), ""),
 	}
 	for _, task := range tasks {
-		if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 			t.Fatal(errorValue)
 		}
 	}
@@ -2068,7 +2068,7 @@ func TestFlowStateIncludesCurrentGlobalData(t *testing.T) {
 		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
 	}
 	body := response.Body.Bytes()
-	var state flowStateResponse
+	var state taskStateResponse
 	if errorValue := json.NewDecoder(bytes.NewReader(body)).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -2100,9 +2100,9 @@ func assertJSONFieldsAbsent(t *testing.T, document []byte, fields ...string) {
 	}
 }
 
-func TestFlowSummaryMemberScoresUseCurrentWeek(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
-	staffID := stableFlowID("staff@example.com")
+func TestTaskSummaryMemberScoresUseCurrentWeek(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
+	staffID := stableTaskID("staff@example.com")
 	now := time.Now()
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
@@ -2110,13 +2110,13 @@ func TestFlowSummaryMemberScoresUseCurrentWeek(t *testing.T) {
 	previousCurrentWeekCode := weekCodeForDate(previousCurrentWeekStart)
 	selectedWeekStart := currentWeekStart.AddDate(0, 0, -7*30)
 	selectedWeekCode := weekCodeForDate(selectedWeekStart)
-	tasks := []flowTask{
-		flowReportTestTask("selected-score", selectedWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", selectedWeekStart.Format("2006-01-02"), selectedWeekStart.Format("2006-01-02")),
-		flowReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
-		flowReportTestTask("previous-current-score", previousCurrentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", previousCurrentWeekStart.Format("2006-01-02"), previousCurrentWeekStart.Format("2006-01-02")),
+	tasks := []Task{
+		taskReportTestTask("selected-score", selectedWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", selectedWeekStart.Format("2006-01-02"), selectedWeekStart.Format("2006-01-02")),
+		taskReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
+		taskReportTestTask("previous-current-score", previousCurrentWeekCode, []string{staffID}, []string{"Staff"}, "M", "완료", previousCurrentWeekStart.Format("2006-01-02"), previousCurrentWeekStart.Format("2006-01-02")),
 	}
 	for _, task := range tasks {
-		if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 			t.Fatal(errorValue)
 		}
 	}
@@ -2131,23 +2131,23 @@ func TestFlowSummaryMemberScoresUseCurrentWeek(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
 	}
-	var state flowStateResponse
+	var state taskStateResponse
 	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	members := service.flowMembers(request)
-	currentScoreStart, currentScoreEnd := flowScoreDateRange(currentWeekStart)
-	currentScoreTasks, errorValue := service.readFlowTasksBetweenDates(context.Background(), currentScoreStart.Format("2006-01-02"), currentScoreEnd.Format("2006-01-02"), members)
+	members := service.taskMembers(request)
+	currentScoreStart, currentScoreEnd := taskScoreDateRange(currentWeekStart)
+	currentScoreTasks, errorValue := service.readTasksBetweenDates(context.Background(), currentScoreStart.Format("2006-01-02"), currentScoreEnd.Format("2006-01-02"), members)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	expectedCurrentDetails := buildFlowMemberScoreDetails(currentScoreTasks, members, state.Definitions, currentWeekStart)
-	selectedScoreStart, selectedScoreEnd := flowScoreDateRange(selectedWeekStart)
-	selectedScoreTasks, errorValue := service.readFlowTasksBetweenDates(context.Background(), selectedScoreStart.Format("2006-01-02"), selectedScoreEnd.Format("2006-01-02"), members)
+	expectedCurrentDetails := buildTaskMemberScoreDetails(currentScoreTasks, members, state.Definitions, currentWeekStart)
+	selectedScoreStart, selectedScoreEnd := taskScoreDateRange(selectedWeekStart)
+	selectedScoreTasks, errorValue := service.readTasksBetweenDates(context.Background(), selectedScoreStart.Format("2006-01-02"), selectedScoreEnd.Format("2006-01-02"), members)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	selectedWeekDetails := buildFlowMemberScoreDetails(selectedScoreTasks, members, state.Definitions, selectedWeekStart)
+	selectedWeekDetails := buildTaskMemberScoreDetails(selectedScoreTasks, members, state.Definitions, selectedWeekStart)
 	if expectedCurrentDetails[staffID].CurrentScore == selectedWeekDetails[staffID].CurrentScore {
 		t.Fatalf("test setup did not distinguish current and selected score details: current=%+v selected=%+v", expectedCurrentDetails[staffID], selectedWeekDetails[staffID])
 	}
@@ -2160,7 +2160,7 @@ func TestFlowSummaryMemberScoresUseCurrentWeek(t *testing.T) {
 }
 
 func TestWebSessionRejectsExpiredTamperedAndStaleCookies(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+	service := newTaskAuthorizationTestService(t)
 	expiredCookie := expiredWebSessionCookieForTest(t, service, "staff@example.com")
 	if errorValue := webSessionFailureForTest(service, expiredCookie); errorValue == nil || errorValue.Error() != "expired" {
 		t.Fatalf("expired cookie error = %v", errorValue)
@@ -2178,7 +2178,7 @@ func TestWebSessionRejectsExpiredTamperedAndStaleCookies(t *testing.T) {
 }
 
 func TestWebSessionDoesNotAuthorizeAdminAPI(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+	service := newTaskAuthorizationTestService(t)
 	cookieValue := webSessionCookieForTest(t, service, "staff@example.com")
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)
 	request.RemoteAddr = "198.51.100.10:443"
@@ -2193,7 +2193,7 @@ func TestWebSessionDoesNotAuthorizeAdminAPI(t *testing.T) {
 }
 
 func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+	service := newTaskAuthorizationTestService(t)
 	logoutRequest := httptest.NewRequest(http.MethodPost, "/auth/logout?return=/tasks/", nil)
 	logoutRequest.RemoteAddr = "198.51.100.10:443"
 	logoutRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
@@ -2242,7 +2242,7 @@ func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 }
 
 func TestWebLogoutSuppressesMattermostSessionCookie(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/session?return=/flow/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.AddCookie(&http.Cookie{Name: "MMAUTHTOKEN", Value: "session-token"})
@@ -2295,7 +2295,7 @@ func TestTasksPageRedirectsBarePath(t *testing.T) {
 }
 
 func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
@@ -2321,7 +2321,7 @@ func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 }
 
 func TestCloudflareAuthCallbackRejectsNonStaff(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "outsider@example.com")
@@ -2406,23 +2406,23 @@ func webSessionFailureForTest(service *Service, cookieValue string) error {
 	return errorValue
 }
 
-func TestFlowAPIForcesStaffTaskForOtherMemberToRequestWithoutRequesterParticipant(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+func TestTaskAPIForcesStaffTaskForOtherMemberToRequestWithoutRequesterParticipant(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
 	response := httptest.NewRecorder()
 
-	service.router().ServeHTTP(response, newFlowTaskRequest("staff@example.com", "other@example.com"))
+	service.router().ServeHTTP(response, newTaskRequest("staff@example.com", "other@example.com"))
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("task status = %d body = %s", response.Code, response.Body.String())
 	}
-	var task flowTask
+	var task Task
 	if errorValue := json.NewDecoder(response.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if task.Status != "요청" {
 		t.Fatalf("status = %q", task.Status)
 	}
-	if containsString(task.ParticipantIDs, stableFlowID("staff@example.com")) {
+	if containsString(task.ParticipantIDs, stableTaskID("staff@example.com")) {
 		t.Fatalf("requester should not be a participant by default, got %+v", task.ParticipantIDs)
 	}
 }
@@ -2441,19 +2441,19 @@ func TestAdminLocalePersistsMattermostSystemTextLanguage(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("locale status = %d body = %s", response.Code, response.Body.String())
 	}
-	if service.mattermostFlowLink("") != "[업무 열기](/flow/)" {
-		t.Fatalf("flow link = %q", service.mattermostFlowLink(""))
+	if service.mattermostTaskLink("") != "[업무 열기](/flow/)" {
+		t.Fatalf("flow link = %q", service.mattermostTaskLink(""))
 	}
 	if service.mattermostCalendarLink("") != "[일정 열기](/calendar/)" {
 		t.Fatalf("calendar link = %q", service.mattermostCalendarLink(""))
 	}
 }
 
-func TestFlowAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
-	payload := flowTaskWriteRequest{
-		OwnerID:        stableFlowID("other@example.com"),
-		ParticipantIDs: []string{stableFlowID("other@example.com"), stableFlowID("staff@example.com")},
+func TestTaskAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
+	payload := taskWriteRequest{
+		OwnerID:        stableTaskID("other@example.com"),
+		ParticipantIDs: []string{stableTaskID("other@example.com"), stableTaskID("staff@example.com")},
 		Type:           "회의",
 		Content:        "같이 10분 회의",
 		Size:           "XS",
@@ -2471,26 +2471,26 @@ func TestFlowAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testin
 	if response.Code != http.StatusOK {
 		t.Fatalf("task status = %d body = %s", response.Code, response.Body.String())
 	}
-	var task flowTask
+	var task Task
 	if errorValue := json.NewDecoder(response.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !containsString(task.ParticipantIDs, stableFlowID("staff@example.com")) {
+	if !containsString(task.ParticipantIDs, stableTaskID("staff@example.com")) {
 		t.Fatalf("expected requester participant for joint work, got %+v", task.ParticipantIDs)
 	}
 }
 
-func TestFlowAPIDefinitionsRequireAdmin(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+func TestTaskAPIDefinitionsRequireAdmin(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	staffRequest := newFlowDefinitionsRequest("staff@example.com")
+	staffRequest := newTaskDefinitionsRequest("staff@example.com")
 	staffResponse := httptest.NewRecorder()
 	handler.ServeHTTP(staffResponse, staffRequest)
 	if staffResponse.Code != http.StatusForbidden {
 		t.Fatalf("staff status = %d body = %s", staffResponse.Code, staffResponse.Body.String())
 	}
 
-	adminRequest := newFlowDefinitionsRequest("admin@example.com")
+	adminRequest := newTaskDefinitionsRequest("admin@example.com")
 	adminResponse := httptest.NewRecorder()
 	handler.ServeHTTP(adminResponse, adminRequest)
 	if adminResponse.Code != http.StatusOK {
@@ -2498,8 +2498,8 @@ func TestFlowAPIDefinitionsRequireAdmin(t *testing.T) {
 	}
 }
 
-func TestFlowAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
-	service := newFlowAuthorizationTestService(t)
+func TestTaskAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
 	request.RemoteAddr = "127.0.0.1:12345"
 	response := httptest.NewRecorder()
@@ -2517,7 +2517,7 @@ func TestFlowAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("local requester state status = %d body = %s", response.Code, response.Body.String())
 	}
-	var state flowStateResponse
+	var state taskStateResponse
 	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -2526,13 +2526,13 @@ func TestFlowAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
 	}
 }
 
-func TestFlowMattermostNotificationDirectMessagesTaskPeople(t *testing.T) {
-	service, requests := newFlowNotificationTestService(t)
-	task := flowNotificationTestTask("요청")
-	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+func TestTaskMattermostNotificationDirectMessagesTaskPeople(t *testing.T) {
+	service, requests := newTaskNotificationTestService(t)
+	task := taskNotificationTestTask("요청")
+	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	task = service.syncFlowMattermostNotification(context.Background(), task)
+	task = service.syncTaskMattermostNotification(context.Background(), task)
 	if len(requests.directChannelUser) != 1 || requests.directChannelUser[0] != "user-kimyesi" {
 		t.Fatalf("direct channel recipients = %+v", requests.directChannelUser)
 	}
@@ -2545,10 +2545,10 @@ func TestFlowMattermostNotificationDirectMessagesTaskPeople(t *testing.T) {
 
 	task.Status = "완료"
 	task.Content = "회의 완료"
-	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	task = service.syncFlowMattermostNotification(context.Background(), task)
+	task = service.syncTaskMattermostNotification(context.Background(), task)
 	if len(requests.createdMessages) != 2 || !strings.Contains(requests.createdMessages[1], "| 완료 | [회의 완료](") {
 		t.Fatalf("created messages = %+v", requests.createdMessages)
 	}
@@ -2557,22 +2557,22 @@ func TestFlowMattermostNotificationDirectMessagesTaskPeople(t *testing.T) {
 	}
 
 	task.Status = "일시정지"
-	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	service.syncFlowMattermostNotification(context.Background(), task)
+	service.syncTaskMattermostNotification(context.Background(), task)
 	if len(requests.createdMessages) != 2 {
 		t.Fatalf("a status outside the notice set must send nothing, got %+v", requests.createdMessages)
 	}
 }
 
-func TestFlowMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
+func TestTaskMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 	createAttempts := 0
 	service := NewService(Configuration{
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
 		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
-		FlowDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
+		TaskDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -2600,31 +2600,31 @@ func TestFlowMattermostProjectionOutboxRetriesFailedCreate(t *testing.T) {
 				return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
 			}
 			return jsonResponse(http.StatusCreated, `{"id":"flow-post-1"}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostExistingFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostExistingTaskSetupResponse(t, request), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
 	})}
-	task := flowNotificationTestTask("요청")
-	if errorValue := service.writeFlowTask(context.Background(), task); errorValue != nil {
+	task := taskNotificationTestTask("요청")
+	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	service.applyFlowMattermostProjection(context.Background(), task)
-	assertFlowProjectionOutboxCount(t, service, 1)
+	service.applyTaskMattermostProjection(context.Background(), task)
+	assertTaskProjectionOutboxCount(t, service, 1)
 
-	service.drainFlowMattermostProjectionOutbox(context.Background())
+	service.drainTaskMattermostProjectionOutbox(context.Background())
 
 	if createAttempts != 2 {
 		t.Fatalf("create attempts = %d", createAttempts)
 	}
-	assertFlowProjectionOutboxCount(t, service, 0)
+	assertTaskProjectionOutboxCount(t, service, 0)
 }
 
-func assertFlowProjectionOutboxCount(t *testing.T, service *Service, expectedCount int) {
+func assertTaskProjectionOutboxCount(t *testing.T, service *Service, expectedCount int) {
 	t.Helper()
-	database, errorValue := service.openFlowDatabase(context.Background())
+	database, errorValue := service.openTaskDatabase(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -2638,12 +2638,12 @@ func assertFlowProjectionOutboxCount(t *testing.T, service *Service, expectedCou
 	}
 }
 
-func TestFlowMattermostNotificationSkipsQuietStatuses(t *testing.T) {
-	service, requests := newFlowNotificationTestService(t)
+func TestTaskMattermostNotificationSkipsQuietStatuses(t *testing.T) {
+	service, requests := newTaskNotificationTestService(t)
 	for _, status := range []string{"예정", "일시정지"} {
-		task := flowNotificationTestTask(status)
+		task := taskNotificationTestTask(status)
 		task.ID = "task-" + status
-		task = service.syncFlowMattermostNotification(context.Background(), task)
+		task = service.syncTaskMattermostNotification(context.Background(), task)
 		if task.MattermostPostID != "" {
 			t.Fatalf("status %q post id = %q", status, task.MattermostPostID)
 		}
@@ -2653,13 +2653,13 @@ func TestFlowMattermostNotificationSkipsQuietStatuses(t *testing.T) {
 	}
 }
 
-func TestFlowTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
+func TestTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
-	members := []flowMember{
+	members := []taskMember{
 		{ID: "me", Name: "me", Email: "me@example.com"},
 		{ID: "leesample", Name: "leesample", Email: "member1@example.com"},
 	}
-	payload := flowTaskWriteRequest{
+	payload := taskWriteRequest{
 		OwnerID:        "leesample",
 		ParticipantIDs: []string{"leesample"},
 		Type:           "회의",
@@ -2674,10 +2674,10 @@ func TestFlowTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set(flowResolvedActorHeader, "me@example.com")
-	task, errorValue := service.flowTaskFromRequest(request, members, flowDefinitions{
+	request.Header.Set(taskResolvedActorHeader, "me@example.com")
+	task, errorValue := service.taskFromRequest(request, members, taskDefinitions{
 		Types: []string{"회의"},
-		Sizes: defaultFlowSizeDefinitions(),
+		Sizes: defaultTaskSizeDefinitions(),
 	}, "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -2687,21 +2687,21 @@ func TestFlowTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	}
 }
 
-type flowNotificationRequests struct {
+type taskNotificationRequests struct {
 	createdMessages   []string
 	updatedMessages   []string
 	deletedPostIDs    []string
 	directChannelUser []string
 }
 
-func newFlowNotificationTestService(t *testing.T) (*Service, *flowNotificationRequests) {
+func newTaskNotificationTestService(t *testing.T) (*Service, *taskNotificationRequests) {
 	t.Helper()
-	requests := &flowNotificationRequests{}
+	requests := &taskNotificationRequests{}
 	service := NewService(Configuration{
 		MattermostBaseURL:           "http://mattermost.local",
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
 		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
-		FlowDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
+		TaskDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -2740,8 +2740,8 @@ func newFlowNotificationTestService(t *testing.T) (*Service, *flowNotificationRe
 			assertMattermostBearerToken(t, request, "bot-token")
 			requests.createdMessages = append(requests.createdMessages, mattermostPostMessage(t, request))
 			return jsonResponse(http.StatusCreated, `{"id":"flow-post-1"}`, nil), nil
-		case isMattermostFlowSetupRequest(request):
-			return mattermostExistingFlowSetupResponse(t, request), nil
+		case isMattermostTaskSetupRequest(request):
+			return mattermostExistingTaskSetupResponse(t, request), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-post-1" && request.Method == http.MethodGet:
 			assertMattermostBearerToken(t, request, "admin-token")
 			return jsonResponse(http.StatusOK, `{"id":"flow-post-1","user_id":"bot-1"}`, nil), nil
@@ -2761,7 +2761,7 @@ func newFlowNotificationTestService(t *testing.T) (*Service, *flowNotificationRe
 	return service, requests
 }
 
-func mattermostExistingFlowSetupResponse(t *testing.T, request *http.Request) *http.Response {
+func mattermostExistingTaskSetupResponse(t *testing.T, request *http.Request) *http.Response {
 	t.Helper()
 	switch {
 	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
@@ -2769,7 +2769,7 @@ func mattermostExistingFlowSetupResponse(t *testing.T, request *http.Request) *h
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
-		assertMattermostFlowChannelModerationPatch(t, request)
+		assertMattermostTaskChannelModerationPatch(t, request)
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
 		return jsonResponse(http.StatusOK, `{"order":["flow-entry"],"posts":{"flow-entry":{"id":"flow-entry","user_id":"bot-1","message":"Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다.","props":{"internkim_flow_entry":true}}}}`, nil)
@@ -2786,7 +2786,7 @@ func mattermostExistingFlowSetupResponse(t *testing.T, request *http.Request) *h
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
 		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
-		assertMattermostFlowChannelModerationPatch(t, request)
+		assertMattermostTaskChannelModerationPatch(t, request)
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
 		return jsonResponse(http.StatusCreated, `{}`, nil)
@@ -2805,8 +2805,8 @@ func mattermostPostMessage(t *testing.T, request *http.Request) string {
 	return strings.TrimSpace(payload["message"].(string))
 }
 
-func flowNotificationTestTask(status string) flowTask {
-	return flowTask{
+func taskNotificationTestTask(status string) Task {
+	return Task{
 		ID:               "task-1",
 		OwnerID:          "member-1",
 		OwnerName:        "김민수",
@@ -2820,8 +2820,8 @@ func flowNotificationTestTask(status string) flowTask {
 	}
 }
 
-func flowReportTestTask(id string, weekCode string, participantIDs []string, participantNames []string, size string, status string, startDate string, endDate string) flowTask {
-	return flowTask{
+func taskReportTestTask(id string, weekCode string, participantIDs []string, participantNames []string, size string, status string, startDate string, endDate string) Task {
+	return Task{
 		ID:               id,
 		OwnerID:          participantIDs[0],
 		OwnerName:        participantNames[0],
@@ -2838,7 +2838,7 @@ func flowReportTestTask(id string, weekCode string, participantIDs []string, par
 	}
 }
 
-func newFlowAuthorizationTestService(t *testing.T) *Service {
+func newTaskAuthorizationTestService(t *testing.T) *Service {
 	t.Helper()
 	fleetIDPath := writeTestFile(t, "device-1")
 	fleetSecretPath := writeTestFile(t, "secret-1")
@@ -2849,7 +2849,7 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 		ClaimedAdminEmailPath: writeTestFile(t, "admin@example.com"),
 		FleetIDPath:           fleetIDPath,
 		FleetSecretPath:       fleetSecretPath,
-		FlowDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
+		TaskDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
 		MattermostBaseURL:     "http://mattermost.local",
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -2874,10 +2874,10 @@ func newFlowAuthorizationTestService(t *testing.T) *Service {
 	return service
 }
 
-func newFlowTaskRequest(callerEmail string, ownerEmail string) *http.Request {
-	payload := flowTaskWriteRequest{
-		OwnerID:        stableFlowID(ownerEmail),
-		ParticipantIDs: []string{stableFlowID(ownerEmail)},
+func newTaskRequest(callerEmail string, ownerEmail string) *http.Request {
+	payload := taskWriteRequest{
+		OwnerID:        stableTaskID(ownerEmail),
+		ParticipantIDs: []string{stableTaskID(ownerEmail)},
 		Type:           "회의",
 		Content:        "10분 회의",
 		Size:           "XS",
@@ -2891,7 +2891,7 @@ func newFlowTaskRequest(callerEmail string, ownerEmail string) *http.Request {
 	return request
 }
 
-func newFlowDefinitionsRequest(callerEmail string) *http.Request {
+func newTaskDefinitionsRequest(callerEmail string) *http.Request {
 	document := `{"types":["회의"],"sizes":[{"name":"XS","distanceKM":1,"maxHours":1,"developmentExample":"dev","otherExample":"other","note":"note"}]}`
 	request := httptest.NewRequest(http.MethodPut, "/flow/api/definitions", strings.NewReader(document))
 	request.RemoteAddr = "198.51.100.10:443"
@@ -2935,7 +2935,7 @@ func jsonResponse(statusCode int, body string, header http.Header) *http.Respons
 	}
 }
 
-func isMattermostFlowSetupRequest(request *http.Request) bool {
+func isMattermostTaskSetupRequest(request *http.Request) bool {
 	switch {
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1":
 		return true
@@ -3000,7 +3000,7 @@ func isMattermostFlowSetupRequest(request *http.Request) bool {
 	}
 }
 
-func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Response {
+func mattermostTaskSetupResponse(t *testing.T, request *http.Request) *http.Response {
 	t.Helper()
 	switch {
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1":
@@ -3022,7 +3022,7 @@ func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Resp
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
-		assertMattermostFlowChannelModerationPatch(t, request)
+		assertMattermostTaskChannelModerationPatch(t, request)
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
 		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
@@ -3037,7 +3037,7 @@ func mattermostFlowSetupResponse(t *testing.T, request *http.Request) *http.Resp
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
 		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
-		assertMattermostFlowChannelModerationPatch(t, request)
+		assertMattermostTaskChannelModerationPatch(t, request)
 		return jsonResponse(http.StatusOK, `{}`, nil)
 	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members":
 		return jsonResponse(http.StatusCreated, `{}`, nil)
@@ -3218,7 +3218,7 @@ func assertMattermostChannelSchemeRoles(t *testing.T, request *http.Request) {
 	}
 }
 
-func assertMattermostFlowChannelModerationPatch(t *testing.T, request *http.Request) {
+func assertMattermostTaskChannelModerationPatch(t *testing.T, request *http.Request) {
 	t.Helper()
 	var payload []struct {
 		Name  string          `json:"name"`
@@ -3291,7 +3291,7 @@ func mattermostChannelMemberUserID(t *testing.T, request *http.Request) string {
 	return payload["user_id"]
 }
 
-func assertMattermostFlowEntryPost(t *testing.T, request *http.Request, expectedMessages ...string) {
+func assertMattermostTaskEntryPost(t *testing.T, request *http.Request, expectedMessages ...string) {
 	t.Helper()
 	assertMattermostBearerToken(t, request, "bot-token")
 	var payload map[string]any
@@ -5188,7 +5188,7 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 	writeFile(t, adminPasswordPath, "admin-pass")
 	writeFile(t, fleetIDPath, "device-1")
 	writeFile(t, fleetSecretPath, "fleet-secret")
-	flowChannelCreated := false
+	taskChannelCreated := false
 	calendarChannelCreated := false
 	adminJoinedAttendanceChannel := false
 	staffJoinedDefaultChannels := map[string]bool{}
@@ -5248,7 +5248,7 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels" && request.Method == http.MethodPost:
 			channelName := mattermostChannelCreateName(t, request)
 			if channelName == "flow" {
-				flowChannelCreated = true
+				taskChannelCreated = true
 				return jsonResponse(http.StatusCreated, `{"id":"flow-channel"}`, nil), nil
 			}
 			if channelName == "calendar" {
@@ -5260,7 +5260,7 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
-			assertMattermostFlowChannelModerationPatch(t, request)
+			assertMattermostTaskChannelModerationPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
 			assertMattermostChannelSchemeRoles(t, request)
@@ -5276,7 +5276,7 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
 			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
-			assertMattermostFlowChannelModerationPatch(t, request)
+			assertMattermostTaskChannelModerationPatch(t, request)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -5350,8 +5350,8 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 	if errorValue := service.ensureMattermostProvisionerDefaults(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if flowChannelCreated || calendarChannelCreated || adminJoinedAttendanceChannel {
-		t.Fatalf("retired channels must not be provisioned: flow=%v calendar=%v attendance=%v", flowChannelCreated, calendarChannelCreated, adminJoinedAttendanceChannel)
+	if taskChannelCreated || calendarChannelCreated || adminJoinedAttendanceChannel {
+		t.Fatalf("retired channels must not be provisioned: flow=%v calendar=%v attendance=%v", taskChannelCreated, calendarChannelCreated, adminJoinedAttendanceChannel)
 	}
 	for _, channelID := range []string{"town-square-channel", "off-topic-channel"} {
 		if !staffJoinedDefaultChannels[channelID] {

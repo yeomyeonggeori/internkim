@@ -1,5 +1,5 @@
 import { fetchCalendarEvents } from '../../routes/calendar/embed/calendar-event-persistence';
-import { fetchFlowState } from '../../routes/flow/flow-api';
+import { fetchTaskState } from '../../routes/task/task-api';
 import { participatingEventCount, requestedTaskCount } from '$lib/components/app-badge-counts';
 
 class AppBadgeCounts {
@@ -24,7 +24,7 @@ class AppBadgeCounts {
 
 	private loadRequestedTasks = async () => {
 		try {
-			this.requestedTasks = requestedTaskCount(await fetchFlowState(''));
+			this.requestedTasks = requestedTaskCount(await fetchTaskState(''));
 		} catch {
 			this.requestedTasks = 0;
 		}

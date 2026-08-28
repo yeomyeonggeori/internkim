@@ -51,7 +51,7 @@ import type {
 	CRMPipelineStage,
 } from './crm-types';
 import type { CRMTransitionPayload, CRMVocabulary } from './crm-api-types';
-import type { TaskVocabulary } from '$lib/flow/task-vocabulary';
+import type { TaskVocabulary } from '$lib/task/task-vocabulary';
 import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
 import { cloneCRMVocabulary } from './crm-definitions';
 import { crmErrorMessage, CRMPageError } from './crm-error-text';

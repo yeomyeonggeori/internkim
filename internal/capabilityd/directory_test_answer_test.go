@@ -48,7 +48,7 @@ const defaultDirectoryPeopleTestDocument = `{"people":[
 	{"memberID":"person-alice","email":"alice@example.com","name":"Alice"}
 ]}`
 
-func useDirectoryPeopleOf(t *testing.T, members []flowMemberForTool) {
+func useDirectoryPeopleOf(t *testing.T, members []taskMemberForTool) {
 	t.Helper()
 	people := make([]map[string]string, 0, len(members))
 	for _, member := range members {
@@ -69,10 +69,10 @@ func useDirectoryPeopleOf(t *testing.T, members []flowMemberForTool) {
 
 // A flow state a test serves names the people on that board. The company knows
 // the same people, so a test says so once by handing over the state it serves.
-func useDirectoryPeopleOfFlowState(t *testing.T, stateDocument string) {
+func useDirectoryPeopleOfTaskState(t *testing.T, stateDocument string) {
 	t.Helper()
 	var state struct {
-		Members []flowMemberForTool `json:"members"`
+		Members []taskMemberForTool `json:"members"`
 	}
 	if errorValue := json.Unmarshal([]byte(stateDocument), &state); errorValue != nil {
 		t.Fatal(errorValue)
@@ -80,8 +80,8 @@ func useDirectoryPeopleOfFlowState(t *testing.T, stateDocument string) {
 	useDirectoryPeopleOf(t, state.Members)
 }
 
-func useDirectoryPeopleOfFlowStateAnd(t *testing.T, stateDocument string) string {
+func useDirectoryPeopleOfTaskStateAnd(t *testing.T, stateDocument string) string {
 	t.Helper()
-	useDirectoryPeopleOfFlowState(t, stateDocument)
+	useDirectoryPeopleOfTaskState(t, stateDocument)
 	return stateDocument
 }

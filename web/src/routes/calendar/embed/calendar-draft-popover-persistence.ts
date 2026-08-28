@@ -1,4 +1,4 @@
-import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import { createCalendarModelEvent as createEvent, type CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { CalendarEventActions } from './calendar-event-actions';
 import {
 	draftPopoverChanges,
@@ -10,9 +10,9 @@ import {
 type CalendarDraftPopoverPersistenceContext = {
 	eventActions: CalendarEventActions;
 	untitledEventTitle: () => string;
-	getCalendarEvents: () => DayFlowEvent[];
+	getCalendarEvents: () => DayTaskEvent[];
 	getDraftPopover: () => DraftPopoverState | null;
-	replaceLocalEvent: (event: DayFlowEvent) => void;
+	replaceLocalEvent: (event: DayTaskEvent) => void;
 	setDraftPopover: (popover: DraftPopoverState | null) => void;
 };
 

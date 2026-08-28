@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { centralStatusWord } from '$lib/flow/central-flow-task';
+import { centralStatusWord } from '$lib/task/central-task';
 import { notifyMember, type Notification } from './notify-member';
 import type { VapidKeys } from './web-push-vapid';
 
@@ -36,7 +36,7 @@ export async function announceTaskMove(
 	const notification: Notification = {
 		title: `${centralStatusWord(task.status)}: ${task.title}`,
 		body: `${mover}님이 옮겼습니다`,
-		openPath: '/flow/',
+		openPath: '/task/',
 		tag: `task-${task.id}`
 	};
 	return tellEach(record, whoTaskMoveConcerns(task, moverID), notification, vapid, nowInSeconds);

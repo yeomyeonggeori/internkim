@@ -1,11 +1,11 @@
-import type { CalendarModelEvent as DayFlowEvent } from './calendar-event-model';
+import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { CalendarDraftPopoverActions } from './calendar-draft-popover-actions';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 import { findCalendarEventByID } from './calendar-event-lookup';
 
 type CalendarPageEventDetailsContext = {
-	getAppEvents: () => DayFlowEvent[];
-	getFallbackEvents: () => DayFlowEvent[];
+	getAppEvents: () => DayTaskEvent[];
+	getFallbackEvents: () => DayTaskEvent[];
 	openEventDraftPopover: CalendarDraftPopoverActions['openEventDraftPopover'];
 };
 

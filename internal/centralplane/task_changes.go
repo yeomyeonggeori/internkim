@@ -30,7 +30,7 @@ type ChangedTask struct {
 const changedTaskSelection = "id,title,status,note,business,type,size,starts_at,ends_at,updated_at,calendar,task_participant(member(email))"
 
 // Calendar events live in the same table and carry the device's event uid as their
-// mirror, so a mirror that read them would make a flow task out of every meeting.
+// mirror, so a mirror that read them would make a board task out of every meeting.
 // TasksChangedSince answers the tasks written after that moment, oldest first, so
 // a caller that keeps the last one it saw asks only for what it has not seen.
 func (client *Client) TasksChangedSince(ctx context.Context, platform string, externalID string, since string, limit int) ([]ChangedTask, error) {

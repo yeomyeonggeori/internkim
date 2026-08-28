@@ -88,7 +88,7 @@ function askedNotification(asked: NotifyRequest): Notification {
 	return {
 		title,
 		body: typeof asked.body === 'string' ? asked.body : '',
-		openPath: typeof asked.openPath === 'string' ? asked.openPath : '/flow/',
+		openPath: typeof asked.openPath === 'string' ? asked.openPath : '/task/',
 		tag: typeof asked.tag === 'string' ? asked.tag : 'internkim'
 	};
 }
