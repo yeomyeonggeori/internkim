@@ -15,6 +15,9 @@ import {
 	revisionForDate,
 	workingDateForDate
 } from '$lib/attendance/work-calendar-derivation';
+import { leaveDayIntervals, type DayMinuteInterval } from '$lib/attendance/leave-day-intervals';
+import { workCompliance } from '$lib/attendance/work-compliance';
+import { companyTimeInstant } from '$lib/attendance/supabase-work-status-range';
 import { attendanceHolidayDates } from '$lib/attendance/attendance-holidays';
 import { companyHolidayDatesBetween } from '$lib/attendance/company-holiday-dates';
 import { supabaseCompanyHolidays } from '$lib/attendance/supabase-company-holidays';
@@ -156,7 +159,7 @@ export function calculateSupabaseEmployeeWorkStatus(
 	const myLeave = leave.filter((row) => row.member_id === member.id);
 	const records = supabaseWorkRecordsFromEvents(mine, now, timeZone);
 	const dayStatuses = days.map((day) =>
-		dayStatusOf(day, timeZone, records, myLeave, policy, holidays)
+		dayStatusOf(day, timeZone, records, myLeave, policy, holidays, now)
 	);
 	const total = (pick: (day: AttendanceWorkDayStatus) => number) =>
 		dayStatuses.reduce((sum, day) => sum + pick(day), 0);
@@ -201,9 +204,9 @@ export function calculateSupabaseEmployeeWorkStatus(
 		nightMinutes: total((day) => day.nightMinutes),
 		isWorking: dayStatuses.some((day) => day.isWorking),
 		needsReview: dayStatuses.some((day) => day.needsReview),
-		coreTimeMissed: false,
-		late: false,
-		earlyLeave: false,
+		coreTimeMissed: dayStatuses.some((day) => day.coreTimeMissed),
+		late: dayStatuses.some((day) => day.late),
+		earlyLeave: dayStatuses.some((day) => day.earlyLeave),
 		hasLeaveWorkOverlap: dayStatuses.some((day) => day.hasLeaveWorkOverlap),
 		hasIncompleteRecords: dayStatuses.some((day) => day.hasIncompleteWorkRecord),
 		status: dayStatuses.some((day) => day.isWorking) ? 'working' : 'off',
@@ -217,7 +220,8 @@ function dayStatusOf(
 	records: SupabaseWorkRecords,
 	leave: SupabaseWorkStatusLeave[],
 	policy: SupabaseWorkPolicy,
-	holidays: ReadonlySet<string>
+	holidays: ReadonlySet<string>,
+	now: Date
 ): AttendanceWorkDayStatus {
 	const revision = revisionForDate(policy.revisions, day);
 	const worked = supabaseWorkedDay(records, day, timeZone, revision);
@@ -250,6 +254,14 @@ function dayStatusOf(
 		hasBaseline && !baselineWaivedByLeave ? Math.max(0, creditedMinutes - dayTargetMinutes) : 0;
 	const hasLeaveWorkOverlap = isOnLeave && workedMinutes + provisionalMinutes > 0;
 	const needsReview = worked.hasIncompleteWorkRecord || hasLeaveWorkOverlap;
+	const dayStart = new Date(companyTimeInstant(day, '00:00', timeZone)).getTime();
+	const compliance = workCompliance(
+		revision,
+		workingDate,
+		worked.spans.map((span) => dayInterval(span.startAt, span.endAt, dayStart)),
+		leaveDayIntervals(dayLeave, day, timeZone, revision),
+		Math.round((now.getTime() - dayStart) / 60_000)
+	);
 
 	return {
 		date: day,
@@ -269,9 +281,9 @@ function dayStatusOf(
 		nightMinutes: worked.nightMinutes,
 		isWorking: worked.isWorking,
 		needsReview,
-		coreTimeMissed: false,
-		late: false,
-		earlyLeave: false,
+		coreTimeMissed: compliance.coreTimeMissed,
+		late: compliance.late,
+		earlyLeave: compliance.earlyLeave,
 		hasLeaveWorkOverlap,
 		hasIncompleteWorkRecord: worked.hasIncompleteWorkRecord,
 		status: isOnLeave ? 'leave' : workedMinutes > 0 ? 'worked' : 'off',
@@ -286,6 +298,16 @@ function leaveCoversBaseline(
 	leaveMinutes: number
 ): boolean {
 	return hasBaseline && leaveMinutes > 0 && targetMinutes === 0;
+}
+
+function dayInterval(startAt: Date, endAt: Date, dayStart: number): DayMinuteInterval {
+	const minutesPerDay = 24 * 60;
+	const boundedStart = Math.min(Math.max(startAt.getTime(), dayStart), dayStart + minutesPerDay * 60_000);
+	const boundedEnd = Math.min(Math.max(endAt.getTime(), dayStart), dayStart + minutesPerDay * 60_000);
+	return {
+		startMinute: Math.round((boundedStart - dayStart) / 60_000),
+		endMinute: Math.round((boundedEnd - dayStart) / 60_000)
+	};
 }
 
 function leaveRowAppliesToDay(row: SupabaseWorkStatusLeave, day: string, timeZone: string): boolean {
