@@ -82,7 +82,7 @@ test.describe('admin role tabs', () => {
 	test('keeps the configured country visible when the country list fails to load', async ({ page }) => {
 		await mockAdminPage(page, 'operationsAdmin', { holidayCountriesStatus: 502 });
 
-		await page.goto('/settings/?fleet_id=demo');
+		await page.goto('/?fleet_id=demo');
 
 		const main = page.locator('main');
 		await main.getByRole('tab', { name: '일반', exact: true }).click();
@@ -95,7 +95,7 @@ test.describe('admin role tabs', () => {
 	test('matches the country dropdown width to its trigger', async ({ page }) => {
 		await mockAdminPage(page, 'operationsAdmin');
 
-		await page.goto('/settings/?fleet_id=demo');
+		await page.goto('/?fleet_id=demo');
 
 		const main = page.locator('main');
 		await main.getByRole('tab', { name: '일반', exact: true }).click();
@@ -116,7 +116,7 @@ test.describe('admin role tabs', () => {
 	test('shows every admin tab to full admins', async ({ page }) => {
 		await mockAdminPage(page, 'admin');
 
-		await page.goto('/settings/?fleet_id=demo');
+		await page.goto('/?fleet_id=demo');
 
 		const main = page.locator('main');
 		await expect(main.getByRole('tab', { name: '기기' })).toBeVisible();
@@ -139,7 +139,7 @@ test.describe('admin role tabs', () => {
 	test('limits operations admins to user and settings tabs', async ({ page }) => {
 		await mockAdminPage(page, 'operationsAdmin');
 
-		await page.goto('/settings/?fleet_id=demo');
+		await page.goto('/?fleet_id=demo');
 
 		const main = page.locator('main');
 		await expect(main.getByRole('tab', { name: '사용자' })).toBeVisible();

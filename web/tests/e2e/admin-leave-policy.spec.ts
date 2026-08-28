@@ -149,7 +149,7 @@ async function mockAdminLeavePolicyPage(
 test.describe('admin leave policy settings', () => {
 	test('keeps work and leave settings as separate top-level tabs', async ({ page }) => {
 		await mockAdminLeavePolicyPage(page, 'admin');
-		await page.goto('/settings/?fleet_id=demo&section=workSettings');
+		await page.goto('/?fleet_id=demo&section=workSettings');
 
 		await expect(page.getByRole('tab', { name: '근무 설정', exact: true })).toBeVisible();
 		await expect(page.getByRole('tab', { name: '휴가 설정', exact: true })).toBeVisible();
@@ -181,7 +181,7 @@ test.describe('admin leave policy settings', () => {
 			'ko',
 			companyAddedLeaveTypes(['포상휴가', '육아휴직', '경조휴가', '공가', '보상휴가', '리프레시휴가'])
 		);
-		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
+		await page.goto('/?fleet_id=demo&section=leaveSettings');
 
 		const leavePolicySettings = page.getByTestId('attendance-leave-policy-settings');
 		await expect(page.getByRole('tab', { name: '휴가 설정', exact: true })).toBeVisible();
@@ -340,7 +340,7 @@ test.describe('admin leave policy settings', () => {
 
 	test('hides the attendance settings tab from operations admins', async ({ page }) => {
 		await mockAdminLeavePolicyPage(page, 'operationsAdmin');
-		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
+		await page.goto('/?fleet_id=demo&section=leaveSettings');
 
 		await expect(page.getByRole('tab', { name: '휴가 설정', exact: true })).toHaveCount(0);
 		await expect(page.locator('[data-slot="card-title"]', { hasText: '휴가 설정' })).toHaveCount(0);
@@ -349,7 +349,7 @@ test.describe('admin leave policy settings', () => {
 
 	test('creates, edits, reloads, and deletes an annual company holiday', async ({ page }) => {
 		await mockAdminLeavePolicyPage(page, 'admin');
-		await page.goto('/settings/?fleet_id=demo&section=workSettings');
+		await page.goto('/?fleet_id=demo&section=workSettings');
 
 		const settings = page.getByTestId('company-holiday-settings');
 		await expect(settings.getByText('등록된 회사 휴일이 없습니다.')).toBeVisible();
@@ -382,7 +382,7 @@ test.describe('admin leave policy settings', () => {
 
 	test('saves the company-wide unlimited leave mode', async ({ page }) => {
 		await mockAdminLeavePolicyPage(page, 'admin');
-		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
+		await page.goto('/?fleet_id=demo&section=leaveSettings');
 
 		const settings = page.getByTestId('attendance-leave-policy-settings');
 		const managedMode = settings.getByTestId('leave-balance-tracking-managed');
@@ -405,7 +405,7 @@ test.describe('admin leave policy settings', () => {
 		page
 	}) => {
 		await mockAdminLeavePolicyPage(page, 'admin', 'en');
-		await page.goto('/settings/?fleet_id=demo&section=leaveSettings');
+		await page.goto('/?fleet_id=demo&section=leaveSettings');
 
 		const settings = page.getByTestId('attendance-leave-policy-settings');
 		await expect(settings.getByTestId('leave-policy-list-scroll')).toContainText('Annual leave');
