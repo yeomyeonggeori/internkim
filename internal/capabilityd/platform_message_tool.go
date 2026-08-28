@@ -194,7 +194,7 @@ func (service Service) invokePlatformMessageTool(ctx context.Context, request ca
 			return response, nil
 		}
 		if service.chatdServesPlatform(request.Context.Platform) {
-			return mattermostToolSuccessResponse(request.ToolName, "inspected", chatdPlatformMessageContextResult(request.Context))
+			return service.invokeChatdPlatformMessageContext(ctx, request)
 		}
 		return service.invokeMattermostContextInspect(ctx, request)
 	case "message_search":
