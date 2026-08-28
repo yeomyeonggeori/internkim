@@ -15,8 +15,48 @@ const member = {
 	joined_at: '2026-01-01T00:00:00Z'
 };
 
+const noHolidays = new Set<string>();
+
+function revisionOf(
+	effectiveDate: string,
+	workMode: 'autonomous' | 'flexible' | 'fixed',
+	overrides: Record<string, unknown> = {}
+) {
+	return {
+		effectiveDate,
+		workMode,
+		workingWeekdays: [1, 2, 3, 4, 5],
+		dailyTargetMinutes: workMode === 'autonomous' ? 0 : 480,
+		weeklyTargetMinutes: workMode === 'autonomous' ? 0 : 2400,
+		referenceStartTime: '09:00',
+		fixedStartTime: workMode === 'fixed' ? '09:00' : '',
+		fixedEndTime: workMode === 'fixed' ? '18:00' : '',
+		coreTimeEnabled: workMode === 'flexible',
+		coreStartTime: workMode === 'flexible' ? '11:00' : '',
+		coreEndTime: workMode === 'flexible' ? '16:00' : '',
+		breakPeriods: [{ startTime: '12:00', endTime: '13:00' }],
+		nightStartTime: '22:00',
+		nightEndTime: '06:00',
+		...overrides
+	};
+}
+
+function policyOfRevisions(revisions: Record<string, unknown>[]) {
+	const policies = parseSupabaseWorkPolicies([
+		{
+			member_id: member.id,
+			work_hours: weekdayWorkHours,
+			minimum_daily_minutes: 480,
+			work_mode: revisions[revisions.length - 1].workMode,
+			work_policy: { version: 1, revisions }
+		}
+	]);
+	const policy = policies.get(member.id);
+	if (!policy) throw new Error('expected work policy fixture');
+	return policy;
+}
+
 function policyFrom(
-	workCalendar: unknown,
 	workMode: 'autonomous' | 'flexible' | 'fixed' = 'autonomous',
 	overrides: Record<string, unknown> = {}
 ) {
@@ -26,7 +66,6 @@ function policyFrom(
 			work_hours: weekdayWorkHours,
 			minimum_daily_minutes: 480,
 			work_mode: workMode,
-			work_calendar: workCalendar,
 			work_policy: {
 				workMode,
 				workingWeekdays: [1, 2, 3, 4, 5],
@@ -55,10 +94,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		const timeRange = supabaseWorkStatusTimeRange(['2026-08-14'], 'Asia/Seoul');
 		const clockIn = '2026-08-13T22:44:00Z';
 		const now = new Date('2026-08-14T00:00:00Z');
-		const policy = policyFrom(
-			[{ date: '2026-08-14', workMode: 'fixed', workingDate: true }],
-			'fixed'
-		);
+		const policy = policyFrom('fixed');
 		const status = calculateSupabaseEmployeeWorkStatus({
 			member,
 			days: ['2026-08-14'],
@@ -66,6 +102,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			attendance: [{ member_id: member.id, kind: 'clock_in', occurred_at: clockIn }],
 			leave: [],
 			policy,
+			holidays: noHolidays,
 			now
 		});
 		const day = status.days[0];
@@ -98,7 +135,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 				{ member_id: member.id, kind: 'clock_in', occurred_at: '2027-01-04T13:00:00Z' }
 			],
 			leave: [],
-			policy: policyFrom(null, 'flexible'),
+			policy: policyFrom('flexible'),
+			holidays: noHolidays,
 			now: new Date('2027-01-04T14:30:00Z')
 		});
 
@@ -110,7 +148,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(status.days[0]?.nightMinutes).toBe(90);
 	});
 
-	test('counts only projected working dates in stage-two capacity for a holiday week', () => {
+	test('counts only working dates in stage-two capacity for a holiday week', () => {
 		const days = [
 			'2027-01-04',
 			'2027-01-05',
@@ -120,15 +158,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			'2027-01-09',
 			'2027-01-10'
 		];
-		const policy = policyFrom(
-			days.map((date, index) => ({
-				date,
-				workMode: 'fixed',
-				workingDate: index < 5 && date !== '2027-01-06',
-				holiday: date === '2027-01-06'
-			})),
-			'fixed'
-		);
+		const policy = policyFrom('fixed');
+		const holidays = new Set(['2027-01-06']);
 
 		const status = calculateSupabaseEmployeeWorkStatus({
 			member,
@@ -136,7 +167,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			timeZone: 'Asia/Seoul',
 			attendance: [],
 			leave: [],
-			policy
+			policy,
+			holidays
 		});
 
 		expect(status.workingCapacitySeconds).toBe(4 * secondsPerDay);
@@ -144,10 +176,10 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(status.days.find((day) => day.date === '2027-01-06')?.workingDate).toBe(false);
 	});
 
-	test('uses the one current mode for every historical date', () => {
-		const policy = policyFrom([
-			{ date: '2027-01-04', workMode: 'fixed', workingDate: true },
-			{ date: '2027-01-05', workMode: 'autonomous', workingDate: true }
+	test('judges each date by the revision that was in force on it', () => {
+		const policy = policyOfRevisions([
+			revisionOf('1970-01-01', 'fixed'),
+			revisionOf('2027-01-05', 'autonomous')
 		]);
 
 		const historical = calculateSupabaseEmployeeWorkStatus({
@@ -156,7 +188,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			timeZone: 'Asia/Seoul',
 			attendance: [],
 			leave: [],
-			policy
+			policy,
+			holidays: noHolidays
 		});
 		const current = calculateSupabaseEmployeeWorkStatus({
 			member,
@@ -164,18 +197,19 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			timeZone: 'Asia/Seoul',
 			attendance: [],
 			leave: [],
-			policy
+			policy,
+			holidays: noHolidays
 		});
 
-		expect(historical.workMode).toBe('autonomous');
-		expect(historical.hasBaseline).toBe(false);
-		expect(historical.targetMinutes).toBe(0);
+		expect(historical.workMode).toBe('fixed');
+		expect(historical.hasBaseline).toBe(true);
+		expect(historical.targetMinutes).toBe(480);
 		expect(current.workMode).toBe('autonomous');
 		expect(current.hasBaseline).toBe(false);
 		expect(current.targetMinutes).toBe(0);
 	});
 
-	test('applies the current fixed baseline across the whole period', () => {
+	test('applies one unchanged fixed policy across the whole period', () => {
 		const days = [
 			'2027-01-04',
 			'2027-01-05',
@@ -185,14 +219,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			'2027-01-09',
 			'2027-01-10'
 		];
-		const policy = policyFrom(
-			days.map((date, index) => ({
-				date,
-				workMode: index === 0 ? 'fixed' : 'autonomous',
-				workingDate: index < 5
-			})),
-			'fixed'
-		);
+		const policy = policyFrom('fixed');
 
 		const status = calculateSupabaseEmployeeWorkStatus({
 			member,
@@ -211,7 +238,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 				}
 			],
 			leave: [],
-			policy
+			policy,
+			holidays: noHolidays
 		});
 		const autonomousDay = status.days.find((day) => day.date === '2027-01-05');
 
@@ -228,7 +256,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 	});
 
 	test('uses the editable overnight window and excludes configured breaks', () => {
-		const policy = policyFrom(null, 'flexible', {
+		const policy = policyFrom('flexible', {
 			nightStartTime: '21:00',
 			nightEndTime: '05:00',
 			breakPeriods: [{ startTime: '22:30', endTime: '23:00' }]
@@ -242,7 +270,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 				{ member_id: member.id, kind: 'clock_out', occurred_at: '2027-01-04T15:00:00Z' }
 			],
 			leave: [],
-			policy
+			policy,
+			holidays: noHolidays
 		});
 
 		expect(status.actualMinutes).toBe(150);
@@ -250,7 +279,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 		expect(status.days[0]?.nightMinutes).toBe(150);
 	});
 
-	test('uses the current policy weekdays when no calendar projection exists', () => {
+	test('uses the working weekdays of the revision in force', () => {
 		const status = calculateSupabaseEmployeeWorkStatus({
 			member,
 			days: [
@@ -265,7 +294,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			timeZone: 'Asia/Seoul',
 			attendance: [],
 			leave: [],
-			policy: policyFrom(null, 'fixed', { workingWeekdays: [6], weeklyTargetMinutes: 480 })
+			policy: policyFrom('fixed', { workingWeekdays: [6], weeklyTargetMinutes: 480 }),
+			holidays: noHolidays
 		});
 
 		expect(status.workingCapacitySeconds).toBe(secondsPerDay);
@@ -279,14 +309,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			timeZone: 'Asia/Seoul',
 			attendance: [],
 			leave: [],
-			policy: policyFrom(
-				[
-					{ date: '2027-01-09', workMode: 'fixed', workingDate: false },
-					{ date: '2027-01-10', workMode: 'fixed', workingDate: false, holiday: true }
-				],
-				'fixed',
-				{ workingWeekdays: [6, 7], weeklyTargetMinutes: 960 }
-			)
+			policy: policyFrom('fixed', { workingWeekdays: [6, 7], weeklyTargetMinutes: 960 }),
+			holidays: new Set(['2027-01-10'])
 		});
 
 		expect(status.days[0]?.workingDate).toBe(true);
@@ -310,7 +334,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 					status: 'approved'
 				}
 			],
-			policy: policyFrom(null, 'fixed')
+			policy: policyFrom('fixed'),
+			holidays: noHolidays
 		});
 
 		expect(status.days[0]?.leaveMinutes).toBe(240);
@@ -333,7 +358,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 					status: 'approved'
 				}
 			],
-			policy: policyFrom(null, 'fixed')
+			policy: policyFrom('fixed'),
+			holidays: noHolidays
 		});
 
 		expect(status.days[0]?.leaveMinutes).toBe(120);
@@ -356,7 +382,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 					status: 'approved'
 				}
 			],
-			policy: policyFrom(null, 'fixed')
+			policy: policyFrom('fixed'),
+			holidays: noHolidays
 		});
 
 		expect(status.days[0]?.leaveMinutes).toBe(480);
@@ -372,13 +399,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			ends_at: '2026-07-31T00:00:00Z',
 			status: 'approved'
 		};
-		const policy = policyFrom(
-			[
-				{ date: '2026-07-29', workMode: 'fixed', workingDate: true },
-				{ date: '2026-07-30', workMode: 'fixed', workingDate: true }
-			],
-			'fixed'
-		);
+		const policy = policyFrom('fixed');
 		const leaveDay = calculateSupabaseEmployeeWorkStatus({
 			member,
 			days: ['2026-07-30'],
@@ -389,6 +410,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			],
 			leave: [fullDayLeave],
 			policy,
+			holidays: noHolidays,
 			now: new Date('2026-07-31T00:00:00Z')
 		});
 
@@ -412,6 +434,7 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 			],
 			leave: [fullDayLeave],
 			policy,
+			holidays: noHolidays,
 			now: new Date('2026-07-31T00:00:00Z')
 		});
 
@@ -440,7 +463,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 					status: 'approved'
 				}
 			],
-			policy: policyFrom([{ date: '2026-07-30', workMode: 'fixed', workingDate: true }], 'fixed'),
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
 			now: new Date('2026-07-31T00:00:00Z')
 		});
 
@@ -475,7 +499,8 @@ describe('calculateSupabaseEmployeeWorkStatus', () => {
 					status: 'approved'
 				}
 			],
-			policy: policyFrom(null, 'fixed'),
+			policy: policyFrom('fixed'),
+			holidays: noHolidays,
 			now: new Date('2026-08-02T00:00:00Z')
 		});
 
