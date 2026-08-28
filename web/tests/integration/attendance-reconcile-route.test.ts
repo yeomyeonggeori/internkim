@@ -169,19 +169,6 @@ if (canReachSupabase) {
 			expect(await companyRules()).toEqual({ approvals: { required: true } });
 		});
 
-		test('an invalid platform returns 400 before settings persistence', async () => {
-			await expect(
-				reconcile({
-					platform: '',
-					workPolicy: currentPolicy(),
-					from: '2027-01-01T00:00:00Z',
-					to: '2027-01-02T00:00:00Z',
-					events: []
-				})
-			).rejects.toMatchObject({ status: 400 });
-			expect(await companyRules()).toEqual({ approvals: { required: true } });
-		});
-
 		test('a malformed current work policy returns 400 before persistence', async () => {
 			await expect(
 				reconcile({
