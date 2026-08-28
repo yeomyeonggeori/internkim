@@ -5,7 +5,6 @@ import type {
 	CRMContactResponse,
 	CRMDataResponse,
 	CRMOpportunityResponse,
-	CRMPipelineResponse,
 	CRMVocabulary
 } from './crm-api-types';
 import type {
@@ -17,6 +16,7 @@ import type {
 	CRMProgressKind
 } from './crm-types';
 import { vocabularyOf } from '$lib/flow/task-vocabulary';
+import { crmPipelinesOf } from './crm-mappers';
 
 export type CRMAuditRow = {
 	created_at: string;
@@ -109,7 +109,7 @@ export function crmDataResponseOf(
 		contacts: contacts.filter(active).map(contactOf),
 		opportunities: opportunities.filter(active).map(opportunityOf),
 		activities: tasks.map(activityOf),
-		pipelines: pipelineResponses(vocabulary),
+		pipelines: crmPipelinesOf(vocabulary),
 		vocabulary,
 		taskVocabulary: vocabularyOf(taskVocabularyValue)
 	};
@@ -215,15 +215,6 @@ function auditOf(row: CRMAuditRow): CRMAuditResponse {
 		archivedAt: row.archived_at ?? undefined,
 		archivedByPersonID: row.archived_by ?? undefined
 	};
-}
-
-function pipelineResponses(vocabulary: CRMVocabulary): CRMPipelineResponse[] {
-	return vocabulary.pipelines.map((pipeline) => ({
-		pipeline: pipeline.id as CRMProgressKind,
-		label: pipeline.name,
-		direction: pipeline.direction ?? '',
-		isActive: true
-	}));
 }
 
 function active(row: CRMAuditRow): boolean {

@@ -10,6 +10,8 @@ const firstOpportunityName = 'E2E 진행 건 하나';
 const secondOpportunityName = 'E2E 진행 건 둘';
 const activityTitle = 'E2E 캘린더 활동';
 const settledOpportunityName = 'E2E 확정 진행 건';
+const organizationTypeName = 'E2E 관계처 유형';
+const queuedTypeNames = ['E2E 대기 유형 하나', 'E2E 대기 유형 둘'];
 
 async function signIn(page: Page): Promise<void> {
 	await signInToTheCentralPlane(page, '/example-co/crm');
@@ -239,4 +241,115 @@ test('the view opens in the company base currency and a matching currency shows 
 	await expect(viewCurrency).toHaveText(/KRW/, { timeout: 20000 });
 	await expect(amount).not.toHaveText(inDollars, { timeout: 20000 });
 	await expect(amount).toHaveText(/만|억/, { timeout: 20000 });
+});
+
+test('an added definition shows at once and the list keeps its shape while saving', async ({ page }) => {
+	await signIn(page);
+	await page.getByRole('tab', { name: '정의' }).click();
+
+	const definitions = page.getByRole('region', { name: '정의', exact: true });
+	const card = definitions.locator('[data-slot="card"]').filter({ hasText: '관계처 유형' });
+	const names = card.getByRole('textbox');
+	const swatches = card.getByRole('button', { name: '색상' });
+	await expect(swatches.first()).toBeVisible();
+	const nameCount = await names.count();
+	const swatchCount = await swatches.count();
+
+	let releaseSave = (): void => {};
+	const heldSave = new Promise<void>((resolve) => {
+		releaseSave = resolve;
+	});
+	await page.route('**/rpc/crm_vocabulary_save', async (route) => {
+		await heldSave;
+		await route.continue();
+	});
+
+	await card.getByPlaceholder('관계처 유형').fill(organizationTypeName);
+	await card.getByRole('button', { name: '추가' }).click();
+
+	await expect(names.nth(nameCount - 1)).toHaveValue(organizationTypeName);
+	await expect(swatches).toHaveCount(swatchCount + 1);
+	await expect(names.first()).toBeEnabled();
+
+	const saved = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	releaseSave();
+	await saved;
+
+	await page.reload();
+	await page.getByRole('tab', { name: '정의' }).click();
+	await expect(names.nth(nameCount - 1)).toHaveValue(organizationTypeName);
+
+	const removed = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	await card.getByRole('button', { name: '삭제' }).nth(nameCount - 1).click();
+	await expect(names).toHaveCount(nameCount);
+	await removed;
+});
+
+test('a definition added while an earlier save runs is not lost', async ({ page }) => {
+	await signIn(page);
+	await page.getByRole('tab', { name: '정의' }).click();
+
+	const definitions = page.getByRole('region', { name: '정의', exact: true });
+	const card = definitions.locator('[data-slot="card"]').filter({ hasText: '관계처 유형' });
+	const names = card.getByRole('textbox');
+	await expect(names.first()).toBeVisible();
+	const nameCount = await names.count();
+
+	let releaseFirstSave = (): void => {};
+	const heldFirstSave = new Promise<void>((resolve) => {
+		releaseFirstSave = resolve;
+	});
+	let hasHeld = false;
+	await page.route('**/rpc/crm_vocabulary_save', async (route) => {
+		if (!hasHeld) {
+			hasHeld = true;
+			await heldFirstSave;
+		}
+		await route.continue();
+	});
+
+	const addName = card.getByPlaceholder('관계처 유형');
+	const addButton = card.getByRole('button', { name: '추가' });
+	await addName.fill(queuedTypeNames[0]);
+	await addButton.click();
+	await addName.fill(queuedTypeNames[1]);
+	await addButton.click();
+	releaseFirstSave();
+
+	await page.reload();
+	await page.getByRole('tab', { name: '정의' }).click();
+	await expect(names.nth(nameCount - 1)).toHaveValue(queuedTypeNames[0]);
+	await expect(names.nth(nameCount)).toHaveValue(queuedTypeNames[1]);
+
+	for (const index of [nameCount, nameCount - 1]) {
+		const removed = page.waitForResponse('**/rpc/crm_vocabulary_save');
+		await card.getByRole('button', { name: '삭제' }).nth(index).click();
+		await removed;
+	}
+	await expect(names).toHaveCount(nameCount);
+});
+
+test('a renamed pipeline reaches the rest of the workspace without a reload', async ({ page }) => {
+	await signIn(page);
+	await page.getByRole('tab', { name: '정의' }).click();
+
+	const definitions = page.getByRole('region', { name: '정의', exact: true });
+	const card = definitions.locator('[data-slot="card"]').filter({ hasText: '진행 유형' });
+	const firstName = card.getByRole('textbox').first();
+	await expect(firstName).toBeVisible();
+	const originalName = await firstName.inputValue();
+	const renamedName = `${originalName} 개명`;
+
+	const saved = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	await firstName.fill(renamedName);
+	await firstName.blur();
+	await saved;
+
+	await expect(page.locator('[data-crm-metrics]')).toContainText(renamedName);
+
+	const restored = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	await firstName.fill(originalName);
+	await firstName.blur();
+	await restored;
+	await expect(page.locator('[data-crm-metrics]')).toContainText(originalName);
 });

@@ -1,15 +1,15 @@
 <script lang="ts">
+	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import {
 		appendCRMDefinition,
-		cloneCRMVocabulary,
 		removeCRMDefinition,
 		updateCRMDefinition,
 		type CRMDefinitionCollection,
-		type CRMDefinitionDeleteRequest,
 		type CRMDefinitionTarget,
 		type CRMDefinitionsText,
 		type CRMVocabulary
 	} from './crm-definitions';
+	import { CRMDefinitionsDraft } from './crm-definitions-draft.svelte';
 	import CRMDefinitionListCard from './crm-definition-list-card.svelte';
 
 	type Props = {
@@ -19,138 +19,94 @@
 		errorMessage?: string;
 		text: CRMDefinitionsText;
 		onSave: (vocabulary: CRMVocabulary) => Promise<void> | void;
-		onDelete: (
-			request: CRMDefinitionDeleteRequest,
-			vocabulary: CRMVocabulary
-		) => Promise<void> | void;
 	};
 
-	let {
-		vocabulary,
-		isAdmin,
-		isSaving = false,
-		errorMessage = '',
-		text,
-		onSave,
-		onDelete
-	}: Props = $props();
+	let { vocabulary, isAdmin, isSaving = false, errorMessage = '', text, onSave }: Props = $props();
 
-	let draft = $state<CRMVocabulary>({ organization_types: [], pipelines: [] });
-	let localErrorMessage = $state('');
-	let isSubmitting = $state(false);
-	let disabled = $derived(isSaving || isSubmitting);
+	const draft = new CRMDefinitionsDraft(
+		() => vocabulary,
+		(next) => onSave(next),
+		() => text.nameRequired
+	);
 
-	$effect(() => {
-		draft = cloneCRMVocabulary(vocabulary);
-	});
+	let isBusy = $derived(isSaving || draft.isSaving);
+
+	$effect(() => draft.synchronize());
 
 	function createID(): string {
 		return crypto.randomUUID();
 	}
 
-	function hasBlankName(value: CRMVocabulary): boolean {
-		return [
-			...value.organization_types,
-			...value.pipelines
-		].some((definition) => !definition.name.trim());
-	}
-
-	async function save(next: CRMVocabulary): Promise<void> {
-		if (!isAdmin || disabled) return;
-		if (hasBlankName(next)) {
-			localErrorMessage = text.nameRequired;
-			return;
-		}
-		isSubmitting = true;
-		localErrorMessage = '';
-		try {
-			await onSave(cloneCRMVocabulary(next));
-			draft = next;
-		} catch (error) {
-			localErrorMessage = error instanceof Error ? error.message : String(error);
-			draft = cloneCRMVocabulary(vocabulary);
-		} finally {
-			isSubmitting = false;
-		}
+	function commit(next: CRMVocabulary): void {
+		if (!isAdmin) return;
+		draft.commit(next);
 	}
 
 	function nameInput(target: CRMDefinitionTarget, name: string): void {
-		draft = updateCRMDefinition(draft, target, { name });
+		draft.edit(updateCRMDefinition(draft.value, target, { name }));
 	}
 
 	function colorChange(target: CRMDefinitionTarget, color: string): void {
-		void save(updateCRMDefinition(draft, target, { color }));
+		commit(updateCRMDefinition(draft.value, target, { color }));
 	}
 
-	async function remove(target: CRMDefinitionTarget): Promise<void> {
-		if (!isAdmin || disabled) return;
-		const next = removeCRMDefinition(draft, target);
-		isSubmitting = true;
-		localErrorMessage = '';
-		try {
-			await onDelete(target, cloneCRMVocabulary(next));
-			draft = next;
-		} catch (error) {
-			localErrorMessage = error instanceof Error ? error.message : String(error);
-			draft = cloneCRMVocabulary(vocabulary);
-		} finally {
-			isSubmitting = false;
-		}
+	function remove(target: CRMDefinitionTarget): void {
+		commit(removeCRMDefinition(draft.value, target));
 	}
 
 	function add(collection: CRMDefinitionCollection, name: string, color: string): void {
-		void save(appendCRMDefinition(draft, collection, { id: createID(), name, color }));
+		commit(appendCRMDefinition(draft.value, collection, { id: createID(), name, color }));
 	}
 </script>
 
 <section class="space-y-4" aria-labelledby="crm-definitions-title">
 	<header class="space-y-1">
-		<h2 id="crm-definitions-title" class="text-lg font-semibold">{text.title}</h2>
+		<h2 id="crm-definitions-title" class="flex items-center gap-2 text-lg font-semibold">
+			{text.title}
+			{#if isBusy}<LoaderCircleIcon class="size-4 animate-spin text-muted-foreground" />{/if}
+		</h2>
 		<p class="text-sm text-muted-foreground">{text.description}</p>
 	</header>
+
+	<p class="sr-only" role="status" aria-live="polite">{isBusy ? text.saving : ''}</p>
 
 	{#if !isAdmin}
 		<p class="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">{text.readOnly}</p>
 	{/if}
-	{#if errorMessage || localErrorMessage}
+	{#if errorMessage || draft.errorMessage}
 		<p class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
-			{localErrorMessage || errorMessage}
+			{draft.errorMessage || errorMessage}
 		</p>
-	{/if}
-	{#if disabled}
-		<p class="text-sm text-muted-foreground" aria-live="polite">{text.saving}</p>
 	{/if}
 
 	<div class="grid gap-4 lg:grid-cols-2">
 		<CRMDefinitionListCard
 			title={text.organizationTypes}
 			description={text.organizationTypesDescription}
-			items={draft.organization_types}
+			items={draft.value.organization_types}
 			{isAdmin}
-			{disabled}
 			addLabel={text.add}
 			removeLabel={text.remove}
 			colorLabel={text.color}
 			onNameInput={(id, name) => nameInput({ kind: 'organization_type', id }, name)}
-			onCommit={() => void save(draft)}
+			onCommit={() => commit(draft.value)}
 			onColorChange={(id, color) => colorChange({ kind: 'organization_type', id }, color)}
-			onRemove={(id) => void remove({ kind: 'organization_type', id })}
+			onRemove={(id) => remove({ kind: 'organization_type', id })}
 			onAdd={(name, color) => add('organization_type', name, color)}
 		/>
 
 		<CRMDefinitionListCard
 			title={text.pipelines}
 			description={text.pipelinesDescription}
-			items={draft.pipelines}
+			items={draft.value.pipelines}
 			{isAdmin}
-			{disabled}
 			addLabel={text.add}
 			removeLabel={text.remove}
 			colorLabel={text.color}
 			onNameInput={(id, name) => nameInput({ kind: 'pipeline', id }, name)}
-			onCommit={() => void save(draft)}
+			onCommit={() => commit(draft.value)}
 			onColorChange={(id, color) => colorChange({ kind: 'pipeline', id }, color)}
-			onRemove={(id) => void remove({ kind: 'pipeline', id })}
+			onRemove={(id) => remove({ kind: 'pipeline', id })}
 			onAdd={(name, color) => add('pipeline', name, color)}
 		/>
 	</div>
