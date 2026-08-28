@@ -27,20 +27,30 @@ func monthWindow(month string) (time.Time, time.Time, error) {
 	return from, from.AddDate(0, 1, 0), nil
 }
 
-func reconciledWorkCalendarOf(days []attendanceWorkCalendarDay) []centralplane.ReconciledWorkCalendarDay {
-	reconciled := make([]centralplane.ReconciledWorkCalendarDay, 0, len(days))
-	for _, day := range days {
-		reconciled = append(reconciled, centralplane.ReconciledWorkCalendarDay{
-			Date:        day.Date,
-			WorkMode:    day.WorkMode,
-			WorkingDate: day.WorkingDate,
-			Holiday:     day.Holiday,
+func reconciledWorkPolicyOf(policy attendanceWorkPolicy) centralplane.ReconciledWorkPolicy {
+	revisions := make([]centralplane.ReconciledWorkPolicyRevision, 0, len(policy.Revisions))
+	for _, revision := range policy.Revisions {
+		revisions = append(revisions, reconciledWorkPolicyRevisionOf(revision))
+	}
+	return centralplane.ReconciledWorkPolicy{Version: policy.Version, Revisions: revisions}
+}
+
+func reconciledCompanyHolidaysOf(holidays []calendarCompanyHoliday) []centralplane.ReconciledCompanyHoliday {
+	reconciled := make([]centralplane.ReconciledCompanyHoliday, 0, len(holidays))
+	for _, holiday := range holidays {
+		reconciled = append(reconciled, centralplane.ReconciledCompanyHoliday{
+			ID:             holiday.ID,
+			Title:          holiday.Title,
+			Date:           holiday.Date,
+			RecursAnnually: holiday.RecursAnnually,
 		})
 	}
 	return reconciled
 }
 
-func reconciledWorkPolicyOf(revision attendanceWorkPolicyRevision) centralplane.ReconciledWorkPolicy {
+func reconciledWorkPolicyRevisionOf(
+	revision attendanceWorkPolicyRevision,
+) centralplane.ReconciledWorkPolicyRevision {
 	breakPeriods := make([]centralplane.ReconciledWorkBreakPeriod, 0, len(revision.BreakPeriods))
 	for _, period := range revision.BreakPeriods {
 		breakPeriods = append(breakPeriods, centralplane.ReconciledWorkBreakPeriod{
@@ -48,7 +58,8 @@ func reconciledWorkPolicyOf(revision attendanceWorkPolicyRevision) centralplane.
 			EndTime:   period.EndTime,
 		})
 	}
-	return centralplane.ReconciledWorkPolicy{
+	return centralplane.ReconciledWorkPolicyRevision{
+		EffectiveDate:       revision.EffectiveDate,
 		WorkMode:            revision.WorkMode,
 		WorkingWeekdays:     append([]int(nil), revision.WorkingWeekdays...),
 		DailyTargetMinutes:  revision.DailyTargetMinutes,
@@ -74,7 +85,7 @@ func (service *Service) publishWorkPolicyForMonth(ctx context.Context, month str
 	if errorValue != nil {
 		return errorValue
 	}
-	workCalendar, errorValue := service.attendanceWorkCalendarProjection(ctx, from, to)
+	policy, errorValue := service.readAttendanceWorkPolicy(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -82,15 +93,19 @@ func (service *Service) publishWorkPolicyForMonth(ctx context.Context, month str
 	if errorValue != nil {
 		return errorValue
 	}
-	reconciledPolicy := reconciledWorkPolicyOf(currentPolicy)
+	companyHolidays, errorValue := service.listCalendarCompanyHolidays(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	reconciledPolicy := reconciledWorkPolicyOf(policy)
 
 	if _, errorValue := client.ReconcileAttendance(ctx, centralplane.ReconcileWindow{
-		Platform:     "mattermost",
-		WorkMode:     currentPolicy.WorkMode,
-		WorkPolicy:   &reconciledPolicy,
-		From:         from,
-		To:           to,
-		WorkCalendar: reconciledWorkCalendarOf(workCalendar),
+		Platform:        "mattermost",
+		WorkMode:        currentPolicy.WorkMode,
+		WorkPolicy:      &reconciledPolicy,
+		CompanyHolidays: reconciledCompanyHolidaysOf(companyHolidays),
+		From:            from,
+		To:              to,
 	}); errorValue != nil {
 		return errorValue
 	}
