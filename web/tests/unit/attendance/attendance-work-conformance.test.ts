@@ -98,6 +98,8 @@ function readConformanceFile(): AttendanceWorkConformanceFile {
 	return JSON.parse(raw) as AttendanceWorkConformanceFile;
 }
 
+const dayBoundary = '00:00';
+
 const conformanceMember = {
 	id: 'conformance-member',
 	name: '이샘플',
@@ -180,17 +182,19 @@ function conformanceEvents(
 function conformanceLeave(scenario: AttendanceWorkConformanceScenario): SupabaseWorkStatusLeave[] {
 	return scenario.leave.map((leave) => {
 		if (leave.days > 0.5) {
+			const anchor = leave.startTime || dayBoundary;
 			return {
 				member_id: conformanceMember.id,
 				days: leave.days,
-				starts_at: companyTimeInstant(leave.startDate, leave.startTime, scenario.timeZone),
-				ends_at: companyTimeInstant(
-					shiftedDay(leave.endDate, 1),
-					leave.startTime,
-					scenario.timeZone
-				),
+				starts_at: companyTimeInstant(leave.startDate, anchor, scenario.timeZone),
+				ends_at: companyTimeInstant(shiftedDay(leave.endDate, 1), anchor, scenario.timeZone),
 				status: 'approved'
 			};
+		}
+		if (!leave.startTime || !leave.endTime) {
+			throw new Error(
+				`scenario ${scenario.name}: a partial-day leave has to state the hours it occupies`
+			);
 		}
 		if (leave.startDate !== leave.endDate) {
 			throw new Error(
