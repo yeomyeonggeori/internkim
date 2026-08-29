@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"gitlab.com/eastriver/internkim/internal/buzzimport"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/assetkeep"
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
 
 	"gitlab.com/eastriver/internkim/internal/buzzimport/media"
 )
@@ -126,5 +128,78 @@ func TestARefusalWithNowhereToKeepItSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(errorValue.Error(), "no asset store") {
 		t.Errorf("error = %v", errorValue)
+	}
+}
+
+func TestARoomTheAgentSitsInStaysWithTheBootstrapKey(t *testing.T) {
+	channel := buzzimport.MattermostChannel{ID: "c-1", Name: "plaza", Type: buzzimport.OpenChannelType, CreatorID: "u-lee"}
+	secret := creatorSecretFor(
+		channel,
+		[]string{"u-lee", "u-bot"},
+		map[string]mattermostrest.MattermostAuthor{
+			"u-lee": {Email: "lee@example.com"},
+			"u-bot": {Email: "bot@example.com"},
+		},
+		map[string]string{"lee@example.com": "lee-secret", "bot@example.com": "agent-secret"},
+		map[string]string{"u-lee": "lee-pubkey", "u-bot": "agent-pubkey"},
+		"agent-pubkey",
+		"bootstrap-secret",
+	)
+	if secret != "bootstrap-secret" {
+		t.Fatalf("secret = %q, want the bootstrap key", secret)
+	}
+}
+
+func TestARoomItsPeopleMadeIsOwnedByWhoeverOpenedIt(t *testing.T) {
+	channel := buzzimport.MattermostChannel{ID: "c-2", Name: "reading-club", Type: buzzimport.OpenChannelType, CreatorID: "u-park"}
+	secret := creatorSecretFor(
+		channel,
+		[]string{"u-lee", "u-park"},
+		map[string]mattermostrest.MattermostAuthor{
+			"u-lee":  {Email: "lee@example.com"},
+			"u-park": {Email: "park@example.com"},
+		},
+		map[string]string{"lee@example.com": "lee-secret", "park@example.com": "park-secret"},
+		map[string]string{"u-lee": "lee-pubkey", "u-park": "park-pubkey"},
+		"agent-pubkey",
+		"bootstrap-secret",
+	)
+	if secret != "park-secret" {
+		t.Fatalf("secret = %q, want the opener's key", secret)
+	}
+}
+
+func TestARoomWhoseOpenerLeftGoesToSomeoneStillInIt(t *testing.T) {
+	channel := buzzimport.MattermostChannel{ID: "c-3", Name: "reading-club", Type: buzzimport.OpenChannelType, CreatorID: "u-gone"}
+	secret := creatorSecretFor(
+		channel,
+		[]string{"u-lee"},
+		map[string]mattermostrest.MattermostAuthor{
+			"u-lee":  {Email: "lee@example.com"},
+			"u-gone": {Email: "gone@example.com"},
+		},
+		map[string]string{"lee@example.com": "lee-secret", "gone@example.com": "gone-secret"},
+		map[string]string{"u-lee": "lee-pubkey"},
+		"agent-pubkey",
+		"bootstrap-secret",
+	)
+	if secret != "lee-secret" {
+		t.Fatalf("secret = %q, want a key of someone still in the room", secret)
+	}
+}
+
+func TestARoomWithNobodyKnownFallsBackToTheBootstrapKey(t *testing.T) {
+	channel := buzzimport.MattermostChannel{ID: "c-4", Name: "empty", Type: buzzimport.OpenChannelType, CreatorID: "u-unknown"}
+	secret := creatorSecretFor(
+		channel,
+		[]string{"u-unknown"},
+		map[string]mattermostrest.MattermostAuthor{},
+		map[string]string{},
+		map[string]string{},
+		"agent-pubkey",
+		"bootstrap-secret",
+	)
+	if secret != "bootstrap-secret" {
+		t.Fatalf("secret = %q, want the bootstrap key", secret)
 	}
 }

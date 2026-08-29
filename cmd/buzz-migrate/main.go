@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -112,6 +113,8 @@ func main() {
 	bootstrapSecret := deriveSecret(keySeed, buzzidentity.BootstrapSubject)
 	bootstrapPubkey, errorValue := nostr.GetPublicKey(bootstrapSecret)
 	failOn(errorValue, "derive bootstrap pubkey")
+	agentPubkey, errorValue := nostr.GetPublicKey(deriveSecret(keySeed, buzzidentity.AgentSubject))
+	failOn(errorValue, "derive agent pubkey")
 	if !incremental {
 		registerRelayMembers(*buzzAdminCommand, append([]string{bootstrapPubkey}, pubkeysOf(authorPubkeys)...))
 	}
@@ -161,7 +164,7 @@ func main() {
 				// An import replays posts by people who have since left the room, and a
 				// closed room refuses a post from someone who is not in it.
 				everyAuthor := memberUserIDsWithPastAuthors(memberUserIDs, posts)
-				creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, bootstrapSecret)
+				creatorSecret := creatorSecretFor(channel, memberUserIDs, authorsByID, authorSecrets, authorPubkeys, agentPubkey, bootstrapSecret)
 				creator, errorValue := publishers.as(ctx, creatorSecret)
 				failOn(errorValue, "connect as the creator of "+channel.Name)
 				if participants, isConversation := conversationParticipants(channel, everyAuthor, authorPubkeys, creatorSecret); isConversation {
@@ -804,15 +807,28 @@ func (pool *publisherPool) closeAll() {
 	}
 }
 
+// A room the agent already sits in is one the company runs — the commons, a
+// circle's room — and stays with the key that administers those. Every other
+// room belongs to its people: whoever opened it in the messenger owns its
+// copy, the way a room made here is owned by whoever makes it.
 func creatorSecretFor(
 	channel buzzimport.MattermostChannel,
 	memberUserIDs []string,
 	authorsByID map[string]mattermostrest.MattermostAuthor,
 	authorSecrets map[string]string,
+	authorPubkeys map[string]string,
+	agentPubkey string,
 	bootstrapSecret string,
 ) string {
 	if !buzzimport.IsConversationChannelType(channel.Type) {
-		return bootstrapSecret
+		for _, userID := range memberUserIDs {
+			if pubkey := authorPubkeys[userID]; pubkey != "" && strings.EqualFold(pubkey, agentPubkey) {
+				return bootstrapSecret
+			}
+		}
+		if secret := memberSecretOf(channel.CreatorID, memberUserIDs, authorsByID, authorSecrets); secret != "" {
+			return secret
+		}
 	}
 	for _, userID := range memberUserIDs {
 		author, isKnown := authorsByID[userID]
@@ -824,6 +840,24 @@ func creatorSecretFor(
 		}
 	}
 	return bootstrapSecret
+}
+
+// Ownership goes only to someone still in the room: making an absent creator
+// the owner would put them back into a room they left.
+func memberSecretOf(
+	userID string,
+	memberUserIDs []string,
+	authorsByID map[string]mattermostrest.MattermostAuthor,
+	authorSecrets map[string]string,
+) string {
+	if userID == "" || !slices.Contains(memberUserIDs, userID) {
+		return ""
+	}
+	author, isKnown := authorsByID[userID]
+	if !isKnown {
+		return ""
+	}
+	return authorSecrets[author.Email]
 }
 
 // A relay tells a direct conversation from a channel by its type, and a client
