@@ -20,8 +20,9 @@ func TestChatdMessageSearchRoutesANamedChannelThroughChatd(testContext *testing.
 		json.NewEncoder(writer).Encode(chatdMessageSearchResponse{
 			ChannelID: "channel-uuid",
 			Candidates: []chatdMessageSearchCandidate{
-				{MessageID: "assistant-post", ChannelID: "channel-uuid", AuthorPubkeyHex: "bot-pubkey", AuthoredByAssistant: true, CreatedAt: 200, Text: "상하이 미팅 결과를 공유합니다", Score: 1},
-				{MessageID: "requester-post", ChannelID: "channel-uuid", AuthorPubkeyHex: "requester-pubkey", CreatedAt: 100, Text: "상하이 미팅은 어땠나요?", Score: 0.9},
+				{MessageID: "assistant-post", ChannelID: "channel-uuid", AuthorPubkeyHex: "bot-pubkey", AuthoredByAssistant: true, Editable: true, Deletable: true, CreatedAt: 200, Text: "상하이 미팅 결과를 공유합니다", Score: 1},
+				{MessageID: "requester-post", ChannelID: "channel-uuid", AuthorPubkeyHex: "requester-pubkey", Editable: true, Deletable: true, CreatedAt: 100, Text: "상하이 미팅은 어땠나요?", Score: 0.9},
+				{MessageID: "stranger-post", ChannelID: "channel-uuid", AuthorPubkeyHex: "stranger-pubkey", CreatedAt: 50, Text: "상하이 미팅 사진입니다", Score: 0.8},
 			},
 		})
 	}))
@@ -52,17 +53,23 @@ func TestChatdMessageSearchRoutesANamedChannelThroughChatd(testContext *testing.
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		testContext.Fatalf("result decode failed: %v", errorValue)
 	}
-	if len(result.MessageIDs) != 1 || result.MessageIDs[0] != "assistant-post" {
+	if len(result.MessageIDs) != 2 || result.MessageIDs[0] != "assistant-post" || result.MessageIDs[1] != "requester-post" {
 		testContext.Fatalf("deletable IDs carry %+v", result.MessageIDs)
 	}
-	if len(result.Candidates) != 2 {
+	if len(result.Candidates) != 3 {
 		testContext.Fatalf("candidates carry %+v", result.Candidates)
 	}
-	if result.Candidates[0].AuthoredBy != "assistant" || !result.Candidates[0].Deletable {
+	if result.Candidates[0].AuthoredBy != "assistant" || !result.Candidates[0].Deletable || !result.Candidates[0].Editable {
 		testContext.Fatalf("assistant candidate reads %+v", result.Candidates[0])
 	}
-	if result.Candidates[1].AuthoredBy != "requester" || result.Candidates[1].Deletable {
+	if result.Candidates[1].AuthoredBy != "requester" || !result.Candidates[1].Deletable || !result.Candidates[1].Editable {
 		testContext.Fatalf("requester candidate reads %+v", result.Candidates[1])
+	}
+	if result.Candidates[2].AuthoredBy != "anyone" || result.Candidates[2].Deletable || result.Candidates[2].Editable {
+		testContext.Fatalf("stranger candidate reads %+v", result.Candidates[2])
+	}
+	if result.Candidates[2].ProtectedReason != "" {
+		testContext.Fatalf("capabilityd must not invent a reason chatd did not give: %q", result.Candidates[2].ProtectedReason)
 	}
 	if !strings.Contains(result.Candidates[0].Preview, "상하이 미팅") {
 		testContext.Fatalf("preview reads %q", result.Candidates[0].Preview)

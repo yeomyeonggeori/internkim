@@ -25,6 +25,8 @@ type chatdMessageSearchCandidate struct {
 	RootMessageID       string  `json:"rootMessageID,omitempty"`
 	AuthorPubkeyHex     string  `json:"authorPubkeyHex"`
 	AuthoredByAssistant bool    `json:"authoredByAssistant"`
+	Editable            bool    `json:"editable"`
+	Deletable           bool    `json:"deletable"`
 	CreatedAt           int64   `json:"createdAt"`
 	Text                string  `json:"text"`
 	Score               float64 `json:"score"`
@@ -116,16 +118,15 @@ func canonicalChatdMessageSearchResult(response chatdMessageSearchResponse, inpu
 			UserID:        candidate.AuthorPubkeyHex,
 			AuthoredBy:    chatdMessageSearchCandidateAuthor(candidate, requesterPlatformUserID),
 			CreatedAt:     candidate.CreatedAt,
-			Deletable:     candidate.AuthoredByAssistant,
+			Editable:      candidate.Editable,
+			Deletable:     candidate.Deletable,
 		}
 		if isReadByID {
 			mapped.Text = candidate.Text
 		} else {
 			mapped.Preview = mattermostPostSearchPreview(candidate.Text, input.Queries)
 		}
-		if !mapped.Deletable {
-			mapped.ProtectedReason = "message deletion is allowed only for the assistant's own messages"
-		} else {
+		if mapped.Deletable {
 			deletableMessageIDs = append(deletableMessageIDs, candidate.MessageID)
 		}
 		candidates = append(candidates, mapped)
