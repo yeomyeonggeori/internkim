@@ -76,15 +76,16 @@ slug is derived from the title on first serve and owned by the server.
 `site_unserve` frees the slug and deletes the server-side record; the source
 files in the workspace stay.
 
-## Documents and images [#document]
+## Reading files and attachments [#document]
 
-<ToolCatalog namespace="document" />
-<ToolCatalog namespace="image" />
-
-Implemented in `internal/capabilityd/file_read_tool.go` (with
-`file_read_helper.py` doing format extraction). These read a workspace path
-and return Markdown or a base64 attachment, which is how a PDF someone
-uploaded becomes something the model can quote.
+The model reads with one built-in tool, `read`: a workspace path or an
+attachment's exact url from the conversation. Text comes back as text,
+documents (HTML, PDF, DOCX, PPTX, XLSX, and friends) as converted Markdown,
+images as an image the model sees — the runtime picks the modality from the
+content type, so there is nothing to choose. The converters behind it are
+implemented in `internal/capabilityd/file_read_tool.go` (with
+`file_read_helper.py` doing format extraction) and are not exposed to the
+model directly.
 
 ## Browser [#browser]
 
