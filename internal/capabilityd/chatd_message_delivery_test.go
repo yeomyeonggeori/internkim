@@ -609,9 +609,10 @@ func TestChatdMessageUpdateCarriesTheRefusalChatdWrote(testContext *testing.T) {
 }
 
 // The relay accepts a change to a message only from its author, and chatd signs
-// as the requester by deriving that person's key from their email. Without the
-// email in the request the agent can change nothing but its own messages.
-func TestChatdMessageChangeNamesTheRequesterEmail(testContext *testing.T) {
+// as the requester by asking admind which key that pubkey belongs to. An email
+// is not a lookup key any more, so sending one would only invite chatd to
+// derive an identity a second time.
+func TestChatdMessageChangeNamesTheRequesterByKeyAlone(testContext *testing.T) {
 	edited := ""
 	deleted := ""
 	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -653,10 +654,12 @@ func TestChatdMessageChangeNamesTheRequesterEmail(testContext *testing.T) {
 		testContext.Fatal(errorValue)
 	}
 
-	if !strings.Contains(edited, `"requesterEmail":"sample@example.com"`) {
-		testContext.Fatalf("expected the edit to name the requester's email, got %s", edited)
-	}
-	if !strings.Contains(deleted, `"requesterEmail":"sample@example.com"`) {
-		testContext.Fatalf("expected the deletion to name the requester's email, got %s", deleted)
+	for _, sent := range []string{edited, deleted} {
+		if !strings.Contains(sent, `"requesterPubkeyHex":"pub-requester"`) {
+			testContext.Fatalf("expected the change to name the requester's key, got %s", sent)
+		}
+		if strings.Contains(sent, "requesterEmail") || strings.Contains(sent, "sample@example.com") {
+			testContext.Fatalf("expected the change to carry no email at all, got %s", sent)
+		}
 	}
 }
