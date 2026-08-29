@@ -50,7 +50,7 @@ func TestACircleNobodyCarriesHoldsNobody(t *testing.T) {
 func TestTheStaffSyncOnlyEverFillsRoomsTheWholeCompanyCanRead(t *testing.T) {
 	query := staffRoomQuery
 
-	for _, condition := range []string{"visibility = 'open'", "deleted_at IS NULL", "created_by = decode($1, 'hex')"} {
+	for _, condition := range []string{"visibility = 'open'", "deleted_at IS NULL", "created_by = ANY(ARRAY(SELECT decode(unnest($1::text[]), 'hex')))"} {
 		if !strings.Contains(query, condition) {
 			t.Fatalf("a room the whole company is added to must be %s: %s", condition, query)
 		}
