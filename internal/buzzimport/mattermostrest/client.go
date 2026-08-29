@@ -70,6 +70,7 @@ type restChannel struct {
 	DisplayName string `json:"display_name"`
 	Purpose     string `json:"purpose"`
 	Type        string `json:"type"`
+	CreatorID   string `json:"creator_id"`
 }
 
 type restPost struct {
@@ -378,6 +379,7 @@ func (channel restChannel) ToImport() buzzimport.MattermostChannel {
 		DisplayName: channel.DisplayName,
 		Purpose:     channel.Purpose,
 		Type:        channel.Type,
+		CreatorID:   channel.CreatorID,
 	}
 }
 
