@@ -388,6 +388,66 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		service.retireBootstrapFromRoom(ctx, relay, channelID, seed)
 	}
 	log.Printf("buzz staff membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
+	service.retireBootstrapFromRemainingRooms(ctx, relay, connections, seed)
+}
+
+// The staff and circle syncs cover the rooms the company runs, but the company
+// account also stands in rooms it only mirrored — private rooms whose members
+// it seated. It leaves those the same way: any admin standing in the room is
+// raised to owner first, and a room with no admin in it keeps the account,
+// because raising anybody else and adding the agent would both widen who
+// reads a private room.
+func (service *Service) retireBootstrapFromRemainingRooms(ctx context.Context, relay *sql.DB, connections *buzzActorConnections, seed string) {
+	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
+	bootstrapPubkey, errorValue := buzzPublicKey(bootstrapSecret)
+	if errorValue != nil {
+		return
+	}
+	rows, errorValue := relay.QueryContext(ctx, `
+SELECT m.channel_id::text FROM channel_members m
+JOIN channels c ON c.id = m.channel_id AND c.community_id = m.community_id
+WHERE m.pubkey = decode($1, 'hex') AND m.removed_at IS NULL
+  AND c.deleted_at IS NULL AND c.channel_type = 'stream'`, bootstrapPubkey)
+	if errorValue != nil {
+		log.Printf("buzz membership: rooms still holding the company account could not be read: %v", errorValue)
+		return
+	}
+	defer rows.Close()
+	var channelIDs []string
+	for rows.Next() {
+		var channelID string
+		if errorValue := rows.Scan(&channelID); errorValue != nil {
+			return
+		}
+		channelIDs = append(channelIDs, channelID)
+	}
+	for _, channelID := range channelIDs {
+		service.raiseAdminsStandingInRoom(ctx, relay, connections, channelID, seed)
+		service.retireBootstrapFromRoom(ctx, relay, channelID, seed)
+	}
+}
+
+func (service *Service) raiseAdminsStandingInRoom(ctx context.Context, relay *sql.DB, connections *buzzActorConnections, channelID string, seed string) {
+	heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
+	if errorValue != nil {
+		return
+	}
+	adminRoles := service.buzzRolesByPubkey(ctx, service.allStaffEmails(ctx))
+	actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
+	for pubkey, role := range adminRoles {
+		heldRole, isHeld := heldRoles[pubkey]
+		if !isHeld || heldRole == role {
+			continue
+		}
+		publisher, errorValue := connections.as(ctx, actorSecret)
+		if errorValue != nil {
+			return
+		}
+		if errorValue := publisher.AddMember(ctx, actorSecret, channelID, pubkey, role); errorValue != nil {
+			log.Printf("buzz membership: raising an admin in %s failed: %v", channelID, errorValue)
+		}
+		time.Sleep(60 * time.Millisecond)
+	}
 }
 
 func (service *Service) bootstrapBuzzPubkey() (string, error) {
