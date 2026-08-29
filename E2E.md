@@ -31,8 +31,8 @@ lab runner의 `--llm-provider capability --live-llm --strict-assertions` 조합�
 | `schedule_create_acceptance` | — | scheduled-task 스킬로 interval `schedule_create` |
 | `site_artifact_acceptance` | — | `file_write` 콘텐츠 작성 → `site_serve` 배포, URL 회신 (`shell` 0회) |
 | `ask_choice_reply_acceptance` | — | 선택지 있는 `ask_input` 발행과 다음 턴 선택 해석 |
-| `attachment_material_read` | — | 컨텍스트 첨부를 `image_read`로 읽기 |
-| `attachment_html_preview_recovery` | — | 현재 메시지 HTML 첨부 `file_preview` |
+| `attachment_material_read` | — | 컨텍스트 첨부를 `read`로 읽기 |
+| `attachment_html_preview_recovery` | — | 현재 메시지 HTML 첨부 `read` |
 | `attachment_html_previous_preview_recovery` | — | 이전 메시지 첨부 경로 복구 |
 | `attachment_current_image_input` | — | 현재 이미지 첨부의 직접 이미지 파트 주입 |
 | `xlow_image_vision_fallback` | — | xlow 티어 이미지 첨부의 비전 폴백 답변 |
