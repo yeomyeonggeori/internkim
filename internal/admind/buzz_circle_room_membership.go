@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+
+	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 )
 
 type circleRoomOutcome struct {
@@ -199,9 +201,16 @@ func (service *Service) reconcileOneCircleRoom(
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	// The company account is not a circle stranger to sweep on a tick: it
+	// leaves through its own retirement, which first makes sure somebody else
+	// administers the room.
+	bootstrapPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	outcome := circleRoomOutcome{Room: circle.DisplayName, CircleID: circle.CircleID, Belong: len(belong), Added: []string{}, Removed: []string{}}
 	for pubkey := range heldRoles {
-		if !belong[pubkey] {
+		if !belong[pubkey] && pubkey != bootstrapPubkey {
 			outcome.Removed = append(outcome.Removed, pubkey)
 		}
 	}
@@ -210,10 +219,25 @@ func (service *Service) reconcileOneCircleRoom(
 			outcome.Added = append(outcome.Added, pubkey)
 		}
 	}
+	agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if heldAgentRole, isHeld := heldRoles[agentPubkey]; isHeld && !isElevatedBuzzRole(heldAgentRole) {
+		outcome.Added = append(outcome.Added, agentPubkey)
+	}
 	sort.Strings(outcome.Removed)
 	sort.Strings(outcome.Added)
 	if !shouldApply {
 		return &outcome, nil
+	}
+	if len(outcome.Added) > 0 {
+		roles := service.buzzRolesByPubkey(ctx, emailsCarrying(circlesByEmail, circle.CircleID))
+		roles[agentPubkey] = buzzChannelOwnerRole
+		actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
+		if errorValue := service.addToCircleRoom(ctx, actorSecret, channelID, outcome.Added, roles); errorValue != nil {
+			return nil, errorValue
+		}
 	}
 	if len(outcome.Removed) > 0 {
 		if _, errorValue := removeBuzzChannelMembers(ctx, relay, channelID, outcome.Removed); errorValue != nil {
@@ -221,13 +245,7 @@ func (service *Service) reconcileOneCircleRoom(
 		}
 		log.Printf("circle room %s: removed %d the circle does not hold", circle.DisplayName, len(outcome.Removed))
 	}
-	if len(outcome.Added) > 0 {
-		roles := service.buzzRolesByPubkey(ctx, emailsCarrying(circlesByEmail, circle.CircleID))
-		actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
-		if errorValue := service.addToCircleRoom(ctx, actorSecret, channelID, outcome.Added, roles); errorValue != nil {
-			return nil, errorValue
-		}
-	}
+	service.retireBootstrapFromRoom(ctx, relay, channelID, seed)
 	if errorValue := service.tellClientsWhoIsInTheRoom(ctx, relay, channelID); errorValue != nil {
 		return nil, errorValue
 	}
