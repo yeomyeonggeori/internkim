@@ -13,13 +13,11 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 
 | 도구 | 하는 일 |
 |---|---|
-| `file_read` | 텍스트 파일이나 줄 범위를 읽음 |
+| `read` | 워크스페이스 파일이나 대화 첨부를 읽음. 텍스트는 텍스트로, 문서는 변환된 Markdown으로, 이미지는 모델이 보는 이미지로 |
 | `file_write` | 텍스트 파일 하나를 만들거나 덮어씀 |
 | `file_edit` | 정확한 텍스트 치환들을 원자적 편집 하나로 적용 |
-| `file_preview` | 대화에 첨부됐거나 워크스페이스에 있는 파일을 미리 봄 |
 | `file_delete` | 승인 후 파일 하나를 지움 |
 | `file_deliver` | 완성된 워크스페이스 파일을 답장에 첨부 |
-| `image_read` | 모델이 볼 이미지를 읽음 |
 | `terminal_run` | 워크스페이스에서 명령 하나를 실행 |
 
 `.dependency/blueclaw/internal/agentruntime/file_tools.go`와
