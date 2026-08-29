@@ -115,24 +115,28 @@ func (service *Service) uninvitedInOneChannel(
 	if errorValue != nil {
 		return buzzChannelUninvitedRoom{}, errorValue
 	}
+	bootstrapPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
+	if errorValue != nil {
+		return buzzChannelUninvitedRoom{}, errorValue
+	}
 	uninvited := []string{}
 	for _, pubkey := range held {
-		if !belong[pubkey] {
+		if !belong[pubkey] && pubkey != bootstrapPubkey {
 			uninvited = append(uninvited, pubkey)
 		}
 	}
 	return buzzChannelUninvitedRoom{Channel: shape.Name, Uninvited: uninvited}, nil
 }
 
+// The agent belongs in every room the company runs; the key that owns the
+// relay does not, so a room still holding it counts it as a member to remove.
 func (service *Service) pubkeysOf(ctx context.Context, emails []string, seed string) (map[string]bool, error) {
 	belong := map[string]bool{}
-	for _, subject := range []string{buzzidentity.BootstrapSubject, buzzidentity.AgentSubject} {
-		pubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, subject))
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		belong[pubkey] = true
+	agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject))
+	if errorValue != nil {
+		return nil, errorValue
 	}
+	belong[agentPubkey] = true
 	for _, email := range emails {
 		secret, errorValue := service.personBuzzSecret(ctx, email)
 		if errorValue != nil {
