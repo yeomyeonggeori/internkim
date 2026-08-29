@@ -607,3 +607,56 @@ func TestChatdMessageUpdateCarriesTheRefusalChatdWrote(testContext *testing.T) {
 		testContext.Fatalf("expected chatd's own matrix in the failure, got %q", response.Content)
 	}
 }
+
+// The relay accepts a change to a message only from its author, and chatd signs
+// as the requester by deriving that person's key from their email. Without the
+// email in the request the agent can change nothing but its own messages.
+func TestChatdMessageChangeNamesTheRequesterEmail(testContext *testing.T) {
+	edited := ""
+	deleted := ""
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(request.Body)
+		switch request.URL.Path {
+		case "/v1/platform/buzz/message.search":
+			writer.Write([]byte(`{"channelID":"channel-1","candidates":[{"messageID":"m2","channelID":"channel-1","authorPubkeyHex":"pub-requester","createdAt":1787886000000,"text":"먼저 쓴 글","score":1}]}`))
+		case "/v1/platform/buzz/message.edit":
+			edited = string(body)
+			writer.Write([]byte(`{"dispatchID":"m2"}`))
+		case "/v1/platform/buzz/message_delete":
+			deleted = string(body)
+			writer.Write([]byte(`{}`))
+		default:
+			testContext.Fatalf("unexpected chatd path %s", request.URL.Path)
+		}
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
+	toolContext := capabilities.ToolInvokeContext{
+		Platform:                "buzz",
+		ReplyTargetID:           "buzz:channel-1",
+		RequesterEmail:          "sample@example.com",
+		RequesterPlatformUserID: "pub-requester",
+	}
+
+	if _, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"m2","oldText":"먼저 쓴","newText":"고친"}`),
+		Context:  toolContext,
+	}); errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if _, errorValue := service.invokePlatformMessageDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_delete",
+		Input:    json.RawMessage(`{"messageIDs":["m2"]}`),
+		Context:  toolContext,
+	}); errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+
+	if !strings.Contains(edited, `"requesterEmail":"sample@example.com"`) {
+		testContext.Fatalf("expected the edit to name the requester's email, got %s", edited)
+	}
+	if !strings.Contains(deleted, `"requesterEmail":"sample@example.com"`) {
+		testContext.Fatalf("expected the deletion to name the requester's email, got %s", deleted)
+	}
+}
