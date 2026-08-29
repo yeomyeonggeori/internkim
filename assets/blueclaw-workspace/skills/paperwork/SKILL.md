@@ -1,7 +1,7 @@
 ---
 name: paperwork
 description: Create standardized company business documents on letterhead. Use for 견적서, 거래명세서, 청구서, 발주서, 품의서, 지출결의서, 회의록, 주간업무보고, 출장보고서, 오퍼레터, 근로계약서, 재직증명서, 경력증명서, 휴가신청서, 비밀유지계약서, NDA, 업무협약서, MOU, 용역계약서, 위임장, 서식, 공문, ERP 서류, quotation, invoice, purchase order, offer letter, employment contract, certificate requests. Do not use for free-form reports, memos, essays, or slide decks — use the docx or presentation skill for those.
-tool-references: file_read company_info_get ask_input company_info_set company_document_register file_write shell file_deliver company_document_update company_document_list company_document_search
+tool-references: read company_info_get ask_input company_info_set company_document_register file_write shell file_deliver company_document_update company_document_list company_document_search
 ---
 
 

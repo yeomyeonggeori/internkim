@@ -1904,7 +1904,7 @@ for old_tool in platform.dm.inspect platform.dm.send mattermost_post_delete matt
   fi
 done
 
-for forbidden_tool in file_read file_preview shell; do
+for forbidden_tool in read shell; do
   if jq -e --arg forbidden_tool "$forbidden_tool" 'def detail: if type == "array" then .[0] else . end; any((detail.taskEvents // [])[]; (.name // "") | contains("tool." + $forbidden_tool + ".requested"))' "$task_detail_file" >/dev/null; then
     echo "message delete E2E leaked into unrelated tool: $forbidden_tool" >&2
     jq 'def detail: if type == "array" then .[0] else . end; detail.taskEvents // [] | map({name, body})' "$task_detail_file" >&2 || true
