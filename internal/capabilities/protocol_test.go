@@ -556,8 +556,6 @@ func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 		"browser_snapshot",
 		"browser_screenshot",
 		"browser_click",
-		"document_read",
-		"image_read",
 		"message_context",
 		"message_search",
 		"message_send",
@@ -568,6 +566,21 @@ func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
 		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || descriptor.ResultContract == nil {
 			t.Fatalf("%s must remain typed and model-visible: %+v", toolName, descriptor)
+		}
+	}
+}
+
+// The agent offers one `read` tool and routes to these by content type, so they
+// keep their wire contract while leaving the catalog the model reads.
+func TestContractedReadBackendsStayTypedAndHidden(t *testing.T) {
+	defaultDescriptors := DefaultToolDescriptors()
+	for _, toolName := range []string{"document_read", "image_read"} {
+		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
+		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
+			t.Fatalf("%s must stay hidden from the model: %+v", toolName, descriptor)
+		}
+		if descriptor.ResultContract == nil {
+			t.Fatalf("%s must keep its typed result contract: %+v", toolName, descriptor)
 		}
 	}
 }

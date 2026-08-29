@@ -527,7 +527,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
-	expectedToolReferences := "tool-references: shell file_read file_write file_edit browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"
+	expectedToolReferences := "tool-references: shell read file_write file_edit browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"
 	if !strings.Contains(string(siteSkillDocument), expectedToolReferences) {
 		t.Fatalf("website skill must use the canonical tool references")
 	}
