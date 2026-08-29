@@ -3,6 +3,7 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -21,11 +22,19 @@ var StepBuzzChatd = Step{
 		// A chatd that answers is not a chatd that is configured the way this
 		// release wants it. Whatever is installed keeps running until it says
 		// where it binds, or a change to that address never reaches the device.
+		if context.Callbacks.GetBuzzAgentSecret == nil {
+			return false
+		}
+		agentSecret, errorValue := context.Callbacks.GetBuzzAgentSecret()
+		if errorValue != nil {
+			return false
+		}
 		installedUnit := trimmedRun(context, "cat "+blueclaw.ChatdServicePath)
 		return trimmedRun(context, "systemctl is-active "+blueclaw.ChatdServiceName) == "active" &&
 			trimmedRun(context, blueclaw.ChatdHealthCheckCommand()) == "ok" &&
 			strings.Contains(installedUnit, "CHATD_LISTEN_HOSTNAME="+blueclaw.ChatdListenHostname) &&
-			!strings.Contains(installedUnit, "CHATD_WORKSPACE_ROOT=")
+			!strings.Contains(installedUnit, "CHATD_WORKSPACE_ROOT=") &&
+			trimmedRun(context, "cat "+blueclaw.ChatdEnvironmentFilePath) == strings.TrimSpace(chatdEnvironmentFileContents(agentSecret))
 	},
 	Run: func(context *Context) error {
 		if context.Backend != BackendSSH {
@@ -54,9 +63,14 @@ var StepBuzzChatd = Step{
 	},
 }
 
+func chatdEnvironmentFileContents(agentSecret string) string {
+	return "CHATD_BUZZ_PRIVATE_KEY=" + agentSecret + "\n"
+}
+
 func chatdEnvironmentCommand(agentSecret string) string {
-	return `mkdir -p /root/.internkim/secrets
-printf 'CHATD_BUZZ_PRIVATE_KEY=%s\nCHATD_BUZZ_KEY_SEED_PATH=%s\n' '` + agentSecret + `' '` + buzzKeySeedDevicePath + `' > ` + blueclaw.ChatdEnvironmentFilePath + `
+	return `mkdir -p ` + path.Dir(blueclaw.ChatdEnvironmentFilePath) + `
+cat > ` + blueclaw.ChatdEnvironmentFilePath + ` <<'CHATDENVEOF'
+` + chatdEnvironmentFileContents(agentSecret) + `CHATDENVEOF
 chmod 600 ` + blueclaw.ChatdEnvironmentFilePath
 }
 
