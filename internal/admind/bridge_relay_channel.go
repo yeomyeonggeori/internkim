@@ -71,6 +71,7 @@ func (service *Service) addBridgeChannelMembers(
 	if errorValue != nil {
 		return errorValue
 	}
+	adminEmails := service.buzzAdminEmails(ctx)
 	for email := range emails {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
@@ -80,7 +81,7 @@ func (service *Service) addBridgeChannelMembers(
 		if errorValue != nil {
 			continue
 		}
-		if errorValue := publisher.AddMember(ctx, bootstrapSecret, buzzChannelID, pubkey); errorValue != nil {
+		if errorValue := publisher.AddMember(ctx, bootstrapSecret, buzzChannelID, pubkey, buzzChannelRoleFor(adminEmails, email)); errorValue != nil {
 			log.Printf("bridge channel %s: add member %s failed: %v", buzzChannelID, pubkey, errorValue)
 		}
 		time.Sleep(60 * time.Millisecond)
