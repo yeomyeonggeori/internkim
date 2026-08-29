@@ -79,11 +79,11 @@ func TestTheStaffSyncSkipsWhoIsAlreadyIn(t *testing.T) {
 	}
 	body := string(source)
 
-	if !strings.Contains(body, "if isHeld[pubkey] {") {
-		t.Fatal("the relay announces a joining for every add it is asked to make, so an add that changes nothing still costs a row of every timeline")
+	if !strings.Contains(body, `if isHeld && (member.Role == "" || heldRole == member.Role) {`) {
+		t.Fatal("the relay announces a joining for every add it is asked to make, so an add that changes nothing still costs a row of every timeline; only a role the room does not already hold earns one")
 	}
-	if !strings.Contains(body, "buzzChannelMemberPubkeys(ctx, relay, channelID)") {
-		t.Fatal("skipping who is already in means reading who is in first")
+	if !strings.Contains(body, "buzzChannelMemberRoles(ctx, relay, channelID)") {
+		t.Fatal("skipping who is already in means reading who is in first, and promoting means reading the role they hold")
 	}
 }
 
