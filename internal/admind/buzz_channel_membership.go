@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -95,6 +96,100 @@ func buzzChannelRoleFor(adminEmails map[string]bool, email string) string {
 	return ""
 }
 
+// One membership pass signs as a different person in each room, and a relay
+// connection authenticates one key, so the pass holds one connection per key
+// it has spoken as.
+type buzzActorConnections struct {
+	service *Service
+	open    map[string]*relaypublish.Publisher
+}
+
+func (service *Service) newBuzzActorConnections() *buzzActorConnections {
+	return &buzzActorConnections{service: service, open: map[string]*relaypublish.Publisher{}}
+}
+
+func (connections *buzzActorConnections) as(ctx context.Context, actorSecretHex string) (*relaypublish.Publisher, error) {
+	if known, isOpen := connections.open[actorSecretHex]; isOpen {
+		return known, nil
+	}
+	publisher, errorValue := connections.service.connectToTheRelayOnceItAnswers(ctx, actorSecretHex)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	connections.open[actorSecretHex] = publisher
+	return publisher, nil
+}
+
+func (connections *buzzActorConnections) drop(actorSecretHex string) {
+	if known, isOpen := connections.open[actorSecretHex]; isOpen {
+		known.Close()
+		delete(connections.open, actorSecretHex)
+	}
+}
+
+func (connections *buzzActorConnections) closeAll() {
+	for _, publisher := range connections.open {
+		publisher.Close()
+	}
+	connections.open = map[string]*relaypublish.Publisher{}
+}
+
+// Membership in a room is granted by someone who administers that room, the
+// way it would be if they clicked the button themselves: an admin standing in
+// it, or the agent when no admin is. The bootstrap key is the last resort that
+// existing rooms still need until an admin holds owner in each; every use of
+// it is a room the migration has not reached.
+func (service *Service) buzzRoomActorSecret(
+	ctx context.Context,
+	heldRoles map[string]string,
+	seed string,
+) string {
+	adminSecretsByPubkey := map[string]string{}
+	for email := range service.buzzAdminEmails(ctx) {
+		secret, errorValue := service.personBuzzSecret(ctx, email)
+		if errorValue != nil {
+			continue
+		}
+		pubkey, errorValue := buzzPublicKey(secret)
+		if errorValue != nil {
+			continue
+		}
+		adminSecretsByPubkey[pubkey] = secret
+	}
+	agentSecret := buzzidentity.Secret(seed, buzzidentity.AgentSubject)
+	agentPubkey, errorValue := buzzPublicKey(agentSecret)
+	if errorValue != nil {
+		agentPubkey = ""
+	}
+	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
+	return service.pickBuzzRoomActor(heldRoles, adminSecretsByPubkey, agentSecret, agentPubkey, bootstrapSecret)
+}
+
+func (service *Service) pickBuzzRoomActor(
+	heldRoles map[string]string,
+	adminSecretsByPubkey map[string]string,
+	agentSecret string,
+	agentPubkey string,
+	bootstrapSecret string,
+) string {
+	isElevated := func(role string) bool { return role == "owner" || role == "admin" }
+	adminPubkeys := make([]string, 0, len(adminSecretsByPubkey))
+	for pubkey := range adminSecretsByPubkey {
+		adminPubkeys = append(adminPubkeys, pubkey)
+	}
+	sort.Strings(adminPubkeys)
+	for _, pubkey := range adminPubkeys {
+		if isElevated(heldRoles[pubkey]) {
+			return adminSecretsByPubkey[pubkey]
+		}
+	}
+	if isElevated(heldRoles[agentPubkey]) {
+		return agentSecret
+	}
+	log.Printf("buzz membership: no admin or agent administers this room yet, signing as bootstrap")
+	return bootstrapSecret
+}
+
 func (service *Service) buzzRolesByPubkey(ctx context.Context, emails []string) map[string]string {
 	adminEmails := service.buzzAdminEmails(ctx)
 	roles := map[string]string{}
@@ -134,16 +229,28 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 	if errorValue != nil || len(channelIDs) == 0 {
 		return
 	}
-	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
-	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
+	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
 	if errorValue != nil {
-		log.Printf("buzz membership for %s: relay connect failed: %v", email, errorValue)
+		log.Printf("buzz membership for %s: %v", email, errorValue)
 		return
 	}
-	defer publisher.Close()
+	defer relay.Close()
+	connections := service.newBuzzActorConnections()
+	defer connections.closeAll()
 	role := buzzChannelRoleFor(service.buzzAdminEmails(ctx), email)
 	for _, channelID := range channelIDs {
-		_ = publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey, role)
+		heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
+		if errorValue != nil {
+			log.Printf("buzz membership for %s: reading who is in %s failed: %v", email, channelID, errorValue)
+			continue
+		}
+		actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
+		publisher, errorValue := connections.as(ctx, actorSecret)
+		if errorValue != nil {
+			log.Printf("buzz membership for %s: relay connect failed: %v", email, errorValue)
+			return
+		}
+		_ = publisher.AddMember(ctx, actorSecret, channelID, pubkey, role)
 		time.Sleep(60 * time.Millisecond)
 	}
 }
@@ -163,13 +270,8 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 	if len(channelIDs) == 0 || len(staff) == 0 {
 		return
 	}
-	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
-	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
-	if errorValue != nil {
-		log.Printf("buzz staff membership: relay connect failed: %v", errorValue)
-		return
-	}
-	defer func() { publisher.Close() }()
+	connections := service.newBuzzActorConnections()
+	defer connections.closeAll()
 	for _, member := range staff {
 		service.grantRelayMembership(ctx, member.Pubkey)
 	}
@@ -185,6 +287,12 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
 		if errorValue != nil {
 			log.Printf("buzz staff membership: reading who is in %s failed: %v", channelID, errorValue)
+			return
+		}
+		actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
+		publisher, errorValue := connections.as(ctx, actorSecret)
+		if errorValue != nil {
+			log.Printf("buzz staff membership: relay connect failed: %v", errorValue)
 			return
 		}
 		for _, member := range staff {
@@ -203,20 +311,20 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 				alreadyIn++
 				continue
 			}
-			errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, member.Pubkey, member.Role)
+			errorValue := publisher.AddMember(ctx, actorSecret, channelID, member.Pubkey, member.Role)
 			// The relay drops a connection that only publishes, so one that has
 			// been dropped is opened again rather than every remaining grant
 			// failing against it.
 			if errorValue != nil && strings.Contains(errorValue.Error(), "connection closed") {
-				publisher.Close()
-				reopened, reconnectError := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
+				connections.drop(actorSecret)
+				reopened, reconnectError := connections.as(ctx, actorSecret)
 				if reconnectError != nil {
 					log.Printf("buzz staff membership: relay would not take the connection back: %v", reconnectError)
 					log.Printf("buzz staff membership: granted %d, failed %d", granted, failed+1)
 					return
 				}
 				publisher = reopened
-				errorValue = publisher.AddMember(ctx, bootstrapSecret, channelID, member.Pubkey, member.Role)
+				errorValue = publisher.AddMember(ctx, actorSecret, channelID, member.Pubkey, member.Role)
 			}
 			if errorValue != nil {
 				if failed == 0 {
@@ -245,14 +353,33 @@ SELECT id FROM channels
 WHERE channel_type = 'stream'
   AND deleted_at IS NULL
   AND visibility = 'open'
-  AND created_by = decode($1, 'hex')
+  AND created_by = ANY(ARRAY(SELECT decode(unnest($1::text[]), 'hex')))
   AND name <> ALL($2::text[])`
+
+// The rooms the company runs were opened by the key that owns the relay when
+// they were imported, and are opened by the agent now; a room a person opened
+// is theirs, not the company's.
+func (service *Service) companyRoomCreatorPubkeys() ([]string, error) {
+	seed := service.buzzKeySeed()
+	if seed == "" {
+		return nil, errors.New("this device holds no buzz key seed")
+	}
+	pubkeys := make([]string, 0, 2)
+	for _, subject := range []string{buzzidentity.BootstrapSubject, buzzidentity.AgentSubject} {
+		pubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, subject))
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		pubkeys = append(pubkeys, pubkey)
+	}
+	return pubkeys, nil
+}
 
 // The whole company belongs in the rooms the whole company can already read.
 // A private room is somebody's decision about who is in it, and a circle room
 // is its circle's, so neither is a room to add everyone to.
 func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]string, error) {
-	bootstrapPubkey, errorValue := service.bootstrapBuzzPubkey()
+	creatorPubkeys, errorValue := service.companyRoomCreatorPubkeys()
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -265,7 +392,7 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 		return nil, errorValue
 	}
 	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, staffRoomQuery, bootstrapPubkey, pq.Array(circleRoomNames))
+	rows, errorValue := database.QueryContext(ctx, staffRoomQuery, pq.Array(creatorPubkeys), pq.Array(circleRoomNames))
 	if errorValue != nil {
 		return nil, errorValue
 	}

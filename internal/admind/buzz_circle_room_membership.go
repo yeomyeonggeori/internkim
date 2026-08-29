@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
+	"github.com/lib/pq"
 )
 
 type circleRoomOutcome struct {
@@ -194,23 +195,23 @@ func (service *Service) reconcileOneCircleRoom(
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	held, errorValue := buzzChannelMemberPubkeys(ctx, relay, channelID)
+	heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	outcome := circleRoomOutcome{Room: circle.DisplayName, CircleID: circle.CircleID, Belong: len(belong), Added: []string{}, Removed: []string{}}
-	isHeld := map[string]bool{}
-	for _, pubkey := range held {
-		isHeld[pubkey] = true
+	for pubkey := range heldRoles {
 		if !belong[pubkey] {
 			outcome.Removed = append(outcome.Removed, pubkey)
 		}
 	}
 	for pubkey := range belong {
-		if !isHeld[pubkey] {
+		if _, isHeld := heldRoles[pubkey]; !isHeld {
 			outcome.Added = append(outcome.Added, pubkey)
 		}
 	}
+	sort.Strings(outcome.Removed)
+	sort.Strings(outcome.Added)
 	if !shouldApply {
 		return &outcome, nil
 	}
@@ -222,7 +223,8 @@ func (service *Service) reconcileOneCircleRoom(
 	}
 	if len(outcome.Added) > 0 {
 		roles := service.buzzRolesByPubkey(ctx, emailsCarrying(circlesByEmail, circle.CircleID))
-		if errorValue := service.addToCircleRoom(ctx, seed, channelID, outcome.Added, roles); errorValue != nil {
+		actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
+		if errorValue := service.addToCircleRoom(ctx, actorSecret, channelID, outcome.Added, roles); errorValue != nil {
 			return nil, errorValue
 		}
 	}
@@ -248,15 +250,14 @@ func (service *Service) tellClientsWhoIsInTheRoom(ctx context.Context, relay *sq
 	return nil
 }
 
-func (service *Service) addToCircleRoom(ctx context.Context, seed string, channelID string, pubkeys []string, roles map[string]string) error {
-	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
-	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
+func (service *Service) addToCircleRoom(ctx context.Context, actorSecret string, channelID string, pubkeys []string, roles map[string]string) error {
+	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, actorSecret)
 	if errorValue != nil {
 		return errorValue
 	}
 	defer publisher.Close()
 	for _, pubkey := range pubkeys {
-		if errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey, roles[pubkey]); errorValue != nil {
+		if errorValue := publisher.AddMember(ctx, actorSecret, channelID, pubkey, roles[pubkey]); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -277,7 +278,7 @@ func emailsCarrying(circlesByEmail map[string][]string, circleID string) []strin
 }
 
 func (service *Service) circleRoomWeOpened(ctx context.Context, relay *sql.DB, roomName string) (string, error) {
-	bootstrapPubkey, errorValue := service.bootstrapBuzzPubkey()
+	creatorPubkeys, errorValue := service.companyRoomCreatorPubkeys()
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -287,7 +288,7 @@ SELECT id::text FROM channels
 WHERE channel_type = 'stream'
   AND deleted_at IS NULL
   AND name = $1
-  AND created_by = decode($2, 'hex')`, roomName, bootstrapPubkey).Scan(&channelID)
+  AND created_by = ANY(ARRAY(SELECT decode(unnest($2::text[]), 'hex')))`, roomName, pq.Array(creatorPubkeys)).Scan(&channelID)
 	if errorValue == sql.ErrNoRows {
 		return "", nil
 	}
