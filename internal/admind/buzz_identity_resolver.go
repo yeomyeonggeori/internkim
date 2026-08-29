@@ -57,26 +57,40 @@ func (service *Service) personBuzzSecret(ctx context.Context, email string) (str
 	if seed == "" {
 		return "", errBuzzKeySeedMissing
 	}
+	return service.currentBuzzSecret(ctx, seed, email, service.buzzVaultSubject(ctx, email)), nil
+}
+
+func (service *Service) currentBuzzSecret(ctx context.Context, seed string, email string, vaultSubject string) string {
 	if botEmail := service.mattermostBotBuzzEmail(ctx); botEmail != "" && strings.EqualFold(strings.TrimSpace(email), botEmail) {
-		return buzzidentity.Secret(seed, buzzidentity.AgentSubject), nil
+		return buzzidentity.Secret(seed, buzzidentity.AgentSubject)
 	}
-	subject := service.buzzVaultSubject(ctx, email)
-	version := service.buzzIdentityVersion(subject)
-	secretHex := buzzidentity.Secret(seed, versionedSubject(email, version))
-	if stored, errorValue := service.readBuzzIdentitySecret(subject); errorValue != nil || stored != secretHex {
-		if errorValue := service.storeBuzzIdentitySecret(subject, secretHex); errorValue != nil {
-			log.Printf("buzz identity vault pin failed for %s: %v", subject, errorValue)
-		}
+	secretHex := buzzidentity.Secret(seed, versionedSubject(email, service.buzzIdentityVersion(vaultSubject)))
+	service.pinBuzzIdentitySecret(vaultSubject, secretHex)
+	return secretHex
+}
+
+func (service *Service) pinBuzzIdentitySecret(vaultSubject string, secretHex string) {
+	if stored, errorValue := service.readBuzzIdentitySecret(vaultSubject); errorValue == nil && stored == secretHex {
+		return
 	}
-	return secretHex, nil
+	if errorValue := service.storeBuzzIdentitySecret(vaultSubject, secretHex); errorValue != nil {
+		log.Printf("buzz identity vault pin failed for %s: %v", vaultSubject, errorValue)
+	}
 }
 
 // buzzVaultSubject keys the vault by personID when the person is known to the
 // policy, falling back to the normalized email before the person is provisioned.
 func (service *Service) buzzVaultSubject(ctx context.Context, email string) string {
 	personID, errorValue := service.localBlueclawPersonIDByEmail(ctx, email)
-	if errorValue == nil && strings.TrimSpace(personID) != "" {
-		return strings.TrimSpace(personID)
+	if errorValue != nil {
+		return normalizedVaultSubject(email)
+	}
+	return vaultSubjectForPerson(personID, email)
+}
+
+func vaultSubjectForPerson(personID string, email string) string {
+	if trimmedPersonID := strings.TrimSpace(personID); trimmedPersonID != "" {
+		return trimmedPersonID
 	}
 	return normalizedVaultSubject(email)
 }
