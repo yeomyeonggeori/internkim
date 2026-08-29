@@ -65,11 +65,22 @@ func (publisher *Publisher) OpenDirectMessage(ctx context.Context, actorSecretHe
 	return publisher.signAndPublish(ctx, actorSecretHex, OpenDirectKind, "", tags)
 }
 
-func (publisher *Publisher) AddMember(ctx context.Context, actorSecretHex, channelID, memberPubkeyHex string) error {
-	return publisher.signAndPublish(ctx, actorSecretHex, AddMemberKind, "", nostr.Tags{
+// An empty role asks for no role at all, which the relay reads as "leave the
+// role this person already holds" and settles as member for someone new. Naming
+// one is how an add also promotes.
+func (publisher *Publisher) AddMember(ctx context.Context, actorSecretHex, channelID, memberPubkeyHex, role string) error {
+	return publisher.signAndPublish(ctx, actorSecretHex, AddMemberKind, "", addMemberTags(channelID, memberPubkeyHex, role))
+}
+
+func addMemberTags(channelID, memberPubkeyHex, role string) nostr.Tags {
+	tags := nostr.Tags{
 		nostr.Tag{"h", channelID},
 		nostr.Tag{"p", strings.ToLower(memberPubkeyHex)},
-	})
+	}
+	if trimmed := strings.TrimSpace(role); trimmed != "" {
+		tags = append(tags, nostr.Tag{"role", trimmed})
+	}
+	return tags
 }
 
 func (publisher *Publisher) SetProfile(ctx context.Context, actorSecretHex, displayName string) error {

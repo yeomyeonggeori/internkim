@@ -68,6 +68,54 @@ func (service *Service) connectToTheRelayOnceItAnswers(ctx context.Context, acto
 	return nil, refusal
 }
 
+// An admin in a room administers it, so the room gives them the role that lets
+// them add and remove people. A room holds as many owners as it has admins in
+// it; the relay refuses only to leave one with none.
+const buzzChannelOwnerRole = "owner"
+
+func (service *Service) buzzAdminEmails(ctx context.Context) map[string]bool {
+	admins := map[string]bool{}
+	records, errorValue := service.currentUserRecords(ctx)
+	if errorValue != nil {
+		return admins
+	}
+	for _, record := range records {
+		if normalizeAdminUserRole(record.Role) != adminUserRoleAdmin {
+			continue
+		}
+		admins[strings.ToLower(strings.TrimSpace(record.Email))] = true
+	}
+	return admins
+}
+
+func buzzChannelRoleFor(adminEmails map[string]bool, email string) string {
+	if adminEmails[strings.ToLower(strings.TrimSpace(email))] {
+		return buzzChannelOwnerRole
+	}
+	return ""
+}
+
+func (service *Service) buzzRolesByPubkey(ctx context.Context, emails []string) map[string]string {
+	adminEmails := service.buzzAdminEmails(ctx)
+	roles := map[string]string{}
+	for _, email := range emails {
+		role := buzzChannelRoleFor(adminEmails, email)
+		if role == "" {
+			continue
+		}
+		secret, errorValue := service.personBuzzSecret(ctx, email)
+		if errorValue != nil {
+			continue
+		}
+		pubkey, errorValue := buzzPublicKey(secret)
+		if errorValue != nil {
+			continue
+		}
+		roles[pubkey] = role
+	}
+	return roles
+}
+
 func (service *Service) ensureUserChannelMembership(ctx context.Context, email string) {
 	seed := service.buzzKeySeed()
 	if seed == "" || strings.TrimSpace(service.Configuration.BuzzRelayURL) == "" {
@@ -93,8 +141,9 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 		return
 	}
 	defer publisher.Close()
+	role := buzzChannelRoleFor(service.buzzAdminEmails(ctx), email)
 	for _, channelID := range channelIDs {
-		_ = publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey)
+		_ = publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey, role)
 		time.Sleep(60 * time.Millisecond)
 	}
 }
@@ -109,9 +158,9 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		log.Printf("buzz staff membership: channel query failed: %v", errorValue)
 		return
 	}
-	staffPubkeys := service.staffBuzzPubkeys(ctx)
-	log.Printf("buzz staff membership: %d stream channels, %d staff pubkeys", len(channelIDs), len(staffPubkeys))
-	if len(channelIDs) == 0 || len(staffPubkeys) == 0 {
+	staff := service.staffBuzzMembers(ctx)
+	log.Printf("buzz staff membership: %d stream channels, %d staff pubkeys", len(channelIDs), len(staff))
+	if len(channelIDs) == 0 || len(staff) == 0 {
 		return
 	}
 	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
@@ -121,8 +170,8 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		return
 	}
 	defer func() { publisher.Close() }()
-	for _, pubkey := range staffPubkeys {
-		service.grantRelayMembership(ctx, pubkey)
+	for _, member := range staff {
+		service.grantRelayMembership(ctx, member.Pubkey)
 	}
 	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
 	if errorValue != nil {
@@ -133,29 +182,28 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 
 	granted, failed, alreadyIn := 0, 0, 0
 	for _, channelID := range channelIDs {
-		held, errorValue := buzzChannelMemberPubkeys(ctx, relay, channelID)
+		heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
 		if errorValue != nil {
 			log.Printf("buzz staff membership: reading who is in %s failed: %v", channelID, errorValue)
 			return
 		}
-		isHeld := map[string]bool{}
-		for _, pubkey := range held {
-			isHeld[pubkey] = true
-		}
-		for _, pubkey := range staffPubkeys {
+		for _, member := range staff {
 			select {
 			case <-ctx.Done():
 				return
 			default:
 			}
+			heldRole, isHeld := heldRoles[member.Pubkey]
 			// The relay announces a joining in the channel for every add it is
 			// asked to make, including one that changes nothing, and those
-			// announcements share the fifty rows a timeline shows.
-			if isHeld[pubkey] {
+			// announcements share the fifty rows a timeline shows. An admin
+			// standing in the room as an ordinary member is not nothing: the
+			// add is what raises them to owner.
+			if isHeld && (member.Role == "" || heldRole == member.Role) {
 				alreadyIn++
 				continue
 			}
-			errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey)
+			errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, member.Pubkey, member.Role)
 			// The relay drops a connection that only publishes, so one that has
 			// been dropped is opened again rather than every remaining grant
 			// failing against it.
@@ -168,7 +216,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 					return
 				}
 				publisher = reopened
-				errorValue = publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey)
+				errorValue = publisher.AddMember(ctx, bootstrapSecret, channelID, member.Pubkey, member.Role)
 			}
 			if errorValue != nil {
 				if failed == 0 {
@@ -284,9 +332,15 @@ func (service *Service) usersSyncCacheEmails() []string {
 	return cache.Users
 }
 
-func (service *Service) staffBuzzPubkeys(ctx context.Context) []string {
+type buzzStaffMember struct {
+	Pubkey string
+	Role   string
+}
+
+func (service *Service) staffBuzzMembers(ctx context.Context) []buzzStaffMember {
+	adminEmails := service.buzzAdminEmails(ctx)
 	seen := map[string]bool{}
-	var pubkeys []string
+	var members []buzzStaffMember
 	for _, email := range service.allStaffEmails(ctx) {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
@@ -297,7 +351,7 @@ func (service *Service) staffBuzzPubkeys(ctx context.Context) []string {
 			continue
 		}
 		seen[pubkey] = true
-		pubkeys = append(pubkeys, pubkey)
+		members = append(members, buzzStaffMember{Pubkey: pubkey, Role: buzzChannelRoleFor(adminEmails, email)})
 	}
-	return pubkeys
+	return members
 }
