@@ -76,15 +76,14 @@ admind 위에 구현되어 있습니다(`internal/capabilityd/site_tool.go`).
 `site_unserve`는 슬러그를 풀고 서버 쪽 레코드를 지우며, 워크스페이스의
 소스 파일은 남습니다.
 
-## 문서와 이미지 [#document]
+## 파일과 첨부 읽기 [#document]
 
-<ToolCatalog namespace="document" language="ko" />
-<ToolCatalog namespace="image" language="ko" />
-
-`internal/capabilityd/file_read_tool.go`에 구현되어 있고 포맷 추출은
-`file_read_helper.py`가 합니다. 워크스페이스 경로를 읽어 Markdown이나
-base64 첨부로 돌려주며, 누가 올린 PDF가 모델이 인용할 수 있는 것이 되는
-경로입니다.
+모델은 내장 툴 `read` 하나로 읽습니다: 워크스페이스 경로, 또는 대화에 있는
+첨부의 정확한 url. 텍스트는 텍스트로, 문서(HTML·PDF·DOCX·PPTX·XLSX 등)는
+변환된 Markdown으로, 이미지는 모델이 보는 이미지로 — 어떤 모양으로 읽을지는
+런타임이 content type으로 정하므로 고를 것이 없습니다. 그 뒤에서 변환을
+맡는 구현은 `internal/capabilityd/file_read_tool.go`(포맷 추출은
+`file_read_helper.py`)이고, 모델에게 직접 노출되지 않습니다.
 
 ## 브라우저 [#browser]
 
