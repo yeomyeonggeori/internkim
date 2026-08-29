@@ -191,6 +191,7 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 			"replyTargetID":      replyTargetID,
 			"messageID":          trimmedMessageID,
 			"requesterPubkeyHex": strings.TrimSpace(request.Context.RequesterPlatformUserID),
+			"requesterEmail":     strings.TrimSpace(request.Context.RequesterEmail),
 		}
 		if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "message_delete", requestBody, &response); errorValue != nil {
 			failure := mattermostToolStaticFailure("message_delete_failed", "platform_delete", trimmedMessageID+": "+errorValue.Error())
@@ -239,6 +240,7 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 		"messageID":          messageID,
 		"message":            editedText,
 		"requesterPubkeyHex": strings.TrimSpace(request.Context.RequesterPlatformUserID),
+		"requesterEmail":     strings.TrimSpace(request.Context.RequesterEmail),
 	}
 	if len(attachmentFiles) > 0 {
 		requestBody["attachments"] = chatdMessagePostAttachments(attachmentFiles)
