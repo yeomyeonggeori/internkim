@@ -512,3 +512,98 @@ func TestAChannelPostAimedAtTheConversationItselfIsRefused(testContext *testing.
 		testContext.Fatalf("expected guidance toward naming the channel, answered %q", response.Content)
 	}
 }
+
+// chatd is the only judge of who may change a message, and it can only judge
+// what it is told, so the actor travels with the edit and with the deletion.
+func TestChatdMessageUpdateNamesTheRequesterToChatd(testContext *testing.T) {
+	edited := ""
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/platform/buzz/message.search":
+			writer.Write([]byte(`{"channelID":"channel-1","candidates":[{"messageID":"m2","channelID":"channel-1","authorPubkeyHex":"requester-pubkey","editable":true,"deletable":true,"createdAt":1787886000000,"text":"번역 안내입니다","score":1}]}`))
+		case "/v1/platform/buzz/message.edit":
+			body, _ := io.ReadAll(request.Body)
+			edited = string(body)
+			writer.Write([]byte(`{"dispatchID":"m2"}`))
+		default:
+			testContext.Fatalf("unexpected chatd path %s", request.URL.Path)
+		}
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
+
+	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"m2","oldText":"번역 안내","newText":"수정된 안내"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1", RequesterPlatformUserID: "requester-pubkey"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		testContext.Fatalf("expected the edit to land, got %q", response.Content)
+	}
+	if !strings.Contains(edited, `"requesterPubkeyHex":"requester-pubkey"`) {
+		testContext.Fatalf("expected the edit to name who is asking, got %s", edited)
+	}
+}
+
+func TestChatdPlatformDeleteNamesTheRequesterToChatd(testContext *testing.T) {
+	deleted := ""
+	service := Service{
+		Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			body, _ := io.ReadAll(request.Body)
+			deleted = string(body)
+			return testJSONResponse(http.StatusOK, map[string]any{}), nil
+		})},
+	}
+
+	response, errorValue := service.invokePlatformMessageDelete(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_delete",
+		Input:    json.RawMessage(`{"messageIDs":["message-1"]}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1:message-0", RequesterPlatformUserID: "requester-pubkey"},
+	})
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeSucceeded {
+		testContext.Fatalf("expected the deletion to be carried out, got %+v", response)
+	}
+	if !strings.Contains(deleted, `"requesterPubkeyHex":"requester-pubkey"`) {
+		testContext.Fatalf("expected the deletion to name who is asking, got %s", deleted)
+	}
+}
+
+// A refusal is chatd's own sentence about its own matrix; capabilityd carries
+// it to the model instead of rewriting it into a rule of its own.
+func TestChatdMessageUpdateCarriesTheRefusalChatdWrote(testContext *testing.T) {
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/platform/buzz/message.search":
+			writer.Write([]byte(`{"channelID":"channel-1","candidates":[{"messageID":"m2","channelID":"channel-1","authorPubkeyHex":"stranger-pubkey","editable":false,"deletable":false,"createdAt":1787886000000,"text":"번역 안내입니다","score":1}]}`))
+		default:
+			writer.WriteHeader(http.StatusForbidden)
+			writer.Write([]byte(`{"error":"you may change a message the assistant sent, your own, or anyone's if you hold the channel admin role, and message m2 is none of those"}`))
+		}
+	}))
+	defer chatdServer.Close()
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}, HTTPClient: chatdServer.Client()}
+
+	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_update",
+		Input:    json.RawMessage(`{"messageID":"m2","oldText":"번역 안내","newText":"수정된 안내"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ReplyTargetID: "buzz:channel-1", RequesterPlatformUserID: "requester-pubkey"},
+	})
+
+	if errorValue != nil {
+		testContext.Fatal(errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed {
+		testContext.Fatalf("expected the refusal to reach the model, got %q", response.Content)
+	}
+	if !strings.Contains(response.Content, "channel admin role") {
+		testContext.Fatalf("expected chatd's own matrix in the failure, got %q", response.Content)
+	}
+}
