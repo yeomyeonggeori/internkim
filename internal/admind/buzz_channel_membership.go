@@ -172,22 +172,66 @@ func (service *Service) pickBuzzRoomActor(
 	agentPubkey string,
 	bootstrapSecret string,
 ) string {
-	isElevated := func(role string) bool { return role == "owner" || role == "admin" }
 	adminPubkeys := make([]string, 0, len(adminSecretsByPubkey))
 	for pubkey := range adminSecretsByPubkey {
 		adminPubkeys = append(adminPubkeys, pubkey)
 	}
 	sort.Strings(adminPubkeys)
 	for _, pubkey := range adminPubkeys {
-		if isElevated(heldRoles[pubkey]) {
+		if isElevatedBuzzRole(heldRoles[pubkey]) {
 			return adminSecretsByPubkey[pubkey]
 		}
 	}
-	if isElevated(heldRoles[agentPubkey]) {
+	if isElevatedBuzzRole(heldRoles[agentPubkey]) {
 		return agentSecret
 	}
 	log.Printf("buzz membership: no admin or agent administers this room yet, signing as bootstrap")
 	return bootstrapSecret
+}
+
+func isElevatedBuzzRole(role string) bool {
+	return role == "owner" || role == "admin"
+}
+
+func holdsAnotherAdministrator(heldRoles map[string]string, excludedPubkey string) bool {
+	for pubkey, role := range heldRoles {
+		if pubkey != excludedPubkey && isElevatedBuzzRole(role) {
+			return true
+		}
+	}
+	return false
+}
+
+// The company account leaves a room the moment somebody else administers it.
+// Until then it stays, because it is the only key that can still seat people
+// there; the staff and circle syncs put an administrator in first, so the stay
+// is one tick, not a policy.
+func (service *Service) retireBootstrapFromRoom(ctx context.Context, relay *sql.DB, channelID string, seed string) {
+	bootstrapPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
+	if errorValue != nil {
+		return
+	}
+	heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
+	if errorValue != nil {
+		log.Printf("buzz membership: reading who is in %s failed: %v", channelID, errorValue)
+		return
+	}
+	if _, isHeld := heldRoles[bootstrapPubkey]; !isHeld {
+		return
+	}
+	if !holdsAnotherAdministrator(heldRoles, bootstrapPubkey) {
+		log.Printf("buzz membership: the company account stays in %s, nobody else administers it yet", channelID)
+		return
+	}
+	if _, errorValue := removeBuzzChannelMembers(ctx, relay, channelID, []string{bootstrapPubkey}); errorValue != nil {
+		log.Printf("buzz membership: the company account could not leave %s: %v", channelID, errorValue)
+		return
+	}
+	if errorValue := service.tellClientsWhoIsInTheRoom(ctx, relay, channelID); errorValue != nil {
+		log.Printf("buzz membership: %s changed and no client was told: %v", channelID, errorValue)
+		return
+	}
+	log.Printf("buzz membership: the company account left %s", channelID)
 }
 
 func (service *Service) buzzRolesByPubkey(ctx context.Context, emails []string) map[string]string {
@@ -266,6 +310,11 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		return
 	}
 	staff := service.staffBuzzMembers(ctx)
+	// The agent administers every room the company runs, which is what a room
+	// with no admin in it still needs once the company account has left.
+	if agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject)); errorValue == nil {
+		staff = append(staff, buzzStaffMember{Pubkey: agentPubkey, Role: buzzChannelOwnerRole})
+	}
 	log.Printf("buzz staff membership: %d stream channels, %d staff pubkeys", len(channelIDs), len(staff))
 	if len(channelIDs) == 0 || len(staff) == 0 {
 		return
@@ -336,6 +385,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 			}
 			time.Sleep(60 * time.Millisecond)
 		}
+		service.retireBootstrapFromRoom(ctx, relay, channelID, seed)
 	}
 	log.Printf("buzz staff membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
 }
