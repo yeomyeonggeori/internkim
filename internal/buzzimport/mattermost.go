@@ -20,6 +20,7 @@ type MattermostChannel struct {
 	DisplayName string
 	Purpose     string
 	Type        string
+	CreatorID   string
 }
 
 const (
