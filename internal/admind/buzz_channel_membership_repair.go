@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/lib/pq"
@@ -172,19 +173,32 @@ func circleIDOfRoom(roomName string) string {
 }
 
 func buzzChannelMemberPubkeys(ctx context.Context, relay *sql.DB, buzzChannelID string) ([]string, error) {
+	roles, errorValue := buzzChannelMemberRoles(ctx, relay, buzzChannelID)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	held := make([]string, 0, len(roles))
+	for pubkey := range roles {
+		held = append(held, pubkey)
+	}
+	sort.Strings(held)
+	return held, nil
+}
+
+func buzzChannelMemberRoles(ctx context.Context, relay *sql.DB, buzzChannelID string) (map[string]string, error) {
 	rows, errorValue := relay.QueryContext(ctx,
-		"SELECT encode(pubkey, 'hex') FROM channel_members WHERE channel_id = $1 AND removed_at IS NULL", buzzChannelID)
+		"SELECT encode(pubkey, 'hex'), role::text FROM channel_members WHERE channel_id = $1 AND removed_at IS NULL", buzzChannelID)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer rows.Close()
-	held := []string{}
+	held := map[string]string{}
 	for rows.Next() {
-		var pubkey string
-		if errorValue := rows.Scan(&pubkey); errorValue != nil {
+		var pubkey, role string
+		if errorValue := rows.Scan(&pubkey, &role); errorValue != nil {
 			return nil, errorValue
 		}
-		held = append(held, pubkey)
+		held[pubkey] = role
 	}
 	return held, rows.Err()
 }
