@@ -13,13 +13,11 @@ could touch at a shell.
 
 | Tool | What it does |
 |---|---|
-| `file_read` | reads a text file or line range |
+| `read` | reads a workspace file or a conversation attachment: text as text, documents as converted Markdown, images as an image the model sees |
 | `file_write` | creates or overwrites one text file |
 | `file_edit` | applies exact text replacements as one atomic edit |
-| `file_preview` | previews an attached or workspace file from the conversation |
 | `file_delete` | removes one file, after your approval |
 | `file_deliver` | attaches finished workspace files to the reply |
-| `image_read` | reads an image for the model to look at |
 | `terminal_run` | runs one command in the workspace |
 
 Registered in `.dependency/blueclaw/internal/agentruntime/file_tools.go` and
