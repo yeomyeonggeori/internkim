@@ -41,17 +41,20 @@ func (service *Service) ensureBridgeRelayChannel(ctx context.Context, buzzChanne
 	if errorValue != nil {
 		return errorValue
 	}
-	bootstrapSecret := buzzidentity.Secret(service.buzzKeySeed(), buzzidentity.BootstrapSubject)
-	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), bootstrapSecret)
+	// The agent opens the mirrored room and so stands in it as its owner,
+	// which is what lets it seat the members below; the key that owns the
+	// relay stays out of the room entirely.
+	agentSecret := buzzidentity.Secret(service.buzzKeySeed(), buzzidentity.AgentSubject)
+	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), agentSecret)
 	if errorValue != nil {
 		return errorValue
 	}
 	defer publisher.Close()
-	errorValue = publisher.CreateChannel(ctx, bootstrapSecret, buzzChannelID, shape.Name, shape.Purpose, shape.ChannelType, shape.Visibility)
+	errorValue = publisher.CreateChannel(ctx, agentSecret, buzzChannelID, shape.Name, shape.Purpose, shape.ChannelType, shape.Visibility)
 	if errorValue != nil && !strings.Contains(errorValue.Error(), "already exists") {
 		return errorValue
 	}
-	return service.addBridgeChannelMembers(ctx, publisher, bootstrapSecret, buzzChannelID, externalChannelID)
+	return service.addBridgeChannelMembers(ctx, publisher, agentSecret, buzzChannelID, externalChannelID)
 }
 
 // A private channel admits only its members, so the people in the Mattermost
@@ -59,7 +62,7 @@ func (service *Service) ensureBridgeRelayChannel(ctx context.Context, buzzChanne
 func (service *Service) addBridgeChannelMembers(
 	ctx context.Context,
 	publisher *relaypublish.Publisher,
-	bootstrapSecret string,
+	actorSecret string,
 	buzzChannelID string,
 	externalChannelID string,
 ) error {
@@ -81,7 +84,7 @@ func (service *Service) addBridgeChannelMembers(
 		if errorValue != nil {
 			continue
 		}
-		if errorValue := publisher.AddMember(ctx, bootstrapSecret, buzzChannelID, pubkey, buzzChannelRoleFor(adminEmails, email)); errorValue != nil {
+		if errorValue := publisher.AddMember(ctx, actorSecret, buzzChannelID, pubkey, buzzChannelRoleFor(adminEmails, email)); errorValue != nil {
 			log.Printf("bridge channel %s: add member %s failed: %v", buzzChannelID, pubkey, errorValue)
 		}
 		time.Sleep(60 * time.Millisecond)
