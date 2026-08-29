@@ -221,7 +221,8 @@ func (service *Service) reconcileOneCircleRoom(
 		log.Printf("circle room %s: removed %d the circle does not hold", circle.DisplayName, len(outcome.Removed))
 	}
 	if len(outcome.Added) > 0 {
-		if errorValue := service.addToCircleRoom(ctx, seed, channelID, outcome.Added); errorValue != nil {
+		roles := service.buzzRolesByPubkey(ctx, emailsCarrying(circlesByEmail, circle.CircleID))
+		if errorValue := service.addToCircleRoom(ctx, seed, channelID, outcome.Added, roles); errorValue != nil {
 			return nil, errorValue
 		}
 	}
@@ -247,7 +248,7 @@ func (service *Service) tellClientsWhoIsInTheRoom(ctx context.Context, relay *sq
 	return nil
 }
 
-func (service *Service) addToCircleRoom(ctx context.Context, seed string, channelID string, pubkeys []string) error {
+func (service *Service) addToCircleRoom(ctx context.Context, seed string, channelID string, pubkeys []string, roles map[string]string) error {
 	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
 	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, bootstrapSecret)
 	if errorValue != nil {
@@ -255,7 +256,7 @@ func (service *Service) addToCircleRoom(ctx context.Context, seed string, channe
 	}
 	defer publisher.Close()
 	for _, pubkey := range pubkeys {
-		if errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey); errorValue != nil {
+		if errorValue := publisher.AddMember(ctx, bootstrapSecret, channelID, pubkey, roles[pubkey]); errorValue != nil {
 			return errorValue
 		}
 	}
