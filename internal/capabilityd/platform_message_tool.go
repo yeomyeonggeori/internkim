@@ -87,6 +87,7 @@ type platformMessageSearchCandidateResult struct {
 	AuthoredBy      string `json:"authoredBy"`
 	CreatedAt       int64  `json:"createdAt"`
 	Preview         string `json:"preview"`
+	Editable        bool   `json:"editable,omitempty"`
 	Deletable       bool   `json:"deletable"`
 	ProtectedReason string `json:"protectedReason,omitempty"`
 }
