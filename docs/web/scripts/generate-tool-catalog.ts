@@ -19,6 +19,7 @@ type CanonicalTool = {
   requiresUserPresence: boolean;
   privacyClass: string;
   version: string;
+  modelVisibility?: string;
 };
 
 type CanonicalCatalog = {
@@ -35,7 +36,9 @@ const canonicalCatalog: CanonicalCatalog = JSON.parse(await readFile(canonicalCa
 
 const catalog = {
   protocolVersion: canonicalCatalog.protocolVersion,
-  tools: canonicalCatalog.tools.map((tool) => ({
+  tools: canonicalCatalog.tools
+    .filter((tool) => (tool.modelVisibility ?? 'visible') === 'visible')
+    .map((tool) => ({
     name: tool.name,
     namespace: tool.namespace,
     summary: firstSentence(tool.description),
