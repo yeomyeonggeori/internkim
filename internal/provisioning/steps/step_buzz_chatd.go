@@ -10,7 +10,7 @@ import (
 
 var StepBuzzChatd = Step{
 	Name: "buzz-chatd",
-	Deps: []string{"buzz-relay", "buzz-public-host"},
+	Deps: []string{"buzz-seed", "buzz-relay", "buzz-public-host"},
 	Title: func(context *Context) string {
 		return context.T("Buzz chatd 브리지 설치 중...", "Installing Buzz chatd bridge...")
 	},
@@ -56,7 +56,7 @@ var StepBuzzChatd = Step{
 
 func chatdEnvironmentCommand(agentSecret string) string {
 	return `mkdir -p /root/.internkim/secrets
-printf 'CHATD_BUZZ_PRIVATE_KEY=%s\n' '` + agentSecret + `' > ` + blueclaw.ChatdEnvironmentFilePath + `
+printf 'CHATD_BUZZ_PRIVATE_KEY=%s\nCHATD_BUZZ_KEY_SEED_PATH=%s\n' '` + agentSecret + `' '` + buzzKeySeedDevicePath + `' > ` + blueclaw.ChatdEnvironmentFilePath + `
 chmod 600 ` + blueclaw.ChatdEnvironmentFilePath
 }
 
