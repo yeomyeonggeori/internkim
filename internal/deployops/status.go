@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -324,12 +325,38 @@ func formatStatus(status TargetStatus) string {
 var cloudflareAccessTokenMutex sync.Mutex
 var cloudflareAccessTokenByHost = map[string]string{}
 
+const cloudflareAccessServiceTokenPath = ".local/secrets/cloudflare-access-service-token.json"
+
+// A deploy that runs unattended cannot answer a browser login. The service
+// token, provisioned by tools/provision-cloudflare-ssh-service-token into one
+// 0600 file, authenticates without one and lasts a year; the day-lived
+// cloudflared login token serves only an operator who holds no service token.
 func attachCloudflareAccessCookie(request *http.Request) {
+	if clientID, clientSecret := cloudflareAccessServiceToken(cloudflareAccessServiceTokenPath); clientID != "" && clientSecret != "" {
+		request.Header.Set("CF-Access-Client-Id", clientID)
+		request.Header.Set("CF-Access-Client-Secret", clientSecret)
+		return
+	}
 	token := cloudflareAccessToken(request.URL.String())
 	if token == "" {
 		return
 	}
 	request.AddCookie(&http.Cookie{Name: "CF_Authorization", Value: token})
+}
+
+func cloudflareAccessServiceToken(path string) (string, string) {
+	document, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return "", ""
+	}
+	var held struct {
+		ClientID     string `json:"clientID"`
+		ClientSecret string `json:"clientSecret"`
+	}
+	if json.Unmarshal(document, &held) != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(held.ClientID), strings.TrimSpace(held.ClientSecret)
 }
 
 func cloudflareAccessToken(applicationURL string) string {
