@@ -34,3 +34,15 @@ func TestAnAdminWhoIsOnlyAMemberDoesNotSign(t *testing.T) {
 		t.Fatalf("actor = %q, want the bootstrap key while nobody else administers the room", secret)
 	}
 }
+
+func TestTheCompanyAccountLeavesOnlyARoomSomebodyElseAdministers(t *testing.T) {
+	withAdmin := map[string]string{"bootstrap-pubkey": "owner", "admin-pubkey": "owner"}
+	if !holdsAnotherAdministrator(withAdmin, "bootstrap-pubkey") {
+		t.Fatal("a room with an admin owner is administered without the company account")
+	}
+
+	alone := map[string]string{"bootstrap-pubkey": "owner", "someone-pubkey": "member"}
+	if holdsAnotherAdministrator(alone, "bootstrap-pubkey") {
+		t.Fatal("a room the company account alone administers must keep it")
+	}
+}
