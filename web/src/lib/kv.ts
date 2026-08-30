@@ -76,6 +76,7 @@ function normalizeUserRecord(value: unknown): FleetUserRecord | null {
 	const hireDate = normalizeISODate(record.hireDate);
 	const note = normalizeNote(record.note);
 	return {
+		...(record.memberID ? { memberID: record.memberID } : {}),
 		handle: handle || normalizeHandleFromEmail(email),
 		...(name ? { name } : {}),
 		email,
