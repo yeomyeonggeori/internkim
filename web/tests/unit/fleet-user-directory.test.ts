@@ -59,6 +59,7 @@ describe('the fleet user list is the company directory', () => {
 
 		expect(records).toHaveLength(1);
 		expect(records[0]).toMatchObject({
+			memberID: 'member-1',
 			email: 'member@example.com',
 			name: '이샘플',
 			note: 'HR compensation follow-up',
@@ -66,6 +67,16 @@ describe('the fleet user list is the company directory', () => {
 			handle: 'member',
 			mattermostUserID: 'user-1'
 		});
+	});
+
+	test('every person carries the member id the device resolves them by', async () => {
+		const { directory } = directoryHolding([
+			{ id: 'member-3', email: 'named@example.com', name: '박예시', note: null, is_admin: false, status: 'active', messenger: null }
+		]);
+
+		const records = await fleetUserRecords(directory);
+
+		expect(records[0].memberID).toBe('member-3');
 	});
 
 	test('a person with no messenger account is still named', async () => {
