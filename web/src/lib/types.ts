@@ -30,6 +30,7 @@ export interface Fleet {
 export type UserRole = 'admin' | 'operationsAdmin' | 'member';
 
 export interface FleetUserRecord {
+	memberID?: string;
 	handle: string;
 	name?: string;
 	email: string;

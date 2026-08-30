@@ -103,6 +103,7 @@ function recordOf(member: MemberRow, circles: string[]): FleetUserRecord {
 	const messenger = member.messenger ?? {};
 	const name = member.name?.trim() ?? '';
 	return {
+		memberID: member.id,
 		handle: messenger.mattermostUsername || handleFromEmail(email),
 		...(name ? { name } : {}),
 		email,
