@@ -43,11 +43,19 @@ async function heldSubscription(): Promise<PushSubscription | null> {
 	return registration.pushManager.getSubscription();
 }
 
+export function answersTo(subscription: PushSubscription, serverKey: string): boolean {
+	const held = subscription.options?.applicationServerKey;
+	if (!held) return true;
+	return encodeBase64URL(held) === serverKey;
+}
+
 export async function reachability(): Promise<Reachability> {
 	if (!isSupported()) return 'unsupported';
-	if (!(await applicationServerKey())) return 'unconfigured';
+	const serverKey = await applicationServerKey();
+	if (!serverKey) return 'unconfigured';
 	if (Notification.permission === 'denied') return 'blocked';
-	return (await heldSubscription()) ? 'on' : 'off';
+	const held = await heldSubscription();
+	return held && answersTo(held, serverKey) ? 'on' : 'off';
 }
 
 export async function startBeingReached(): Promise<Reachability> {
@@ -57,8 +65,10 @@ export async function startBeingReached(): Promise<Reachability> {
 	if ((await Notification.requestPermission()) !== 'granted') return 'blocked';
 
 	const registration = await navigator.serviceWorker.ready;
+	const held = await registration.pushManager.getSubscription();
+	if (held && !answersTo(held, serverKey)) await held.unsubscribe();
 	const subscription =
-		(await registration.pushManager.getSubscription()) ??
+		(held && answersTo(held, serverKey) ? held : null) ??
 		(await registration.pushManager.subscribe({
 			userVisibleOnly: true,
 			applicationServerKey: decodeBase64URL(serverKey)
