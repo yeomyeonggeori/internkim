@@ -81,14 +81,8 @@ func normalizeTarget(target Target) Target {
 	target.NodeID = strings.TrimSpace(target.NodeID)
 	target.StatePath = strings.TrimSpace(target.StatePath)
 	target.SecretSource = strings.TrimSpace(target.SecretSource)
-	target.SSHHost = strings.TrimSpace(target.SSHHost)
-	target.SSHUser = strings.TrimSpace(target.SSHUser)
-	target.SSHProxyCommand = strings.TrimSpace(target.SSHProxyCommand)
-	target.Workdir = strings.TrimSpace(target.Workdir)
-	target.ImageTag = strings.TrimSpace(target.ImageTag)
-	target.ComposeFile = strings.TrimSpace(target.ComposeFile)
 	if target.Name == "" {
-		target.Name = firstNonEmptyTargetName(hostName(target.AdminURL), target.SSHHost)
+		target.Name = strings.TrimSpace(hostName(target.AdminURL))
 	}
 	target.ID = sanitizeID(target.ID)
 	if target.ID == "" {
@@ -98,15 +92,6 @@ func normalizeTarget(target Target) Target {
 		target.ID = hashID(target.AdminURL)
 	}
 	return target
-}
-
-func firstNonEmptyTargetName(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
 
 func discoverDefaultRegistry(internKimHomePath string) TargetRegistry {
