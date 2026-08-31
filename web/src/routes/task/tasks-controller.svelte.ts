@@ -32,6 +32,7 @@ type TasksControllerInput = {
 	text: TaskPageText;
 	loadTask: LoadTask;
 	setPageErrorMessage: (message: string) => void;
+	announceMove?: (message: string) => void;
 };
 
 export function createTasksController() {
@@ -95,7 +96,8 @@ class TasksController {
 			setSummary: (summary) => {
 				this.summary = summary;
 			},
-			setPageErrorMessage: this.setPageErrorMessage
+			setPageErrorMessage: this.setPageErrorMessage,
+			announceMove: input.announceMove
 		});
 		this.editor.sync({
 			summary: this.summary,
