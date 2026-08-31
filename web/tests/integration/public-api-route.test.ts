@@ -263,7 +263,7 @@ describe('the documented endpoints', () => {
 			}
 		}
 		expect(wrong).toEqual([]);
-	});
+	}, networkHookTimeout);
 
 	test('cover every path these routes answer', () => {
 		const documented = new Set(

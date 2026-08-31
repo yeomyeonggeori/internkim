@@ -18,7 +18,7 @@ declare module 'bun:test' {
 
 	export function beforeEach(callback: () => void | Promise<void>): void;
 	export function describe(name: string, callback: TestCallback): void;
-	export function test(name: string, callback: TestCallback): void;
+	export function test(name: string, callback: TestCallback, timeout?: number): void;
 
 	export function mock<Arguments extends unknown[], ReturnValue>(
 		implementation: (...parameters: Arguments) => ReturnValue
