@@ -37,7 +37,7 @@ func peopleForTool(members []taskMemberForTool, responseLanguage string) []perso
 			Name:               personname.Render(member.Name, responseLanguage),
 			Email:              member.Email,
 			MattermostUsername: member.MattermostUsername,
-			Mention:            taskAddMention(member),
+			Mention:            notifyMention(member.Name),
 		})
 	}
 	return people
