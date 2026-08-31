@@ -10,7 +10,7 @@ type personPresentationForTool struct {
 	DisplayName        string `json:"displayName,omitempty"`
 	Email              string `json:"email,omitempty"`
 	MattermostUsername string `json:"mattermostUsername,omitempty"`
-	MattermostMention  string `json:"mention,omitempty"`
+	NotifyMention  string `json:"mention,omitempty"`
 }
 
 func enrichTaskResultDocument(result json.RawMessage, members []taskMemberForTool) json.RawMessage {
@@ -85,7 +85,7 @@ func personPresentationFromTaskMember(member taskMemberForTool) personPresentati
 		DisplayName:        strings.TrimSpace(member.Name),
 		Email:              strings.ToLower(strings.TrimSpace(member.Email)),
 		MattermostUsername: strings.TrimSpace(member.MattermostUsername),
-		MattermostMention:  mattermostMentionForUsername(member.MattermostUsername),
+		NotifyMention:  notifyMention(member.Name),
 	}
 }
 
@@ -112,4 +112,12 @@ func uniqueTrimmedStringValues(values []string) []string {
 		result = append(result, trimmedValue)
 	}
 	return result
+}
+
+func notifyMention(displayName string) string {
+	trimmedName := strings.TrimSpace(displayName)
+	if trimmedName == "" {
+		return ""
+	}
+	return "@" + trimmedName
 }

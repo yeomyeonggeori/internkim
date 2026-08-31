@@ -568,7 +568,7 @@ func TestTaskAddAddsParticipantPresentations(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if result.TaskID != "task-1" || len(result.ParticipantPresentations) != 1 || result.ParticipantPresentations[0].MattermostMention != "@rain" {
+	if result.TaskID != "task-1" || len(result.ParticipantPresentations) != 1 || result.ParticipantPresentations[0].NotifyMention != "@김테스트" {
 		t.Fatalf("participant presentations = %+v", result.ParticipantPresentations)
 	}
 	if response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 1 || response.Effects[0].ID != "task-1" || response.Effects[0].Effect != "created" {
@@ -1688,7 +1688,7 @@ func TestPersonListReturnsTheRosterHintsResolveAgainst(t *testing.T) {
 	if response.IsError {
 		t.Fatalf("response = %+v", response)
 	}
-	for _, expected := range []string{`"count":1`, `"personID":"person-sample"`, `"name":"이샘플"`, `"mention":"@sampleuser"`} {
+	for _, expected := range []string{`"count":1`, `"personID":"person-sample"`, `"name":"이샘플"`, `"mention":"@이샘플"`} {
 		if !strings.Contains(string(response.Result), expected) {
 			t.Fatalf("result missing %s: %s", expected, string(response.Result))
 		}

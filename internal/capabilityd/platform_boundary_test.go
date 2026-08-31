@@ -802,7 +802,7 @@ func TestMattermostContextAnnotatesReadableMentions(t *testing.T) {
 	if len(contextValue.Messages) != 1 {
 		t.Fatalf("expected one history message, got %+v", contextValue.Messages)
 	}
-	if contextValue.Messages[0].Text != "@leesample(이샘플) 시간 확인해주세요." {
+	if contextValue.Messages[0].Text != "이샘플 (@leesample) 시간 확인해주세요." {
 		t.Fatalf("expected readable mention annotation, got %q", contextValue.Messages[0].Text)
 	}
 }
