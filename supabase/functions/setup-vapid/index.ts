@@ -20,7 +20,6 @@ Deno.serve(async (request) => {
 
 	const body = await request.json().catch(() => ({}));
 	const subject = typeof body.subject === 'string' ? body.subject : '';
-	const rotate = body.rotate === true;
 	if (!subject.startsWith('mailto:') && !subject.startsWith('https://')) {
 		return json({ error: 'pass subject as a mailto: address or an https:// url' }, 400);
 	}
@@ -38,7 +37,7 @@ Deno.serve(async (request) => {
 		new_public_key: encodeBase64URL(publicPoint),
 		new_private_key: privateJWK.d,
 		new_subject: subject,
-		replace_existing: rotate
+		replace_existing: false
 	});
 	if (kept.error) return json({ error: kept.error.message }, 500);
 

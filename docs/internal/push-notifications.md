@@ -33,34 +33,52 @@ chose, and a conversation nobody has spoken in has no rows to read.
 
 ## Keys the deployment needs
 
-Web push is signed, so the Pages project carries a VAPID pair. Changing it
-invalidates every subscription that exists — everyone has to turn notifications
-on again — so it is set once.
+Web push is signed, so the plane carries a VAPID pair. Changing it invalidates
+every subscription that exists, and everyone has to turn notifications on
+again, so it is set once.
+
+An administrator sets it by posting to `setup-vapid`, which generates the pair
+and writes `vapid_public_key`, `vapid_private_key` and `vapid_subject` into the
+vault:
 
 ```
-VAPID_PUBLIC_KEY
-VAPID_PRIVATE_KEY
-VAPID_SUBJECT
+curl -X POST https://<project>.supabase.co/functions/v1/setup-vapid \
+  -H "Authorization: Bearer <the administrator's access token>" \
+  -H 'Content-Type: application/json' \
+  -d '{"subject":"mailto:ops@example.com"}'
 ```
 
-Generate a pair with `bun run web/scripts/make-vapid-keys.ts`. Without them the
-settings screen says so and every send answers `503`.
+A pair already in the vault is kept, and the answer is `{"stored":false}`; pass
+`"rotate": true` to replace it. Every send reads the three secrets from the
+vault and answers `503` while any of them is missing.
 
 ## The day digest needs a schedule
 
 Everything else is sent by the request that caused it. The day digest has no
 such request: it fires at an hour each member chose. `pg_cron` looks every
-minute and `pg_net` calls the endpoint, reading both of these from the vault:
+minute and `pg_net` posts to `announce-day`, reading the address and the key it
+carries from the vault.
 
-```sql
-select vault.create_secret('https://<the app>', 'day_digest_app_url');
-select vault.create_secret('<an agent api key>', 'day_digest_agent_key');
+An administrator sets both by posting to `setup-digest-key`:
+
+```
+curl -X POST https://<project>.supabase.co/functions/v1/setup-digest-key \
+  -H "Authorization: Bearer <the administrator's access token>"
 ```
 
-The agent key is one from the `agent` table, whose `api_key_hash` is the
-SHA-256 of the key itself. With either secret missing the function returns and
-nothing is sent, and no error is raised: a self-hosted install that has not
-been set up yet should not fail once a minute.
+The call issues the agent key, keeps it in `day_digest_agent_key`, and records
+its SHA-256 as a `day digest` row in the `agent` table. One key serves the
+project, so a call made while a valid one stands answers `{"stored":false}` and
+leaves it alone. The address goes to `project_url`, taken from the function's
+own `SUPABASE_URL` and never from anything the caller sends.
+
+An earlier version read the address from `day_digest_app_url`. Nothing reads
+that secret now, and a deployment carrying one can drop it once the schedule is
+seen to run.
+
+With either secret missing the function returns and nothing is sent, and no
+error is raised: a self-hosted install that has not been set up yet should not
+fail once a minute.
 
 Check that it is running:
 

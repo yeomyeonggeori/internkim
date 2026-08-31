@@ -5,13 +5,16 @@ import {
 	isUsableSubscriptionKey as webIsUsable
 } from '../../../src/lib/server/web-push-encrypt';
 import { signVapidToken as webSignVapidToken } from '../../../src/lib/server/web-push-vapid';
-import { outcomeOfStatus as webOutcomeOfStatus } from '../../../src/lib/server/web-push';
+import { outcomeOfStatus as webOutcomeOfStatus, sendWebPush as webSendWebPush } from '../../../src/lib/server/web-push';
 import {
 	encryptForSubscription as sharedEncrypt,
 	isUsableSubscriptionKey as sharedIsUsable
 } from '../../../../supabase/functions/_shared/web-push-encrypt.ts';
 import { signVapidToken as sharedSignVapidToken } from '../../../../supabase/functions/_shared/web-push-vapid.ts';
-import { outcomeOfStatus as sharedOutcomeOfStatus } from '../../../../supabase/functions/_shared/web-push.ts';
+import {
+	outcomeOfStatus as sharedOutcomeOfStatus,
+	sendWebPush as sharedSendWebPush
+} from '../../../../supabase/functions/_shared/web-push.ts';
 
 const endpoint = 'https://push.example.com/send/a-subscription';
 const now = 1_756_000_000;
@@ -136,4 +139,93 @@ describe('the shared web-push copy stays interchangeable with the web one', () =
 			expect(sharedOutcomeOfStatus(status)).toBe(webOutcomeOfStatus(status));
 		}
 	});
+});
+
+describe('a single unreachable device never fails the whole notification', () => {
+	const copies: { name: string; send: typeof webSendWebPush }[] = [
+		{ name: 'web', send: webSendWebPush },
+		{ name: 'shared', send: sharedSendWebPush }
+	];
+	const notification = { title: '알림', body: '전송 실패 경로' };
+
+	async function withFetch<T>(answer: () => Promise<Response>, body: () => Promise<T>): Promise<T> {
+		const original = globalThis.fetch;
+		globalThis.fetch = Object.assign(() => answer(), { preconnect: original.preconnect }) as typeof fetch;
+		try {
+			return await body();
+		} finally {
+			globalThis.fetch = original;
+		}
+	}
+
+	function undialled(): Promise<Response> {
+		return Promise.reject(new Error('the address should never have been dialled'));
+	}
+
+	for (const { name, send } of copies) {
+		test(`${name} calls an address no URL parser accepts gone`, async () => {
+			const subscription = await aSubscription();
+			const { keys: vapid } = await aVapidPair();
+			const reached = await withFetch(undialled, () =>
+				send({ address: 'push.example.com/no-scheme', keys: subscription.keys }, notification, vapid, now)
+			);
+			expect(reached).toBe('gone');
+		});
+
+		test(`${name} calls keys that are not base64 gone`, async () => {
+			const { keys: vapid } = await aVapidPair();
+			const reached = await withFetch(undialled, () =>
+				send({ address: endpoint, keys: { p256dh: '!!! not base64 !!!', auth: '!!!' } }, notification, vapid, now)
+			);
+			expect(reached).toBe('gone');
+		});
+
+		test(`${name} calls a subscription whose point is off the curve gone`, async () => {
+			const subscription = await aSubscription();
+			const offCurve = new Uint8Array(subscription.publicRaw);
+			offCurve[64] ^= 0xff;
+			const { keys: vapid } = await aVapidPair();
+			const reached = await withFetch(undialled, () =>
+				send(
+					{ address: endpoint, keys: { p256dh: encodeBase64URL(offCurve.buffer), auth: subscription.keys.auth } },
+					notification,
+					vapid,
+					now
+				)
+			);
+			expect(reached).toBe('gone');
+		});
+
+		test(`${name} calls a transport that never connects refused`, async () => {
+			const subscription = await aSubscription();
+			const { keys: vapid } = await aVapidPair();
+			const reached = await withFetch(
+				() => Promise.reject(new TypeError('dns lookup failed')),
+				() => send({ address: endpoint, keys: subscription.keys }, notification, vapid, now)
+			);
+			expect(reached).toBe('refused');
+		});
+
+		test(`${name} still delivers over a transport that answers`, async () => {
+			const subscription = await aSubscription();
+			const { keys: vapid } = await aVapidPair();
+			const reached = await withFetch(
+				() => Promise.resolve(new Response(null, { status: 201 })),
+				() => send({ address: endpoint, keys: subscription.keys }, notification, vapid, now)
+			);
+			expect(reached).toBe('delivered');
+		});
+
+		test(`${name} refuses to call a deployment key that cannot sign a silent refusal`, async () => {
+			const subscription = await aSubscription();
+			const { keys: vapid } = await aVapidPair();
+			const unsignable = { ...vapid, privateKey: 'not-a-private-scalar' };
+
+			await expect(
+				withFetch(undialled, () =>
+					send({ address: endpoint, keys: subscription.keys }, notification, unsignable, now)
+				)
+			).rejects.toThrow();
+		});
+	}
 });
