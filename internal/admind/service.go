@@ -1199,7 +1199,7 @@ func normalizeAdminUserCircles(circles []string, role string) []string {
 	}
 	for _, circle := range circles {
 		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
-		if normalizedCircle == "" || normalizedCircle == "member" {
+		if normalizedCircle == "" || isTheCircleEveryoneIsIn(normalizedCircle) {
 			continue
 		}
 		normalizedCircles = append(normalizedCircles, normalizedCircle)
