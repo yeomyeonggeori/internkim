@@ -4,6 +4,7 @@ import { redirect, type Handle } from '@sveltejs/kit';
 import { homePath } from '$lib/home-path';
 import { sendsHomeToTheApp } from '$lib/server/home-redirect';
 import { movesToTheOneAddress, theOneAddressOf } from '$lib/server/company-host-redirect';
+import { apiReferenceHomeFor } from '$lib/server/api-reference-redirect';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (event.request.method === 'OPTIONS') {
@@ -22,6 +23,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		vapidPublicKey: env.VAPID_PUBLIC_KEY ?? '',
 		gatewayURL: env.GATEWAY_URL ?? ''
 	};
+
+	const referenceHome = apiReferenceHomeFor(event.url.pathname);
+	if (referenceHome) redirect(308, referenceHome);
 
 	const zone = env.CLOUDFLARE_DOMAIN ?? '';
 	if (!building && movesToTheOneAddress({ hostname: event.url.hostname, zone, pathname: event.url.pathname })) {
