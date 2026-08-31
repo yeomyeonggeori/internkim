@@ -1,22 +1,19 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(5);
+select plan(6);
 
 delete from public.company;
 delete from vault.secrets where name in ('project_url', 'day_digest_agent_key');
 
 insert into auth.users (id, email) values
-  ('71000000-0000-0000-0000-000000000011', 'homeboss@example.test'),
-  ('71000000-0000-0000-0000-000000000012', 'homeplain@example.test');
+  ('71000000-0000-0000-0000-000000000011', 'homeboss@example.test');
 
 insert into public.company (id, name, slug, country, locale, timezone, work_locations) values
   ('71000000-0000-0000-0000-0000000000c1', 'Ours', 'ours', 'KR', 'ko', 'Asia/Seoul', null);
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
   ('71000000-0000-0000-0000-0000000000a1', '71000000-0000-0000-0000-0000000000c1',
-   'homeboss@example.test', '71000000-0000-0000-0000-000000000011', 'active', true),
-  ('71000000-0000-0000-0000-0000000000a2', '71000000-0000-0000-0000-0000000000c1',
-   'homeplain@example.test', '71000000-0000-0000-0000-000000000012', 'active', false);
+   'homeboss@example.test', '71000000-0000-0000-0000-000000000011', 'active', true);
 
 select has_function(
   'public',
@@ -29,27 +26,26 @@ select lives_ok(
   'with no secrets kept, the digest does nothing rather than failing every minute'
 );
 
-select set_config('request.jwt.claims', '{"sub":"71000000-0000-0000-0000-000000000011"}', true);
-set local role authenticated;
+select ok(
+  not has_function_privilege('authenticated', 'public.digest_target_keep(text)', 'execute')
+    and not has_function_privilege('anon', 'public.digest_target_keep(text)', 'execute'),
+  'no signed-in caller can name the address the day digest carries its key to'
+);
+
+set local role service_role;
 
 select lives_ok(
   $$select public.digest_target_keep('https://ours.supabase.co/')$$,
-  'an admin stores the project url'
+  'the server stores the address it derived from its own environment'
 );
 
 reset role;
 
-select set_config('request.jwt.claims', '{"sub":"71000000-0000-0000-0000-000000000012"}', true);
-set local role authenticated;
-
-select throws_ok(
-  $$select public.digest_target_keep('https://elsewhere.example.com')$$,
-  '42501',
-  'admins only',
-  'a non-admin is refused'
+select is(
+  (select decrypted_secret from vault.decrypted_secrets where name = 'project_url'),
+  'https://ours.supabase.co/',
+  'the vault holds what the server passed'
 );
-
-reset role;
 
 select lives_ok(
   $block$do $$

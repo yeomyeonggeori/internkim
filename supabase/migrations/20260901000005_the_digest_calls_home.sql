@@ -5,16 +5,8 @@ security definer
 set search_path = public, vault
 as $$
 declare
-  caller_company uuid;
   secret_id uuid;
 begin
-  select company_id into caller_company
-  from public.member
-  where user_id = auth.uid() and is_admin;
-  if caller_company is null then
-    raise insufficient_privilege using message = 'admins only';
-  end if;
-
   select id into secret_id from vault.secrets where name = 'project_url';
   if secret_id is null then
     perform vault.create_secret(new_project_url, 'project_url');
@@ -24,8 +16,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.digest_target_keep(text) from public, anon;
-grant execute on function public.digest_target_keep(text) to authenticated;
+revoke execute on function public.digest_target_keep(text) from public, anon, authenticated;
 
 create or replace function public.announce_the_day()
 returns void
@@ -54,5 +45,3 @@ begin
   );
 end;
 $$;
-
-delete from vault.secrets where name = 'day_digest_app_url';
