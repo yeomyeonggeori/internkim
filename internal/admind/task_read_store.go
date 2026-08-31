@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"strings"
-	"time"
 )
 
 type taskQueryer interface {
@@ -106,19 +105,14 @@ ORDER BY start_date, owner_name, updated_at DESC`, startDate, endDate, startDate
 	return alignTasksWithMembers(tasks, members), rows.Err()
 }
 
-// A caller names a task by the identifier it was answered with, which is the
-// company's. The device still files its own copy under an identifier of its
-// own, so the company's is turned back into it before the row is looked up.
-// A task born on the company board has no device row to look up, so a miss in
-// the device store is answered from the board the reads already come from.
+// The company board answers first: a local row answering for a company task
+// carries the device's own identifier, and a save keyed by that identifier
+// creates a second company task instead of updating the one it meant. The
+// device store answers only devices that have no company.
 func (service *Service) readTaskAnswering(ctx context.Context, taskID string, members []taskMember) (Task, bool, error) {
-	task, found, errorValue := service.readTaskByID(ctx, taskID)
-	if found || errorValue != nil {
-		return task, found, errorValue
-	}
 	boardTasks, answered, boardError := service.companyBoardTasks(ctx, members)
 	if !answered {
-		return Task{}, false, nil
+		return service.readTaskByID(ctx, taskID)
 	}
 	if boardError != nil {
 		return Task{}, false, boardError
@@ -198,40 +192,6 @@ WHERE id = ?`, taskID)
 	return task, true, rows.Err()
 }
 
-func (service *Service) readTasksWithMattermostPosts(ctx context.Context) ([]Task, error) {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-	SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
-	FROM flow_tasks
-	WHERE mattermost_post_id != '' OR id IN (SELECT task_id FROM flow_channel_outbox)
-	ORDER BY updated_at DESC`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
-	tasks := []Task{}
-	for rows.Next() {
-		task, errorValue := scanTask(rows)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		tasks = append(tasks, task)
-	}
-	return tasks, rows.Err()
-}
-
-func (service *Service) existingTaskMattermostPostID(ctx context.Context, taskID string) string {
-	task, found, errorValue := service.readTaskByID(ctx, taskID)
-	if errorValue != nil || !found {
-		return ""
-	}
-	return task.MattermostPostID
-}
-
 func (service *Service) readTaskShareActivity(ctx context.Context, startDate string, endDate string) ([]companyShareWorkRow, error) {
 	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
@@ -261,32 +221,6 @@ ORDER BY updated_at DESC`, startDate, endDate)
 	return activity, rows.Err()
 }
 
-func (service *Service) readExpiredTaskMattermostPostTaskIDs(ctx context.Context, cutoff time.Time) ([]string, error) {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT id
-FROM flow_tasks
-WHERE mattermost_post_id != '' AND mattermost_post_created_at != '' AND mattermost_post_created_at < ?`,
-		cutoff.Format(time.RFC3339))
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
-	taskIDs := []string{}
-	for rows.Next() {
-		var taskID string
-		if errorValue := rows.Scan(&taskID); errorValue != nil {
-			return nil, errorValue
-		}
-		taskIDs = append(taskIDs, strings.TrimSpace(taskID))
-	}
-	return taskIDs, rows.Err()
-}
-
 func readAllTasksInTransaction(ctx context.Context, transaction *sql.Tx) ([]Task, error) {
 	rows, errorValue := transaction.QueryContext(ctx, `
 SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
@@ -304,15 +238,4 @@ FROM flow_tasks`)
 		tasks = append(tasks, task)
 	}
 	return tasks, rows.Err()
-}
-
-func (service *Service) countTasks(ctx context.Context) (int, error) {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return 0, errorValue
-	}
-	defer database.Close()
-	count := 0
-	errorValue = database.QueryRowContext(ctx, "SELECT COUNT(1) FROM flow_tasks").Scan(&count)
-	return count, errorValue
 }
