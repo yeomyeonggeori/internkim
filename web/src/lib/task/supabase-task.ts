@@ -256,14 +256,49 @@ export async function deleteSupabaseTask(taskID: string): Promise<void> {
 	if (error) throw new Error(error.message);
 }
 
+type MovableTaskRow = {
+	title: string;
+	note: string | null;
+	location: unknown;
+	business: string | null;
+	type: string | null;
+	size: string | null;
+	is_event: boolean;
+	is_whole_day: boolean;
+	notify_minutes_before: number | null;
+	updated_at: string;
+	task_participant: { member_id: string }[];
+};
+
 export async function moveSupabaseTask(taskID: string, status: string): Promise<void> {
-	const { error } = await supabase()
+	const read = await supabase()
 		.from('task')
-		.update({ status: centralStatusFromWord(status) })
+		.select(
+			'title,note,location,business,type,size,is_event,is_whole_day,notify_minutes_before,updated_at,task_participant(member_id)'
+		)
 		.eq('id', taskID)
-		.select('id')
-		.single<{ id: string }>();
-	if (error) throw new Error(error.message);
+		.single<MovableTaskRow>();
+	if (read.error) throw new Error(read.error.message);
+	const row = read.data;
+	const saved = await supabase().rpc('task_save', {
+		target_task_id: taskID,
+		target_title: row.title,
+		target_status: centralStatusFromWord(status),
+		target_note: row.note,
+		target_location: row.location ?? null,
+		target_business: row.business,
+		target_type: row.type,
+		target_size: row.size,
+		target_starts_at: null,
+		target_ends_at: null,
+		target_write_dates: false,
+		target_is_event: row.is_event,
+		target_is_whole_day: row.is_whole_day,
+		target_notify_minutes_before: row.notify_minutes_before,
+		target_participant_ids: row.task_participant.map((participant) => participant.member_id),
+		target_expected_updated_at: row.updated_at
+	});
+	if (saved.error) throw new Error(saved.error.message);
 	void announceTaskMoved(taskID);
 }
 
