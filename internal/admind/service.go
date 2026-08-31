@@ -422,6 +422,7 @@ func (service *Service) Run(ctx context.Context) error {
 	if errorValue := service.recoverGoogleOAuthTokenResetState(ctx); errorValue != nil {
 		return fmt.Errorf("recover google calendar OAuth token reset state: %w", errorValue)
 	}
+	service.sweepUpdateLeftovers()
 	service.adoptAccountHireDates(ctx)
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)

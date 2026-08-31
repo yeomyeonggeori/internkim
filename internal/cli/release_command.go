@@ -696,7 +696,25 @@ func releaseWranglerCommandPath(repositoryRootPath string) string {
 	if information, errorValue := os.Stat(localCommandPath); errorValue == nil && !information.IsDir() {
 		return localCommandPath
 	}
+	if commandPath, errorValue := exec.LookPath("wrangler"); errorValue == nil {
+		return commandPath
+	}
 	return "wrangler"
+}
+
+func wranglerFailure(action string, objectKey string, commandPath string, output []byte, errorValue error) error {
+	spoken := strings.TrimSpace(string(output))
+	if spoken != "" {
+		return fmt.Errorf("wrangler R2 %s object %s failed: %s", action, objectKey, spoken)
+	}
+	if errors.Is(errorValue, exec.ErrNotFound) {
+		return fmt.Errorf(
+			"wrangler R2 %s object %s failed: %s could not be run (%v). "+
+				"Install the web dependencies so web/node_modules/.bin/wrangler exists, "+
+				"or name one with INTERNKIM_RELEASE_WRANGLER_BIN",
+			action, objectKey, commandPath, errorValue)
+	}
+	return fmt.Errorf("wrangler R2 %s object %s failed: %s said nothing and exited with %v", action, objectKey, commandPath, errorValue)
 }
 
 func (publisher wranglerReleasePublisher) PublicURL(objectKey string) string {
@@ -719,7 +737,7 @@ func (publisher wranglerReleasePublisher) PutObject(objectKey string, document [
 	command.Env = wranglerObjectPutEnvironment(os.Environ(), publisher.accountID)
 	output, errorValue := command.CombinedOutput()
 	if errorValue != nil {
-		return fmt.Errorf("wrangler R2 put object %s failed: %s", objectKey, strings.TrimSpace(string(output)))
+		return wranglerFailure("put", objectKey, publisher.commandPath, output, errorValue)
 	}
 	return nil
 }
@@ -730,7 +748,7 @@ func (publisher wranglerReleasePublisher) DeleteObject(objectKey string) error {
 	command.Env = wranglerObjectPutEnvironment(os.Environ(), publisher.accountID)
 	output, errorValue := command.CombinedOutput()
 	if errorValue != nil {
-		return fmt.Errorf("wrangler R2 delete object %s failed: %s", objectKey, strings.TrimSpace(string(output)))
+		return wranglerFailure("delete", objectKey, publisher.commandPath, output, errorValue)
 	}
 	return nil
 }
