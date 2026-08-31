@@ -69,6 +69,16 @@ func MustGeneratedToolDescriptors(names ...string) []Descriptor {
 	return descriptors
 }
 
+// Every tool the catalog offers. A gate that must cover the whole surface needs
+// the surface itself rather than a list somebody keeps beside it.
+func GeneratedToolDescriptorSet() []Descriptor {
+	descriptors := make([]Descriptor, 0, len(canonicalGeneratedCatalog.tools))
+	for _, descriptor := range canonicalGeneratedCatalog.tools {
+		descriptors = append(descriptors, cloneDescriptor(descriptor))
+	}
+	return descriptors
+}
+
 func generatedToolDescriptor(name string) (Descriptor, bool) {
 	for _, descriptor := range canonicalGeneratedCatalog.tools {
 		if descriptor.Name == name {
