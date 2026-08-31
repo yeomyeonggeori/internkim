@@ -8,7 +8,16 @@ const webPush = 'web-push';
 let cachedServerKey: Promise<string> | undefined;
 
 function applicationServerKey(): Promise<string> {
-	cachedServerKey ??= resolveServerKey();
+	cachedServerKey ??= resolveServerKey().then(
+		(key) => {
+			if (!key) cachedServerKey = undefined;
+			return key;
+		},
+		(failure) => {
+			cachedServerKey = undefined;
+			throw failure;
+		}
+	);
 	return cachedServerKey;
 }
 
