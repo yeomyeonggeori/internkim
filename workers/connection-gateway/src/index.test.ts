@@ -97,12 +97,32 @@ afterEach(() => {
 });
 
 describe('the public fetch handler', () => {
-	test('routes no path to a one-shot call, so the internet cannot make one', async () => {
-		const environment = {} as WorkerEnvironment;
-		for (const path of [`/company/${companyID}/call`, `/company/${companyID}/call/`]) {
-			const response = await worker.fetch(new Request(`https://gateway${path}`, { method: 'POST' }), environment);
-			expect(response.status).toBe(404);
-		}
+	test('refuses a one-shot call that does not hold the gateway token', async () => {
+		const environment = { GATEWAY_ADMIN_TOKEN: 'the-token' } as WorkerEnvironment;
+		const address = `https://gateway/company/${companyID}/call`;
+
+		const bare = await worker.fetch(new Request(address, { method: 'POST' }), environment);
+		expect(bare.status).toBe(401);
+
+		const wrong = await worker.fetch(
+			new Request(address, { method: 'POST', headers: { Authorization: 'Bearer another' } }),
+			environment
+		);
+		expect(wrong.status).toBe(401);
+
+		const unconfigured = await worker.fetch(
+			new Request(address, { method: 'POST', headers: { Authorization: 'Bearer the-token' } }),
+			{} as WorkerEnvironment
+		);
+		expect(unconfigured.status).toBe(401);
+	});
+
+	test('a trailing slash meets the same refusal', async () => {
+		const response = await worker.fetch(
+			new Request(`https://gateway/company/${companyID}/call/`, { method: 'POST' }),
+			{} as WorkerEnvironment
+		);
+		expect(response.status).toBe(401);
 	});
 });
 
