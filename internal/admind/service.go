@@ -575,6 +575,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/task", service.serveTaskPage)
 	multiplexer.HandleFunc("/task/api/", service.handleTask)
 	multiplexer.HandleFunc(recordToolPathPrefix, service.handleRecordTool)
+	multiplexer.HandleFunc(tellDirectMessagePath, service.handleTellDirectMessage)
 	multiplexer.HandleFunc("/task/", service.serveTaskPage)
 	multiplexer.HandleFunc("/flow", service.serveTaskPage)
 	multiplexer.HandleFunc("/flow/api/", service.handleTask)
