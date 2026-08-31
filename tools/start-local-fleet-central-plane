@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Brings up the record the local fleet's device belongs to: the local Supabase
+# stack and the app that fronts it, then issues the device its agent key. The
+# settings land in one file the fleet copies onto the machine.
+set -euo pipefail
+
+scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
+
+stateRoot=""
+appPort="5183"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --state-root) stateRoot="$2"; shift 2 ;;
+    --app-port) appPort="$2"; shift 2 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+if [ -z "$stateRoot" ]; then
+  echo "usage: $0 --state-root <directory> [--app-port <port>]" >&2
+  exit 2
+fi
+
+mkdir -p "$stateRoot"
+settingsPath="$stateRoot/central-plane.env"
+appPIDPath="$stateRoot/central-plane-app.pid"
+appLogPath="$stateRoot/central-plane-app.log"
+
+# The fixture company the seed builds. A fleet run wants the same company every
+# time, so the device belongs to that one rather than to a fresh uuid.
+fixtureCompanyID="000000cc-0000-0000-0000-000000000001"
+
+cd "$repositoryRoot"
+
+if ! supabase status >/dev/null 2>&1; then
+  echo "starting the local record"
+  supabase start >/dev/null
+fi
+
+eval "$(supabase status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
+
+recordServes() {
+  curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/rest/v1/company?select=id&limit=1"
+}
+for attempt in $(seq 1 60); do
+  if recordServes; then break; fi
+  if [ "$attempt" -eq 60 ]; then echo "the record did not start serving" >&2; exit 1; fi
+  sleep 1
+done
+
+# The fixture company is the seed's, and rebuilding the local stack is the
+# developer's call rather than a side effect of asking for a fleet.
+companyFound="$(
+  curl --silent --fail \
+    --header "apikey: $SECRET_KEY" --header "Authorization: Bearer $SECRET_KEY" \
+    "$API_URL/rest/v1/company?select=id&id=eq.$fixtureCompanyID" || true
+)"
+if ! printf '%s' "$companyFound" | grep -q "$fixtureCompanyID"; then
+  echo "the local record holds no fixture company." >&2
+  echo "Build one from the seed, then ask for the fleet again." >&2
+  exit 1
+fi
+
+if [ -s "$appPIDPath" ] && kill -0 "$(cat "$appPIDPath")" 2>/dev/null; then
+  kill "$(cat "$appPIDPath")" 2>/dev/null || true
+fi
+rm -f "$appPIDPath"
+
+(
+  cd "$repositoryRoot/web"
+  SUPABASE_URL="$API_URL" \
+  SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+  SUPABASE_SECRET_KEY="$SECRET_KEY" \
+  nohup bunx vite dev --host 127.0.0.1 --port "$appPort" --strictPort > "$appLogPath" 2>&1 < /dev/null &
+  echo $! > "$appPIDPath"
+)
+
+# The app answers this path with or without a token; either answer proves it is
+# listening, and only a connection failure means it is not up yet.
+for attempt in $(seq 1 60); do
+  if curl --silent --output /dev/null "http://127.0.0.1:$appPort/api/v1/tools"; then break; fi
+  if [ "$attempt" -eq 60 ]; then
+    cat "$appLogPath" >&2 || true
+    echo "the app did not start serving on port $appPort" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+agentKey="$(
+  cd "$repositoryRoot/web"
+  SUPABASE_URL="$API_URL" SUPABASE_SECRET_KEY="$SECRET_KEY" \
+    bun run scripts/issue-agent-key.ts --company "$fixtureCompanyID" --name local-fleet --quiet
+)"
+if [ -z "$agentKey" ]; then
+  echo "the record issued no agent key" >&2
+  exit 1
+fi
+
+cat > "$settingsPath" <<SETTINGS
+CENTRAL_PLANE_APP_URL=http://127.0.0.1:$appPort
+CENTRAL_PLANE_PROJECT_URL=$API_URL
+CENTRAL_PLANE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY
+CENTRAL_PLANE_AGENT_KEY=$agentKey
+CENTRAL_PLANE_COMPANY_ID=$fixtureCompanyID
+SETTINGS
+chmod 600 "$settingsPath"
+echo "the record serves at $API_URL and the app at http://127.0.0.1:$appPort"

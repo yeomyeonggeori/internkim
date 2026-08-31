@@ -7,6 +7,7 @@ const (
 	DefaultRecipe             = "predeploy-gate"
 	DefaultAdminHostPort      = 18080
 	DefaultMattermostHostPort = 8065
+	DefaultCompanyAppPort     = 5183
 
 	ActionUp               = "up"
 	ActionDown             = "down"
@@ -25,6 +26,7 @@ type Options struct {
 	RunID                 string
 	AdminHostPort         int
 	MattermostHostPort    int
+	CompanyAppPort        int
 	GenerationSeed        string
 	GenerationTemperature string
 	MaximumModelTier      string
