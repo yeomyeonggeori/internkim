@@ -57,6 +57,12 @@ function leaveOfHint(context: RecordContext, rows: LeaveRow[], hint: string): Le
 	throw new NoSuchLeave(hint, described.map((row) => describedLeave(context, row)));
 }
 
+async function leaveByID(context: RecordContext, leaveID: string): Promise<LeaveRow> {
+	const written = (await leaveOfCompany(context.caller)).find((row) => row.id === leaveID);
+	if (!written) throw new NoSuchLeave(leaveID, []);
+	return written;
+}
+
 function targetMember(context: RecordContext, personHint: string | undefined): string {
 	return personHint ? personOfHint(context.people, personHint).personID : context.requesterID;
 }
@@ -148,13 +154,9 @@ export async function leaveRequest(
 		note: input.note?.trim() || null
 	};
 
-	const { data, error } = await context.caller
-		.from('leave')
-		.insert(written)
-		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
-		.single<LeaveRow>();
+	const { data, error } = await context.caller.from('leave').insert(written).select('id').single<{ id: string }>();
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	return answeredLeave(context, data);
+	return answeredLeave(context, await leaveByID(context, data.id));
 }
 
 export type LeaveDecideInput = { leaveHint?: string; decision?: string };
@@ -170,12 +172,12 @@ export async function leaveDecide(
 
 	const rows = await leaveOfCompany(context.caller);
 	const row = leaveOfHint(context, rows, input.leaveHint);
-	const { data, error } = await context.caller
+	const { error } = await context.caller
 		.from('leave')
 		.update({ status: input.decision })
 		.eq('id', row.id)
-		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
-		.single<LeaveRow>();
+		.select('id')
+		.single<{ id: string }>();
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	return answeredLeave(context, data);
+	return answeredLeave(context, await leaveByID(context, row.id));
 }
