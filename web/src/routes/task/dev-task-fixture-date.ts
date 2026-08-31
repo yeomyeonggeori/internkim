@@ -1,17 +1,24 @@
 import type { TaskWeek } from './task-types';
+import {
+	addTaskWeekDays,
+	taskWeekCodeForMonday,
+	taskWeekDateISO,
+	taskWeekMondayForCode
+} from '../../lib/task/task-week-code';
+
+const fixtureBaselineMonday = new Date(Date.UTC(2026, 5, 1));
 
 export function buildTaskWeek(inputWeekCode: string | null | undefined): TaskWeek {
-	const fallbackStart = mondayForWeekCode('26W23');
-	const start = inputWeekCode ? mondayForWeekCode(inputWeekCode) : fallbackStart;
-	const code = weekCodeForMonday(start);
+	const start = (inputWeekCode ? taskWeekMondayForCode(inputWeekCode) : null) ?? fixtureBaselineMonday;
+	const code = taskWeekCodeForMonday(start);
 
 	return {
 		code,
-		startISO: dateISO(start),
-		endISO: dateISO(addDate(start, 6)),
-		previous: weekCodeForMonday(addDate(start, -7)),
-		next: weekCodeForMonday(addDate(start, 7)),
-		isCurrent: code === weekCodeForMonday(fallbackStart)
+		startISO: taskWeekDateISO(start),
+		endISO: taskWeekDateISO(addTaskWeekDays(start, 6)),
+		previous: taskWeekCodeForMonday(addTaskWeekDays(start, -7)),
+		next: taskWeekCodeForMonday(addTaskWeekDays(start, 7)),
+		isCurrent: code === taskWeekCodeForMonday(fixtureBaselineMonday)
 	};
 }
 
@@ -38,26 +45,6 @@ export function dateOffset(startISO: string, targetISO: string): number {
 	const start = new Date(`${startISO}T00:00:00.000Z`).getTime();
 	const target = new Date(`${targetISO}T00:00:00.000Z`).getTime();
 	return Math.floor((target - start) / (24 * 60 * 60 * 1000));
-}
-
-function mondayForWeekCode(weekCode: string): Date {
-	const matched = /^(\d{2})W(\d{1,2})$/.exec(weekCode.trim());
-	if (!matched) return mondayForWeekCode('26W23');
-
-	const year = 2000 + Number(matched[1]);
-	const week = Number(matched[2]);
-	const januaryFourth = new Date(Date.UTC(year, 0, 4));
-	const isoWeekOneMonday = addDate(januaryFourth, -((januaryFourth.getUTCDay() + 6) % 7));
-	return addDate(isoWeekOneMonday, (week - 1) * 7);
-}
-
-function weekCodeForMonday(monday: Date): string {
-	const thursday = addDate(monday, 3);
-	const year = thursday.getUTCFullYear();
-	const januaryFourth = new Date(Date.UTC(year, 0, 4));
-	const isoWeekOneMonday = addDate(januaryFourth, -((januaryFourth.getUTCDay() + 6) % 7));
-	const week = Math.floor((monday.getTime() - isoWeekOneMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-	return `${String(year).slice(2)}W${String(week).padStart(2, '0')}`;
 }
 
 function addDate(date: Date, days: number): Date {
