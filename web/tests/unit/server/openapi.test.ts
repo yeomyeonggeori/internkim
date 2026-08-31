@@ -62,11 +62,17 @@ describe('the document is usable as OpenAPI', () => {
 		}
 	});
 
-	test('a bearer token is the default, and creating one is the exception', () => {
+	test('a bearer token opens everything, with nothing exempt', () => {
 		expect(english.security).toEqual([{ memberToken: [] }]);
-		const createToken = english.paths['/tokens'] as { post: { security: unknown[] } };
 
-		expect(createToken.post.security).toEqual([]);
+		const exempt: string[] = [];
+		for (const [path, methods] of Object.entries(english.paths as Record<string, Record<string, unknown>>)) {
+			for (const [method, operation] of Object.entries(methods)) {
+				if ((operation as { security?: unknown[] }).security?.length === 0) exempt.push(`${method} ${path}`);
+			}
+		}
+
+		expect(exempt).toEqual([]);
 	});
 
 	test('every company calls one address, and a self-hosted zone replaces it', () => {
