@@ -43,7 +43,7 @@ description: 켜 둔 컴퓨터 한 대, 그 기동 순서, 그리고 받는 설�
 </Step>
 </Steps>
 
-이 컴퓨터에 없어도 되는 것: Firecracker도, setuid 헬퍼도, 자체 Mattermost도,
+이 컴퓨터에 없어도 되는 것: Firecracker도, setuid 헬퍼도, 자체 메신저도,
 cloudflared도 없이 `status: ok`까지 부팅합니다. 디바이스 스택은 네 가지 모두
 필요로 했습니다.
 
@@ -56,7 +56,7 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<프로젝트의 publishable key>
 INTERNKIM_APP_URL=https://<company>.intern.kim
 CHATD_BOT_USER_NAME=<봇의 표시 이름>
-MESSENGER_PLATFORM=mattermost        # 또는 buzz
+MESSENGER_PLATFORM=buzz              # 또는 mattermost
 DATABASE_URL=postgres://…
 ```
 
@@ -68,8 +68,8 @@ DATABASE_URL=postgres://…
 그리고 회사가 굴리는 메신저, 둘 중 하나.
 
 ```
-CHATD_MATTERMOST_BASE_URL=…   CHATD_MATTERMOST_BOT_TOKEN=…
 CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
+CHATD_MATTERMOST_BASE_URL=…   CHATD_MATTERMOST_BOT_TOKEN=…
 ```
 
 그리고 릴레이가 앱에 답할 때 거치는 게이트웨이.
