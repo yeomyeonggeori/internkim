@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(12);
 
 select has_function(
   'public',
@@ -46,6 +46,31 @@ select ok(
   not has_function_privilege('anon', 'public.vapid_keys_keep(text, text, text, boolean)', 'execute')
     and not has_function_privilege('authenticated', 'public.vapid_keys_keep(text, text, text, boolean)', 'execute'),
   'nobody signed in can write the VAPID keys directly'
+);
+
+delete from vault.secrets where name = 'vapid_subject';
+
+select ok(
+  not public.vapid_keys_keep('pub-three', 'priv-three', 'mailto:three@example.com', false),
+  'a standing pair with no subject is still not an issuance'
+);
+
+select is(
+  (select decrypted_secret from vault.decrypted_secrets where name = 'vapid_public_key'),
+  'pub-two',
+  'the standing public key survives a missing subject'
+);
+
+select is(
+  (select decrypted_secret from vault.decrypted_secrets where name = 'vapid_private_key'),
+  'priv-two',
+  'the standing private key survives a missing subject'
+);
+
+select is(
+  (select decrypted_secret from vault.decrypted_secrets where name = 'vapid_subject'),
+  'mailto:three@example.com',
+  'the missing subject is filled in without touching the pair'
 );
 
 select * from finish();
