@@ -31,7 +31,8 @@ to be.
 
 ## What the tunnel is doing today
 
-Not one thing. Five, with different owners.
+Not one thing. Four, with different owners. A fifth, fifteen PoC tenants'
+ingress, was wanted by nobody and is gone.
 
 | what | who wants it | what replaces it |
 |---|---|---|
@@ -39,22 +40,20 @@ Not one thing. Five, with different owners.
 | Mattermost's public URL | staff | the company's own messenger host |
 | OTA upload over Admin HTTPS | the operator | see below |
 | SSH | the operator | the operator's own `~/.ssh/config` |
-| fifteen PoC tenants' ingress | nobody | deletion |
 
 Roughly what each costs to keep:
 
 ```
 web/src/lib/cloudflare.ts                     903   Access app, policy, DNS, tunnel API
 web/src/routes/api/register/+server.ts        378   registering a device creates all of it
-internal/tenantruntime/                     8,076   the PoC tenant runtime, tunnel included
 internal/admind/cloudflare_access.go          309   the device trusts an Access email header
 internal/provisioning/steps/step_tunnel.go     96
 ```
 
 ## SSH belongs in the operator's config
 
-One place already has the right shape. `deploy_poc_container.go` reads the
-proxy command off the target record:
+The shape to copy read the proxy command off the target record rather than
+building one:
 
 ```go
 if target.SSHProxyCommand != "" {
@@ -62,7 +61,8 @@ if target.SSHProxyCommand != "" {
 }
 ```
 
-`internal/cli/main.go` has the wrong one, hard-coded:
+That code went with the PoC. `internal/cli/main.go` still has the wrong one,
+hard-coded:
 
 ```go
 client.proxyCommand = "env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared " +
@@ -181,7 +181,9 @@ Each step stands alone, and the device keeps working through all of them. Steps
 1. **The PoC goes.** `internal/tenantruntime`, the `poc-container` target kind,
    `poc/`, `web/src/routes/poc-admin`, and the two PoC documents. The largest
    single block, out of scope already, and it removes the fan-out that deploys
-   to a machine nobody asked for.
+   to a machine nobody asked for. Done: the last of it, the target kind and its
+   fields, came out with the deploy guard that now refuses any target that is
+   not a device.
 2. **SSH becomes a proxy command.** Behaviour identical, the transport gone from
    the source.
 3. **The push half goes.** The device already pulls a release from the registry
