@@ -1236,7 +1236,7 @@ func mattermostSyncedPersonCircles(person map[string]any, circleEmailsByID map[s
 	}
 	for _, circle := range policyStringList(person["circles"]) {
 		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
-		if normalizedCircle == "" || normalizedCircle == "member" || normalizedCircle == "admin" {
+		if normalizedCircle == "" || isTheCircleEveryoneIsIn(normalizedCircle) || normalizedCircle == "admin" {
 			continue
 		}
 		if _, isMattermostManaged := circleEmailsByID[normalizedCircle]; !isMattermostManaged {
