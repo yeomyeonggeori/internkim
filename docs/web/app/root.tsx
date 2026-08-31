@@ -5,10 +5,10 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-  useParams,
+  useLocation,
 } from 'react-router';
 import { RootProvider } from 'fumadocs-ui/provider/react-router';
-import { i18n } from '@/lib/i18n';
+import { localeOfPath } from '@/lib/i18n';
 import { i18nUI } from '@/lib/layout.shared';
 import type { Route } from './+types/root';
 import './app.css';
@@ -29,7 +29,7 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { lang = i18n.defaultLanguage } = useParams();
+  const lang = localeOfPath(useLocation().pathname);
 
   return (
     <html lang={lang} suppressHydrationWarning>
