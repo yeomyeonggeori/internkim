@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -15,22 +14,29 @@ import (
 // what it read. Reading as the person who asked is what makes row level
 // security the boundary: a colleague may see the company's events, and only an
 // owner or an admin may change one.
-func (service *Service) centralCalendarEvents(request *http.Request, startTime time.Time, endTime time.Time) ([]calendarEvent, bool) {
-	requesterEmail := strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email")))
-	if requesterEmail == "" {
-		return nil, false
-	}
+// A company writes and reads every event as the person who asked, so a caller
+// this device cannot name has no calendar to reach.
+var errCalendarReaderUnnamed = errors.New("this call names nobody the company knows, and the company keeps the calendar")
+
+// The company holds the calendar, so a read that fails is an error rather than
+// a quiet fall back to the device's stale copy. Answering the old events as if
+// they were current is worse than answering nothing: the next update is written
+// against an event that has already moved.
+func (service *Service) centralCalendarEvents(request *http.Request, startTime time.Time, endTime time.Time) ([]calendarEvent, bool, error) {
 	client := service.centralPlane()
 	if client == nil {
-		return nil, false
+		return nil, false, nil
+	}
+	requesterEmail := strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email")))
+	if requesterEmail == "" {
+		return nil, true, errCalendarReaderUnnamed
 	}
 	events, errorValue := client.EventsBetween(request.Context(), "email", requesterEmail,
 		calendarWindowBound(startTime), calendarWindowBound(endTime))
 	if errorValue != nil {
-		log.Printf("calendar stays on this device for %s: %v", requesterEmail, errorValue)
-		return nil, false
+		return nil, true, errorValue
 	}
-	return calendarEventsOfCompanyEvents(events, service.workspaceTimeZone().name), true
+	return calendarEventsOfCompanyEvents(events, service.workspaceTimeZone().name), true, nil
 }
 
 // The company holds the calendar, so reading one event by its identifier asks
@@ -89,16 +95,16 @@ func calendarParticipantsOfEmails(emails []string) []calendarParticipant {
 
 // The company holds the calendar, so a write goes there as the person who asked
 // and the answer comes back from what the company saved.
-func (service *Service) centralCalendarWriter(request *http.Request) (*centralplane.Client, string, bool) {
-	requesterEmail := strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email")))
-	if requesterEmail == "" {
-		return nil, "", false
-	}
+func (service *Service) centralCalendarWriter(request *http.Request) (*centralplane.Client, string, bool, error) {
 	client := service.centralPlane()
 	if client == nil {
-		return nil, "", false
+		return nil, "", false, nil
 	}
-	return client, requesterEmail, true
+	requesterEmail := strings.ToLower(strings.TrimSpace(request.Header.Get("CF-Access-Authenticated-User-Email")))
+	if requesterEmail == "" {
+		return nil, "", true, errCalendarReaderUnnamed
+	}
+	return client, requesterEmail, true, nil
 }
 
 // centralID is the company's own id for an event it already holds, and empty for
@@ -106,9 +112,9 @@ func (service *Service) centralCalendarWriter(request *http.Request) (*centralpl
 // company will keep the event, and sending that as the company's id asks it to
 // change a row nobody has.
 func (service *Service) saveCentralCalendarEvent(request *http.Request, event calendarEvent, centralID string, expectedUpdatedAt string, isRequestedOfSomebodyElse bool) (calendarEvent, bool, error) {
-	client, requesterEmail, canWrite := service.centralCalendarWriter(request)
-	if !canWrite {
-		return calendarEvent{}, false, nil
+	client, requesterEmail, answered, writerError := service.centralCalendarWriter(request)
+	if !answered || writerError != nil {
+		return calendarEvent{}, answered, writerError
 	}
 	savedID, errorValue := client.SaveEvent(request.Context(), "email", requesterEmail, centralplane.Event{
 		CentralID:           centralID,
@@ -140,9 +146,9 @@ func (service *Service) saveCentralCalendarEvent(request *http.Request, event ca
 }
 
 func (service *Service) removeCentralCalendarEvent(request *http.Request, eventID string) (bool, error) {
-	client, requesterEmail, canWrite := service.centralCalendarWriter(request)
-	if !canWrite {
-		return false, nil
+	client, requesterEmail, answered, writerError := service.centralCalendarWriter(request)
+	if !answered || writerError != nil {
+		return answered, writerError
 	}
 	return true, client.DeleteEvent(request.Context(), "email", requesterEmail, eventID)
 }
