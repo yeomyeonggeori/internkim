@@ -64,11 +64,11 @@ func TestPlatformMessageSendUploadsWorkspaceAttachmentToUnjoinedChannel(t *testi
 			}
 			botJoinedChannel = true
 			return testJSONResponse(http.StatusCreated, map[string]string{"channel_id": "channel-9", "user_id": "bot-1"}), nil
-		case "http://mattermost.test/api/v4/channels/channel-9/members/staff-1":
+		case "http://mattermost.test/api/v4/channels/channel-9/members/member-1":
 			if !botJoinedChannel {
 				return testJSONResponse(http.StatusForbidden, map[string]string{"message": "permissions to the channel"}), nil
 			}
-			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-9", "user_id": "staff-1"}), nil
+			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-9", "user_id": "member-1"}), nil
 		case "http://mattermost.test/api/v4/files":
 			uploadedFile = true
 			return testJSONResponse(http.StatusCreated, map[string]any{"file_infos": []map[string]string{{"id": "file-7"}}}), nil
@@ -105,8 +105,8 @@ func TestPlatformMessageSendUploadsWorkspaceAttachmentToUnjoinedChannel(t *testi
 			}},
 		},
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail:          "staff@example.com",
-			RequesterPlatformUserID: "staff-1",
+			RequesterEmail:          "member@example.com",
+			RequesterPlatformUserID: "member-1",
 			IsApprovalContinuation:  true,
 		},
 	})
@@ -135,7 +135,7 @@ func TestPlatformMessageSendMembershipLookupErrorIsNotAccessDenial(t *testing.T)
 			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
 		case "http://mattermost.test/api/v4/channels/channel-1/members/bot-1":
 			return testJSONResponse(http.StatusOK, map[string]string{"channel_id": "channel-1", "user_id": "bot-1"}), nil
-		case "http://mattermost.test/api/v4/channels/channel-1/members/staff-1":
+		case "http://mattermost.test/api/v4/channels/channel-1/members/member-1":
 			return testJSONResponse(http.StatusInternalServerError, map[string]string{"message": "database is unavailable"}), nil
 		default:
 			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.String())
@@ -151,8 +151,8 @@ func TestPlatformMessageSendMembershipLookupErrorIsNotAccessDenial(t *testing.T)
 			"message":    "hello",
 		}),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail:          "staff@example.com",
-			RequesterPlatformUserID: "staff-1",
+			RequesterEmail:          "member@example.com",
+			RequesterPlatformUserID: "member-1",
 			IsApprovalContinuation:  true,
 		},
 	})
@@ -177,7 +177,7 @@ func TestPlatformMessageSendDoesNotJoinChannelForNonMemberRequester(t *testing.T
 			return testJSONResponse(http.StatusOK, mattermostToolChannel{ID: "channel-1", Name: "random"}), nil
 		case "http://mattermost.test/api/v4/users/me":
 			return testJSONResponse(http.StatusOK, platformDMMattermostUser{ID: "bot-1", Username: "internkim", IsBot: true}), nil
-		case "http://mattermost.test/api/v4/channels/channel-1/members/staff-1":
+		case "http://mattermost.test/api/v4/channels/channel-1/members/member-1":
 			return testJSONResponse(http.StatusNotFound, map[string]string{"message": "no channel member"}), nil
 		case "http://mattermost.test/api/v4/channels/channel-1/members":
 			botJoinAttempted = true
@@ -196,8 +196,8 @@ func TestPlatformMessageSendDoesNotJoinChannelForNonMemberRequester(t *testing.T
 			"message":    "hello",
 		}),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail:          "staff@example.com",
-			RequesterPlatformUserID: "staff-1",
+			RequesterEmail:          "member@example.com",
+			RequesterPlatformUserID: "member-1",
 			IsApprovalContinuation:  true,
 		},
 	})
@@ -237,8 +237,8 @@ func TestPlatformMessageSendRefusesAFileNobodyCarried(t *testing.T) {
 			"attachments": []string{"/workspace/shared/missing.png"},
 		}),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail:          "staff@example.com",
-			RequesterPlatformUserID: "staff-1",
+			RequesterEmail:          "member@example.com",
+			RequesterPlatformUserID: "member-1",
 			IsApprovalContinuation:  true,
 		},
 	})

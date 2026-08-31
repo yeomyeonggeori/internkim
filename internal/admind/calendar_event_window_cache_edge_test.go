@@ -210,6 +210,6 @@ func calendarEventWindowCacheEdgeEvent(startTime time.Time) calendarEvent {
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 	}
 }

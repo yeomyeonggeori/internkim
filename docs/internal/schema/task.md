@@ -6,7 +6,7 @@
 
 기존 구글시트에서 쓰던 `사업/종류/내용/목표/크기/상태/시작일/종료일/주간 코드` 구조를 기준으로 정리한다.
 
-누가 요청했는지는 `staff.id`를 직접 참조하고, 누가 담당하는지는 별도 `task_assignee` 테이블로 관리한다.
+누가 요청했는지는 `member.id`를 직접 참조하고, 누가 담당하는지는 별도 `task_assignee` 테이블로 관리한다.
 
 ## 컬럼
 
@@ -21,7 +21,7 @@
 | `size` | enum nullable | 업무 크기 |
 | `status` | enum | 업무 상태 |
 | `priority` | enum nullable | 우선순위 |
-| `requester_staff_id` | uuid nullable | 요청자 staff id |
+| `requester_member_id` | uuid nullable | 요청자 member id |
 | `weekly_code` | text nullable | `25W03` 같은 주간 코드 |
 | `due_at` | timestamptz nullable | 예정 시각 또는 마감 시각 |
 | `started_at` | timestamptz nullable | 작업 시작 시각 |
@@ -87,11 +87,11 @@
 - `title`은 기존 시트의 `내용` 컬럼에 대응하는 핵심 필드다.
 - `goal`, `size`, `business`, `type`은 기존 시트 운영 방식을 DB로 옮기기 위한 필드다.
 - 한 사람이 직접 만든 개인 할 일도 담당자는 `task_assignee`에 1 row를 넣는 방식으로 관리한다.
-- 외부 요청이나 시스템 생성 task를 고려해 `requester_staff_id`는 우선 nullable로 둔다.
+- 외부 요청이나 시스템 생성 task를 고려해 `requester_member_id`는 우선 nullable로 둔다.
 - 기존 시트에서 `완료` 시 시작일과 종료일을 자동 보정하던 규칙을 고려하면, DB에서도 상태 전이에 따라 `started_at`, `ended_at`, `completed_at`를 자동 관리할 수 있다.
 - `weekly_code`는 `ended_at`이 있으면 종료일 기준, 없으면 `started_at` 기준으로 계산하는 파생값 성격이다.
 
 ## 관계
 
-- `requester_staff_id` -> `staff.id`
+- `requester_member_id` -> `member.id`
 - `task_assignee.task_id` -> `task.id`

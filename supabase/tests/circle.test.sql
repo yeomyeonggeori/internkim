@@ -20,16 +20,16 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
    'circle-b@example.test', '44000000-0000-0000-0000-000000000002', 'active', false);
 
 insert into public.circle (id, company_id, name) values
-  ('44000000-0000-0000-0000-0000000000c1', '44000000-0000-0000-0000-0000000000a0', 'Staff'),
+  ('44000000-0000-0000-0000-0000000000c1', '44000000-0000-0000-0000-0000000000a0', 'Member'),
   ('44000000-0000-0000-0000-0000000000c2', '44000000-0000-0000-0000-0000000000a0', 'C-Level'),
-  ('44000000-0000-0000-0000-0000000000d1', '44000000-0000-0000-0000-0000000000b0', 'Staff');
+  ('44000000-0000-0000-0000-0000000000d1', '44000000-0000-0000-0000-0000000000b0', 'Member');
 
 insert into public.circle_member (circle_id, member_id) values
   ('44000000-0000-0000-0000-0000000000c1', '44000000-0000-0000-0000-0000000000a1');
 
 select throws_ok(
   $$insert into public.circle (company_id, name)
-    values ('44000000-0000-0000-0000-0000000000a0', 'Staff')$$,
+    values ('44000000-0000-0000-0000-0000000000a0', 'Member')$$,
   '23505',
   null,
   'one company does not get two circles of the same name, the way it does not get two teams'
@@ -56,7 +56,7 @@ begin
   select count(*) into visible_memberships from public.circle_member;
   assert visible_memberships = 1, 'a member sees memberships of their own company only';
 
-  update public.circle set name = 'Renamed' where name = 'Staff';
+  update public.circle set name = 'Renamed' where name = 'Member';
   get diagnostics rows_changed = row_count;
   assert rows_changed = 0, 'a member who is not an admin does not edit a circle';
 
@@ -80,7 +80,7 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000003"}', true);
 
-  update public.circle set name = 'Renamed' where name = 'Staff'
+  update public.circle set name = 'Renamed' where name = 'Member'
     and company_id = '44000000-0000-0000-0000-0000000000a0';
   get diagnostics rows_changed = row_count;
   assert rows_changed = 1, 'an admin edits a circle of their own company';

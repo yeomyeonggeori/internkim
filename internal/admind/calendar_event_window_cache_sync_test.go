@@ -21,7 +21,7 @@ func TestCalendarEventWindowCacheInvalidatesOldAndNewRangesOnPullMove(t *testing
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 	}
 	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
 		t.Fatal(errorValue)

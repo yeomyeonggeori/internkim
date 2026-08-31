@@ -18,11 +18,11 @@ import (
 	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
 )
 
-func (service *Service) startStaffChannelMembershipSync(ctx context.Context) {
+func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 	if !service.canWriteToBuzzRelay() {
 		return
 	}
-	go service.ensureStaffChannelMembership(ctx)
+	go service.ensureMemberChannelMembership(ctx)
 }
 
 func (service *Service) grantRelayMembership(ctx context.Context, pubkey string) {
@@ -204,7 +204,7 @@ func holdsAnotherAdministrator(heldRoles map[string]string, excludedPubkey strin
 
 // The company account leaves a room the moment somebody else administers it.
 // Until then it stays, because it is the only key that can still seat people
-// there; the staff and circle syncs put an administrator in first, so the stay
+// there; the member and circle syncs put an administrator in first, so the stay
 // is one tick, not a policy.
 func (service *Service) retireBootstrapFromRoom(ctx context.Context, relay *sql.DB, channelID string, seed string) {
 	bootstrapPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
@@ -299,34 +299,34 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 	}
 }
 
-func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
+func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	seed := service.buzzKeySeed()
 	if seed == "" {
 		return
 	}
 	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
 	if errorValue != nil {
-		log.Printf("buzz staff membership: channel query failed: %v", errorValue)
+		log.Printf("buzz member membership: channel query failed: %v", errorValue)
 		return
 	}
-	staff := service.staffBuzzMembers(ctx)
+	member := service.memberBuzzMembers(ctx)
 	// The agent administers every room the company runs, which is what a room
 	// with no admin in it still needs once the company account has left.
 	if agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject)); errorValue == nil {
-		staff = append(staff, buzzStaffMember{Pubkey: agentPubkey, Role: buzzChannelOwnerRole})
+		member = append(member, buzzMember{Pubkey: agentPubkey, Role: buzzChannelOwnerRole})
 	}
-	log.Printf("buzz staff membership: %d stream channels, %d staff pubkeys", len(channelIDs), len(staff))
-	if len(channelIDs) == 0 || len(staff) == 0 {
+	log.Printf("buzz member membership: %d stream channels, %d member pubkeys", len(channelIDs), len(member))
+	if len(channelIDs) == 0 || len(member) == 0 {
 		return
 	}
 	connections := service.newBuzzActorConnections()
 	defer connections.closeAll()
-	for _, member := range staff {
+	for _, member := range member {
 		service.grantRelayMembership(ctx, member.Pubkey)
 	}
 	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
 	if errorValue != nil {
-		log.Printf("buzz staff membership: %v", errorValue)
+		log.Printf("buzz member membership: %v", errorValue)
 		return
 	}
 	defer relay.Close()
@@ -335,16 +335,16 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 	for _, channelID := range channelIDs {
 		heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
 		if errorValue != nil {
-			log.Printf("buzz staff membership: reading who is in %s failed: %v", channelID, errorValue)
+			log.Printf("buzz member membership: reading who is in %s failed: %v", channelID, errorValue)
 			return
 		}
 		actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
 		publisher, errorValue := connections.as(ctx, actorSecret)
 		if errorValue != nil {
-			log.Printf("buzz staff membership: relay connect failed: %v", errorValue)
+			log.Printf("buzz member membership: relay connect failed: %v", errorValue)
 			return
 		}
-		for _, member := range staff {
+		for _, member := range member {
 			select {
 			case <-ctx.Done():
 				return
@@ -368,8 +368,8 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 				connections.drop(actorSecret)
 				reopened, reconnectError := connections.as(ctx, actorSecret)
 				if reconnectError != nil {
-					log.Printf("buzz staff membership: relay would not take the connection back: %v", reconnectError)
-					log.Printf("buzz staff membership: granted %d, failed %d", granted, failed+1)
+					log.Printf("buzz member membership: relay would not take the connection back: %v", reconnectError)
+					log.Printf("buzz member membership: granted %d, failed %d", granted, failed+1)
 					return
 				}
 				publisher = reopened
@@ -377,7 +377,7 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 			}
 			if errorValue != nil {
 				if failed == 0 {
-					log.Printf("buzz staff membership: first AddMember error: %v", errorValue)
+					log.Printf("buzz member membership: first AddMember error: %v", errorValue)
 				}
 				failed++
 			} else {
@@ -387,11 +387,11 @@ func (service *Service) ensureStaffChannelMembership(ctx context.Context) {
 		}
 		service.retireBootstrapFromRoom(ctx, relay, channelID, seed)
 	}
-	log.Printf("buzz staff membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
+	log.Printf("buzz member membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
 	service.retireBootstrapFromRemainingRooms(ctx, relay, connections, seed)
 }
 
-// The staff and circle syncs cover the rooms the company runs, but the company
+// The member and circle syncs cover the rooms the company runs, but the company
 // account also stands in rooms it only mirrored — private rooms whose members
 // it seated. It leaves those the same way: any admin standing in the room is
 // raised to owner first, and a room with no admin in it keeps the account,
@@ -432,7 +432,7 @@ func (service *Service) raiseAdminsStandingInRoom(ctx context.Context, relay *sq
 	if errorValue != nil {
 		return
 	}
-	adminRoles := service.buzzRolesByPubkey(ctx, service.allStaffEmails(ctx))
+	adminRoles := service.buzzRolesByPubkey(ctx, service.allMemberEmails(ctx))
 	actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
 	for pubkey, role := range adminRoles {
 		heldRole, isHeld := heldRoles[pubkey]
@@ -458,7 +458,7 @@ func (service *Service) bootstrapBuzzPubkey() (string, error) {
 	return buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
 }
 
-const staffRoomQuery = `
+const memberRoomQuery = `
 SELECT id FROM channels
 WHERE channel_type = 'stream'
   AND deleted_at IS NULL
@@ -502,7 +502,7 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 		return nil, errorValue
 	}
 	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, staffRoomQuery, pq.Array(creatorPubkeys), pq.Array(circleRoomNames))
+	rows, errorValue := database.QueryContext(ctx, memberRoomQuery, pq.Array(creatorPubkeys), pq.Array(circleRoomNames))
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -518,7 +518,7 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 	return channelIDs, rows.Err()
 }
 
-func (service *Service) allStaffEmails(ctx context.Context) []string {
+func (service *Service) allMemberEmails(ctx context.Context) []string {
 	seen := map[string]bool{}
 	var emails []string
 	add := func(email string) {
@@ -569,16 +569,16 @@ func (service *Service) usersSyncCacheEmails() []string {
 	return cache.Users
 }
 
-type buzzStaffMember struct {
+type buzzMember struct {
 	Pubkey string
 	Role   string
 }
 
-func (service *Service) staffBuzzMembers(ctx context.Context) []buzzStaffMember {
+func (service *Service) memberBuzzMembers(ctx context.Context) []buzzMember {
 	adminEmails := service.buzzAdminEmails(ctx)
 	seen := map[string]bool{}
-	var members []buzzStaffMember
-	for _, email := range service.allStaffEmails(ctx) {
+	var members []buzzMember
+	for _, email := range service.allMemberEmails(ctx) {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
 			continue
@@ -588,7 +588,7 @@ func (service *Service) staffBuzzMembers(ctx context.Context) []buzzStaffMember 
 			continue
 		}
 		seen[pubkey] = true
-		members = append(members, buzzStaffMember{Pubkey: pubkey, Role: buzzChannelRoleFor(adminEmails, email)})
+		members = append(members, buzzMember{Pubkey: pubkey, Role: buzzChannelRoleFor(adminEmails, email)})
 	}
 	return members
 }

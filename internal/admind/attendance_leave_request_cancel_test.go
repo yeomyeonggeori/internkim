@@ -8,7 +8,7 @@ import (
 
 func TestAttendanceLeaveRequestCancelApprovedFutureRestoresUsedBalance(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-leave-request-approved-cancel",
@@ -26,7 +26,7 @@ func TestAttendanceLeaveRequestCancelApprovedFutureRestoresUsedBalance(t *testin
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-03","reason":"Family appointment"}`,
 	)
 	requestID := decodeAttendanceLeaveRequestIDForTest(t, createRecorder)
@@ -52,13 +52,13 @@ func TestAttendanceLeaveRequestCancelApprovedFutureRestoresUsedBalance(t *testin
 		nil,
 	)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	if cancelRecorder.Code != http.StatusOK {
 		t.Fatalf("cancel status = %d body = %s", cancelRecorder.Code, cancelRecorder.Body.String())
 	}
-	dashboard := readAttendanceLeaveDashboardForTest(t, service, "staff@example.com")
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, "member@example.com")
 	if len(dashboard.Requests) != 1 ||
 		dashboard.Requests[0].Status != attendanceLeaveRequestStatusCancelled ||
 		dashboard.Requests[0].CanCancel {
@@ -78,7 +78,7 @@ func TestAttendanceLeaveRequestApprovedCancellationUsesLinkedAbsenceBoundary(t *
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"fullDay","startDate":"2027-05-03","reason":"Medical appointment"}`,
 	)
 	requestID := decodeAttendanceLeaveRequestIDForTest(t, createRecorder)
@@ -94,7 +94,7 @@ func TestAttendanceLeaveRequestApprovedCancellationUsesLinkedAbsenceBoundary(t *
 	ranges, errorValue := insertAttendanceAbsenceRangesForDates(
 		t.Context(),
 		transaction,
-		"staff@example.com",
+		"member@example.com",
 		attendanceAbsenceLeave,
 		"Medical appointment",
 		"admin@example.com",
@@ -135,7 +135,7 @@ func TestAttendanceLeaveRequestApprovedCancellationUsesLinkedAbsenceBoundary(t *
 		nil,
 	)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	if cancelRecorder.Code != http.StatusOK {
@@ -167,7 +167,7 @@ func TestAttendanceLeaveRequestCancelApprovedStartedIsRejected(t *testing.T) {
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"fullDay","startDate":"2027-05-03","reason":"Medical appointment"}`,
 	)
 	requestID := decodeAttendanceLeaveRequestIDForTest(t, createRecorder)
@@ -200,7 +200,7 @@ WHERE id = ?`,
 		nil,
 	)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	assertAttendanceLeaveErrorResponse(
@@ -209,7 +209,7 @@ WHERE id = ?`,
 		http.StatusConflict,
 		attendanceLeaveErrorInvalidStatus,
 	)
-	dashboard := readAttendanceLeaveDashboardForTest(t, service, "staff@example.com")
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, "member@example.com")
 	if len(dashboard.Requests) != 1 ||
 		dashboard.Requests[0].Status != attendanceLeaveRequestStatusApproved {
 		t.Fatalf("requests = %+v", dashboard.Requests)

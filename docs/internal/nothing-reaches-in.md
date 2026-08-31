@@ -15,7 +15,7 @@ central plane has since answered instead.
 
 The old plan opened with a constraint:
 
-> A staff member reaches a self-hosted box behind NAT, from anywhere, in any
+> A member member reaches a self-hosted box behind NAT, from anywhere, in any
 > browser. Any box behind NAT needs exactly one public reachable point: a SaaS
 > tunnel, a VPS relay, or a public IP with port forwarding.
 
@@ -36,8 +36,8 @@ ingress, was wanted by nobody and is gone.
 
 | what | who wants it | what replaces it |
 |---|---|---|
-| the device's web (`/admin`, `/flow`, `/calendar`, `/attendance`) | staff | the company app on Pages |
-| Mattermost's public URL | staff | the company's own messenger host |
+| the device's web (`/admin`, `/flow`, `/calendar`, `/attendance`) | member | the company app on Pages |
+| Mattermost's public URL | member | the company's own messenger host |
 | OTA upload over Admin HTTPS | the operator | see below |
 | SSH | the operator | the operator's own `~/.ssh/config` |
 

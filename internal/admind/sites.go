@@ -49,7 +49,7 @@ const (
 const publishedSiteLimit = 10
 
 const (
-	staffCircleSitesWorkspacePath = "/workspace/circles/staff/sites"
+	memberCircleSitesWorkspacePath = "/workspace/circles/member/sites"
 	siteIDStorageDirectoryName    = ".ids"
 )
 
@@ -826,7 +826,7 @@ func (service *Service) prepareSiteSourceWorkspace(ctx context.Context, site *Si
 	if errorValue := service.prepareSiteWorkspace(ctx, site, content); errorValue != nil {
 		return false, errorValue
 	}
-	return service.moveSiteSourceToStaffCircle(site)
+	return service.moveSiteSourceToMemberCircle(site)
 }
 
 // repairSiteFromRequest re-materializes any missing managed scaffold files into
@@ -2899,7 +2899,7 @@ func (service *Service) prepareSiteWorkspaceForResponse(site *SiteRecord) (*Site
 	if site == nil {
 		return nil, nil
 	}
-	if errorValue := service.migrateSiteSourceToStaffCircle(site); errorValue != nil {
+	if errorValue := service.migrateSiteSourceToMemberCircle(site); errorValue != nil {
 		return nil, errorValue
 	}
 	refreshedSite := service.findSiteByID(site.SiteID)
@@ -3196,7 +3196,7 @@ func (service *Service) siteProjectStorageHostPath(siteID string) string {
 	if strings.TrimSpace(siteID) == "" {
 		return ""
 	}
-	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites", siteIDStorageDirectoryName, strings.TrimSpace(siteID))
+	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "member", "sites", siteIDStorageDirectoryName, strings.TrimSpace(siteID))
 }
 
 func (service *Service) siteProjectAliasHostPath(site *SiteRecord) string {
@@ -3207,7 +3207,7 @@ func (service *Service) siteProjectAliasHostPath(site *SiteRecord) string {
 	if aliasName == "" {
 		return ""
 	}
-	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites", aliasName)
+	return filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "member", "sites", aliasName)
 }
 
 func (service *Service) ensureSiteWorkspaceAlias(site *SiteRecord) error {
@@ -3222,7 +3222,7 @@ func (service *Service) ensureSiteWorkspaceAlias(site *SiteRecord) error {
 	if errorValue := service.ensureSiteWorkspaceStoragePath(site.SiteID); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := ensureStaffCircleDirectory(filepath.Dir(aliasPath)); errorValue != nil {
+	if errorValue := ensureMemberCircleDirectory(filepath.Dir(aliasPath)); errorValue != nil {
 		return errorValue
 	}
 	if targetPath, errorValue := os.Readlink(aliasPath); errorValue == nil {
@@ -3248,13 +3248,13 @@ func (service *Service) ensureSiteWorkspaceAlias(site *SiteRecord) error {
 }
 
 func (service *Service) ensureSiteWorkspaceStoragePath(siteID string) error {
-	staffSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites")
+	memberSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "member", "sites")
 	for _, directoryPath := range []string{
-		staffSitesPath,
-		filepath.Join(staffSitesPath, siteIDStorageDirectoryName),
+		memberSitesPath,
+		filepath.Join(memberSitesPath, siteIDStorageDirectoryName),
 		service.siteProjectStorageHostPath(siteID),
 	} {
-		if errorValue := ensureStaffCircleDirectory(directoryPath); errorValue != nil {
+		if errorValue := ensureMemberCircleDirectory(directoryPath); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -3263,7 +3263,7 @@ func (service *Service) ensureSiteWorkspaceStoragePath(siteID string) error {
 
 func replaceSiteWorkspaceAliasDirectory(aliasPath string, storagePath string) error {
 	_ = os.Chmod(aliasPath, os.ModeSetgid|0o770)
-	healStaffCirclePermissions(aliasPath)
+	healMemberCirclePermissions(aliasPath)
 	if directoryHasEntries(aliasPath) {
 		if errorValue := copyDirectory(aliasPath, storagePath); errorValue != nil {
 			return errorValue
@@ -3396,7 +3396,7 @@ func siteProjectStorageWorkspacePath(siteID string) string {
 	if strings.TrimSpace(siteID) == "" {
 		return ""
 	}
-	return filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, siteIDStorageDirectoryName, strings.TrimSpace(siteID)))
+	return filepath.ToSlash(filepath.Join(memberCircleSitesWorkspacePath, siteIDStorageDirectoryName, strings.TrimSpace(siteID)))
 }
 
 func siteProjectAliasWorkspacePath(siteID string, slug string) string {
@@ -3404,7 +3404,7 @@ func siteProjectAliasWorkspacePath(siteID string, slug string) string {
 	if aliasName == "" {
 		return ""
 	}
-	return filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, aliasName))
+	return filepath.ToSlash(filepath.Join(memberCircleSitesWorkspacePath, aliasName))
 }
 
 func siteDraftWorkspacePath(siteID string, slug string, requestedPath string) string {
@@ -3726,21 +3726,21 @@ func (service *Service) writeSiteCreateRecord(responseWriter http.ResponseWriter
 func isLegacySiteWorkspacePath(path string, siteID string) bool {
 	cleanPath := filepath.ToSlash(strings.TrimSpace(path))
 	return strings.HasPrefix(cleanPath, "/workspace/sites/") ||
-		cleanPath == filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, strings.TrimSpace(siteID))) ||
+		cleanPath == filepath.ToSlash(filepath.Join(memberCircleSitesWorkspacePath, strings.TrimSpace(siteID))) ||
 		cleanPath == siteProjectStorageWorkspacePath(siteID)
 }
 
 func isLegacySiteDraftWorkspacePath(path string, siteID string) bool {
 	cleanPath := filepath.ToSlash(strings.TrimSpace(path))
 	return strings.HasPrefix(cleanPath, "/workspace/sites/") ||
-		cleanPath == filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, strings.TrimSpace(siteID), "draft")) ||
+		cleanPath == filepath.ToSlash(filepath.Join(memberCircleSitesWorkspacePath, strings.TrimSpace(siteID), "draft")) ||
 		cleanPath == filepath.ToSlash(filepath.Join(siteProjectStorageWorkspacePath(siteID), "draft"))
 }
 
 func isLegacySiteAppWorkspacePath(path string, siteID string) bool {
 	cleanPath := filepath.ToSlash(strings.TrimSpace(path))
 	return strings.HasPrefix(cleanPath, "/workspace/sites/") ||
-		cleanPath == filepath.ToSlash(filepath.Join(staffCircleSitesWorkspacePath, strings.TrimSpace(siteID), "draft", "app")) ||
+		cleanPath == filepath.ToSlash(filepath.Join(memberCircleSitesWorkspacePath, strings.TrimSpace(siteID), "draft", "app")) ||
 		cleanPath == filepath.ToSlash(filepath.Join(siteProjectStorageWorkspacePath(siteID), "draft", "app"))
 }
 

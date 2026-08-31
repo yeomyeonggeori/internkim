@@ -48,7 +48,7 @@ func TestProxyScopedTaskListForwardsPaginationQuery(t *testing.T) {
 		if request.Method != http.MethodGet {
 			t.Fatalf("method = %s", request.Method)
 		}
-		expectedURL := "/admin/api/run?dailyCostTaskRunLimit=500&includeCost=true&includeTotal=true&limit=15&offset=15&viewerEmail=staff%40example.com&viewerIsAdmin=false"
+		expectedURL := "/admin/api/run?dailyCostTaskRunLimit=500&includeCost=true&includeTotal=true&limit=15&offset=15&viewerEmail=member%40example.com&viewerIsAdmin=false"
 		if request.URL.String() != expectedURL {
 			t.Fatalf("blueclaw task URL = %s", request.URL.String())
 		}
@@ -62,7 +62,7 @@ func TestProxyScopedTaskListForwardsPaginationQuery(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/runs/api?limit=15&offset=15&includeTotal=true&includeCost=true&dailyCostTaskRunLimit=500", nil)
 	responseRecorder := httptest.NewRecorder()
 
-	service.proxyScopedTaskList(responseRecorder, request, "staff@example.com", false)
+	service.proxyScopedTaskList(responseRecorder, request, "member@example.com", false)
 
 	if responseRecorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
@@ -88,7 +88,7 @@ func TestProxyScopedTaskDeleteForwardsViewerContext(t *testing.T) {
 		if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		if body["taskRunID"] != "task-1" || body["viewerEmail"] != "staff@example.com" || body["viewerIsAdmin"] != true {
+		if body["taskRunID"] != "task-1" || body["viewerEmail"] != "member@example.com" || body["viewerIsAdmin"] != true {
 			t.Fatalf("unexpected delete body = %#v", body)
 		}
 		responseWriter.Header().Set("Content-Type", "application/json")
@@ -101,7 +101,7 @@ func TestProxyScopedTaskDeleteForwardsViewerContext(t *testing.T) {
 	request := httptest.NewRequest(http.MethodDelete, "/runs/api/task-1", nil)
 	responseRecorder := httptest.NewRecorder()
 
-	service.proxyScopedTaskDelete(responseRecorder, request, "staff@example.com", true)
+	service.proxyScopedTaskDelete(responseRecorder, request, "member@example.com", true)
 
 	if responseRecorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())

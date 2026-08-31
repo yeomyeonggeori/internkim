@@ -62,19 +62,19 @@ func TestEnsureAttendanceSummaryCacheSchemaRebuildsIntermediateCacheWithoutChang
 		PRIMARY KEY (cache_kind, month, target_email)
 	);
 	INSERT INTO attendance_summary_cache_revisions (cache_kind, month, target_email, revision)
-	VALUES ('events', '2026-07', '', 1), ('events', '2026-07', 'staff@example.com', 2);
+	VALUES ('events', '2026-07', '', 1), ('events', '2026-07', 'member@example.com', 2);
 	INSERT INTO attendance_summary_cache_entries (
 		cache_kind, month, target_email, generation, source_revision, schema_version, payload_json, cached_at
 	) VALUES
 		('events', '2026-07', '', 'old-generation', 1, 1, '{"events":[]}', '2026-07-13T09:00:00Z'),
-		('events', '2026-07', 'staff@example.com', 'old-generation', 2, 1, '{"events":[]}', '2026-07-13T09:00:00Z');
+		('events', '2026-07', 'member@example.com', 'old-generation', 2, 1, '{"events":[]}', '2026-07-13T09:00:00Z');
 	INSERT INTO attendance_events (
 		id, mattermost_user_id, mattermost_username, email, display_name, kind,
 		occurred_at, local_date, local_time, time_zone_at_event, source, team_id,
 		channel_id, action_post_id, result_post_id, location_id, location_name,
 		canceled_at, cancel_reason, repeated_click_at
 	) VALUES (
-		'event-source-1', 'user-1', 'staff', 'staff@example.com', 'Staff', 'clock_in',
+		'event-source-1', 'user-1', 'member', 'member@example.com', 'Member', 'clock_in',
 		'2026-07-13T09:00:00Z', '2026-07-13', '18:00', 'Asia/Seoul', 'mattermost_button', 'team-1',
 		'channel-1', 'action-1', 'result-1', 'office', 'Office', '', '', ''
 	);
@@ -82,13 +82,13 @@ func TestEnsureAttendanceSummaryCacheSchemaRebuildsIntermediateCacheWithoutChang
 		id, email, kind, start_date, end_date, reason, created_by, created_at,
 		updated_at, canceled_at, replaced_by
 	) VALUES (
-		'range-source-1', 'staff@example.com', 'annual', '2026-07-14', '2026-07-14',
-		'Vacation', 'staff@example.com', '2026-07-13T09:00:00Z', '2026-07-13T09:00:00Z', '', ''
+		'range-source-1', 'member@example.com', 'annual', '2026-07-14', '2026-07-14',
+		'Vacation', 'member@example.com', '2026-07-13T09:00:00Z', '2026-07-13T09:00:00Z', '', ''
 	);
 	INSERT INTO attendance_absence_occurrences (
 		id, range_id, email, date, created_at, canceled_at
 	) VALUES (
-		'occurrence-source-1', 'range-source-1', 'staff@example.com', '2026-07-14', '2026-07-13T09:00:00Z', ''
+		'occurrence-source-1', 'range-source-1', 'member@example.com', '2026-07-14', '2026-07-13T09:00:00Z', ''
 	)`); errorValue != nil {
 		t.Fatal(errorValue)
 	}

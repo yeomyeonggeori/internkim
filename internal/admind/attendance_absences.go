@@ -8,7 +8,7 @@ import (
 )
 
 func (service *Service) writeAttendanceAbsences(responseWriter http.ResponseWriter, request *http.Request) {
-	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
+	actorEmail := strings.ToLower(strings.TrimSpace(service.webMemberActorEmail(request)))
 	isAdmin := service.canManageAttendance(request)
 	var payload attendanceAbsenceRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -57,7 +57,7 @@ func (service *Service) deleteAttendanceAbsence(responseWriter http.ResponseWrit
 		http.Error(responseWriter, "attendance absence not found", http.StatusNotFound)
 		return
 	}
-	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
+	actorEmail := strings.ToLower(strings.TrimSpace(service.webMemberActorEmail(request)))
 	isAdmin := service.canManageAttendance(request)
 	if !isAdmin && !strings.EqualFold(absence.Email, actorEmail) {
 		http.Error(responseWriter, "admin required to cancel attendance absence for another user", http.StatusForbidden)

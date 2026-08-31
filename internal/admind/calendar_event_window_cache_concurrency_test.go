@@ -21,7 +21,7 @@ func TestCalendarEventWindowCacheConcurrentRevisionChangeRejectsStalePayload(t *
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 	}
 	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
 		t.Fatal(errorValue)

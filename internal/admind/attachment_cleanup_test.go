@@ -18,7 +18,7 @@ func writeAttachmentFixture(t *testing.T, path string, content string) {
 
 func TestCleanupConversationAttachmentsDeduplicatesAndFlattens(t *testing.T) {
 	workspaceRoot := t.TempDir()
-	conversationDirectory := filepath.Join(workspaceRoot, "circles", "staff", "inbox", "mattermost", "thread-1")
+	conversationDirectory := filepath.Join(workspaceRoot, "circles", "member", "inbox", "mattermost", "thread-1")
 	writeAttachmentFixture(t, filepath.Join(conversationDirectory, "message-a", "deck.html"), "DECK")
 	writeAttachmentFixture(t, filepath.Join(conversationDirectory, "message-b", "deck.html"), "DECK")
 	writeAttachmentFixture(t, filepath.Join(conversationDirectory, "message-c", "notes.txt"), "NOTES")
@@ -53,7 +53,7 @@ func TestCleanupConversationAttachmentsDeduplicatesAndFlattens(t *testing.T) {
 
 func TestCleanupConversationAttachmentsKeepsDistinctSameNameFiles(t *testing.T) {
 	workspaceRoot := t.TempDir()
-	conversationDirectory := filepath.Join(workspaceRoot, "circles", "staff", "inbox", "mattermost", "thread-2")
+	conversationDirectory := filepath.Join(workspaceRoot, "circles", "member", "inbox", "mattermost", "thread-2")
 	writeAttachmentFixture(t, filepath.Join(conversationDirectory, "message-a", "report.txt"), "FIRST")
 	writeAttachmentFixture(t, filepath.Join(conversationDirectory, "message-b", "report.txt"), "SECOND")
 

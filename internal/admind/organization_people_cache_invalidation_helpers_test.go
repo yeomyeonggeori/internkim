@@ -83,7 +83,7 @@ func localUsersPolicyWithPerson(userID string, email string) string {
 }
 
 func localUsersPolicyWithPersonAndCircleSync(userID string, email string) string {
-	return `{"people":[{"personID":"` + userID + `","emails":["` + email + `"]}],"circles":[],"circleSync":{"mattermostPrivateChannels":[{"circleID":"staff","channelName":"circle-staff"}]}}`
+	return `{"people":[{"personID":"` + userID + `","emails":["` + email + `"]}],"circles":[],"circleSync":{"mattermostPrivateChannels":[{"circleID":"member","channelName":"circle-member"}]}}`
 }
 
 func newOrganizationProxyMutationTestService(t *testing.T) *Service {

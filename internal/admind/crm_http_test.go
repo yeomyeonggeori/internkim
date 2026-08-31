@@ -522,10 +522,10 @@ func newCRMHTTPTestService(t *testing.T) *Service {
 		t.Fatal(errorValue)
 	}
 	service.storePolicyUserRecords([]adminUserMutation{
-		{MemberID: "person-owner", Email: "owner@example.com", Circles: []string{"staff", "team-sales"}, Status: "active"},
-		{MemberID: "person-teammate", Email: "teammate@example.com", Circles: []string{"staff", "team-sales"}, Status: "active"},
-		{MemberID: "person-other", Email: "other@example.com", Circles: []string{"staff", "team-other"}, Status: "active"},
-		{MemberID: "person-admin", Email: "admin@example.com", Circles: []string{"staff", "team-admin"}, Status: "active"},
+		{MemberID: "person-owner", Email: "owner@example.com", Circles: []string{"member", "team-sales"}, Status: "active"},
+		{MemberID: "person-teammate", Email: "teammate@example.com", Circles: []string{"member", "team-sales"}, Status: "active"},
+		{MemberID: "person-other", Email: "other@example.com", Circles: []string{"member", "team-other"}, Status: "active"},
+		{MemberID: "person-admin", Email: "admin@example.com", Circles: []string{"member", "team-admin"}, Status: "active"},
 	})
 	return service
 }

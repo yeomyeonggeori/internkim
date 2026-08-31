@@ -10,25 +10,25 @@ import (
 	"strings"
 )
 
-const staffCircleGroupName = "bc_circle_staff"
+const memberCircleGroupName = "bc_circle_member"
 
-func (service *Service) reconcileSiteSourcesToStaffCircle() {
+func (service *Service) reconcileSiteSourcesToMemberCircle() {
 	for _, site := range service.siteList() {
-		if errorValue := service.migrateSiteSourceToStaffCircle(site); errorValue != nil {
-			log.Printf("site source staff-circle migration: site %s: %v", site.SiteID, errorValue)
+		if errorValue := service.migrateSiteSourceToMemberCircle(site); errorValue != nil {
+			log.Printf("site source member-circle migration: site %s: %v", site.SiteID, errorValue)
 		}
 	}
 }
 
-func (service *Service) migrateSiteSourceToStaffCircle(site *SiteRecord) error {
-	pathsChanged, errorValue := service.moveSiteSourceToStaffCircle(site)
+func (service *Service) migrateSiteSourceToMemberCircle(site *SiteRecord) error {
+	pathsChanged, errorValue := service.moveSiteSourceToMemberCircle(site)
 	if errorValue != nil || !pathsChanged {
 		return errorValue
 	}
 	return service.storeSite(site)
 }
 
-func (service *Service) moveSiteSourceToStaffCircle(site *SiteRecord) (bool, error) {
+func (service *Service) moveSiteSourceToMemberCircle(site *SiteRecord) (bool, error) {
 	siteID := strings.TrimSpace(site.SiteID)
 	if siteID == "" {
 		return false, nil
@@ -48,11 +48,11 @@ func (service *Service) moveSiteSourceToStaffCircle(site *SiteRecord) (bool, err
 			}
 			_ = os.Remove(filepath.Dir(workspaceSourceHostPath))
 		}
-		healStaffCirclePermissions(targetDraftHostPath)
+		healMemberCirclePermissions(targetDraftHostPath)
 		if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
 			return false, errorValue
 		}
-		return setStaffCircleSitePaths(site, siteID), nil
+		return setMemberCircleSitePaths(site, siteID), nil
 	}
 
 	ledgerSourceHostPath := service.siteSourceLedgerPath(siteID)
@@ -60,7 +60,7 @@ func (service *Service) moveSiteSourceToStaffCircle(site *SiteRecord) (bool, err
 		if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
 			return false, errorValue
 		}
-		return setStaffCircleSitePaths(site, siteID), nil
+		return setMemberCircleSitePaths(site, siteID), nil
 	}
 	if !looksLikeSiteDraftDirectory(targetDraftHostPath) {
 		if isExistingDirectory(targetDraftHostPath) {
@@ -68,18 +68,18 @@ func (service *Service) moveSiteSourceToStaffCircle(site *SiteRecord) (bool, err
 				return false, errorValue
 			}
 		}
-		if errorValue := copyDirectoryIntoStaffCircle(ledgerSourceHostPath, targetDraftHostPath); errorValue != nil {
+		if errorValue := copyDirectoryIntoMemberCircle(ledgerSourceHostPath, targetDraftHostPath); errorValue != nil {
 			return false, errorValue
 		}
 	}
-	healStaffCirclePermissions(targetDraftHostPath)
+	healMemberCirclePermissions(targetDraftHostPath)
 	if errorValue := service.ensureSiteWorkspaceAlias(site); errorValue != nil {
 		return false, errorValue
 	}
-	return setStaffCircleSitePaths(site, siteID), nil
+	return setMemberCircleSitePaths(site, siteID), nil
 }
 
-func copyDirectoryIntoStaffCircle(sourcePath string, targetPath string) error {
+func copyDirectoryIntoMemberCircle(sourcePath string, targetPath string) error {
 	if errorValue := os.MkdirAll(filepath.Dir(targetPath), 0o770); errorValue != nil {
 		return errorValue
 	}
@@ -100,13 +100,13 @@ func locateSiteSourceHostPath(workspaceRoot string, site *SiteRecord, targetDraf
 	}
 	candidates := []string{
 		targetDraftHostPath,
-		filepath.Join(workspaceRoot, "circles", "staff", "sites", siteWorkspaceAliasName(siteID, slug), "draft"),
+		filepath.Join(workspaceRoot, "circles", "member", "sites", siteWorkspaceAliasName(siteID, slug), "draft"),
 		filepath.Join(workspaceRoot, "sites", siteID, "draft"),
 		filepath.Join(workspaceRoot, "sites", siteID),
-		filepath.Join(workspaceRoot, "circles", "staff", "sites", siteID, "draft"),
+		filepath.Join(workspaceRoot, "circles", "member", "sites", siteID, "draft"),
 	}
-	if staffSiteRoot := staffSiteDraftRootHostPath(workspaceRoot, siteID); staffSiteRoot != "" {
-		candidates = append(candidates, staffSiteRoot)
+	if memberSiteRoot := memberSiteDraftRootHostPath(workspaceRoot, siteID); memberSiteRoot != "" {
+		candidates = append(candidates, memberSiteRoot)
 	}
 	candidates = append(candidates, filepathGlob(filepath.Join(workspaceRoot, "private", "people", "*", "sites", siteID, "draft"))...)
 	candidates = append(candidates, filepathGlob(filepath.Join(workspaceRoot, "private", "people", "*", "sites", siteID))...)
@@ -118,8 +118,8 @@ func locateSiteSourceHostPath(workspaceRoot string, site *SiteRecord, targetDraf
 	return ""
 }
 
-func staffSiteDraftRootHostPath(workspaceRoot string, siteID string) string {
-	siteRoot := filepath.Join(workspaceRoot, "circles", "staff", "sites", strings.TrimSpace(siteID))
+func memberSiteDraftRootHostPath(workspaceRoot string, siteID string) string {
+	siteRoot := filepath.Join(workspaceRoot, "circles", "member", "sites", strings.TrimSpace(siteID))
 	if !looksLikeSiteDraftDirectory(siteRoot) {
 		return ""
 	}
@@ -145,7 +145,7 @@ func relocateDirectory(sourcePath string, targetPath string) error {
 	return os.RemoveAll(sourcePath)
 }
 
-func setStaffCircleSitePaths(site *SiteRecord, siteID string) bool {
+func setMemberCircleSitePaths(site *SiteRecord, siteID string) bool {
 	draftPath := siteDraftWorkspacePath(siteID, site.Slug, "")
 	projectPath := siteProjectAliasWorkspacePath(siteID, site.Slug)
 	appPath := filepath.ToSlash(filepath.Join(draftPath, "app"))
@@ -159,14 +159,14 @@ func setStaffCircleSitePaths(site *SiteRecord, siteID string) bool {
 	return true
 }
 
-func healStaffCirclePermissions(rootPath string) {
-	groupID, errorValue := lookupStaffCircleGroupID()
-	hasStaffCircleGroup := errorValue == nil
+func healMemberCirclePermissions(rootPath string) {
+	groupID, errorValue := lookupMemberCircleGroupID()
+	hasMemberCircleGroup := errorValue == nil
 	walkError := filepath.WalkDir(rootPath, func(path string, entry fs.DirEntry, iterationError error) error {
 		if iterationError != nil {
 			return nil
 		}
-		if hasStaffCircleGroup {
+		if hasMemberCircleGroup {
 			_ = os.Lchown(path, -1, groupID)
 		}
 		if entry.Type()&fs.ModeSymlink != 0 {
@@ -180,18 +180,18 @@ func healStaffCirclePermissions(rootPath string) {
 		return nil
 	})
 	if walkError != nil {
-		log.Printf("site source staff-circle permission heal incomplete for %s: %v", rootPath, walkError)
+		log.Printf("site source member-circle permission heal incomplete for %s: %v", rootPath, walkError)
 	}
 }
 
-func ensureStaffCircleDirectory(path string) error {
+func ensureMemberCircleDirectory(path string) error {
 	if strings.TrimSpace(path) == "" {
 		return nil
 	}
 	if errorValue := os.MkdirAll(path, 0o770); errorValue != nil {
 		return errorValue
 	}
-	if groupID, errorValue := lookupStaffCircleGroupID(); errorValue == nil {
+	if groupID, errorValue := lookupMemberCircleGroupID(); errorValue == nil {
 		if errorValue := os.Lchown(path, -1, groupID); errorValue != nil {
 			return errorValue
 		}
@@ -199,8 +199,8 @@ func ensureStaffCircleDirectory(path string) error {
 	return os.Chmod(path, os.ModeSetgid|0o770)
 }
 
-func lookupStaffCircleGroupID() (int, error) {
-	group, errorValue := user.LookupGroup(staffCircleGroupName)
+func lookupMemberCircleGroupID() (int, error) {
+	group, errorValue := user.LookupGroup(memberCircleGroupName)
 	if errorValue != nil {
 		return -1, errorValue
 	}

@@ -21,10 +21,10 @@ func (service *Service) authorizeTaskRequest(request *http.Request, action strin
 		return service.isTaskAdminActor(request, actorEmail)
 	}
 	if resource == taskResourceSummary && action == taskActionRead {
-		return service.isTaskStaffActor(request.Context(), actorEmail)
+		return service.isTaskMemberActor(request.Context(), actorEmail)
 	}
 	if resource == taskResourceTask && (action == taskActionCreate || action == taskActionUpdate || action == taskActionDelete) {
-		return service.isTaskStaffActor(request.Context(), actorEmail)
+		return service.isTaskMemberActor(request.Context(), actorEmail)
 	}
 	return false
 }
@@ -33,7 +33,7 @@ func (service *Service) taskActorEmail(request *http.Request) string {
 	if actorEmail := strings.ToLower(strings.TrimSpace(request.Header.Get(taskResolvedActorHeader))); actorEmail != "" {
 		return actorEmail
 	}
-	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
+	if actorEmail := service.webMemberActorEmail(request); actorEmail != "" {
 		request.Header.Set(taskResolvedActorHeader, actorEmail)
 		return actorEmail
 	}
@@ -44,9 +44,9 @@ func (service *Service) taskActorEmail(request *http.Request) string {
 	return actorEmail
 }
 
-func (service *Service) webStaffActorEmail(request *http.Request) string {
+func (service *Service) webMemberActorEmail(request *http.Request) string {
 	actorEmail := service.webActorEmail(request)
-	if actorEmail == "" || !service.isTaskStaffActor(request.Context(), actorEmail) {
+	if actorEmail == "" || !service.isTaskMemberActor(request.Context(), actorEmail) {
 		return ""
 	}
 	return actorEmail
@@ -64,7 +64,7 @@ func (service *Service) canViewTaskRuns(ctx context.Context, actorEmail string) 
 	if strings.TrimSpace(actorEmail) == "" {
 		return false
 	}
-	return service.isTaskStaffActor(ctx, actorEmail)
+	return service.isTaskMemberActor(ctx, actorEmail)
 }
 
 func (service *Service) canManageTaskRuns(ctx context.Context, actorEmail string) bool {
@@ -78,7 +78,7 @@ func (service *Service) canAuthenticateWebReturnPath(ctx context.Context, actorE
 	if isTaskRunWebPath(returnPath) {
 		return service.canViewTaskRuns(ctx, actorEmail)
 	}
-	return service.isTaskStaffActor(ctx, actorEmail)
+	return service.isTaskMemberActor(ctx, actorEmail)
 }
 
 func isTaskRunWebPath(path string) bool {
@@ -94,15 +94,15 @@ func isTaskRunWebPath(path string) bool {
 	}
 }
 
-func (service *Service) authorizeWebStaffRequest(request *http.Request) bool {
-	return service.webStaffActorEmail(request) != ""
+func (service *Service) authorizeWebMemberRequest(request *http.Request) bool {
+	return service.webMemberActorEmail(request) != ""
 }
 
-func (service *Service) authorizeInternalOrWebStaffRequest(request *http.Request) bool {
+func (service *Service) authorizeInternalOrWebMemberRequest(request *http.Request) bool {
 	if isLocalRequest(request) {
 		return true
 	}
-	return service.authorizeWebStaffRequest(request)
+	return service.authorizeWebMemberRequest(request)
 }
 
 func (service *Service) webActorEmail(request *http.Request) string {
@@ -177,7 +177,7 @@ func (service *Service) fetchMattermostSessionUser(ctx context.Context, cookieHe
 	return userRecord, true
 }
 
-func (service *Service) isTaskStaffActor(ctx context.Context, actorEmail string) bool {
+func (service *Service) isTaskMemberActor(ctx context.Context, actorEmail string) bool {
 	if service.isTaskAdminEmail(ctx, actorEmail) {
 		return true
 	}

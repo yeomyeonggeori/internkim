@@ -38,12 +38,12 @@ func TestCalendarParticipantsRejectCalendarToken(t *testing.T) {
 		t.Fatalf("token status = %d body = %s", tokenResponse.Code, tokenResponse.Body.String())
 	}
 
-	staffRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/participants", nil)
-	staffRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
-	staffResponse := httptest.NewRecorder()
-	service.router().ServeHTTP(staffResponse, staffRequest)
-	if staffResponse.Code != http.StatusOK {
-		t.Fatalf("staff status = %d body = %s", staffResponse.Code, staffResponse.Body.String())
+	memberRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/participants", nil)
+	memberRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
+	memberResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(memberResponse, memberRequest)
+	if memberResponse.Code != http.StatusOK {
+		t.Fatalf("member status = %d body = %s", memberResponse.Code, memberResponse.Body.String())
 	}
 }
 

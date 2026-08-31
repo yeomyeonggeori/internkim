@@ -21,7 +21,7 @@ func TestAttendanceLeaveRequestPreviewExcludesWeekends(t *testing.T) {
 		"endDate": "2027-05-10"
 	}`))
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleAttendance(recorder, request)
@@ -205,7 +205,7 @@ func TestAttendanceLeaveRequestPreviewRejectsPastDate(t *testing.T) {
 		strings.NewReader(`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2020-01-02"}`),
 	)
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleAttendance(recorder, request)

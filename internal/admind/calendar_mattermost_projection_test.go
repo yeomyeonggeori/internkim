@@ -184,8 +184,8 @@ func TestCalendarMattermostLogOmitsMentionWhenPeopleAreEmpty(t *testing.T) {
 
 func TestCalendarMattermostLogMentionsCircleIDPeople(t *testing.T) {
 	service := newCalendarTestService(t)
-	message := service.calendarMattermostLogMessage(calendarTestEvent("staff-sync", "Staff sync", "staff, product-team\nBring agenda"))
-	if !strings.Contains(message, "참석자: @staff @product-team\n\n| 일시") {
+	message := service.calendarMattermostLogMessage(calendarTestEvent("member-sync", "Member sync", "member, product-team\nBring agenda"))
+	if !strings.Contains(message, "참석자: @member @product-team\n\n| 일시") {
 		t.Fatalf("message = %q", message)
 	}
 	if strings.Contains(message, "대상:") {
@@ -196,7 +196,7 @@ func TestCalendarMattermostLogMentionsCircleIDPeople(t *testing.T) {
 func TestCalendarMattermostLogMentionsKoreanPeople(t *testing.T) {
 	service := newCalendarTestService(t)
 	mattermostUsers := []mattermostUserRecord{{ID: "user-kimyesi", Username: "member2", Nickname: "김예시", Email: "member2@example.com"}}
-	message := service.calendarMattermostLogMessageWithUsers(calendarTestEvent("targeted", "Staff sync", "김예시\nBring agenda"), mattermostUsers)
+	message := service.calendarMattermostLogMessageWithUsers(calendarTestEvent("targeted", "Member sync", "김예시\nBring agenda"), mattermostUsers)
 	if !strings.Contains(message, "참석자: @member2\n\n| 일시") {
 		t.Fatalf("message = %q", message)
 	}

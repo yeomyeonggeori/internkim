@@ -41,14 +41,14 @@ func TestMailMessageSendApprovedContinuationPostsToAdmind(t *testing.T) {
 		ToolName: "mail_message_send",
 		Input:    []byte(`{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail:         "Staff@Example.com",
+			RequesterEmail:         "Member@Example.com",
 			IsApprovalContinuation: true,
 		},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if requesterEmail != "staff@example.com" {
+	if requesterEmail != "member@example.com" {
 		t.Fatalf("requesterEmail = %q", requesterEmail)
 	}
 	if payload["subject"] != "Demo" {
@@ -74,12 +74,12 @@ func TestMailMessageListForwardsCursorAndRequester(t *testing.T) {
 	_, errorValue := service.invokeMailMessageList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "mail_message_list",
 		Input:    []byte(`{"mailbox":"INBOX","limit":5,"cursor":"cursor-1"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Staff@Example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Member@Example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if requesterEmail != "staff@example.com" {
+	if requesterEmail != "member@example.com" {
 		t.Fatalf("requesterEmail = %q", requesterEmail)
 	}
 	if requestPath != "http://admind.local/mail/api/messages?cursor=cursor-1&limit=5&mailbox=INBOX" {
@@ -136,18 +136,18 @@ func TestMailConnectionStatusUsesAccountEndpoint(t *testing.T) {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
 			requesterEmail = request.Header.Get("CF-Access-Authenticated-User-Email")
-			return mailToolJSONResponse(`{"configured":true,"email":"staff@example.com"}`), nil
+			return mailToolJSONResponse(`{"configured":true,"email":"member@example.com"}`), nil
 		})},
 	}
 
 	result, errorValue := service.invokeMailConnectionStatus(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "mail_connection_status",
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Staff@Example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "Member@Example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if requesterEmail != "staff@example.com" {
+	if requesterEmail != "member@example.com" {
 		t.Fatalf("requesterEmail = %q", requesterEmail)
 	}
 	if !strings.Contains(string(result), `"configured":true`) {

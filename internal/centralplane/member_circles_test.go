@@ -8,11 +8,11 @@ import (
 
 func TestAMemberReadsTheCirclesTheCompanySends(t *testing.T) {
 	var member Member
-	document := `{"memberID":"m1","email":"lee@example.test","role":"admin","circles":["staff","c-level"]}`
+	document := `{"memberID":"m1","email":"lee@example.test","role":"admin","circles":["member","c-level"]}`
 	if errorValue := json.Unmarshal([]byte(document), &member); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !slices.Equal(member.Circles, []string{"staff", "c-level"}) {
+	if !slices.Equal(member.Circles, []string{"member", "c-level"}) {
 		t.Fatalf("the field name the company sends must be the one this reads, got %v", member.Circles)
 	}
 }

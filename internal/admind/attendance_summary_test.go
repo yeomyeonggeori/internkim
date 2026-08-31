@@ -22,7 +22,7 @@ func TestAttendanceSummaryIncludesServerTime(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-07", nil)
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	requestStartedAt := time.Now().UTC()
 
 	service.handleAttendance(recorder, request)
@@ -52,7 +52,7 @@ func TestAttendanceSummaryIncludesAuthoritativeWorkspaceTimeZone(t *testing.T) {
 	serverTime := time.Date(2026, 6, 30, 15, 30, 0, 0, time.UTC)
 	eventsReader := func(context.Context, string, string) ([]attendanceEvent, error) {
 		return []attendanceEvent{{
-			Email:      "staff@example.com",
+			Email:      "member@example.com",
 			Kind:       attendanceKindClockIn,
 			OccurredAt: serverTime.Add(-30 * time.Minute).Format(time.RFC3339Nano),
 			LocalDate:  "2026-07-01",
@@ -63,7 +63,7 @@ func TestAttendanceSummaryIncludesAuthoritativeWorkspaceTimeZone(t *testing.T) {
 	}
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary", nil)
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 
 	service.writeAttendanceSummaryWithReadersAt(recorder, request, eventsReader, absencesReader, serverTime)
 
@@ -92,7 +92,7 @@ func TestAttendanceSummaryDisablesCaching(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-07", nil)
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 
 	service.handleAttendance(recorder, request)
 
@@ -115,9 +115,9 @@ func TestAttendanceSummaryScopesHiddenTeamViewToActor(t *testing.T) {
 	occurredAt := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC)
 	insertAttendanceSummaryTestEvent(t, service, database, mattermostUserRecord{
 		ID:       "user-1",
-		Username: "staff",
-		Email:    "staff@example.com",
-		Nickname: "Staff",
+		Username: "member",
+		Email:    "member@example.com",
+		Nickname: "Member",
 	}, attendanceKindClockIn, occurredAt)
 	insertAttendanceSummaryTestEvent(t, service, database, mattermostUserRecord{
 		ID:       "user-2",
@@ -130,7 +130,7 @@ func TestAttendanceSummaryScopesHiddenTeamViewToActor(t *testing.T) {
 	}
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-05&email=other@example.com", nil)
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 
 	service.handleAttendance(recorder, request)
 
@@ -147,7 +147,7 @@ func TestAttendanceSummaryScopesHiddenTeamViewToActor(t *testing.T) {
 	if len(response.Events) != 1 {
 		t.Fatalf("events = %+v", response.Events)
 	}
-	if response.Events[0].Email != "staff@example.com" {
+	if response.Events[0].Email != "member@example.com" {
 		t.Fatalf("event email = %q", response.Events[0].Email)
 	}
 }
@@ -349,7 +349,7 @@ func TestAttendanceEventOverridePreservesOriginalAndProjectsSummary(t *testing.T
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(
 		userRecord,
 		attendanceKindClockIn,
@@ -368,7 +368,7 @@ func TestAttendanceEventOverridePreservesOriginalAndProjectsSummary(t *testing.T
 	}
 	recorder := httptest.NewRecorder()
 	request := newLocalAttendanceRequest(http.MethodPatch, "/attendance/api/events/"+event.ID, strings.NewReader(`{"localDate":"2026-06-18","localTime":"14:05","locationID":"home","reason":"메시지 인식 수정"}`))
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 
 	service.handleAttendance(recorder, request)
 
@@ -377,7 +377,7 @@ func TestAttendanceEventOverridePreservesOriginalAndProjectsSummary(t *testing.T
 	}
 	summaryRecorder := httptest.NewRecorder()
 	summaryRequest := newLocalAttendanceRequest(http.MethodGet, "/attendance/api/summary?month=2026-06", nil)
-	summaryRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	summaryRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	service.handleAttendance(summaryRecorder, summaryRequest)
 	if summaryRecorder.Code != http.StatusOK {
 		t.Fatalf("summary status = %d body = %s", summaryRecorder.Code, summaryRecorder.Body.String())
@@ -396,7 +396,7 @@ func TestAttendanceEventOverridePreservesOriginalAndProjectsSummary(t *testing.T
 	if editedEvent.OriginalLocalTime != "13:44:00" || editedEvent.OriginalLocationID != "office" || editedEvent.OriginalLocationName != "사무실" {
 		t.Fatalf("original event fields = %+v", editedEvent)
 	}
-	if editedEvent.OverriddenBy != "staff@example.com" || editedEvent.OverriddenAt == "" || editedEvent.OverrideReason != "메시지 인식 수정" {
+	if editedEvent.OverriddenBy != "member@example.com" || editedEvent.OverriddenAt == "" || editedEvent.OverrideReason != "메시지 인식 수정" {
 		t.Fatalf("override metadata = %+v", editedEvent)
 	}
 	if len(editedEvent.OverrideHistory) != 1 || editedEvent.OverrideHistory[0].OriginalLocalTime != "13:44:00" || editedEvent.OverrideHistory[0].OverrideLocalTime != "14:05:00" {
@@ -423,7 +423,7 @@ func TestAttendanceEventOverrideRequiresOwnerOrAdmin(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(
 		userRecord,
 		attendanceKindClockIn,
@@ -441,9 +441,9 @@ func TestAttendanceEventOverrideRequiresOwnerOrAdmin(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	staffRecorder := patchAttendanceEventOverrideForTest(service, event.ID, "other@example.com")
-	if staffRecorder.Code != http.StatusForbidden {
-		t.Fatalf("expected non-owner staff status 403, got %d: %s", staffRecorder.Code, staffRecorder.Body.String())
+	memberRecorder := patchAttendanceEventOverrideForTest(service, event.ID, "other@example.com")
+	if memberRecorder.Code != http.StatusForbidden {
+		t.Fatalf("expected non-owner member status 403, got %d: %s", memberRecorder.Code, memberRecorder.Body.String())
 	}
 
 	adminRecorder := patchAttendanceEventOverrideForTest(service, event.ID, "admin@example.com")

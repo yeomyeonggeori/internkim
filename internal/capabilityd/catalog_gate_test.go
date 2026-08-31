@@ -47,7 +47,7 @@ func gateCases() map[string]catalogGateCase {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{
 				mattermostOverHTTP: answering(`{"id":"bot-1","username":"internkim","is_bot":true}`),
-				blueclawOverHTTP:   answering(staffPolicyFor("person-1", "staff@example.com")),
+				blueclawOverHTTP:   answering(memberPolicyFor("person-1", "member@example.com")),
 			},
 			input:   `{}`,
 			arrives:   inAChannel,
@@ -120,7 +120,7 @@ func gateCases() map[string]catalogGateCase {
 					}
 					return http.StatusOK, `{"id":"channel-1","display_name":"전사 공지","header":"9월 공지"}`
 				}),
-				blueclawOverHTTP: answering(adminPolicyFor("person-1", "staff@example.com")),
+				blueclawOverHTTP: answering(adminPolicyFor("person-1", "member@example.com")),
 			},
 			input:     `{"channelID":"channel-1","header":"9월 공지"}`,
 			arrives:   inAChannel,
@@ -458,7 +458,7 @@ func runningTheBrowser() *standingIn {
 func reachingTheMessenger(mattermost *standingIn) map[gateBackend]*standingIn {
 	return map[gateBackend]*standingIn{
 		mattermostOverHTTP: mattermost,
-		blueclawOverHTTP:   answering(staffPolicyFor("person-1", "staff@example.com")),
+		blueclawOverHTTP:   answering(memberPolicyFor("person-1", "member@example.com")),
 	}
 }
 
@@ -475,19 +475,19 @@ func inAChannel(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvoke
 // The message tools ask blueclaw who the requester is before they answer, so a
 // case for one of them says the requester works here.
 func adminPolicyFor(personID string, email string) string {
-	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["` + mattermostToolStaffCircle + `"],"isAdmin":true}]}`
+	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["` + mattermostToolMemberCircle + `"],"isAdmin":true}]}`
 }
 
-func staffPolicyFor(personID string, email string) string {
+func memberPolicyFor(personID string, email string) string {
 	// The circle the message tools require is the code's to name, so the case
 	// asks for it rather than spelling it — internkim#507 renames it.
-	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["` + mattermostToolStaffCircle + `"]}]}`
+	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["` + mattermostToolMemberCircle + `"]}]}`
 }
 
 // The task, calendar and person tools all read the same Flow state and write
 // through the same paths, so one stand-in answers for all nine of them.
 func recordAnsweringTasks() *standingIn {
-	state := `{"currentWeek":{"label":"2026-W36"},"members":[{"personID":"person-1","name":"이샘플","email":"staff@example.com"}],"tasks":[{"id":"task-1","title":"분기 보고서 초안","status":"planned","size":"M","ownerID":"person-1","isEvent":false},{"id":"event-1","title":"주간 회의","status":"planned","ownerID":"person-1","isEvent":true,"startsAt":"2026-09-01T01:00:00Z","endsAt":"2026-09-01T02:00:00Z"}],"definitions":{"categories":["영업"],"types":["문서"],"sizes":[{"name":"M"}]}}`
+	state := `{"currentWeek":{"label":"2026-W36"},"members":[{"personID":"person-1","name":"이샘플","email":"member@example.com"}],"tasks":[{"id":"task-1","title":"분기 보고서 초안","status":"planned","size":"M","ownerID":"person-1","isEvent":false},{"id":"event-1","title":"주간 회의","status":"planned","ownerID":"person-1","isEvent":true,"startsAt":"2026-09-01T01:00:00Z","endsAt":"2026-09-01T02:00:00Z"}],"definitions":{"categories":["영업"],"types":["문서"],"sizes":[{"name":"M"}]}}`
 	written := `{"id":"task-1","title":"분기 보고서 초안","status":"planned","size":"M","ownerID":"person-1","isEvent":false}`
 	writtenEvent := `{"id":"event-1","title":"주간 회의","status":"planned","ownerID":"person-1","isEvent":true,"startsAt":"2026-09-01T01:00:00Z","endsAt":"2026-09-01T02:00:00Z"}`
 	return answeringPerCall(func(request *http.Request) (int, string) {
@@ -510,7 +510,7 @@ func arrivingCall(name string, gateCase catalogGateCase) capabilities.ToolInvoke
 	arriving := capabilities.ToolInvokeRequest{
 		ToolName: name,
 		Input:    json.RawMessage(gateCase.input),
-		Context:  capabilityprotocol.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilityprotocol.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	}
 	if gateCase.arrives == nil {
 		return arriving

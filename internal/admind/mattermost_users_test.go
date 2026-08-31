@@ -144,7 +144,7 @@ func isMattermostDefaultChannelMemberRequest(request *http.Request) bool {
 		request.URL.Path[len(request.URL.Path)-len("/members"):] == "/members"
 }
 
-func TestMattermostSyncedPersonCirclesUsesStaffAndChannelMembership(t *testing.T) {
+func TestMattermostSyncedPersonCirclesUsesMemberAndChannelMembership(t *testing.T) {
 	person := map[string]any{
 		"emails": []any{"minsu@example.com", "other@example.com"},
 	}
@@ -153,8 +153,8 @@ func TestMattermostSyncedPersonCirclesUsesStaffAndChannelMembership(t *testing.T
 		"representative": {"someone@example.com": true},
 	})
 
-	if !containsMattermostTestString(circles, "staff") || !containsMattermostTestString(circles, "finance") {
-		t.Fatalf("expected staff and finance circles, got %+v", circles)
+	if !containsMattermostTestString(circles, "member") || !containsMattermostTestString(circles, "finance") {
+		t.Fatalf("expected member and finance circles, got %+v", circles)
 	}
 	if containsMattermostTestString(circles, "representative") {
 		t.Fatalf("expected non-member representative circle omitted, got %+v", circles)
@@ -168,22 +168,22 @@ func TestMattermostSyncedPersonCirclesKeepsAdminFromPolicy(t *testing.T) {
 	}
 	circles := mattermostSyncedPersonCircles(person, map[string]map[string]bool{})
 
-	if !containsMattermostTestString(circles, "staff") || !containsMattermostTestString(circles, "admin") {
-		t.Fatalf("expected staff and admin circles, got %+v", circles)
+	if !containsMattermostTestString(circles, "member") || !containsMattermostTestString(circles, "admin") {
+		t.Fatalf("expected member and admin circles, got %+v", circles)
 	}
 }
 
 func TestMattermostSyncedPersonCirclesPreservesUnmanagedCircles(t *testing.T) {
 	person := map[string]any{
 		"emails":  []any{"owner@example.com"},
-		"circles": []any{"staff", "lab", "c-level"},
+		"circles": []any{"member", "lab", "c-level"},
 	}
 	circles := mattermostSyncedPersonCircles(person, map[string]map[string]bool{
 		"c-level": {"someone@example.com": true},
 	})
 
-	if !containsMattermostTestString(circles, "staff") || !containsMattermostTestString(circles, "lab") {
-		t.Fatalf("expected staff and unmanaged lab circles, got %+v", circles)
+	if !containsMattermostTestString(circles, "member") || !containsMattermostTestString(circles, "lab") {
+		t.Fatalf("expected member and unmanaged lab circles, got %+v", circles)
 	}
 	if containsMattermostTestString(circles, "c-level") {
 		t.Fatalf("expected managed c-level to come only from Mattermost membership, got %+v", circles)

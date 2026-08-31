@@ -28,7 +28,7 @@ func TestAttendanceEventOverrideRejectsFutureTime(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(
 		userRecord,
 		attendanceKindClockOut,
@@ -54,7 +54,7 @@ func TestAttendanceEventOverrideRejectsFutureTime(t *testing.T) {
 	)
 	recorder := httptest.NewRecorder()
 	request := newLocalAttendanceRequest(http.MethodPatch, "/attendance/api/events/"+event.ID, strings.NewReader(payload))
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 
 	service.handleAttendance(recorder, request)
 
@@ -98,7 +98,7 @@ func TestAttendanceEventOverrideUsesCurrentMinuteBoundary(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	defer database.Close()
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(
 		userRecord,
 		attendanceKindClockOut,
@@ -131,7 +131,7 @@ func TestAttendanceEventOverrideUsesCurrentMinuteBoundary(t *testing.T) {
 				database,
 				event,
 				payload,
-				"staff@example.com",
+				"member@example.com",
 				editedAt,
 			)
 			if test.isFuture {

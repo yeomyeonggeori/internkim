@@ -60,10 +60,10 @@ func TestResolveTaskOwnerMatchesTargetPersonHint(t *testing.T) {
 
 func TestResolveTaskOwnerFallsBackToRequesterEmail(t *testing.T) {
 	members := []taskMemberForTool{
-		{ID: "staff", Name: "Staff", Email: "staff@example.com", MattermostUsername: "staff"},
+		{ID: "member", Name: "Member", Email: "member@example.com", MattermostUsername: "member"},
 	}
-	resolution := serviceWithDirectoryOf(t, members).resolveTaskOwner(context.Background(), nil, "staff@example.com", members)
-	if resolution.OwnerID != "staff" {
+	resolution := serviceWithDirectoryOf(t, members).resolveTaskOwner(context.Background(), nil, "member@example.com", members)
+	if resolution.OwnerID != "member" {
 		t.Fatalf("ownerID = %q failure=%+v", resolution.OwnerID, resolution.Failure)
 	}
 }
@@ -204,7 +204,7 @@ func TestTaskAddPropagatesRequesterEmail(t *testing.T) {
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
 				summaryRequesterEmail = request.Header.Get(admindRequesterEmailHeader)
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"member","name":"Member","email":"member@example.com"}]}`)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				taskRequesterEmail = request.Header.Get(admindRequesterEmailHeader)
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -222,13 +222,13 @@ func TestTaskAddPropagatesRequesterEmail(t *testing.T) {
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"10분 회의"}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
+			RequesterEmail: "member@example.com",
 		},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if summaryRequesterEmail != "staff@example.com" || taskRequesterEmail != "staff@example.com" {
+	if summaryRequesterEmail != "member@example.com" || taskRequesterEmail != "member@example.com" {
 		t.Fatalf("requester headers summary=%q task=%q", summaryRequesterEmail, taskRequesterEmail)
 	}
 }
@@ -239,15 +239,15 @@ func TestTaskWritesPreserveCallerContext(t *testing.T) {
 		invoke func(Service, context.Context) error
 	}{
 		{name: "add", invoke: func(service Service, requestContext context.Context) error {
-			_, errorValue := service.postTask(requestContext, taskCreatePayload{OwnerID: "staff", ParticipantIDs: []string{"staff"}, Content: "업무"}, "staff@example.com")
+			_, errorValue := service.postTask(requestContext, taskCreatePayload{OwnerID: "member", ParticipantIDs: []string{"member"}, Content: "업무"}, "member@example.com")
 			return errorValue
 		}},
 		{name: "update", invoke: func(service Service, requestContext context.Context) error {
-			_, errorValue := service.putTask(requestContext, taskForTool{ID: "task-1"}, "staff@example.com")
+			_, errorValue := service.putTask(requestContext, taskForTool{ID: "task-1"}, "member@example.com")
 			return errorValue
 		}},
 		{name: "delete", invoke: func(service Service, requestContext context.Context) error {
-			_, errorValue := service.deleteTask(requestContext, "task-1", "staff@example.com")
+			_, errorValue := service.deleteTask(requestContext, "task-1", "member@example.com")
 			return errorValue
 		}},
 	}
@@ -303,7 +303,7 @@ func TestTaskAddPropagatesTypedFields(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"},{"id":"kim","name":"김인턴","email":"kim@example.com","mattermostUsername":"internkim"}],"definitions":{"categories":["여명거리","김인턴"],"types":["기능","문서"]}}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"member","name":"Member","email":"member@example.com"},{"id":"kim","name":"김인턴","email":"kim@example.com","mattermostUsername":"internkim"}],"definitions":{"categories":["여명거리","김인턴"],"types":["기능","문서"]}}`)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -320,7 +320,7 @@ func TestTaskAddPropagatesTypedFields(t *testing.T) {
 		ToolName: "task_add",
 		Input:    []byte(`{"title":" 고객지원 분기 결산 누락 항목 확인 ","size":" s ","status":"planned","business":" 김인턴 ","type":"문서","startsAt":" 2026-07-15 ","endsAt":" 2026-07-17 ","participantPersonHints":["@internkim"]}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
+			RequesterEmail: "member@example.com",
 		},
 	})
 	if errorValue != nil {
@@ -358,7 +358,7 @@ func TestTaskAddRefusesUnregisteredBusinessWithoutPosting(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			if request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state" {
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"definitions":{"categories":["여명거리","김인턴"],"types":["기능","문서"]}}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"member","name":"Member","email":"member@example.com"}],"definitions":{"categories":["여명거리","김인턴"],"types":["기능","문서"]}}`)), nil
 			}
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -368,7 +368,7 @@ func TestTaskAddRefusesUnregisteredBusinessWithoutPosting(t *testing.T) {
 	response, errorValue := service.invokeTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"업무","business":"없는사업"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -440,7 +440,7 @@ func TestTaskAddReturnsAmbiguousOwnerError(t *testing.T) {
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"업무 요청","participantPersonHints":["샘플"]}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
+			RequesterEmail: "member@example.com",
 		},
 	})
 	if errorValue != nil {
@@ -473,7 +473,7 @@ func TestTaskAddReturnsParticipantResolutionErrorBeforeCreate(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"},{"id":"lee","name":"샘플","email":"lee@example.com"},{"id":"kim","name":"샘플","email":"kim@example.com"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"member","name":"Member","email":"member@example.com"},{"id":"lee","name":"샘플","email":"lee@example.com"},{"id":"kim","name":"샘플","email":"kim@example.com"}]}`)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				postCalled = true
 				return taskToolJSONResponse(`{"id":"task-1"}`), nil
@@ -487,7 +487,7 @@ func TestTaskAddReturnsParticipantResolutionErrorBeforeCreate(t *testing.T) {
 	response, errorValue := service.invokeTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"공동 업무","participantPersonHints":["샘플"]}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -514,14 +514,14 @@ func TestTaskListFiltersTasksByQueryIgnoringSpaces(t *testing.T) {
 			if request.Method != http.MethodGet || request.URL.String() != "http://internkim/task/api/state" {
 				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			}
-			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"currentWeek":{"code":"26W23"},"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","ownerName":"Staff","content":"견본코리아 기획안 전달","status":"planned","weekCode":"26W23"},{"id":"task-2","ownerID":"staff","ownerName":"Staff","content":"사무실 미팅","status":"planned","weekCode":"26W23"}]}`)), nil
+			return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"currentWeek":{"code":"26W23"},"members":[{"id":"member","name":"Member","email":"member@example.com"}],"tasks":[{"id":"task-1","ownerID":"member","ownerName":"Member","content":"견본코리아 기획안 전달","status":"planned","weekCode":"26W23"},{"id":"task-2","ownerID":"member","ownerName":"Member","content":"사무실 미팅","status":"planned","weekCode":"26W23"}]}`)), nil
 		})},
 	}
 
 	response, errorValue := service.invokeTaskList(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_list",
 		Input:    []byte(`{"query":"견본 코리아","weekFrom":-1000}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -584,7 +584,7 @@ func TestTaskAddReportsDuplicateAsTypedFailure(t *testing.T) {
 				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
 			}
 			if request.Method == http.MethodGet {
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"member","name":"Member","email":"member@example.com"}]}`)), nil
 			}
 			return taskToolJSONResponse(`{"status":"skipped_duplicate","duplicateTask":{"id":"task-existing"}}`), nil
 		})},
@@ -593,7 +593,7 @@ func TestTaskAddReportsDuplicateAsTypedFailure(t *testing.T) {
 	response, errorValue := service.invokeTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"고객지원 분기 결산"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -614,7 +614,7 @@ func TestTaskAddDeduplicatesSameTitleSameOwnerWithinWindow(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
+				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"member","name":"Member","email":"member@example.com"}],"tasks":[{"id":"task-existing","ownerID":"member","ownerName":"Member","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				postCalled = true
 				return taskToolJSONResponse(`{"id":"task-new"}`), nil
@@ -628,7 +628,7 @@ func TestTaskAddDeduplicatesSameTitleSameOwnerWithinWindow(t *testing.T) {
 	response, errorValue := service.invokeTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"고객지원 분기 결산 누락 항목 확인"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -663,7 +663,7 @@ func TestTaskAddCreatesNewTaskForDifferentTitle(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"다른 업무","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
+				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"member","name":"Member","email":"member@example.com"}],"tasks":[{"id":"task-existing","ownerID":"member","ownerName":"Member","content":"다른 업무","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				return taskToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
@@ -676,7 +676,7 @@ func TestTaskAddCreatesNewTaskForDifferentTitle(t *testing.T) {
 	response, errorValue := service.invokeTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"고객지원 분기 결산 누락 항목 확인"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -702,7 +702,7 @@ func TestTaskAddCreatesNewTaskForDifferentOwner(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"kim","ownerName":"Kim","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
+				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"member","name":"Member","email":"member@example.com"}],"tasks":[{"id":"task-existing","ownerID":"kim","ownerName":"Kim","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, recentCreatedAt)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				return taskToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
@@ -715,7 +715,7 @@ func TestTaskAddCreatesNewTaskForDifferentOwner(t *testing.T) {
 	response, errorValue := service.invokeTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"고객지원 분기 결산 누락 항목 확인"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -741,7 +741,7 @@ func TestTaskAddCreatesNewTaskAfterDuplicateWindowExpires(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-existing","ownerID":"staff","ownerName":"Staff","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, staleCreatedAt)), nil
+				return taskToolJSONResponse(fmt.Sprintf(`{"members":[{"id":"member","name":"Member","email":"member@example.com"}],"tasks":[{"id":"task-existing","ownerID":"member","ownerName":"Member","content":"고객지원 분기 결산 누락 항목 확인","status":"planned","createdAt":%q}]}`, staleCreatedAt)), nil
 			case request.Method == http.MethodPost && request.URL.String() == "http://internkim/task/api/tasks":
 				return taskToolJSONResponse(`{"id":"task-new"}`), nil
 			default:
@@ -754,7 +754,7 @@ func TestTaskAddCreatesNewTaskAfterDuplicateWindowExpires(t *testing.T) {
 	response, errorValue := service.invokeTaskAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_add",
 		Input:    []byte(`{"title":"고객지원 분기 결산 누락 항목 확인"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -781,7 +781,7 @@ func TestTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"in_progress","weekCode":"26W24"},{"id":"task-1","ownerID":"staff","ownerName":"Staff","participantIDs":["staff"],"participantNames":["Staff"],"business":"개발","type":"회의","content":"10분 회의","size":"XS","status":"in_progress","weekCode":"26W24"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"foreign","name":"Foreign","email":"foreign@example.com"},{"id":"member","name":"Member","email":"member@example.com"}],"tasks":[{"id":"foreign-task","ownerID":"foreign","ownerName":"Foreign","participantIDs":["foreign"],"content":"10분 회의","status":"in_progress","weekCode":"26W24"},{"id":"task-1","ownerID":"member","ownerName":"Member","participantIDs":["member"],"participantNames":["Member"],"business":"개발","type":"회의","content":"10분 회의","size":"XS","status":"in_progress","weekCode":"26W24"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/task/api/tasks/task-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -801,7 +801,7 @@ func TestTaskUpdateUsesSharedPutAPIWithoutCreatingTask(t *testing.T) {
 		ToolName: "task_update",
 		Input:    []byte(`{"taskHint":"task-1","title":"15분 회의"}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
+			RequesterEmail: "member@example.com",
 		},
 	})
 	if errorValue != nil {
@@ -877,7 +877,7 @@ func TestDecodeTaskUpdateInputRejectsLegacyAndResolutionFields(t *testing.T) {
 	for _, document := range []string{
 		`{"taskHint":"task-1","content":"이전 제목"}`,
 		`{"taskHint":"task-1","query":"이전 제목","status":"completed"}`,
-		`{"taskHint":"task-1","targetPersonHint":"staff","status":"completed"}`,
+		`{"taskHint":"task-1","targetPersonHint":"member","status":"completed"}`,
 		`{"taskHint":"task-1","weekCode":"26W24","status":"completed"}`,
 	} {
 		_, errorValue := decodeTaskUpdateInput([]byte(document))
@@ -919,7 +919,7 @@ func TestTaskUpdateResolvesByExactTaskIDAcrossAllTasks(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"business":"샘플거리","type":"문서","content":"IR 덱","status":"in_progress","weekCode":"26W28"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"member","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"member","ownerName":"이샘플","participantIDs":["member"],"business":"샘플거리","type":"문서","content":"IR 덱","status":"in_progress","weekCode":"26W28"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/task/api/tasks/deck-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -958,7 +958,7 @@ func TestTaskUpdateResolvesByExactUniqueTitle(t *testing.T) {
 			}
 			switch {
 			case request.Method == http.MethodGet && request.URL.String() == "http://internkim/task/api/state":
-				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"staff","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"staff","ownerName":"이샘플","participantIDs":["staff"],"content":"IR 덱","status":"in_progress","weekCode":"26W28"}]}`)), nil
+				return taskToolJSONResponse(useDirectoryPeopleOfTaskStateAnd(t, `{"members":[{"id":"member","name":"이샘플","email":"lee@example.com"}],"tasks":[{"id":"deck-1","ownerID":"member","ownerName":"이샘플","participantIDs":["member"],"content":"IR 덱","status":"in_progress","weekCode":"26W28"}]}`)), nil
 			case request.Method == http.MethodPut && request.URL.String() == "http://internkim/task/api/tasks/deck-1":
 				if errorValue := json.NewDecoder(request.Body).Decode(&updatedPayload); errorValue != nil {
 					t.Fatal(errorValue)
@@ -1138,7 +1138,7 @@ func TestTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 		ToolName: "task_delete",
 		Input:    []byte(`{"taskHint":"task-1"}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "staff@example.com",
+			RequesterEmail: "member@example.com",
 		},
 	})
 	if errorValue != nil {
@@ -1153,7 +1153,7 @@ func TestTaskDeleteUsesSharedDeleteAPI(t *testing.T) {
 	if response.Outcome != capabilities.ToolOutcomeSucceeded || len(response.Effects) != 1 || response.Effects[0].ID != "task-1" || response.Effects[0].Effect != "deleted" {
 		t.Fatalf("task_delete effects = %+v", response)
 	}
-	if deletedRequesterEmail != "staff@example.com" {
+	if deletedRequesterEmail != "member@example.com" {
 		t.Fatalf("requester email = %q", deletedRequesterEmail)
 	}
 }
@@ -1250,7 +1250,7 @@ func TestTaskDeleteAHintNothingComesCloseToDeletesNothingAndNamesNothing(t *test
 func TestDecodeTaskDeleteInputRejectsResolutionFields(t *testing.T) {
 	for _, document := range []string{
 		`{"query":"회의"}`,
-		`{"taskHint":"task-1","targetPersonHint":"staff"}`,
+		`{"taskHint":"task-1","targetPersonHint":"member"}`,
 		`{"taskHint":"task-1","weekCode":"26W24"}`,
 	} {
 		_, errorValue := decodeTaskDeleteInput([]byte(document))

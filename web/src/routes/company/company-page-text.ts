@@ -95,7 +95,7 @@ export const companyPageText = {
 			description: 'An anonymized operating signal aggregated from daily total work hours and work updates. Individual times and email addresses remain private.',
 			activeTeam: 'Recently active team', people: 'active people', activeDays: 'active days', checkIns: 'check-ins', workUpdates: 'work updates', activityRhythm: '30-day activity rhythm', activityGrid: 'Daily activity',
 			attendanceSignals: 'people checked in', workHours: 'total work hours', workSignals: 'work updates', workDistribution: 'Work status distribution', recentWork: 'Recent work flow',
-			teamMember: 'Member', defaultJobTitle: 'Staff', otherBusiness: 'Other',
+			teamMember: 'Member', defaultJobTitle: 'Member', otherBusiness: 'Other',
 			statusLabels: { planned: 'Planned', inProgress: 'In progress', completed: 'Completed', paused: 'Paused', closed: 'Closed' }
 		}
 	}

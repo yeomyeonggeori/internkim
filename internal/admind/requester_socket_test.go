@@ -17,7 +17,7 @@ func TestARequesterHeaderOnTheTCPListenerNamesNobody(t *testing.T) {
 	tcpServer := httptest.NewServer(service.router())
 	defer tcpServer.Close()
 
-	response := getTaskStateAsRequester(t, tcpServer.Client(), tcpServer.URL, "staff@example.com")
+	response := getTaskStateAsRequester(t, tcpServer.Client(), tcpServer.URL, "member@example.com")
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusForbidden {
@@ -30,7 +30,7 @@ func TestARequesterHeaderOnTheSocketNamesThePerson(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	socketPath, socketClient := serveOnARequesterSocket(t, service)
 
-	response := getTaskStateAsRequester(t, socketClient, "http://internkim", "staff@example.com")
+	response := getTaskStateAsRequester(t, socketClient, "http://internkim", "member@example.com")
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
@@ -41,7 +41,7 @@ func TestARequesterHeaderOnTheSocketNamesThePerson(t *testing.T) {
 	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if state.CurrentUserEmail != "staff@example.com" {
+	if state.CurrentUserEmail != "member@example.com" {
 		t.Fatalf("the socket served %q", state.CurrentUserEmail)
 	}
 }

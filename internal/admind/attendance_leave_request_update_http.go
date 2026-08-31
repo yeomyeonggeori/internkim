@@ -47,7 +47,7 @@ func (service *Service) updateAttendanceLeaveRequestResponse(
 	leaveType = attendanceLeaveTypeForRequest(policy, leaveType)
 	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
 		request,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 	)
 	if errorValue != nil {
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)

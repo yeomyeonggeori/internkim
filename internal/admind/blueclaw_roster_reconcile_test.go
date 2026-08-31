@@ -167,7 +167,7 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
 		StateDirectory:             t.TempDir(),
 	})
-	settledPolicy := `{"people":[{"circles":["staff","c-level"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
+	settledPolicy := `{"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/member":
@@ -192,7 +192,7 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 func TestRosterReconcileCarriesTheCirclesTheCompanyKeeps(t *testing.T) {
 	policyDocument := rosterPolicyWithEmails("member@example.com")
 	records := []adminUserMutation{
-		{MemberID: "user-1", Email: "member@example.com", Name: "Member", Role: "member", Circles: []string{"staff", "c-level"}},
+		{MemberID: "user-1", Email: "member@example.com", Name: "Member", Role: "member", Circles: []string{"member", "c-level"}},
 	}
 
 	reconcileRosterPeople(policyDocument, records, nil)
@@ -214,10 +214,10 @@ func TestRosterReconcileCarriesTheCirclesTheCompanyKeeps(t *testing.T) {
 
 func TestADirectoryRecordReadsTheCirclesFieldTheCompanySends(t *testing.T) {
 	var record adminUserMutation
-	if errorValue := json.Unmarshal([]byte(`{"email":"member@example.com","role":"member","circles":["staff","c-level"]}`), &record); errorValue != nil {
+	if errorValue := json.Unmarshal([]byte(`{"email":"member@example.com","role":"member","circles":["member","c-level"]}`), &record); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !slices.Equal(record.Circles, []string{"staff", "c-level"}) {
+	if !slices.Equal(record.Circles, []string{"member", "c-level"}) {
 		t.Fatalf("the field name the company sends must be the one this reads, got %v", record.Circles)
 	}
 }

@@ -18,8 +18,8 @@ describe('mail settings state', () => {
 			customEmailDomain: '',
 			isAdvancedSettingsOpen: false
 		});
-		expect(mailSettingsEmailStateFromEmail('staff@example.com')).toEqual({
-			emailLocalPart: 'staff',
+		expect(mailSettingsEmailStateFromEmail('member@example.com')).toEqual({
+			emailLocalPart: 'member',
 			emailProviderID: 'custom',
 			customEmailDomain: 'example.com',
 			isAdvancedSettingsOpen: true
@@ -91,16 +91,16 @@ describe('mail settings state', () => {
 	test('preserves manual server settings while editing the address', () => {
 		const accountDraft = createMailAccountDraft({
 			...emptyMailAccount,
-			email: 'staff@example.com',
+			email: 'member@example.com',
 			imapHost: 'imap.example.com',
 			smtpHost: 'smtp.example.com'
 		});
 
-		expect(mailAddressSettingsUpdate(accountDraft, 'staff', 'gmail', '', false)).toEqual({
-			email: 'staff@gmail.com',
-			fromAddress: 'staff@gmail.com',
-			imapUsername: 'staff@gmail.com',
-			smtpUsername: 'staff@gmail.com'
+		expect(mailAddressSettingsUpdate(accountDraft, 'member', 'gmail', '', false)).toEqual({
+			email: 'member@gmail.com',
+			fromAddress: 'member@gmail.com',
+			imapUsername: 'member@gmail.com',
+			smtpUsername: 'member@gmail.com'
 		});
 	});
 

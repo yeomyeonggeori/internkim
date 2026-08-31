@@ -11,7 +11,7 @@ func TestBuildBuzzInviteMessageContainsLinkAndGreeting(t *testing.T) {
 		t.Fatal("expected the invitee in the To header")
 	}
 	if !strings.Contains(message, "From: Admin <admin@example.com>") {
-		t.Fatal("expected the staff member as the sender")
+		t.Fatal("expected the member member as the sender")
 	}
 	if !strings.Contains(message, "Hi Newcomer") {
 		t.Fatal("expected a personalized greeting")

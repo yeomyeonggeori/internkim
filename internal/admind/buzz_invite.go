@@ -88,8 +88,8 @@ func (store *buzzInviteStore) save() {
 }
 
 func (service *Service) handleBuzz(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "buzz access requires staff login", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "buzz access requires member login", http.StatusForbidden)
 		return
 	}
 	if !service.buzzInviteEnabled() {
@@ -307,7 +307,7 @@ func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
 		return
 	}
 	derivedLinks := map[string]string{}
-	for _, email := range service.allStaffEmails(ctx) {
+	for _, email := range service.allMemberEmails(ctx) {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
 			continue

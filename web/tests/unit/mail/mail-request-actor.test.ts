@@ -4,7 +4,7 @@ import { normalizeMailActorEmail, resolveMailActorEmail } from '../../../src/rou
 
 describe('who a mail page is looking at the mailbox as', () => {
 	test('an address is compared in one case, with no surrounding space', () => {
-		expect(normalizeMailActorEmail(' Staff@Example.COM ')).toBe('staff@example.com');
+		expect(normalizeMailActorEmail(' Member@Example.COM ')).toBe('member@example.com');
 	});
 
 	test('the connected account answers first, then the address being typed into the draft', () => {

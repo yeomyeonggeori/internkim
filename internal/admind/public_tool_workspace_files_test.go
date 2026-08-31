@@ -30,7 +30,7 @@ func newPublicToolWorkspaceTestService(t *testing.T, workspaceFiles map[string]s
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" {
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"person-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"person-member","email":"member@example.com","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/workspace/download" {
 			*downloads = append(*downloads, request.URL.Query())
@@ -51,7 +51,7 @@ func newPublicToolWorkspaceTestService(t *testing.T, workspaceFiles map[string]s
 
 func invokePublicToolForTest(t *testing.T, service *Service, toolName string, input string) *httptest.ResponseRecorder {
 	t.Helper()
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{publicAPIPermissionWrite}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{Scopes: []string{publicAPIPermissionWrite}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -63,7 +63,7 @@ func invokePublicToolForTest(t *testing.T, service *Service, toolName string, in
 }
 
 func TestPublicAPIMessageSendCarriesTheFileItNames(t *testing.T) {
-	agentPath := "/workspace/private/people/person-staff/inbox/api/mascot.png"
+	agentPath := "/workspace/private/people/person-member/inbox/api/mascot.png"
 	downloads := []url.Values{}
 	service := newPublicToolWorkspaceTestService(t, map[string]string{agentPath: "a picture"}, &downloads)
 	var carried []capabilities.WorkspaceFile
@@ -90,7 +90,7 @@ func TestPublicAPIMessageSendCarriesTheFileItNames(t *testing.T) {
 	if carried[0].SHA256 != hex.EncodeToString(digest[:]) {
 		t.Fatalf("carried digest = %q", carried[0].SHA256)
 	}
-	if len(downloads) != 1 || downloads[0].Get("personID") != "person-staff" {
+	if len(downloads) != 1 || downloads[0].Get("personID") != "person-member" {
 		t.Fatalf("the file was read as %+v, and it must be read as the person who asked", downloads)
 	}
 }

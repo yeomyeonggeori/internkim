@@ -16,7 +16,7 @@ func TestReadCachedAttendanceEventsUsesTeamCache(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	insertAttendanceSummaryTestEvent(t, service, database, userRecord, attendanceKindClockIn, time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC))
 	database.Close()
 
@@ -24,7 +24,7 @@ func TestReadCachedAttendanceEventsUsesTeamCache(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(firstEvents) != 1 || firstEvents[0].DisplayName != "Staff" {
+	if len(firstEvents) != 1 || firstEvents[0].DisplayName != "Member" {
 		t.Fatalf("first events = %+v", firstEvents)
 	}
 	if count := attendanceSummaryCacheEntryCountForTest(t, service); count != 1 {
@@ -45,7 +45,7 @@ func TestReadCachedAttendanceEventsUsesTeamCache(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(secondEvents) != 1 || secondEvents[0].DisplayName != "Staff" {
+	if len(secondEvents) != 1 || secondEvents[0].DisplayName != "Member" {
 		t.Fatalf("cached events = %+v", secondEvents)
 	}
 }
@@ -57,15 +57,15 @@ func TestReadCachedAttendanceEventsBypassesCacheForUser(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	insertAttendanceSummaryTestEvent(t, service, database, userRecord, attendanceKindClockIn, time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC))
 	database.Close()
 
-	firstEvents, errorValue := service.readCachedAttendanceEvents(ctx, "2026-07", "staff@example.com")
+	firstEvents, errorValue := service.readCachedAttendanceEvents(ctx, "2026-07", "member@example.com")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(firstEvents) != 1 || firstEvents[0].DisplayName != "Staff" {
+	if len(firstEvents) != 1 || firstEvents[0].DisplayName != "Member" {
 		t.Fatalf("first events = %+v", firstEvents)
 	}
 
@@ -79,7 +79,7 @@ func TestReadCachedAttendanceEventsBypassesCacheForUser(t *testing.T) {
 	}
 	database.Close()
 
-	secondEvents, errorValue := service.readCachedAttendanceEvents(ctx, "2026-07", "staff@example.com")
+	secondEvents, errorValue := service.readCachedAttendanceEvents(ctx, "2026-07", "member@example.com")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -91,7 +91,7 @@ func TestReadCachedAttendanceEventsBypassesCacheForUser(t *testing.T) {
 func TestReadCachedAttendanceAbsencesBypassesCacheForUser(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	absences, errorValue := service.insertAttendanceAbsenceRange(ctx, "staff@example.com", "annual", "2026-07-13", "2026-07-13", "Original", "staff@example.com")
+	absences, errorValue := service.insertAttendanceAbsenceRange(ctx, "member@example.com", "annual", "2026-07-13", "2026-07-13", "Original", "member@example.com")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -99,7 +99,7 @@ func TestReadCachedAttendanceAbsencesBypassesCacheForUser(t *testing.T) {
 		t.Fatalf("created absences = %+v", absences)
 	}
 
-	firstAbsences, errorValue := service.readCachedAttendanceAbsences(ctx, "2026-07", "staff@example.com")
+	firstAbsences, errorValue := service.readCachedAttendanceAbsences(ctx, "2026-07", "member@example.com")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -117,7 +117,7 @@ func TestReadCachedAttendanceAbsencesBypassesCacheForUser(t *testing.T) {
 	}
 	database.Close()
 
-	secondAbsences, errorValue := service.readCachedAttendanceAbsences(ctx, "2026-07", "staff@example.com")
+	secondAbsences, errorValue := service.readCachedAttendanceAbsences(ctx, "2026-07", "member@example.com")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -167,7 +167,7 @@ func TestReadCachedAttendanceEventsRebuildsTypedCorruptPayload(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	insertAttendanceSummaryTestEvent(t, service, database, userRecord, attendanceKindClockIn, time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC))
 	database.Close()
 	currentRevision := attendanceSummaryCacheRevisionForTest(t, service, attendanceSummaryCacheKindEvents, "2026-07")
@@ -201,7 +201,7 @@ func TestReadCachedAttendanceEventsRebuildsTypedCorruptPayload(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(events) != 1 || events[0].Email != "staff@example.com" {
+	if len(events) != 1 || events[0].Email != "member@example.com" {
 		t.Fatalf("rebuilt events = %+v", events)
 	}
 }
@@ -209,7 +209,7 @@ func TestReadCachedAttendanceEventsRebuildsTypedCorruptPayload(t *testing.T) {
 func TestReadCachedAttendanceAbsencesRebuildsTypedCorruptPayload(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	email := "staff@example.com"
+	email := "member@example.com"
 	absences, errorValue := service.insertAttendanceAbsenceRange(ctx, email, "annual", "2026-07-13", "2026-07-13", "Original", email)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -351,7 +351,7 @@ func prepareAttendanceSummaryCacheFailureTest(t *testing.T) (*Service, attendanc
 func requestAttendanceSummaryForCacheFailureTest(t *testing.T, service *Service) attendanceSummaryResponse {
 	t.Helper()
 	request := httptest.NewRequest(http.MethodGet, "/attendance/api/summary?month=2026-07", nil)
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 	service.writeAttendanceSummary(recorder, request)
 	if recorder.Code != http.StatusOK {

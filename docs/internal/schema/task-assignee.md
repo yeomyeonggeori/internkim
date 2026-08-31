@@ -12,7 +12,7 @@
 |---|---|---|
 | `id` | uuid | task_assignee 기본 키 |
 | `task_id` | uuid | 연결된 task id |
-| `staff_id` | uuid | 담당 staff id |
+| `member_id` | uuid | 담당 member id |
 | `role` | enum | 담당 역할 |
 | `created_at` | timestamptz | 생성 시각 |
 | `updated_at` | timestamptz | 수정 시각 |
@@ -34,4 +34,4 @@
 ## 관계
 
 - `task_id` -> `task.id`
-- `staff_id` -> `staff.id`
+- `member_id` -> `member.id`

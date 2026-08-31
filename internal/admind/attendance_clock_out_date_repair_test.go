@@ -19,8 +19,8 @@ func TestRepairAttendanceClockOutDatesCorrectsLegacyRowsAndPreservesOverrides(t 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	legacyEvent := legacyAttendanceClockOutEvent(service, "legacy-clock-out", "staff-1", "staff-1@example.com", location)
-	overriddenEvent := legacyAttendanceClockOutEvent(service, "overridden-clock-out", "staff-2", "staff-2@example.com", location)
+	legacyEvent := legacyAttendanceClockOutEvent(service, "legacy-clock-out", "member-1", "member-1@example.com", location)
+	overriddenEvent := legacyAttendanceClockOutEvent(service, "overridden-clock-out", "member-2", "member-2@example.com", location)
 	if errorValue := service.insertAttendanceEvent(context.Background(), database, legacyEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
