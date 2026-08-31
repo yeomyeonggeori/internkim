@@ -244,13 +244,28 @@ test.describe('calendar route shell', () => {
 		await page.goto('/calendar/');
 
 		await openCalendarSettings(page);
-		await expect(page.getByText('CalDAV/ICS 구독 URL 준비됨')).toBeVisible();
+		await expect(page.getByText('구독 URL 준비됨')).toBeVisible();
 		await expect(page.getByText('연결된 Google 캘린더')).toHaveCount(0);
+		await expect(
+			page.getByText('https://calendar.example.test/calendar/ics/a-subscription-token.ics')
+		).toBeVisible();
 		const copyButtons = page.getByRole('button', { name: 'Copy' });
 		await expect(copyButtons).toHaveCount(4);
 		for (const index of [0, 1, 2, 3]) {
-			await expect(copyButtons.nth(index)).toBeDisabled();
+			await expect(copyButtons.nth(index)).toBeEnabled();
 		}
+	});
+
+	test('says nothing about a subscription there is none of', async ({ page }) => {
+		await page.route('**/calendar/api/sync', async (route) => {
+			await route.fulfill({ json: { caldavURL: '', caldavUsername: '', caldavPassword: '', icsURL: '' } });
+		});
+		await page.goto('/calendar/');
+
+		await openCalendarSettings(page);
+		await expect(page.getByText('구독 URL 준비됨')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Copy' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: '구독 URL 재발급' })).toHaveCount(0);
 	});
 
 	test('refreshes the embedded calendar from the toolbar', async ({ page }) => {

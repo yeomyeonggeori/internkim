@@ -1,8 +1,9 @@
 export type CalendarSyncResponse = {
-	caldavURL: string;
-	caldavUsername: string;
-	caldavPassword: string;
-	icsURL: string;
+	caldavURL?: string;
+	caldavUsername?: string;
+	caldavPassword?: string;
+	icsURL?: string;
+	isRegistered?: boolean;
 };
 
 export type CalendarAccountStatusResponse = {
