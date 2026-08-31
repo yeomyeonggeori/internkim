@@ -326,11 +326,11 @@ test.describe('admin leave policy settings', () => {
 		await expect(
 			reloadedLeavePolicySettings.getByRole('button', { name: '다시 사용' })
 		).toHaveCount(0);
-		await reloadedLeavePolicySettings.getByRole('button', { name: '휴가 종류 제거' }).click();
+		await reloadedLeavePolicySettings.getByRole('button', { name: '삭제', exact: true }).click();
 		await expect(page.getByRole('alertdialog')).toContainText(
-			'‘회사 특별 휴가’ 휴가 종류는 신규 신청과 설정 목록에서 제거됩니다.'
+			'‘회사 특별 휴가’ 휴가 종류는 신규 신청과 설정 목록에서 삭제됩니다.'
 		);
-		await page.getByRole('alertdialog').getByRole('button', { name: '제거' }).click();
+		await page.getByRole('alertdialog').getByRole('button', { name: '삭제' }).click();
 		await expect(
 			reloadedLeavePolicySettings.getByRole('button', {
 				name: /회사 특별 휴가/
