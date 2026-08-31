@@ -1,4 +1,5 @@
 import { environmentOf, type Environment } from '$lib/server/agent-request';
+import { announceApproval } from '$lib/server/announce-approval';
 import { callingMember, type CallingMember } from '$lib/server/member-request';
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from '$lib/server/public-api/catalog';
 import { fullPublicAPIPermission } from '$lib/public-api-permission';
@@ -36,7 +37,7 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 		if (answered) return answered;
 	}
 	const invoked = invokedToolName(request.method, path);
-	if (invoked && recordRunsTheTool(invoked)) return runHere(request, member, invoked);
+	if (invoked && recordRunsTheTool(invoked)) return runHere(request, environment, member, invoked);
 	return carryToTheCompany(request, url, environment, member, path);
 };
 
@@ -46,7 +47,12 @@ function invokedToolName(method: string, path: string): string | null {
 	return named ? named[1] : null;
 }
 
-async function runHere(request: Request, member: CallingMember, name: string): Promise<Response> {
+async function runHere(
+	request: Request,
+	environment: Environment,
+	member: CallingMember,
+	name: string
+): Promise<Response> {
 	const descriptor = toolReachableBy(name, member.permission);
 	if (!descriptor) {
 		const known = toolReachableBy(name, fullPublicAPIPermission);
@@ -71,7 +77,30 @@ async function runHere(request: Request, member: CallingMember, name: string): P
 		(input as Record<string, unknown>) ?? {},
 		new Date()
 	);
-	return json(answered.body, { status: answered.status });
+	return json(await withTheCompanyTold(environment, member, answered.body), { status: answered.status });
+}
+
+// A write the record turned into a request is only useful once somebody who
+// can decide it hears about it, and the caller is told whether they did.
+async function withTheCompanyTold(
+	environment: Environment,
+	member: CallingMember,
+	body: unknown
+): Promise<unknown> {
+	const opened = approvalOpenedBy(body);
+	if (!opened) return body;
+	try {
+		return { ...(body as Record<string, unknown>), notified: await announceApproval(environment, member.record, member.memberID, opened) };
+	} catch (refusal) {
+		const reason = refusal instanceof Error ? refusal.message : String(refusal);
+		return { ...(body as Record<string, unknown>), notified: { told: 0, messaged: 0, failures: [reason] } };
+	}
+}
+
+function approvalOpenedBy(body: unknown): string | null {
+	const result = (body as { result?: { approvalID?: unknown } } | null)?.result;
+	const opened = result?.approvalID;
+	return typeof opened === 'string' && opened !== '' ? opened : null;
 }
 
 function discoveryAnswer(path: string, member: CallingMember): Response | null {
