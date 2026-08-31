@@ -125,6 +125,22 @@ describe('a call from the public API', () => {
 		});
 	});
 
+	test('arriving over a member connection, it is refused whatever the body claims', async () => {
+		const asked: { path?: string } = {};
+		const dispatch = {
+			...dispatchAnswering(null),
+			askAdmindAPI: async (request: PublicAPIRequest) => {
+				asked.path = request.path;
+				return { status: 200, body: { invoked: true } };
+			}
+		};
+
+		const result = await serveRoutedCall({ ...apiCall, memberID: 'm1' }, dispatch, ceiling);
+
+		expect(result.status).toBe(403);
+		expect(asked.path).toBeUndefined();
+	});
+
 	test('anything else arriving for no member is told so rather than served as nobody', async () => {
 		const result = await serveRoutedCall(
 			{ ...call, memberID: null },
