@@ -40,6 +40,30 @@ func (service *Service) sweepUpdateLeftovers() {
 		filepath.Join(stateDirectory, "blueclaw-updates", "artifacts"),
 		blueclawArtifactRetainCount,
 	)
+	forgetDirectoriesNoVersionWritesAnyMore(stateDirectory)
+}
+
+// The device fetched a release by downloading a bundle and unpacking it before
+// #489 made it fetch components by digest. Nothing has written these since, and
+// nothing has ever deleted them: on the one device that has run every version
+// they held 64G.
+var directoriesNoVersionWritesAnyMore = []string{
+	filepath.Join("release-updates", "uploads"),
+	filepath.Join("release-updates", "bundles"),
+}
+
+func forgetDirectoriesNoVersionWritesAnyMore(stateDirectory string) {
+	for _, relativePath := range directoriesNoVersionWritesAnyMore {
+		path := filepath.Join(stateDirectory, relativePath)
+		if _, errorValue := os.Stat(path); errorValue != nil {
+			continue
+		}
+		if errorValue := os.RemoveAll(path); errorValue != nil {
+			log.Printf("what an older version left at %s could not be cleared: %v", path, errorValue)
+			continue
+		}
+		log.Printf("cleared what an older version left at %s", path)
+	}
 }
 
 func removeAbandonedUpdateDirectories(directory string, now time.Time) {
