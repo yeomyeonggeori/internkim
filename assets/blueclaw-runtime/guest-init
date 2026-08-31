@@ -42,6 +42,27 @@ ensure_workspace_directory() {
 
 prepare_blueclaw_workspace() {
   local workspaceDirectory
+  # The circle everyone belongs to was called staff until internkim#507. admind
+  # renames the copy it owns; this is the guest's own workspace, which is a
+  # different tree, and nothing outside the guest can reach it.
+  #
+  # The group is renamed rather than made again: a new group is a new GID, and
+  # every file it owns stops being readable by the people who own it.
+  if [ -d /workspace/circles/staff ]; then
+    if getent group bc_circle_staff >/dev/null 2>&1 && ! getent group bc_circle_member >/dev/null 2>&1; then
+      groupmod -n bc_circle_member bc_circle_staff || true
+    fi
+    if [ ! -d /workspace/circles/member ]; then
+      mv /workspace/circles/staff /workspace/circles/member
+    else
+      for held in /workspace/circles/staff/* /workspace/circles/staff/.[!.]*; do
+        [ -e "$held" ] || continue
+        [ -e "/workspace/circles/member/$(basename "$held")" ] || mv "$held" /workspace/circles/member/
+      done
+      rmdir /workspace/circles/staff 2>/dev/null || true
+    fi
+  fi
+
   for workspaceDirectory in \
     /workspace/.blueclaw/postgres/data \
     /workspace/.blueclaw/graphiti \
