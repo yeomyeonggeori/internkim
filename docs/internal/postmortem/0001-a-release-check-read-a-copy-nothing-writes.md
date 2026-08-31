@@ -13,7 +13,7 @@ fix for the reason it was failing.
 
 ## What was actually wrong
 
-[#560](https://github.com/Dawn-kim-official/internkim/pull/560) moved the
+[#560](https://github.com/yeomyeonggeori/internkim/pull/560) moved the
 blueclaw payload to the delivery share. `blueclawWorkspaceManifestMatchesTarget`
 kept reading the workspace image, so the check was comparing the artifact
 against a copy nothing writes any more.
