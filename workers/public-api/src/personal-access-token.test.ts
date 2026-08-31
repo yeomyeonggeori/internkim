@@ -102,7 +102,13 @@ describe('the key cache each colo keeps', () => {
 		return { cache, reads };
 	}
 
-	const caller: Caller = { email: 'someone@example.com', companyID: 'c1', permission: 'delete' };
+	const caller: Caller = {
+		email: 'someone@example.com',
+		companyID: 'c1',
+		memberID: 'm1',
+		tokenName: 'laptop',
+		permission: 'delete'
+	};
 
 	test('reads the record once for a key presented again inside its life', async () => {
 		const { cache, reads } = cacheOver([caller]);
