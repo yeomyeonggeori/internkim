@@ -698,20 +698,9 @@ and delete the duplicates.
   it deploys to **every** target by default; `--fleet <id>` (comma-separated or
   repeated) restricts to specific targets. With no registry it falls back to the
   single `--host`/`--node` target, so existing single-device usage is unchanged.
-- Each registry target has a `kind`: `jetson` (the OTA path above) or
-  `poc-container` (the Mac-Studio Apple Container PoC). One command fans out by kind:
-  the OTA bundle is built once and uploaded to each jetson; each poc-container
-  target gets a build→scp→Apple `container build`→`start-poc.py`→`restart-tunnel.py` cycle.
-- Deploy the container PoC with
-  `INTERNKIM_POC_SSH_PASSWORD=<pw> ./internkim deploy --components <admind,capabilityd,blueclaw,web> --fleet <poc-id>`.
-  Component names are shared across kinds; `blueclaw` on a poc-container builds
-  the `blueclaw`+`blueclaw-posix-helper` linux/arm64 binaries from
-  `.dependency/blueclaw` and syncs migrations (it does not use the guest VM
-  payload). Do not hand-run the build/scp/container steps; use this command.
-- PoC Mattermost runs separately from tenant containers. Interactive action
-  URLs for attendance, approvals, and choices must use each tenant's public
-  Flow URL; `127.0.0.1:18080` reaches Mattermost itself and silently breaks the
-  buttons.
+- Every registry target is a device: the OTA bundle is built once and uploaded
+  to each. A target naming any other `kind` is refused by name rather than
+  deployed to, so a registry still holding a retired one says so.
 - The device local LLM and embedding both run on **llama.cpp** (LiteRT is no longer the
   generation backend). Generation: gemma-4-E2B QAT (`-UD-Q4_K_XL`) + MTP drafter
   (`--spec-type draft-mtp`, `--chat-template gemma` — gemma-4 returns EMPTY chat output
