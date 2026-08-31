@@ -18,8 +18,10 @@ begin
   select id into private_id from vault.secrets where name = 'vapid_private_key';
   select id into subject_id from vault.secrets where name = 'vapid_subject';
 
-  if public_id is not null and private_id is not null and subject_id is not null
-     and not replace_existing then
+  if public_id is not null and private_id is not null and not replace_existing then
+    if subject_id is null then
+      perform vault.create_secret(new_subject, 'vapid_subject');
+    end if;
     return false;
   end if;
 

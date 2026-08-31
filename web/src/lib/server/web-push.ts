@@ -22,18 +22,48 @@ export async function sendWebPush(
 	vapid: VapidKeys,
 	nowInSeconds: number
 ): Promise<PushOutcome> {
-	if (!isUsableSubscriptionKey(target.keys)) return 'gone';
+	if (!isAddressable(target.address) || !hasUsableKeys(target.keys)) return 'gone';
+	const payload = JSON.stringify(notification);
 
-	const sealed = await encryptForSubscription(JSON.stringify(notification), target.keys);
-	const response = await fetch(target.address, {
-		method: 'POST',
-		headers: {
-			Authorization: await vapidAuthorization(target.address, vapid, nowInSeconds),
-			'Content-Encoding': 'aes128gcm',
-			'Content-Type': 'application/octet-stream',
-			TTL: String(oneDayInSeconds)
-		},
-		body: sealed
-	});
-	return outcomeOfStatus(response.status);
+	let sealed: Uint8Array<ArrayBuffer>;
+	try {
+		sealed = await encryptForSubscription(payload, target.keys);
+	} catch {
+		return 'gone';
+	}
+
+	const authorization = await vapidAuthorization(target.address, vapid, nowInSeconds);
+
+	try {
+		const response = await fetch(target.address, {
+			method: 'POST',
+			headers: {
+				Authorization: authorization,
+				'Content-Encoding': 'aes128gcm',
+				'Content-Type': 'application/octet-stream',
+				TTL: String(oneDayInSeconds)
+			},
+			body: sealed
+		});
+		return outcomeOfStatus(response.status);
+	} catch {
+		return 'refused';
+	}
+}
+
+function isAddressable(address: string): boolean {
+	try {
+		new URL(address);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function hasUsableKeys(keys: SubscriptionKeys): boolean {
+	try {
+		return isUsableSubscriptionKey(keys);
+	} catch {
+		return false;
+	}
 }
