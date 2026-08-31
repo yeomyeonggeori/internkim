@@ -42,8 +42,8 @@ export function buildDevTaskMetrics(
 	for (const task of tasks) {
 		metrics.totalTasks += 1;
 		increment(metrics.statusCounts, task.status, 1);
-		increment(metrics.businessCounts, task.business, 1);
-		increment(metrics.typeCounts, task.type, 1);
+		if (task.business) increment(metrics.businessCounts, task.business, 1);
+		if (task.type) increment(metrics.typeCounts, task.type, 1);
 		if (isTaskStatusCompleted(task.status)) metrics.completedTasks += 1;
 		if (isTaskStatusRequested(task.status)) metrics.requestedTasks += 1;
 		if (isTaskStatusPaused(task.status)) metrics.pausedTasks += 1;

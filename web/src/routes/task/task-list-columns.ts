@@ -7,7 +7,7 @@ import TaskListParticipantsCell from './task-list-participants-cell.svelte';
 import TaskListSizeCell from './task-list-size-cell.svelte';
 import TaskListStatusCell from './task-list-status-cell.svelte';
 import TaskListTextCell from './task-list-text-cell.svelte';
-import { taskBusinessLabel } from './task-workspace-model';
+import { taskDefinitionLabel } from './task-workspace-model';
 import type { Task } from './task-types';
 import { taskText } from './text';
 
@@ -26,8 +26,8 @@ type TaskListColumnsInput = {
 	updateTaskStatus: (task: Task, nextStatus: string) => Promise<void>;
 	canUpdateTask: (task: Task) => boolean;
 	memberEmail: (memberID: string) => string;
-	businessColor: (business: string) => string;
-	taskTypeColor: (type: string) => string;
+	businessColor: (business: string | null) => string;
+	taskTypeColor: (type: string | null) => string;
 };
 
 export function createTaskListColumns(input: TaskListColumnsInput): ColumnDef<Task>[] {
@@ -48,7 +48,7 @@ export function createTaskListColumns(input: TaskListColumnsInput): ColumnDef<Ta
 			accessorKey: 'business',
 			header: (context) => renderHeader(text.table.business, context.column),
 			cell: (info) => renderComponent(TaskListBusinessCell, {
-				label: taskBusinessLabel(info.row.original.business, text.report.fallbackBusiness),
+				label: taskDefinitionLabel(info.row.original.business, text.report.etcLabel),
 				color: businessColor(info.row.original.business)
 			})
 		},
@@ -56,7 +56,7 @@ export function createTaskListColumns(input: TaskListColumnsInput): ColumnDef<Ta
 			accessorKey: 'type',
 			header: (context) => renderHeader(text.table.type, context.column),
 			cell: (info) => renderComponent(TaskListBusinessCell, {
-				label: info.row.original.type,
+				label: taskDefinitionLabel(info.row.original.type, text.report.etcLabel),
 				color: taskTypeColor(info.row.original.type),
 				isOutlined: true
 			})

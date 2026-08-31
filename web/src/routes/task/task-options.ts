@@ -1,4 +1,4 @@
-import { buildBusinessSelectOptions } from './task-workspace-model';
+import { buildBusinessSelectOptions, buildTypeSelectOptions } from './task-workspace-model';
 import { taskStatus } from './task-status';
 import { isCentralTaskSource } from './task-source';
 import { taskText } from './text';
@@ -42,12 +42,12 @@ export function taskStatusLabel(text: TaskPageText, status: string): string {
 	return labels[status] ?? status;
 }
 
-export function categorySelectOptions(definitions: TaskDefinitions, fallbackBusiness: string) {
-	return buildBusinessSelectOptions(definitions, fallbackBusiness);
+export function categorySelectOptions(definitions: TaskDefinitions, etcLabel: string) {
+	return buildBusinessSelectOptions(definitions, etcLabel);
 }
 
-export function typeSelectOptions(definitions: TaskDefinitions) {
-	return definitions.types.map((type) => ({ value: type, label: type }));
+export function typeSelectOptions(definitions: TaskDefinitions, etcLabel: string) {
+	return buildTypeSelectOptions(definitions, etcLabel);
 }
 
 export function sizeSelectOptions(definitions: TaskDefinitions) {

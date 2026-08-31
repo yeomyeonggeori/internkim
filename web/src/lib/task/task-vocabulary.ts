@@ -6,6 +6,8 @@ export type NamedColour = { name: string; color?: string };
 export type TaskVocabulary = {
 	businesses?: NamedColour[];
 	types?: NamedColour[];
+	etcBusinessColor?: string;
+	etcTypeColor?: string;
 };
 
 export function colourOf(entry: NamedColour): string {
@@ -23,6 +25,8 @@ export function taskDefinitionsOf(vocabulary: TaskVocabulary): TaskDefinitions {
 		categoryColors: coloursOf(businesses),
 		types: types.map((type) => type.name),
 		typeColors: coloursOf(types),
+		etcBusinessColor: vocabulary.etcBusinessColor,
+		etcTypeColor: vocabulary.etcTypeColor,
 		sizes: taskSizes()
 	};
 }
@@ -34,7 +38,9 @@ function coloursOf(entries: NamedColour[]): Record<string, string> {
 export function taskVocabularyOfDefinitions(definitions: TaskDefinitions): TaskVocabulary {
 	return {
 		businesses: definitions.categories.map((name) => namedColourFor(name, definitions.categoryColors)),
-		types: definitions.types.map((name) => namedColourFor(name, definitions.typeColors))
+		types: definitions.types.map((name) => namedColourFor(name, definitions.typeColors)),
+		...(definitions.etcBusinessColor ? { etcBusinessColor: definitions.etcBusinessColor } : {}),
+		...(definitions.etcTypeColor ? { etcTypeColor: definitions.etcTypeColor } : {})
 	};
 }
 
@@ -48,8 +54,14 @@ export function vocabularyOf(value: unknown): TaskVocabulary {
 	const record = value as Record<string, unknown>;
 	return {
 		businesses: namedColoursOf(record.businesses),
-		types: namedColoursOf(record.types)
+		types: namedColoursOf(record.types),
+		etcBusinessColor: colourValueOf(record.etcBusinessColor),
+		etcTypeColor: colourValueOf(record.etcTypeColor)
 	};
+}
+
+function colourValueOf(value: unknown): string | undefined {
+	return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function namedColoursOf(value: unknown): NamedColour[] {

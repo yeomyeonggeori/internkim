@@ -13,6 +13,7 @@ import {
 	updateSupabaseTaskParents
 } from '$lib/task/supabase-task-relationships';
 import { isSupabaseConfigured } from '$lib/supabase';
+import { normalizedTaskDefinitionValue } from './task-workspace-model';
 import { callCompanyApp } from '$lib/host-bridge';
 
 export type TaskQuickTaskRequest = {
@@ -33,14 +34,24 @@ export async function fetchTaskWeeklySummary(week: string, fallbackMessage: stri
 	const query = week ? `?week=${encodeURIComponent(week)}` : '';
 	const response = await fetch(`/task/api/summary${query}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
-	return (await response.json()) as TaskWeeklySummary;
+	const weeklySummary = (await response.json()) as TaskWeeklySummary;
+	return { ...weeklySummary, weeklyTasks: (weeklySummary.weeklyTasks ?? []).map(normalizedTask) };
 }
 
 export async function fetchTaskState(fallbackMessage: string): Promise<TaskState> {
 	if (isSupabaseConfigured()) return supabaseTaskState();
 	const response = await fetch('/task/api/state', { credentials: 'include' });
 	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
-	return (await response.json()) as TaskState;
+	const state = (await response.json()) as TaskState;
+	return { ...state, tasks: (state.tasks ?? []).map(normalizedTask) };
+}
+
+function normalizedTask(task: Task): Task {
+	return {
+		...task,
+		business: normalizedTaskDefinitionValue(task.business),
+		type: normalizedTaskDefinitionValue(task.type)
+	};
 }
 
 export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySummary): TaskSummary {

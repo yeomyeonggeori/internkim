@@ -27,8 +27,8 @@
 		canUpdateTask: (task: Task) => boolean;
 		focusedTaskID: string;
 		memberEmail: (memberID: string) => string;
-		businessColor: (business: string) => string;
-		taskTypeColor: (type: string) => string;
+		businessColor: (business: string | null) => string;
+		taskTypeColor: (type: string | null) => string;
 	};
 
 	let {

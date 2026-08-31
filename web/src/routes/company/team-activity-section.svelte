@@ -183,7 +183,7 @@
 						{/snippet}
 						<TaskBoardCard
 							{task}
-							businessFallback={text.otherBusiness}
+							etcLabel={text.otherBusiness}
 							openTask={() => {}}
 							isReadOnly
 							isDraggable={false}

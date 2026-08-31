@@ -31,11 +31,11 @@ func (service *Service) inferTask(ctx context.Context, prompt string, weekCode s
 		return inferredTask{}, fmt.Errorf("flow task inference returned invalid JSON: %w", errorValue)
 	}
 	task.Content = firstNonEmpty(strings.TrimSpace(task.Content), prompt)
-	task.Type = firstNonEmpty(strings.TrimSpace(task.Type), "기타")
+	task.Type = strings.TrimSpace(task.Type)
 	task.Size = firstNonEmpty(strings.ToUpper(strings.TrimSpace(task.Size)), "XS")
 	task.Status = firstNonEmpty(cleanTaskStatus(task.Status), defaultTaskStatus())
 	if !containsString(definitions.Types, task.Type) {
-		task.Type = "기타"
+		task.Type = ""
 	}
 	if !containsTaskSize(definitions.Sizes, task.Size) {
 		task.Size = "XS"
