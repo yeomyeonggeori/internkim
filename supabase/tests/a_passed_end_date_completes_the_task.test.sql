@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(5);
+select plan(6);
 
 select has_function('public', 'complete_tasks_past_their_end', 'rollover: the completing function exists');
 
@@ -27,6 +27,12 @@ select is((select status from public.task where id = '88800000-0000-0000-0000-00
   'rollover: a task before its end date keeps running');
 select is((select status from public.task where id = '88800000-0000-0000-0000-0000000000b4')::text, 'planned',
   'rollover: an event is left to the calendar');
+
+select is(
+  (select schedule from cron.job where jobname = 'complete-tasks-past-their-end'),
+  '* * * * *',
+  'rollover: the pass runs every minute'
+);
 
 select * from finish();
 rollback;
