@@ -4,6 +4,13 @@
 internkim, under that person's own authority, including asking internkim
 itself. This is how, and how without writing the API a second time.
 
+> **Landed, with three changes to what is written below.** The API is not a
+> worker of its own: it is `web/src/routes/api/v1/` in the app, so a company
+> hosting the app hosts the API. It reaches the gateway over HTTP with
+> `GATEWAY_ADMIN_TOKEN`, not through a service binding. And the bearer may be a
+> signed-in session as well as an `ik_` key. Read "api worker" below as those
+> routes. The sections marked superseded say what replaced them.
+
 ## Three things that are already true
 
 **The API is `handlePublicAPI`, and it is already a thin skin.**
@@ -64,46 +71,42 @@ implementation from growing: there is no place for it to live.
 
 Four pieces change one contract, so this is what each end may assume.
 
-**Caller → api worker.** `Authorization: Bearer ik_…` and nothing else about
+**Caller → the API.** `Authorization: Bearer …` and nothing else about
 identity. Path and body are the public API's own, unchanged from the device.
-The caller never names a person: the key already does.
+The caller never names a person: the bearer already does. *Superseded in one
+way:* the bearer is either an `ik_` key or the access token of a signed-in
+session, resolved by `callingMember`; a session carries the full rung.
 
-**api worker → gateway.** A Cloudflare service binding, so a one-shot call has
-no HTTP route at all: the gateway's public `fetch` handler answers `404` for
-`/company/{id}/call`, and `CompanyCalls` is reachable only from a bound worker.
-The api worker declares
-
-```jsonc
-"services": [
-  { "binding": "COMPANY_CALLS", "service": "internkim-connection-gateway", "entrypoint": "CompanyCalls" }
-]
-```
-
-and calls
+**The API → gateway.** *Superseded.* A service binding was the plan, and it
+is not what shipped, because the app is a Pages deployment rather than a worker
+in the same account graph. `/company/{id}/call` is a public HTTP route
+authenticated with `Authorization: Bearer $GATEWAY_ADMIN_TOKEN`, the same token
+that sets a company's server key; without it the route answers `401`. The app
+normalises `GATEWAY_URL` from `wss://` to `https://` and posts
 
 ```ts
-const answer = await environment.COMPANY_CALLS.callCompany(companyID, {
-  requestID: '…',
-  capability: 'person.api.request',
-  body: {
-    method: 'POST',
-    path: '/tools/message_send/invoke',
-    query: '',
-    permission: 'write',
-    requester: 'someone@example.com',
-    payload: {}
-  }
+const answer = await callCompany(environment, companyID, 'person.api.request', {
+  method: 'POST',
+  path: '/tools/message_send/invoke',
+  query: '',
+  permission: 'write',
+  requester: 'someone@example.com',
+  payload: {}
 });
 ```
 
-`answer` is `{ requestID, status, body }`, and `status` is what the api worker
-answers the caller with: `503` when no company server is connected, `504` when
+`answer` is `{ status, body }`, and `status` is what the caller is answered
+with: `503` when no company server is connected, `504` when
 the call outlives the gateway's 30 second bound, `429` when the company already
 has 32 calls waiting on its one server socket, `409` when a call with the same
 `requestID` is still in flight. A call naming no `requestID` or no `capability`
-rejects rather than answering. The call names no member: the requester is in
-`body`, and the routed call the company server receives carries no `memberID`
-field.
+rejects rather than answering. On top of those the app answers `502` when the
+company returns nothing usable as a status, and `503` when it holds no gateway
+address or token. The call names no member: the requester is in `body`, and the
+routed call the company server receives carries no `memberID` field. The relay
+refuses `person.api.request` and `person.api.file` when one *is* stamped, since
+a member-stamped call comes from a browser socket and would be naming its own
+requester.
 
 **relay → admind.** `${admindSocketPath}` over unix, `/api/v1${path}${query}`,
 carrying `X-INTERNKIM-REQUESTER-EMAIL` and `X-INTERNKIM-REQUESTER-PERMISSION`.
@@ -208,10 +211,17 @@ machinery of its own.
 
 ## What this does not build
 
-No REST implementation in TypeScript. No second token system: the personal access token
-is the credential, issued in the web app where the caller is already signed in.
-`POST /v1/tokens` stays on the device path, because a machine cannot mint its
-own first key and the plane's answer to that is a signed-in page.
+*Superseded.* This said no REST implementation in TypeScript and no token
+endpoints on the plane, and both turned out to be the wrong line to hold. What
+the plane can answer without the company machine, it now answers: the tool
+catalog, `POST /v1/token`, `GET /v1/tokens`, `DELETE /v1/token` and `POST
+/v1/files`. Only an invocation travels. The rule that survived is the one that
+mattered: no second implementation of a *tool*. A tool still runs in exactly
+one place.
+
+There is still no second token system. The personal access token is the
+credential, and a signed-in session mints the first one, because a machine
+cannot mint its own.
 
 ## What is dangerous
 
@@ -237,12 +247,20 @@ this, `api.intern.kim` being down is every company's API being down, and one
 caller waiting on a slow machine occupies a call slot on that company's single
 server socket. The gateway answers `503` when no server is connected, waits
 30 seconds for an answer before `504`, and refuses past 32 waiting calls. A
-company that dislikes depending on the plane self-hosts, and a self-hosted
-install needs none of this: its own admind already serves the API, so its
-callers point straight at it.
+company that dislikes depending on the plane self-hosts. *Superseded in part:*
+a self-hosted install now serves the API from its own copy of the web app, so
+its callers point at its own host, but its browser-facing calls still reach its
+relay through the connection gateway. Only the API half of the dependency goes
+away.
 
 ## Order
 
 The gateway, the relay and admind change one contract between them, so they ship
 together. The gateway's one-shot call can land first on its own, because until
 the relay knows `person.api.request` nothing calls it.
+
+*As shipped:* the gateway goes first, since it gains a route nothing calls yet.
+The web app follows, and with no `GATEWAY_ADMIN_TOKEN` set it answers `503` to
+an invocation while the catalog and the tokens keep working. `api.<zone>` moves
+onto the Pages project last, in the same change that takes the old worker route
+down.

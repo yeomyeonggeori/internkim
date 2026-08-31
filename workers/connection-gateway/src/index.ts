@@ -42,6 +42,7 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (path[2] === 'client') return joinAsClient(request, environment, companyID);
 	if (path[2] === 'server') return joinAsServer(request, environment, companyID);
 	if (path[2] === 'server-key') return storeServerKey(request, environment, companyID);
+	if (path[2] === 'call') return takeCompanyCall(request, environment, companyID);
 	return jsonResponse({ error: 'not found' }, 404);
 }
 
@@ -82,6 +83,17 @@ function joinAsServer(
 	environment: WorkerEnvironment,
 	companyID: string
 ): Promise<Response> {
+	return connectionFor(environment, companyID).fetch(request);
+}
+
+function takeCompanyCall(
+	request: Request,
+	environment: WorkerEnvironment,
+	companyID: string
+): Promise<Response> | Response {
+	if (!environment.GATEWAY_ADMIN_TOKEN || bearerOf(request) !== environment.GATEWAY_ADMIN_TOKEN) {
+		return jsonResponse({ error: 'this call may not speak to a company' }, 401);
+	}
 	return connectionFor(environment, companyID).fetch(request);
 }
 

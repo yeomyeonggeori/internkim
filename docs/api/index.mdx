@@ -4,15 +4,17 @@ description: A token belongs to a person, and every call runs as that person.
 ---
 
 Every tool internkim uses inside a company is callable from outside it, over
-HTTP, at `https://api.intern.kim/v1`. Every company calls that one address; the
-token is what says which company, and which person inside it. A token belongs to
-a person and every call runs as that person, so a token can never do more than
-its owner can.
+HTTP, at `https://api.intern.kim/v1`. Every company we host calls that one
+address; the token is what says which company, and which person inside it. A
+company hosting internkim itself calls its own host at `/api/v1`, which is the
+same API on the same code. A token belongs to a person and every call runs as
+that person, so a token can never do more than its owner can.
 
-One process terminates every `/api/v1` request: `admind`. It authenticates the
-token, checks the scope, and forwards the work — tool calls to `capabilityd`
-over a unix socket, agent messages to the Blueclaw runtime over local HTTP.
-Nothing under `/api/v1` executes a tool itself.
+The web app answers the request. It resolves the caller, then answers what it
+knows: the tool catalog, the tokens a person holds, and a file kept for a later
+call. An invocation is the one thing it cannot answer alone, because the tool
+runs on the company's computer, so it is carried there and the answer comes
+back.
 
 <Cards>
   <Card title="Invoking tools" href="/docs/api/tools" description="List the tools, call one, read what actually changed" />
@@ -99,8 +101,9 @@ Three consequences worth knowing:
 - Any rank-2 scope opens every rank-2 tool. A token issued with only
   `connect` can call `message_send`.
 - `admin` grants nothing beyond what `destructive` grants.
-- A descriptor with a `sideEffectClass` the gateway does not recognize
-  requires rank 3. Unknown classes fail closed.
+- A descriptor with a `sideEffectClass` nothing recognizes requires rank 3,
+  in the app that lists the tools and again on the machine that runs one.
+  Unknown classes fail closed at both ends.
 
 ## Errors [#errors]
 
@@ -109,39 +112,54 @@ Success bodies are JSON. Error bodies are plain text.
 | Status | Body | When |
 |---|---|---|
 | `400` | decode error, `message is required`, `conversationID is required` | the body is not valid JSON, or a required field is missing |
-| `401` | `bearer token required` | no `Authorization: Bearer` header |
-| `401` | `invalid bearer token` | the token is unknown or revoked |
+| `401` | `sign in first` | no `Authorization: Bearer` header |
+| `401` | `that key belongs to nobody` | the token is unknown or revoked |
 | `409` | `a token cannot revoke itself...` | `DELETE /v1/token` naming the token that authenticated the call |
 | `403` | `token owner is not active staff` | the owner left or was deactivated |
 | `403` | `tool is not available for this token` | the token's rank is below what the tool requires |
 | `403` | `write scope required` | an agent endpoint with a rank-1 token |
 | `404` | | unknown path, unknown tool, or a tool the token cannot see |
 | `500` | | the token record could not be written |
-| `502` | | `capabilityd` or the agent runtime failed; the body carries the upstream error |
+| `502` | | the company answered with nothing a caller can use |
+| `503` | `the company gateway is not configured` | an invocation where nothing knows how to reach the company |
+
+## Keeping a file [#keeping-a-file]
+
+`POST /v1/files` takes the bytes themselves, up to 25 MB, with the file's own
+content type and an optional `?filename=`. The file is kept in the company's
+store and materialised into the workspace, and the answer names the path a
+later call can reach it by. A reading token is refused here, because keeping
+bytes anywhere is a write.
 
 ## Revoking a token [#revoking-a-token]
 
-Every lookup skips records whose `revokedAt` is set, so revocation takes
-effect on the next request. No endpoint sets it yet: to revoke a token today,
-set `revokedAt` on its record in `api-tokens.json` and save the file.
+`DELETE /v1/token?name=<name>` forgets the token by that name, and the next
+call carrying it is refused. A token cannot revoke itself; revoke it with
+whichever token replaced it.
 
 ## The served reference [#the-served-reference]
 
-`/api-docs` on the same host serves an interactive reference, in Korean or
-English, rendered from an OpenAPI document at `/openapi/<language>.json`. The
-twenty-six base tools in that document are read from the same catalog the
+`docs.intern.kim/api` serves an interactive reference, in Korean or English,
+rendered from an OpenAPI document at `docs.intern.kim/openapi/<language>.json`.
+`/api-docs` and `/openapi/<language>.json` on any company host redirect there.
+The twenty-six base tools in that document are read from the same catalog the
 agent runs on.
 
 ## Where it is implemented [#where-it-is-implemented]
 
+The API is part of the web app, so a company that hosts the app hosts the API.
+`api.<zone>/v1` and `<company host>/api/v1` are the same routes.
+
 | Concern | Where |
 |---|---|
-| Routing for everything under `/api/v1` | `handlePublicAPI` in `internal/admind/public_tool_gateway.go`, mounted in `internal/admind/service.go` |
-| Token issue, `ik_` format, SHA-256 hashing, store | `issuePublicAPIToken`, `publicAPITokenHash` in the same file; store path from `publicAPITokenStorePath` |
-| Scope normalisation and ranks | `normalizePublicAPITokenScopes`, `publicAPIScopeRank`, `publicToolScopeForDescriptor`, `publicToolAllowedForActor` |
-| Forwarding tool calls to `capabilityd` | `invokeCapabilityTool`, over the unix socket named by `CapabilitySocketPath` |
+| Routing for everything under `/api/v1` | `web/src/routes/api/v1/`; `/v1/*` is rewritten onto it in `web/src/hooks.ts` |
+| Who is calling, from a session token or an `ik_` key | `callingMember` in `web/src/lib/server/member-request.ts` |
+| Token issue, `ik_` format, SHA-256 hashing, store | `issuePersonalAccessToken` in `web/src/lib/server/control-plane.ts`; the rules in `web/src/lib/server/public-api/tokens.ts` |
+| Permission rungs and the tools each reaches | `web/src/lib/server/public-api/catalog.ts`, over `web/src/lib/public-api-permission.ts` |
+| Carrying a tool call to the company machine | `web/src/lib/server/public-api/company-call.ts`, through `workers/connection-gateway` to the company's relay |
+| What the company machine does with it | `handlePublicAPI` in `internal/admind/public_tool_gateway.go`, then `invokeCapabilityTool` over the `capabilityd` socket |
 | Agent endpoints | `internal/admind/agent_drive.go`, forwarding to Blueclaw through `blueclawJSONRequest` |
 | Wire types | `pkg/capabilityprotocol/protocol.go` |
 | Tool catalog | `pkg/capabilityprotocol/generated/capability-tools.json` |
-| The contract, stated as tests | `internal/admind/public_tool_gateway_test.go` |
-| OpenAPI document and `/api-docs` shell | `web/src/lib/server/openapi.ts`, `web/src/routes/openapi/[language].json/`, `web/src/routes/api-docs/` |
+| The contract, stated as tests | `web/tests/integration/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
+| OpenAPI document and `/api-docs` shell | `docs/web/app/lib/openapi.ts`, `web/src/routes/api-docs/` |

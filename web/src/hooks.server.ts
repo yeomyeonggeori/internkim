@@ -21,8 +21,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		projectURL: env.SUPABASE_URL ?? '',
 		publishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? '',
 		vapidPublicKey: env.VAPID_PUBLIC_KEY ?? '',
-		gatewayURL: env.GATEWAY_URL ?? '',
-		apiURL: env.API_URL ?? ''
+		gatewayURL: env.GATEWAY_URL ?? ''
 	};
 
 	const referenceHome = apiReferenceHomeFor(event.url.pathname);

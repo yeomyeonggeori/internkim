@@ -38,7 +38,8 @@ describe('what a call may present as the member it acts for', () => {
 	test('a session token is passed through untouched, and nothing is exchanged', async () => {
 		expect(await memberAccessTokenOf(asking('Bearer eyJhbGciOi.body.sig'), credentials)).toEqual({
 			accessToken: 'eyJhbGciOi.body.sig',
-			permission: 'delete'
+			permission: 'delete',
+			tokenName: ''
 		});
 	});
 

@@ -1,7 +1,7 @@
 import { assetBucket, attachmentKind, digestOf, sharedAssetPath } from './asset-address';
-import { RecordRefused, type CallerPermission, type ControlPlaneCredentials } from './personal-access-token';
+import type { PublicAPIPermission } from '$lib/public-api-permission';
+import type { ControlPlaneCredentials } from '$lib/server/control-plane';
 
-export const filesPath = '/files';
 export const materialiseCapability = 'person.api.file';
 export const filenameParameter = 'filename';
 
@@ -25,7 +25,7 @@ export type KeptFile = {
 
 const putThroughTheRuntime: PutDocument = (url, options) => fetch(url, options);
 
-export function mayWriteAFile(permission: CallerPermission): boolean {
+export function mayWriteAFile(permission: PublicAPIPermission): boolean {
 	return permission !== 'read';
 }
 
@@ -50,6 +50,13 @@ export function sizeTheHeaderClaims(request: Request): number | null {
 	return claimed;
 }
 
+export class AssetStoreRefused extends Error {
+	constructor(reason: string) {
+		super(reason);
+		this.name = 'AssetStoreRefused';
+	}
+}
+
 export async function keepFileInTheBucket(
 	credentials: ControlPlaneCredentials,
 	companyID: string,
@@ -70,7 +77,7 @@ export async function keepFileInTheBucket(
 		body: bytes
 	});
 	if (!response.ok && response.status !== alreadyKeptStatus) {
-		throw new RecordRefused(`the asset store answered ${response.status} for this file`);
+		throw new AssetStoreRefused(`the asset store answered ${response.status} for this file`);
 	}
 	return { path, digest, contentType, sizeBytes: bytes.byteLength };
 }
