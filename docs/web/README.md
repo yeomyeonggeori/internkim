@@ -24,6 +24,12 @@ bun run types:check
 itself runs on. `build` and `dev` run it first, so the tool tables in the docs
 cannot drift from the tools that exist. Nothing hand-lists a tool.
 
+`app/lib/openapi.ts` generates the public API's OpenAPI document, and this site
+is where it is served: `/api-docs` and `/openapi/<language>.json` on every
+company host redirect here. A path added to `web/src/routes/api/v1/` is added
+there in the same change, and `web/tests/integration/public-api-route.test.ts`
+fails when the two disagree.
+
 ## Deploying
 
 ```bash

@@ -8,9 +8,10 @@ description: 무엇이 무엇과 이야기하는지, 어느 프로세스가 어�
 
 ```mermaid
 flowchart TB
-    subgraph clients["두 개의 클라이언트"]
+    subgraph clients["두 개의 클라이언트, 그리고 부르는 쪽"]
         app["앱<br/>웹, 기본"]
         client["메신저 앱<br/>폰 또는 데스크톱"]
+        caller["스크립트<br/>API를 부름"]
     end
 
     subgraph central["중앙 평면 — 우리가 굴림"]
@@ -30,6 +31,8 @@ flowchart TB
 
     app -->|"로그인한 멤버로 읽고 씀"| record
     app -->|"WebSocket 하나, 토큰을 실어서"| gateway
+    caller -->|"토큰을 들고 /api/v1로"| app
+    app -->|"실행 하나를 회사로 옮김"| gateway
     client -->|"평소처럼 로그인"| messenger
     gateway <-->|"릴레이가 바깥으로 접속해 유지"| relay
     relay --> connector
@@ -45,14 +48,14 @@ flowchart TB
 
 ## 중앙 쪽 [#the-central-side]
 
-우리가 배포하는 네 가지이고, 각각 하는 일이 하나입니다.
+우리가 배포하는 네 가지입니다. 앱은 하는 일이 둘이고, 나머지는 하나씩입니다.
 
 | | 무엇인지 | 어디 사는지 |
 |---|---|---|
 | 기록 | row level security 뒤의 Postgres | `supabase/migrations` |
 | 컨트롤 플레인 | 서비스 키를 쥔 서버 라우트 | `web/src/routes/api/agent/` |
-| 앱 | Cloudflare Pages 위의 정적 SvelteKit 빌드 | `web/` |
-| 커넥션 게이트웨이 | 회사마다 Durable Object 하나를 두는 Worker | `workers/connection-gateway/` |
+| 앱 | Cloudflare Pages 위의 SvelteKit 빌드. 사람이 로그인하는 화면과 공개 API를 함께 서빙 | `web/` |
+| 커넥션 게이트웨이 | 회사마다 Durable Object 하나를 두는 Worker. 브라우저 호출과 API 호출을 함께 나름 | `workers/connection-gateway/` |
 
 **기록**은 모든 읽기와 쓰기에 어떤 멤버로서 답하고, 관리자로서 답하는 일은
 없습니다. 세션이 어떤 행을 보는지는 데이터베이스 자신이 정합니다. 테이블
@@ -67,12 +70,14 @@ flowchart TB
 (`/api/agent/messenger-credential`, `/api/agent/mail-account`) 해 줍니다.
 서비스 키는 이 라우트들을 떠나지 않습니다.
 
-**앱**은 비밀을 하나도 쥐지 않습니다. 어느 Supabase 프로젝트에 말을 거는지는
-런타임에 정해집니다. `hooks.server.ts`가 값을 `#central-plane` 엘리먼트에
-주입하므로, 하나의 빌드가 모든 회사를 서빙합니다. 모두가 하나의 주소에서
-로그인하고, 존의 다른 모든 호스트네임은 그리로 `308`을 답합니다. 예외는
-`/api/` 아래 경로로, 교차 출처 리다이렉트가 호출자의 베어러 토큰을 떨어뜨리기
-때문에 도착한 곳에서 그대로 답합니다.
+**앱**이 어느 Supabase 프로젝트에 말을 거는지는 런타임에 정해집니다.
+`hooks.server.ts`가 값을 `#central-plane` 엘리먼트에 주입하므로, 하나의 빌드가
+모든 회사를 서빙합니다. 화면은 비밀을 쥐지 않습니다. `/api/` 아래 라우트는 쥐고,
+그래서 서버에서 돕니다. 모두가 하나의 주소에서 로그인하고, 존의 다른 모든
+호스트네임은 그리로 `308`을 답합니다. 예외는 `/api/`와 `/v1/` 아래 경로로, 교차
+출처 리다이렉트가 호출자의 베어러 토큰을 떨어뜨리기 때문에 도착한 곳에서 그대로
+답합니다. `api.<zone>/v1`과 회사 호스트의 `/api/v1`이 같은 API인 것은 이 예외
+덕분입니다.
 
 **커넥션 게이트웨이**는 서로 접속을 받지 않는 브라우저와 호스트가 닿는
 방법입니다. 브라우저는 Supabase 세션 토큰을 실어 `/company/<id>/client`로
@@ -124,8 +129,10 @@ WebSocket을 열고, Worker는 그 토큰을 프로젝트의 JWKS로 검증해 �
   `internkim-maild`로 갑니다. 메일 비밀번호가 그 컴퓨터에 저장된 채로 남는
   일은 없습니다.
 - **워크스페이스 화면**(`person.memory.*`, `person.files.*`,
-  `person.tasks.*`)은 `admind`가 돌고 있는 곳에서는 `127.0.0.1:18080`으로
-  전달됩니다. 호스트 번들은 오늘 admind를 띄우지 않습니다.
+  `person.tasks.*`)과 공개 API 자신의 호출(`person.api.request`,
+  `person.api.file`)은 `admind`가 돌고 있는 곳에서는 그 unix 소켓으로
+  전달됩니다. 호스트 번들은 오늘 admind를 띄우지 않습니다. 그래서 번들 위의
+  회사는 카탈로그와 토큰은 답해도 API로 도구를 실행하지는 못합니다.
 - **링크 미리보기**(`asset.link`)는 릴레이가 직접 만들고, 미리보기 이미지는
   답이 작게 유지되도록 Supabase Storage에 넣습니다.
 

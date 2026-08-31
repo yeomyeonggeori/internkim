@@ -308,11 +308,15 @@ domains always serve the production deployment, so a hostname can never point at
 a preview, and each company hostname is attached explicitly through
 `scripts/pages-domains.ts`.
 
+`api.<zone>` is attached to this same project, because the API is these routes.
+
 Every project variable has to be a **secret**, even the ones that are not
 secret. `wrangler pages deploy` rewrites the plain-text variables from its own
 config and keeps only the secrets, so a plain-text one survives until the next
 deploy — which is usually the deploy that was supposed to start using it.
-`scripts/show-pages-env.ts` prints the type of each.
+`scripts/show-pages-env.ts` prints the type of each. `GATEWAY_URL` and
+`GATEWAY_ADMIN_TOKEN` are what let an API call reach a company machine; without
+them an invocation answers `503`, while the catalog and the tokens still work.
 
 ### A device
 
@@ -608,8 +612,12 @@ sees no provider implementation, browser binary, model path or user cookie.
 
 Every tool Intern Kim uses inside a company is callable from outside it. A token
 belongs to a person, and each call runs as that person, so a token can never do
-more than its owner can. `/api-docs` serves the reference, in Korean or English,
-from an OpenAPI document at `/openapi/<language>.json`.
+more than its owner can. The reference lives at `docs.intern.kim/api`, in Korean
+or English, and `/api-docs` on any host redirects there.
+
+The API is the web app: `web/src/routes/api/v1/` answers it, so a company that
+hosts the app hosts the API. `api.<zone>/v1` and `<company host>/api/v1` are the
+same routes. The bearer is either a signed-in session or an issued token.
 
 ```bash
 curl https://<host>/api/v1/tools --header "Authorization: Bearer $INTERNKIM_TOKEN"
@@ -620,11 +628,14 @@ curl https://<host>/api/v1/tools/task_add/invoke \
   --data '{"input":{"title":"draft the quarterly report","size":"M"}}'
 ```
 
-`POST /api/v1/tokens` issues the token, from a signed-in staff session. The
-twenty-six base tools in the reference are read from
+`POST /api/v1/token` issues one, `GET /api/v1/tokens` lists them and
+`DELETE /api/v1/token?name=` revokes one. A session makes the first; after that a
+token makes its own successors, never above its own rung. The twenty-six base
+tools in the reference are read from
 `pkg/capabilityprotocol/generated/capability-tools.json`, the same catalog the
-agent runs on; tools that come and go with circumstance, such as the
-companion's, are found through `GET /api/v1/tools`.
+agent runs on, and `GET /api/v1/tools` answers them without asking the company
+machine. Tools that come and go with circumstance, such as the companion's, are
+found with `?live=true`, which costs that round trip.
 
 ## Pages API — device
 
@@ -676,7 +687,7 @@ internkim/
 ├── web/                           SvelteKit: the company app and device UI
 ├── companion/                     the Tauri desktop shell
 ├── assets/blueclaw-workspace/     AGENTS.md, skills, helpers, Apps Script
-├── workers/                       llm-gateway and release-registry Workers
+├── workers/                       connection-gateway, llm-gateway, release-registry
 ├── docs/internal/                 design documents and runbooks
 ├── lab/                           low-level VM lab config and scripts
 ├── tools/                         development helpers
