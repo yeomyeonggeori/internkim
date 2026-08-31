@@ -94,7 +94,7 @@ describe('attendance work policy model', () => {
 			sameAttendanceWorkPolicyRevision(revision(), { ...revision(), nightStartTime: '23:00' })
 		).toBe(false);
 		expect(
-			sameAttendanceWorkPolicyRevision(revision(), setAttendanceWorkingWeekdays(revision(), [1, 2]))
+			sameAttendanceWorkPolicyRevision(revision(), { ...revision(), workingWeekdays: [1, 2, 3, 4, 6] })
 		).toBe(false);
 		expect(
 			sameAttendanceWorkPolicyRevision(revision(), {
