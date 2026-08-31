@@ -13,6 +13,8 @@ type RecordCall = { url: string; method: string; body: unknown };
 
 let recordCalls: RecordCall[] = [];
 let credentialRows: unknown[] = [];
+let memberRows: unknown[] = [];
+let issuerKeys = '{"keys":[]}';
 
 Object.assign(globalThis, {
 	fetch: async (url: string, options: { method?: string; body?: string } = {}) => {
@@ -20,6 +22,12 @@ Object.assign(globalThis, {
 			storePuts.push(String(url));
 			const status = storeStatuses.shift() ?? 200;
 			return { ok: status < 400, status, json: async () => null };
+		}
+		if (String(url).includes('/auth/v1/.well-known/jwks.json')) {
+			return { ok: true, status: 200, json: async () => JSON.parse(issuerKeys) };
+		}
+		if (String(url).includes('/rest/v1/member?')) {
+			return { ok: true, status: 200, json: async () => memberRows };
 		}
 		const method = options.method ?? 'GET';
 		recordCalls.push({ url: String(url), method, body: options.body ? JSON.parse(options.body) : null });
@@ -67,8 +75,36 @@ beforeEach(() => {
 	storePuts = [];
 	recordCalls = [];
 	credentialRows = [];
+	memberRows = [];
 	companyAnswer = { requestID: '', status: 200, body: { ok: true } };
 });
+
+const sessionKeyID = 'session-key';
+let sessionKeys: Promise<CryptoKeyPair> | undefined;
+
+function base64URL(bytes: Uint8Array): string {
+	return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function encodeSegment(document: unknown): string {
+	return base64URL(new TextEncoder().encode(JSON.stringify(document)));
+}
+
+async function sessionToken(claims: Record<string, unknown>): Promise<string> {
+	sessionKeys ??= crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+	const pair = await sessionKeys;
+	const publicKey = await crypto.subtle.exportKey('jwk', pair.publicKey);
+	issuerKeys = JSON.stringify({ keys: [{ ...publicKey, kid: sessionKeyID }] });
+	const signed = `${encodeSegment({ alg: 'ES256', kid: sessionKeyID })}.${encodeSegment(claims)}`;
+	const signature = await crypto.subtle.sign(
+		{ name: 'ECDSA', hash: 'SHA-256' },
+		pair.privateKey,
+		new TextEncoder().encode(signed)
+	);
+	return `${signed}.${base64URL(new Uint8Array(signature))}`;
+}
+
+const sessionClaims = { sub: 'account-1', iss: 'https://plane.supabase.co/auth/v1', exp: 4102444800 };
 
 describe('a call that names nobody', () => {
 	test('is refused when it carries no token at all', async () => {
@@ -470,5 +506,62 @@ describe('a token makes and revokes tokens', () => {
 		const listed = await call('/v1/token', 'ik_admin');
 		expect(listed.status).toBe(405);
 		expect(await listed.json()).toEqual({ error: 'the tokens a member holds are listed at /v1/tokens' });
+	});
+});
+
+describe('a call signed in with the central plane', () => {
+	test('is served as that member with full permission', async () => {
+		memberRows = [{ id: 'm1', company_id: 'c1', email: 'Someone@Example.com' }];
+		const response = await call('/v1/tools/task_add/invoke', await sessionToken(sessionClaims), {
+			method: 'POST',
+			body: JSON.stringify({ input: { title: 'hello' } })
+		});
+		expect(response.status).toBe(200);
+		expect(carried).toHaveLength(1);
+		expect(carried[0].companyID).toBe('c1');
+		expect(carried[0].call.body).toMatchObject({
+			requester: 'someone@example.com',
+			permission: 'delete',
+			path: '/tools/task_add/invoke'
+		});
+	});
+
+	test('is refused when the account belongs to no company', async () => {
+		memberRows = [];
+		const response = await call('/v1/tools', await sessionToken({ ...sessionClaims, sub: 'account-2' }));
+		expect(response.status).toBe(401);
+		expect(await response.json()).toEqual({ error: 'this account belongs to no company' });
+		expect(carried).toHaveLength(0);
+	});
+
+	test('is refused when the session has expired', async () => {
+		memberRows = [{ id: 'm1', company_id: 'c1', email: 'someone@example.com' }];
+		const response = await call('/v1/tools', await sessionToken({ ...sessionClaims, exp: 1000 }));
+		expect(response.status).toBe(401);
+		expect(await response.json()).toEqual({ error: 'the token has expired' });
+	});
+
+	test('a bearer that is neither a key nor a jwt is refused', async () => {
+		const response = await call('/v1/tools', 'just-some-string');
+		expect(response.status).toBe(401);
+	});
+});
+
+describe('a browser at another origin', () => {
+	test('gets its preflight answered without a token', async () => {
+		const response = await call('/v1/tools', null, { method: 'OPTIONS' });
+		expect(response.status).toBe(204);
+		expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+		expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
+	});
+
+	test('every answer names the open origin, refusals included', async () => {
+		const refused = await call('/v1/tools', null);
+		expect(refused.headers.get('Access-Control-Allow-Origin')).toBe('*');
+
+		memberRows = [{ id: 'm1', company_id: 'c1', email: 'someone@example.com' }];
+		const served = await call('/v1/tools', await sessionToken({ ...sessionClaims, sub: 'account-3' }));
+		expect(served.status).toBe(200);
+		expect(served.headers.get('Access-Control-Allow-Origin')).toBe('*');
 	});
 });
