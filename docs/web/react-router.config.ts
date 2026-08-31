@@ -22,6 +22,11 @@ function entrySlugs(entry: string): string[] {
   return getSlugs(entry.replace(/\.[a-z]{2}(\.mdx?)$/, '$1'));
 }
 
+function pageURL(language: string, slugs: string[]): string {
+  const url = `${localePrefix(language)}${createGetUrl('/')(slugs)}`;
+  return url.length > 1 && url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
 export default {
   ssr: false,
   async prerender({ getStaticPaths }) {
@@ -30,7 +35,7 @@ export default {
     for await (const entry of glob(publishedSections, { cwd: publishedContentDirectory })) {
       const language = entryLanguage(entry);
       const slugs = entrySlugs(entry);
-      paths.push(`${localePrefix(language)}${createGetUrl('/')(slugs)}`);
+      paths.push(pageURL(language, slugs));
       if (language === i18n.defaultLanguage) {
         paths.push(`/llms.mdx/docs/${[...slugs, 'content.md'].join('/')}`);
       }
