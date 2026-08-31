@@ -1,6 +1,7 @@
 import { environmentOf, type Environment } from '$lib/server/agent-request';
 import { callingMember, type CallingMember } from '$lib/server/member-request';
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from '$lib/server/public-api/catalog';
+import { fullPublicAPIPermission } from '$lib/public-api-permission';
 import { callCompany } from '$lib/server/public-api/company-call';
 import {
 	AssetStoreRefused,
@@ -12,6 +13,9 @@ import {
 	oversizeRefusal,
 	sizeTheHeaderClaims,
 } from '$lib/server/public-api/files';
+import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
+import { permissionForTool } from '$lib/server/public-api/catalog';
+import { reachesPermission } from '$lib/public-api-permission';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -31,8 +35,44 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 		const answered = discoveryAnswer(path, member);
 		if (answered) return answered;
 	}
+	const invoked = invokedToolName(request.method, path);
+	if (invoked && recordRunsTheTool(invoked)) return runHere(request, member, invoked);
 	return carryToTheCompany(request, url, environment, member, path);
 };
+
+function invokedToolName(method: string, path: string): string | null {
+	if (method !== 'POST') return null;
+	const named = path.match(/^\/tools\/([^/]+)\/invoke$/);
+	return named ? named[1] : null;
+}
+
+async function runHere(request: Request, member: CallingMember, name: string): Promise<Response> {
+	const descriptor = toolReachableBy(name, member.permission);
+	if (!descriptor) {
+		const known = toolReachableBy(name, fullPublicAPIPermission);
+		if (!known) error(404, `no tool here goes by ${name}`);
+		error(403, `this token may only ${member.permission}, and ${name} ${permissionForTool(known)}s`);
+	}
+	if (!reachesPermission(member.permission, permissionForTool(descriptor))) {
+		error(403, `this token may not ${permissionForTool(descriptor)}`);
+	}
+
+	const payload = await payloadOf(request);
+	if (!payload) error(400, 'this call carried a body that is not a json object');
+	const input = payload.input;
+	if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
+		error(400, 'input is the object the tool reads');
+	}
+
+	const answered = await runToolOverTheRecord(
+		member.caller,
+		member.memberID,
+		name,
+		(input as Record<string, unknown>) ?? {},
+		new Date()
+	);
+	return json(answered.body, { status: answered.status });
+}
 
 function discoveryAnswer(path: string, member: CallingMember): Response | null {
 	if (path === '/tools') return catalogResponse(baseCatalogAnswer(member.permission), 200);
