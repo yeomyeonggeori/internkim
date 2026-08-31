@@ -20,6 +20,7 @@
 			| 'syncDescription'
 			| 'googleCalendarConnectionFailed'
 			| 'subscriptionReady'
+			| 'subscriptionShownOnce'
 			| 'caldav'
 			| 'username'
 			| 'password'
@@ -64,6 +65,10 @@
 		selectGoogleCalendar: (calendarID: string) => Promise<boolean>;
 		uploadGoogleOAuthClient: (file: File) => Promise<boolean>;
 	} = $props();
+
+	function hasSubscription(): boolean {
+		return Boolean(syncInformation?.caldavURL || syncInformation?.icsURL || syncInformation?.isRegistered);
+	}
 
 	function isWaitingForInitialAccountStatus(): boolean {
 		return isLoadingAccountStatus && !accountStatus;
@@ -123,63 +128,76 @@
 				/>
 			{/if}
 
-			<div class="space-y-3">
+			{#if hasSubscription()}
 				<p class="text-xs font-medium text-muted-foreground">{text.subscriptionReady}</p>
-				<p class="text-xs font-medium uppercase text-muted-foreground">{text.caldav}</p>
-				<div class="flex min-w-0 items-start gap-2">
-					<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
-						{syncInformation?.caldavURL ?? ''}
-					</code>
-					<CopyButton text={syncInformation?.caldavURL ?? ''} variant="outline" size="icon" class="shrink-0" disabled={!syncInformation?.caldavURL} />
-				</div>
-				<div class="space-y-1">
-					<p class="text-[11px] font-medium text-muted-foreground">{text.username}</p>
+			{/if}
+
+			{#if syncInformation?.caldavURL}
+				<div class="space-y-3">
+					<p class="text-xs font-medium uppercase text-muted-foreground">{text.caldav}</p>
 					<div class="flex min-w-0 items-start gap-2">
 						<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
-							{syncInformation?.caldavUsername ?? ''}
+							{syncInformation.caldavURL}
 						</code>
-						<CopyButton
-							text={syncInformation?.caldavUsername ?? ''}
-							variant="outline"
-							size="icon"
-							class="shrink-0"
-							disabled={!syncInformation?.caldavUsername}
-						/>
+						<CopyButton text={syncInformation.caldavURL} variant="outline" size="icon" class="shrink-0" />
+					</div>
+					<div class="space-y-1">
+						<p class="text-[11px] font-medium text-muted-foreground">{text.username}</p>
+						<div class="flex min-w-0 items-start gap-2">
+							<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
+								{syncInformation.caldavUsername ?? ''}
+							</code>
+							<CopyButton
+								text={syncInformation.caldavUsername ?? ''}
+								variant="outline"
+								size="icon"
+								class="shrink-0"
+								disabled={!syncInformation.caldavUsername}
+							/>
+						</div>
+					</div>
+					<div class="space-y-1">
+						<p class="text-[11px] font-medium text-muted-foreground">{text.password}</p>
+						<div class="flex min-w-0 items-start gap-2">
+							<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
+								{syncInformation.caldavPassword ?? ''}
+							</code>
+							<CopyButton
+								text={syncInformation.caldavPassword ?? ''}
+								variant="outline"
+								size="icon"
+								class="shrink-0"
+								disabled={!syncInformation.caldavPassword}
+							/>
+						</div>
 					</div>
 				</div>
-				<div class="space-y-1">
-					<p class="text-[11px] font-medium text-muted-foreground">{text.password}</p>
+
+				<Separator />
+			{/if}
+
+			{#if syncInformation?.icsURL}
+				<div class="space-y-2">
+					<p class="text-xs font-medium uppercase text-muted-foreground">{text.ics}</p>
 					<div class="flex min-w-0 items-start gap-2">
 						<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
-							{syncInformation?.caldavPassword ?? ''}
+							{syncInformation.icsURL}
 						</code>
-						<CopyButton
-							text={syncInformation?.caldavPassword ?? ''}
-							variant="outline"
-							size="icon"
-							class="shrink-0"
-							disabled={!syncInformation?.caldavPassword}
-						/>
+						<CopyButton text={syncInformation.icsURL} variant="outline" size="icon" class="shrink-0" />
 					</div>
 				</div>
-			</div>
+			{/if}
 
-			<Separator />
+			{#if syncInformation?.isRegistered && !syncInformation?.icsURL}
+				<p class="text-xs text-muted-foreground">{text.subscriptionShownOnce}</p>
+			{/if}
 
-			<div class="space-y-2">
-				<p class="text-xs font-medium uppercase text-muted-foreground">{text.ics}</p>
-				<div class="flex min-w-0 items-start gap-2">
-					<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
-						{syncInformation?.icsURL ?? ''}
-					</code>
-					<CopyButton text={syncInformation?.icsURL ?? ''} variant="outline" size="icon" class="shrink-0" disabled={!syncInformation?.icsURL} />
-				</div>
-			</div>
-
-			<Button variant="outline" class="w-full justify-center gap-2" onclick={rotateSubscriptionURL} disabled={isRotatingSync}>
-				<RotateCwIcon class={isRotatingSync ? 'size-4 animate-spin' : 'size-4'} />
-				<span>{text.rotate}</span>
-			</Button>
+			{#if hasSubscription()}
+				<Button variant="outline" class="w-full justify-center gap-2" onclick={rotateSubscriptionURL} disabled={isRotatingSync}>
+					<RotateCwIcon class={isRotatingSync ? 'size-4 animate-spin' : 'size-4'} />
+					<span>{text.rotate}</span>
+				</Button>
+			{/if}
 		</div>
 	</Sheet.Content>
 </Sheet.Root>

@@ -7,6 +7,7 @@
 		fetchCalendarAccountStatus,
 		fetchGoogleCalendarList,
 		fetchCalendarSyncInformation,
+		issueCalendarSubscriptionURL,
 		rotateCalendarSubscriptionURL,
 		saveGoogleCalendarSelection,
 		uploadGoogleOAuthClient
@@ -55,6 +56,14 @@
 	async function loadSyncInformation() {
 		try {
 			layoutState.syncInformation = await fetchCalendarSyncInformation();
+		} catch {
+			layoutState.syncInformation = null;
+		}
+	}
+
+	async function loadSubscriptionURL() {
+		try {
+			layoutState.syncInformation = await issueCalendarSubscriptionURL();
 		} catch {
 			layoutState.syncInformation = null;
 		}
@@ -128,8 +137,8 @@
 		layoutState.syncError = '';
 		try {
 			layoutState.syncInformation = await rotateCalendarSubscriptionURL(text.saveError);
-		} catch (error) {
-			layoutState.syncError = error instanceof Error ? error.message : text.saveError;
+		} catch {
+			layoutState.syncError = text.saveError;
 		} finally {
 			layoutState.isRotatingSync = false;
 		}
@@ -173,7 +182,7 @@
 
 	function openSyncSheet() {
 		layoutState.openSyncSheet();
-		loadSyncInformation();
+		loadSubscriptionURL();
 		loadAccountStatus();
 	}
 
