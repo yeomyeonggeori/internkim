@@ -1,4 +1,5 @@
 import {
+	ETC_TASK_OPTION_VALUE,
 	buildBusinessFilterOptions,
 	buildMemberFilterOptions,
 	defaultParticipantFilterIDs,
@@ -59,12 +60,16 @@ export class TaskFiltersController {
 	}
 
 	businessOptions(summary: TaskSummary | null, text: TaskPageText) {
-		return buildBusinessFilterOptions((summary?.definitions ?? emptyDefinitions).categories, text.filters.all, text.report.fallbackBusiness);
+		return buildBusinessFilterOptions((summary?.definitions ?? emptyDefinitions).categories, text.filters.all, text.report.etcLabel);
 	}
 
 	typeOptions(summary: TaskSummary | null, text: TaskPageText) {
 		const definitions = summary?.definitions ?? emptyDefinitions;
-		return [{ value: 'all', label: text.filters.all }, ...definitions.types.map((type) => ({ value: type, label: type }))];
+		return [
+			{ value: 'all', label: text.filters.all },
+			{ value: ETC_TASK_OPTION_VALUE, label: text.report.etcLabel },
+			...definitions.types.map((type) => ({ value: type, label: type }))
+		];
 	}
 
 	tasks(tasks: Task[]): Task[] {

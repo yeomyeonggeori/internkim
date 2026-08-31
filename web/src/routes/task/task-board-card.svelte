@@ -15,7 +15,7 @@
 
 	type Props = {
 		task: Task;
-		businessFallback: string;
+		etcLabel: string;
 		openTask: (task: Task) => void;
 		isPending?: boolean;
 		isReadOnly?: boolean;
@@ -28,15 +28,15 @@
 		isInteractive?: boolean;
 		memberEmail?: (memberID: string) => string;
 		isOverduePlan?: boolean;
-		businessColor?: (business: string) => string;
-		taskTypeColor?: (type: string) => string;
+		businessColor?: (business: string | null) => string;
+		taskTypeColor?: (type: string | null) => string;
 		childProgress?: ChildProgress;
 		childProgressLabel?: string;
 	};
 
 	let {
 		task,
-		businessFallback,
+		etcLabel,
 		openTask,
 		isPending = false,
 		isReadOnly = false,
@@ -71,7 +71,7 @@
 		isReadOnly ? 'bg-muted/20' : ''
 	].join(' '));
 
-	let display = $derived(buildTaskBoardCardDisplay(task, businessFallback));
+	let display = $derived(buildTaskBoardCardDisplay(task, etcLabel));
 	let primaryParticipantName = $derived(display.participantNames[0] ?? '');
 	let primaryParticipantID = $derived(display.participantIDs[0] ?? '');
 	let additionalParticipantCount = $derived(Math.max(display.participantNames.length - 1, 0));

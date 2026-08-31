@@ -64,8 +64,8 @@ func (service *Service) taskAndPayloadFromRequest(request *http.Request, members
 	if category != "" && len(definitions.Categories) > 0 && !containsString(definitions.Categories, category) {
 		return Task{}, payload, taskValidationError("category is not allowed")
 	}
-	taskType := firstNonEmpty(strings.TrimSpace(payload.Type), "기타")
-	if !containsString(definitions.Types, taskType) {
+	taskType := strings.TrimSpace(payload.Type)
+	if taskType != "" && !containsString(definitions.Types, taskType) {
 		return Task{}, payload, taskValidationError("type is not allowed")
 	}
 	size := firstNonEmpty(strings.ToUpper(strings.TrimSpace(payload.Size)), "M")

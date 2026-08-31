@@ -203,7 +203,7 @@ function createFlowTaskFallback(state: DevFlowMockState): Task {
 		ownerName: firstMember?.name ?? '',
 		participantIDs: firstMember ? [firstMember.id] : [],
 		participantNames: firstMember ? [firstMember.name] : [],
-		business: state.taskState.definitions.categories[0] ?? '',
+		business: state.taskState.definitions.categories[0] ?? null,
 		type: state.taskState.definitions.types[0] ?? '',
 		content: '',
 		size: firstSize?.name ?? '',
@@ -222,8 +222,8 @@ function flowTaskFromRecord(parsed: Record<string, unknown>, fallback: Task): Ta
 		ownerName: stringFromValue(parsed.ownerName, fallback.ownerName),
 		participantIDs: stringArrayFromValue(parsed.participantIDs, fallback.participantIDs),
 		participantNames: stringArrayFromValue(parsed.participantNames, fallback.participantNames),
-		business: stringFromValue(parsed.business, fallback.business),
-		type: stringFromValue(parsed.type, fallback.type),
+		business: definitionValueFromValue(parsed.business, fallback.business),
+		type: definitionValueFromValue(parsed.type, fallback.type),
 		content: stringFromValue(parsed.content, fallback.content),
 		size: stringFromValue(parsed.size, fallback.size),
 		status: stringFromValue(parsed.status, fallback.status),
@@ -353,6 +353,12 @@ function parseJSONRecord(body: string | undefined): Record<string, unknown> {
 
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function definitionValueFromValue(value: unknown, fallback: string | null): string | null {
+	if (value === null) return null;
+	if (typeof value !== 'string') return fallback;
+	return value.trim() || null;
 }
 
 function stringFromValue(value: unknown, fallback: string): string {

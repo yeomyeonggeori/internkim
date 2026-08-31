@@ -5,6 +5,7 @@ export type TaskEditorOption = {
 
 export type TaskRelationshipsText = {
 	title: string;
+	etcLabel: string;
 	parent: string;
 	children: string;
 	add: string;
@@ -34,7 +35,7 @@ export type TaskEditorText = {
 	requesterUnavailable: string;
 	status: string;
 	business: string;
-	businessFallback: string;
+	etcLabel: string;
 	type: string;
 	size: string;
 	startDate: string;

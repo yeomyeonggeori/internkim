@@ -34,9 +34,9 @@ describe('flow task board card model', () => {
 		expect(display.participantIDs).toEqual(['member-1', 'member-2']);
 	});
 
-	test('labels empty business as 기타', () => {
+	test('labels null business as 기타', () => {
 		const display = buildTaskBoardCardDisplay(task({
-			business: '',
+			business: null,
 			type: '운영'
 		}));
 
@@ -44,14 +44,14 @@ describe('flow task board card model', () => {
 		expect(display.metadataLabels).toEqual(['운영']);
 	});
 
-	test('uses the provided empty business fallback', () => {
+	test('labels a null type with the etc label', () => {
 		const display = buildTaskBoardCardDisplay(task({
-			business: '',
-			type: 'Operations'
-		}), 'Other');
+			business: null,
+			type: null
+		}), 'Etc.');
 
-		expect(display.businessLabel).toBe('Other');
-		expect(display.metadataLabels).toEqual(['Operations']);
+		expect(display.businessLabel).toBe('Etc.');
+		expect(display.metadataLabels).toEqual(['Etc.']);
 	});
 });
 

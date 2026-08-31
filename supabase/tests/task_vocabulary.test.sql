@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(11);
 
 select has_function(
   'public',
@@ -138,6 +138,30 @@ select is(
   '{"businesses":[{"name":"Business One","color":"#2563eb"},{"name":"Business Two"},{"name":"Business New"}],"types":[{"name":"Type One"}]}'::jsonb,
   'vocabulary: the saved task vocabulary persists on the company'
 );
+
+select lives_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59500000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+  perform public.task_vocabulary_save('{"businesses":[{"name":"Business One","color":"#2563eb"},{"name":"Business Two"},{"name":"Business New"}],"types":[{"name":"Type One"}],"etcBusinessColor":"#DC2626","etcTypeColor":"#0891b2"}'::jsonb);
+  reset role;
+end $$;$block$, 'vocabulary: the etc bucket colors save alongside the arrays');
+
+select throws_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"59500000-0000-0000-0000-000000000001","role":"authenticated"}',
+    true
+  );
+  perform public.task_vocabulary_save('{"businesses":[],"types":[],"etcBusinessColor":42}'::jsonb);
+  reset role;
+end $$;$block$, '22023', null, 'vocabulary: a non-string etc color is rejected');
 
 select * from finish();
 rollback;

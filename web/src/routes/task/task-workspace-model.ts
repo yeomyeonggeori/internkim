@@ -1,6 +1,11 @@
 import type { TaskDefinitions, TaskMember, TaskSummary, Task } from './task-types';
 
-export const EMPTY_FLOW_BUSINESS_VALUE = '__empty_task_business__';
+export const ETC_TASK_OPTION_VALUE = '__etc_task_option__';
+
+export function normalizedTaskDefinitionValue(value: string | null | undefined): string | null {
+	const trimmedValue = value?.trim();
+	return trimmedValue ? trimmedValue : null;
+}
 
 export type TaskWorkspaceTab = 'tasks' | 'report' | 'definitions' | 'members';
 
@@ -47,8 +52,8 @@ export function filterTasks(tasks: Task[], filters: TaskFilterState): Task[] {
 	return tasks.filter((task) => {
 		if (filters.statusFilter !== 'all' && task.status !== filters.statusFilter) return false;
 		if (!matchesParticipantFilter(task, filters.participantFilterIDs)) return false;
-		if (!matchesBusinessFilter(task, filters.businessFilter)) return false;
-		if (filters.typeFilter !== 'all' && task.type !== filters.typeFilter) return false;
+		if (!matchesDefinitionFilter(task.business, filters.businessFilter)) return false;
+		if (!matchesDefinitionFilter(task.type, filters.typeFilter)) return false;
 		if (!normalizedSearch) return true;
 		return taskSearchText(task).includes(normalizedSearch);
 	});
@@ -70,33 +75,38 @@ export function buildMemberFilterOptions(members: TaskMember[], allLabel: string
 	];
 }
 
-export function buildBusinessFilterOptions(categories: string[], allLabel: string, emptyLabel: string): TaskOption[] {
+export function buildBusinessFilterOptions(categories: string[], allLabel: string, etcLabel: string): TaskOption[] {
 	return [
 		{ value: 'all', label: allLabel },
-		{ value: EMPTY_FLOW_BUSINESS_VALUE, label: emptyLabel },
+		{ value: ETC_TASK_OPTION_VALUE, label: etcLabel },
 		...categories.map((category) => ({ value: category, label: category }))
 	];
 }
 
-export function buildBusinessSelectOptions(definitions: TaskDefinitions, emptyLabel: string): TaskOption[] {
+export function buildBusinessSelectOptions(definitions: TaskDefinitions, etcLabel: string): TaskOption[] {
 	return [
-		{ value: EMPTY_FLOW_BUSINESS_VALUE, label: emptyLabel },
+		{ value: ETC_TASK_OPTION_VALUE, label: etcLabel },
 		...definitions.categories.map((category) => ({ value: category, label: category }))
 	];
 }
 
-export function taskBusinessLabel(value: string, emptyLabel: string): string {
-	const trimmedValue = value.trim();
-	return trimmedValue || emptyLabel;
+export function buildTypeSelectOptions(definitions: TaskDefinitions, etcLabel: string): TaskOption[] {
+	return [
+		{ value: ETC_TASK_OPTION_VALUE, label: etcLabel },
+		...definitions.types.map((type) => ({ value: type, label: type }))
+	];
 }
 
-export function taskBusinessOptionValue(value: string): string {
-	const trimmedValue = value.trim();
-	return trimmedValue || EMPTY_FLOW_BUSINESS_VALUE;
+export function taskDefinitionLabel(value: string | null, etcLabel: string): string {
+	return value ?? etcLabel;
 }
 
-export function taskBusinessValueFromOption(value: string): string {
-	if (value === EMPTY_FLOW_BUSINESS_VALUE) return '';
+export function taskDefinitionOptionValue(value: string | null): string {
+	return value ?? ETC_TASK_OPTION_VALUE;
+}
+
+export function taskDefinitionValueFromOption(value: string): string | null {
+	if (value === ETC_TASK_OPTION_VALUE) return null;
 	return value;
 }
 
@@ -129,18 +139,18 @@ function matchesParticipantFilter(task: Task, participantFilterIDs: string[]): b
 	return participantFilterIDs.some((memberID) => task.participantIDs.includes(memberID));
 }
 
-function matchesBusinessFilter(task: Task, businessFilter: string): boolean {
-	if (businessFilter === 'all') return true;
-	if (businessFilter === EMPTY_FLOW_BUSINESS_VALUE) return task.business.trim() === '';
-	return task.business === businessFilter;
+function matchesDefinitionFilter(value: string | null, filter: string): boolean {
+	if (filter === 'all') return true;
+	if (filter === ETC_TASK_OPTION_VALUE) return value === null;
+	return value === filter;
 }
 
 function taskSearchText(task: Task): string {
 	return [
 		task.content,
 		task.ownerName,
-		task.business,
-		task.type,
+		task.business ?? '',
+		task.type ?? '',
 		...task.participantNames
 	].join(' ').toLowerCase();
 }

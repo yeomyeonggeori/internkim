@@ -1,5 +1,5 @@
 import type { Task } from './task-types';
-import { taskBusinessLabel } from './task-workspace-model';
+import { taskDefinitionLabel } from './task-workspace-model';
 
 export type TaskBoardCardDisplay = {
 	participantNames: string[];
@@ -8,15 +8,11 @@ export type TaskBoardCardDisplay = {
 	metadataLabels: string[];
 };
 
-export function buildTaskBoardCardDisplay(task: Task, emptyBusinessLabel = '기타'): TaskBoardCardDisplay {
+export function buildTaskBoardCardDisplay(task: Task, etcLabel = '기타'): TaskBoardCardDisplay {
 	return {
 		participantNames: task.participantNames,
 		participantIDs: task.participantIDs,
-		businessLabel: taskBusinessLabel(task.business, emptyBusinessLabel),
-		metadataLabels: buildMetadataLabels(task)
+		businessLabel: taskDefinitionLabel(task.business, etcLabel),
+		metadataLabels: [taskDefinitionLabel(task.type, etcLabel)]
 	};
-}
-
-function buildMetadataLabels(task: Task): string[] {
-	return [task.type].filter((label): label is string => Boolean(label));
 }

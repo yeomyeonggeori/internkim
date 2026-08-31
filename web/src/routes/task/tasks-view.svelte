@@ -99,7 +99,7 @@
 				tasks={page.filteredTasks()}
 				allTasks={page.tasks()}
 				boardText={text.task.board}
-				businessFallback={text.task.businessFallback}
+				etcLabel={text.task.etcLabel}
 				statusLabel={page.statusLabel}
 				openTask={page.openTask}
 				createTask={page.createTask}

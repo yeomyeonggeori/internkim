@@ -23,7 +23,7 @@
 		tasks: Task[];
 		allTasks: Task[];
 		boardText: BoardText;
-		businessFallback: string;
+		etcLabel: string;
 		statusLabel: (status: string) => string;
 		openTask: (task: Task) => void;
 		createTask: (status?: string) => void;
@@ -33,8 +33,8 @@
 		weekStartISO?: string;
 		weekEndISO?: string;
 		weekPosition?: TaskBoardWeekPosition;
-		businessColor: (business: string) => string;
-		taskTypeColor: (type: string) => string;
+		businessColor: (business: string | null) => string;
+		taskTypeColor: (type: string | null) => string;
 		childProgressLabel: string;
 		memberEmail: (memberID: string) => string;
 		participantScope: TaskBoardParticipantScope;
@@ -44,7 +44,7 @@
 		tasks,
 		allTasks,
 		boardText,
-		businessFallback,
+		etcLabel,
 		statusLabel,
 		openTask,
 		createTask,
@@ -181,7 +181,7 @@
 										{businessColor}
 										{taskTypeColor}
 										{childProgressLabel}
-										{businessFallback}
+										{etcLabel}
 										{openTask}
 										isPending={isTaskPending(task.id)}
 										isReadOnly={!canUpdateTask(task)}

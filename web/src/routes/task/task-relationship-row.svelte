@@ -13,13 +13,15 @@
 		isTaskStatusCompleted
 	} from './task-status';
 	import { relationshipStatusIconClass } from './task-style';
+	import { taskDefinitionLabel } from './task-workspace-model';
 	import type { Task } from './task-types';
 
 	type RelationshipResult = void | boolean;
 
 	type Props = {
 		task: Task;
-		taskTypeColor: (type: string) => string;
+		taskTypeColor: (type: string | null) => string;
+		etcLabel: string;
 		editable: boolean;
 		pending: boolean;
 		openTaskLabel: string;
@@ -33,6 +35,7 @@
 	let {
 		task,
 		taskTypeColor,
+		etcLabel,
 		editable,
 		pending,
 		openTaskLabel,
@@ -89,7 +92,7 @@
 				class="h-5 max-w-24 shrink-0 rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none"
 				style={taskDefinitionOutlineBadgeStyle(taskTypeColor(task.type))}
 			>
-				<span class="truncate">{task.type}</span>
+				<span class="truncate">{taskDefinitionLabel(task.type, etcLabel)}</span>
 			</Badge>
 			<div class="truncate text-sm font-medium text-foreground">{task.content}</div>
 		</div>
