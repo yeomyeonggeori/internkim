@@ -1,16 +1,7 @@
 import type { SupabaseClient } from './service-client.ts';
+import { centralTaskStatuses } from './central-task-status.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
 import type { VapidKeys } from './web-push-vapid.ts';
-
-export const centralTaskStatuses = [
-	'requested',
-	'planned',
-	'in_progress',
-	'completed',
-	'paused',
-	'rejected',
-	'stopped'
-] as const;
 
 type TaskRow = {
 	id: string;
