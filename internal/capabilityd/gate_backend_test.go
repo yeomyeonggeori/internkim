@@ -1,6 +1,9 @@
 package capabilityd
 
 import (
+	"context"
+	"net/url"
+	"strings"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -25,12 +28,27 @@ const (
 	mattermostOverHTTP  gateBackend = "mattermost"
 	companionOverHTTP   gateBackend = "companion"
 	openRouterOverHTTP  gateBackend = "openrouter"
+
+	// The browser is the one backend that is not an address. capabilityd runs
+	// agent-browser as a command and reads what it printed, so the stand-in for
+	// it answers on standard output rather than over HTTP.
+	browserAsACommand gateBackend = "agent-browser"
+
+	// The document converter is the other command. It reads its request on
+	// standard input and prints the conversion, and it lives in a Python
+	// environment a test has no business building.
+	converterAsACommand gateBackend = "document converter"
+
+	// The workspace is an address too, and the only one whose answers are
+	// files. A tool that reads what the agent produced needs them to be there.
+	workspaceOnDisk gateBackend = "workspace"
 )
 
 // What a backend answers, and what it was asked. A case gives the first; the
 // gate collects the second so a test can say what the tool actually sent.
 type standingIn struct {
 	answers func(*http.Request) (int, string)
+	files   map[string]string
 
 	mutex sync.Mutex
 	asked []askedOfBackend
@@ -83,6 +101,7 @@ func (backend *standingIn) handler(t *testing.T) http.Handler {
 func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service {
 	t.Helper()
 	configuration := Configuration{AdmindBaseURL: refusingAddress(t, "admind over TCP")}
+	var runsACommand *standingIn
 
 	for backend, standIn := range reaches {
 		switch backend {
@@ -102,11 +121,54 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 			configuration.OpenRouterBaseURL = address
 			configuration.OpenRouterWebBaseURL = address
 			configuration.OpenRouterKeyPath = keyFileHolding(t, "openrouter-key")
+		case browserAsACommand:
+			configuration.AgentBrowserPath = "/usr/local/bin/agent-browser"
+			runsACommand = standIn
+		case converterAsACommand:
+			runsACommand = standIn
+		case workspaceOnDisk:
+			configuration.BlueclawWorkspacePath = workspaceHolding(t, standIn)
 		default:
 			t.Fatalf("no stand-in knows how to be %s", backend)
 		}
 	}
-	return Service{Configuration: configuration}
+	service := Service{Configuration: configuration}
+	if runsACommand != nil {
+		service.RunCommand = func(_ context.Context, executablePath string, arguments []string, _ []byte) ([]byte, error) {
+			runsACommand.mutex.Lock()
+			runsACommand.asked = append(runsACommand.asked, askedOfBackend{Method: executablePath, Path: strings.Join(arguments, " ")})
+			answers := runsACommand.answers
+			runsACommand.mutex.Unlock()
+			_, printed := answers(&http.Request{URL: &url.URL{Path: strings.Join(arguments, " ")}})
+			return []byte(printed), nil
+		}
+	}
+	return service
+}
+
+// The stand-in for the workspace answers in files rather than in documents, so
+// it carries what to write as paths and content.
+func holdingFiles(files map[string]string) *standingIn {
+	return &standingIn{files: files}
+}
+
+func workspaceHolding(t *testing.T, standIn *standingIn) string {
+	t.Helper()
+	root, errorValue := os.MkdirTemp("", "workspace")
+	if errorValue != nil {
+		t.Fatalf("make the workspace: %v", errorValue)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	for path, content := range standIn.files {
+		full := filepath.Join(root, filepath.FromSlash(path))
+		if errorValue := os.MkdirAll(filepath.Dir(full), 0o755); errorValue != nil {
+			t.Fatalf("make %s: %v", full, errorValue)
+		}
+		if errorValue := os.WriteFile(full, []byte(content), 0o644); errorValue != nil {
+			t.Fatalf("write %s: %v", full, errorValue)
+		}
+	}
+	return root
 }
 
 func servedOnLoopback(t *testing.T, handler http.Handler) string {
