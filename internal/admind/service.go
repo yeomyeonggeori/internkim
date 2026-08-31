@@ -67,7 +67,9 @@ type Configuration struct {
 	CentralPlaneAgentKeyPath       string
 	CentralPlaneAppURLPath         string
 	CentralPlaneProjectURL         string
+	CentralPlaneProjectURLPath     string
 	CentralPlanePublishableKey     string
+	CentralPlanePublishableKeyPath string
 	BridgeMapDatabasePath          string
 	MattermostAdminPasswordPath    string
 	MattermostTokenPath            string
@@ -340,7 +342,9 @@ func DefaultConfiguration() Configuration {
 		CentralPlaneAgentKeyPath:       "/root/.internkim/secrets/central-plane-agent-key",
 		CentralPlaneAppURLPath:         "/root/.internkim/env/central-plane-app-url",
 		CentralPlaneProjectURL:         centralplane.DefaultProjectURL,
+		CentralPlaneProjectURLPath:     "/root/.internkim/env/central-plane-project-url",
 		CentralPlanePublishableKey:     centralplane.DefaultPublishableKey,
+		CentralPlanePublishableKeyPath: "/root/.internkim/env/central-plane-publishable-key",
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
 		BuzzRelayPublicURLPath:         blueclawruntime.BuzzRelayPublicURLFilePath,
@@ -2687,11 +2691,29 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.CentralPlaneAgentKeyPath == "" {
 		configuration.CentralPlaneAgentKeyPath = defaultConfiguration.CentralPlaneAgentKeyPath
 	}
+	if configuration.CentralPlaneProjectURLPath == "" {
+		configuration.CentralPlaneProjectURLPath = defaultConfiguration.CentralPlaneProjectURLPath
+	}
+	if configuration.CentralPlanePublishableKeyPath == "" {
+		configuration.CentralPlanePublishableKeyPath = defaultConfiguration.CentralPlanePublishableKeyPath
+	}
+	// A company that hosts internkim itself names its own record. The files are
+	// how setup says so, the same way api-url names the fleet; the compiled
+	// defaults are only what a device gets when nothing said otherwise.
+	if configuration.CentralPlaneProjectURL == "" {
+		configuration.CentralPlaneProjectURL = readTrimmedFile(configuration.CentralPlaneProjectURLPath)
+	}
 	if configuration.CentralPlaneProjectURL == "" {
 		configuration.CentralPlaneProjectURL = defaultConfiguration.CentralPlaneProjectURL
 	}
 	if configuration.CentralPlanePublishableKey == "" {
+		configuration.CentralPlanePublishableKey = readTrimmedFile(configuration.CentralPlanePublishableKeyPath)
+	}
+	if configuration.CentralPlanePublishableKey == "" {
 		configuration.CentralPlanePublishableKey = defaultConfiguration.CentralPlanePublishableKey
+	}
+	if configuration.CentralPlaneAppURL == "" {
+		configuration.CentralPlaneAppURL = readTrimmedFile(configuration.CentralPlaneAppURLPath)
 	}
 	if configuration.CentralPlaneAppURL == "" {
 		configuration.CentralPlaneAppURL = companyAddressFrom(configuration.APIBaseURL)

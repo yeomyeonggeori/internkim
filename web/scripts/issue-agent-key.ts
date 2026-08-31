@@ -17,6 +17,12 @@ const client = controlPlane({
 });
 
 const credential = await issueAgentKey(client, companyID, name);
-console.log('\nPut this in the host environment as INTERNKIM_AGENT_KEY.');
-console.log('It is shown once. Issuing another does not stop this one — retire it when the new agent is up.\n');
-console.log(`  ${credential.apiKey}\n`);
+
+// A provisioning script reads this back, so --quiet answers the key alone.
+if (process.argv.includes('--quiet')) {
+	console.log(credential.apiKey);
+} else {
+	console.log('\nPut this in the host environment as INTERNKIM_AGENT_KEY.');
+	console.log('It is shown once. Issuing another does not stop this one — retire it when the new agent is up.\n');
+	console.log(`  ${credential.apiKey}\n`);
+}

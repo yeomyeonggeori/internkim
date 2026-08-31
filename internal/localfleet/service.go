@@ -265,6 +265,13 @@ func normalizeOptions(options Options) (Options, error) {
 		}
 		options.MattermostHostPort = mattermostHostPort
 	}
+	if options.CompanyAppPort == 0 {
+		companyAppPort, errorValue := defaultHostPort(options.IsEphemeral, DefaultCompanyAppPort)
+		if errorValue != nil {
+			return options, errorValue
+		}
+		options.CompanyAppPort = companyAppPort
+	}
 	maximumModelTier, errorValue := blueclaw.NormalizeMaximumModelTier(options.MaximumModelTier)
 	if errorValue != nil {
 		return options, errorValue

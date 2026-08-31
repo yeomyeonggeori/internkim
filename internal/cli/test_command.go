@@ -380,6 +380,9 @@ func runExpensiveMattermostScenarios(contextValue context.Context, repositoryRoo
 	if errorValue := validateExpensiveFleetStatus(status); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := refuseAFleetWithoutACompany(contextValue, status.AdminURL); errorValue != nil {
+		return errorValue
+	}
 	target, errorValue := resolveLocalFleetTestTarget(contextValue, service, repositoryRootPath, executablePath)
 	if errorValue != nil {
 		return errorValue
