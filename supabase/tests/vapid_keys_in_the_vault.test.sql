@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 select has_function(
   'public',
@@ -92,7 +92,7 @@ insert into public.push_device (member_id, kind, address, keys) values
 select throws_ok(
   $$select public.vapid_keys_keep('pub-four', 'priv-four', 'mailto:four@example.com', false)$$,
   'P0001',
-  'devices are already subscribed to a key this vault does not hold',
+  'a web-push device stands and this vault cannot sign for it',
   'a first issuance refuses while devices carry a key the vault never held'
 );
 
@@ -102,12 +102,15 @@ select is(
   'the refused issuance stored nothing'
 );
 
-select public.write_company_secret(null, 'vapid_public_key', 'pub-half');
+select ok(
+  (select vault.create_secret('pub-half', 'vapid_public_key')) is not null,
+  'a half-kept vault is set up by writing only the public key'
+);
 
 select throws_ok(
   $$select public.vapid_keys_keep('pub-five', 'priv-five', 'mailto:five@example.com', false)$$,
   'P0001',
-  'devices are already subscribed to a key this vault does not hold',
+  'a web-push device stands and this vault cannot sign for it',
   'a half-kept vault refuses too, because overwriting the standing half orphans the same devices'
 );
 
