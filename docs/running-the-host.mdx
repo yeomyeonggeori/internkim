@@ -46,7 +46,7 @@ arriving messages to the agent.
 </Steps>
 
 What the box does without: it boots to `status: ok` with no Firecracker, no
-setuid helper, no Mattermost of its own and no cloudflared. The device stack
+setuid helper, no messenger of its own and no cloudflared. The device stack
 required all four.
 
 ## Settings
@@ -58,7 +58,7 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
 INTERNKIM_APP_URL=https://<company>.intern.kim
 CHATD_BOT_USER_NAME=<the bot's display name>
-MESSENGER_PLATFORM=mattermost        # or buzz
+MESSENGER_PLATFORM=buzz              # or mattermost
 DATABASE_URL=postgres://…
 ```
 
@@ -70,8 +70,8 @@ rotation procedure. The relay takes the path as `AGENT_API_KEY_PATH`.
 Then the messenger the company runs, one of:
 
 ```
-CHATD_MATTERMOST_BASE_URL=…   CHATD_MATTERMOST_BOT_TOKEN=…
 CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
+CHATD_MATTERMOST_BASE_URL=…   CHATD_MATTERMOST_BOT_TOKEN=…
 ```
 
 And the gateway the relay answers through:
