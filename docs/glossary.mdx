@@ -62,7 +62,7 @@ too.
 
 ## A messenger app
 
-Mattermost's app, a Buzz client: the ordinary software a person opens to read
+A Buzz client, Mattermost's app: the ordinary software a person opens to read
 the chat. The second way to reach internkim, from anywhere the messenger
 server itself is reachable.
 
@@ -89,7 +89,7 @@ runs, brought up by `host/buzz/`. When both appear in one sentence, say
 ## The connector
 
 `chatd`, at `.dependency/blueclaw/chatd/`. It attaches to the company's
-messenger through a platform adapter (Mattermost or Buzz), signs in as the
+messenger through a platform adapter (Buzz or Mattermost), signs in as the
 bot, and turns arriving messages into work for the agent. Pointed the
 opposite way from the relay: the relay serves the browser, the connector
 serves the agent.
@@ -123,8 +123,9 @@ policy. Never company records.
 
 ## The device path
 
-The per-company appliance model that predates the central plane: a Jetson
-with Mattermost, admind, a Firecracker guest and an update engine on board.
+The per-company appliance model that predates the central plane: the
+messenger, admind, a Firecracker guest and an update engine in one box, on the
+Jetson we shipped it on.
 Still shipped and still working; described in
 [The device path](/docs/device).
 
