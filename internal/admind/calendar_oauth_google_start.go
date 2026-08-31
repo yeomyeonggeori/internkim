@@ -38,6 +38,9 @@ func (errorValue googleOAuthStartError) Unwrap() error {
 }
 
 func (service *Service) handleGoogleOAuthStart(writer http.ResponseWriter, request *http.Request) {
+	if service.refuseACalendarBesideTheRecord(writer) {
+		return
+	}
 	if !service.canManageGoogleOAuth(request) {
 		http.Error(writer, "admin access required", http.StatusForbidden)
 		return

@@ -519,6 +519,9 @@ func (service *Service) rotateCalendarICSToken(responseWriter http.ResponseWrite
 }
 
 func (service *Service) serveCalendarICS(responseWriter http.ResponseWriter, request *http.Request) {
+	if service.refuseACalendarBesideTheRecord(responseWriter) {
+		return
+	}
 	token := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/calendar/ics/"), ".ics")
 	if token == "" || !service.isValidCalendarICSToken(request.Context(), token) {
 		http.NotFound(responseWriter, request)
@@ -547,6 +550,9 @@ func (service *Service) serveCalendarICS(responseWriter http.ResponseWriter, req
 }
 
 func (service *Service) serveCalendarDAV(responseWriter http.ResponseWriter, request *http.Request) {
+	if service.refuseACalendarBesideTheRecord(responseWriter) {
+		return
+	}
 	if !service.authorizeCalendarRequest(request) {
 		http.Error(responseWriter, "calendar access required", http.StatusForbidden)
 		return

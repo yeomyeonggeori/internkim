@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"log"
 	"log/slog"
 	"time"
 )
@@ -21,8 +22,15 @@ type calendarSyncCycleResult struct {
 	SkippedByRunning   bool
 }
 
+func (service *Service) syncsRemoteCalendars() bool {
+	return !service.Configuration.CalendarSyncDisabled && !service.belongsToACompany()
+}
+
 func (service *Service) startCalendarSyncWorker(ctx context.Context) {
-	if service.Configuration.CalendarSyncDisabled {
+	if !service.syncsRemoteCalendars() {
+		if service.belongsToACompany() {
+			log.Printf("the company holds this calendar, so no remote calendar is synced onto this device")
+		}
 		return
 	}
 	go service.runCalendarSyncLoop(ctx, service.runCalendarSyncCycle, calendarSyncSafetyInterval)
