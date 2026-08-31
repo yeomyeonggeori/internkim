@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(11);
 
 select has_function('public', 'settle_task_completion', 'agree: the settling function exists');
 select has_trigger('public', 'task', 'task_completion_settled', 'agree: task updates settle completion');
@@ -48,6 +48,42 @@ select is(
   (select status from public.task where id = '99900000-0000-0000-0000-0000000000b5')::text,
   'paused',
   'agree: a write that names its own status is respected');
+
+insert into public.task (id, company_id, title, status, starts_at, ends_at, is_event) values
+  ('99900000-0000-0000-0000-0000000000b6', '99900000-0000-0000-0000-0000000000a0', 'Insert claiming a future end', 'completed',
+    (current_date + 1)::timestamptz, (current_date + 4)::timestamptz, false),
+  ('99900000-0000-0000-0000-0000000000b7', '99900000-0000-0000-0000-0000000000a0', 'Started then postponed task', 'completed',
+    (current_date - 2)::timestamptz, (current_date)::timestamptz, false),
+  ('99900000-0000-0000-0000-0000000000b8', '99900000-0000-0000-0000-0000000000a0', 'Unstarted then postponed task', 'completed',
+    (current_date + 1)::timestamptz, (current_date + 1)::timestamptz, false);
+
+select is(
+  (select (ends_at at time zone 'UTC')::date from public.task where id = '99900000-0000-0000-0000-0000000000b6'),
+  (now() at time zone 'Asia/Seoul')::date,
+  'agree: a completed insert cannot keep a future end');
+
+insert into public.task (id, company_id, title, status, starts_at, ends_at, is_event) values
+  ('99900000-0000-0000-0000-0000000000b9', '99900000-0000-0000-0000-0000000000a0', 'Openly running task', 'in_progress',
+    (current_date - 1)::timestamptz, (current_date + 5)::timestamptz, false);
+update public.task set status = 'completed', ends_at = (current_date + 5)::timestamptz
+  where id = '99900000-0000-0000-0000-0000000000b9';
+select is(
+  (select (ends_at at time zone 'UTC')::date from public.task where id = '99900000-0000-0000-0000-0000000000b9'),
+  (now() at time zone 'Asia/Seoul')::date,
+  'agree: completion outranks a future end named in the same write');
+
+update public.task set ends_at = (current_date + 4)::timestamptz where id = '99900000-0000-0000-0000-0000000000b7';
+select is(
+  (select status from public.task where id = '99900000-0000-0000-0000-0000000000b7')::text,
+  'in_progress',
+  'agree: postponing a started task reopens it as in progress');
+
+update public.task set starts_at = (current_date + 1)::timestamptz, ends_at = (current_date + 4)::timestamptz
+  where id = '99900000-0000-0000-0000-0000000000b8';
+select is(
+  (select status from public.task where id = '99900000-0000-0000-0000-0000000000b8')::text,
+  'planned',
+  'agree: postponing an unstarted task reopens it as planned');
 
 select * from finish();
 rollback;
