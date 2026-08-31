@@ -1,6 +1,7 @@
 package capabilityd
 
 import (
+	"gitlab.com/eastriver/internkim/internal/openroutertest"
 	"context"
 	"net/url"
 	"strings"
@@ -117,10 +118,14 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 		case companionOverHTTP:
 			configuration.CompanionBaseURL = servedOnLoopback(t, standIn.handler(t))
 		case openRouterOverHTTP:
-			address := servedOnLoopback(t, standIn.handler(t))
+			address, keyPath := theModelToAskOr(t, standIn)
 			configuration.OpenRouterBaseURL = address
 			configuration.OpenRouterWebBaseURL = address
-			configuration.OpenRouterKeyPath = keyFileHolding(t, "openrouter-key")
+			configuration.OpenRouterKeyPath = keyPath
+			if model := namedModel(); model != "" {
+				configuration.OpenRouterModel = model
+				configuration.ForceOpenRouterModel = true
+			}
 		case browserAsACommand:
 			configuration.AgentBrowserPath = "/usr/local/bin/agent-browser"
 			runsACommand = standIn
@@ -198,6 +203,26 @@ func servedOnASocket(t *testing.T, handler http.Handler) string {
 	server.Start()
 	t.Cleanup(server.Close)
 	return socketPath
+}
+
+// Naming a model sends the model-touching tools to the real provider instead of
+// the stand-in. That is the run that catches a schema the model cannot fill or
+// an answer the tool cannot parse, and it is the one that costs money, so it is
+// asked for by name and never the default.
+func namedModel() string {
+	return strings.TrimSpace(os.Getenv(openroutertest.ModelEnvironmentName))
+}
+
+func theModelToAskOr(t *testing.T, standIn *standingIn) (string, string) {
+	t.Helper()
+	if namedModel() == "" {
+		return servedOnLoopback(t, standIn.handler(t)), keyFileHolding(t, "openrouter-key")
+	}
+	keyPath := strings.TrimSpace(os.Getenv("INTERNKIM_GATE_OPENROUTER_KEY_PATH"))
+	if keyPath == "" {
+		t.Fatalf("%s names a model, so INTERNKIM_GATE_OPENROUTER_KEY_PATH has to name a key to reach it with", openroutertest.ModelEnvironmentName)
+	}
+	return "https://openrouter.ai/api/v1/chat/completions", keyPath
 }
 
 // A stand-in answers as the thing itself, and reaching the thing itself takes a
