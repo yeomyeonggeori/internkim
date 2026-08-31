@@ -187,6 +187,27 @@ describe('the tokens a member holds', () => {
 	});
 });
 
+describe('a tool whose rows live in the record', () => {
+	test('is answered here, without a gateway to any company machine', async () => {
+		const answered = await reach('/tools/person_list/invoke', holdersToken, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ input: {} })
+		});
+		expect(answered.status).toBe(200);
+		expect((answered.body as { tool: string }).tool).toBe('person_list');
+	});
+
+	test('is refused by rung before it runs', async () => {
+		const answered = await reach('/tools/task_delete/invoke', readersToken, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ input: { taskHint: 'anything' } })
+		});
+		expect(answered.status).toBe(403);
+	});
+});
+
 describe('a tool the company machine runs', () => {
 	test('is refused with no gateway configured rather than answered here', async () => {
 		const answered = await reach('/tools/message_send/invoke', holdersToken, {
