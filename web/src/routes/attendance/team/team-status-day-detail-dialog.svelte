@@ -31,13 +31,13 @@
 	<Sheet.Content
 		side={isMobile.current ? 'bottom' : 'right'}
 		class={isMobile.current
-			? 'max-h-[92vh] gap-0 overflow-y-auto rounded-t-xl p-0'
-			: 'w-full gap-0 overflow-y-auto p-0 sm:max-w-[34rem]'}
+			? 'max-h-[92vh] gap-0 rounded-t-xl p-0'
+			: 'w-full gap-0 p-0 sm:max-w-[34rem]'}
 		closeLabel={text.close}
 		data-testid={isMobile.current ? 'team-status-day-detail-sheet' : 'team-status-day-detail-dialog'}
 	>
 		{#if detail}
-			<Sheet.Header class="sticky top-0 z-10 gap-4 border-b bg-popover/95 px-5 py-5 pr-14 text-left backdrop-blur-sm">
+			<Sheet.Header class="gap-4 border-b px-5 py-5 pr-14 text-left">
 				<Sheet.Title class="min-w-0 text-lg font-semibold tracking-tight text-balance" data-testid="team-status-day-detail-date">
 					{formatDate(detail.day.date)}
 				</Sheet.Title>
@@ -58,7 +58,7 @@
 				</div>
 				<Sheet.Description class="sr-only">{detail.email}</Sheet.Description>
 			</Sheet.Header>
-			<TeamStatusDayDetailContent {text} {detail} />
+			<div class="min-h-0 flex-1 overflow-y-auto"><TeamStatusDayDetailContent {text} {detail} /></div>
 		{/if}
 	</Sheet.Content>
 </Sheet.Root>

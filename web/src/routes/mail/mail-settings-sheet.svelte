@@ -97,45 +97,48 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content class="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
+	<Sheet.Content class="data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
 		<Sheet.Header>
 			<Sheet.Title>{text.settingsSheet.title}</Sheet.Title>
 			<Sheet.Description>{text.settingsSheet.description}</Sheet.Description>
 		</Sheet.Header>
-		<form class="grid gap-4 px-4 pb-4" onsubmit={(event) => { event.preventDefault(); saveAccount(); }}>
-			<MailSettingsAccountFields
-				account={account}
-				bind:accountDraft
-				bind:emailLocalPart
-				bind:emailProviderID
-				bind:customEmailDomain
-				text={text}
-				handleEmailProviderChange={handleEmailProviderChange}
-				syncAccountEmailFromParts={syncAccountEmailFromParts}
-				syncCommonAppPassword={syncCommonAppPassword}
-			/>
+		<form class="flex min-h-0 flex-1 flex-col" onsubmit={(event) => { event.preventDefault(); saveAccount(); }}>
+			<div class="grid min-h-0 flex-1 gap-4 overflow-y-auto px-4 pb-4">
+				<MailSettingsAccountFields
+					account={account}
+					bind:accountDraft
+					bind:emailLocalPart
+					bind:emailProviderID
+					bind:customEmailDomain
+					text={text}
+					handleEmailProviderChange={handleEmailProviderChange}
+					syncAccountEmailFromParts={syncAccountEmailFromParts}
+					syncCommonAppPassword={syncCommonAppPassword}
+				/>
 
-			<Separator />
+				<Separator />
 
-			<MailSettingsAdvancedFields
-				account={account}
-				bind:accountDraft
-				bind:isAdvancedSettingsOpen
-				text={text}
-				syncSMTPAppPassword={syncSMTPAppPassword}
-			/>
+				<MailSettingsAdvancedFields
+					account={account}
+					bind:accountDraft
+					bind:isAdvancedSettingsOpen
+					text={text}
+					syncSMTPAppPassword={syncSMTPAppPassword}
+				/>
 
-			{#if emailProviderID !== 'custom'}
-				<div class="rounded-md bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">
-					{text.settingsSheet.autoConfigured}
-				</div>
-			{/if}
+				{#if emailProviderID !== 'custom'}
+					<div class="rounded-md bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">
+						{text.settingsSheet.autoConfigured}
+					</div>
+				{/if}
+
+			</div>
 
 			{#if settingsMessage}
-				<p class="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{settingsMessage}</p>
+				<p class="border-t bg-muted/40 px-4 py-2 text-sm text-muted-foreground">{settingsMessage}</p>
 			{/if}
 
-			<Sheet.Footer class="gap-2 sm:justify-between">
+			<Sheet.Footer class="flex-row items-center justify-between gap-3 border-t">
 				<Button type="button" variant="outline" onclick={testAccount} disabled={isTestingAccount || isSavingAccount}>
 					{isTestingAccount ? text.settingsSheet.testing : text.settingsSheet.testConnection}
 				</Button>

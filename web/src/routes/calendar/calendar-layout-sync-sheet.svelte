@@ -90,13 +90,13 @@
 </script>
 
 <Sheet.Root bind:open={isOpen}>
-	<Sheet.Content class="w-full overflow-y-auto sm:max-w-md">
+	<Sheet.Content class="w-full sm:max-w-md">
 		<Sheet.Header>
 			<Sheet.Title>{text.syncTitle}</Sheet.Title>
 			<Sheet.Description>{text.syncDescription}</Sheet.Description>
 		</Sheet.Header>
 
-		<div class="grid gap-5 px-4 pb-4">
+		<div class="grid min-h-0 flex-1 gap-5 overflow-y-auto px-4 pb-4">
 			{#if syncNotice}
 				<p role="status" class={syncNoticeClass()}>
 					{syncNoticeText()}
