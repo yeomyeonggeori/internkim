@@ -31,16 +31,46 @@ describe('the API document follows the generated tool catalog', () => {
 		expect(invented).toEqual([]);
 	});
 
-	test("a tool's request body carries that tool's own input schema", () => {
+	test("a tool's request body points at that tool's own named input schema", () => {
 		const taskAdd = baseTools().find((tool) => tool.name === 'task_add');
 		const documented = english.paths['/tools/task_add/invoke'] as {
-			post: { requestBody: { content: Record<string, { schema: { properties: { input: object } } }> } };
+			post: {
+				requestBody: {
+					content: Record<string, { schema: { properties: { input: { $ref: string } } } }>;
+				};
+			};
 		};
 
-		const input = documented.post.requestBody.content['application/json'].schema.properties.input;
-		expect(Object.keys(input)).toEqual(
+		const body = documented.post.requestBody.content['application/json'];
+		expect(body.schema.properties.input.$ref).toBe('#/components/schemas/TaskAddInput');
+		const named = (english.components.schemas as Record<string, object>).TaskAddInput;
+		expect(Object.keys(named)).toEqual(
 			Object.keys(taskAdd?.inputSchema ?? {}).filter((key) => key !== '$schema')
 		);
+	});
+
+	test('an example is the required fields with runnable values, not placeholders alone', () => {
+		const documented = english.paths['/tools/task_add/invoke'] as {
+			post: { requestBody: { content: Record<string, { example: { input: Record<string, unknown> } }> } };
+		};
+		const example = documented.post.requestBody.content['application/json'].example.input;
+		expect(typeof example.title).toBe('string');
+		expect((example.title as string).length).toBeGreaterThan(1);
+	});
+
+	test('idempotencyKey appears only where the descriptor supports it', () => {
+		const bodyOf = (name: string) =>
+			(
+				english.paths[`/tools/${name}/invoke`] as {
+					post: {
+						requestBody: { content: Record<string, { schema: { properties: Record<string, unknown> } }> };
+					};
+				}
+			).post.requestBody.content['application/json'].schema.properties;
+
+		expect('idempotencyKey' in bodyOf('message_send')).toBe(true);
+		expect('idempotencyKey' in bodyOf('task_add')).toBe(false);
+		expect('timeoutSecond' in bodyOf('task_add')).toBe(false);
 	});
 
 	test('the document version is the protocol version, never a number of its own', () => {

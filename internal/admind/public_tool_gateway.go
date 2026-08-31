@@ -338,7 +338,68 @@ func (service *Service) writeCapabilityResponse(responseWriter http.ResponseWrit
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, response)
+	service.writeJSON(responseWriter, publicToolInvokeAnswer(response))
+}
+
+// The wire between capabilityd and the agent says several things twice on
+// purpose: the agent's approval path reads failure fields out of the result
+// document, and older agents read status and isError where newer ones read
+// outcome. A public caller has none of that history, so the public answer says
+// each thing once: outcome is the verdict, message is the wording, and the
+// result keeps only what is not already said above it.
+func publicToolInvokeAnswer(response capabilities.ToolInvokeResponse) map[string]any {
+	answer := map[string]any{
+		"toolName": response.ToolName,
+		"outcome":  response.Outcome,
+		"result":   publicToolResultDocument(response),
+	}
+	if response.SelectedBackend != "" {
+		answer["selectedBackend"] = response.SelectedBackend
+	}
+	if len(response.Effects) > 0 {
+		answer["effects"] = response.Effects
+	}
+	if response.Message != "" {
+		answer["message"] = response.Message
+	}
+	if response.ErrorCode != "" {
+		answer["errorCode"] = response.ErrorCode
+	}
+	if response.FailureStage != "" {
+		answer["failureStage"] = response.FailureStage
+	}
+	if response.Outcome == capabilities.ToolOutcomeFailed {
+		answer["retryable"] = response.Retryable
+	}
+	return answer
+}
+
+func publicToolResultDocument(response capabilities.ToolInvokeResponse) json.RawMessage {
+	if response.Outcome != capabilities.ToolOutcomeFailed || len(response.Result) == 0 {
+		return response.Result
+	}
+	var document map[string]json.RawMessage
+	if json.Unmarshal(response.Result, &document) != nil {
+		return response.Result
+	}
+	repeated := map[string]string{
+		"message":      response.Message,
+		"errorCode":    response.ErrorCode,
+		"failureStage": response.FailureStage,
+	}
+	for key, above := range repeated {
+		var inside string
+		if json.Unmarshal(document[key], &inside) == nil && inside == above {
+			delete(document, key)
+		}
+	}
+	delete(document, "retryable")
+	delete(document, "safeRetry")
+	deduped, errorValue := json.Marshal(document)
+	if errorValue != nil {
+		return response.Result
+	}
+	return deduped
 }
 
 func decodePublicToolInvokeRequest(reader io.Reader) (capabilities.ToolInvokeRequest, error) {
