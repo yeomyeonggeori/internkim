@@ -53,10 +53,10 @@ beforeEach(() => {
 });
 
 describe('a call that names nobody', () => {
-	test('is refused when it carries no key at all', async () => {
+	test('is refused when it carries no token at all', async () => {
 		const response = await call('/v1/tools', null);
 		expect(response.status).toBe(401);
-		expect(await response.json()).toEqual({ error: 'this call carried no key' });
+		expect(await response.json()).toEqual({ error: 'this call carried no token' });
 		expect(carried).toHaveLength(0);
 	});
 
@@ -65,15 +65,15 @@ describe('a call that names nobody', () => {
 		expect(response.status).toBe(401);
 	});
 
-	test('is refused when the record holds no such key', async () => {
+	test('is refused when the record holds no such token', async () => {
 		recordAnswers = [];
 		const response = await call('/v1/tools', 'ik_never-issued');
 		expect(response.status).toBe(401);
-		expect(await response.json()).toEqual({ error: 'this key belongs to nobody' });
+		expect(await response.json()).toEqual({ error: 'this token belongs to nobody' });
 		expect(carried).toHaveLength(0);
 	});
 
-	test('is refused when the bearer is not a personal key', async () => {
+	test('is refused when the bearer is not a personal access token', async () => {
 		const response = await call('/v1/tools', 'eyJhbGciOiJIUzI1NiJ9.nope');
 		expect(response.status).toBe(401);
 	});

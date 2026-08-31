@@ -25,12 +25,12 @@ export class RecordRefused extends Error {
 
 const fetchThroughTheRuntime: FetchDocument = (url, options) => fetch(url, options);
 
-const personalKeyPrefix = 'ik_';
-const personalKeyKind = 'api_key';
+const personalAccessTokenPrefix = 'ik_';
+const personalAccessTokenKind = 'api_key';
 const permissionColumn = 'permission';
 
-export function isPersonalKey(presented: string): boolean {
-	return presented.startsWith(personalKeyPrefix);
+export function isPersonalAccessToken(presented: string): boolean {
+	return presented.startsWith(personalAccessTokenPrefix);
 }
 
 async function hashOf(secret: string): Promise<string> {
@@ -61,14 +61,14 @@ function callerOfRow(row: CredentialRow): Caller | null {
 	};
 }
 
-export async function callerOfPersonalKey(
+export async function callerOfPersonalAccessToken(
 	credentials: ControlPlaneCredentials,
 	presented: string,
 	fetchDocument: FetchDocument = fetchThroughTheRuntime
 ): Promise<Caller | null> {
-	if (!isPersonalKey(presented)) return null;
+	if (!isPersonalAccessToken(presented)) return null;
 	const query = new URLSearchParams({
-		kind: `eq.${personalKeyKind}`,
+		kind: `eq.${personalAccessTokenKind}`,
 		external_id: `eq.${await hashOf(presented)}`,
 		select: `${permissionColumn},member(email,company_id)`
 	});
@@ -91,7 +91,7 @@ export const keyCacheSeconds = 60;
 
 const keysKeptInMemory = 4096;
 
-export class PersonalKeyCache {
+export class PersonalTokenCache {
 	private readonly callers = new Map<string, { caller: Caller; staleAt: number }>();
 
 	constructor(

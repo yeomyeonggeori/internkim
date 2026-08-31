@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { isPersonalKey } from '../../../src/lib/server/control-plane';
+import { isPersonalAccessToken } from '../../../src/lib/server/control-plane';
 import {
 	fullPublicAPIPermission,
 	publicAPIPermissionOf
@@ -24,13 +24,13 @@ async function refusalOf(call: Promise<unknown>): Promise<{ status: number; mess
 	throw new Error('expected a refusal');
 }
 
-describe('telling a personal key from the session a browser carries', () => {
-	test('a personal key is known by its prefix', () => {
-		expect(isPersonalKey('ik_0f1e2d3c')).toBe(true);
+describe('telling a personal access token from the session a browser carries', () => {
+	test('a personal access token is known by its prefix', () => {
+		expect(isPersonalAccessToken('ik_0f1e2d3c')).toBe(true);
 	});
 
 	test('a supabase access token is not', () => {
-		expect(isPersonalKey('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.body.signature')).toBe(false);
+		expect(isPersonalAccessToken('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.body.signature')).toBe(false);
 	});
 });
 

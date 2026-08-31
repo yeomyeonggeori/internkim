@@ -4,8 +4,8 @@ import { fullPublicAPIPermission, type PublicAPIPermission } from '$lib/public-a
 import {
 	asMember,
 	controlPlane,
-	isPersonalKey,
-	sessionForPersonalKey,
+	isPersonalAccessToken,
+	sessionForPersonalAccessToken,
 	type ControlPlaneCredentials,
 } from './control-plane';
 import type { Environment } from './agent-request';
@@ -30,9 +30,9 @@ export async function memberAccessTokenOf(
 	const authorization = request.headers.get('authorization') ?? '';
 	const presented = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
 	if (!presented) error(401, 'sign in first');
-	if (!isPersonalKey(presented)) return { accessToken: presented, permission: fullPublicAPIPermission };
+	if (!isPersonalAccessToken(presented)) return { accessToken: presented, permission: fullPublicAPIPermission };
 
-	const session = await sessionForPersonalKey(credentials, presented);
+	const session = await sessionForPersonalAccessToken(credentials, presented);
 	if (!session) error(401, 'that key belongs to nobody');
 	return { accessToken: session.accessToken, permission: session.permission };
 }

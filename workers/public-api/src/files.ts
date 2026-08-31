@@ -1,5 +1,5 @@
 import { assetBucket, attachmentKind, digestOf, sharedAssetPath } from './asset-address';
-import { RecordRefused, type CallerPermission, type ControlPlaneCredentials } from './personal-key';
+import { RecordRefused, type CallerPermission, type ControlPlaneCredentials } from './personal-access-token';
 
 export const filesPath = '/files';
 export const materialiseCapability = 'person.api.file';
