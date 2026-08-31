@@ -38,6 +38,20 @@ Flow API; a calendar event is a task with a time span. Times are ISO
 timestamps with a time zone, and `eventHint` follows the same resolution rule
 as `taskHint`.
 
+## Leave [#leave]
+
+<ToolCatalog namespace="leave" />
+
+Implemented on the central plane in
+`web/src/lib/server/public-api/record/leave-tools.ts`, against the record's
+own `leave` table and its `leave_in_full` and `member_leave_remaining`
+functions, running as the calling member so row level security decides what
+each call may see. The quantity is `days` as a number and the type is the
+company's own registered kind; whether a leave is paid and whether it consumes
+the entitlement follow from that kind, so the agent names the kind and the
+record decides the rest. `leave_decide` is gated, because approving is what
+spends the entitlement.
+
 ## Messages [#message]
 
 <ToolCatalog namespace="message" />
