@@ -299,41 +299,37 @@ export async function issueAgentKey(
 	return { agentID: data.id, companyID, apiKey };
 }
 
-// A person's key lives where a person's other credentials live, told from the
-// next one by what they call it. What is kept is the key's hash, so nothing -
-// not this app, not an administrator - can read the key back to whoever lost
-// it; they make another by that name and it replaces the one before.
-const personalKeyKind = 'api_key';
+const personalAccessTokenKind = 'api_key';
 
-const personalKeyPrefix = 'ik_';
+const personalAccessTokenPrefix = 'ik_';
 
-function storedKeyPermission(stored: unknown): PublicAPIPermission {
+function storedTokenPermission(stored: unknown): PublicAPIPermission {
 	const permission = publicAPIPermissionOf(stored);
-	if (!permission) throw new Error(`personal key: ${String(stored)} is no rung of the ladder`);
+	if (!permission) throw new Error(`personal access token: ${String(stored)} is no rung of the ladder`);
 	return permission;
 }
 
-export type PersonalKey = {
+export type PersonalAccessToken = {
 	name: string;
 	permission: PublicAPIPermission;
 };
 
-export type PersonalKeySession = MemberSession & {
+export type PersonalAccessTokenSession = MemberSession & {
 	permission: PublicAPIPermission;
 };
 
-export function isPersonalKey(presented: string): boolean {
-	return presented.startsWith(personalKeyPrefix);
+export function isPersonalAccessToken(presented: string): boolean {
+	return presented.startsWith(personalAccessTokenPrefix);
 }
 
-export async function issuePersonalKey(
+export async function issuePersonalAccessToken(
 	client: SupabaseClient,
 	memberID: string,
 	name: string,
 	permission: PublicAPIPermission = fullPublicAPIPermission,
 ): Promise<string> {
 	const apiKey =
-		personalKeyPrefix +
+		personalAccessTokenPrefix +
 		[...crypto.getRandomValues(new Uint8Array(32))]
 			.map((byte) => byte.toString(16).padStart(2, '0'))
 			.join('');
@@ -342,32 +338,32 @@ export async function issuePersonalKey(
 		.upsert(
 			{
 				member_id: memberID,
-				kind: personalKeyKind,
+				kind: personalAccessTokenKind,
 				name,
 				external_id: await hashOf(apiKey),
 				permission,
 			},
 			{ onConflict: 'member_id,kind,name' },
 		);
-	if (error) throw new Error(`personal key ${name}: ${error.message}`);
+	if (error) throw new Error(`personal access token ${name}: ${error.message}`);
 	return apiKey;
 }
 
-export async function personalKeys(client: SupabaseClient, memberID: string): Promise<PersonalKey[]> {
+export async function personalAccessTokens(client: SupabaseClient, memberID: string): Promise<PersonalAccessToken[]> {
 	const { data, error } = await client
 		.from('credential')
 		.select('name, permission')
 		.eq('member_id', memberID)
-		.eq('kind', personalKeyKind)
+		.eq('kind', personalAccessTokenKind)
 		.order('name');
-	if (error) throw new Error(`personal keys: ${error.message}`);
+	if (error) throw new Error(`personal access tokens: ${error.message}`);
 	return (data ?? []).map((row) => ({
 		name: row.name as string,
-		permission: storedKeyPermission(row.permission),
+		permission: storedTokenPermission(row.permission),
 	}));
 }
 
-export async function forgetPersonalKey(
+export async function forgetPersonalAccessToken(
 	client: SupabaseClient,
 	memberID: string,
 	name: string,
@@ -376,31 +372,31 @@ export async function forgetPersonalKey(
 		.from('credential')
 		.delete()
 		.eq('member_id', memberID)
-		.eq('kind', personalKeyKind)
+		.eq('kind', personalAccessTokenKind)
 		.eq('name', name)
 		.select('name');
-	if (error) throw new Error(`personal key ${name}: ${error.message}`);
+	if (error) throw new Error(`personal access token ${name}: ${error.message}`);
 	return (data ?? []).length > 0;
 }
 
-// The caller of a personal key is the member it belongs to, so this issues that
+// The caller of a personal access token is the member it belongs to, so this issues that
 // member's own session and never the company's. The row that names the member
 // names the rung too, so nobody downstream asks for it a second time.
-export async function sessionForPersonalKey(
+export async function sessionForPersonalAccessToken(
 	credentials: ControlPlaneCredentials,
 	apiKey: string,
-): Promise<PersonalKeySession | null> {
+): Promise<PersonalAccessTokenSession | null> {
 	const client = controlPlane(credentials);
 	const { data, error } = await client
 		.from('credential')
 		.select('member_id, permission')
-		.eq('kind', personalKeyKind)
+		.eq('kind', personalAccessTokenKind)
 		.eq('external_id', await hashOf(apiKey))
 		.maybeSingle();
-	if (error) throw new Error(`personal key: ${error.message}`);
+	if (error) throw new Error(`personal access token: ${error.message}`);
 	if (!data) return null;
 	const session = await sessionForMember(credentials, data.member_id);
-	return { ...session, permission: storedKeyPermission(data.permission) };
+	return { ...session, permission: storedTokenPermission(data.permission) };
 }
 
 const fleetCredentialKind = 'fleet';

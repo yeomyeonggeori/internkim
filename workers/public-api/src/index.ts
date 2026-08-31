@@ -10,13 +10,13 @@ import {
 	sizeTheHeaderClaims
 } from './files';
 import {
-	PersonalKeyCache,
+	PersonalTokenCache,
 	RecordRefused,
-	callerOfPersonalKey,
+	callerOfPersonalAccessToken,
 	type Caller,
 	type CallerPermission,
 	type ControlPlaneCredentials
-} from './personal-key';
+} from './personal-access-token';
 
 export type CompanyCall = {
 	requestID: string;
@@ -62,10 +62,10 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	}
 
 	const presented = bearerOf(request);
-	if (!presented) return jsonResponse({ error: 'this call carried no key' }, 401);
+	if (!presented) return jsonResponse({ error: 'this call carried no token' }, 401);
 
 	const caller = await keyCacheFor(environment).callerOf(presented, Date.now());
-	if (!caller) return jsonResponse({ error: 'this key belongs to nobody' }, 401);
+	if (!caller) return jsonResponse({ error: 'this token belongs to nobody' }, 401);
 
 	const path = url.pathname.slice(apiPrefix.length) || '/';
 	if (request.method === 'POST' && path === filesPath) {
@@ -85,7 +85,7 @@ async function keepThenMaterialise(
 	url: URL
 ): Promise<Response> {
 	if (!mayWriteAFile(caller.permission)) {
-		return jsonResponse({ error: 'this key may only read, and putting a file somewhere is a write' }, 403);
+		return jsonResponse({ error: 'this token may only read, and putting a file somewhere is a write' }, 403);
 	}
 	const claimed = sizeTheHeaderClaims(request);
 	const claimedRefusal = claimed === null ? null : oversizeRefusal(claimed);
@@ -195,11 +195,11 @@ function credentialsOf(environment: WorkerEnvironment): ControlPlaneCredentials 
 	return { projectURL: environment.SUPABASE_URL, serviceRoleKey: environment.SUPABASE_SECRET_KEY };
 }
 
-let sharedKeyCache: PersonalKeyCache | undefined;
+let sharedKeyCache: PersonalTokenCache | undefined;
 
-function keyCacheFor(environment: WorkerEnvironment): PersonalKeyCache {
-	sharedKeyCache ??= new PersonalKeyCache((presented) =>
-		callerOfPersonalKey(credentialsOf(environment), presented)
+function keyCacheFor(environment: WorkerEnvironment): PersonalTokenCache {
+	sharedKeyCache ??= new PersonalTokenCache((presented) =>
+		callerOfPersonalAccessToken(credentialsOf(environment), presented)
 	);
 	return sharedKeyCache;
 }
