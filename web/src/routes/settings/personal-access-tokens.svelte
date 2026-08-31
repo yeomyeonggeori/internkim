@@ -7,11 +7,11 @@
 	import * as Select from '$lib/components/ui/select';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
-		forgetPersonalKey,
-		issuePersonalKey,
-		personalKeys,
-		type PersonalKey
-	} from '$lib/member/personal-keys';
+		forgetPersonalAccessToken,
+		issuePersonalAccessToken,
+		personalAccessTokens,
+		type PersonalAccessToken
+	} from '$lib/member/personal-access-tokens';
 	import {
 		fullPublicAPIPermission,
 		publicAPIPermissions,
@@ -25,7 +25,7 @@
 
 	const text = createPageText(companySettingsText);
 
-	let keys = $state<PersonalKey[]>([]);
+	let keys = $state<PersonalAccessToken[]>([]);
 	let isLoading = $state(true);
 	let keyName = $state('');
 	let keyPermission = $state<PublicAPIPermission>(fullPublicAPIPermission);
@@ -36,16 +36,16 @@
 	const callExample = $derived(`${page.url.origin}/api/member/me`);
 
 	const permissionLabels = $derived<Record<PublicAPIPermission, string>>({
-		read: text.personalKeyReads,
-		write: text.personalKeyWrites,
-		delete: text.personalKeyDeletes
+		read: text.personalAccessTokenReads,
+		write: text.personalAccessTokenWrites,
+		delete: text.personalAccessTokenDeletes
 	});
 
 	async function load() {
 		try {
-			keys = await personalKeys();
+			keys = await personalAccessTokens();
 		} catch {
-			toast.error(text.personalKeysLoadFailed);
+			toast.error(text.personalAccessTokensLoadFailed);
 		} finally {
 			isLoading = false;
 		}
@@ -54,17 +54,17 @@
 	async function issue() {
 		const name = keyName.trim();
 		if (!name) {
-			toast.error(text.personalKeyNeedsName);
+			toast.error(text.personalAccessTokenNeedsName);
 			return;
 		}
 		isWorking = true;
 		try {
-			issuedKey = await issuePersonalKey(name, keyPermission);
+			issuedKey = await issuePersonalAccessToken(name, keyPermission);
 			keyName = '';
-			toast.success(text.personalKeyIssued);
+			toast.success(text.personalAccessTokenIssued);
 			await load();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.personalKeyFailed);
+			toast.error(error instanceof Error ? error.message : text.personalAccessTokenFailed);
 		} finally {
 			isWorking = false;
 		}
@@ -73,11 +73,11 @@
 	async function forget(name: string) {
 		forgettingName = name;
 		try {
-			await forgetPersonalKey(name);
-			toast.success(text.personalKeyRevoked);
+			await forgetPersonalAccessToken(name);
+			toast.success(text.personalAccessTokenRevoked);
 			await load();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.personalKeyFailed);
+			toast.error(error instanceof Error ? error.message : text.personalAccessTokenFailed);
 		} finally {
 			forgettingName = '';
 		}
@@ -90,21 +90,21 @@
 	<Card.Header>
 		<Card.Title class="flex items-center gap-2">
 			<KeyIcon class="size-4 text-muted-foreground" />
-			{text.personalKeys}
+			{text.personalAccessTokens}
 		</Card.Title>
-		<Card.Description>{text.personalKeysDescription}</Card.Description>
+		<Card.Description>{text.personalAccessTokensDescription}</Card.Description>
 	</Card.Header>
 	<Card.Content class="grid gap-4">
 		{#if issuedKey}
 			<div class="grid gap-2 rounded-md border border-dashed p-4">
-				<p class="text-sm text-muted-foreground">{text.personalKeyShownOnce}</p>
+				<p class="text-sm text-muted-foreground">{text.personalAccessTokenShownOnce}</p>
 				<div class="flex items-center gap-2">
 					<code class="min-w-0 flex-1 overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
 						{issuedKey}
 					</code>
 					<CopyButton text={issuedKey} />
 				</div>
-				<p class="text-sm text-muted-foreground">{text.personalKeyHowToUse}</p>
+				<p class="text-sm text-muted-foreground">{text.personalAccessTokenHowToUse}</p>
 				<code class="overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-xs">
 					curl {callExample} --header "Authorization: Bearer {issuedKey}"
 				</code>
@@ -112,11 +112,11 @@
 		{/if}
 
 		<Field.Field>
-			<Field.Label for="personal-key-name">{text.personalKeyName}</Field.Label>
+			<Field.Label for="personal-access-token-name">{text.personalAccessTokenName}</Field.Label>
 			<Input
-				id="personal-key-name"
+				id="personal-access-token-name"
 				bind:value={keyName}
-				placeholder={text.personalKeyNamePlaceholder}
+				placeholder={text.personalAccessTokenNamePlaceholder}
 				maxlength={64}
 				onkeydown={(event) => {
 					if (event.key === 'Enter') issue();
@@ -125,10 +125,10 @@
 		</Field.Field>
 
 		<Field.Field>
-			<Field.Label for="personal-key-permission">{text.personalKeyPermission}</Field.Label>
+			<Field.Label for="personal-access-token-permission">{text.personalAccessTokenPermission}</Field.Label>
 			<div class="flex gap-2">
 				<Select.Root type="single" bind:value={keyPermission} disabled={isWorking}>
-					<Select.Trigger id="personal-key-permission" class="flex-1">
+					<Select.Trigger id="personal-access-token-permission" class="flex-1">
 						{permissionLabels[keyPermission]}
 					</Select.Trigger>
 					<Select.Content>
@@ -139,13 +139,13 @@
 						{/each}
 					</Select.Content>
 				</Select.Root>
-				<Button onclick={issue} disabled={isWorking}>{text.issuePersonalKey}</Button>
+				<Button onclick={issue} disabled={isWorking}>{text.issuePersonalAccessToken}</Button>
 			</div>
 		</Field.Field>
 
 		{#if !isLoading}
 			{#if keys.length === 0}
-				<p class="text-sm text-muted-foreground">{text.noPersonalKeys}</p>
+				<p class="text-sm text-muted-foreground">{text.noPersonalAccessTokens}</p>
 			{:else}
 				<ul class="grid gap-2">
 					{#each keys as key (key.name)}
@@ -159,7 +159,7 @@
 									onclick={() => forget(key.name)}
 									disabled={forgettingName === key.name}
 								>
-									{text.revokePersonalKey}
+									{text.revokePersonalAccessToken}
 								</Button>
 							</div>
 						</li>

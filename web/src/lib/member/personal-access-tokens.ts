@@ -1,7 +1,7 @@
 import { supabase } from '$lib/supabase';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
 
-export type PersonalKey = {
+export type PersonalAccessToken = {
 	name: string;
 	permission: PublicAPIPermission;
 };
@@ -18,16 +18,16 @@ async function answerOf(response: Response): Promise<unknown> {
 	return response.json();
 }
 
-export async function personalKeys(): Promise<PersonalKey[]> {
+export async function personalAccessTokens(): Promise<PersonalAccessToken[]> {
 	const answer = (await answerOf(
-		await fetch('/api/member/key', { headers: await signedInHeaders() })
-	)) as { keys?: PersonalKey[] };
+		await fetch('/api/member/token', { headers: await signedInHeaders() })
+	)) as { keys?: PersonalAccessToken[] };
 	return answer.keys ?? [];
 }
 
-export async function issuePersonalKey(name: string, permission: PublicAPIPermission): Promise<string> {
+export async function issuePersonalAccessToken(name: string, permission: PublicAPIPermission): Promise<string> {
 	const answer = (await answerOf(
-		await fetch('/api/member/key', {
+		await fetch('/api/member/token', {
 			method: 'POST',
 			headers: await signedInHeaders(),
 			body: JSON.stringify({ name, permission })
@@ -36,9 +36,9 @@ export async function issuePersonalKey(name: string, permission: PublicAPIPermis
 	return answer.apiKey;
 }
 
-export async function forgetPersonalKey(name: string): Promise<void> {
+export async function forgetPersonalAccessToken(name: string): Promise<void> {
 	await answerOf(
-		await fetch(`/api/member/key?name=${encodeURIComponent(name)}`, {
+		await fetch(`/api/member/token?name=${encodeURIComponent(name)}`, {
 			method: 'DELETE',
 			headers: await signedInHeaders()
 		})
