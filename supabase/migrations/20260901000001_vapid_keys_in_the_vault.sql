@@ -29,7 +29,7 @@ begin
      and exists (select 1 from public.push_device where kind = 'web-push') then
     raise exception using
       errcode = 'P0001',
-      message = 'devices are already subscribed to a key this vault does not hold',
+      message = 'a web-push device stands and this vault cannot sign for it',
       hint = 'keep the pair those devices carry instead: select public.vapid_keys_keep(<public>, <private>, <subject>, true)';
   end if;
 
