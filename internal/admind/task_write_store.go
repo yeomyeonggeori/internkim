@@ -25,39 +25,6 @@ func (service *Service) writeTask(ctx context.Context, task Task) error {
 	return transaction.Commit()
 }
 
-// A task the central plane already holds is written without being queued back to
-// it. Queueing it would send it straight out again, and the answer would arrive
-// as another change, and so on.
-func (service *Service) writeMirroredTask(ctx context.Context, task Task) error {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	transaction, errorValue := database.BeginTx(ctx, nil)
-	if errorValue != nil {
-		return errorValue
-	}
-	existingTask, found, errorValue := readTaskByIDInTransaction(ctx, transaction, task.ID)
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if errorValue := writeTaskRowInTransaction(ctx, transaction, task); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	sourceTasks := []Task{task}
-	if found {
-		sourceTasks = append(sourceTasks, existingTask)
-	}
-	if errorValue := incrementTaskSummarySourceRevisions(ctx, transaction, tasksSummarySourceKeys(sourceTasks)); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	return transaction.Commit()
-}
-
 func (service *Service) writeTaskAtStatusEnd(ctx context.Context, task Task) (Task, error) {
 	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
@@ -200,45 +167,6 @@ func nextTaskStatusRankInTransaction(ctx context.Context, transaction *sql.Tx, s
 	var rank int
 	errorValue := transaction.QueryRowContext(ctx, "SELECT COALESCE(MAX(status_rank), 0) + 1024 FROM flow_tasks WHERE status = ?", cleanTaskStatus(status)).Scan(&rank)
 	return rank, errorValue
-}
-
-func (service *Service) updateTaskMattermostPostID(ctx context.Context, taskID string, postID string) error {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	transaction, errorValue := database.BeginTx(ctx, nil)
-	if errorValue != nil {
-		return errorValue
-	}
-	existingTask, found, errorValue := readTaskByIDInTransaction(ctx, transaction, taskID)
-	if errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	trimmedPostID := strings.TrimSpace(postID)
-	if found && existingTask.MattermostPostID == trimmedPostID {
-		return transaction.Commit()
-	}
-	postCreatedAt := ""
-	if trimmedPostID != "" {
-		postCreatedAt = time.Now().UTC().Format(time.RFC3339)
-	}
-	if _, errorValue = transaction.ExecContext(ctx, "UPDATE flow_tasks SET mattermost_post_id = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", trimmedPostID, postCreatedAt, time.Now().UTC().Format(time.RFC3339), taskID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
-	if found && existingTask.MattermostPostID != trimmedPostID {
-		weekKey, errorValue := taskWeekSummarySourceKey(existingTask)
-		if errorValue == nil {
-			if errorValue := incrementTaskSummarySourceRevisions(ctx, transaction, []taskSummarySourceKey{weekKey}); errorValue != nil {
-				_ = transaction.Rollback()
-				return errorValue
-			}
-		}
-	}
-	return transaction.Commit()
 }
 
 func (service *Service) deleteTaskByID(ctx context.Context, taskID string) error {

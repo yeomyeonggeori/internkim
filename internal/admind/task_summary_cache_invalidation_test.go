@@ -130,58 +130,6 @@ func TestTaskSummaryCacheInvalidatesBoardMoveStatusAndRankChanges(t *testing.T) 
 	}
 }
 
-func TestTaskSummaryCacheInvalidatesMattermostPostWeek(t *testing.T) {
-	service := newTaskSummaryCacheTestService(t)
-	ctx := context.Background()
-	task := taskSummaryInvalidationTask("task-post", "26W28", "2026-07-06", "2026-07-07", taskStatusCompleted, 1024)
-	if errorValue := service.writeTask(ctx, task); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := service.updateTaskMattermostPostID(ctx, task.ID, "post-1"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	assertTaskSummarySourceRevision(t, service, taskSummarySourceKey{Kind: taskSummarySourceWeek, Key: "26W28"}, 2)
-	assertTaskSummarySourceRevision(t, service, taskSummarySourceKey{Kind: taskSummarySourceMonth, Key: "2026-07"}, 1)
-	fixedPostCreatedAt := "2026-07-01T01:02:03Z"
-	fixedUpdatedAt := "2026-07-02T01:02:03Z"
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if _, errorValue := database.ExecContext(ctx, "UPDATE flow_tasks SET status_rank = ?, mattermost_post_created_at = ?, updated_at = ? WHERE id = ?", 4096, fixedPostCreatedAt, fixedUpdatedAt, task.ID); errorValue != nil {
-		database.Close()
-		t.Fatal(errorValue)
-	}
-	if errorValue := database.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := service.updateTaskMattermostPostID(ctx, task.ID, "post-1"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	assertTaskSummarySourceRevision(t, service, taskSummarySourceKey{Kind: taskSummarySourceWeek, Key: "26W28"}, 2)
-	assertTaskWriteMetadata(t, service, task.ID, 4096, fixedPostCreatedAt, fixedUpdatedAt)
-	if errorValue := service.updateTaskMattermostPostID(ctx, task.ID, ""); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	assertTaskSummarySourceRevision(t, service, taskSummarySourceKey{Kind: taskSummarySourceWeek, Key: "26W28"}, 3)
-}
-
-func TestTaskSummaryCacheClearsMattermostPostForLegacyMalformedWeek(t *testing.T) {
-	service := newTaskSummaryCacheTestService(t)
-	ctx := context.Background()
-	insertLegacyMalformedTask(t, service, "legacy-post-clear", "legacy-post")
-
-	if errorValue := service.updateTaskMattermostPostID(ctx, "legacy-post-clear", ""); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	task := readTaskByIDForTest(t, service, "legacy-post-clear")
-	if task.MattermostPostID != "" {
-		t.Fatalf("mattermost post id = %q, want empty", task.MattermostPostID)
-	}
-	assertTaskSummarySourceRevisionRowCount(t, service, 0)
-}
-
 func TestTaskSummaryCacheInvalidatesDefinitions(t *testing.T) {
 	service := newTaskSummaryCacheTestService(t)
 	definitions := taskDefinitions{Types: []string{"회의"}, Sizes: defaultTaskSizeDefinitions()}
