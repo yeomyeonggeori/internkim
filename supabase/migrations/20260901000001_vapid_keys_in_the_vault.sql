@@ -25,7 +25,7 @@ begin
     return false;
   end if;
 
-  if public_id is null and private_id is null and not replace_existing
+  if not replace_existing
      and exists (select 1 from public.push_device where kind = 'web-push') then
     raise exception using
       errcode = 'P0001',

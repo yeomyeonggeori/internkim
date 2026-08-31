@@ -28,7 +28,8 @@ Object.defineProperty(globalThis, 'window', {
 	value: { PushManager: class {}, Notification: { permission: 'granted' } }
 });
 
-const { reachability } = await import('../../src/lib/notifications/subscribe');
+const { answersTo, reachability } = await import('../../src/lib/notifications/subscribe');
+const { encodeBase64URL } = await import('../../src/lib/notifications/base64url');
 
 afterAll(() => {
 	mock.module('$lib/supabase', () => centralPlane);
@@ -55,5 +56,25 @@ describe('the application server key', () => {
 
 		expect(await reachability()).toBe('off');
 		expect(lookups).toBe(3);
+	});
+});
+
+describe('a subscription made under another key does not count as reachable', () => {
+	const current = 'BJnB-current-key';
+	const other = 'BJnB-other-key';
+
+	function subscriptionUnder(key: string | null): PushSubscription {
+		return {
+			options: key === null ? {} : { applicationServerKey: new TextEncoder().encode(key).buffer }
+		} as unknown as PushSubscription;
+	}
+
+	test('the key it was made with is the one that counts', () => {
+		expect(answersTo(subscriptionUnder(current), encodeBase64URL(new TextEncoder().encode(current).buffer))).toBe(true);
+		expect(answersTo(subscriptionUnder(other), encodeBase64URL(new TextEncoder().encode(current).buffer))).toBe(false);
+	});
+
+	test('a browser that will not say which key it used is taken at its word', () => {
+		expect(answersTo(subscriptionUnder(null), encodeBase64URL(new TextEncoder().encode(current).buffer))).toBe(true);
 	});
 });
