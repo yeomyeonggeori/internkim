@@ -15,6 +15,34 @@ export function copyAttendanceWorkPolicyRevision(
 	};
 }
 
+export function sameAttendanceWorkPolicyRevision(
+	left: AttendanceWorkPolicyRevision,
+	right: AttendanceWorkPolicyRevision
+): boolean {
+	return (
+		left.effectiveDate === right.effectiveDate &&
+		left.workMode === right.workMode &&
+		left.dailyTargetMinutes === right.dailyTargetMinutes &&
+		left.weeklyTargetMinutes === right.weeklyTargetMinutes &&
+		left.referenceStartTime === right.referenceStartTime &&
+		left.fixedStartTime === right.fixedStartTime &&
+		left.fixedEndTime === right.fixedEndTime &&
+		left.coreTimeEnabled === right.coreTimeEnabled &&
+		left.coreStartTime === right.coreStartTime &&
+		left.coreEndTime === right.coreEndTime &&
+		left.nightStartTime === right.nightStartTime &&
+		left.nightEndTime === right.nightEndTime &&
+		left.workingWeekdays.length === right.workingWeekdays.length &&
+		left.workingWeekdays.every((weekday, index) => weekday === right.workingWeekdays[index]) &&
+		left.breakPeriods.length === right.breakPeriods.length &&
+		left.breakPeriods.every(
+			(period, index) =>
+				period.startTime === right.breakPeriods[index].startTime &&
+				period.endTime === right.breakPeriods[index].endTime
+		)
+	);
+}
+
 export function currentAttendanceWorkPolicyRevision(
 	policy: AttendanceWorkPolicy
 ): AttendanceWorkPolicyRevision {
