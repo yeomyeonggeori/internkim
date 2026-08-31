@@ -1,0 +1,165 @@
+import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
+import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+
+mock.module('$env/dynamic/private', () => ({
+	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
+}));
+
+const { runToolOverTheRecord, recordRunsTheTool } = await import('../../src/lib/server/public-api/record');
+
+const networkHookTimeout = 60_000;
+const client = controlPlane({ projectURL, serviceRoleKey });
+const slug = `leave-tools-${Date.now()}`;
+const now = new Date('2026-08-26T03:00:00.000Z');
+const grantedDays = 15;
+
+let companyID = '';
+let sampleID = '';
+let adminID = '';
+let sample: ReturnType<typeof asMember>;
+let admin: ReturnType<typeof asMember>;
+
+async function signedInMember(memberID: string, email: string): Promise<ReturnType<typeof asMember>> {
+	const { data: account } = await client.auth.admin.createUser({ email, email_confirm: true });
+	await client.from('member').update({ user_id: account.user!.id }).eq('id', memberID);
+	const session = await sessionForMember({ projectURL, serviceRoleKey }, memberID);
+	return asMember({ projectURL, publishableKey }, session.accessToken);
+}
+
+beforeAll(async () => {
+	const provisioned = await provisionCompany(
+		client,
+		{ name: 'Leave Tools Test', slug, country: 'KR', locale: 'ko', timezone: 'Asia/Seoul' },
+		`${slug}-admin@example.test`
+	);
+	companyID = provisioned.companyID;
+	adminID = provisioned.adminMemberID;
+	await client.from('company').update({ leave_days: grantedDays }).eq('id', companyID);
+
+	sampleID = await addMember(client, companyID, `${slug}-sample@example.test`);
+	await client.from('member').update({ name: '이샘플' }).eq('id', sampleID);
+	await client.from('member').update({ name: '최견본' }).eq('id', adminID);
+
+	sample = await signedInMember(sampleID, `${slug}-sample@example.test`);
+	admin = await signedInMember(adminID, `${slug}-admin@example.test`);
+}, networkHookTimeout);
+
+afterAll(async () => {
+	if (!companyID) return;
+	const { data: members } = await client.from('member').select('user_id').eq('company_id', companyID);
+	await client.from('company').delete().eq('id', companyID);
+	for (const member of members ?? []) {
+		if (member.user_id) await client.auth.admin.deleteUser(member.user_id);
+	}
+}, networkHookTimeout);
+
+function asSample(name: string, input: Record<string, unknown> = {}) {
+	return runToolOverTheRecord(sample, sampleID, name, input, now);
+}
+
+function asAdmin(name: string, input: Record<string, unknown> = {}) {
+	return runToolOverTheRecord(admin, adminID, name, input, now);
+}
+
+function resultOf(answer: { status: number; body: unknown }): Record<string, unknown> {
+	expect(answer.status).toBe(200);
+	return (answer.body as { result: Record<string, unknown> }).result;
+}
+
+describe('which leave tools run over the record', () => {
+	test('are the four of them', () => {
+		for (const name of ['leave_list', 'leave_balance', 'leave_request', 'leave_decide']) {
+			expect(recordRunsTheTool(name)).toBe(true);
+		}
+	});
+});
+
+describe('a leave the record has not decided', () => {
+	test('is filed as requested, against the kind the company registers', async () => {
+		const filed = resultOf(
+			await asSample('leave_request', {
+				kind: '연차',
+				startsAt: '2026-09-01',
+				endsAt: '2026-09-02',
+				days: 2,
+				note: '가족 여행'
+			})
+		);
+
+		expect(filed.status).toBe('requested');
+		expect(filed.person).toBe('이샘플');
+		expect(filed.kind).toBe('연차');
+		expect(filed.days).toBe(2);
+		expect(filed.isPaid).toBe(true);
+		expect(filed.isDeducted).toBe(true);
+		expect(filed.startDate).toBe('2026-09-01');
+		expect(filed.endDate).toBe('2026-09-02');
+	});
+
+	test('spends nothing until somebody decides it', async () => {
+		const balance = resultOf(await asSample('leave_balance', { year: 2026 }));
+		expect(balance.grantedDays).toBe(grantedDays);
+		expect(balance.remainingDays).toBe(grantedDays);
+		expect(balance.tracking).toBe('managed');
+	});
+
+	test('is refused a kind the company does not register, and told which it has', async () => {
+		const answer = await asSample('leave_request', {
+			kind: '안식년',
+			startsAt: '2026-10-01',
+			endsAt: '2026-10-01',
+			days: 1
+		});
+
+		expect(answer.status).toBe(409);
+		expect((answer.body as { registered: string[] }).registered).toContain('연차');
+	});
+});
+
+describe('deciding a leave', () => {
+	test('is refused to the person who asked for it', async () => {
+		const answer = await asSample('leave_decide', { leaveHint: '이샘플 · 연차 · 2026-09-01', decision: 'approved' });
+		expect(answer.status).not.toBe(200);
+	});
+
+	test('an administrator approves it, and the balance follows', async () => {
+		const decided = resultOf(
+			await asAdmin('leave_decide', { leaveHint: '이샘플 · 연차 · 2026-09-01', decision: 'approved' })
+		);
+		expect(decided.status).toBe('approved');
+
+		const balance = resultOf(await asSample('leave_balance', { year: 2026 }));
+		expect(balance.remainingDays).toBe(grantedDays - 2);
+		expect(balance.usedDays).toBe(2);
+	});
+
+	test('refuses a hint two rows answer to, and names them', async () => {
+		await asSample('leave_request', { kind: '연차', startsAt: '2026-11-02', endsAt: '2026-11-02', days: 1 });
+		await asSample('leave_request', { kind: '연차', startsAt: '2026-11-09', endsAt: '2026-11-09', days: 1 });
+
+		const answer = await asAdmin('leave_decide', { leaveHint: '이샘플 · 연차 · 2026-11', decision: 'approved' });
+		expect(answer.status).toBe(409);
+		expect((answer.body as { candidates: string[] }).candidates.length).toBe(2);
+	});
+});
+
+describe('listing leave', () => {
+	test('answers the requester their own, newest first', async () => {
+		const listed = resultOf(await asSample('leave_list'));
+		const leave = listed.leave as { startDate: string; person: string }[];
+		expect(listed.scope).toBe('person');
+		expect(leave.every((row) => row.person === '이샘플')).toBe(true);
+		expect(leave[0].startDate).toBe('2026-11-09');
+		expect(listed.registeredKinds).toContain('연차');
+	});
+
+	test('narrows to a window and to a status', async () => {
+		const inSeptember = resultOf(await asSample('leave_list', { from: '2026-09-01', to: '2026-09-30' }));
+		expect(inSeptember.count).toBe(1);
+
+		const approved = resultOf(await asSample('leave_list', { status: 'approved' }));
+		expect((approved.leave as { status: string }[]).every((row) => row.status === 'approved')).toBe(true);
+		expect(approved.count).toBe(1);
+	});
+});
