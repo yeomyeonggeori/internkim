@@ -11,14 +11,14 @@ them under your identity. There is no command syntax to learn.
 
 | You write | What runs | What you get back |
 |---|---|---|
-| "박예시한테 분기 보고서 초안 업무 하나 잡아줘, 금요일까지" | `task_add` | the created task, with owner and due date |
-| "이번 주에 내가 뭐 해야 하지?" | `task_list` | your open items this week |
-| "목요일 디자인 리뷰 4시로 옮겨줘" | `calendar_list`, then `calendar_update` | the moved event |
-| "이샘플한테 덱 다 됐다고 DM 보내줘" | `message_send` | a draft, sent after you approve it |
-| "지난주에 올린 공지에서 날짜만 고쳐줘" | `message_search`, then `message_update` | the corrected span in your earlier message |
-| "새 세법 개정안 뭐가 바뀌었는지 찾아줘" | `web_search` | ranked public-web results, summarized |
+| "give Alex a task to draft the quarterly report, due Friday" | `task_add` | the created task, with owner and due date |
+| "what am I supposed to do this week?" | `task_list` | your open items this week |
+| "move Thursday's design review to four" | `calendar_list`, then `calendar_update` | the moved event |
+| "DM Alex that the deck is finished" | `message_send` | a draft, sent after you approve it |
+| "in last week's announcement, fix the date and nothing else" | `message_search`, then `message_update` | the corrected span in your earlier message |
+| "find out what changed in the new tax bill" | `web_search` | ranked public-web results, summarized |
 
-When a request names a person by a fragment ("예시씨"), the agent calls
+When a request names a person by a fragment ("Alex"), the agent calls
 `person_list` first and passes the exact name. Mutating tools take *hints*
 (`taskHint`, `eventHint`, `personHint`): the exact current title, name, or ID
 you actually know, resolved server-side to one canonical record. An ambiguous
