@@ -2,23 +2,30 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
+// A company writes every row as the person who asked, so a caller this device
+// cannot name has nowhere to write. Falling back to the device's own store
+// would answer that caller with a row the company never receives and nothing
+// afterwards reconciles.
+var errTaskWriterUnnamed = errors.New("this write names nobody the company knows, and the company keeps the board")
+
 // The company holds the board, so a task is written there as the person who
 // asked and the answer comes back carrying the identifier the company gave it.
 // This is the path an event already takes; a task and an event are one row.
 func (service *Service) saveCentralTask(request *http.Request, task Task, people map[string]adminUserMutation) (Task, bool, error) {
-	requesterEmail := service.taskActorEmail(request)
-	if requesterEmail == "" {
-		return Task{}, false, nil
-	}
 	client := service.centralPlane()
 	if client == nil {
 		return Task{}, false, nil
+	}
+	requesterEmail := service.taskActorEmail(request)
+	if requesterEmail == "" {
+		return Task{}, true, errTaskWriterUnnamed
 	}
 	savedID, errorValue := client.SaveTask(request.Context(), centralplane.Task{
 		CentralID:        centralTaskIdentityOf(task),
@@ -44,13 +51,13 @@ func (service *Service) saveCentralTask(request *http.Request, task Task, people
 }
 
 func (service *Service) removeCentralTask(request *http.Request, taskID string) (bool, error) {
-	requesterEmail := service.taskActorEmail(request)
-	if requesterEmail == "" {
-		return false, nil
-	}
 	client := service.centralPlane()
 	if client == nil {
 		return false, nil
+	}
+	requesterEmail := service.taskActorEmail(request)
+	if requesterEmail == "" {
+		return true, errTaskWriterUnnamed
 	}
 	return true, client.DeleteTask(request.Context(), "email", requesterEmail, taskID)
 }
