@@ -31,7 +31,7 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 	})
 	if errorValue := service.writeOrganizationProfiles(t.Context(), []organizationProfile{{
 		MemberID: "user-1",
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		HireDate: "2099-01-01",
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -41,14 +41,14 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Header.Get("Authorization") == "Bearer admin-token":
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/email/staff@example.com" && request.Header.Get("Authorization") == "Bearer admin-token":
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","nickname":"Member"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member@example.com" && request.Header.Get("Authorization") == "Bearer admin-token":
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","nickname":"Member"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users?in_team=team-1&per_page=200":
 			return jsonResponse(http.StatusOK, `[
-				{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff","roles":"system_user","delete_at":0},
+				{"id":"user-1","email":"member@example.com","username":"member","nickname":"Member","roles":"system_user","delete_at":0},
 				{"id":"admin","email":"admin@example.com","username":"admin","nickname":"Admin","roles":"system_admin system_user","delete_at":0}
 			]`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
@@ -79,7 +79,7 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		case request.URL.String() == "http://mattermost.local/api/v4/posts/entry-post/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
-			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"Staff","emails":["staff@example.com"]},{"displayName":"Other","emails":["other@example.com"]},{"displayName":"Admin","emails":["admin@example.com"]}],"channels":[]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"Member","emails":["member@example.com"]},{"displayName":"Other","emails":["other@example.com"]},{"displayName":"Admin","emails":["admin@example.com"]}],"channels":[]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
@@ -87,11 +87,11 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/tokens" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{"token":"user-token"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Header.Get("Authorization") == "Bearer user-token":
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/me/status/custom" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/me" && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token"):
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"staff@example.com","username":"staff","nickname":"Staff"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","nickname":"Member"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
 			var payload map[string]string
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
@@ -153,7 +153,7 @@ func insertGhostClockInEventForTest(t *testing.T, service *Service, resultPostID
 		t.Fatal(errorValue)
 	}
 	defer database.Close()
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(userRecord, attendanceKindClockIn, time.Now().UTC(), "team-1", "attendance-channel", "entry-post", resultPostID, service.attendanceLocationByID("office"))
 	if errorValue := service.insertAttendanceEvent(t.Context(), database, event); errorValue != nil {
 		t.Fatal(errorValue)

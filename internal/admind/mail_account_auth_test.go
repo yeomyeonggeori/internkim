@@ -27,7 +27,7 @@ func TestMailAccountUsesRequesterHeaderOnTheRequesterSocket(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/mail/api/account", nil)
 	request.RemoteAddr = "127.0.0.1:12345"
-	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterEmailHeader, "member@example.com")
 	response := httptest.NewRecorder()
 	service.handleMail(response, arrivingOnTheRequesterSocket(request))
 
@@ -38,7 +38,7 @@ func TestMailAccountUsesRequesterHeaderOnTheRequesterSocket(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Body.Bytes(), &account); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if account.Email != "staff@example.com" {
+	if account.Email != "member@example.com" {
 		t.Fatalf("account = %#v", account)
 	}
 }
@@ -48,7 +48,7 @@ func TestMailAccountIgnoresRequesterHeaderOnTheTCPListener(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/mail/api/account", nil)
 	request.RemoteAddr = "127.0.0.1:12345"
-	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterEmailHeader, "member@example.com")
 	response := httptest.NewRecorder()
 	service.handleMail(response, request)
 
@@ -59,13 +59,13 @@ func TestMailAccountIgnoresRequesterHeaderOnTheTCPListener(t *testing.T) {
 
 func TestMailAccountUsesWebSessionForRemoteRequests(t *testing.T) {
 	service := newMailTestService(t)
-	writeUsersSyncTestCache(t, service, "staff@example.com")
+	writeUsersSyncTestCache(t, service, "member@example.com")
 
 	request := httptest.NewRequest(http.MethodGet, "/mail/api/account", nil)
 	request.RemoteAddr = "203.0.113.10:12345"
 	request.AddCookie(&http.Cookie{
 		Name:  webSessionCookieName,
-		Value: webSessionCookieForTest(t, service, "staff@example.com"),
+		Value: webSessionCookieForTest(t, service, "member@example.com"),
 	})
 	response := httptest.NewRecorder()
 	service.handleMail(response, request)
@@ -77,7 +77,7 @@ func TestMailAccountUsesWebSessionForRemoteRequests(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Body.Bytes(), &account); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if account.Email != "staff@example.com" {
+	if account.Email != "member@example.com" {
 		t.Fatalf("account = %#v", account)
 	}
 }
@@ -86,7 +86,7 @@ func TestMailAccountDoesNotFallbackToAdminForAuthenticatedUser(t *testing.T) {
 	service := newMailTestService(t)
 	saveConfiguredMailTestAccount(t, service)
 
-	accountResponse := performMailRequestAs(t, service, "staff@example.com", http.MethodGet, "/mail/api/account", "")
+	accountResponse := performMailRequestAs(t, service, "member@example.com", http.MethodGet, "/mail/api/account", "")
 	if accountResponse.Code != http.StatusOK {
 		t.Fatalf("account status = %d body = %s", accountResponse.Code, accountResponse.Body.String())
 	}
@@ -94,11 +94,11 @@ func TestMailAccountDoesNotFallbackToAdminForAuthenticatedUser(t *testing.T) {
 	if errorValue := json.Unmarshal(accountResponse.Body.Bytes(), &account); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if account.IsConfigured || account.Email != "staff@example.com" {
-		t.Fatalf("account should be an unconfigured staff account: %#v", account)
+	if account.IsConfigured || account.Email != "member@example.com" {
+		t.Fatalf("account should be an unconfigured member account: %#v", account)
 	}
 
-	mailboxesResponse := performMailRequestAs(t, service, "staff@example.com", http.MethodGet, "/mail/api/mailboxes", "")
+	mailboxesResponse := performMailRequestAs(t, service, "member@example.com", http.MethodGet, "/mail/api/mailboxes", "")
 	if mailboxesResponse.Code != http.StatusBadRequest {
 		t.Fatalf("mailboxes status = %d body = %s", mailboxesResponse.Code, mailboxesResponse.Body.String())
 	}

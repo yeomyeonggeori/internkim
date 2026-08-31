@@ -81,9 +81,9 @@ func TestCalendarEventWindowCacheReusesStoredProjection(t *testing.T) {
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 		Participants: []calendarParticipant{
-			{PersonID: stableTaskID("staff@example.com"), Name: "Staff", Email: "staff@example.com"},
+			{PersonID: stableTaskID("member@example.com"), Name: "Member", Email: "member@example.com"},
 		},
 	}
 	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
@@ -139,7 +139,7 @@ func TestCalendarEventWindowCacheRebuildsInvalidEntries(t *testing.T) {
 				TimeZone:          "UTC",
 				Color:             "#2563eb",
 				ReminderLeadHours: calendarDefaultReminderLeadHours,
-				CreatedByEmail:    "staff@example.com",
+				CreatedByEmail:    "member@example.com",
 			}
 			if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
 				t.Fatal(errorValue)

@@ -12,12 +12,12 @@ describe('mail account draft', () => {
 	test('creates an editable draft without saved passwords', () => {
 		const draft = createMailAccountDraft({
 			...emptyMailAccount,
-			email: 'staff@example.com',
+			email: 'member@example.com',
 			hasIMAPPassword: true,
 			hasSMTPPassword: true
 		});
 
-		expect(draft.email).toBe('staff@example.com');
+		expect(draft.email).toBe('member@example.com');
 		expect(draft.imapPassword).toBe('');
 		expect(draft.smtpPassword).toBe('');
 		expect(draft.hasIMAPPassword).toBe(true);
@@ -27,8 +27,8 @@ describe('mail account draft', () => {
 	test('builds account save payload from draft values', () => {
 		const payload = mailAccountDraftPayload({
 			...createMailAccountDraft(emptyMailAccount),
-			email: 'staff@example.com',
-			displayName: 'Staff',
+			email: 'member@example.com',
+			displayName: 'Member',
 			imapPort: 1993,
 			imapPassword: 'imap-secret',
 			smtpPort: 2587,
@@ -36,9 +36,9 @@ describe('mail account draft', () => {
 		});
 
 		expect(payload).toEqual({
-			email: 'staff@example.com',
-			fromAddress: 'staff@example.com',
-			displayName: 'Staff',
+			email: 'member@example.com',
+			fromAddress: 'member@example.com',
+			displayName: 'Member',
 			imapHost: '',
 			imapPort: 1993,
 			imapSecurity: 'tls',

@@ -213,13 +213,13 @@ func isCalendarDeleteIntentPath(path string) bool {
 
 func (service *Service) authorizeCalendarAPIRequest(request *http.Request, path string) bool {
 	if path == "/participants" {
-		return isLocalRequest(request) || service.authorizeWebStaffRequest(request)
+		return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
 	}
 	if isCalendarParticipantImageAPIPath(path) {
-		return isLocalRequest(request) || service.authorizeWebStaffRequest(request)
+		return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
 	}
 	if isCalendarActorImageAPIPath(path) {
-		return isLocalRequest(request) || service.authorizeWebStaffRequest(request)
+		return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
 	}
 	return service.authorizeCalendarRequest(request)
 }
@@ -239,7 +239,7 @@ func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
 	if service.authorizeCalendarTokenRequest(request) {
 		return true
 	}
-	return service.authorizeWebStaffRequest(request)
+	return service.authorizeWebMemberRequest(request)
 }
 
 func (service *Service) authorizeCalendarTokenRequest(request *http.Request) bool {
@@ -372,7 +372,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	event.UID = existingEvent.UID
 	event.CreatedByEmail = existingEvent.CreatedByEmail
 	event.CreatedByName = existingEvent.CreatedByName
-	event.UpdatedByEmail, event.UpdatedByName = service.webStaffActorIdentity(request)
+	event.UpdatedByEmail, event.UpdatedByName = service.webMemberActorIdentity(request)
 	event.UpdatedByAt = time.Now().UTC().Format(time.RFC3339Nano)
 	event.MattermostPostID = existingEvent.MattermostPostID
 	event.RemoteSource = existingEvent.RemoteSource
@@ -673,7 +673,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 	if len(participants) == 0 && len(people) > 0 {
 		participants = calendarParticipantsFromPeople(people)
 	}
-	createdByEmail, createdByName := service.webStaffActorIdentity(request)
+	createdByEmail, createdByName := service.webMemberActorIdentity(request)
 	_, workspaceTimeZone := service.workspaceTimeLocation()
 	event := calendarEvent{
 		ID:                id,
@@ -700,7 +700,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 	return event, nil
 }
 
-func (service *Service) webStaffActorIdentity(request *http.Request) (string, string) {
+func (service *Service) webMemberActorIdentity(request *http.Request) (string, string) {
 	actorEmail := service.webActorEmail(request)
 	if actorEmail == "" {
 		return "", ""

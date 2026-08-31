@@ -49,7 +49,7 @@ func (service *Service) writeAttendanceLeaveApprovalDecision(
 	view, errorValue := service.decideAttendanceLeaveRequest(
 		request.Context(),
 		requestID,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 		input,
 		time.Now(),
 	)

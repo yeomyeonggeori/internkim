@@ -155,7 +155,7 @@ function createCircleResponse(state: DevAdminUsersMockState, body: string | unde
 
 function deleteCircleResponse(state: DevAdminUsersMockState, pathname: string): DevMockResponse {
 	const circleID = decodeURIComponent(pathname.slice('/admin/api/circles/'.length)).toLowerCase();
-	if (circleID === 'staff') return { status: 409, body: { error: 'staff_circle_required' } };
+	if (circleID === 'member') return { status: 409, body: { error: 'member_circle_required' } };
 	state.availableCircles = state.availableCircles.filter((circle) => circle.circleID !== circleID);
 	state.records = state.records.map((record) => ({
 		...record,
@@ -166,7 +166,7 @@ function deleteCircleResponse(state: DevAdminUsersMockState, pathname: string): 
 
 function normalizeUserRecord(parsed: Record<string, unknown>, existingRecord: UserRecord | undefined): UserRecord {
 	const role = roleField(parsed, existingRecord?.role ?? defaultRole);
-	const circles = stringArrayField(parsed, 'circles', existingRecord?.circles ?? ['staff']);
+	const circles = stringArrayField(parsed, 'circles', existingRecord?.circles ?? ['member']);
 	return {
 		memberID: stringField(parsed, 'memberID') || existingRecord?.memberID || `dev-user-${Date.now()}`,
 		handle: stringField(parsed, 'handle').toLowerCase(),
@@ -194,7 +194,7 @@ function createDevUserRecords(): UserRecord[] {
 			hireDate: '2026-05-01',
 			note: 'HR 보상 기준 확인 필요. C-level 권한과 대표 권한 유지.',
 			role: 'admin',
-			circles: ['staff', 'admin', 'c-level', 'representative', 'hr'],
+			circles: ['member', 'admin', 'c-level', 'representative', 'hr'],
 			jobTitle: 'Representative',
 			groupID: 'c-level',
 			mattermostUserID: 'dev-mm-gyeonbon',
@@ -206,7 +206,7 @@ function createDevUserRecords(): UserRecord[] {
 
 function createDevCircles(): CircleRecord[] {
 	return [
-		{ circleID: 'staff', displayName: 'Staff' },
+		{ circleID: 'member', displayName: 'Member' },
 		{ circleID: 'c-level', displayName: 'C-level', isMattermostManaged: true },
 		{ circleID: 'representative', displayName: 'Representative', isMattermostManaged: true },
 		{ circleID: 'hr', displayName: 'HR', isMattermostManaged: true }
@@ -218,7 +218,7 @@ function createDevGroups(): OrgGroup[] {
 }
 
 function normalizeCircles(circles: string[], role: UserRole): string[] {
-	const normalizedCircles = new Set(['staff', ...circles.map((circle) => circle.trim().toLowerCase()).filter(Boolean)]);
+	const normalizedCircles = new Set(['member', ...circles.map((circle) => circle.trim().toLowerCase()).filter(Boolean)]);
 	if (role === 'admin') normalizedCircles.add('admin');
 	return [...normalizedCircles];
 }

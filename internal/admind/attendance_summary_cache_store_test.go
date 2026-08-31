@@ -48,7 +48,7 @@ func TestAttendanceSummaryCacheDoesNotReuseEntriesFromPreviousService(t *testing
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	insertAttendanceSummaryTestEvent(t, service, database, userRecord, attendanceKindClockIn, time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC))
 	if errorValue := database.Close(); errorValue != nil {
 		t.Fatal(errorValue)
@@ -57,7 +57,7 @@ func TestAttendanceSummaryCacheDoesNotReuseEntriesFromPreviousService(t *testing
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(firstEvents) != 1 || firstEvents[0].DisplayName != "Staff" {
+	if len(firstEvents) != 1 || firstEvents[0].DisplayName != "Member" {
 		t.Fatalf("first events = %+v", firstEvents)
 	}
 	database, errorValue = service.openAttendanceDatabase(ctx)
@@ -324,7 +324,7 @@ func TestAttendanceSummaryCacheWriteDoesNotDeleteUnrelatedExpiredRows(t *testing
 		attendanceSummaryCacheKindEvents,
 		"2026-07",
 		0,
-		[]byte(`{"events":[{"email":"staff@example.com"}]}`),
+		[]byte(`{"events":[{"email":"member@example.com"}]}`),
 		now,
 	)
 	if errorValue != nil {

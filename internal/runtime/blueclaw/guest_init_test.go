@@ -45,7 +45,7 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 func TestGuestInitCreatesResourceFirstWorkspaceLayout(t *testing.T) {
 	document := readGuestInit(t)
 	for _, expectedFragment := range []string{
-		"/workspace/circles/staff",
+		"/workspace/circles/member",
 		"/workspace/circles/c-level",
 		"/workspace/circles/representative",
 		"/workspace/circles/admin",

@@ -95,14 +95,14 @@ func TestTaskSummaryAPIUsesCurrentCanonicalWeekWhenWeekIsEmpty(t *testing.T) {
 func TestTaskSummaryAPIRefreshesCachedResponseAfterSourceMutations(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	ctx := context.Background()
-	staffID := stableTaskID("staff@example.com")
+	memberID := stableTaskID("member@example.com")
 	task := Task{
 		ID:               "cache-integration-task",
 		WeekCode:         "26W28",
-		OwnerID:          staffID,
-		OwnerName:        "Staff",
-		ParticipantIDs:   []string{staffID},
-		ParticipantNames: []string{"Staff"},
+		OwnerID:          memberID,
+		OwnerName:        "Member",
+		ParticipantIDs:   []string{memberID},
+		ParticipantNames: []string{"Member"},
 		Business:         "Development",
 		Type:             "Implementation",
 		Content:          "Before mutation",
@@ -205,7 +205,7 @@ func TestTaskSummaryCacheStoreRejectsNoncanonicalWeek(t *testing.T) {
 func newTaskSummaryAPIRequest(weekCode string) *http.Request {
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary?week="+weekCode, nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	return request
 }
 

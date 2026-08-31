@@ -65,7 +65,7 @@ func (service *Service) writeAttendanceWorkStatusWithReadersAt(
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
+	actorEmail := strings.ToLower(strings.TrimSpace(service.webMemberActorEmail(request)))
 	isAdmin := service.canManageAttendance(request)
 	events, errorValue := readAttendanceWorkPeriodEvents(
 		request.Context(),

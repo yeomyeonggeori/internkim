@@ -39,8 +39,8 @@ func (service *Service) handleBuzzGhostRooms(responseWriter http.ResponseWriter,
 		http.NotFound(responseWriter, request)
 		return
 	}
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	named := strings.TrimSpace(request.URL.Query().Get("room"))

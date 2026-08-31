@@ -54,8 +54,8 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 	if site.WorkspacePath == "" || site.HostSourcePath == "" || site.LastPublishedCommit == "" {
 		t.Fatalf("site workspace metadata missing: %+v", site)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
-		t.Fatalf("site source workspace should be staff-circle draft path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/member/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("site source workspace should be member-circle draft path, got %q", site.SourceWorkspacePath)
 	}
 
 	response := serveSiteRequest(service, "demo.device.example.test", "/")
@@ -344,8 +344,8 @@ func TestSitePrototypePublishesDefaultBuild(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/staff/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
-		t.Fatalf("site source workspace should be staff-circle draft path, got %q", site.SourceWorkspacePath)
+	if !strings.HasPrefix(site.SourceWorkspacePath, "/workspace/circles/member/sites/") || !strings.HasSuffix(site.SourceWorkspacePath, "/draft") {
+		t.Fatalf("site source workspace should be member-circle draft path, got %q", site.SourceWorkspacePath)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
 		t.Fatalf("site app workspace path = %q, source = %q", site.AppWorkspacePath, site.SourceWorkspacePath)
@@ -1119,11 +1119,11 @@ func TestSiteCreateMaterializationFailureLeavesNoRecordAndCanRetry(t *testing.T)
 	if strings.Contains(readTrimmedFile(service.siteRegistryPath()), "retryable-site") {
 		t.Fatal("failed create persisted the slug")
 	}
-	staffSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites")
-	if directoryHasEntries(filepath.Join(staffSitesPath, siteIDStorageDirectoryName)) {
+	memberSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "member", "sites")
+	if directoryHasEntries(filepath.Join(memberSitesPath, siteIDStorageDirectoryName)) {
 		t.Fatal("failed create left staged site storage")
 	}
-	if _, errorValue := os.Lstat(filepath.Join(staffSitesPath, "retryable-site")); !errors.Is(errorValue, os.ErrNotExist) {
+	if _, errorValue := os.Lstat(filepath.Join(memberSitesPath, "retryable-site")); !errors.Is(errorValue, os.ErrNotExist) {
 		t.Fatalf("failed create left the slug alias: %v", errorValue)
 	}
 	if directoryHasEntries(filepath.Join(filepath.Dir(service.Configuration.SitesRoot), "site-sources")) {
@@ -1168,19 +1168,19 @@ func TestSiteCreateDoesNotReuseConversationSite(t *testing.T) {
 	}
 }
 
-func TestSiteCreateIgnoresStaleStaffCircleSourceWorkspacePath(t *testing.T) {
+func TestSiteCreateIgnoresStaleMemberCircleSourceWorkspacePath(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{
 		Slug:                "current-site",
-		SourceWorkspacePath: "/workspace/circles/staff/sites/other-site/draft",
+		SourceWorkspacePath: "/workspace/circles/member/sites/other-site/draft",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if site.SourceWorkspacePath != "/workspace/circles/staff/sites/current-site/draft" {
+	if site.SourceWorkspacePath != "/workspace/circles/member/sites/current-site/draft" {
 		t.Fatalf("expected source workspace path to use current site alias, got %q", site.SourceWorkspacePath)
 	}
-	if site.WorkspacePath != "/workspace/circles/staff/sites/current-site" {
+	if site.WorkspacePath != "/workspace/circles/member/sites/current-site" {
 		t.Fatalf("expected workspace path to use current site alias, got %q", site.WorkspacePath)
 	}
 }
@@ -1632,10 +1632,10 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if site.SourceWorkspacePath != "/workspace/circles/staff/sites/terminal-writable/draft" {
-		t.Fatalf("expected staff-circle draft workspace, got %q", site.SourceWorkspacePath)
+	if site.SourceWorkspacePath != "/workspace/circles/member/sites/terminal-writable/draft" {
+		t.Fatalf("expected member-circle draft workspace, got %q", site.SourceWorkspacePath)
 	}
-	if site.WorkspacePath != "/workspace/circles/staff/sites/terminal-writable" {
+	if site.WorkspacePath != "/workspace/circles/member/sites/terminal-writable" {
 		t.Fatalf("workspace path should point at project root: %+v", site)
 	}
 	if site.AppWorkspacePath != site.SourceWorkspacePath+"/app" {
@@ -1645,10 +1645,10 @@ func TestSiteWorkspaceIsWritableByRequesterTerminal(t *testing.T) {
 	if information, errorValue := os.Stat(storagePath); errorValue != nil || !information.IsDir() {
 		t.Fatalf("expected hidden siteID storage directory at %s: %v", storagePath, errorValue)
 	}
-	staffSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites")
-	assertStaffCircleDirectoryMode(t, staffSitesPath)
-	assertStaffCircleDirectoryMode(t, filepath.Join(staffSitesPath, siteIDStorageDirectoryName))
-	assertStaffCircleDirectoryMode(t, storagePath)
+	memberSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "member", "sites")
+	assertMemberCircleDirectoryMode(t, memberSitesPath)
+	assertMemberCircleDirectoryMode(t, filepath.Join(memberSitesPath, siteIDStorageDirectoryName))
+	assertMemberCircleDirectoryMode(t, storagePath)
 	aliasPath := service.siteProjectAliasHostPath(site)
 	aliasInformation, errorValue := os.Lstat(aliasPath)
 	if errorValue != nil {
@@ -1719,16 +1719,16 @@ func TestSiteListRepairsBrokenSlugAliasDirectory(t *testing.T) {
 	}
 }
 
-func TestSitePublishRepairsStaffCircleSiteWorkspacePermissions(t *testing.T) {
+func TestSitePublishRepairsMemberCircleSiteWorkspacePermissions(t *testing.T) {
 	service, _ := newTestSiteService(t)
 	site, errorValue := service.createSiteRecord(context.Background(), siteCreateRequest{Slug: "publish-repairs-permissions"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	staffSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "staff", "sites")
-	storageRootPath := filepath.Join(staffSitesPath, siteIDStorageDirectoryName)
+	memberSitesPath := filepath.Join(service.Configuration.BlueclawWorkspacePath, "circles", "member", "sites")
+	storageRootPath := filepath.Join(memberSitesPath, siteIDStorageDirectoryName)
 	storagePath := service.siteProjectStorageHostPath(site.SiteID)
-	for _, path := range []string{staffSitesPath, storageRootPath, storagePath} {
+	for _, path := range []string{memberSitesPath, storageRootPath, storagePath} {
 		if errorValue := os.Chmod(path, 0o700); errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -1745,9 +1745,9 @@ func TestSitePublishRepairsStaffCircleSiteWorkspacePermissions(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	assertStaffCircleDirectoryMode(t, staffSitesPath)
-	assertStaffCircleDirectoryMode(t, storageRootPath)
-	assertStaffCircleDirectoryMode(t, storagePath)
+	assertMemberCircleDirectoryMode(t, memberSitesPath)
+	assertMemberCircleDirectoryMode(t, storageRootPath)
+	assertMemberCircleDirectoryMode(t, storagePath)
 }
 
 func TestSiteDeleteRequiresExplicitConfirmation(t *testing.T) {
@@ -1917,17 +1917,17 @@ func writeSiteResponse(service *Service, siteID string) *httptest.ResponseRecord
 	return response
 }
 
-func assertStaffCircleDirectoryMode(t *testing.T, path string) {
+func assertMemberCircleDirectoryMode(t *testing.T, path string) {
 	t.Helper()
 	information, errorValue := os.Stat(path)
 	if errorValue != nil {
-		t.Fatalf("expected staff-circle directory at %s: %v", path, errorValue)
+		t.Fatalf("expected member-circle directory at %s: %v", path, errorValue)
 	}
 	if !information.IsDir() {
-		t.Fatalf("expected staff-circle path to be a directory: %s", path)
+		t.Fatalf("expected member-circle path to be a directory: %s", path)
 	}
 	if information.Mode().Perm() != 0o770 || information.Mode()&os.ModeSetgid == 0 {
-		t.Fatalf("staff-circle directory mode at %s = %v, want setgid 0770", path, information.Mode())
+		t.Fatalf("member-circle directory mode at %s = %v, want setgid 0770", path, information.Mode())
 	}
 }
 

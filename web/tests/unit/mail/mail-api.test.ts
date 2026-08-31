@@ -12,7 +12,7 @@ describe('mail api response normalizers', () => {
 	test('keeps only typed account fields', () => {
 		expect(
 			normalizeMailAccountResponse({
-				email: 'staff@example.com',
+				email: 'member@example.com',
 				imapPort: 993,
 				smtpPort: '587',
 				isConfigured: true,
@@ -20,7 +20,7 @@ describe('mail api response normalizers', () => {
 				hasSMTPPassword: false
 			})
 		).toEqual({
-			email: 'staff@example.com',
+			email: 'member@example.com',
 			imapPort: 993,
 			isConfigured: true,
 			hasSMTPPassword: false
@@ -82,7 +82,7 @@ describe('mail api response normalizers', () => {
 	test('normalizes bootstrap cached state', () => {
 		expect(
 			normalizeMailBootstrapResponse({
-				account: { email: 'staff@example.com', isConfigured: true },
+				account: { email: 'member@example.com', isConfigured: true },
 				mailboxes: [{ name: 'INBOX', displayName: 'Inbox', unseen: 1, total: 3 }],
 				messages: [{ uid: 3, mailbox: 'INBOX', subject: 'Cached' }],
 				nextCursor: 'older',
@@ -90,7 +90,7 @@ describe('mail api response normalizers', () => {
 				hasCachedMessages: true
 			})
 		).toEqual({
-			account: { email: 'staff@example.com', isConfigured: true },
+			account: { email: 'member@example.com', isConfigured: true },
 			mailboxes: [{ name: 'INBOX', displayName: 'Inbox', unseen: 1, total: 3 }],
 			messages: [{ uid: 3, mailbox: 'INBOX', subject: 'Cached', from: '', date: '', preview: '', isRead: false }],
 			nextCursor: 'older',

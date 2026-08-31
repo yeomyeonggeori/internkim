@@ -28,8 +28,8 @@ type buzzChannelUninvitedRoom struct {
 }
 
 func (service *Service) handleBuzzChannelMembershipRepair(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	report, errorValue := service.buzzMembersTheirRoomDoesNotHold(request.Context(), request.URL.Query().Get("remove") == "true")

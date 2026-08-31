@@ -88,7 +88,7 @@ func TestAttendanceLeaveLedgerGrantReserveUseAndIdempotency(t *testing.T) {
 func TestAttendanceLeaveLedgerTransactionReservationRollsBackWithRequest(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.grantAttendanceLeave(ctx, attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-request-transaction",
@@ -135,7 +135,7 @@ func TestAttendanceLeaveLedgerTransactionReservationRollsBackWithRequest(t *test
 func TestAttendanceLeaveLedgerRestoresApprovedUseWithReleaseOperation(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.grantAttendanceLeave(ctx, attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-approved-cancel",
@@ -206,7 +206,7 @@ func TestAttendanceLeaveLedgerRestoresApprovedUseWithReleaseOperation(t *testing
 func TestAttendanceLeaveLedgerReleaseExpiryAdjustmentAndUntrackedUse(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.grantAttendanceLeave(ctx, attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-expiring",
@@ -286,7 +286,7 @@ func TestAttendanceLeaveLedgerReleaseExpiryAdjustmentAndUntrackedUse(t *testing.
 func TestAttendanceLeaveLedgerCarryoverAppliesLimitAndExpiresRemainder(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.grantAttendanceLeave(ctx, attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-carryover",
@@ -357,7 +357,7 @@ func TestAttendanceLeaveLedgerCarryoverAppliesLimitAndExpiresRemainder(t *testin
 func TestAttendanceLeaveLedgerRejectsInsufficientAndConcurrentReservations(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.grantAttendanceLeave(ctx, attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-concurrent",
@@ -423,7 +423,7 @@ func TestAttendanceLeaveLedgerRejectsInsufficientAndConcurrentReservations(t *te
 func TestAttendanceLeaveLedgerAllowsOnlyOneConcurrentReservationTerminal(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.grantAttendanceLeave(ctx, attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-terminal",
@@ -509,7 +509,7 @@ func TestAttendanceLeaveLedgerAllowsOnlyOneConcurrentReservationTerminal(t *test
 func TestAttendanceLeaveLedgerSchemaAndOperationConflict(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	grant := attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-conflict",
@@ -551,7 +551,7 @@ func TestAttendanceLeaveLedgerSchemaAndOperationConflict(t *testing.T) {
 INSERT INTO attendance_leave_operations (
 	operation_key, employee_email, user_id, leave_type_id, kind, reference_id,
 	amount_milli_days, effective_date, created_at
-) VALUES ('invalid-kind', 'staff@example.com', 'user-1', 'annual', 'invalid', '', 0, '2026-01-01', '2026-01-01T00:00:00Z')`); errorValue == nil {
+) VALUES ('invalid-kind', 'member@example.com', 'user-1', 'annual', 'invalid', '', 0, '2026-01-01', '2026-01-01T00:00:00Z')`); errorValue == nil {
 		t.Fatal("expected operation kind constraint failure")
 	}
 }

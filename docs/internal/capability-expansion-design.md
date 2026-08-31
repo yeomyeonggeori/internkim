@@ -78,16 +78,16 @@ Calendar, email, file sharing, 기억 분리는 모두 "누구의 권한으로 �
 
 필요한 변경:
 
-- `staff`와 platform account link를 연결하는 identity map 추가
-- CalDAV 계정, email 계정, Google OAuth 사용자, Google service account, Mattermost/Slack/Signal user를 같은 staff로 매핑
-- capability request에 `actorStaffID`, `targetStaffID`, `resourceScope`를 명시
+- `member`와 platform account link를 연결하는 identity map 추가
+- CalDAV 계정, email 계정, Google OAuth 사용자, Google service account, Mattermost/Slack/Signal user를 같은 member로 매핑
+- capability request에 `actorMemberID`, `targetMemberID`, `resourceScope`를 명시
 - 팀 공용 자료와 개인 자료를 분리하는 scope 추가
 
 권장 scope:
 
 | scope | 설명 |
 |---|---|
-| `personal:{staffID}` | 개인 캘린더, 개인 이메일, 개인 기억 |
+| `personal:{memberID}` | 개인 캘린더, 개인 이메일, 개인 기억 |
 | `role:{title}` | 직급별 업무 규칙, 권한, 템플릿 |
 | `team:{department}` | 팀 문서, 회의록, 공용 task |
 | `company` | 회사 전체 정책, 계약서 템플릿, 공용 DB |
@@ -139,23 +139,23 @@ Companion의 approval grant는 task-scoped로 유지하고, `user_confirm`과 `u
 | `artifact_version` | 수정 이력과 원본 경로 |
 | `artifact_share` | 공유 대상, 권한, 만료일 |
 | `artifact_extraction` | anydoc, OCR, VLM, PDF text 추출 결과 |
-| `artifact_relation` | task, meeting, staff, email, calendar event와의 연결 |
+| `artifact_relation` | task, meeting, member, email, calendar event와의 연결 |
 
 
 ### 6. 업무 DB를 product schema로 확장
 
-이미 `docs/schema/task.md`, `docs/schema/staff.md`, `task_assignee`, `task_event` 문서가 있다. 여기에 출퇴근, 회의, 알림, 파일, 이메일 테이블을 추가한다.
+이미 `docs/schema/task.md`, `docs/schema/member.md`, `task_assignee`, `task_event` 문서가 있다. 여기에 출퇴근, 회의, 알림, 파일, 이메일 테이블을 추가한다.
 
 추가 schema:
 
 | 테이블 | 핵심 필드 |
 |---|---|
-| `attendance_event` | `staff_id`, `kind`, `occurred_at`, `source`, `note` |
+| `attendance_event` | `member_id`, `kind`, `occurred_at`, `source`, `note` |
 | `meeting` | `title`, `started_at`, `ended_at`, `participants`, `source_ref` |
 | `meeting_note` | `meeting_id`, `summary`, `decisions`, `action_items` |
-| `reminder_preference` | `staff_id`, `preferred_time`, `prep_minutes`, `buffer_minutes`, `default_origin` |
+| `reminder_preference` | `member_id`, `preferred_time`, `prep_minutes`, `buffer_minutes`, `default_origin` |
 | `scheduled_job` | `kind`, `scope`, `run_at`, `status`, `payload` |
-| `email_thread` | `staff_id`, `provider_thread_id`, `classification`, `last_synced_at` |
+| `email_thread` | `member_id`, `provider_thread_id`, `classification`, `last_synced_at` |
 | `contract_project` | `template_artifact_id`, `party_context`, `question_state`, `status` |
 
 ### 7. 인터뷰형 작업 runner 추가
@@ -221,7 +221,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 | 업무 투두리스트 | task transition API, assignee request, status audit | Blueclaw task DB |
 | 파일 생성 및 공유 | artifact registry, Drive/platform share approval | native reply attachments |
 | 파일 인식/분석 | ingest pipeline, anydoc/OCR/VLM routing | artifact ingest pipeline |
-| 직원별/직급별 기억 분리 | memory scope router, staff/role identity map | Graphiti memory |
+| 직원별/직급별 기억 분리 | memory scope router, member/role identity map | Graphiti memory |
 | 이메일 정리 | provider-neutral search/classify, thread summary, label/archive plan | email provider bridge, optional Gmail |
 | 이메일 작성 | draft generator, context retrieval, tone presets | `.eml`/draft text first, optional Gmail |
 | 이메일 보내기 | draft preview, mandatory manual approval, audit log | provider send after approval |
@@ -239,17 +239,17 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 - capability registry 확장
 - approval policy 통합
 - artifact registry 추가
-- staff identity map 추가
+- member identity map 추가
 - portable artifact capability를 먼저 만들고 Google import/export를 optional capability로 감싸기
 
 이 단계가 끝나면 Google 인증 없이 파일 생성, 문서/시트/슬라이드, 이메일 초안, 캘린더 추가가 먼저 가능해지고, 필요할 때 Google로 가져갈 수 있다.
 
 ### 2단계: 업무 운영 DB
 
-- task, staff schema를 실제 migration으로 연결
+- task, member schema를 실제 migration으로 연결
 - task transition API 추가
 - attendance, reminder, meeting schema 추가
-- Graphiti memory scope와 staff/role scope 연결
+- Graphiti memory scope와 member/role scope 연결
 
 이 단계가 끝나면 출퇴근, 업무 투두, 회의록, 직원별 기억 분리가 가능해진다.
 

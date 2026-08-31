@@ -704,7 +704,7 @@ func syncChannelMembers(ctx context.Context, publisher *relaypublish.Publisher, 
 		added[pubkey] = true
 		// The importer knows Mattermost identities, not the directory roles that
 		// decide who administers a room, so it names no role and the device's
-		// staff sync raises the admins it finds.
+		// member sync raises the admins it finds.
 		if errorValue := publisher.AddMember(ctx, actorSecret, buzzChannelID, pubkey, ""); errorValue != nil {
 			log.Printf("add member %s failed: %v", pubkey, errorValue)
 		}

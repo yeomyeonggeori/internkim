@@ -284,12 +284,12 @@ func TestGoogleOAuthStartAllowsOperationsAdmin(t *testing.T) {
 	}
 }
 
-func TestCalendarConnectionStartIsNotAvailableToStaff(t *testing.T) {
+func TestCalendarConnectionStartIsNotAvailableToMember(t *testing.T) {
 	service := newCalendarTestService(t)
-	configureCalendarTestUsers(t, service, `[{"email":"staff@example.com","status":"active"}]`)
+	configureCalendarTestUsers(t, service, `[{"email":"member@example.com","status":"active"}]`)
 	writeGoogleClientFile(t, service, `{"installed":{"client_id":"client-1","client_secret":"secret-1"}}`)
 	request := httptest.NewRequest(http.MethodPost, "http://admind.local/calendar/api/connection/start", nil)
-	request.Header.Set("CF-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("CF-Access-Authenticated-User-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleCalendar(recorder, request)

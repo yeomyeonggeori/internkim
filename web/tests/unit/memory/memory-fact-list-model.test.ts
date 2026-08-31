@@ -31,7 +31,7 @@ const facts: MemoryGraphFact[] = [
 	{
 		factID: 'fact-3',
 		scopeType: 'circle',
-		namespaceID: 'circle:default:staff',
+		namespaceID: 'circle:default:member',
 		content: 'Compensation data belongs to HR.',
 		sourceKind: 'fact',
 		validAt: '2026-07-05T09:00:00Z'

@@ -81,7 +81,7 @@ func approvalTargetInvokeRequest(toolName string, input json.RawMessage) capabil
 	return capabilities.ToolInvokeRequest{
 		ToolName: toolName,
 		Input:    input,
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	}
 }
 
@@ -258,7 +258,7 @@ func TestTheMessageDeleteTargetRouteAnswersOnItsOwnPath(t *testing.T) {
 	}))
 	defer chatdServer.Close()
 	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}}
-	requestBody := `{"input":{"messageIDs":["m1"]},"context":{"requesterEmail":"staff@example.com","platform":"buzz"}}`
+	requestBody := `{"input":{"messageIDs":["m1"]},"context":{"requesterEmail":"member@example.com","platform":"buzz"}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/tools/message_delete/target.resolve", strings.NewReader(requestBody))
 	responseRecorder := httptest.NewRecorder()
 
@@ -275,7 +275,7 @@ func TestTheMessageDeleteTargetRouteAnswersOnItsOwnPath(t *testing.T) {
 func TestTheTargetResolutionRouteAnswersOnItsOwnPath(t *testing.T) {
 	methods := []string{}
 	service := calendarApprovalTargetService(t, &methods)
-	requestBody := `{"input":{"eventHint":"상하이 edatec 미팅"},"context":{"requesterEmail":"staff@example.com"}}`
+	requestBody := `{"input":{"eventHint":"상하이 edatec 미팅"},"context":{"requesterEmail":"member@example.com"}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/tools/event_delete/target.resolve", strings.NewReader(requestBody))
 	responseRecorder := httptest.NewRecorder()
 

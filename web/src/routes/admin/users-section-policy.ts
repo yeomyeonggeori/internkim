@@ -39,7 +39,7 @@ export function visibleUserCircles(circles: CircleRecord[]): CircleRecord[] {
 }
 
 export function isReservedCircleID(circleID: string): boolean {
-	return ['staff', 'admin'].includes(circleID.trim().toLowerCase());
+	return ['member', 'admin'].includes(circleID.trim().toLowerCase());
 }
 
 export function normalizeHandle(handle: string): string {
@@ -66,7 +66,7 @@ export function sortUserRecordsByHireDate(records: UserRecord[]): UserRecord[] {
 }
 
 export function normalizeUserCircles(circles: string[] | undefined, role: UserRole | undefined): string[] {
-	const result = new Set(['staff', ...(circles ?? []).map((circle) => circle.trim().toLowerCase()).filter(Boolean)]);
+	const result = new Set(['member', ...(circles ?? []).map((circle) => circle.trim().toLowerCase()).filter(Boolean)]);
 	if (role === 'admin') result.add('admin');
 	return [...result];
 }

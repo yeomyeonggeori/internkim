@@ -33,7 +33,7 @@ func newTaskSummaryBenchmarkService(testContext testing.TB) *Service {
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-member","email":"member@example.com","name":"Member","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
@@ -50,12 +50,12 @@ func newTaskSummaryBenchmarkService(testContext testing.TB) *Service {
 
 func seedTaskSummaryBenchmarkFixture(testContext testing.TB, service *Service) {
 	testContext.Helper()
-	staffID := stableTaskID("staff@example.com")
+	memberID := stableTaskID("member@example.com")
 	otherID := stableTaskID("other@example.com")
 	tasks := []Task{
-		taskReportTestTask("requested-week", "26W28", []string{staffID}, []string{"Staff"}, "M", "completed", "2026-07-06", "2026-07-08"),
+		taskReportTestTask("requested-week", "26W28", []string{memberID}, []string{"Member"}, "M", "completed", "2026-07-06", "2026-07-08"),
 		taskReportTestTask("previous-week", "26W27", []string{otherID}, []string{"Other"}, "S", "completed", "2026-06-29", "2026-07-01"),
-		taskReportTestTask("current-month", "26W30", []string{staffID}, []string{"Staff"}, "XS", "completed", "2026-07-20", "2026-07-20"),
+		taskReportTestTask("current-month", "26W30", []string{memberID}, []string{"Member"}, "XS", "completed", "2026-07-20", "2026-07-20"),
 		taskReportTestTask("previous-month", "26W24", []string{otherID}, []string{"Other"}, "XS", "completed", "2026-06-10", "2026-06-10"),
 	}
 	for _, task := range tasks {
@@ -69,7 +69,7 @@ func taskSummaryBenchmarkMembers() []taskMember {
 	return []taskMember{
 		{ID: stableTaskID("admin@example.com"), Name: "Admin", Email: "admin@example.com"},
 		{ID: stableTaskID("other@example.com"), Name: "Other", Email: "other@example.com"},
-		{ID: stableTaskID("staff@example.com"), Name: "Staff", Email: "staff@example.com"},
+		{ID: stableTaskID("member@example.com"), Name: "Member", Email: "member@example.com"},
 	}
 }
 
@@ -77,7 +77,7 @@ func requestTaskSummaryBenchmark(testContext testing.TB, service *Service, weekC
 	testContext.Helper()
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary?week="+weekCode, nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 	service.router().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {

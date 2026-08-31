@@ -38,8 +38,8 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 		ToolName: "event_add",
 		Input:    []byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00","location":"Office","participantPersonHints":["샘플","수민"],"notifyMinutesBefore":2880}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail: "Staff@Example.com",
-			RequesterName:  "Staff",
+			RequesterEmail: "Member@Example.com",
+			RequesterName:  "Member",
 		},
 	})
 	if errorValue != nil {
@@ -56,7 +56,7 @@ func TestCalendarEventAddPostsToAdmind(t *testing.T) {
 	if result["eventID"] != "admind-event-1" || result["id"] != nil {
 		t.Fatalf("canonical result = %#v", result)
 	}
-	if requesterEmail != "staff@example.com" {
+	if requesterEmail != "member@example.com" {
 		t.Fatalf("requesterEmail = %q", requesterEmail)
 	}
 	if payload["title"] != "Demo" || payload["location"] != "Office" {
@@ -98,8 +98,8 @@ func TestCalendarEventAddResolvesPeopleHintsToTheNamedPeople(t *testing.T) {
 					t.Fatal(errorValue)
 				}
 				switch requestBody["hint"] {
-				case "staff@example.com":
-					return calendarToolJSONResponse(`{"status":"resolved","recipient":{"personID":"person-staff","displayName":"김예시","emails":["staff@example.com"],"externalUserID":"user-staff","username":"kimyesi"}}`), nil
+				case "member@example.com":
+					return calendarToolJSONResponse(`{"status":"resolved","recipient":{"personID":"person-member","displayName":"김예시","emails":["member@example.com"],"externalUserID":"user-member","username":"kimyesi"}}`), nil
 				case "테스트":
 					return calendarToolJSONResponse(`{"status":"resolved","recipient":{"personID":"person-rain","displayName":"김테스트","emails":["rain@example.com"],"externalUserID":"user-rain","username":"rain"}}`), nil
 				default:
@@ -121,9 +121,9 @@ func TestCalendarEventAddResolvesPeopleHintsToTheNamedPeople(t *testing.T) {
 		ToolName: "event_add",
 		Input:    []byte(`{"title":"경산 일정","startsAt":"2026-05-08T05:00:00+09:00","endsAt":"2026-05-08T06:00:00+09:00","participantPersonHints":["테스트"]}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail:    "staff@example.com",
+			RequesterEmail:    "member@example.com",
 			RequesterName:     "김예시",
-			RequesterPersonID: "person-staff",
+			RequesterPersonID: "person-member",
 		},
 	})
 	if errorValue != nil {
@@ -1041,7 +1041,7 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 		})},
 	}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "event_delete", strings.NewReader(`{"input":{"eventHint":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Staff@Example.com","isScheduledRun":true}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "event_delete", strings.NewReader(`{"input":{"eventHint":"event-1"},"context":{"requesterPersonID":"person-1","requesterEmail":"Member@Example.com","isScheduledRun":true}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -1049,7 +1049,7 @@ func TestCalendarEventDeleteScheduledRunBypassesApprovalGate(t *testing.T) {
 		t.Fatalf("expected scheduled delete to execute, got %+v", response)
 	}
 	assertCalendarMutationEffect(t, response, "event-1", "deleted")
-	if requesterEmail != "staff@example.com" {
+	if requesterEmail != "member@example.com" {
 		t.Fatalf("requesterEmail = %q", requesterEmail)
 	}
 }
@@ -1181,7 +1181,7 @@ func TestCalendarEventAddAcceptsTheIdentifierAdmindAssigns(t *testing.T) {
 	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "event_add",
 		Input:    []byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00"}`),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com", RequesterName: "Staff"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com", RequesterName: "Member"},
 	})
 
 	if errorValue != nil {

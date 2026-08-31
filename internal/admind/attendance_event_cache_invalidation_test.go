@@ -23,7 +23,7 @@ func TestInsertAttendanceEventInvalidatesTeamCache(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
 	month := "2026-07"
-	email := "staff@example.com"
+	email := "member@example.com"
 	revision := primeAttendanceSummaryCacheForTest(t, service, attendanceSummaryCacheKindEvents, month)
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
@@ -31,7 +31,7 @@ func TestInsertAttendanceEventInvalidatesTeamCache(t *testing.T) {
 	}
 	defer database.Close()
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: "user-1", Username: "staff", Email: email, Nickname: "Staff"},
+		mattermostUserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"},
 		attendanceKindClockIn,
 		time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
 		"team-1",
@@ -50,7 +50,7 @@ func TestInsertAttendanceEventRollsBackWhenCacheInvalidationFails(t *testing.T) 
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
 	month := "2026-07"
-	email := "staff@example.com"
+	email := "member@example.com"
 	revision := primeAttendanceSummaryCacheForTest(t, service, attendanceSummaryCacheKindEvents, month)
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
@@ -66,7 +66,7 @@ END`); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: "user-1", Username: "staff", Email: email, Nickname: "Staff"},
+		mattermostUserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"},
 		attendanceKindClockIn,
 		time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
 		"team-1",
@@ -169,7 +169,7 @@ func TestCancelAttendanceEventDoesNotPostWhenEventDoesNotExist(t *testing.T) {
 	}
 	defer database.Close()
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"},
+		mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"},
 		attendanceKindClockIn,
 		time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
 		"team-1",
@@ -296,7 +296,7 @@ func TestRepairFutureAttendanceEventsInvalidatesOldAndNewMonthCaches(t *testing.
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	futureTime := time.Date(2026, 7, 1, 0, 30, 0, 0, location)
 	event := service.createAttendanceEvent(userRecord, attendanceKindClockIn, futureTime.UTC(), "team-1", "attendance-channel", "action-post", "result-post", attendanceLocation{})
 	if errorValue := service.insertAttendanceEvent(ctx, database, event); errorValue != nil {
@@ -339,9 +339,9 @@ func TestDeleteAttendanceEventByResultPostIDInvalidatesEveryAffectedMonth(t *tes
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	email := "staff@example.com"
+	email := "member@example.com"
 	resultPostID := "shared-result-post"
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "staff", Email: email, Nickname: "Staff"}
+	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"}
 	overrideEvent := attendanceEvent{}
 	for _, occurredAt := range []time.Time{
 		time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC),

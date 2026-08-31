@@ -21,10 +21,10 @@ func TestPublicToolGatewayOverridesActorFromBearerToken(t *testing.T) {
 		if request.ToolName != "task_add" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
-		if request.Context.RequesterEmail != "staff@example.com" {
+		if request.Context.RequesterEmail != "member@example.com" {
 			t.Fatalf("requester email = %q", request.Context.RequesterEmail)
 		}
-		if request.Actor.Email != "staff@example.com" || request.Actor.Source != "public_api_token" {
+		if request.Actor.Email != "member@example.com" || request.Actor.Source != "public_api_token" {
 			t.Fatalf("actor = %#v", request.Actor)
 		}
 		if strings.Contains(string(request.Input), "other@example.com") {
@@ -32,7 +32,7 @@ func TestPublicToolGatewayOverridesActorFromBearerToken(t *testing.T) {
 		}
 		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "ok", Result: json.RawMessage(`{"ok":true}`)}
 	})
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -51,7 +51,7 @@ func TestPublicToolGatewayOverridesActorFromBearerToken(t *testing.T) {
 func TestPublicToolGatewayRequiresExplicitWritePermission(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -69,7 +69,7 @@ func TestPublicToolGatewayRequiresExplicitWritePermission(t *testing.T) {
 func TestPublicToolGatewayDeniesConnectWithoutWritePermission(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -95,7 +95,7 @@ func TestPublicToolGatewayAllowsConnectWithWritePermission(t *testing.T) {
 		}
 		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "connection_required", Result: json.RawMessage(`{"authorizationURL":"https://example.com/oauth"}`)}
 	})
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -113,7 +113,7 @@ func TestPublicToolGatewayAllowsConnectWithWritePermission(t *testing.T) {
 func TestPublicToolGatewayRequiresExplicitDeletePermission(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{Scopes: []string{"write"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -139,7 +139,7 @@ func TestPublicToolGatewayAllowsDeletePermission(t *testing.T) {
 		}
 		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "deleted", Result: json.RawMessage(`{"status":"deleted"}`)}
 	})
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"delete"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{Scopes: []string{"delete"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -157,7 +157,7 @@ func TestPublicToolGatewayAllowsDeletePermission(t *testing.T) {
 func TestPublicToolGatewayRetiredPermissionNameReachesNothingButReads(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"external_send", "destructive", "admin"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{Scopes: []string{"external_send", "destructive", "admin"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -175,7 +175,7 @@ func TestPublicToolGatewayRetiredPermissionNameReachesNothingButReads(t *testing
 func TestPublicToolGatewayDoesNotListCalendarConnectionStart(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
-	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "staff@example.com", publicAPITokenCreateRequest{Scopes: []string{"read", "write", "delete"}})
+	token, _, errorValue := service.issuePublicAPIToken(context.Background(), "member@example.com", publicAPITokenCreateRequest{Scopes: []string{"read", "write", "delete"}})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -243,7 +243,7 @@ func TestTaskCreateDefaultsBusinessAndUpdatePreservesOmittedBusiness(t *testing.
 	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	createRequest := newTaskRequest("staff@example.com", "staff@example.com")
+	createRequest := newTaskRequest("member@example.com", "member@example.com")
 	createResponse := httptest.NewRecorder()
 	service.createTask(createResponse, createRequest)
 	if createResponse.Code != http.StatusOK {
@@ -259,7 +259,7 @@ func TestTaskCreateDefaultsBusinessAndUpdatePreservesOmittedBusiness(t *testing.
 	updateDocument := `{"ownerID":"` + createdTask.OwnerID + `","participantIDs":["` + createdTask.OwnerID + `"],"type":"회의","content":"10분 회의","size":"XS","status":"in_progress","weekCode":"26W18"}`
 	updateRequest := httptest.NewRequest(http.MethodPut, "/flow/api/tasks/"+createdTask.ID, strings.NewReader(updateDocument))
 	updateRequest.RemoteAddr = "198.51.100.10:443"
-	updateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	updateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	updateResponse := httptest.NewRecorder()
 	service.updateTask(updateResponse, updateRequest, createdTask.ID)
 	if updateResponse.Code != http.StatusOK {
@@ -277,7 +277,7 @@ func TestTaskCreateDefaultsBusinessAndUpdatePreservesOmittedBusiness(t *testing.
 func TestPublicAPIRunsAsTheRequesterTheSocketAsserts(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
-		if request.Actor.Email != "staff@example.com" || request.Actor.PersonID != "user-staff" {
+		if request.Actor.Email != "member@example.com" || request.Actor.PersonID != "user-member" {
 			t.Fatalf("actor = %#v", request.Actor)
 		}
 		if request.Actor.Source != publicAPIActorSourceAssertedRequester {
@@ -286,7 +286,7 @@ func TestPublicAPIRunsAsTheRequesterTheSocketAsserts(t *testing.T) {
 		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "deleted", Result: json.RawMessage(`{"status":"deleted"}`)}
 	})
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
-	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterEmailHeader, "member@example.com")
 	request.Header.Set(requesterPermissionHeader, publicAPIPermissionDelete)
 	response := httptest.NewRecorder()
 
@@ -301,7 +301,7 @@ func TestPublicAPIHoldsAnAssertedRequesterToItsPermission(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
-	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterEmailHeader, "member@example.com")
 	request.Header.Set(requesterPermissionHeader, publicAPIPermissionWrite)
 	response := httptest.NewRecorder()
 
@@ -317,7 +317,7 @@ func TestPublicAPIIgnoresAnAssertedRequesterOnTheTCPListener(t *testing.T) {
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/task_delete/invoke", strings.NewReader(`{"input":{"taskID":"task-1"}}`))
 	request.RemoteAddr = "127.0.0.1:12345"
-	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterEmailHeader, "member@example.com")
 	request.Header.Set(requesterPermissionHeader, publicAPIPermissionDelete)
 	response := httptest.NewRecorder()
 

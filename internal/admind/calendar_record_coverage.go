@@ -18,8 +18,8 @@ type calendarRecordCoverage struct {
 // Whether that is a handful or most of the calendar decides whether it is worth
 // carrying them across, so it is counted before anything is moved.
 func (service *Service) handleCalendarRecordCoverage(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	coverage, errorValue := service.calendarCoverageOfTheRecord(request)

@@ -41,11 +41,11 @@ async function mockAdminPage(page: Page, role: MockAdminRole, options: MockAdmin
 						email: 'admin@example.com',
 						hireDate: '2026-01-01',
 						role: 'admin',
-						circles: ['staff']
+						circles: ['member']
 					}
 				],
 				availableCircles: [
-					{ circleID: 'staff', displayName: 'Staff' },
+					{ circleID: 'member', displayName: 'Member' },
 					{ circleID: 'admin', displayName: 'Admin' },
 					{ circleID: 'engineering', displayName: 'Engineering' }
 				],

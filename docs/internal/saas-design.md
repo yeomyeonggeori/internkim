@@ -640,7 +640,7 @@ visible immediately rather than theoretical.
   - **No BYO-key enrollment.** Every pubkey is derived admin-side from one seed +
     an email (`internal/admind/buzz_identity_resolver.go:55`). No endpoint accepts
     an externally generated pubkey together with a membership grant.
-  - **Membership is a staff-email batch sync**
+  - **Membership is a member-email batch sync**
     (`buzz_channel_membership.go:18`), so a member with no email record is never
     granted a channel.
   - **Invite codes are minted but never redeemed here** (`buzz_invite.go:235`);

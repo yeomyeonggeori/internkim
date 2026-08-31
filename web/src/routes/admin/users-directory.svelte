@@ -50,7 +50,7 @@
 	}
 
 	function toggleUserCircle(record: UserRecord, circleID: string): void {
-		if (circleID === 'staff') return;
+		if (circleID === 'member') return;
 		record.circles = nextUserCircles(record, circleID);
 	}
 </script>
@@ -126,7 +126,7 @@
 											type="button"
 											variant={hasUserCircle(record, circle.circleID) ? 'secondary' : 'outline'}
 											size="sm"
-											disabled={circle.circleID === 'staff' || isSavingUser || !userCanManage(record)}
+											disabled={circle.circleID === 'member' || isSavingUser || !userCanManage(record)}
 											onclick={() => toggleUserCircle(record, circle.circleID)}
 											title={circle.isMattermostManaged ? text.users.mattermostManaged : ''}
 										>
@@ -196,7 +196,7 @@
 								type="button"
 								variant={hasUserCircle(record, circle.circleID) ? 'secondary' : 'outline'}
 								size="sm"
-								disabled={circle.circleID === 'staff' || isSavingUser || !userCanManage(record)}
+								disabled={circle.circleID === 'member' || isSavingUser || !userCanManage(record)}
 								onclick={() => toggleUserCircle(record, circle.circleID)}
 							>
 								{circle.displayName || circle.circleID}

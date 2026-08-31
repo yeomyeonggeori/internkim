@@ -24,9 +24,9 @@ describe('mail page message pagination cache actions', () => {
 			hasMoreMessages: true,
 			messageListCache: new Map([
 				[
-					messagePageCacheKey('staff@example.com', 'INBOX', '', 1),
+					messagePageCacheKey('member@example.com', 'INBOX', '', 1),
 					{
-						actorEmail: 'staff@example.com',
+						actorEmail: 'member@example.com',
 						mailbox: 'INBOX',
 						searchText: '',
 						pageIndex: 1,
@@ -54,9 +54,9 @@ describe('mail page message pagination cache actions', () => {
 			hasMoreMessages: true,
 			messageListCache: new Map([
 				[
-					messagePageCacheKey('staff@example.com', 'INBOX', '', 0),
+					messagePageCacheKey('member@example.com', 'INBOX', '', 0),
 					{
-						actorEmail: 'staff@example.com',
+						actorEmail: 'member@example.com',
 						mailbox: 'INBOX',
 						searchText: '',
 						pageIndex: 0,

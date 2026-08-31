@@ -29,8 +29,8 @@ func (service *Service) handleBuzzRewriteOldLinks(responseWriter http.ResponseWr
 		http.NotFound(responseWriter, request)
 		return
 	}
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	report, errorValue := service.rewriteOldLinksInBuzz(request.Context(), request.URL.Query().Get("apply") == "true")

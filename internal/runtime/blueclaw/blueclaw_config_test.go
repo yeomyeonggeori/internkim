@@ -621,11 +621,11 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	people := policyDocument["people"].([]any)
 	adminPerson := people[0].(map[string]any)
 	adminCircles := adminPerson["circles"].([]any)
-	if !containsStringValue(adminCircles, "staff") || !containsStringValue(adminCircles, "admin") {
-		t.Fatalf("expected admin person staff/admin circles, got %+v", adminCircles)
+	if !containsStringValue(adminCircles, "member") || !containsStringValue(adminCircles, "admin") {
+		t.Fatalf("expected admin person member/admin circles, got %+v", adminCircles)
 	}
 	circles := policyDocument["circles"].([]any)
-	for _, expectedCircle := range []string{"staff", "c-level", "representative", "admin", "hr"} {
+	for _, expectedCircle := range []string{"member", "c-level", "representative", "admin", "hr"} {
 		if !containsPolicyCircle(circles, expectedCircle) {
 			t.Fatalf("expected circle %q, got %+v", expectedCircle, circles)
 		}
@@ -644,42 +644,42 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "file:circle:hr", "hr") {
 		t.Fatalf("expected HR compensation file resource rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "api:flow.summary", "staff") {
-		t.Fatalf("expected staff Flow summary API rule, got %+v", resourceAccess)
+	if !containsPolicyResource(resourceAccess, "api:flow.summary", "member") {
+		t.Fatalf("expected member Flow summary API rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "api:flow.task", "staff") {
-		t.Fatalf("expected staff Flow task API rule, got %+v", resourceAccess)
+	if !containsPolicyResource(resourceAccess, "api:flow.task", "member") {
+		t.Fatalf("expected member Flow task API rule, got %+v", resourceAccess)
 	}
 	if !containsPolicyResource(resourceAccess, "api:flow.definition", "admin") {
 		t.Fatalf("expected admin Flow definition API rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:task_add", "staff") {
-		t.Fatalf("expected staff Flow tool rule, got %+v", resourceAccess)
+	if !containsPolicyResource(resourceAccess, "tool:task_add", "member") {
+		t.Fatalf("expected member Flow tool rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:task_list", "staff") {
-		t.Fatalf("expected staff Flow task list tool rule, got %+v", resourceAccess)
+	if !containsPolicyResource(resourceAccess, "tool:task_list", "member") {
+		t.Fatalf("expected member Flow task list tool rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:task_update", "staff") {
-		t.Fatalf("expected staff Flow update tool rule, got %+v", resourceAccess)
+	if !containsPolicyResource(resourceAccess, "tool:task_update", "member") {
+		t.Fatalf("expected member Flow update tool rule, got %+v", resourceAccess)
 	}
 	for _, toolName := range []string{"message_context", "message_search", "message_send", "message_update", "message_delete"} {
-		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
-			t.Fatalf("expected staff %s tool rule, got %+v", toolName, resourceAccess)
+		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "member") {
+			t.Fatalf("expected member %s tool rule, got %+v", toolName, resourceAccess)
 		}
 	}
 	if !containsPolicyResource(resourceAccess, "tool:channel_update", "admin") {
 		t.Fatalf("expected admin Mattermost channel update tool rule, got %+v", resourceAccess)
 	}
-	if !containsPolicyResource(resourceAccess, "tool:mail_message_search", "staff") {
-		t.Fatalf("expected staff mail search tool rule, got %+v", resourceAccess)
+	if !containsPolicyResource(resourceAccess, "tool:mail_message_search", "member") {
+		t.Fatalf("expected member mail search tool rule, got %+v", resourceAccess)
 	}
 	for _, toolName := range []string{"site_serve", "site_list", "site_unserve"} {
-		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
-			t.Fatalf("expected staff %s tool rule, got %+v", toolName, resourceAccess)
+		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "member") {
+			t.Fatalf("expected member %s tool rule, got %+v", toolName, resourceAccess)
 		}
 	}
 	for _, toolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "site.history", "site.diff", "site.logs", "site.restore", "site.repair", "site.rollback", "site.unpublish"} {
-		if containsPolicyResource(resourceAccess, "tool:"+toolName, "staff") {
+		if containsPolicyResource(resourceAccess, "tool:"+toolName, "member") {
 			t.Fatalf("expected removed %s policy to be absent, got %+v", toolName, resourceAccess)
 		}
 	}

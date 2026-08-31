@@ -104,7 +104,7 @@ func (service *Service) attendanceLeaveManagementMembers(
 	membersByEmail := map[string]attendanceMember{}
 	for _, member := range service.attendanceMembersForSummary(
 		request,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 		true,
 		true,
 	) {

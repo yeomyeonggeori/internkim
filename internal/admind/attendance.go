@@ -52,7 +52,7 @@ func (service *Service) handleAttendance(responseWriter http.ResponseWriter, req
 		return
 	}
 	if isAttendanceLeaveAPIPath(path) &&
-		normalizeAttendanceLeaveEmail(service.webStaffActorEmail(request)) == "" {
+		normalizeAttendanceLeaveEmail(service.webMemberActorEmail(request)) == "" {
 		writeAttendanceLeaveRequestError(responseWriter, errAttendanceLeaveAccessDenied)
 		return
 	}
@@ -211,5 +211,5 @@ func isAttendanceLeaveAPIPath(path string) bool {
 }
 
 func (service *Service) authorizeAttendanceRequest(request *http.Request) bool {
-	return service.authorizeInternalOrWebStaffRequest(request)
+	return service.authorizeInternalOrWebMemberRequest(request)
 }

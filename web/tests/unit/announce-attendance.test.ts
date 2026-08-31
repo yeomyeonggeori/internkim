@@ -101,7 +101,7 @@ describe('announcing a leave request', () => {
 			members: [
 				{ id: 'me', is_admin: true },
 				{ id: 'admin-1', is_admin: true },
-				{ id: 'staff-1', is_admin: false }
+				{ id: 'member-1', is_admin: false }
 			]
 		});
 
