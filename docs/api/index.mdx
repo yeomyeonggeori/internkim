@@ -72,6 +72,13 @@ The owner is re-resolved on every request. When the owner stops being active
 staff, every call with their token answers `403` from that moment on; nothing
 needs to be cleaned up first.
 
+A signed-in web session works the same way: the bearer may be the Supabase
+access token of the session instead of an issued key. The session is the
+person, so it carries full permission — the web app calls these endpoints with
+it, and a script that already holds a session can too. Issued keys exist for
+everything that should not hold a session: they name their own permission rung
+and survive sign-out.
+
 ## Scopes [#scopes]
 
 `read` is always added to a token's scopes, whether requested or not. Requested
