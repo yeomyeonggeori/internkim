@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS flow_size_definitions (
 	if errorValue := ensureTaskIndexes(ctx, database); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := ensureTaskCentralIdentityTable(ctx, database); errorValue != nil {
+	if _, errorValue := database.ExecContext(ctx, "DROP TABLE IF EXISTS flow_central_identity"); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := ensureTaskChannelOutboxTable(ctx, database); errorValue != nil {

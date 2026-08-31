@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -121,13 +122,31 @@ func (service *Service) linkedTaskID(taskID string) string {
 	if taskID == "" || !service.linksGoToTheRecord() {
 		return taskID
 	}
+	return service.recordTaskIDCarrying(taskID)
+}
+
+func (service *Service) recordTaskIDCarrying(deviceTaskID string) string {
+	client := service.centralPlane()
+	actorEmail := service.recordLinkActorEmail()
+	if client == nil || actorEmail == "" {
+		log.Printf("the record cannot be asked which task carries %s: the central plane client or an admin identity is missing", deviceTaskID)
+		return ""
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	recordID, errorValue := service.readTaskCentralIdentityByTaskID(ctx, taskID)
+	recordID, errorValue := client.TaskCarrying(ctx, "email", actorEmail, deviceTaskID)
 	if errorValue != nil {
+		log.Printf("the record did not answer which task carries %s: %v", deviceTaskID, errorValue)
 		return ""
 	}
 	return strings.TrimSpace(recordID)
+}
+
+func (service *Service) recordLinkActorEmail() string {
+	if claimedEmail := service.claimedAdminEmail(); claimedEmail != "" {
+		return claimedEmail
+	}
+	return service.seedAdminEmail()
 }
 
 func (service *Service) mattermostTaskURL(task Task) string {
