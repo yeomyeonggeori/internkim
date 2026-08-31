@@ -14,9 +14,25 @@ import (
 )
 
 // The gate over the tools the catalog offers. A case says what a valid call
-// looks like and what the answer has to be, so passing it means the tool works
-// rather than that it answered.
+// looks like and what the answer has to be.
+//
+// What a case can prove depends on where the tool is implemented, and saying so
+// is the difference between a gate and a number. A tool whose rows live in the
+// record is implemented on the plane, so a case here fakes the record's answer
+// and proves the carrying: the route, the requester, the input, the shape that
+// comes back. What the record itself does is proved by the plane's own suite —
+// a 403 like internkim#1136 would never have failed a carrying case. A tool the
+// device implements has nowhere else to be proved, so its case is the whole of
+// it.
+type gateCaseKind string
+
+const (
+	provesCarrying  gateCaseKind = "carrying"
+	provesBehaviour gateCaseKind = "behaviour"
+)
+
 type catalogGateCase struct {
+	kind gateCaseKind
 	// what the record or the device answers when the tool is called
 	answer string
 	input  string
@@ -26,6 +42,7 @@ type catalogGateCase struct {
 func gateCases() map[string]catalogGateCase {
 	return map[string]catalogGateCase{
 		"leave_list": {
+			kind:   provesCarrying,
 			answer: `{"tool":"leave_list","result":{"count":1,"scope":"person","leave":[{"leaveID":"l1","kind":"연차","days":2,"status":"approved"}]}}`,
 			input:  `{"status":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
@@ -34,6 +51,7 @@ func gateCases() map[string]catalogGateCase {
 			},
 		},
 		"leave_balance": {
+			kind:   provesCarrying,
 			answer: `{"tool":"leave_balance","result":{"personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`,
 			input:  `{"year":2026}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
@@ -42,6 +60,7 @@ func gateCases() map[string]catalogGateCase {
 			},
 		},
 		"leave_request": {
+			kind:   provesCarrying,
 			answer: `{"tool":"leave_request","result":{"leaveID":"l2","kind":"연차","days":1,"status":"requested"}}`,
 			input:  `{"kind":"연차","startsAt":"2026-09-01","endsAt":"2026-09-01","days":1}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
@@ -50,6 +69,7 @@ func gateCases() map[string]catalogGateCase {
 			},
 		},
 		"leave_decide": {
+			kind:   provesCarrying,
 			answer: `{"tool":"leave_decide","result":{"leaveID":"l2","status":"approved"}}`,
 			input:  `{"leaveHint":"이샘플 · 연차 · 2026-09-01","decision":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
@@ -124,6 +144,30 @@ func TestTheUncoveredListHoldsNothingThatIsCovered(t *testing.T) {
 		}
 		if !known[name] {
 			t.Errorf("%s is listed as uncovered but the catalog does not offer it", name)
+		}
+	}
+}
+
+// A case that proves only carrying must say so, and the tool it carries for
+// must be one the plane implements. Otherwise the gate would count a faked
+// answer as if the tool had been tested.
+func TestACarryingCaseNamesAToolThePlaneImplements(t *testing.T) {
+	runsOnThePlane := map[string]bool{
+		"task_add": true, "task_update": true, "task_list": true, "task_delete": true,
+		"event_add": true, "event_update": true, "event_list": true, "event_delete": true,
+		"person_list":  true,
+		"leave_list":   true, "leave_balance": true, "leave_request": true, "leave_decide": true,
+	}
+	for name, gateCase := range gateCases() {
+		if gateCase.kind == "" {
+			t.Errorf("%s does not say what its case proves", name)
+			continue
+		}
+		if gateCase.kind == provesCarrying && !runsOnThePlane[name] {
+			t.Errorf("%s is implemented on the device, so a carrying case proves nothing about it", name)
+		}
+		if gateCase.kind == provesBehaviour && runsOnThePlane[name] {
+			t.Errorf("%s is implemented on the plane, so this case cannot prove its behaviour", name)
 		}
 	}
 }
