@@ -3,17 +3,22 @@ title: The device path
 description: The per-company appliance that predates the central plane, still shipped and still working.
 ---
 
-Before the central plane there was one appliance per company: a Jetson Orin
-Nano Super with everything on board, reached by people on the same network.
-That path still ships and must keep working, and this page is its map. It is
-the older half of the product; the direction is the host and central plane
-the rest of this documentation describes.
+Before the central plane there was one appliance per company: everything on
+one box, reached by people on the same network. That path still ships and must
+keep working, and this page is its map. It is the older half of the product;
+the direction is the host and central plane the rest of this documentation
+describes.
+
+The appliance we ship runs on a Jetson Orin Nano Super, which is where its
+model sizes and its Firecracker guest come from. Nothing here needs that
+particular board — [the host](/docs/running-the-host) is the same software on
+whatever computer a company already leaves on.
 
 ## What runs on the box
 
 ```
-operator on the same network ── Jetson Orin Nano Super
-                                 ├── Mattermost :8065
+operator on the same network ── the appliance
+                                 ├── buzz-relay (the messenger)
                                  ├── internkim-admind (127.0.0.1:18080)
                                  ├── internkim-capabilityd
                                  ├── graphiti-memoryd :7791
@@ -28,7 +33,7 @@ operator on the same network ── Jetson Orin Nano Super
 | the blueclaw guest | the agent, isolated in a Firecracker VM under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json` | `.dependency/blueclaw/` |
 | `graphiti-memoryd` | the memory sidecar: episode ingestion and hybrid graph search | — |
 | the local model | a resident `llama-server`: gemma-4-E2B QAT with MTP drafting for generation, BGE-M3 Q8 on CPU for embedding | — |
-| Mattermost | the messenger, self-hosted on the box | — |
+| the messenger | a Buzz relay on the box, with its media store and its `chatd` adapter | `internal/provisioning/steps/step_buzz_*.go` |
 
 The remote provider is the default path for generation; the local model is
 the fallback that keeps the company running when that path is unavailable or
@@ -51,11 +56,21 @@ The agent's side is `/root/.blueclaw/`: `config/runtime.json` and
 into the guest as `/workspace`. The workspace's permission model is in
 [Boundaries](/docs/boundaries).
 
+## Where Mattermost fits
+
+An appliance set up before Buzz ran Mattermost on the box, and setup still
+installs it so that history has somewhere to come from: `buzz-migrate` imports
+those channels and messages into the relay. Once a company is reading Buzz,
+`internkim recover stop-mattermost` and `retire-mattermost-mirror` end it. A
+company that would rather keep chatting on Mattermost still can — `chatd` has
+an adapter for it, and `MESSENGER_PLATFORM` names which of the two the box
+runs.
+
 ## The companion
 
 `internkim-companion` runs on a user's own computer and provides what needs a
 person: signing in during a browser task, MFA, picking a file, approving an
-action. Pairing starts from `/connect` in Mattermost, which hands out a
+action. Pairing starts from `/connect` in the messenger, which hands out a
 ten-minute one-time code bound to that user's own identity. A paired
 companion opens no inbound port; it long-polls the admind broker, and its
 jobs survive an admind restart through
@@ -95,9 +110,8 @@ The rules that repay knowing before anything else:
 
 The gate before any device deployment is the disposable local fleet, an ARM
 Linux VM on macOS running the current checkout against real service
-boundaries: `./internkim dev fleet run`. After deploying:
-`./internkim status`, `./internkim verify mattermost`, `./internkim verify
-api`.
+boundaries: `./internkim dev fleet run`. After deploying: `./internkim status`
+and `./internkim verify api`.
 
 ## Reaching a device
 
