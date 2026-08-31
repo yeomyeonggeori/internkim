@@ -215,5 +215,17 @@ describe('a single unreachable device never fails the whole notification', () =>
 			);
 			expect(reached).toBe('delivered');
 		});
+
+		test(`${name} refuses to call a deployment key that cannot sign a silent refusal`, async () => {
+			const subscription = await aSubscription();
+			const { keys: vapid } = await aVapidPair();
+			const unsignable = { ...vapid, privateKey: 'not-a-private-scalar' };
+
+			await expect(
+				withFetch(undialled, () =>
+					send({ address: endpoint, keys: subscription.keys }, notification, unsignable, now)
+				)
+			).rejects.toThrow();
+		});
 	}
 });

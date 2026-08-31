@@ -32,11 +32,13 @@ export async function sendWebPush(
 		return 'gone';
 	}
 
+	const authorization = await vapidAuthorization(target.address, vapid, nowInSeconds);
+
 	try {
 		const response = await fetch(target.address, {
 			method: 'POST',
 			headers: {
-				Authorization: await vapidAuthorization(target.address, vapid, nowInSeconds),
+				Authorization: authorization,
 				'Content-Encoding': 'aes128gcm',
 				'Content-Type': 'application/octet-stream',
 				TTL: String(oneDayInSeconds)
