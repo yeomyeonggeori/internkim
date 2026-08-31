@@ -6,9 +6,10 @@ import {
   Scripts,
   ScrollRestoration,
   useLocation,
+  useNavigate,
 } from 'react-router';
 import { RootProvider } from 'fumadocs-ui/provider/react-router';
-import { localeOfPath } from '@/lib/i18n';
+import { localeOfPath, pathInLocale } from '@/lib/i18n';
 import { i18nUI } from '@/lib/layout.shared';
 import type { Route } from './+types/root';
 import './app.css';
@@ -29,7 +30,9 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const lang = localeOfPath(useLocation().pathname);
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const lang = localeOfPath(pathname);
 
   return (
     <html lang={lang} suppressHydrationWarning>
@@ -40,7 +43,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body className="flex flex-col min-h-screen">
-        <RootProvider search={{ SearchDialog }} i18n={i18nUI.provider(lang)}>
+        <RootProvider
+          search={{ SearchDialog }}
+          i18n={{
+            ...i18nUI.provider(lang),
+            onLocaleChange: (locale) => navigate(pathInLocale(pathname, locale)),
+          }}
+        >
           {children}
         </RootProvider>
         <ScrollRestoration />
