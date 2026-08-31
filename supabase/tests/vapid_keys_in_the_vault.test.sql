@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(17);
 
 select has_function(
   'public',
@@ -75,10 +75,19 @@ select is(
 
 delete from vault.secrets where name in ('vapid_public_key', 'vapid_private_key', 'vapid_subject');
 
-insert into public.push_device (member_id, kind, address, keys)
-select member.id, 'web-push', 'https://push.example.com/standing', '{"p256dh":"x","auth":"y"}'::jsonb
-from public.member
-limit 1;
+insert into auth.users (id, email) values
+  ('64000000-0000-0000-0000-000000000011', 'vapidboss@example.test');
+
+insert into public.company (id, name, slug, country, locale, timezone, work_locations) values
+  ('64000000-0000-0000-0000-0000000000c1', 'Ours', 'ours-vapid', 'KR', 'ko', 'Asia/Seoul', null);
+
+insert into public.member (id, company_id, email, user_id, status, is_admin) values
+  ('64000000-0000-0000-0000-0000000000a1', '64000000-0000-0000-0000-0000000000c1',
+   'vapidboss@example.test', '64000000-0000-0000-0000-000000000011', 'active', true);
+
+insert into public.push_device (member_id, kind, address, keys) values
+  ('64000000-0000-0000-0000-0000000000a1', 'web-push', 'https://push.example.com/standing',
+   '{"p256dh":"x","auth":"y"}'::jsonb);
 
 select throws_ok(
   $$select public.vapid_keys_keep('pub-four', 'priv-four', 'mailto:four@example.com', false)$$,
@@ -91,6 +100,21 @@ select is(
   (select count(*)::int from vault.secrets where name = 'vapid_public_key'),
   0,
   'the refused issuance stored nothing'
+);
+
+select public.write_company_secret(null, 'vapid_public_key', 'pub-half');
+
+select throws_ok(
+  $$select public.vapid_keys_keep('pub-five', 'priv-five', 'mailto:five@example.com', false)$$,
+  'P0001',
+  'devices are already subscribed to a key this vault does not hold',
+  'a half-kept vault refuses too, because overwriting the standing half orphans the same devices'
+);
+
+select is(
+  (select decrypted_secret from vault.decrypted_secrets where name = 'vapid_public_key'),
+  'pub-half',
+  'the standing half survives the refusal'
 );
 
 select ok(
