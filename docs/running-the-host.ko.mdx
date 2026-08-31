@@ -80,9 +80,15 @@ GATEWAY_URL=…            GATEWAY_SERVER_KEY=…
 
 <Callout type="warn">
 게이트웨이 설정 두 개가 없으면 릴레이는 그냥 뜨고, 그에 대해 아무것도 로그하지
-않고, 앱에 영원히 답하지 않습니다. 프로세스 표는 초록인데 메신저 화면이 비어
-있는 것이 그 증상입니다.
+않고, 앱에도 API에도 영원히 답하지 않습니다. 프로세스 표는 초록인데 메신저
+화면이 비어 있는 것이 그 증상입니다.
 </Callout>
+
+`admind`에 닿는 호출 — 워크스페이스 화면들, 그리고 공개 API로 실행하는 모든
+도구 — 은 unix 소켓으로 갑니다. `ADMIND_SOCKET_PATH`이고, 기본값은
+`/run/internkim/admind.sock`입니다. 위의 번들은 `admind`를 띄우지 않으므로,
+기본 호스트에서 그 호출들은 닿을 곳이 없습니다. API는 카탈로그와 토큰은 답하고
+실행은 답하지 못합니다.
 
 Buzz로 채팅하는 회사는 Buzz 스택도 직접 굴립니다. `host/buzz/`에 Postgres,
 Redis, MinIO, 그리고 `.dependency/buzz-relay/`의 릴레이 바이너리를 같은 기계에

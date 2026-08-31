@@ -48,13 +48,13 @@ curl https://api.intern.kim/v1/tools/task_add/invoke \
 ```
 
 The body carries `input` and, where supported, `idempotencyKey`. Anything else
-you send for `actor` or `context` is overwritten from the token before the
-request leaves the gateway; the test
+you send for `actor` or `context` is overwritten from the token before
+admind invokes the tool; the test
 `TestPublicToolGatewayOverridesActorFromBearerToken` pins this down.
 
 <Callout title="No approval pause" type="warn">
 In a messenger conversation the agent stops and asks before a delete or a
-send. The gateway marks every non-read invocation as an already-approved
+send. Every non-read invocation arriving this way is marked an already-approved
 continuation, so the same tools act immediately here. The scope on the token
 is the consent: a `destructive` token deletes without a question.
 </Callout>
@@ -142,14 +142,15 @@ curl https://api.intern.kim/v1/tools/task_delete/invoke \
   --data '{"input":{"taskHint":"draft the quarterly report"}}'
 ```
 
-With only `write`, this answers `403 tool is not available for this token`
-before anything reaches `capabilityd`.
+With only `write`, this is refused before the call leaves the plane at all,
+so nothing reaches the company's computer.
 
 ## Where it is implemented [#where-it-is-implemented]
 
 | Concern | Where |
 |---|---|
-| List, read, invoke handlers | `writePublicTools`, `writePublicTool`, `invokePublicTool` in `internal/admind/public_tool_gateway.go` |
+| List and read handlers | `discoveryAnswer` in `web/src/routes/api/v1/[...path]/+server.ts`, over `web/src/lib/server/public-api/catalog.ts` |
+| Invoke handler | `invokePublicTool` in `internal/admind/public_tool_gateway.go`, reached through the company's relay |
 | Descriptor fetch from `capabilityd` | `fetchCapabilityRegistry` over the unix socket; device and companion descriptors are merged in `exposableCapabilityDescriptors` |
 | The actor override | `invokePublicTool` sets `Actor`, `Context`, `PrivacyClass`, `RequiresUserPresence` after decoding your body |
 | The approval-continuation flag | `publicToolInvokeContext`, keyed on `publicToolScopeForDescriptor` |

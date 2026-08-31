@@ -8,9 +8,10 @@ agent and holds what only makes sense on that machine.
 
 ```mermaid
 flowchart TB
-    subgraph clients["Two clients"]
+    subgraph clients["Two clients, and a caller"]
         app["The app<br/>web, the default"]
         client["Messenger app<br/>phone or desktop"]
+        caller["A script<br/>calling the API"]
     end
 
     subgraph central["The central plane — we run it"]
@@ -30,6 +31,8 @@ flowchart TB
 
     app -->|"reads and writes as the signed-in member"| record
     app -->|"one WebSocket, token attached"| gateway
+    caller -->|"a token, over /api/v1"| app
+    app -->|"carries an invocation to the company"| gateway
     client -->|"signs in as usual"| messenger
     gateway <-->|"the relay dials out and stays connected"| relay
     relay --> connector
@@ -45,14 +48,14 @@ Every arrow leaving the host points outward. None points in.
 
 ## The central side
 
-Four things, deployed by us, each with one job.
+Four things, deployed by us. The app has two jobs; the rest have one.
 
 | | What it is | Where it lives |
 |---|---|---|
 | the record | Postgres behind row level security | `supabase/migrations` |
 | the control plane | server routes holding the service key | `web/src/routes/api/agent/` |
-| the app | a static SvelteKit build on Cloudflare Pages | `web/` |
-| the connection gateway | a Worker with one Durable Object per company | `workers/connection-gateway/` |
+| the app | a SvelteKit build on Cloudflare Pages, serving the pages people sign into and the public API | `web/` |
+| the connection gateway | a Worker with one Durable Object per company, carrying browser calls and API calls alike | `workers/connection-gateway/` |
 
 **The record** answers every read and write as some member, never as an
 administrator. Which rows a session sees is decided by the database itself.
@@ -67,12 +70,14 @@ notifications (`/api/agent/notify`, delivered as web push) and read the
 credentials it needs per call (`/api/agent/messenger-credential`,
 `/api/agent/mail-account`). The service key never leaves these routes.
 
-**The app** holds no secret. Which Supabase project it talks to is decided at
-runtime: `hooks.server.ts` injects the values into the `#central-plane`
-element, so one build serves every company. Everyone signs in at one address;
-every other hostname on the zone answers `308` to it, except paths under
-`/api/`, which are answered where they land because a cross-origin redirect
-would drop the caller's bearer token.
+**The app** decides at runtime which Supabase project it talks to:
+`hooks.server.ts` injects the values into the `#central-plane` element, so one
+build serves every company. The pages hold no secret; the API routes under
+`/api/` do, which is why they run on the server. Everyone signs in at one
+address; every other hostname on the zone answers `308` to it, except paths
+under `/api/` and `/v1/`, which are answered where they land because a
+cross-origin redirect would drop the caller's bearer token. That exception is
+what lets `api.<zone>/v1` and a company host's own `/api/v1` be the same API.
 
 **The connection gateway** is how a browser and the host reach each other when
 neither accepts a connection. The browser opens a WebSocket to
@@ -126,8 +131,10 @@ What "serves it" means depends on the capability, and each branch is in
 - **Mail** (`person.mail.*`) goes to `internkim-maild` with the member's mail
   account fetched per call, so no mail password is at rest on the box.
 - **Workspace views** (`person.memory.*`, `person.files.*`, `person.tasks.*`)
-  are forwarded to `admind` on `127.0.0.1:18080` where one is running; the
-  host bundle does not start one today.
+  and the public API's own calls (`person.api.request`, `person.api.file`) are
+  forwarded to `admind` over its unix socket where one is running. The host
+  bundle does not start one today, so a company on the bundle answers the
+  catalog and the tokens but cannot yet run a tool through the API.
 - **Link previews** (`asset.link`) the relay builds itself, storing the
   preview image in Supabase Storage so the answer stays small.
 

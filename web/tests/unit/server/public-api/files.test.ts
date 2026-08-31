@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { assetBucket, attachmentKind, extensionOf, sharedAssetPath } from './asset-address';
+import {
+	assetBucket,
+	attachmentKind,
+	extensionOf,
+	sharedAssetPath
+} from '$lib/server/public-api/asset-address';
 import {
 	contentTypeOffered,
 	filenameOffered,
@@ -10,7 +15,7 @@ import {
 	oversizeRefusal,
 	sizeTheHeaderClaims,
 	type PutDocument
-} from './files';
+} from '$lib/server/public-api/files';
 
 const credentials = { projectURL: 'https://plane.supabase.co', serviceRoleKey: 'service-role' };
 
@@ -85,8 +90,8 @@ describe('keeping the bytes in the company bucket', () => {
 		const kept = await keepFileInTheBucket(credentials, 'company-1', bytes, 'image/png', putDocument);
 
 		expect(kept.path).toBe(sharedAssetPath('company-1', attachmentKind, kept.digest, 'image/png'));
-		expect(kept.path).toStartWith('company-1/shared/attachment/');
-		expect(kept.path).toEndWith('.png');
+		expect(kept.path.startsWith('company-1/shared/attachment/')).toBe(true);
+		expect(kept.path.endsWith('.png')).toBe(true);
 		expect(kept.sizeBytes).toBe(bytes.byteLength);
 		expect(put[0]).toBe(`${credentials.projectURL}/storage/v1/object/${assetBucket}/${kept.path}`);
 	});
@@ -116,9 +121,9 @@ describe('keeping the bytes in the company bucket', () => {
 	});
 });
 
-describe('the addressing this worker mirrors from the relay', () => {
+describe('the addressing this app mirrors from the relay', () => {
 	const canonical = readFileSync(
-		new URL('../../../host/relay/asset-store.ts', import.meta.url),
+		new URL('../../../../../host/relay/asset-store.ts', import.meta.url),
 		'utf8'
 	);
 

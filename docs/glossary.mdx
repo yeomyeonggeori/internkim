@@ -31,18 +31,28 @@ host session for the company's computer.
 
 ## The app
 
-The static SvelteKit page a person signs into, built from `web/` and served
-by Cloudflare Pages. It holds no secret, reads the record as whoever is
-signed in, and reaches the host through the connection gateway for what it
-cannot read directly: the chat screen, mail, and the agent's runs, memory and
-files.
+The SvelteKit build at `web/`, served by Cloudflare Pages. Its pages are what
+a person signs into: they hold no secret, read the record as whoever is signed
+in, and reach the host through the connection gateway for what they cannot
+read directly, which is the chat screen, mail, and the agent's runs, memory
+and files. Its server routes are the control plane and the public API, and
+those do hold keys.
+
+## The public API
+
+The routes under `web/src/routes/api/v1/`, which answer `api.<zone>/v1` and
+any company host's own `/api/v1`. A caller carries either a signed-in session
+or a token issued to a person, and every call runs as that person. The app
+answers the tool catalog and the tokens itself and carries an invocation to
+the company's computer, because that is where a tool runs.
 
 ## The connection gateway
 
-The Cloudflare Worker at `workers/connection-gateway/` that passes calls
-between browsers and the host. One Durable Object per company holds the
-browser sockets and the host's one standing connection, and routes calls one
-way and answers the other. Neither end ever connects to the other directly.
+The Cloudflare Worker at `workers/connection-gateway/` that passes calls to
+the host. One Durable Object per company holds the browser sockets and the
+host's one standing connection, and routes calls one way and answers the
+other. The public API's invocations go the same way, as one authorized call
+rather than a socket. Neither end ever connects to the other directly.
 
 ## The chat screen
 

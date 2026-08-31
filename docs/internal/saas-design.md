@@ -117,7 +117,7 @@ Our marginal cost per customer is near-zero.
 | Host↔guest capability RPC | Central (we) | Supabase Realtime | Not the messenger — see §6. |
 | Control plane | Central (we) | internkim (`feat/buzz-invites` grows into it) | Create tenant, provision the chosen messenger, issue the host credential. |
 | Messenger | **Customer** | their Slack / their Mattermost / their Buzz relay | Bring-your-own. We attach an adapter and store no conversation. |
-| Web app | Central (we) | SvelteKit (`web/`) | Thin client: static SPA on free-tier host (Vercel/CF Pages). Talks to the central plane + the tenant's messenger. |
+| Web app | Central (we) | SvelteKit (`web/`) | The pages people sign into plus the server routes behind them, on a free-tier host (CF Pages). Talks to the central plane + the tenant's messenger, and serves the public API at `/api/v1`. |
 | Company/HR/org data | Central (we) | Supabase (Postgres + RLS) | Per-tenant RLS + tenant-scoped role (never service key in client). |
 | Media | Central or per-tenant | S3 / Supabase Storage | Replaces MinIO. Buzz uses Blossom; point at S3-compatible. |
 | Agent runtime | Customer | `blueclaw` (Go) | Agent loop, tools, terminal, POSIX permission boundary. Runs on customer compute. |
@@ -203,7 +203,7 @@ clusters (`internal/admind/service.go:516`).
 
 | Destination | Clusters | Why |
 |---|---|---|
-| **Central product API** (Supabase-backed) | attendance, calendar (+CalDAV/ICS/Google OAuth), flow/tasks, memory, mail, company, users/org-profiles/circles, buzz-invites/links/config, buzz-vault/claim/relay-config, key-login auth + session, public API v1 | All are pure API over local SQLite files. Nothing device-coupled; SQLite → Supabase is the whole migration. |
+| **Central product API** (Supabase-backed) | attendance, calendar (+CalDAV/ICS/Google OAuth), flow/tasks, memory, mail, company, users/org-profiles/circles, buzz-invites/links/config, buzz-vault/claim/relay-config, key-login auth + session, public API v1 | All are pure API over local SQLite files. Nothing device-coupled; SQLite → Supabase is the whole migration. Public API v1 has since split: its catalog, tokens and file keep are central, while running a tool stays on the customer's machine. |
 | **Client (host app)** | workspace files, sites lifecycle, companion broker, runtime settings | Real filesystem, systemd units, `/root/.blueclaw/config/runtime.json`. |
 | **Dropped** | MM catch-all proxy + managed-channel write guard + MM command/action webhooks + MM password-login/session cache + MM user provisioning; Buzz↔MM mirror + admin wipe/reset/orphan-repair; bridge map; media proxy; OTA/release apply + rollback; backup/restore; SSH recovery/diagnostics; wifi profiles | The first group dies because Mattermost stops being our identity and user store — not because Mattermost is gone; a tenant may still chat on it through the chatd adapter, which needs none of this. The rest are per-device operations that the central plane + a customer-installed app replace. |
 
@@ -530,7 +530,7 @@ messenger being the customer's, not ours.
 Our marginal cost per customer approaches **~$0** because compute and LLM are the
 customer's:
 
-- **Web app:** static SPA on a free tier (Vercel/CF Pages) → ~$0 at small scale.
+- **Web app:** a free tier (CF Pages) → ~$0 at small scale; its server routes bill per request, and an API call is one.
 - **Supabase:** free tier early; Pro (~$25/mo) shared as data grows.
 - **Messenger:** **$0** — the customer runs it. This is also why message volume
   and media storage never appear on our bill, and why the question of depending
@@ -701,7 +701,12 @@ Per tenant:
 
 1. **Component placement:** which of `admind` / `capabilityd` / `chatd`
    responsibilities move to the client, become the central control-plane, or are
-   dropped? (Web gateway, media proxy, deploy/OTA, MM bridge are all in flux.)
+   dropped? (Media proxy, deploy/OTA, MM bridge are all in flux.) **Decided for
+   the public API:** it is `web/src/routes/api/v1/` in the app, so hosting the
+   app is hosting the API. The app answers the catalog, the tokens and the file
+   keep; `admind` keeps only the invocation, reached through the connection
+   gateway and the relay. What is still open there is that the host bundle
+   starts no `admind`, so invocation has nowhere to land on a stock host.
 2. ~~**Agent adapter scope**~~ — **proposed: v1 is blueclaw-only.** `acpd` was
    retired (§Phase 3); an external-participant surface is new work with at least
    seven concrete gaps, the two structural ones being **no BYO-key enrollment**
