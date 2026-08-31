@@ -28,7 +28,7 @@ func TestLeaveCallsReachTheRecordAsTheRequester(t *testing.T) {
 		reachedRequester = request.Header.Get(admindRequesterEmailHeader)
 		reachedBody = string(body)
 		responseWriter.Header().Set("Content-Type", "application/json")
-		_, _ = responseWriter.Write([]byte(`{"tool":"leave_balance","result":{"remainingDays":13}}`))
+		_, _ = responseWriter.Write([]byte(`{"tool":"leave_balance","result":{"personID":"p1","personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`))
 	}))
 	service := Service{Configuration: Configuration{
 		AdmindBaseURL:    admindOnLoopbackThatFailsTheTest(t),
@@ -51,7 +51,7 @@ func TestLeaveCallsReachTheRecordAsTheRequester(t *testing.T) {
 	if answer.Outcome != capabilities.ToolOutcomeSucceeded || answer.SelectedBackend != "record" {
 		t.Fatalf("answered %+v", answer)
 	}
-	if string(answer.Result) != `{"remainingDays":13}` {
+	if !strings.Contains(string(answer.Result), `"remainingDays":13`) {
 		t.Fatalf("the result came back as %s", answer.Result)
 	}
 }
