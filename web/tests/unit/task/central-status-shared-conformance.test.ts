@@ -1,10 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { centralTaskStatusOptions } from '../../../src/lib/task/central-task';
 import { whoTaskMoveConcerns as webWhoItConcerns } from '../../../src/lib/server/announce-task';
-import {
-	centralTaskStatuses,
-	whoTaskMoveConcerns as sharedWhoItConcerns
-} from '../../../../supabase/functions/_shared/announce-task.ts';
+import { centralTaskStatuses } from '../../../../supabase/functions/_shared/central-task-status.ts';
+import { whoTaskMoveConcerns as sharedWhoItConcerns } from '../../../../supabase/functions/_shared/announce-task.ts';
 
 const task = {
 	id: 'task-one',
