@@ -1,4 +1,5 @@
 import { taskSizes } from '$lib/task/task-sizes';
+import { taskWeekMondayOfDate } from '$lib/task/task-week-code';
 import type { TaskMemberScoreDetail, Task } from '../../routes/task/task-types';
 
 const scorePeriodCount = 5;
@@ -73,9 +74,7 @@ export function memberTaskTallies(tasks: Task[], memberIDs: string[]): Record<st
 }
 
 export function startOfISOWeek(date: Date): Date {
-	const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-	start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
-	return start;
+	return taskWeekMondayOfDate(date);
 }
 
 function zeroedPeriods(memberIDs: string[]): Map<string, number[]> {

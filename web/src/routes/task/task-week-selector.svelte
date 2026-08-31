@@ -4,7 +4,7 @@
 	import { cn } from '$lib/utils';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import { taskWeekOptions } from './task-week-label';
+	import { formatTaskWeekDateRange, taskWeekOptions } from './task-week-label';
 	import type { TaskWeek } from './task-types';
 
 	type Props = {
@@ -39,7 +39,7 @@
 			label: weekChoiceLabel(option.offsetFromCurrent, option.label)
 		}))
 	);
-	const selectedWeekLabel = $derived(weekChoices.find((choice) => choice.value === week?.code)?.label ?? selectWeekLabel);
+	const selectedWeekLabel = $derived(week?.startISO ? formatTaskWeekDateRange(week) : selectWeekLabel);
 	let selectedWeekCode = $state('');
 
 	$effect(() => {
