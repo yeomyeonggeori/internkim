@@ -14,15 +14,15 @@ async function signedInHeaders(): Promise<Record<string, string>> {
 }
 
 async function answerOf(response: Response): Promise<unknown> {
-	if (!response.ok) throw new Error((await response.text()).trim() || `the key store returned ${response.status}`);
+	if (!response.ok) throw new Error((await response.text()).trim() || `the token store returned ${response.status}`);
 	return response.json();
 }
 
 export async function personalAccessTokens(): Promise<PersonalAccessToken[]> {
 	const answer = (await answerOf(
-		await fetch('/api/member/token', { headers: await signedInHeaders() })
-	)) as { keys?: PersonalAccessToken[] };
-	return answer.keys ?? [];
+		await fetch('/api/member/tokens', { headers: await signedInHeaders() })
+	)) as { tokens?: PersonalAccessToken[] };
+	return answer.tokens ?? [];
 }
 
 export async function issuePersonalAccessToken(name: string, permission: PublicAPIPermission): Promise<string> {
@@ -32,8 +32,8 @@ export async function issuePersonalAccessToken(name: string, permission: PublicA
 			headers: await signedInHeaders(),
 			body: JSON.stringify({ name, permission })
 		})
-	)) as { apiKey: string };
-	return answer.apiKey;
+	)) as { token: string };
+	return answer.token;
 }
 
 export async function forgetPersonalAccessToken(name: string): Promise<void> {

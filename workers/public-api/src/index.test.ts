@@ -343,7 +343,7 @@ describe('putting a file where a message can attach it', () => {
 
 describe('a token makes and revokes tokens', () => {
 	function mint(token: string, body: unknown): Promise<Response> {
-		return call('/v1/tokens', token, {
+		return call('/v1/token', token, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(body)
@@ -430,7 +430,7 @@ describe('a token makes and revokes tokens', () => {
 		keyHeldBy('read', 'someone@example.com', 'c1', 'laptop');
 		credentialRows = [{ name: 'ci' }];
 
-		const response = await call('/v1/tokens?name=ci', 'ik_reader', { method: 'DELETE' });
+		const response = await call('/v1/token?name=ci', 'ik_reader', { method: 'DELETE' });
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({ forgotten: 'ci' });
@@ -440,7 +440,7 @@ describe('a token makes and revokes tokens', () => {
 	test('will not revoke the token making the call', async () => {
 		keyHeldBy('delete', 'someone@example.com', 'c1', 'laptop');
 
-		const response = await call('/v1/tokens?name=laptop', 'ik_admin', { method: 'DELETE' });
+		const response = await call('/v1/token?name=laptop', 'ik_admin', { method: 'DELETE' });
 
 		expect(response.status).toBe(409);
 		expect(recordCalls.some((made) => made.method === 'DELETE')).toBe(false);
@@ -450,13 +450,25 @@ describe('a token makes and revokes tokens', () => {
 		keyHeldBy('delete', 'someone@example.com', 'c1', 'laptop');
 		credentialRows = [];
 
-		const response = await call('/v1/tokens?name=gone', 'ik_admin', { method: 'DELETE' });
+		const response = await call('/v1/token?name=gone', 'ik_admin', { method: 'DELETE' });
 
 		expect(response.status).toBe(404);
 	});
 
 	test('is refused without a token of its own', async () => {
-		const response = await call('/v1/tokens', null);
-		expect(response.status).toBe(401);
+		expect((await call('/v1/tokens', null)).status).toBe(401);
+		expect((await call('/v1/token', null)).status).toBe(401);
+	});
+
+	test('names the other path when a verb lands on the wrong one', async () => {
+		keyHeldBy('delete');
+
+		const made = await call('/v1/tokens', 'ik_admin', { method: 'POST', body: '{}' });
+		expect(made.status).toBe(405);
+		expect(await made.json()).toEqual({ error: 'one token is made and revoked at /v1/token' });
+
+		const listed = await call('/v1/token', 'ik_admin');
+		expect(listed.status).toBe(405);
+		expect(await listed.json()).toEqual({ error: 'the tokens a member holds are listed at /v1/tokens' });
 	});
 });
