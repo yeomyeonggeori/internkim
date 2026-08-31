@@ -207,7 +207,7 @@ Three rules, in force for every step:
 Acceptance, in order:
 
 ```
-git grep -q 'Dawn-kim-official/bluecollar' -- '*.go'   # empty in blueclaw
+git grep -q 'yeomyeonggeori/bluecollar' -- '*.go'   # empty in blueclaw
 test ! -e internal/bluecollar/contract.go              # scaffolding gone
 ```
 

@@ -40,7 +40,7 @@
 | bot→team 추가 curl `|| true` (set -e 대응) | ✅ |
 | resolv.conf dangling symlink 처리 (rm -f + echo) | ✅ |
 | bot team 멤버십 — request body에 team_id 추가 | ✅ |
-| Dawn-kim-official zeroclaw (websocket, channel_id 불필요) | ✅ |
+| yeomyeonggeori zeroclaw (websocket, channel_id 불필요) | ✅ |
 | zeroclaw props → config 명령어 변경 | ✅ |
 | zeroclaw [memory] auto_save 필드 추가 | ✅ |
 | bot Mattermost websocket 연결 + 응답 동작 확인 | ✅ |
@@ -92,7 +92,7 @@
 
 **증상**: zeroclaw 서비스 시작 즉시 실패 — `missing field auto_save`
 
-**원인**: Dawn-kim-official 버전이 `[memory]` 섹션에 `auto_save` 필수
+**원인**: yeomyeonggeori 버전이 `[memory]` 섹션에 `auto_save` 필수
 
 **해결**: config.toml에 `auto_save = false` 추가
 

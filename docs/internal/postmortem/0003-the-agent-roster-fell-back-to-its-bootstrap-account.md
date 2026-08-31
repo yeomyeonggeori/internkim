@@ -61,5 +61,5 @@ otherwise, and drift stays invisible until it refuses somebody.
 One smaller thing also came out of it. The refusal asserted an invitation status
 the agent has no way to read, and an administrator who believes it invites a
 person who already has a record, which is how one person ends up with two.
-[blueclaw#115](https://github.com/Dawn-kim-official/blueclaw/pull/115) makes the
+[blueclaw#115](https://github.com/yeomyeonggeori/blueclaw/pull/115) makes the
 message state only the match that failed.
