@@ -153,25 +153,34 @@ func calendarEventParticipantMemberIDs(members []taskMember, event calendarEvent
 	return participantIDs
 }
 
-func (service *Service) createPairedTaskForCalendarEvent(request *http.Request, event calendarEvent) {
+// The company holds an event as the one task row it is (is_event), and its
+// board reads exclude events, so an event there has no paired task — a local
+// one would be invisible to a company device's board reads.
+func (service *Service) createPairedTaskForCalendarEvent(request *http.Request, event calendarEvent) bool {
+	if service.centralPlane() != nil {
+		return false
+	}
 	if strings.TrimSpace(event.ID) == "" || strings.TrimSpace(event.Title) == "" {
-		return
+		return false
 	}
 	_, found, errorValue := service.readTaskByCalendarEventID(request.Context(), event.ID)
 	if errorValue != nil || found {
-		return
+		return false
 	}
 	task, errorValue := service.pairedTaskForCalendarEvent(request, event)
 	if errorValue != nil {
-		return
+		return false
 	}
 	if _, errorValue := service.writeTaskAtStatusEnd(request.Context(), task); errorValue != nil {
-		return
+		return false
 	}
-
+	return true
 }
 
 func (service *Service) deletePairedTaskForCalendarEvent(ctx context.Context, eventID string) {
+	if service.centralPlane() != nil {
+		return
+	}
 	task, found, errorValue := service.readTaskByCalendarEventID(ctx, eventID)
 	if errorValue != nil || !found {
 		return
@@ -180,6 +189,9 @@ func (service *Service) deletePairedTaskForCalendarEvent(ctx context.Context, ev
 }
 
 func (service *Service) deletePairedCalendarEventForTask(ctx context.Context, task Task) {
+	if service.centralPlane() != nil {
+		return
+	}
 	eventID := strings.TrimSpace(task.CalendarEventID)
 	if eventID == "" {
 		return
@@ -192,6 +204,9 @@ func (service *Service) deletePairedCalendarEventForTask(ctx context.Context, ta
 }
 
 func (service *Service) createPairedCalendarEventForTask(request *http.Request, task Task, payload taskWriteRequest) string {
+	if service.centralPlane() != nil {
+		return ""
+	}
 	eventRequest := calendarEventWriteRequest{
 		Title:       task.Content,
 		Description: "",
