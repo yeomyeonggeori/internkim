@@ -79,7 +79,7 @@ GROUPS = [
             "workers/public-api/*",
             "pkg/capabilityprotocol/generated/*",
             "host/relay/asset-store.ts",
-            "web/src/lib/server/openapi.ts",
+            "docs/web/app/lib/openapi.ts",
         ],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
         working_directory="workers/public-api",
@@ -89,7 +89,7 @@ GROUPS = [
         [
             "workers/public-api/*",
             "pkg/capabilityprotocol/generated/*",
-            "web/src/lib/server/openapi.ts",
+            "docs/web/app/lib/openapi.ts",
             "tools/smoke-public-api",
         ],
         [["bun", "tools/smoke-public-api"]],
@@ -98,6 +98,12 @@ GROUPS = [
         "schema",
         ["supabase/*"],
         [["supabase", "db", "reset"], ["supabase", "test", "db"]],
+    ),
+    Group(
+        "docs-site",
+        ["docs/*", "pkg/capabilityprotocol/generated/*"],
+        [BUN_INSTALL, ["bun", "run", "types:check"], ["bun", "test"]],
+        working_directory="docs/web",
     ),
     Group(
         "doc-budgets",

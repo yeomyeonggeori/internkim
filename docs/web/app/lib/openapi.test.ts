@@ -3,7 +3,7 @@ import {
 	baseTools,
 	createOpenApiDocument,
 	protocolVersion
-} from '../../../src/lib/server/openapi';
+} from './openapi';
 
 const korean = createOpenApiDocument('ko');
 const english = createOpenApiDocument('en');
