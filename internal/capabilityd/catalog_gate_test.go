@@ -35,11 +35,35 @@ type catalogGateCase struct {
 	// the addresses this call reaches, and what each of them answers
 	reaches map[gateBackend]*standingIn
 	input   string
-	expect  func(*testing.T, capabilities.ToolInvokeResponse)
+	// the conversation the call arrives in, for a tool that answers about it
+	arrivesIn func(capabilityprotocol.ToolInvokeContext) capabilityprotocol.ToolInvokeContext
+	expect    func(*testing.T, capabilities.ToolInvokeResponse)
 }
 
 func gateCases() map[string]catalogGateCase {
 	return map[string]catalogGateCase{
+		"message_context": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				mattermostOverHTTP: answering(`{"id":"bot-1","username":"internkim","is_bot":true}`),
+				blueclawOverHTTP:   answering(staffPolicyFor("person-1", "staff@example.com")),
+			},
+			input:   `{}`,
+			arrivesIn: func(arriving capabilityprotocol.ToolInvokeContext) capabilityprotocol.ToolInvokeContext {
+				arriving.Platform = "mattermost"
+				arriving.ConversationID = "channel-1"
+				arriving.ConversationType = "channel"
+				arriving.ChannelID = "channel-1"
+				arriving.ChannelName = "전사-공지"
+				arriving.RequesterPersonID = "person-1"
+				return arriving
+			},
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"channelName":"전사-공지"`)
+				expectResultHolds(t, answered, `"platform":"mattermost"`)
+			},
+		},
 		"web_search": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{openRouterOverHTTP: answeringPerCall(func(*http.Request) (int, string) {
@@ -116,7 +140,6 @@ var toolsWithNoGateCaseYet = []string{
 	"event_list",
 	"event_update",
 	"image_read",
-	"message_context",
 	"message_delete",
 	"message_search",
 	"message_send",
@@ -214,7 +237,7 @@ func TestTheCoveredCatalogToolsAnswerTheirCalls(t *testing.T) {
 			answered, errorValue := route.Handler(service, context.Background(), capabilities.ToolInvokeRequest{
 				ToolName: name,
 				Input:    json.RawMessage(gateCase.input),
-				Context:  capabilityprotocol.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+				Context:  arrivingContext(gateCase),
 			})
 			if errorValue != nil {
 				t.Fatalf("%s: %v", name, errorValue)
@@ -222,6 +245,20 @@ func TestTheCoveredCatalogToolsAnswerTheirCalls(t *testing.T) {
 			gateCase.expect(t, answered)
 		})
 	}
+}
+
+// The message tools ask blueclaw who the requester is before they answer, so a
+// case for one of them says the requester works here.
+func staffPolicyFor(personID string, email string) string {
+	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["staff"]}]}`
+}
+
+func arrivingContext(gateCase catalogGateCase) capabilityprotocol.ToolInvokeContext {
+	arriving := capabilityprotocol.ToolInvokeContext{RequesterEmail: "staff@example.com"}
+	if gateCase.arrivesIn == nil {
+		return arriving
+	}
+	return gateCase.arrivesIn(arriving)
 }
 
 func expectSucceeded(t *testing.T, answered capabilities.ToolInvokeResponse) {
