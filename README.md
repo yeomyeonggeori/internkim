@@ -5,9 +5,9 @@ messenger, does the work people ask of it under their own identity, and keeps
 every file, task and memory on hardware the company owns.
 
 The agent is two other repositories.
-[blueclaw](https://github.com/Dawn-kim-official/blueclaw) is the agent host: it
+[blueclaw](https://github.com/yeomyeonggeori/blueclaw) is the agent host: it
 runs tools as the person who asked, and owns approval and the task ledger.
-[bluecollar](https://github.com/Dawn-kim-official/bluecollar) is the agent loop
+[bluecollar](https://github.com/yeomyeonggeori/bluecollar) is the agent loop
 that runs inside it. This repository is the layer that puts those two on a
 machine and operates them.
 
