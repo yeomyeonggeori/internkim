@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"log"
 	"math"
 	"net/http"
 	"net/url"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
 const companyShareActivityWindowDays = 52 * 7
@@ -258,7 +261,7 @@ func maxTime(left time.Time, right time.Time) time.Time {
 }
 
 func (service *Service) readCompanyShareWorkActivity(ctx context.Context, startDate string, endDate string) (map[string]int, []companyShareWorkRow, map[string]int, []companyShareMemberSource, error) {
-	activity, errorValue := service.readTaskShareActivity(ctx, startDate, endDate)
+	activity, errorValue := service.readCompanyShareWorkRows(ctx, startDate, endDate)
 	if errorValue != nil {
 		return nil, nil, nil, nil, errorValue
 	}
@@ -279,6 +282,55 @@ func (service *Service) readCompanyShareWorkActivity(ctx context.Context, startD
 		workRows = append(workRows, row)
 	}
 	return counts, workRows, statusCounts, members, nil
+}
+
+func (service *Service) readCompanyShareWorkRows(ctx context.Context, startDate string, endDate string) ([]companyShareWorkRow, error) {
+	if service.centralPlane() == nil {
+		return service.readTaskShareActivity(ctx, startDate, endDate)
+	}
+	return service.readCompanyShareBoardActivity(ctx, startDate, endDate)
+}
+
+func (service *Service) readCompanyShareBoardActivity(ctx context.Context, startDate string, endDate string) ([]companyShareWorkRow, error) {
+	adminEmail := service.claimedAdminEmail()
+	if adminEmail == "" {
+		log.Printf("the share activity has no claimed admin to read the company board as, so it publishes without work rows")
+		return []companyShareWorkRow{}, nil
+	}
+	tasks, errorValue := service.centralPlane().BoardTasks(ctx, "email", adminEmail)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	sort.SliceStable(tasks, func(first int, second int) bool {
+		return tasks[first].UpdatedAt > tasks[second].UpdatedAt
+	})
+	rows := []companyShareWorkRow{}
+	for _, task := range tasks {
+		row := companyShareWorkRowOfBoardTask(task)
+		if row.Date < startDate || row.Date > endDate {
+			continue
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func companyShareWorkRowOfBoardTask(task centralplane.BoardTask) companyShareWorkRow {
+	memberMail := task.RequesterMail
+	if len(task.ParticipantMails) > 0 {
+		memberMail = task.ParticipantMails[0]
+	}
+	return companyShareWorkRow{
+		MemberID:  memberMail,
+		Title:     task.Title,
+		Business:  task.Business,
+		Type:      task.Type,
+		Size:      task.Size,
+		Status:    task.Status,
+		StartDate: taskDayOfInstant(task.StartsAt),
+		EndDate:   taskDayOfInstant(firstFilled(task.EndsAt, task.DueAt)),
+		Date:      taskDayOfInstant(task.UpdatedAt),
+	}
 }
 
 func buildCompanyShareActivityDays(now time.Time, attendanceByDate map[string]int, workByDate map[string]int, workMinutesByDate map[string]int) []companyShareActivityDay {
