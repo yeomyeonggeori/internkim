@@ -53,9 +53,9 @@ test('a leave type nobody has taken leave under disappears when it is removed', 
 	await openSettings(page);
 	const settings = leaveSettings(page);
 	await settings.getByRole('button', { name: customLeaveTypeName }).click();
-	await settings.getByRole('button', { name: '휴가 종류 제거' }).click();
-	await page.getByRole('button', { name: '제거', exact: true }).click();
-	await expect(page.getByText('휴가 종류를 제거했습니다.')).toBeVisible({ timeout: 20000 });
+	await settings.getByRole('button', { name: '삭제', exact: true }).click();
+	await page.getByRole('alertdialog').getByRole('button', { name: '삭제', exact: true }).click();
+	await expect(page.getByText('휴가 종류를 삭제했습니다.')).toBeVisible({ timeout: 20000 });
 
 	await page.reload();
 	await settings.waitFor({ state: 'visible', timeout: 20000 });

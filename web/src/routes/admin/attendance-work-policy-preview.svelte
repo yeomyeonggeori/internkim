@@ -61,11 +61,5 @@
 				<strong>{revision.nightStartTime}–{revision.nightEndTime}</strong>
 			</div>
 		</div>
-		<p class="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-			{text.workSettings.effectiveNotice}
-		</p>
-		<p class="rounded-lg bg-orange-50 px-3 py-2 text-xs leading-5 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300">
-			{text.workSettings.internalNotice}
-		</p>
 	</Card.Content>
 </Card.Root>

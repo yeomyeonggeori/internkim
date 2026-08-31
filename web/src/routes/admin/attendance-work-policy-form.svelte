@@ -222,7 +222,12 @@
 				</div>
 			</Field.Field>
 			<div class="space-y-3">
-				<Field.Label>{text.workSettings.breakPeriods}</Field.Label>
+				<div class="grid grid-cols-[1fr_auto] items-center gap-2">
+					<Field.Label>{text.workSettings.breakPeriods}</Field.Label>
+					<Button type="button" variant="outline" size="sm" {disabled} onclick={addBreakPeriod}>
+						{text.workSettings.addBreak}
+					</Button>
+				</div>
 				{#each revision.breakPeriods as period, index (index)}
 					<div class="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2">
 						<Input
@@ -252,9 +257,6 @@
 						</Button>
 					</div>
 				{/each}
-				<Button type="button" variant="outline" size="sm" {disabled} onclick={addBreakPeriod}>
-					{text.workSettings.addBreak}
-				</Button>
 			</div>
 		</div>
 	</div>
