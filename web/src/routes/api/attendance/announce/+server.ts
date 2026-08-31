@@ -1,4 +1,5 @@
 import { error, json } from '@sveltejs/kit';
+import { askedObject } from '$lib/server/asked-object';
 import { environmentOf } from '$lib/server/agent-request';
 import { callingMember } from '$lib/server/member-request';
 import { announceClock, announceLeaveRequest } from '$lib/server/announce-attendance';
@@ -14,7 +15,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!vapid) error(503, 'this deployment has no VAPID keys, so it cannot send notifications yet');
 	const nowInSeconds = Math.floor(Date.now() / 1000);
 
-	const asked = (await request.json().catch(() => ({}))) as AnnounceRequest;
+	const asked = (await askedObject(request)) as AnnounceRequest;
 	if (asked.what === 'clock') {
 		return json(await announceClock(caller, record, memberID, vapid, nowInSeconds));
 	}

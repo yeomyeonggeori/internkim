@@ -1,5 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { askedObject } from '$lib/server/asked-object';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
 import { membersOfCompanyByExternalID } from '$lib/server/member-credential';
 import { notificationCategories, type NotificationCategory } from '$lib/notifications/categories';
@@ -28,7 +29,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const vapid = await vapidKeysInUse(client, environment);
 	if (!vapid) error(503, 'this deployment cannot send notifications yet');
 
-	const asked = (await request.json().catch(() => ({}))) as NotifyRequest;
+	const asked = (await askedObject(request)) as NotifyRequest;
 	const recipients = askedExternalIDs(asked.externalIDs);
 	const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
 

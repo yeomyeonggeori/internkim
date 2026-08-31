@@ -30,7 +30,7 @@ Deno.serve(
 			new_subject: subject,
 			replace_existing: false
 		});
-		if (kept.error) refuse(500, kept.error.message);
+		if (kept.error) refuse(kept.error.code === 'P0001' ? 409 : 500, kept.error.message);
 
 		return json({ stored: kept.data === true });
 	})
