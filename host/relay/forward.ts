@@ -21,6 +21,7 @@ const mailPrefix = 'person.mail.';
 const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.flow.'];
 export const apiRequestCapability = 'person.api.request';
 export const apiFileCapability = 'person.api.file';
+export const tellCapability = 'person.message.tell';
 export const workspaceRootsCapability = 'person.files.roots';
 export const defaultAdmindSocketPath = '/run/internkim/admind.sock';
 const requesterEmailHeader = 'X-INTERNKIM-REQUESTER-EMAIL';
@@ -29,6 +30,7 @@ const requesterPermissionHeader = 'X-INTERNKIM-REQUESTER-PERMISSION';
 const methodsThatCarryNoBody = new Set(['GET', 'HEAD', 'OPTIONS']);
 const admindHost = 'http://internkim';
 const workspaceUploadPath = '/files/api/upload';
+const tellPath = '/tell/api/direct-message';
 
 export function mailOperationOf(capability: string): string | null {
 	if (!capability.startsWith(mailPrefix)) return null;
@@ -383,6 +385,30 @@ async function serveMail(
 		return { status: 409, body: { error: 'this member has connected no mail account' } };
 	}
 	return dispatch.askMaild(operation, { ...body, account });
+}
+
+export function tellCallOf(body: Record<string, unknown>): AdmindCall | null {
+	const recipientEmail = oneHeaderLine(body.recipientEmail).toLowerCase();
+	const message = typeof body.message === 'string' ? body.message.trim() : '';
+	if (!recipientEmail || !message) return null;
+	return {
+		method: 'POST',
+		url: `${admindHost}${tellPath}`,
+		requester: recipientEmail,
+		contentType: 'application/json',
+		body: JSON.stringify({ recipientEmail, message })
+	};
+}
+
+export async function serveTelling(
+	dispatch: Dispatch,
+	body: Record<string, unknown>
+): Promise<{ status: number; body: unknown }> {
+	const call = tellCallOf(body);
+	if (!call) {
+		return { status: 400, body: { error: 'a telling names a recipient and carries a message' } };
+	}
+	return dispatch.askAdmindAsRequester(call);
 }
 
 export async function servePublicAPIRequest(
