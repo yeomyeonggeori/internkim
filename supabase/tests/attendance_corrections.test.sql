@@ -44,7 +44,7 @@ insert into public.attendance (id, member_id, kind, location, occurred_at) value
 	),
 	(
 		'31000000-0000-0000-0000-000000000103', '31000000-0000-0000-0000-000000000011',
-		'clock_in', 'Office', '2026-08-10 08:00:00+09'
+		'clock_in', 'Branch', '2026-08-10 08:00:00+09'
 	),
 	(
 		'31000000-0000-0000-0000-000000000102', '31000000-0000-0000-0000-000000000013',
@@ -82,7 +82,7 @@ select ok(
 
 select is(
 	public.attendance_correction_window_minutes(),
-	60,
+	4320,
 	'attendance exposes the correction window from the database policy'
 );
 
@@ -272,20 +272,28 @@ end $$;$block$, 'authenticated users cannot update attendance directly');
 
 select lives_ok($block$do $$
 declare
-	blocked boolean := false;
+	answer jsonb;
 begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
-	begin
-		perform public.attendance_correct(
-			'[{"event_id":"31000000-0000-0000-0000-000000000103","local_date":"2026-08-10","local_time":"08:30","location":"Branch"}]'::jsonb,
-			'수정 가능 시간 초과'
-		);
-	exception when insufficient_privilege then
-		blocked := true;
-	end;
-	assert blocked, 'an owner must not correct attendance more than one hour after the original event time';
-end $$;$block$, 'an owner cannot correct attendance after one hour');
+	answer := public.attendance_correct(
+		'[{"event_id":"31000000-0000-0000-0000-000000000103","local_date":"2026-08-10","local_time":"08:30","location":"Branch"}]'::jsonb,
+		'수정 가능 시간 초과'
+	);
+	assert answer ->> 'status' = 'approval_requested',
+		'a correction older than the window is raised as a request';
+	assert (
+		select occurred_at = '2026-08-10 08:00:00+09'
+		from public.attendance
+		where id = '31000000-0000-0000-0000-000000000103'
+	), 'nothing changes until somebody decides the request';
+	assert (
+		select count(*) = 1
+		from public.approval
+		where kind = 'attendance_edit' and status = 'pending'
+			and member_id = '31000000-0000-0000-0000-000000000011'
+	), 'the request is waiting for an administrator';
+end $$;$block$, 'an owner correcting outside the window raises a request');
 
 select lives_ok($block$do $$
 begin
