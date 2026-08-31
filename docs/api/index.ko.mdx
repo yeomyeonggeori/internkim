@@ -38,7 +38,8 @@ curl -X POST https://api.intern.kim/v1/tokens \
 
 `token`은 한 번만 답하고 기록에는 SHA-256 해시만 남습니다. 잃어버린 토큰은 되찾는 게
 아니라 다시 만듭니다. `permission`을 생략하면 부른 토큰과 같은 등급이 되고, 자기보다
-높은 등급은 만들 수 없습니다.
+높은 등급은 만들 수 없습니다. `name`도 생략할 수 있고, 그러면 아직 안 쓰인 첫 번째
+번호를 붙여 `pat-1`, `pat-2` 식으로 이름이 붙습니다.
 
 `GET /v1/tokens`는 그 멤버가 가진 이름과 등급을 나열하고, `DELETE
 /v1/tokens?name=<name>`은 하나를 폐기합니다.
