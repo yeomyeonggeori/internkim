@@ -410,6 +410,7 @@ func (service *Service) Run(ctx context.Context) error {
 		go service.keepMailAnnounced(ctx)
 	}
 	service.renameTheFormerStaffCircle()
+	service.dropTheFormerCircleFromPeople(ctx)
 	service.reconcileSiteSourcesToMemberCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
