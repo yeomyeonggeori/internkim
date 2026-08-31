@@ -1,13 +1,19 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-type CentralPlane = { projectURL: string; publishableKey: string; vapidPublicKey: string; gatewayURL: string };
+type CentralPlane = {
+	projectURL: string;
+	publishableKey: string;
+	vapidPublicKey: string;
+	gatewayURL: string;
+	apiURL: string;
+};
 
 let resolved: CentralPlane | undefined;
 let client: SupabaseClient | undefined;
 
 function centralPlane(): CentralPlane {
 	if (resolved) return resolved;
-	resolved = { projectURL: '', publishableKey: '', vapidPublicKey: '', gatewayURL: '' };
+	resolved = { projectURL: '', publishableKey: '', vapidPublicKey: '', gatewayURL: '', apiURL: '' };
 	if (typeof document === 'undefined') return resolved;
 	const carried = document.getElementById('central-plane')?.textContent;
 	if (!carried) return resolved;
@@ -17,10 +23,11 @@ function centralPlane(): CentralPlane {
 			projectURL: typeof parsed.projectURL === 'string' ? parsed.projectURL : '',
 			publishableKey: typeof parsed.publishableKey === 'string' ? parsed.publishableKey : '',
 			vapidPublicKey: typeof parsed.vapidPublicKey === 'string' ? parsed.vapidPublicKey : '',
-			gatewayURL: typeof parsed.gatewayURL === 'string' ? parsed.gatewayURL : ''
+			gatewayURL: typeof parsed.gatewayURL === 'string' ? parsed.gatewayURL : '',
+			apiURL: typeof parsed.apiURL === 'string' ? parsed.apiURL : ''
 		};
 	} catch {
-		resolved = { projectURL: '', publishableKey: '', vapidPublicKey: '', gatewayURL: '' };
+		resolved = { projectURL: '', publishableKey: '', vapidPublicKey: '', gatewayURL: '', apiURL: '' };
 	}
 	return resolved;
 }
@@ -31,6 +38,10 @@ export function vapidPublicKey(): string {
 
 export function gatewayURL(): string {
 	return centralPlane().gatewayURL;
+}
+
+export function apiURL(): string {
+	return centralPlane().apiURL;
 }
 
 export function projectURL(): string {
