@@ -20,7 +20,7 @@ func TestAttendanceAbsenceCacheMonthsForDatesIncludesAdjacentGrids(t *testing.T)
 func TestInsertAttendanceAbsenceRangeInvalidatesVisibleMonthGridCaches(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	email := "staff@example.com"
+	email := "member@example.com"
 	monthRevisions := map[string]int64{}
 	for _, month := range []string{"2026-07", "2026-08"} {
 		monthRevisions[month] = primeAttendanceSummaryCacheForTest(t, service, attendanceSummaryCacheKindAbsences, month)
@@ -37,7 +37,7 @@ func TestInsertAttendanceAbsenceRangeRollsBackWhenCacheInvalidationFails(t *test
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
 	month := "2026-07"
-	email := "staff@example.com"
+	email := "member@example.com"
 	revision := primeAttendanceSummaryCacheForTest(t, service, attendanceSummaryCacheKindAbsences, month)
 	database, errorValue := service.openAttendanceDatabase(ctx)
 	if errorValue != nil {
@@ -83,7 +83,7 @@ SELECT
 func TestMergeAttendanceAbsenceRangesInvalidatesRewrittenGridCaches(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	email := "staff@example.com"
+	email := "member@example.com"
 	if _, errorValue := service.insertAttendanceAbsenceRange(ctx, email, "annual", "2026-07-10", "2026-07-10", "Vacation", email); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -102,7 +102,7 @@ func TestMergeAttendanceAbsenceRangesInvalidatesRewrittenGridCaches(t *testing.T
 func TestMergeAttendanceAbsenceRangesInvalidatesConflictingRemainderGrids(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	email := "staff@example.com"
+	email := "member@example.com"
 	if _, errorValue := service.insertAttendanceAbsenceRange(ctx, email, "annual", "2026-07-10", "2026-07-10", "Vacation", email); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -120,7 +120,7 @@ func TestMergeAttendanceAbsenceRangesInvalidatesConflictingRemainderGrids(t *tes
 func TestCancelAttendanceAbsenceRangeInvalidatesGridCaches(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	email := "staff@example.com"
+	email := "member@example.com"
 	absences, errorValue := service.insertAttendanceAbsenceRange(ctx, email, "annual", "2026-07-30", "2026-07-31", "Vacation", email)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -143,7 +143,7 @@ func TestCancelAttendanceAbsenceRangeInvalidatesGridCaches(t *testing.T) {
 func TestCancelAttendanceAbsenceRangeRollsBackWhenCacheInvalidationFails(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	email := "staff@example.com"
+	email := "member@example.com"
 	absences, errorValue := service.insertAttendanceAbsenceRange(ctx, email, "annual", "2026-07-30", "2026-07-31", "Vacation", email)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -178,7 +178,7 @@ END`); errorValue != nil {
 func TestCancelAttendanceAbsenceOccurrenceInvalidatesSplitGridCaches(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	email := "staff@example.com"
+	email := "member@example.com"
 	absences, errorValue := service.insertAttendanceAbsenceRange(ctx, email, "annual", "2026-07-30", "2026-07-31", "Vacation", email)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -201,7 +201,7 @@ func TestCancelAttendanceAbsenceOccurrenceInvalidatesSplitGridCaches(t *testing.
 func TestCancelAttendanceAbsenceOccurrenceRollsBackWhenCacheInvalidationFails(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	ctx := context.Background()
-	email := "staff@example.com"
+	email := "member@example.com"
 	absences, errorValue := service.insertAttendanceAbsenceRange(ctx, email, "annual", "2026-07-30", "2026-07-31", "Vacation", email)
 	if errorValue != nil {
 		t.Fatal(errorValue)

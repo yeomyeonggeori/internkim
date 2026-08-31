@@ -766,8 +766,8 @@ and delete the duplicates.
 - Use `/workspace/shared/cache/dependencies` only for package caches. Never
   place private/source files there.
 - `/workspace/shared/public` is for externally-shareable content (safe to show
-  non-staff such as investors). Never put editable source, drafts, secrets, or
-  staff-only files there. For all-employee internal sharing use a staff circle
+  non-member such as investors). Never put editable source, drafts, secrets, or
+  member-only files there. For all-employee internal sharing use a member circle
   under `/workspace/circles/<circleID>`, not `shared/public`.
 - There is no executable allow or deny list for the terminal: POSIX user, group,
   and file permissions are the execution boundary, so a system-modification

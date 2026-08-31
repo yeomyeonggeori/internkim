@@ -71,7 +71,7 @@ curl https://api.intern.kim/v1/tools \
 ```
 
 The owner is re-resolved on every request. When the owner stops being active
-staff, every call with their token answers `403` from that moment on; nothing
+member, every call with their token answers `403` from that moment on; nothing
 needs to be cleaned up first.
 
 A signed-in web session works the same way: the bearer may be the Supabase
@@ -115,7 +115,7 @@ Success bodies are JSON. Error bodies are plain text.
 | `401` | `sign in first` | no `Authorization: Bearer` header |
 | `401` | `that key belongs to nobody` | the token is unknown or revoked |
 | `409` | `a token cannot revoke itself...` | `DELETE /v1/token` naming the token that authenticated the call |
-| `403` | `token owner is not active staff` | the owner left or was deactivated |
+| `403` | `token owner is not active member` | the owner left or was deactivated |
 | `403` | `tool is not available for this token` | the token's rank is below what the tool requires |
 | `403` | `write scope required` | an agent endpoint with a rank-1 token |
 | `404` | | unknown path, unknown tool, or a tool the token cannot see |

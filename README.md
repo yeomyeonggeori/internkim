@@ -648,7 +648,7 @@ found with `?live=true`, which costs that round trip.
 
 A browser request to a device proves identity through a Mattermost session or an
 Intern Kim web session, and is then checked again against current policy for
-active staff. A Cloudflare Access email is accepted where somebody has put one
+active member. A Cloudflare Access email is accepted where somebody has put one
 in front, which the product no longer sets up. Admin APIs keep their own
 boundary on top of that, and internal calls between admind, capabilityd,
 Mattermost and blueclaw go over loopback and stay exempt.

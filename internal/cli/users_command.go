@@ -273,7 +273,7 @@ func usersCommandPositionals(arguments []string) []string {
 
 func normalizeCommandUserRole(role string) string {
 	switch strings.ToLower(strings.TrimSpace(role)) {
-	case "", "member", "user", "staff":
+	case "", "member", "user":
 		return "member"
 	case "admin", "administrator":
 		return "admin"

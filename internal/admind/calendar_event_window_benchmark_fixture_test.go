@@ -63,15 +63,15 @@ func calendarEventWindowBenchmarkTransport(testContext testing.TB) roundTripFunc
 	return roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1":
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-member","email":"member@example.com","name":"Member","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.Path == "/api/agent/key":
 			return jsonResponse(http.StatusNotFound, `{"error":"this device belongs to no company"}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.Path == "/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
-		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/email/staff@example.com":
-			return jsonResponse(http.StatusOK, `{"id":"user-staff","email":"staff@example.com","username":"staff","nickname":"Staff","last_picture_update":1710000000000}`, nil), nil
+		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users/email/member@example.com":
+			return jsonResponse(http.StatusOK, `{"id":"user-member","email":"member@example.com","username":"member","nickname":"Member","last_picture_update":1710000000000}`, nil), nil
 		default:
 			testContext.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -95,7 +95,7 @@ func seedCalendarEventWindowBenchmarkHistory(testContext testing.TB, service *Se
 func seedCalendarEventWindowBenchmarkEvents(testContext testing.TB, service *Service, idPrefix string, startTime time.Time, eventCount int) {
 	testContext.Helper()
 	participants := []calendarParticipant{
-		{PersonID: stableTaskID("staff@example.com"), Name: "Staff", Email: "staff@example.com"},
+		{PersonID: stableTaskID("member@example.com"), Name: "Member", Email: "member@example.com"},
 		{PersonID: stableTaskID("other@example.com"), Name: "Other", Email: "other@example.com"},
 	}
 	for index := 0; index < eventCount; index++ {
@@ -112,10 +112,10 @@ func seedCalendarEventWindowBenchmarkEvents(testContext testing.TB, service *Ser
 			Color:             "#2563eb",
 			Participants:      participants,
 			ReminderLeadHours: calendarDefaultReminderLeadHours,
-			CreatedByEmail:    "staff@example.com",
-			CreatedByName:     "Staff",
-			UpdatedByEmail:    "staff@example.com",
-			UpdatedByName:     "Staff",
+			CreatedByEmail:    "member@example.com",
+			CreatedByName:     "Member",
+			UpdatedByEmail:    "member@example.com",
+			UpdatedByName:     "Member",
 		}
 		if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
 			testContext.Fatal(errorValue)

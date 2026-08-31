@@ -55,7 +55,7 @@
 
 	let loadedAdminBaseURL = $state('');
 	let userRecords = $state<UserRecord[]>([]);
-	let availableCircles = $state<CircleRecord[]>([{ circleID: 'staff', displayName: 'Staff' }]);
+	let availableCircles = $state<CircleRecord[]>([{ circleID: 'member', displayName: 'Member' }]);
 	let newHandle = $state('');
 	let newName = $state('');
 	let newEmail = $state('');
@@ -90,7 +90,7 @@
 	}
 
 	function applyUsersResponse(response: UsersResponse) {
-		availableCircles = response.availableCircles?.length ? response.availableCircles : [{ circleID: 'staff', displayName: 'Staff' }];
+		availableCircles = response.availableCircles?.length ? response.availableCircles : [{ circleID: 'member', displayName: 'Member' }];
 		if (response.records) {
 			userRecords = response.records.map((record) => ({
 				...record,
@@ -105,7 +105,7 @@
 				email,
 				hireDate: '',
 				role: index === 0 ? 'admin' : 'member',
-				circles: index === 0 ? ['staff', 'admin'] : ['staff']
+				circles: index === 0 ? ['member', 'admin'] : ['member']
 			}));
 		}
 		if (response.temporaryPassword && response.temporaryPasswordEmail) {

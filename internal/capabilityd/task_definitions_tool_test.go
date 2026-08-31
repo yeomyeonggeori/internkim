@@ -19,8 +19,8 @@ const taskDefinitionsStateBody = `{
 		"typeColors": {"기능": "#216fe4"},
 		"sizes": [{"name": "XS"}, {"name": "S"}, {"name": "M"}]
 	},
-	"members": [{"id": "staff", "name": "Staff", "email": "staff@example.com"}],
-	"tasks": [{"id": "task-1", "ownerID": "staff", "participantIDs": ["staff"], "content": "운동", "status": "planned"}],
+	"members": [{"id": "member", "name": "Member", "email": "member@example.com"}],
+	"tasks": [{"id": "task-1", "ownerID": "member", "participantIDs": ["member"], "content": "운동", "status": "planned"}],
 	"statusOptions": ["planned", "in_progress", "completed"]
 }`
 
@@ -51,7 +51,7 @@ func updateTaskLabel(t *testing.T, service Service, input string) capabilities.T
 	response, errorValue := service.invokeTaskUpdate(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "task_update",
 		Input:    []byte(input),
-		Context:  capabilities.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilities.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -104,7 +104,7 @@ func TestTaskUpdateLeavesLabelsAloneWhenTheWorkspaceRegistersNone(t *testing.T) 
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			switch {
 			case request.Method == http.MethodGet:
-				return taskToolJSONResponse(`{"members":[{"id":"staff","name":"Staff","email":"staff@example.com"}],"tasks":[{"id":"task-1","ownerID":"staff","participantIDs":["staff"],"content":"운동","status":"planned"}]}`), nil
+				return taskToolJSONResponse(`{"members":[{"id":"member","name":"Member","email":"member@example.com"}],"tasks":[{"id":"task-1","ownerID":"member","participantIDs":["member"],"content":"운동","status":"planned"}]}`), nil
 			default:
 				capturedPayload = readTaskRequestBody(t, request)
 				return taskToolJSONResponse(echoedTaskResponse(t, capturedPayload)), nil
@@ -142,7 +142,7 @@ func echoedTaskResponse(t *testing.T, payload string) string {
 		t.Fatal(errorValue)
 	}
 	document, errorValue := json.Marshal(map[string]any{
-		"id": "task-1", "ownerID": "staff", "participantIDs": []string{"staff"},
+		"id": "task-1", "ownerID": "member", "participantIDs": []string{"member"},
 		"business": written.Category, "type": written.Type,
 		"content": written.Content, "status": written.Status,
 	})

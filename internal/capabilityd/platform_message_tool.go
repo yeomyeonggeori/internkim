@@ -222,8 +222,8 @@ func (service Service) invokePlatformMessageTool(ctx context.Context, request ca
 }
 
 func (service Service) authorizePlatformMessageTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
-	if !service.mattermostRequesterHasCircle(ctx, request.Context, mattermostToolStaffCircle) {
-		message := request.ToolName + " requires staff access"
+	if !service.mattermostRequesterHasCircle(ctx, request.Context, mattermostToolMemberCircle) {
+		message := request.ToolName + " requires member access"
 		return mattermostToolDeniedResponse(request.ToolName, mattermostToolStaticFailure(capabilities.CapabilityNotAllowed, "authorization", message)), true
 	}
 	return capabilities.ToolInvokeResponse{}, false

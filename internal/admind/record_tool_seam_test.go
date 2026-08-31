@@ -105,7 +105,7 @@ func TestTheSeamCarriesACallToThePlaneAsTheRequester(t *testing.T) {
 	})
 	service := serviceReachingThePlane(t, plane)
 
-	recorder := askedOnTheSocket(service, "leave_balance", `{"year":2026}`, "staff@example.com")
+	recorder := askedOnTheSocket(service, "leave_balance", `{"year":2026}`, "member@example.com")
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("the seam answered %d: %s", recorder.Code, recorder.Body.String())
@@ -117,7 +117,7 @@ func TestTheSeamCarriesACallToThePlaneAsTheRequester(t *testing.T) {
 	if len(plane.sessionAsked) != 1 {
 		t.Fatalf("the plane was asked for %d sessions", len(plane.sessionAsked))
 	}
-	if plane.sessionAsked[0]["kind"] != "email" || plane.sessionAsked[0]["externalID"] != "staff@example.com" {
+	if plane.sessionAsked[0]["kind"] != "email" || plane.sessionAsked[0]["externalID"] != "member@example.com" {
 		t.Fatalf("the session was asked for %v", plane.sessionAsked[0])
 	}
 
@@ -164,7 +164,7 @@ func TestTheSeamCarriesTheRecordsRefusalBack(t *testing.T) {
 	})
 	service := serviceReachingThePlane(t, plane)
 
-	recorder := askedOnTheSocket(service, "leave_decide", `{"leaveHint":"연차"}`, "staff@example.com")
+	recorder := askedOnTheSocket(service, "leave_decide", `{"leaveHint":"연차"}`, "member@example.com")
 
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf("a 409 from the record answered %d", recorder.Code)
@@ -180,7 +180,7 @@ func TestTheSeamCarriesTheRecordsRefusalBack(t *testing.T) {
 func TestTheSeamSaysSoWhenThereIsNoPlaneToReach(t *testing.T) {
 	service := &Service{}
 
-	recorder := askedOnTheSocket(service, "leave_list", `{}`, "staff@example.com")
+	recorder := askedOnTheSocket(service, "leave_list", `{}`, "member@example.com")
 
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("a device with no plane answered %d", recorder.Code)
@@ -196,7 +196,7 @@ func TestAnEmptyBodyReachesThePlaneAsAnEmptyInput(t *testing.T) {
 	})
 	service := serviceReachingThePlane(t, plane)
 
-	askedOnTheSocket(service, "leave_list", "", "staff@example.com")
+	askedOnTheSocket(service, "leave_list", "", "member@example.com")
 
 	if len(plane.invoked) != 1 || plane.invoked[0].Body != `{"input":{}}` {
 		t.Fatalf("the plane was sent %v", plane.invoked)

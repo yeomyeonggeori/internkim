@@ -22,8 +22,8 @@ type circleReconcileReport struct {
 }
 
 func (service *Service) handleCircleMembershipReconcile(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	email := strings.TrimSpace(request.URL.Query().Get("email"))

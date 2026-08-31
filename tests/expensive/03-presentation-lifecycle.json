@@ -10,7 +10,7 @@
       "expectedAttachments": [".html"],
       "expectedWorkspaceFiles": [
         {
-          "pathGlob": "circles/staff/tmp/*/slides.html",
+          "pathGlob": "circles/member/tmp/*/slides.html",
           "containsFragments": ["비용 테스트 발표자료", "목표", "진행 방식", "완료 조건"],
           "fragmentCounts": {"data-slide-role=": 3}
         }
@@ -24,7 +24,7 @@
       "expectedAttachments": [".html"],
       "expectedWorkspaceFiles": [
         {
-          "pathGlob": "circles/staff/tmp/*/slides.html",
+          "pathGlob": "circles/member/tmp/*/slides.html",
           "containsFragments": ["고정 시드 41"],
           "fragmentCounts": {"data-slide-role=": 3}
         }
@@ -50,7 +50,7 @@
       "expectedEventCounts": [
         {"name": "tool.file_delete.result", "outputFragment": "deleted", "count": 1}
       ],
-      "forbiddenWorkspaceFiles": ["circles/staff/tmp/*"],
+      "forbiddenWorkspaceFiles": ["circles/member/tmp/*"],
       "expectedTaskStatus": "completed"
     }
   ]

@@ -338,11 +338,11 @@ func readLocalUsersTestBody(t *testing.T, request *http.Request) string {
 func localUsersPolicyDocument() string {
 	return `{
 		"people":[
-			{"personID":"user-admin","displayName":"Admin User","emails":["admin@example.com"],"circles":["staff","admin"],"isAdmin":true},
-			{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["staff"],"isAdmin":false,"note":"Existing member note"},
-			{"personID":"user-new","displayName":"New User","emails":["new@example.com"],"circles":["staff"],"isAdmin":false}
+			{"personID":"user-admin","displayName":"Admin User","emails":["admin@example.com"],"circles":["member","admin"],"isAdmin":true},
+			{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["member"],"isAdmin":false,"note":"Existing member note"},
+			{"personID":"user-new","displayName":"New User","emails":["new@example.com"],"circles":["member"],"isAdmin":false}
 		],
-		"circles":[{"circleID":"staff","displayName":"Staff"}],
-		"circleSync":{"mattermostPrivateChannels":[{"circleID":"staff","channelName":"circle-staff"}]}
+		"circles":[{"circleID":"member","displayName":"Member"}],
+		"circleSync":{"mattermostPrivateChannels":[{"circleID":"member","channelName":"circle-member"}]}
 	}`
 }

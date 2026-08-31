@@ -274,7 +274,7 @@ func assertOrganizationCleanupFailureUserResponse(t *testing.T, expectedResponse
 		Image:              profileImagePathForEmail("new@example.com"),
 		Note:               expectedNote,
 		Role:               "admin",
-		Circles:            []string{"staff", "admin"},
+		Circles:            []string{"member", "admin"},
 		MattermostUserID:   "user-new",
 		MattermostUsername: "new-user",
 		Status:             "active",

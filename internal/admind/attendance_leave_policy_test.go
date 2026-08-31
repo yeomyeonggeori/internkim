@@ -211,7 +211,7 @@ func TestLeavePolicyAdminAPIImmediatelyAdjustsCurrentGrant(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	if errorValue := service.writeOrganizationProfiles(t.Context(), []organizationProfile{{
 		MemberID: "user-1",
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		HireDate: "2026-01-01",
 	}}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -239,7 +239,7 @@ func TestLeavePolicyAdminAPIImmediatelyAdjustsCurrentGrant(t *testing.T) {
 	)
 	balance, errorValue := service.readAttendanceLeaveBalance(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"},
+		attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"},
 		attendanceAnnualLeaveTypeID,
 	)
 	if errorValue != nil {
@@ -248,7 +248,7 @@ func TestLeavePolicyAdminAPIImmediatelyAdjustsCurrentGrant(t *testing.T) {
 	if balance.GrantedMilliDays != 16000 || balance.AvailableMilliDays != 16000 {
 		t.Fatalf("adjusted annual balance = %+v", balance)
 	}
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.reserveAttendanceLeave(t.Context(), attendanceLeaveOperation{
 		OperationKey: "reserve-before-policy-reduction",
 		Employee:     employee,
@@ -296,7 +296,7 @@ func TestLeavePolicyAdminAPIImmediatelyAdjustsCurrentGrant(t *testing.T) {
 func TestLeavePolicyAdjustmentRetryUsesStableOperationKey(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		UserID:   "user-1",
 		HireDate: "2026-01-01",
 	}
@@ -373,7 +373,7 @@ func TestLeavePolicyAdjustmentRetryUsesStableOperationKey(t *testing.T) {
 
 func TestLeavePolicyExpiryChangesApplyToAvailableGrantLots(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-before-expiry-policy-update",
@@ -463,7 +463,7 @@ func addAttendanceLeaveTypeForTest(
 func TestLeavePolicyAdminAPIArchivesUsedRemovedType(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	addAttendanceLeaveTypeForTest(t, service, separateBalanceAttendanceLeaveTypeForTest())
-	employee := attendanceLeaveEmployee{Email: "staff@example.com", UserID: "user-1"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.recordUntrackedAttendanceLeaveUse(t.Context(), attendanceLeaveOperation{
 		OperationKey: "used-reward-leave",
 		Employee:     employee,
@@ -512,7 +512,7 @@ func TestLeavePolicyAdminAPIAccessByRole(t *testing.T) {
 		service,
 		http.MethodGet,
 		"",
-		"staff@example.com",
+		"member@example.com",
 		"127.0.0.1:1234",
 		http.StatusForbidden,
 	)

@@ -98,7 +98,7 @@ func TestAdminUsersCachePreservesIncludePolicyScope(t *testing.T) {
 					t.Fatalf("authoritative record fields = %#v", record)
 				}
 				if includePolicy {
-					if len(record.Circles) != 1 || record.Circles[0] != "staff" || record.Note != "Existing member note" {
+					if len(record.Circles) != 1 || record.Circles[0] != "member" || record.Note != "Existing member note" {
 						t.Fatalf("included policy record = %#v", record)
 					}
 					continue
@@ -171,7 +171,7 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 			}
 			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"newhandle","name":"New Name","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"newhandle"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
-			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-member","emails":["member@example.com"],"circles":["staff"]}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-member","emails":["member@example.com"],"circles":["member"]}]}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
@@ -221,17 +221,17 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
 		case isBlueclawPolicyGet(request):
-			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["staff"],"isAdmin":false,"note":"Existing note"}],"channels":[],"circleSync":{"mattermostPrivateChannels":[{"circleID":"staff","channelName":"circle-staff"}]},"retention":{"rawEventDays":60}}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["member"],"isAdmin":false,"note":"Existing note"}],"channels":[],"circleSync":{"mattermostPrivateChannels":[{"circleID":"member","channelName":"circle-member"}]},"retention":{"rawEventDays":60}}`, nil), nil
 		case request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload":
 			savedPerson = onlyDeliveredPerson(t, service)
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/circle-staff":
-			return jsonResponse(http.StatusOK, `{"id":"circle-staff-channel"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/patch" && request.Method == http.MethodPut:
+		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/circle-member":
+			return jsonResponse(http.StatusOK, `{"id":"circle-member-channel"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/circle-member-channel/patch" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/posts?per_page=100":
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/circle-member-channel/posts?per_page=100":
 			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/members" && request.Method == http.MethodPost:
+		case request.URL.String() == "http://mattermost.local/api/v4/channels/circle-member-channel/members" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
@@ -239,7 +239,7 @@ func TestAdminUserSaveWritesBlueclawNote(t *testing.T) {
 		}
 	})
 
-	requestBody := `{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member","circles":["staff"],"note":"Needs HR compensation follow-up"}`
+	requestBody := `{"memberID":"user-member","handle":"member","name":"Member User","email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member","circles":["member"],"note":"Needs HR compensation follow-up"}`
 	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(requestBody))
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
 	response := httptest.NewRecorder()

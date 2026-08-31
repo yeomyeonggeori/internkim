@@ -43,7 +43,7 @@ func (service *Service) serveOrganizationIndex(responseWriter http.ResponseWrite
 }
 
 func (service *Service) handleOrganization(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.authorizeInternalOrWebStaffRequest(request) {
+	if !service.authorizeInternalOrWebMemberRequest(request) {
 		http.Error(responseWriter, "organization access required", http.StatusForbidden)
 		return
 	}

@@ -14,7 +14,7 @@ func TestAttendanceLeaveManagementRequiresAdministrator(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/attendance/api/leave-management", nil)
 	request.RemoteAddr = "127.0.0.1:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleAttendance(recorder, request)
@@ -35,7 +35,7 @@ func TestAttendanceLeaveManagementAdjustsBalanceAndKeepsReason(t *testing.T) {
 		http.MethodPost,
 		"/attendance/api/leave-management/adjustments",
 		`{
-			"employeeEmail":"staff@example.com",
+			"employeeEmail":"member@example.com",
 			"leaveTypeID":"annual",
 			"amountMilliDays":1500,
 			"kind":"adjustment",
@@ -52,7 +52,7 @@ func TestAttendanceLeaveManagementAdjustsBalanceAndKeepsReason(t *testing.T) {
 		t,
 		service,
 		http.MethodGet,
-		"/attendance/api/leave-management?email=staff%40example.com",
+		"/attendance/api/leave-management?email=member%40example.com",
 		"",
 	)
 	if detailRecorder.Code != http.StatusOK {
@@ -87,7 +87,7 @@ func TestAttendanceLeaveManagementRejectsLegalCorrection(t *testing.T) {
 		http.MethodPost,
 		"/attendance/api/leave-management/adjustments",
 		`{
-			"employeeEmail":"staff@example.com",
+			"employeeEmail":"member@example.com",
 			"leaveTypeID":"annual",
 			"amountMilliDays":1000,
 			"kind":"legalCorrection",
@@ -112,7 +112,7 @@ func TestAttendanceLeaveManagementAdjustmentAllowsEmptyReason(t *testing.T) {
 		http.MethodPost,
 		"/attendance/api/leave-management/adjustments",
 		`{
-			"employeeEmail":"staff@example.com",
+			"employeeEmail":"member@example.com",
 			"leaveTypeID":"annual",
 			"amountMilliDays":1000,
 			"kind":"adjustment",
@@ -131,7 +131,7 @@ func TestAttendanceLeaveManagementCreatesPastApprovedLeave(t *testing.T) {
 	_, errorValue := service.adjustManagedAttendanceLeave(
 		t.Context(),
 		attendanceLeaveManagementAdjustmentInput{
-			EmployeeEmail:   "staff@example.com",
+			EmployeeEmail:   "member@example.com",
 			LeaveTypeID:     "annual",
 			AmountMilliDays: 2000,
 			Kind:            attendanceLeaveOperationAdjustment,
@@ -146,7 +146,7 @@ func TestAttendanceLeaveManagementCreatesPastApprovedLeave(t *testing.T) {
 	view, errorValue := service.createManagedPastAttendanceLeave(
 		t.Context(),
 		attendanceLeaveManagementPastLeaveInput{
-			EmployeeEmail: "staff@example.com",
+			EmployeeEmail: "member@example.com",
 			LeaveTypeID:   "annual",
 			Unit:          "fullDay",
 			StartDate:     "2026-07-27",
@@ -160,13 +160,13 @@ func TestAttendanceLeaveManagementCreatesPastApprovedLeave(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if view.Status != attendanceLeaveRequestStatusApproved ||
-		view.EmployeeEmail != "staff@example.com" {
+		view.EmployeeEmail != "member@example.com" {
 		t.Fatalf("view = %+v", view)
 	}
 	absences, errorValue := service.readAttendanceAbsences(
 		t.Context(),
 		"2026-07",
-		"staff@example.com",
+		"member@example.com",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -181,7 +181,7 @@ func TestAttendanceLeaveManagementRejectsPastRangeEndingInFuture(t *testing.T) {
 	_, errorValue := service.createManagedPastAttendanceLeave(
 		t.Context(),
 		attendanceLeaveManagementPastLeaveInput{
-			EmployeeEmail: "staff@example.com",
+			EmployeeEmail: "member@example.com",
 			LeaveTypeID:   "sick",
 			Unit:          "fullDay",
 			StartDate:     "2026-07-27",
@@ -200,7 +200,7 @@ func TestAttendanceLeaveManagementCancelsPastApprovedLeave(t *testing.T) {
 	_, errorValue := service.adjustManagedAttendanceLeave(
 		t.Context(),
 		attendanceLeaveManagementAdjustmentInput{
-			EmployeeEmail:   "staff@example.com",
+			EmployeeEmail:   "member@example.com",
 			LeaveTypeID:     "annual",
 			AmountMilliDays: 2000,
 			Kind:            attendanceLeaveOperationAdjustment,
@@ -215,7 +215,7 @@ func TestAttendanceLeaveManagementCancelsPastApprovedLeave(t *testing.T) {
 	view, errorValue := service.createManagedPastAttendanceLeave(
 		t.Context(),
 		attendanceLeaveManagementPastLeaveInput{
-			EmployeeEmail: "staff@example.com",
+			EmployeeEmail: "member@example.com",
 			LeaveTypeID:   "annual",
 			Unit:          "fullDay",
 			StartDate:     "2026-07-27",
@@ -233,7 +233,7 @@ func TestAttendanceLeaveManagementCancelsPastApprovedLeave(t *testing.T) {
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-management/requests/"+view.ID+"/cancel",
-		`{"employeeEmail":"staff@example.com"}`,
+		`{"employeeEmail":"member@example.com"}`,
 	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("cancel status = %d body = %s", recorder.Code, recorder.Body.String())
@@ -241,7 +241,7 @@ func TestAttendanceLeaveManagementCancelsPastApprovedLeave(t *testing.T) {
 	absences, errorValue := service.readAttendanceAbsences(
 		t.Context(),
 		"2026-07",
-		"staff@example.com",
+		"member@example.com",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -253,7 +253,7 @@ func TestAttendanceLeaveManagementCancelsPastApprovedLeave(t *testing.T) {
 		t,
 		service,
 		http.MethodGet,
-		"/attendance/api/leave-management?email=staff%40example.com",
+		"/attendance/api/leave-management?email=member%40example.com",
 		"",
 	)
 	var response attendanceLeaveManagementResponse
@@ -277,7 +277,7 @@ func TestAttendanceLeaveManagementCorrectsPastPartialLeaveTime(t *testing.T) {
 	_, errorValue := service.adjustManagedAttendanceLeave(
 		t.Context(),
 		attendanceLeaveManagementAdjustmentInput{
-			EmployeeEmail:   "staff@example.com",
+			EmployeeEmail:   "member@example.com",
 			LeaveTypeID:     "annual",
 			AmountMilliDays: 2000,
 			Kind:            attendanceLeaveOperationAdjustment,
@@ -292,7 +292,7 @@ func TestAttendanceLeaveManagementCorrectsPastPartialLeaveTime(t *testing.T) {
 	view, errorValue := service.createManagedPastAttendanceLeave(
 		t.Context(),
 		attendanceLeaveManagementPastLeaveInput{
-			EmployeeEmail: "staff@example.com",
+			EmployeeEmail: "member@example.com",
 			LeaveTypeID:   "annual",
 			Unit:          "halfDay",
 			StartDate:     "2026-07-27",
@@ -311,7 +311,7 @@ func TestAttendanceLeaveManagementCorrectsPastPartialLeaveTime(t *testing.T) {
 		t.Context(),
 		view.ID,
 		attendanceLeaveManagementTimeInput{
-			EmployeeEmail: "staff@example.com",
+			EmployeeEmail: "member@example.com",
 			StartTime:     "12:00",
 			EndTime:       "16:00",
 			Reason:        "실제 사용 시간 반영",
@@ -325,7 +325,7 @@ func TestAttendanceLeaveManagementCorrectsPastPartialLeaveTime(t *testing.T) {
 	absences, errorValue := service.readAttendanceAbsences(
 		t.Context(),
 		"2026-07",
-		"staff@example.com",
+		"member@example.com",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -339,7 +339,7 @@ func TestAttendanceLeaveManagementCorrectsPastPartialLeaveTime(t *testing.T) {
 		t,
 		service,
 		http.MethodGet,
-		"/attendance/api/leave-management?email=staff%40example.com",
+		"/attendance/api/leave-management?email=member%40example.com",
 		"",
 	)
 	var response attendanceLeaveManagementResponse
@@ -361,9 +361,9 @@ func TestAttendanceLeaveManagementCorrectsPastPartialLeaveTime(t *testing.T) {
 	location := service.workspaceTimeZone().location
 	userRecord := mattermostUserRecord{
 		ID:       "user-1",
-		Username: "staff",
-		Email:    "staff@example.com",
-		Nickname: "Staff",
+		Username: "member",
+		Email:    "member@example.com",
+		Nickname: "Member",
 	}
 	for _, event := range []attendanceEvent{
 		service.createAttendanceEvent(
@@ -396,7 +396,7 @@ func TestAttendanceLeaveManagementCorrectsPastPartialLeaveTime(t *testing.T) {
 		t.Context(),
 		view.ID,
 		attendanceLeaveManagementTimeInput{
-			EmployeeEmail: "staff@example.com",
+			EmployeeEmail: "member@example.com",
 			StartTime:     "11:00",
 			EndTime:       "15:00",
 			Reason:        "근무 기록과 겹치는 정정",

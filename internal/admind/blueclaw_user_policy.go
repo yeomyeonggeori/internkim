@@ -66,7 +66,7 @@ func blueclawAvailableCircles(policyDocument map[string]any) []adminCircleRecord
 		circles = append(circles, adminCircleRecord{CircleID: circleID, DisplayName: displayName, IsMattermostManaged: isMattermostManaged})
 	}
 	if len(circles) == 0 {
-		return []adminCircleRecord{{CircleID: "staff", DisplayName: "Staff"}}
+		return []adminCircleRecord{{CircleID: "member", DisplayName: "Member"}}
 	}
 	return circles
 }

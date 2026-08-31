@@ -16,14 +16,14 @@ func TestAttendanceLeaveApprovalInboxRequiresAdministrator(t *testing.T) {
 	grantAttendanceLeaveForApprovalTest(t, service, 1000)
 	createAttendanceLeaveForApprovalTest(t, service, "2027-05-03")
 
-	staffRecorder := requestAttendanceLeaveApprovalInboxForTest(
+	memberRecorder := requestAttendanceLeaveApprovalInboxForTest(
 		t,
 		service,
-		"staff@example.com",
+		"member@example.com",
 	)
 	assertAttendanceLeaveErrorResponse(
 		t,
-		staffRecorder,
+		memberRecorder,
 		http.StatusForbidden,
 		attendanceLeaveErrorAccessDenied,
 	)
@@ -43,7 +43,7 @@ func TestAttendanceLeaveApprovalInboxRequiresAdministrator(t *testing.T) {
 	if inbox.PendingCount != 1 || len(inbox.Pending) != 1 {
 		t.Fatalf("inbox = %+v", inbox)
 	}
-	if inbox.Pending[0].EmployeeEmail != "staff@example.com" {
+	if inbox.Pending[0].EmployeeEmail != "member@example.com" {
 		t.Fatalf("pending request = %+v", inbox.Pending[0])
 	}
 }
@@ -64,7 +64,7 @@ func TestAttendanceLeaveApprovalUsesReservationAndCreatesAbsence(t *testing.T) {
 	}
 	balance, errorValue := service.readAttendanceLeaveBalance(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		"annual",
 	)
 	if errorValue != nil {
@@ -78,7 +78,7 @@ func TestAttendanceLeaveApprovalUsesReservationAndCreatesAbsence(t *testing.T) {
 	absences, errorValue := service.readAttendanceAbsences(
 		t.Context(),
 		"2027-05",
-		"staff@example.com",
+		"member@example.com",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -86,7 +86,7 @@ func TestAttendanceLeaveApprovalUsesReservationAndCreatesAbsence(t *testing.T) {
 	if len(absences) != 1 || absences[0].Kind != "leave" {
 		t.Fatalf("absences = %+v", absences)
 	}
-	if absences[0].CreatedBy != "staff@example.com" {
+	if absences[0].CreatedBy != "member@example.com" {
 		t.Fatalf("absence createdBy = %q", absences[0].CreatedBy)
 	}
 	if strings.Contains(recorder.Body.String(), "admin@example.com") {
@@ -101,7 +101,7 @@ func TestAttendanceLeaveApprovalRecordsUntrackedUseForNonDeductingLeave(t *testi
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"fullDay","startDate":"2027-05-03","reason":""}`,
 	)
 	if createRecorder.Code != http.StatusOK {
@@ -119,7 +119,7 @@ func TestAttendanceLeaveApprovalRecordsUntrackedUseForNonDeductingLeave(t *testi
 	}
 	entries, errorValue := service.readAttendanceLeaveLedger(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		"sick",
 	)
 	if errorValue != nil {
@@ -140,7 +140,7 @@ func TestAttendanceLeaveApprovalIncludesPartialLeaveTimesInAbsenceSummary(t *tes
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"quarterDay","startDate":"2027-05-03","partialPeriod":"custom","startTime":"13:00","reason":"은행 방문"}`,
 	)
 	if createRecorder.Code != http.StatusOK {
@@ -159,7 +159,7 @@ func TestAttendanceLeaveApprovalIncludesPartialLeaveTimesInAbsenceSummary(t *tes
 	absences, errorValue := service.readAttendanceAbsences(
 		t.Context(),
 		"2027-05",
-		"staff@example.com",
+		"member@example.com",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -200,7 +200,7 @@ func TestAttendanceLeaveApprovalNeedsChangesRequiresResponse(t *testing.T) {
 	}
 	balance, errorValue := service.readAttendanceLeaveBalance(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		"annual",
 	)
 	if errorValue != nil {
@@ -214,7 +214,7 @@ func TestAttendanceLeaveApprovalNeedsChangesRequiresResponse(t *testing.T) {
 	absences, errorValue := service.readAttendanceAbsences(
 		t.Context(),
 		"2027-05",
-		"staff@example.com",
+		"member@example.com",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -240,7 +240,7 @@ func TestAttendanceLeaveApprovalRejectsWithoutResponseAndReleasesReservation(t *
 	}
 	balance, errorValue := service.readAttendanceLeaveBalance(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		"annual",
 	)
 	if errorValue != nil {
@@ -301,7 +301,7 @@ func TestAttendanceLeaveApprovalOnlyFirstConcurrentDecisionApplies(t *testing.T)
 	}
 	balance, errorValue := service.readAttendanceLeaveBalance(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		"annual",
 	)
 	if errorValue != nil {
@@ -332,7 +332,7 @@ func TestAttendanceLeaveApprovalRecentChangesIncludesApprovedCancellation(t *tes
 		nil,
 	)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	if cancelRecorder.Code != http.StatusOK {
@@ -390,7 +390,7 @@ INSERT INTO attendance_leave_request_events (
 		"leave-event-early-return",
 		requestID,
 		attendanceLeaveApprovalChangeEarlyReturn,
-		"staff@example.com",
+		"member@example.com",
 		returnedAt,
 		returnedAt,
 	); errorValue != nil {
@@ -432,7 +432,7 @@ func grantAttendanceLeaveForApprovalTest(
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-leave-approval",
-			Employee:     attendanceLeaveEmployee{Email: "staff@example.com"},
+			Employee:     attendanceLeaveEmployee{Email: "member@example.com"},
 			LeaveTypeID:  "annual",
 			Amount:       amountMilliDays,
 			EffectiveOn:  "2027-01-01",
@@ -454,7 +454,7 @@ func createAttendanceLeaveForApprovalTest(
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"halfDay","startDate":"`+startDate+`","partialPeriod":"morning","reason":"병원 방문"}`,
 	)
 	if recorder.Code != http.StatusOK {

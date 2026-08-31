@@ -1230,13 +1230,13 @@ func mattermostCircleSetsEqual(current []string, synced []string) bool {
 
 func mattermostSyncedPersonCircles(person map[string]any, circleEmailsByID map[string]map[string]bool) []string {
 	emailValues, _ := person["emails"].([]any)
-	circles := []string{"staff"}
+	circles := []string{"member"}
 	if isAdmin, _ := person["isAdmin"].(bool); isAdmin {
 		circles = append(circles, "admin")
 	}
 	for _, circle := range policyStringList(person["circles"]) {
 		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
-		if normalizedCircle == "" || normalizedCircle == "staff" || normalizedCircle == "admin" {
+		if normalizedCircle == "" || normalizedCircle == "member" || normalizedCircle == "admin" {
 			continue
 		}
 		if _, isMattermostManaged := circleEmailsByID[normalizedCircle]; !isMattermostManaged {

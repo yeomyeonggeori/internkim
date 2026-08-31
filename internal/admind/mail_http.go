@@ -45,7 +45,7 @@ func (service *Service) authorizeMailRequest(request *http.Request) bool {
 	if actorEmail == "" {
 		return false
 	}
-	return isLocalRequest(request) || service.isTaskStaffActor(request.Context(), actorEmail)
+	return isLocalRequest(request) || service.isTaskMemberActor(request.Context(), actorEmail)
 }
 
 func (service *Service) writeMailAccount(responseWriter http.ResponseWriter, request *http.Request) {
@@ -136,7 +136,7 @@ func (service *Service) mailActorEmail(request *http.Request) string {
 	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
-	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
+	if actorEmail := service.webMemberActorEmail(request); actorEmail != "" {
 		return actorEmail
 	}
 	return assertedRequesterEmail(request)

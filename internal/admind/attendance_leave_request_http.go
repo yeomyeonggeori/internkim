@@ -70,7 +70,7 @@ func (service *Service) writeAttendanceLeaveRequest(responseWriter http.Response
 	leaveType = attendanceLeaveTypeForRequest(policy, leaveType)
 	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
 		request,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 	)
 	if errorValue != nil {
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)
@@ -128,7 +128,7 @@ func (service *Service) writeAttendanceLeaveRequest(responseWriter http.Response
 func (service *Service) writeAttendanceLeaveDashboard(responseWriter http.ResponseWriter, request *http.Request) {
 	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
 		request,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 	)
 	if errorValue != nil {
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)
@@ -150,7 +150,7 @@ func (service *Service) cancelAttendanceLeaveRequestResponse(
 ) {
 	employee := service.attendanceLeaveEmployeeForRequest(
 		request,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 	)
 	errorValue := service.cancelAttendanceLeaveRequest(request.Context(), requestID, employee, time.Now())
 	if errorValue != nil {
@@ -193,7 +193,7 @@ func (service *Service) resubmitAttendanceLeaveRequestResponse(
 	leaveType = attendanceLeaveTypeForRequest(policy, leaveType)
 	employee, errorValue := service.attendanceLeaveEmployeeWithHireDateForRequest(
 		request,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 	)
 	if errorValue != nil {
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)

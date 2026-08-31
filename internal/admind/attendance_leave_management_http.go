@@ -69,7 +69,7 @@ func (service *Service) writeAttendanceLeaveManagementPastLeave(
 	view, errorValue := service.createManagedPastAttendanceLeave(
 		request.Context(),
 		input,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 		time.Now(),
 	)
 	if errorValue != nil {
@@ -98,7 +98,7 @@ func (service *Service) writeAttendanceLeaveManagementCancellation(
 		request.Context(),
 		requestID,
 		input.EmployeeEmail,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 		time.Now(),
 	); errorValue != nil {
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)
@@ -126,7 +126,7 @@ func (service *Service) writeAttendanceLeaveManagementTimeCorrection(
 		request.Context(),
 		requestID,
 		input,
-		service.webStaffActorEmail(request),
+		service.webMemberActorEmail(request),
 		time.Now(),
 	); errorValue != nil {
 		writeAttendanceLeaveRequestError(responseWriter, errorValue)

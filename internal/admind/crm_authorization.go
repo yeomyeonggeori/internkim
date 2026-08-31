@@ -24,7 +24,7 @@ func (service *Service) resolveCRMActor(request *http.Request) (crmActor, error)
 	if email == "" {
 		return crmActor{}, errCRMAuthenticationRequired
 	}
-	if !service.isTaskStaffActor(request.Context(), email) {
+	if !service.isTaskMemberActor(request.Context(), email) {
 		return crmActor{}, errCRMPermissionDenied
 	}
 	personID := ""

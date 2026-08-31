@@ -15,7 +15,7 @@ func TestApprovedPartialLeaveClosesOpenWorkAtLeaveStart(t *testing.T) {
 
 	activeLeave, errorValue := service.reconcileApprovedLeaveClockOut(
 		t.Context(),
-		"staff@example.com",
+		"member@example.com",
 		now,
 	)
 	if errorValue != nil {
@@ -27,7 +27,7 @@ func TestApprovedPartialLeaveClosesOpenWorkAtLeaveStart(t *testing.T) {
 	events, errorValue := service.readAttendanceEvents(
 		t.Context(),
 		"2027-05",
-		"staff@example.com",
+		"member@example.com",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -43,7 +43,7 @@ func TestApprovedPartialLeaveClosesOpenWorkAtLeaveStart(t *testing.T) {
 
 	if _, errorValue := service.reconcileApprovedLeaveClockOut(
 		t.Context(),
-		"staff@example.com",
+		"member@example.com",
 		now,
 	); errorValue != nil {
 		t.Fatal(errorValue)
@@ -51,7 +51,7 @@ func TestApprovedPartialLeaveClosesOpenWorkAtLeaveStart(t *testing.T) {
 	events, errorValue = service.readAttendanceEvents(
 		t.Context(),
 		"2027-05",
-		"staff@example.com",
+		"member@example.com",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -68,7 +68,7 @@ func TestApprovedPartialLeaveEarlyReturnShortensDisplayedIntervalWithoutRestorin
 	returnedAt := time.Date(2027, 5, 3, 5, 30, 0, 0, time.UTC)
 	activeLeave, errorValue := service.reconcileApprovedLeaveClockOut(
 		t.Context(),
-		"staff@example.com",
+		"member@example.com",
 		returnedAt,
 	)
 	if errorValue != nil {
@@ -81,7 +81,7 @@ func TestApprovedPartialLeaveEarlyReturnShortensDisplayedIntervalWithoutRestorin
 	if errorValue := service.recordAttendanceLeaveEarlyReturn(
 		t.Context(),
 		*activeLeave,
-		"staff@example.com",
+		"member@example.com",
 		returnedAt,
 	); errorValue != nil {
 		t.Fatal(errorValue)
@@ -89,14 +89,14 @@ func TestApprovedPartialLeaveEarlyReturnShortensDisplayedIntervalWithoutRestorin
 
 	if currentLeave, errorValue := service.readActiveAttendanceLeave(
 		t.Context(),
-		"staff@example.com",
+		"member@example.com",
 		returnedAt,
 	); errorValue != nil || currentLeave != nil {
 		t.Fatalf("current leave = %+v error = %v", currentLeave, errorValue)
 	}
 	dashboard, errorValue := service.readAttendanceLeaveDashboard(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		returnedAt,
 	)
 	if errorValue != nil {
@@ -139,7 +139,7 @@ func TestManagedTimeCorrectionMovesAutomaticClockOutAndKeepsCancellationRestorab
 	insertRuntimeClockInForTest(t, service)
 	if _, errorValue := service.reconcileApprovedLeaveClockOut(
 		t.Context(),
-		"staff@example.com",
+		"member@example.com",
 		time.Date(2027, 5, 3, 5, 0, 0, 0, time.UTC),
 	); errorValue != nil {
 		t.Fatal(errorValue)
@@ -149,7 +149,7 @@ func TestManagedTimeCorrectionMovesAutomaticClockOutAndKeepsCancellationRestorab
 		t.Context(),
 		requestID,
 		attendanceLeaveManagementTimeInput{
-			EmployeeEmail: "staff@example.com",
+			EmployeeEmail: "member@example.com",
 			StartTime:     "14:00",
 			EndTime:       "16:00",
 			Reason:        "실제 휴가 시작 시간 반영",
@@ -166,7 +166,7 @@ func TestManagedTimeCorrectionMovesAutomaticClockOutAndKeepsCancellationRestorab
 	}
 	correctedDashboard, errorValue := service.readAttendanceLeaveDashboard(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		time.Date(2027, 5, 4, 0, 0, 0, 0, time.UTC),
 	)
 	if errorValue != nil {
@@ -179,7 +179,7 @@ func TestManagedTimeCorrectionMovesAutomaticClockOutAndKeepsCancellationRestorab
 	if errorValue := service.cancelManagedAttendanceLeave(
 		t.Context(),
 		requestID,
-		"staff@example.com",
+		"member@example.com",
 		"admin@example.com",
 		time.Date(2027, 5, 4, 1, 0, 0, 0, time.UTC),
 	); errorValue != nil {
@@ -187,7 +187,7 @@ func TestManagedTimeCorrectionMovesAutomaticClockOutAndKeepsCancellationRestorab
 	}
 	dashboard, errorValue := service.readAttendanceLeaveDashboard(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		time.Date(2027, 5, 4, 1, 0, 0, 0, time.UTC),
 	)
 	if errorValue != nil {
@@ -205,7 +205,7 @@ func TestManagedTimeCorrectionMovesAutomaticClockOutEarlier(t *testing.T) {
 	insertRuntimeClockInForTest(t, service)
 	if _, errorValue := service.reconcileApprovedLeaveClockOut(
 		t.Context(),
-		"staff@example.com",
+		"member@example.com",
 		time.Date(2027, 5, 3, 5, 0, 0, 0, time.UTC),
 	); errorValue != nil {
 		t.Fatal(errorValue)
@@ -215,7 +215,7 @@ func TestManagedTimeCorrectionMovesAutomaticClockOutEarlier(t *testing.T) {
 		t.Context(),
 		requestID,
 		attendanceLeaveManagementTimeInput{
-			EmployeeEmail: "staff@example.com",
+			EmployeeEmail: "member@example.com",
 			StartTime:     "12:00",
 			EndTime:       "14:00",
 			Reason:        "예정보다 일찍 시작한 휴가 반영",
@@ -238,7 +238,7 @@ func TestManagedCancellationCancelsAutomaticClockOut(t *testing.T) {
 	insertRuntimeClockInForTest(t, service)
 	if _, errorValue := service.reconcileApprovedLeaveClockOut(
 		t.Context(),
-		"staff@example.com",
+		"member@example.com",
 		time.Date(2027, 5, 3, 5, 0, 0, 0, time.UTC),
 	); errorValue != nil {
 		t.Fatal(errorValue)
@@ -247,7 +247,7 @@ func TestManagedCancellationCancelsAutomaticClockOut(t *testing.T) {
 	if errorValue := service.cancelManagedAttendanceLeave(
 		t.Context(),
 		requestID,
-		"staff@example.com",
+		"member@example.com",
 		"admin@example.com",
 		time.Date(2027, 5, 3, 6, 0, 0, 0, time.UTC),
 	); errorValue != nil {
@@ -266,7 +266,7 @@ func TestManagedCancellationCancelsAutomaticClockOut(t *testing.T) {
 	latestEvent, foundLatest, errorValue := service.latestActiveAttendanceEvent(
 		t.Context(),
 		database,
-		"staff-user",
+		"member-user",
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -287,7 +287,7 @@ func createApprovedPartialLeaveForRuntimeTest(
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"quarterDay","startDate":"2027-05-03","partialPeriod":"custom","startTime":"13:00","reason":"은행 방문"}`,
 	)
 	requestID := decodeAttendanceLeaveRequestIDForTest(t, createRecorder)
@@ -319,9 +319,9 @@ func insertRuntimeClockInForTest(t *testing.T, service *Service) {
 	defer database.Close()
 	event := service.createAttendanceEvent(
 		mattermostUserRecord{
-			ID:       "staff-user",
-			Username: "staff",
-			Email:    "staff@example.com",
+			ID:       "member-user",
+			Username: "member",
+			Email:    "member@example.com",
 		},
 		attendanceKindClockIn,
 		occurredAt,

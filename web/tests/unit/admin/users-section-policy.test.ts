@@ -21,7 +21,7 @@ const adminRecord: UserRecord = {
 	email: 'admin@example.com',
 	hireDate: '2026-01-01',
 	role: 'admin',
-	circles: ['staff', 'admin']
+	circles: ['member', 'admin']
 };
 
 const memberRecord: UserRecord = {
@@ -31,7 +31,7 @@ const memberRecord: UserRecord = {
 	email: 'member@example.com',
 	hireDate: '2026-01-02',
 	role: 'member',
-	circles: ['staff']
+	circles: ['member']
 };
 
 describe('users section policy', () => {
@@ -51,12 +51,12 @@ describe('users section policy', () => {
 		expect(isReservedCircleID(' Admin ')).toBe(true);
 		expect(
 			visibleUserCircles([
-				{ circleID: 'staff', displayName: 'Staff' },
+				{ circleID: 'member', displayName: 'Member' },
 				{ circleID: 'admin', displayName: 'Admin' },
 				{ circleID: 'team', displayName: 'Team' }
 			]).map((circle) => circle.circleID)
-		).toEqual(['staff', 'team']);
-		expect(normalizeUserCircles(['Staff', 'team'], 'admin')).toEqual(['staff', 'team', 'admin']);
+		).toEqual(['member', 'team']);
+		expect(normalizeUserCircles(['Member', 'team'], 'admin')).toEqual(['member', 'team', 'admin']);
 		expect(hasUserCircle({ ...memberRecord, circles: ['Team'] }, 'team')).toBe(true);
 	});
 

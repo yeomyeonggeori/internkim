@@ -6,12 +6,12 @@ describe('the circles a company keeps', () => {
 		const held = circleNamesByMemberID([
 			{ name: 'admin', circle_member: [{ member_id: 'lee' }, { member_id: 'rain' }] },
 			{ name: 'c-level', circle_member: [{ member_id: 'lee' }] },
-			{ name: 'staff', circle_member: [{ member_id: 'lee' }, { member_id: 'rain' }, { member_id: 'kwak' }] }
+			{ name: 'member', circle_member: [{ member_id: 'lee' }, { member_id: 'rain' }, { member_id: 'kwak' }] }
 		]);
 
-		expect(held.get('lee')).toEqual(['admin', 'c-level', 'staff']);
-		expect(held.get('rain')).toEqual(['admin', 'staff']);
-		expect(held.get('kwak')).toEqual(['staff']);
+		expect(held.get('lee')).toEqual(['admin', 'c-level', 'member']);
+		expect(held.get('rain')).toEqual(['admin', 'member']);
+		expect(held.get('kwak')).toEqual(['member']);
 	});
 
 	test('leaves out a member no circle names, rather than giving them an empty one', () => {

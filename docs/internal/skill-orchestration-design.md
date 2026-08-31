@@ -107,7 +107,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 
 기억 scope 선택을 조율한다.
 
-- 개인 선호, 개인 일정, 개인 이메일 맥락은 `personal:{staffID}`로 둔다.
+- 개인 선호, 개인 일정, 개인 이메일 맥락은 `personal:{memberID}`로 둔다.
 - 직급별 규칙과 권한은 `role:{title}`로 둔다.
 - 팀 회의록과 팀 업무 맥락은 `team:{department}`로 둔다.
 - 회사 정책, 계약서 템플릿, 공용 DB 구조는 `company`로 둔다.

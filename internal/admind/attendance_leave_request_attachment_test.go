@@ -23,7 +23,7 @@ func TestAttendanceLeaveRequestAttachmentIsPrivateAndOwnerDownloadable(t *testin
 		t,
 		service,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"fullDay","startDate":"2027-05-03","reason":"Medical appointment"}`,
 		"evidence.png",
 		pngContent,
@@ -74,7 +74,7 @@ func TestAttendanceLeaveRequestAttachmentIsPrivateAndOwnerDownloadable(t *testin
 
 	ownerRequest := httptest.NewRequest(http.MethodGet, attachment.DownloadURL, nil)
 	ownerRequest.RemoteAddr = "203.0.113.10:1234"
-	ownerRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	ownerRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	ownerRecorder := httptest.NewRecorder()
 	service.handleAttendance(ownerRecorder, ownerRequest)
 	if ownerRecorder.Code != http.StatusOK {
@@ -122,7 +122,7 @@ func TestAttendanceLeaveRequestAttachmentIsPrivateAndOwnerDownloadable(t *testin
 		nil,
 	)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	if cancelRecorder.Code != http.StatusOK {
@@ -139,7 +139,7 @@ func TestAttendanceLeaveRequestRejectsInvalidAttachmentWithJSONError(t *testing.
 		t,
 		service,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"fullDay","startDate":"2027-05-03","reason":"Medical appointment"}`,
 		"evidence.txt",
 		[]byte("not an allowed attachment"),

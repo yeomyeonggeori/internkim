@@ -13,7 +13,7 @@ func TestAttendanceLeaveRequestPersistsAcrossRestartAndScopesDashboardToOwner(t 
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"quarterDay","startDate":"2027-05-03","partialPeriod":"morning","reason":"Medical appointment"}`,
 	)
 	if recorder.Code != http.StatusOK {
@@ -23,7 +23,7 @@ func TestAttendanceLeaveRequestPersistsAcrossRestartAndScopesDashboardToOwner(t 
 	restartedService := NewService(service.Configuration)
 	ownerDashboard, errorValue := restartedService.readAttendanceLeaveDashboard(
 		t.Context(),
-		attendanceLeaveEmployee{Email: "staff@example.com"},
+		attendanceLeaveEmployee{Email: "member@example.com"},
 		time.Now(),
 	)
 	if errorValue != nil {

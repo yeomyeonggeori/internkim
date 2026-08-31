@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"sort"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,7 @@ import (
 func TestAttendanceAbsenceCreateSummaryAndCancel(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	createResponse := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	createResponse := createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "leave",
 		"startDate": "2026-05-13",
 		"endDate": "2026-05-15",
@@ -21,7 +22,7 @@ func TestAttendanceAbsenceCreateSummaryAndCancel(t *testing.T) {
 	if len(createResponse.Absences) != 3 {
 		t.Fatalf("expected 3 created absences, got %d", len(createResponse.Absences))
 	}
-	if createResponse.Absences[0].Email != "staff@example.com" {
+	if createResponse.Absences[0].Email != "member@example.com" {
 		t.Fatalf("expected created absence to use actor email, got %q", createResponse.Absences[0].Email)
 	}
 	if createResponse.Absences[0].Kind != "leave" {
@@ -39,7 +40,7 @@ func TestAttendanceAbsenceCreateSummaryAndCancel(t *testing.T) {
 		}
 	}
 
-	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
+	summaryResponse := readAttendanceSummaryForTest(t, service, "member@example.com", "2026-05")
 	if len(summaryResponse.Absences) != 3 {
 		t.Fatalf("expected 3 summary absences, got %d", len(summaryResponse.Absences))
 	}
@@ -48,30 +49,30 @@ func TestAttendanceAbsenceCreateSummaryAndCancel(t *testing.T) {
 		t.Fatalf("open attendance database: %v", errorValue)
 	}
 	defer database.Close()
-	if attendanceActiveAbsenceOccurrenceCount(t, database, "staff@example.com") != 3 {
+	if attendanceActiveAbsenceOccurrenceCount(t, database, "member@example.com") != 3 {
 		t.Fatal("expected 3 active absence occurrences after create")
 	}
 
 	cancelRequest := httptest.NewRequest(http.MethodDelete, "/attendance/api/absences/"+createResponse.Absences[0].ID, nil)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	if cancelRecorder.Code != http.StatusOK {
 		t.Fatalf("expected cancel status 200, got %d: %s", cancelRecorder.Code, cancelRecorder.Body.String())
 	}
 
-	storedAbsences, errorValue := service.readAttendanceAbsences(context.Background(), "2026-05", "staff@example.com")
+	storedAbsences, errorValue := service.readAttendanceAbsences(context.Background(), "2026-05", "member@example.com")
 	if errorValue != nil {
 		t.Fatalf("read absences: %v", errorValue)
 	}
 	if len(storedAbsences) != 2 {
 		t.Fatalf("expected 2 active absences after cancel, got %d", len(storedAbsences))
 	}
-	if attendanceActiveAbsenceOccurrenceCount(t, database, "staff@example.com") != 2 {
+	if attendanceActiveAbsenceOccurrenceCount(t, database, "member@example.com") != 2 {
 		t.Fatal("expected 2 active absence occurrences after cancel")
 	}
-	if attendanceCanceledAbsenceOccurrenceCount(t, database, "staff@example.com") != 3 {
+	if attendanceCanceledAbsenceOccurrenceCount(t, database, "member@example.com") != 3 {
 		t.Fatal("expected original 3 absence occurrences to be canceled after split")
 	}
 }
@@ -79,11 +80,11 @@ func TestAttendanceAbsenceCreateSummaryAndCancel(t *testing.T) {
 func TestAttendanceAbsenceCreateIsIdempotentForActiveDate(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	firstResponse := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	firstResponse := createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
-	secondResponse := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	secondResponse := createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
@@ -95,7 +96,7 @@ func TestAttendanceAbsenceCreateIsIdempotentForActiveDate(t *testing.T) {
 		t.Fatalf("expected duplicate create to return no new absences, got %d", len(secondResponse.Absences))
 	}
 
-	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
+	summaryResponse := readAttendanceSummaryForTest(t, service, "member@example.com", "2026-05")
 	if len(summaryResponse.Absences) != 1 {
 		t.Fatalf("expected 1 active absence after duplicate create, got %d", len(summaryResponse.Absences))
 	}
@@ -104,7 +105,7 @@ func TestAttendanceAbsenceCreateIsIdempotentForActiveDate(t *testing.T) {
 func TestAttendanceAbsenceCreateSkipsWeekends(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	response := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	response := createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "leave",
 		"startDate": "2026-05-15",
 		"endDate": "2026-05-18"
@@ -120,7 +121,7 @@ func TestAttendanceAbsenceCreateSkipsWeekends(t *testing.T) {
 		t.Fatalf("expected weekend-spanning absence to remain one range, got %+v", response.Absences)
 	}
 
-	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
+	summaryResponse := readAttendanceSummaryForTest(t, service, "member@example.com", "2026-05")
 	if len(summaryResponse.Absences) != 2 {
 		t.Fatalf("expected 2 summary absences, got %d", len(summaryResponse.Absences))
 	}
@@ -129,18 +130,18 @@ func TestAttendanceAbsenceCreateSkipsWeekends(t *testing.T) {
 func TestAttendanceAbsenceCreateMergesAdjacentSameKindRange(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "other",
 		"startDate": "2026-05-11",
 		"endDate": "2026-05-13"
 	}`)
-	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "other",
 		"startDate": "2026-05-14",
 		"endDate": "2026-05-15"
 	}`)
 
-	ranges, errorValue := service.readAttendanceAbsenceRanges(context.Background(), "2026-05-01", "2026-06-01", "staff@example.com")
+	ranges, errorValue := service.readAttendanceAbsenceRanges(context.Background(), "2026-05-01", "2026-06-01", "member@example.com")
 	if errorValue != nil {
 		t.Fatalf("read active ranges: %v", errorValue)
 	}
@@ -165,7 +166,7 @@ INSERT INTO attendance_absence_occurrences (id, range_id, email, date, created_a
 VALUES (?, ?, ?, ?, ?, ?)`,
 		"existing-occurrence",
 		"external-range",
-		"staff@example.com",
+		"member@example.com",
 		"2026-05-13",
 		"2026-05-01T00:00:00Z",
 		"",
@@ -179,7 +180,7 @@ VALUES (?, ?, ?, ?, ?, ?)`,
 		"startDate": "2026-05-13"
 	}`))
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleAttendance(recorder, request)
@@ -187,7 +188,7 @@ VALUES (?, ?, ?, ?, ?, ?)`,
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf("expected status 409, got %d: %s", recorder.Code, recorder.Body.String())
 	}
-	if attendanceAbsenceRangeCount(t, database, "staff@example.com") != 0 {
+	if attendanceAbsenceRangeCount(t, database, "member@example.com") != 0 {
 		t.Fatal("expected conflicting range insert to roll back")
 	}
 }
@@ -196,7 +197,7 @@ func TestAttendanceAbsenceCreateAllowsSameDateForDifferentPeople(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	createAttendanceAbsenceForTest(t, service, "admin@example.com", `{
-		"email": "staff@example.com",
+		"email": "member@example.com",
 		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
@@ -207,11 +208,11 @@ func TestAttendanceAbsenceCreateAllowsSameDateForDifferentPeople(t *testing.T) {
 	}`)
 
 	summaryResponse := readAttendanceSummaryForTest(t, service, "admin@example.com", "2026-05")
-	expected := []string{
-		"2026-05-13:other",
-		"2026-05-13:leave",
-	}
-	if attendanceAbsenceDateKinds(summaryResponse.Absences) != strings.Join(expected, ",") {
+	// Two people are off on one date. Which of them the summary lists first
+	// follows from their email addresses and is not what this is about.
+	held := strings.Split(attendanceAbsenceDateKinds(summaryResponse.Absences), ",")
+	sort.Strings(held)
+	if strings.Join(held, ",") != "2026-05-13:leave,2026-05-13:other" {
 		t.Fatalf("expected same-date absences for different people, got %+v", summaryResponse.Absences)
 	}
 }
@@ -219,18 +220,18 @@ func TestAttendanceAbsenceCreateAllowsSameDateForDifferentPeople(t *testing.T) {
 func TestAttendanceAbsenceCreateReplacesOverlappingDateWithSplitRanges(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "leave",
 		"startDate": "2026-05-11",
 		"endDate": "2026-05-15"
 	}`)
-	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "other",
 		"startDate": "2026-05-13",
 		"endDate": "2026-05-13"
 	}`)
 
-	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
+	summaryResponse := readAttendanceSummaryForTest(t, service, "member@example.com", "2026-05")
 	expected := []string{
 		"2026-05-11:leave",
 		"2026-05-12:leave",
@@ -241,7 +242,7 @@ func TestAttendanceAbsenceCreateReplacesOverlappingDateWithSplitRanges(t *testin
 	if attendanceAbsenceDateKinds(summaryResponse.Absences) != strings.Join(expected, ",") {
 		t.Fatalf("unexpected split replacement: %+v", summaryResponse.Absences)
 	}
-	ranges, errorValue := service.readAttendanceAbsenceRanges(context.Background(), "2026-05-01", "2026-06-01", "staff@example.com")
+	ranges, errorValue := service.readAttendanceAbsenceRanges(context.Background(), "2026-05-01", "2026-06-01", "member@example.com")
 	if errorValue != nil {
 		t.Fatalf("read active ranges: %v", errorValue)
 	}
@@ -253,10 +254,10 @@ func TestAttendanceAbsenceCreateReplacesOverlappingDateWithSplitRanges(t *testin
 		t.Fatalf("open attendance database: %v", errorValue)
 	}
 	defer database.Close()
-	if attendanceActiveAbsenceOccurrenceCount(t, database, "staff@example.com") != 5 {
+	if attendanceActiveAbsenceOccurrenceCount(t, database, "member@example.com") != 5 {
 		t.Fatal("expected 5 active occurrence rows after replacement")
 	}
-	if attendanceCanceledAbsenceOccurrenceCount(t, database, "staff@example.com") != 5 {
+	if attendanceCanceledAbsenceOccurrenceCount(t, database, "member@example.com") != 5 {
 		t.Fatal("expected 5 canceled occurrence rows from replaced range")
 	}
 }
@@ -264,7 +265,7 @@ func TestAttendanceAbsenceCreateReplacesOverlappingDateWithSplitRanges(t *testin
 func TestAttendanceAbsenceCancelSplitsRange(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	response := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	response := createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "leave",
 		"startDate": "2026-05-11",
 		"endDate": "2026-05-15"
@@ -281,14 +282,14 @@ func TestAttendanceAbsenceCancelSplitsRange(t *testing.T) {
 
 	cancelRequest := httptest.NewRequest(http.MethodDelete, "/attendance/api/absences/"+wednesdayID, nil)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	if cancelRecorder.Code != http.StatusOK {
 		t.Fatalf("expected cancel status 200, got %d: %s", cancelRecorder.Code, cancelRecorder.Body.String())
 	}
 
-	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
+	summaryResponse := readAttendanceSummaryForTest(t, service, "member@example.com", "2026-05")
 	expected := []string{
 		"2026-05-11:leave",
 		"2026-05-12:leave",
@@ -303,13 +304,13 @@ func TestAttendanceAbsenceCancelSplitsRange(t *testing.T) {
 func TestAttendanceAbsenceSummaryIncludesVisibleMonthGridOverlap(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "leave",
 		"startDate": "2026-05-29",
 		"endDate": "2026-06-02"
 	}`)
 
-	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
+	summaryResponse := readAttendanceSummaryForTest(t, service, "member@example.com", "2026-05")
 	expected := []string{
 		"2026-05-29:leave",
 		"2026-06-01:leave",

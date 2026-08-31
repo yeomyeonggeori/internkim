@@ -21,7 +21,7 @@ func TestAttendanceLeaveRequestErrorsUseClosedJSONContract(t *testing.T) {
 			name:       "unknown leave request path",
 			method:     http.MethodPost,
 			target:     "/attendance/api/leave-requests/missing-action",
-			actorEmail: "staff@example.com",
+			actorEmail: "member@example.com",
 			status:     http.StatusNotFound,
 			code:       attendanceLeaveErrorRequestNotFound,
 		},
@@ -53,7 +53,7 @@ func TestAttendanceLeaveRequestErrorsUseClosedJSONContract(t *testing.T) {
 			name:       "malformed leave dashboard path",
 			method:     http.MethodGet,
 			target:     "/attendance/api/leave/",
-			actorEmail: "staff@example.com",
+			actorEmail: "member@example.com",
 			status:     http.StatusNotFound,
 			code:       attendanceLeaveErrorRequestNotFound,
 		},
@@ -140,7 +140,7 @@ func TestAttendanceLeaveRequestKnownRoutesRejectWrongMethod(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(test.method, test.target, nil)
 			request.RemoteAddr = "203.0.113.10:1234"
-			request.Header.Set("X-Forwarded-Email", "staff@example.com")
+			request.Header.Set("X-Forwarded-Email", "member@example.com")
 			recorder := httptest.NewRecorder()
 
 			service.handleAttendance(recorder, request)
@@ -195,7 +195,7 @@ func TestAttendanceLeaveRequestMissingCancelTargetReturnsRequestNotFound(t *test
 		nil,
 	)
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleAttendance(recorder, request)

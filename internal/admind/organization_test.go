@@ -180,10 +180,10 @@ func TestLocalListUsersStartsWithoutLegacyBlueclawGroups(t *testing.T) {
 func localUsersPolicyDocumentWithOrgGroups() string {
 	return `{
 		"people":[
-			{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["staff"],"isAdmin":false}
+			{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["member"],"isAdmin":false}
 		],
-		"circles":[{"circleID":"staff","displayName":"Staff"}],
+		"circles":[{"circleID":"member","displayName":"Member"}],
 		"orgGroups":[{"id":"legacy","name":"Legacy"}],
-		"circleSync":{"mattermostPrivateChannels":[{"circleID":"staff","channelName":"circle-staff"}]}
+		"circleSync":{"mattermostPrivateChannels":[{"circleID":"member","channelName":"circle-member"}]}
 	}`
 }

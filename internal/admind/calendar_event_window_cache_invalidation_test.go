@@ -27,7 +27,7 @@ func TestCalendarEventWindowCacheInvalidatesOverlappingCreate(t *testing.T) {
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 	}
 	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourceLocal); errorValue != nil {
 		t.Fatal(errorValue)
@@ -71,7 +71,7 @@ func TestCalendarEventWindowCacheInvalidatesOldAndNewRangesOnMove(t *testing.T) 
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 	}
 	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourceLocal); errorValue != nil {
 		t.Fatal(errorValue)
@@ -114,7 +114,7 @@ func TestCalendarEventWindowCacheInvalidatesDeletedEventRange(t *testing.T) {
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 	}
 	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourceLocal); errorValue != nil {
 		t.Fatal(errorValue)
@@ -200,7 +200,7 @@ func TestCalendarEventWindowCacheInvalidatesMattermostProjectionChanges(t *testi
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 	}
 	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
 		t.Fatal(errorValue)

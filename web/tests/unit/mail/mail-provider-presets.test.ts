@@ -37,8 +37,8 @@ describe('mail provider presets', () => {
 			providerID: 'hanmail',
 			customDomain: ''
 		});
-		expect(mailAddressDraftFromEmail('staff@example.com')).toEqual({
-			localPart: 'staff',
+		expect(mailAddressDraftFromEmail('member@example.com')).toEqual({
+			localPart: 'member',
 			providerID: 'custom',
 			customDomain: 'example.com'
 		});
