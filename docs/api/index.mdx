@@ -134,14 +134,19 @@ agent runs on.
 
 ## Where it is implemented [#where-it-is-implemented]
 
+The API is part of the web app, so a company that hosts the app hosts the API.
+`api.<zone>/v1` and `<company host>/api/v1` are the same routes.
+
 | Concern | Where |
 |---|---|
-| Routing for everything under `/api/v1` | `handlePublicAPI` in `internal/admind/public_tool_gateway.go`, mounted in `internal/admind/service.go` |
-| Token issue, `ik_` format, SHA-256 hashing, store | `issuePublicAPIToken`, `publicAPITokenHash` in the same file; store path from `publicAPITokenStorePath` |
-| Scope normalisation and ranks | `normalizePublicAPITokenScopes`, `publicAPIScopeRank`, `publicToolScopeForDescriptor`, `publicToolAllowedForActor` |
-| Forwarding tool calls to `capabilityd` | `invokeCapabilityTool`, over the unix socket named by `CapabilitySocketPath` |
+| Routing for everything under `/api/v1` | `web/src/routes/api/v1/`; `/v1/*` is rewritten onto it in `web/src/hooks.ts` |
+| Who is calling, from a session token or an `ik_` key | `callingMember` in `web/src/lib/server/member-request.ts` |
+| Token issue, `ik_` format, SHA-256 hashing, store | `issuePersonalAccessToken` in `web/src/lib/server/control-plane.ts`; the rules in `web/src/lib/server/public-api/tokens.ts` |
+| Permission rungs and the tools each reaches | `web/src/lib/server/public-api/catalog.ts`, over `web/src/lib/public-api-permission.ts` |
+| Carrying a tool call to the company machine | `web/src/lib/server/public-api/company-call.ts`, through `workers/connection-gateway` to the company's relay |
+| What the company machine does with it | `handlePublicAPI` in `internal/admind/public_tool_gateway.go`, then `invokeCapabilityTool` over the `capabilityd` socket |
 | Agent endpoints | `internal/admind/agent_drive.go`, forwarding to Blueclaw through `blueclawJSONRequest` |
 | Wire types | `pkg/capabilityprotocol/protocol.go` |
 | Tool catalog | `pkg/capabilityprotocol/generated/capability-tools.json` |
-| The contract, stated as tests | `internal/admind/public_tool_gateway_test.go` |
-| OpenAPI document and `/api-docs` shell | `web/src/lib/server/openapi.ts`, `web/src/routes/openapi/[language].json/`, `web/src/routes/api-docs/` |
+| The contract, stated as tests | `web/tests/integration/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
+| OpenAPI document and `/api-docs` shell | `docs/web/app/lib/openapi.ts`, `web/src/routes/api-docs/` |
