@@ -519,7 +519,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		return
 	}
 	document.SummaryEmbedding = nil
-	document.StorageDirectory = "/workspace/circles/staff/documents/" + document.DocumentType
+	document.StorageDirectory = "/workspace/circles/member/documents/" + document.DocumentType
 	service.writeJSON(responseWriter, document)
 }
 

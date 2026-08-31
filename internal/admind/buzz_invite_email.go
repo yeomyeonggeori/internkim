@@ -21,7 +21,7 @@ func (service *Service) messengerPublicURL() string {
 }
 
 // handleBuzzInviteEmail sends a person their onboarding invitation from the
-// staff member's own connected mailbox (the mail-client SMTP account), so it
+// member member's own connected mailbox (the mail-client SMTP account), so it
 // arrives from a real address with good deliverability and needs no dedicated
 // system mail sender. The invite carries only the messenger link and guidance —
 // Cloudflare Access is the gate, so there is no secret invite token.
@@ -30,8 +30,8 @@ func (service *Service) handleBuzzInviteEmail(responseWriter http.ResponseWriter
 		http.NotFound(responseWriter, request)
 		return
 	}
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	var payload buzzInviteEmailRequest

@@ -225,7 +225,7 @@ func TestCompanyDocumentNumberingPerTypeAndYear(t *testing.T) {
 	if received.DocumentNumber != "" {
 		t.Fatalf("received document got number %q", received.DocumentNumber)
 	}
-	if first.StorageDirectory != "/workspace/circles/staff/documents/quote" {
+	if first.StorageDirectory != "/workspace/circles/member/documents/quote" {
 		t.Fatalf("storageDirectory = %q", first.StorageDirectory)
 	}
 }
@@ -275,14 +275,14 @@ func TestCompanyRecordLifecycleAndDocumentTextSearch(t *testing.T) {
 
 	decodeCompanyResponse(t, performCompanyRequest(t, service.updateCompanyDocument, http.MethodPut, "/admin/api/company-documents", map[string]any{
 		"id":       registered.ID,
-		"filePath": "/workspace/circles/staff/documents/service-agreement/renamed.docx",
+		"filePath": "/workspace/circles/member/documents/service-agreement/renamed.docx",
 	}), &map[string]any{})
 
 	var documents struct {
 		Documents []companyDocument `json:"documents"`
 	}
 	decodeCompanyResponse(t, performCompanyRequest(t, service.listCompanyDocuments, http.MethodGet, "/admin/api/company-documents?counterpart=ABC", nil), &documents)
-	if len(documents.Documents) != 1 || documents.Documents[0].FilePath != "/workspace/circles/staff/documents/service-agreement/renamed.docx" {
+	if len(documents.Documents) != 1 || documents.Documents[0].FilePath != "/workspace/circles/member/documents/service-agreement/renamed.docx" {
 		t.Fatalf("documents = %+v", documents.Documents)
 	}
 }

@@ -609,7 +609,7 @@ func TestAttendanceWorkStatusHTTPReturnsScopedWeeklyStatus(t *testing.T) {
 		"/attendance/api/work-status?period=week&anchor=2026-07-31",
 		nil,
 	)
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	now := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
 
 	service.writeAttendanceWorkStatusWithReadersAt(
@@ -630,7 +630,7 @@ func TestAttendanceWorkStatusHTTPReturnsScopedWeeklyStatus(t *testing.T) {
 	if response.PeriodStart != "2026-07-27" ||
 		response.PeriodEnd != "2026-08-02" ||
 		response.Personal == nil ||
-		response.Personal.Email != "staff@example.com" ||
+		response.Personal.Email != "member@example.com" ||
 		len(response.Employees) != 0 {
 		t.Fatalf("response = %+v", response)
 	}

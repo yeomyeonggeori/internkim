@@ -9,7 +9,7 @@ import (
 
 func TestAttendanceLeaveRequestCreateReservesBalanceAndReturnsPrivateDashboard(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-leave-request-create",
@@ -28,7 +28,7 @@ func TestAttendanceLeaveRequestCreateReservesBalanceAndReturnsPrivateDashboard(t
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-03","reason":"Family appointment"}`,
 	)
 	if createRecorder.Code != http.StatusOK {
@@ -37,7 +37,7 @@ func TestAttendanceLeaveRequestCreateReservesBalanceAndReturnsPrivateDashboard(t
 
 	request := httptest.NewRequest(http.MethodGet, "/attendance/api/leave", nil)
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 	service.handleAttendance(recorder, request)
 	if recorder.Code != http.StatusOK {
@@ -93,7 +93,7 @@ func TestAttendanceLeaveRequestAnnualBalanceModeUsesAnnualAccount(t *testing.T) 
 	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-shared-annual-balance",
@@ -112,7 +112,7 @@ func TestAttendanceLeaveRequestAnnualBalanceModeUsesAnnualAccount(t *testing.T) 
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"custom-shared","unit":"fullDay","startDate":"2027-05-03"}`,
 	)
 	if createRecorder.Code != http.StatusOK {
@@ -200,7 +200,7 @@ func TestAttendanceLeaveRequestAnnualBalanceModeUsesAnnualAccount(t *testing.T) 
 		nil,
 	)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	if cancelRecorder.Code != http.StatusOK {
@@ -242,7 +242,7 @@ func TestAttendanceLeaveDashboardSummarizesOnlyIncludedBalanceAccounts(t *testin
 	if errorValue := service.writeAttendanceLeavePolicy(t.Context(), policy); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	for _, grant := range []attendanceLeaveGrant{
 		{
 			Operation: attendanceLeaveOperation{
@@ -305,7 +305,7 @@ func TestAttendanceLeaveDashboardSummarizesOnlyIncludedBalanceAccounts(t *testin
 
 func TestAttendanceLeaveRequestCreateInsufficientBalanceIsAtomic(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-leave-request-insufficient",
@@ -324,7 +324,7 @@ func TestAttendanceLeaveRequestCreateInsufficientBalanceIsAtomic(t *testing.T) {
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-03","reason":"Family appointment"}`,
 	)
 	assertAttendanceLeaveErrorResponse(
@@ -359,7 +359,7 @@ func TestAttendanceLeaveRequestCreateInsufficientBalanceIsAtomic(t *testing.T) {
 
 func TestAttendanceLeaveRequestCancelPendingHardDeletesAndReleasesReservation(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-leave-request-cancel-pending",
@@ -377,7 +377,7 @@ func TestAttendanceLeaveRequestCancelPendingHardDeletesAndReleasesReservation(t 
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"halfDay","startDate":"2027-05-03","partialPeriod":"morning","reason":"Family appointment"}`,
 	)
 	if createRecorder.Code != http.StatusOK {
@@ -398,7 +398,7 @@ func TestAttendanceLeaveRequestCancelPendingHardDeletesAndReleasesReservation(t 
 		nil,
 	)
 	cancelRequest.RemoteAddr = "203.0.113.10:1234"
-	cancelRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
+	cancelRequest.Header.Set("X-Forwarded-Email", "member@example.com")
 	cancelRecorder := httptest.NewRecorder()
 	service.handleAttendance(cancelRecorder, cancelRequest)
 	if cancelRecorder.Code != http.StatusOK {
@@ -430,7 +430,7 @@ func TestAttendanceLeaveRequestCancelPendingHardDeletesAndReleasesReservation(t 
 
 func TestAttendanceLeaveRequestResubmitReplacesReservationInOneTransaction(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-leave-request-resubmit",
@@ -448,7 +448,7 @@ func TestAttendanceLeaveRequestResubmitReplacesReservationInOneTransaction(t *te
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-03","reason":"Original reason"}`,
 	)
 	if createRecorder.Code != http.StatusOK {
@@ -483,13 +483,13 @@ WHERE id = ?`,
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests/"+created.Request.ID+"/resubmit",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"halfDay","startDate":"2027-05-03","partialPeriod":"afternoon","reason":"Updated reason","response":"Changed to a half day"}`,
 	)
 	if resubmitRecorder.Code != http.StatusOK {
 		t.Fatalf("resubmit status = %d body = %s", resubmitRecorder.Code, resubmitRecorder.Body.String())
 	}
-	dashboard := readAttendanceLeaveDashboardForTest(t, service, "staff@example.com")
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, "member@example.com")
 	if dashboard.Summary.AvailableMilliDays != 1000 || dashboard.Summary.ReservedMilliDays != 500 {
 		t.Fatalf("summary = %+v", dashboard.Summary)
 	}

@@ -207,7 +207,7 @@ func TestAttendanceLeaveAccrualSynchronizationPersistsMonthlyGrantsOnce(t *testi
 	policy.LeaveTypes[0].GrantCadence = "monthly"
 	policy.LeaveTypes[0].GrantAmountMilliDays = 1000
 	employee := attendanceLeaveEmployee{
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		UserID:   "user-1",
 		HireDate: "2026-01-31",
 	}
@@ -257,7 +257,7 @@ func TestAttendanceLeaveAccrualSynchronizationPersistsMonthlyGrantsOnce(t *testi
 func TestAttendanceLeaveAccrualSynchronizationRecordsAnnualFiscalGrants(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		UserID:   "user-1",
 		HireDate: "2026-07-01",
 	}
@@ -292,7 +292,7 @@ func TestAttendanceLeaveAccrualSynchronizationRecordsAnnualFiscalGrants(t *testi
 func TestAttendanceLeaveAccrualSynchronizationExpiresPriorFiscalYear(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		UserID:   "user-1",
 		HireDate: "2026-01-01",
 	}
@@ -327,7 +327,7 @@ func TestAttendanceLeaveAccrualSynchronizationCarriesLimitedBalance(t *testing.T
 	policy.LeaveTypes[0].CarryoverEnabled = true
 	policy.LeaveTypes[0].CarryoverLimitMilliDays = &carryoverLimit
 	employee := attendanceLeaveEmployee{
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		UserID:   "user-1",
 		HireDate: "2026-01-01",
 	}
@@ -367,7 +367,7 @@ func TestAttendanceLeaveAccrualSynchronizationCarriesLimitedBalance(t *testing.T
 func TestAttendanceLeaveAccrualSynchronizationKeepsExistingGrantsAfterPolicyChange(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	employee := attendanceLeaveEmployee{
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		UserID:   "user-1",
 		HireDate: "2026-01-01",
 	}
@@ -423,7 +423,7 @@ func TestAttendanceLeaveAccrualSynchronizationStopsInactiveTypeAndExpiresExistin
 	initialPolicy := defaultAttendanceLeavePolicy()
 	initialPolicy.LeaveTypes = append(initialPolicy.LeaveTypes, customType)
 	employee := attendanceLeaveEmployee{
-		Email:    "staff@example.com",
+		Email:    "member@example.com",
 		UserID:   "user-1",
 		HireDate: "2026-01-01",
 	}

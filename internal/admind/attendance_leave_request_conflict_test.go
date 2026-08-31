@@ -13,7 +13,7 @@ func TestAttendanceLeaveRequestRejectsExistingLeaveOverlap(t *testing.T) {
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"halfDay","startDate":"2027-05-03","partialPeriod":"morning","reason":"Medical appointment"}`,
 	)
 	if firstRecorder.Code != http.StatusOK {
@@ -25,7 +25,7 @@ func TestAttendanceLeaveRequestRejectsExistingLeaveOverlap(t *testing.T) {
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"quarterDay","startDate":"2027-05-03","partialPeriod":"morning","reason":"Follow-up appointment"}`,
 	)
 	assertAttendanceLeaveErrorResponse(
@@ -45,9 +45,9 @@ func TestAttendanceLeaveRequestOpenClockInConflictsOnlyThroughCurrentTime(t *tes
 	}
 	userRecord := mattermostUserRecord{
 		ID:       "user-1",
-		Username: "staff",
-		Email:    "staff@example.com",
-		Nickname: "Staff",
+		Username: "member",
+		Email:    "member@example.com",
+		Nickname: "Member",
 	}
 	clockIn := service.createAttendanceEvent(
 		userRecord,
@@ -77,7 +77,7 @@ func TestAttendanceLeaveRequestOpenClockInConflictsOnlyThroughCurrentTime(t *tes
 	conflict, errorValue := attendanceLeaveRequestHasConfirmedWorkConflict(
 		t.Context(),
 		transaction,
-		"staff@example.com",
+		"member@example.com",
 		attendanceLeaveRequestOccurrence{
 			Date:      "2027-05-03",
 			StartTime: "10:30",
@@ -95,7 +95,7 @@ func TestAttendanceLeaveRequestOpenClockInConflictsOnlyThroughCurrentTime(t *tes
 	futureConflict, errorValue := attendanceLeaveRequestHasConfirmedWorkConflict(
 		t.Context(),
 		transaction,
-		"staff@example.com",
+		"member@example.com",
 		attendanceLeaveRequestOccurrence{
 			Date:      "2027-05-03",
 			StartTime: "11:30",
@@ -121,9 +121,9 @@ func TestAttendanceLeaveRequestDetectsClosedOvernightWorkByInstant(t *testing.T)
 	}
 	userRecord := mattermostUserRecord{
 		ID:       "user-1",
-		Username: "staff",
-		Email:    "staff@example.com",
-		Nickname: "Staff",
+		Username: "member",
+		Email:    "member@example.com",
+		Nickname: "Member",
 	}
 	events := []attendanceEvent{
 		service.createAttendanceEvent(
@@ -167,7 +167,7 @@ func TestAttendanceLeaveRequestDetectsClosedOvernightWorkByInstant(t *testing.T)
 	conflict, errorValue := attendanceLeaveRequestHasConfirmedWorkConflict(
 		t.Context(),
 		transaction,
-		"staff@example.com",
+		"member@example.com",
 		attendanceLeaveRequestOccurrence{
 			Date:      "2027-07-01",
 			StartTime: "03:00",
@@ -185,7 +185,7 @@ func TestAttendanceLeaveRequestDetectsClosedOvernightWorkByInstant(t *testing.T)
 	nonConflict, errorValue := attendanceLeaveRequestHasConfirmedWorkConflict(
 		t.Context(),
 		transaction,
-		"staff@example.com",
+		"member@example.com",
 		attendanceLeaveRequestOccurrence{
 			Date:      "2027-07-01",
 			StartTime: "04:30",
@@ -211,9 +211,9 @@ func TestAttendanceLeaveRequestRejectsConfirmedWorkOverlap(t *testing.T) {
 	location := service.workspaceTimeZone().location
 	userRecord := mattermostUserRecord{
 		ID:       "user-1",
-		Username: "staff",
-		Email:    "staff@example.com",
-		Nickname: "Staff",
+		Username: "member",
+		Email:    "member@example.com",
+		Nickname: "Member",
 	}
 	clockIn := service.createAttendanceEvent(
 		userRecord,
@@ -248,7 +248,7 @@ func TestAttendanceLeaveRequestRejectsConfirmedWorkOverlap(t *testing.T) {
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"sick","unit":"halfDay","startDate":"2027-05-03","partialPeriod":"custom","startTime":"09:00","reason":"Medical appointment"}`,
 	)
 	assertAttendanceLeaveErrorResponse(

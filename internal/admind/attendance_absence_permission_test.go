@@ -16,7 +16,7 @@ func TestAttendanceAbsenceBlocksNonAdminOtherEmail(t *testing.T) {
 		"startDate": "2026-05-13"
 	}`))
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleAttendance(recorder, request)
@@ -69,13 +69,13 @@ func TestAttendanceAbsenceCancelRequiresOwnerOrAdmin(t *testing.T) {
 	}`)
 	absenceID := response.Absences[0].ID
 
-	staffRequest := httptest.NewRequest(http.MethodDelete, "/attendance/api/absences/"+absenceID, nil)
-	staffRequest.RemoteAddr = "203.0.113.10:1234"
-	staffRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
-	staffRecorder := httptest.NewRecorder()
-	service.handleAttendance(staffRecorder, staffRequest)
-	if staffRecorder.Code != http.StatusForbidden {
-		t.Fatalf("expected staff cancel status 403, got %d: %s", staffRecorder.Code, staffRecorder.Body.String())
+	memberRequest := httptest.NewRequest(http.MethodDelete, "/attendance/api/absences/"+absenceID, nil)
+	memberRequest.RemoteAddr = "203.0.113.10:1234"
+	memberRequest.Header.Set("X-Forwarded-Email", "member@example.com")
+	memberRecorder := httptest.NewRecorder()
+	service.handleAttendance(memberRecorder, memberRequest)
+	if memberRecorder.Code != http.StatusForbidden {
+		t.Fatalf("expected member cancel status 403, got %d: %s", memberRecorder.Code, memberRecorder.Body.String())
 	}
 
 	adminRequest := httptest.NewRequest(http.MethodDelete, "/attendance/api/absences/"+absenceID, nil)
@@ -88,7 +88,7 @@ func TestAttendanceAbsenceCancelRequiresOwnerOrAdmin(t *testing.T) {
 	}
 }
 
-func TestAttendanceAbsenceSummaryHidesPrivateFieldsForOtherStaff(t *testing.T) {
+func TestAttendanceAbsenceSummaryHidesPrivateFieldsForOtherMember(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
 	createAttendanceAbsenceForTest(t, service, "admin@example.com", `{
@@ -98,21 +98,21 @@ func TestAttendanceAbsenceSummaryHidesPrivateFieldsForOtherStaff(t *testing.T) {
 		"reason": "hospital"
 	}`)
 
-	staffSummary := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
-	if len(staffSummary.Absences) != 1 {
-		t.Fatalf("expected 1 staff-visible absence, got %d", len(staffSummary.Absences))
+	memberSummary := readAttendanceSummaryForTest(t, service, "member@example.com", "2026-05")
+	if len(memberSummary.Absences) != 1 {
+		t.Fatalf("expected 1 member-visible absence, got %d", len(memberSummary.Absences))
 	}
-	if staffSummary.Absences[0].Kind != "other" {
-		t.Fatalf("expected staff-visible other kind, got %q", staffSummary.Absences[0].Kind)
+	if memberSummary.Absences[0].Kind != "other" {
+		t.Fatalf("expected member-visible other kind, got %q", memberSummary.Absences[0].Kind)
 	}
-	if staffSummary.Absences[0].LabelKey != "other" {
-		t.Fatalf("expected staff-visible other label key, got %q", staffSummary.Absences[0].LabelKey)
+	if memberSummary.Absences[0].LabelKey != "other" {
+		t.Fatalf("expected member-visible other label key, got %q", memberSummary.Absences[0].LabelKey)
 	}
-	if staffSummary.Absences[0].Reason != "" {
-		t.Fatalf("expected sanitized reason, got %q", staffSummary.Absences[0].Reason)
+	if memberSummary.Absences[0].Reason != "" {
+		t.Fatalf("expected sanitized reason, got %q", memberSummary.Absences[0].Reason)
 	}
-	if staffSummary.Absences[0].CreatedBy != "" {
-		t.Fatalf("expected sanitized createdBy, got %q", staffSummary.Absences[0].CreatedBy)
+	if memberSummary.Absences[0].CreatedBy != "" {
+		t.Fatalf("expected sanitized createdBy, got %q", memberSummary.Absences[0].CreatedBy)
 	}
 
 	ownerSummary := readAttendanceSummaryForTest(t, service, "other@example.com", "2026-05")

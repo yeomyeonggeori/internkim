@@ -26,9 +26,9 @@ describe('mail page message list cache actions', () => {
 			selectedMessage: inboxMessage,
 			messageListCache: new Map([
 				[
-					messagePageCacheKey('staff@example.com', 'Archive', '', 0),
+					messagePageCacheKey('member@example.com', 'Archive', '', 0),
 					{
-						actorEmail: 'staff@example.com',
+						actorEmail: 'member@example.com',
 						mailbox: 'Archive',
 						searchText: '',
 						pageIndex: 0,
@@ -86,9 +86,9 @@ describe('mail page message list cache actions', () => {
 			selectedMessage: inboxMessage,
 			messageListCache: new Map([
 				[
-					messagePageCacheKey('staff@example.com', 'Archive', '', 0),
+					messagePageCacheKey('member@example.com', 'Archive', '', 0),
 					{
-						actorEmail: 'staff@example.com',
+						actorEmail: 'member@example.com',
 						mailbox: 'Archive',
 						searchText: '',
 						pageIndex: 0,
@@ -126,9 +126,9 @@ describe('mail page message list cache actions', () => {
 			selectedMessage: inboxMessage,
 			messageListCache: new Map([
 				[
-					messagePageCacheKey('staff@example.com', 'INBOX', '', 0),
+					messagePageCacheKey('member@example.com', 'INBOX', '', 0),
 					{
-						actorEmail: 'staff@example.com',
+						actorEmail: 'member@example.com',
 						mailbox: 'INBOX',
 						searchText: '',
 						pageIndex: 0,

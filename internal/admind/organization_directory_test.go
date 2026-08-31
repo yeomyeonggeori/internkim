@@ -42,7 +42,7 @@ func TestOrganizationPageServesRouteAssetsAndIndex(t *testing.T) {
 	}
 }
 
-func TestOrganizationDirectoryListsVisibleProfilesForStaff(t *testing.T) {
+func TestOrganizationDirectoryListsVisibleProfilesForMember(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	if errorValue := service.writeOrganizationGroups(context.Background(), []orgGroupRecord{
 		{ID: "engineering", Name: "엔지니어링"},
@@ -164,11 +164,11 @@ func assertJSONKeysAllowed(t *testing.T, value map[string]json.RawMessage, allow
 func organizationDirectoryPolicyDocument() string {
 	return `{
 		"people":[
-			{"personID":"user-ada","displayName":"Ada Kim","emails":["ada@example.com"],"circles":["staff"],"isAdmin":false},
-			{"personID":"user-grace","displayName":"Grace Lee","emails":["grace@example.com"],"circles":["staff"],"isAdmin":false},
-			{"personID":"user-hidden","displayName":"Hidden Lee","emails":["hidden@example.com"],"circles":["staff"],"isAdmin":false},
-			{"personID":"user-resigned","displayName":"Resigned Park","emails":["resigned@example.com"],"circles":["staff"],"isAdmin":false}
+			{"personID":"user-ada","displayName":"Ada Kim","emails":["ada@example.com"],"circles":["member"],"isAdmin":false},
+			{"personID":"user-grace","displayName":"Grace Lee","emails":["grace@example.com"],"circles":["member"],"isAdmin":false},
+			{"personID":"user-hidden","displayName":"Hidden Lee","emails":["hidden@example.com"],"circles":["member"],"isAdmin":false},
+			{"personID":"user-resigned","displayName":"Resigned Park","emails":["resigned@example.com"],"circles":["member"],"isAdmin":false}
 		],
-		"circles":[{"circleID":"staff","displayName":"Staff"}]
+		"circles":[{"circleID":"member","displayName":"Member"}]
 	}`
 }

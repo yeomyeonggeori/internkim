@@ -38,7 +38,7 @@ func (service *Service) writeAttendanceSummaryWithReadersAt(
 ) {
 	timeZone := service.workspaceTimeZone()
 	month := normalizeAttendanceMonth(request.URL.Query().Get("month"), serverTime.In(timeZone.location))
-	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
+	actorEmail := strings.ToLower(strings.TrimSpace(service.webMemberActorEmail(request)))
 	isAdmin := service.canManageAttendance(request)
 	targetEmail := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("email")))
 	teamVisible, errorValue := service.readAttendanceTeamViewVisibleToAll(request.Context())

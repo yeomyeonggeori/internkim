@@ -409,7 +409,7 @@ func (service *Service) Run(ctx context.Context) error {
 	if service.Configuration.MailNotifyEnabled {
 		go service.keepMailAnnounced(ctx)
 	}
-	service.reconcileSiteSourcesToStaffCircle()
+	service.reconcileSiteSourcesToMemberCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
 		log.Printf("attendance future event repair failed: %v", errorValue)
@@ -442,7 +442,7 @@ func (service *Service) Run(ctx context.Context) error {
 		log.Printf("buzz credentials at startup: %s", service.recordBuzzCredentials(ctx))
 	}()
 	service.startBuzzAccountLinkSync(ctx)
-	service.startStaffChannelMembershipSync(ctx)
+	service.startMemberChannelMembershipSync(ctx)
 	service.startCircleRoomMembershipSync(ctx)
 	service.startMattermostPasswordHashSync(ctx)
 	service.ensureBuzzRelayTerminator()
@@ -1192,13 +1192,13 @@ func (service *Service) deleteBlueclawCircle(responseWriter http.ResponseWriter,
 }
 
 func normalizeAdminUserCircles(circles []string, role string) []string {
-	normalizedCircles := []string{"staff"}
+	normalizedCircles := []string{"member"}
 	if normalizeAdminUserRole(role) == "admin" {
 		normalizedCircles = append(normalizedCircles, "admin")
 	}
 	for _, circle := range circles {
 		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
-		if normalizedCircle == "" || normalizedCircle == "staff" {
+		if normalizedCircle == "" || normalizedCircle == "member" {
 			continue
 		}
 		normalizedCircles = append(normalizedCircles, normalizedCircle)
@@ -2158,7 +2158,7 @@ func claimedAdminPerson(person map[string]any, email string) map[string]any {
 	person["personID"] = blueclawruntime.BlueclawPolicyAdminID
 	person["displayName"] = "Intern Kim Admin"
 	person["emails"] = []string{email}
-	person["circles"] = []string{"staff", "admin"}
+	person["circles"] = []string{"member", "admin"}
 	person["securityLevelName"] = "admin"
 	person["securityLevelRank"] = 100
 	person["grantedClasses"] = []string{"internal", "executive"}

@@ -52,6 +52,6 @@ func calendarEventRangeStoreTestEvent(eventID string, startTime time.Time, endTi
 		TimeZone:          "UTC",
 		Color:             "#2563eb",
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
-		CreatedByEmail:    "staff@example.com",
+		CreatedByEmail:    "member@example.com",
 	}
 }

@@ -248,7 +248,7 @@ func TestAttendanceSettingsRejectsMemberThroughLoopback(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPatch, "/attendance/api/settings", strings.NewReader(`{"teamViewVisibleToAll":false}`))
 	request.RemoteAddr = "127.0.0.1:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	service.handleAttendance(recorder, request)
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())

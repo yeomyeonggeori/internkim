@@ -110,7 +110,7 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 | `401` | `sign in first` | `Authorization: Bearer` 헤더가 없을 때 |
 | `401` | `that key belongs to nobody` | 토큰이 모르는 것이거나 폐기됐을 때 |
 | `409` | `a token cannot revoke itself...` | 인증에 쓴 그 토큰을 `DELETE /v1/token`으로 지우려 할 때 |
-| `403` | `token owner is not active staff` | 주인이 퇴사했거나 비활성화됐을 때 |
+| `403` | `token owner is not active member` | 주인이 퇴사했거나 비활성화됐을 때 |
 | `403` | `tool is not available for this token` | 토큰 등급이 도구가 요구하는 등급에 못 미칠 때 |
 | `403` | `write scope required` | 1등급 토큰으로 에이전트 엔드포인트를 부를 때 |
 | `404` | | 모르는 경로, 모르는 도구, 또는 토큰이 볼 수 없는 도구 |

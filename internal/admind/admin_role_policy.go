@@ -206,7 +206,7 @@ func hasAdminUserRecord(records []adminUserMutation, email string) bool {
 
 func isReservedAdminCircleID(circleID string) bool {
 	switch strings.ToLower(strings.TrimSpace(circleID)) {
-	case "staff", "admin":
+	case "member", "admin":
 		return true
 	default:
 		return false

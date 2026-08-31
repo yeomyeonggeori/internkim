@@ -26,12 +26,12 @@ func TestMattermostScenarioWorkspaceFilesRecursesThroughPathGlob(t *testing.T) {
 			return "quarterly report", nil
 		case strings.Contains(script, "%2Fquarterly"):
 			return `{"entries":[{"name":"review.docx","isDirectory":false}]}`, nil
-		case strings.Contains(script, "path=%2Fworkspace%2Fcircles%2Fstaff%2Freports"):
+		case strings.Contains(script, "path=%2Fworkspace%2Fcircles%2Fmember%2Freports"):
 			return `{"entries":[{"name":"quarterly","isDirectory":true}]}`, nil
-		case strings.Contains(script, "path=%2Fworkspace%2Fcircles%2Fstaff"):
+		case strings.Contains(script, "path=%2Fworkspace%2Fcircles%2Fmember"):
 			return `{"entries":[{"name":"reports","isDirectory":true}]}`, nil
 		case strings.Contains(script, "path=%2Fworkspace%2Fcircles"):
-			return `{"entries":[{"name":"staff","isDirectory":true}]}`, nil
+			return `{"entries":[{"name":"member","isDirectory":true}]}`, nil
 		case strings.Contains(script, "path=%2Fworkspace"):
 			return `{"entries":[{"name":"circles","isDirectory":true}]}`, nil
 		default:
@@ -39,13 +39,13 @@ func TestMattermostScenarioWorkspaceFilesRecursesThroughPathGlob(t *testing.T) {
 		}
 	}}
 	admin := mattermostScenarioAdmin{remote: remote}
-	step := mattermostScenarioStep{ExpectedWorkspaceFiles: []mattermostScenarioWorkspaceFile{{PathGlob: "circles/staff/reports/*/*.docx"}}}
+	step := mattermostScenarioStep{ExpectedWorkspaceFiles: []mattermostScenarioWorkspaceFile{{PathGlob: "circles/member/reports/*/*.docx"}}}
 
 	files, errorValue := admin.workspaceFiles(context.Background(), step, "person-requester")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(files) != 1 || files[0].Path != "/workspace/circles/staff/reports/quarterly/review.docx" || files[0].Content != "quarterly report" {
+	if len(files) != 1 || files[0].Path != "/workspace/circles/member/reports/quarterly/review.docx" || files[0].Content != "quarterly report" {
 		t.Fatalf("unexpected workspace files: %#v scripts=%#v", files, remote.scripts)
 	}
 	for _, script := range remote.scripts {

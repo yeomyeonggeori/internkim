@@ -26,7 +26,7 @@ func TestAttendanceLeavePolicyDefaultsLegacyBalanceTrackingToManaged(t *testing.
 
 func TestAttendanceLeaveUnlimitedModeReleasesPendingAndTracksUsageWithoutDeduction(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-before-unlimited-mode",
@@ -166,13 +166,13 @@ func TestAttendanceLeaveUnlimitedModeAllowsRequestWithoutBalance(t *testing.T) {
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-03"}`,
 	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("create status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
-	dashboard := readAttendanceLeaveDashboardForTest(t, service, "staff@example.com")
+	dashboard := readAttendanceLeaveDashboardForTest(t, service, "member@example.com")
 	if dashboard.Summary.ReservedMilliDays != 1000 ||
 		dashboard.Summary.AvailableMilliDays != 0 ||
 		dashboard.HireDateRequired {
@@ -182,7 +182,7 @@ func TestAttendanceLeaveUnlimitedModeAllowsRequestWithoutBalance(t *testing.T) {
 
 func TestAttendanceLeaveManagedModeBindsPendingUnlimitedRequestToBalance(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-before-return-to-managed-mode",
@@ -267,7 +267,7 @@ func TestAttendanceLeaveManagedModeBindsPendingUnlimitedRequestToBalance(t *test
 
 func TestAttendanceLeaveManagedModeCountsUnlimitedUsageWithoutDoubleDeduction(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-before-repeated-policy-switches",
@@ -350,7 +350,7 @@ func TestAttendanceLeaveManagedModeCountsUnlimitedUsageWithoutDoubleDeduction(t 
 
 func TestAttendanceLeaveManagedModeExcludesCancelledUnlimitedUsage(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-before-cancelled-unlimited-use",
@@ -451,7 +451,7 @@ func TestAttendanceLeaveManagedModeExcludesCancelledUnlimitedUsage(t *testing.T)
 
 func TestAttendanceLeaveManagedModeReconcilesOnlyCurrentFiscalYearUsage(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-for-fiscal-boundary-reconciliation",
@@ -540,7 +540,7 @@ func TestAttendanceLeaveManagedModeReconcilesOnlyCurrentFiscalYearUsage(t *testi
 func TestAttendanceLeaveBalanceTrackingSerializesModeChangeWithRequest(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	addAttendanceLeaveTypeForTest(t, service, separateBalanceAttendanceLeaveTypeForTest())
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-before-concurrent-mode-request",
@@ -632,7 +632,7 @@ func TestAttendanceLeaveBalanceTrackingSerializesModeChangeWithRequest(t *testin
 func TestAttendanceLeaveBalanceTrackingSerializesModeChangeWithApproval(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	addAttendanceLeaveTypeForTest(t, service, separateBalanceAttendanceLeaveTypeForTest())
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-before-concurrent-mode-approval",
@@ -765,7 +765,7 @@ func newConcurrentAttendanceLeaveRequest(requestJSON string) (*http.Request, err
 		&body,
 	)
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	return request, nil
 }

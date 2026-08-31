@@ -105,9 +105,9 @@ func (service *Service) handlePublicAPI(responseWriter http.ResponseWriter, requ
 }
 
 func (service *Service) createPublicAPIToken(responseWriter http.ResponseWriter, request *http.Request) {
-	actorEmail := service.webStaffActorEmail(request)
+	actorEmail := service.webMemberActorEmail(request)
 	if actorEmail == "" {
-		http.Error(responseWriter, "staff web session required", http.StatusForbidden)
+		http.Error(responseWriter, "member web session required", http.StatusForbidden)
 		return
 	}
 	var payload publicAPITokenCreateRequest
@@ -135,7 +135,7 @@ func (service *Service) issuePublicAPIToken(ctx context.Context, actorEmail stri
 		return "", publicAPITokenRecord{}, errorValue
 	}
 	if !found || strings.TrimSpace(actor.UserID) == "" {
-		return "", publicAPITokenRecord{}, fmt.Errorf("token owner is not active staff")
+		return "", publicAPITokenRecord{}, fmt.Errorf("token owner is not active member")
 	}
 	service.mutex.Lock()
 	defer service.mutex.Unlock()
@@ -170,7 +170,7 @@ func (service *Service) assertedPublicAPIActor(responseWriter http.ResponseWrite
 		return publicToolGatewayActor{}, false
 	}
 	if !found || strings.TrimSpace(actor.UserID) == "" {
-		http.Error(responseWriter, "asserted requester is not active staff", http.StatusForbidden)
+		http.Error(responseWriter, "asserted requester is not active member", http.StatusForbidden)
 		return publicToolGatewayActor{}, false
 	}
 	record := publicAPITokenRecord{
@@ -202,7 +202,7 @@ func (service *Service) authenticatePublicAPIToolRequest(responseWriter http.Res
 		return publicToolGatewayActor{}, false
 	}
 	if !found || strings.TrimSpace(actor.UserID) == "" {
-		http.Error(responseWriter, "token owner is not active staff", http.StatusForbidden)
+		http.Error(responseWriter, "token owner is not active member", http.StatusForbidden)
 		return publicToolGatewayActor{}, false
 	}
 	record.PersonID = actor.UserID

@@ -16,13 +16,13 @@ import (
 
 const workspaceFilesTestPolicy = `{
 	"people":[
-		{"personID":"person-me","emails":["me@example.com"],"circles":["engineering","staff"]},
+		{"personID":"person-me","emails":["me@example.com"],"circles":["engineering","member"]},
 		{"personID":"person-other","emails":["other@example.com"],"circles":["design"]}
 	],
 	"circles":[
 		{"circleID":"engineering","displayName":"Engineering"},
 		{"circleID":"design","displayName":"Design"},
-		{"circleID":"staff","displayName":"Staff"}
+		{"circleID":"member","displayName":"Member"}
 	]
 }`
 
@@ -143,7 +143,7 @@ func TestWorkspaceFilesRootsListsOwnMemberCirclesAndShared(t *testing.T) {
 	for _, root := range response.Roots {
 		agentPaths[root.AgentPath] = true
 	}
-	for _, expected := range []string{"/workspace/private/people/person-me", "/workspace/circles/engineering", "/workspace/circles/staff", "/workspace/shared/public"} {
+	for _, expected := range []string{"/workspace/private/people/person-me", "/workspace/circles/engineering", "/workspace/circles/member", "/workspace/shared/public"} {
 		if !agentPaths[expected] {
 			t.Fatalf("missing root %q in %+v", expected, response.Roots)
 		}

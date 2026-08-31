@@ -11,7 +11,7 @@ import (
 func TestOrganizationPeopleCacheRebuildsLegacyUnsafePayloads(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
-	legacyRecordJSON := `{"memberID":"user-1","email":"one@example.com","name":"Legacy","role":"admin","circles":["staff","admin"],"note":"legacy note","mattermostUserID":"mattermost-1","mattermostUsername":"legacy"}`
+	legacyRecordJSON := `{"memberID":"user-1","email":"one@example.com","name":"Legacy","role":"admin","circles":["member","admin"],"note":"legacy note","mattermostUserID":"mattermost-1","mattermostUsername":"legacy"}`
 	seedLegacyOrganizationPeopleCacheEntry(t, service, organizationPeopleCacheKey{Kind: organizationPeopleCacheList, Key: organizationPeopleCacheSingletonKey}, `{"records":[`+legacyRecordJSON+`]}`)
 	seedLegacyOrganizationPeopleCacheEntry(t, service, organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-1"}, `{"record":`+legacyRecordJSON+`}`)
 	loadCount := 0
@@ -22,7 +22,7 @@ func TestOrganizationPeopleCacheRebuildsLegacyUnsafePayloads(t *testing.T) {
 			Email:              "one@example.com",
 			Name:               "Fresh",
 			Role:               "member",
-			Circles:            []string{"staff"},
+			Circles:            []string{"member"},
 			Note:               "fresh note",
 			MattermostUserID:   "mattermost-1",
 			MattermostUsername: "fresh",
@@ -68,7 +68,7 @@ func TestOrganizationPeopleCacheListMissAndHitReturnSameSafeProjection(t *testin
 				Name:                   "User One",
 				Email:                  "one@example.com",
 				Role:                   "admin",
-				Circles:                []string{"staff", "admin"},
+				Circles:                []string{"member", "admin"},
 				Note:                   "private note",
 				MattermostUserID:       "mattermost-1",
 				MattermostUsername:     "user-one",
@@ -77,7 +77,7 @@ func TestOrganizationPeopleCacheListMissAndHitReturnSameSafeProjection(t *testin
 				TemporaryPasswordEmail: "temporary@example.com",
 				JobTitle:               "Engineer",
 			}},
-			AvailableCircles: []adminCircleRecord{{CircleID: "staff", DisplayName: "Staff"}},
+			AvailableCircles: []adminCircleRecord{{CircleID: "member", DisplayName: "Member"}},
 			AvailableGroups:  []orgGroupRecord{{ID: "engineering", Name: "Engineering"}},
 		}, nil
 	}
@@ -127,7 +127,7 @@ func TestOrganizationPeopleCacheExcludesForbiddenFields(t *testing.T) {
 		HireDate:               "2026-01-01",
 		Note:                   "private note",
 		Role:                   "admin",
-		Circles:                []string{"staff", "admin"},
+		Circles:                []string{"member", "admin"},
 		JobTitle:               "Engineer",
 		GroupID:                "engineering",
 		SupervisorID:           "user-2",

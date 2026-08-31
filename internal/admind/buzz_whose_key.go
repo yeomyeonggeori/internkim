@@ -23,8 +23,8 @@ type keyOwnerAnswer struct {
 }
 
 func (service *Service) handleBuzzWhoseKey(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	pubkey := strings.ToLower(strings.TrimSpace(request.URL.Query().Get("pubkey")))
@@ -95,7 +95,7 @@ func (service *Service) everyAddressThisDeviceKnows(ctx context.Context) []strin
 		seen[email] = true
 		addresses = append(addresses, email)
 	}
-	for _, email := range service.allStaffEmails(ctx) {
+	for _, email := range service.allMemberEmails(ctx) {
 		add(email)
 	}
 	if client := service.centralPlane(); client != nil {

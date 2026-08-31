@@ -347,7 +347,7 @@ func (service *Service) demoteLocalBlueclawPersonBeforeRemoval(ctx context.Conte
 		return nil
 	}
 	name := firstNonEmpty(userRecord.Nickname, userRecord.DisplayName, userRecord.Username)
-	return service.upsertBlueclawPerson(ctx, personID, userRecord.Email, name, "member", []string{"staff"}, nil)
+	return service.upsertBlueclawPerson(ctx, personID, userRecord.Email, name, "member", []string{"member"}, nil)
 }
 
 func (service *Service) applyLocalMattermostTeamRole(ctx context.Context, userID string, isAdmin bool) error {

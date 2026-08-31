@@ -47,8 +47,8 @@ func (service *Service) handleBuzzRepairOrphans(responseWriter http.ResponseWrit
 		http.NotFound(responseWriter, request)
 		return
 	}
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	apply := request.URL.Query().Get("apply") == "true"

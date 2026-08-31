@@ -22,7 +22,7 @@ Use `company_info_get` before answering or changing profile data. Call `company_
 
 ## Document ledger
 
-Search with `company_document_search` before reading a file when a ledger summary can answer the question; use `company_document_list` for inventories. Save an attached received contract under the staff documents area, then register it with kind and a concise summary. Do not use this skill to create documents.
+Search with `company_document_search` before reading a file when a ledger summary can answer the question; use `company_document_list` for inventories. Save an attached received contract under the member documents area, then register it with kind and a concise summary. Do not use this skill to create documents.
 
 ## Rules
 

@@ -58,7 +58,7 @@ func TestWhoIsToldIsDecidedByTheDirectory(t *testing.T) {
 	directory := []adminUserMutation{
 		{MattermostUserID: "mm-admin", Role: adminUserRoleAdmin},
 		{MattermostUserID: "mm-ops", Role: adminUserRoleOperationsAdmin},
-		{MattermostUserID: "mm-staff", Role: "member"},
+		{MattermostUserID: "mm-member", Role: "member"},
 		{MattermostUserID: "", Role: adminUserRoleAdmin},
 	}
 
@@ -70,13 +70,13 @@ func TestWhoIsToldIsDecidedByTheDirectory(t *testing.T) {
 	}
 
 	everyoneElse := attendanceNotifyRecipients(directory, func(record adminUserMutation) bool {
-		return record.MattermostUserID != "mm-staff"
+		return record.MattermostUserID != "mm-member"
 	})
 	if len(everyoneElse) != 2 {
 		t.Fatalf("everyoneElse = %+v", everyoneElse)
 	}
 	for _, externalID := range everyoneElse {
-		if externalID == "mm-staff" {
+		if externalID == "mm-member" {
 			t.Fatal("the person who clocked must not be told about themselves")
 		}
 	}

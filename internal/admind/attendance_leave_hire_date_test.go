@@ -76,7 +76,7 @@ func TestAttendanceLeaveProfileReadFailureDoesNotLookLikeMissingHireDate(t *test
 		service,
 		http.MethodPost,
 		"/attendance/api/leave-requests",
-		"staff@example.com",
+		"member@example.com",
 		`{"leaveTypeID":"annual","unit":"fullDay","startDate":"2027-05-03"}`,
 	)
 	assertAttendanceLeaveErrorResponse(

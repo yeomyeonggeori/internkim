@@ -15,11 +15,11 @@ func TestTaskAPICanonicalizesCompatibleWeekCodesBeforeStorage(t *testing.T) {
 	for _, weekCode := range []string{"2026-W28", "26w28"} {
 		t.Run(weekCode, func(t *testing.T) {
 			service := newTaskAuthorizationTestService(t)
-			staffID := stableTaskID("staff@example.com")
-			payload := newTaskPayload("staff@example.com", "canonical week "+weekCode, taskStatusInProgress, 0, []string{staffID})
+			memberID := stableTaskID("member@example.com")
+			payload := newTaskPayload("member@example.com", "canonical week "+weekCode, taskStatusInProgress, 0, []string{memberID})
 			payload.WeekCode = weekCode
 
-			createdTask := createTaskForTest(t, service.router(), "staff@example.com", payload)
+			createdTask := createTaskForTest(t, service.router(), "member@example.com", payload)
 
 			if createdTask.WeekCode != "26W28" {
 				t.Fatalf("response week = %q, want 26W28", createdTask.WeekCode)
@@ -53,8 +53,8 @@ func TestTaskAPICanonicalizesCompatibleWeekCodesBeforeStorage(t *testing.T) {
 func TestTaskAPIRejectsMalformedWeekCode(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	staffID := stableTaskID("staff@example.com")
-	payload := newTaskPayload("staff@example.com", "malformed week", taskStatusInProgress, 0, []string{staffID})
+	memberID := stableTaskID("member@example.com")
+	payload := newTaskPayload("member@example.com", "malformed week", taskStatusInProgress, 0, []string{memberID})
 	payload.WeekCode = "garbage25W52suffix"
 	document, errorValue := json.Marshal(payload)
 	if errorValue != nil {
@@ -62,7 +62,7 @@ func TestTaskAPIRejectsMalformedWeekCode(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
@@ -75,7 +75,7 @@ func TestTaskAPIRejectsMalformedWeekCode(t *testing.T) {
 func TestTaskAPIRejectsMalformedDates(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	staffID := stableTaskID("staff@example.com")
+	memberID := stableTaskID("member@example.com")
 	for _, testCase := range []struct {
 		name      string
 		startDate string
@@ -85,7 +85,7 @@ func TestTaskAPIRejectsMalformedDates(t *testing.T) {
 		{name: "end date", endDate: "July"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			payload := newTaskPayload("staff@example.com", "malformed "+testCase.name, taskStatusInProgress, 0, []string{staffID})
+			payload := newTaskPayload("member@example.com", "malformed "+testCase.name, taskStatusInProgress, 0, []string{memberID})
 			payload.StartDate = testCase.startDate
 			payload.EndDate = testCase.endDate
 			document, errorValue := json.Marshal(payload)
@@ -94,7 +94,7 @@ func TestTaskAPIRejectsMalformedDates(t *testing.T) {
 			}
 			request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
 			request.RemoteAddr = "198.51.100.10:443"
-			request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+			request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 			response := httptest.NewRecorder()
 
 			handler.ServeHTTP(response, request)

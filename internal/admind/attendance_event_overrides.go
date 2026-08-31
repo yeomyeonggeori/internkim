@@ -33,9 +33,9 @@ func (service *Service) writeAttendanceEventOverride(responseWriter http.Respons
 		http.NotFound(responseWriter, request)
 		return
 	}
-	actorEmail := strings.ToLower(strings.TrimSpace(service.webStaffActorEmail(request)))
+	actorEmail := strings.ToLower(strings.TrimSpace(service.webMemberActorEmail(request)))
 	if actorEmail == "" {
-		http.Error(responseWriter, "attendance staff identity is required", http.StatusForbidden)
+		http.Error(responseWriter, "attendance member identity is required", http.StatusForbidden)
 		return
 	}
 	if !service.canManageAttendance(request) && !strings.EqualFold(event.Email, actorEmail) {

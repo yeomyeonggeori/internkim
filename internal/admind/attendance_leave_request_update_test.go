@@ -10,7 +10,7 @@ import (
 
 func TestAttendanceLeaveRequestUpdateReplacesReservationAndAttachment(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-leave-request-update",
@@ -143,7 +143,7 @@ func TestAttendanceLeaveRequestUpdateReplacesReservationAndAttachment(t *testing
 
 func TestAttendanceLeaveRequestAllowsEmptyReasonAcrossEmployeeMutations(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "staff@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-optional-leave-request-reason",

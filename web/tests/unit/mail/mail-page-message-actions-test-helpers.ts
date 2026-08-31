@@ -60,8 +60,8 @@ export const archiveMessage: MailMessage = {
 export function createController(overrides: Partial<MailPageControllerState> = {}) {
 	let controller: MailPageControllerState;
 	controller = {
-		account: { ...emptyMailAccount, isConfigured: true, email: 'staff@example.com' },
-		accountDraft: { ...emptyMailAccount, email: 'staff@example.com', imapPassword: '', smtpPassword: '' },
+		account: { ...emptyMailAccount, isConfigured: true, email: 'member@example.com' },
+		accountDraft: { ...emptyMailAccount, email: 'member@example.com', imapPassword: '', smtpPassword: '' },
 		composeDraft: emptyComposeDraft,
 		mailboxes: [],
 		messages: [],
@@ -96,7 +96,7 @@ export function createController(overrides: Partial<MailPageControllerState> = {
 		pageMailboxes: () => [],
 		visibleMessages: () => controller.messages,
 		canLoadMoreMessages: () => controller.hasMoreMessages,
-		mailActorEmail: () => 'staff@example.com',
+		mailActorEmail: () => 'member@example.com',
 		mailErrors: (fallback: string) => ({ fallback, serviceUnavailable: 'service unavailable' }),
 		resetMessageList: () => {
 			controller.messages = [];

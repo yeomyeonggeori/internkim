@@ -142,7 +142,7 @@ type mattermostChannelUpdateResult struct {
 }
 
 const (
-	mattermostToolStaffCircle = "staff"
+	mattermostToolMemberCircle = "member"
 	mattermostToolAdminCircle = "admin"
 )
 
@@ -171,7 +171,7 @@ func mattermostRequiredCircle(toolName string) string {
 	if toolName == "channel_update" {
 		return mattermostToolAdminCircle
 	}
-	return mattermostToolStaffCircle
+	return mattermostToolMemberCircle
 }
 
 func (service Service) invokeMattermostContextInspect(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -1265,7 +1265,7 @@ func mattermostToolPersonHasCircle(person mattermostToolPolicyPerson, requiredCi
 	if requiredCircle == "" {
 		return false
 	}
-	if requiredCircle == mattermostToolStaffCircle {
+	if requiredCircle == mattermostToolMemberCircle {
 		return true
 	}
 	if requiredCircle == mattermostToolAdminCircle && person.IsAdmin {

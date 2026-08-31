@@ -13,7 +13,7 @@ func TestACircleRoomIsFoundByTheNameThePolicyDeclares(t *testing.T) {
 			map[string]any{"circleID": "c-level", "displayName": "C-level"},
 			map[string]any{"circleID": "hr", "displayName": "HR"},
 			map[string]any{"circleID": "", "displayName": "Nameless"},
-			map[string]any{"circleID": "staff"},
+			map[string]any{"circleID": "member"},
 		},
 	})
 
@@ -27,9 +27,9 @@ func TestACircleRoomIsFoundByTheNameThePolicyDeclares(t *testing.T) {
 
 func TestOnlyThePeopleCarryingTheCircleBelong(t *testing.T) {
 	circlesByEmail := map[string][]string{
-		"lee@example.test":  {"staff", "admin", "c-level"},
-		"rain@example.test": {"staff", "admin"},
-		"kwak@example.test": {"staff"},
+		"lee@example.test":  {"member", "admin", "c-level"},
+		"rain@example.test": {"member", "admin"},
+		"kwak@example.test": {"member"},
 	}
 
 	belong := emailsCarrying(circlesByEmail, "c-level")
@@ -40,15 +40,15 @@ func TestOnlyThePeopleCarryingTheCircleBelong(t *testing.T) {
 }
 
 func TestACircleNobodyCarriesHoldsNobody(t *testing.T) {
-	belong := emailsCarrying(map[string][]string{"lee@example.test": {"staff"}}, "representative")
+	belong := emailsCarrying(map[string][]string{"lee@example.test": {"member"}}, "representative")
 
 	if len(belong) != 0 {
 		t.Fatalf("an empty circle names nobody rather than everybody, got %v", belong)
 	}
 }
 
-func TestTheStaffSyncOnlyEverFillsRoomsTheWholeCompanyCanRead(t *testing.T) {
-	query := staffRoomQuery
+func TestTheMemberSyncOnlyEverFillsRoomsTheWholeCompanyCanRead(t *testing.T) {
+	query := memberRoomQuery
 
 	for _, condition := range []string{"visibility = 'open'", "deleted_at IS NULL", "created_by = ANY(ARRAY(SELECT decode(unnest($1::text[]), 'hex')))"} {
 		if !strings.Contains(query, condition) {
@@ -72,7 +72,7 @@ func TestEveryRoomChangeInGoTellsTheClientsToo(t *testing.T) {
 	}
 }
 
-func TestTheStaffSyncSkipsWhoIsAlreadyIn(t *testing.T) {
+func TestTheMemberSyncSkipsWhoIsAlreadyIn(t *testing.T) {
 	source, errorValue := os.ReadFile("buzz_channel_membership.go")
 	if errorValue != nil {
 		t.Fatal(errorValue)

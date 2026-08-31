@@ -64,7 +64,7 @@ func TestTaskCallsReachAdmindWhereItHonoursTheRequester(t *testing.T) {
 			if errorValue := call.invoke(context.Background()); errorValue != nil {
 				t.Fatalf("%s: %v", call.name, errorValue)
 			}
-			if requesterOfCall[call.call] != "staff@example.com" {
+			if requesterOfCall[call.call] != "member@example.com" {
 				t.Fatalf("admind served %s as %q", call.call, requesterOfCall[call.call])
 			}
 		})
@@ -96,19 +96,19 @@ type taskCallCarryingARequester struct {
 func taskCallsCarryingARequester(service Service) []taskCallCarryingARequester {
 	return []taskCallCarryingARequester{
 		{name: "read", call: "GET /task/api/state", invoke: func(ctx context.Context) error {
-			_, errorValue := service.getTask(ctx, "/task/api/state", "staff@example.com")
+			_, errorValue := service.getTask(ctx, "/task/api/state", "member@example.com")
 			return errorValue
 		}},
 		{name: "add", call: "POST /task/api/tasks", invoke: func(ctx context.Context) error {
-			_, errorValue := service.postTask(ctx, taskCreatePayload{OwnerID: "staff", Content: "업무"}, "staff@example.com")
+			_, errorValue := service.postTask(ctx, taskCreatePayload{OwnerID: "member", Content: "업무"}, "member@example.com")
 			return errorValue
 		}},
 		{name: "update", call: "PUT /task/api/tasks/task-1", invoke: func(ctx context.Context) error {
-			_, errorValue := service.putTask(ctx, taskForTool{ID: "task-1"}, "staff@example.com")
+			_, errorValue := service.putTask(ctx, taskForTool{ID: "task-1"}, "member@example.com")
 			return errorValue
 		}},
 		{name: "delete", call: "DELETE /task/api/tasks/task-1", invoke: func(ctx context.Context) error {
-			_, errorValue := service.deleteTask(ctx, "task-1", "staff@example.com")
+			_, errorValue := service.deleteTask(ctx, "task-1", "member@example.com")
 			return errorValue
 		}},
 	}

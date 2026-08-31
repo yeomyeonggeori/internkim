@@ -1,6 +1,6 @@
 # Shared company page
 
-The shared company page is available at `/company/` to anyone who knows its password. It is not tied to a staff identity or described as an investor-only page.
+The shared company page is available at `/company/` to anyone who knows its password. It is not tied to a member identity or described as an investor-only page.
 
 ## Source of truth
 

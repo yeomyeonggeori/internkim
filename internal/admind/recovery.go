@@ -338,7 +338,7 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "delete the profiles left by deleted probe accounts", "sh", "-lc", buzzProbeProfilePurgeCommand(true)))
 	case "buzz-membership-recover":
 		membershipContext, cancelMembership := context.WithTimeout(context.Background(), 90*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(membershipContext, "recover buzz staff membership", "sh", "-lc", buzzMembershipRecoverCommand()))
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(membershipContext, "recover buzz member membership", "sh", "-lc", buzzMembershipRecoverCommand()))
 		cancelMembership()
 	case "buzz-restore":
 		restoreContext, cancelRestore := context.WithTimeout(context.Background(), 300*time.Second)
@@ -1075,7 +1075,7 @@ systemctl daemon-reload
 systemctl restart ` + blueclaw.BuzzRelayServiceName + `
 for attempt in $(seq 1 30); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
 echo "== effective relay env =="; systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | grep -iE 'REQUIRE_RELAY|WS_EVENTS' || true
-echo "relay permissive via drop-in — scheduling admind restart to resync staff membership"
+echo "relay permissive via drop-in — scheduling admind restart to resync member membership"
 systemd-run --on-active=3sec --unit=internkim-membership-admind-restart systemctl restart internkim-admind
 echo "admind restart scheduled"
 `)

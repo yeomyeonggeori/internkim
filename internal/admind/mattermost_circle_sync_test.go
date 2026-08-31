@@ -52,7 +52,7 @@ func TestCircleEmailsSkipsACircleWithNoChannelRatherThanCreatingOne(t *testing.T
 func TestAPersonKeepsACircleWhoseChannelIsGone(t *testing.T) {
 	person := map[string]any{
 		"emails":  []any{"member@example.com"},
-		"circles": []any{"staff", "representative", "c-level"},
+		"circles": []any{"member", "representative", "c-level"},
 	}
 	circleEmailsByID := map[string]map[string]bool{"c-level": {"member@example.com": true}}
 

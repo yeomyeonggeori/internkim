@@ -36,8 +36,8 @@ func (service *Service) handleBuzzAdminWipe(responseWriter http.ResponseWriter, 
 		http.NotFound(responseWriter, request)
 		return
 	}
-	if !service.authorizeInternalOrWebStaffRequest(request) {
-		http.Error(responseWriter, "staff access required", http.StatusForbidden)
+	if !service.authorizeInternalOrWebMemberRequest(request) {
+		http.Error(responseWriter, "member access required", http.StatusForbidden)
 		return
 	}
 	callerEmail := service.webActorEmail(request)

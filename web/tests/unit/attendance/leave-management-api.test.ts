@@ -18,7 +18,7 @@ describe('leave management API', () => {
 
 			await expect(
 				adjustManagedLeave({
-					employeeEmail: 'staff@example.com',
+					employeeEmail: 'member@example.com',
 					leaveTypeID: 'annual',
 					amountMilliDays: -500,
 					kind: 'adjustment',

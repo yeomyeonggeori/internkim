@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-func TestTaskStaffActorWithoutDeviceAuthIsolatesToTenantAdmin(t *testing.T) {
+func TestTaskMemberActorWithoutDeviceAuthIsolatesToTenantAdmin(t *testing.T) {
 	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin03@example.test")})
 
-	if !service.isTaskStaffActor(context.Background(), "admin03@example.test") {
-		t.Fatal("tenant's own seed admin must keep flow staff access without device auth")
+	if !service.isTaskMemberActor(context.Background(), "admin03@example.test") {
+		t.Fatal("tenant's own seed admin must keep flow member access without device auth")
 	}
-	if service.isTaskStaffActor(context.Background(), "admin10@example.test") {
-		t.Fatal("foreign tenant account must not gain flow staff access without device auth")
+	if service.isTaskMemberActor(context.Background(), "admin10@example.test") {
+		t.Fatal("foreign tenant account must not gain flow member access without device auth")
 	}
 }
 

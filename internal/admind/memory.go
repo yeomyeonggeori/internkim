@@ -155,7 +155,7 @@ func (service *Service) writeUserMemoryMutation(responseWriter http.ResponseWrit
 }
 
 func (service *Service) memoryActorEmail(request *http.Request) string {
-	if actorEmail := service.webStaffActorEmail(request); actorEmail != "" {
+	if actorEmail := service.webMemberActorEmail(request); actorEmail != "" {
 		return actorEmail
 	}
 	return assertedRequesterEmail(request)

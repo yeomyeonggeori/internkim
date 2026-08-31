@@ -33,7 +33,7 @@ func requestTaskSummaryHTTPBenchmark(testContext testing.TB, handler http.Handle
 	testContext.Helper()
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary?week=26W28", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusOK {

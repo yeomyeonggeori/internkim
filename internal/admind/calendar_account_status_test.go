@@ -87,7 +87,7 @@ func TestServeCalendarAccountStatusReportsGoogleOAuthManagePermission(t *testing
 		t.Error("CanManageGoogleOAuth should be true for admin requests")
 	}
 
-	configureCalendarTestUsers(t, service, `[{"email":"operator@example.com","role":"operationsAdmin"},{"email":"staff@example.com","role":"member"}]`)
+	configureCalendarTestUsers(t, service, `[{"email":"operator@example.com","role":"operationsAdmin"},{"email":"member@example.com","role":"member"}]`)
 	operationsAdminRequest := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
 	operationsAdminRequest.Header.Set("X-Forwarded-Email", "operator@example.com")
 	operationsAdminRecorder := httptest.NewRecorder()
@@ -103,18 +103,18 @@ func TestServeCalendarAccountStatusReportsGoogleOAuthManagePermission(t *testing
 		t.Error("CanManageGoogleOAuth should be true for operations admin requests")
 	}
 
-	staffRequest := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
-	staffRequest.Header.Set("X-Forwarded-Email", "staff@example.com")
-	staffRecorder := httptest.NewRecorder()
-	service.serveCalendarAccountStatus(staffRecorder, staffRequest)
-	if staffRecorder.Code != http.StatusOK {
-		t.Fatalf("staff status: %d", staffRecorder.Code)
+	memberRequest := httptest.NewRequest(http.MethodGet, "http://x/calendar/api/account-status", nil)
+	memberRequest.Header.Set("X-Forwarded-Email", "member@example.com")
+	memberRecorder := httptest.NewRecorder()
+	service.serveCalendarAccountStatus(memberRecorder, memberRequest)
+	if memberRecorder.Code != http.StatusOK {
+		t.Fatalf("member status: %d", memberRecorder.Code)
 	}
-	var staffBody calendarAccountStatusResponse
-	if errorValue := json.Unmarshal(staffRecorder.Body.Bytes(), &staffBody); errorValue != nil {
-		t.Fatalf("decode staff: %v", errorValue)
+	var memberBody calendarAccountStatusResponse
+	if errorValue := json.Unmarshal(memberRecorder.Body.Bytes(), &memberBody); errorValue != nil {
+		t.Fatalf("decode member: %v", errorValue)
 	}
-	if staffBody.CanManageGoogleOAuth {
+	if memberBody.CanManageGoogleOAuth {
 		t.Error("CanManageGoogleOAuth should be false for non-admin requests")
 	}
 }

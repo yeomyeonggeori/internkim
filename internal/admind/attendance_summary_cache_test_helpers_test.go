@@ -18,7 +18,7 @@ func insertAttendanceCacheTestEvent(t *testing.T, service *Service, occurredAtVa
 		t.Fatal(errorValue)
 	}
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: "user-1", Username: "staff", Email: "staff@example.com", Nickname: "Staff"},
+		mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"},
 		attendanceKindClockIn,
 		occurredAt,
 		"team-1",

@@ -40,10 +40,10 @@ const visualUsersResponse: UsersResponse = {
 			groupID: 'skill'
 		},
 		{
-			memberID: 'user-park-staff',
-			handle: 'park-staff',
+			memberID: 'user-park-member',
+			handle: 'park-member',
 			name: '박둘직원',
-			email: 'park-staff@example.com',
+			email: 'park-member@example.com',
 			hireDate: '2026-02-01',
 			role: 'member',
 			jobTitle: '엔지니어',
@@ -51,10 +51,10 @@ const visualUsersResponse: UsersResponse = {
 			supervisorID: 'user-kim-first'
 		},
 		{
-			memberID: 'user-new-staff',
-			handle: 'new-staff',
+			memberID: 'user-new-member',
+			handle: 'new-member',
 			name: '새직원',
-			email: 'new-staff@example.com',
+			email: 'new-member@example.com',
 			hireDate: '2026-02-01',
 			role: 'member',
 			jobTitle: '엔지니어',
@@ -62,10 +62,10 @@ const visualUsersResponse: UsersResponse = {
 			supervisorID: 'user-leesample-second'
 		},
 		{
-			memberID: 'user-extra-staff',
-			handle: 'extra-staff',
+			memberID: 'user-extra-member',
+			handle: 'extra-member',
 			name: '이추가',
-			email: 'extra-staff@example.com',
+			email: 'extra-member@example.com',
 			hireDate: '2026-02-02',
 			role: 'member',
 			jobTitle: '엔지니어',
@@ -110,18 +110,18 @@ test.describe('employee organization visual layout geometry', () => {
 		await page.goto('/organization/');
 
 		const sharedTeam = page.getByTestId('organization-section-shared');
-		const sharedLeaderBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-park-staff'), 'shared leader');
-		const newStaffBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-new-staff'), 'new staff');
-		const extraStaffBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-extra-staff'), 'extra staff');
+		const sharedLeaderBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-park-member'), 'shared leader');
+		const newMemberBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-new-member'), 'new member');
+		const extraMemberBox = await visibleElementBox(sharedTeam.getByTestId('organization-person-card-user-extra-member'), 'extra member');
 		const memberList = sharedTeam.getByTestId('organization-members-shared');
 
 		await expect(memberList).toBeVisible();
 		await expect(sharedTeam).toContainText('공유팀');
-		expect(newStaffBox.x).toBeGreaterThan(sharedLeaderBox.x + sharedLeaderBox.width - 1);
-		expect(Math.abs(newStaffBox.y - sharedLeaderBox.y)).toBeLessThanOrEqual(2);
-		expect(Math.abs(newStaffBox.width - sharedLeaderBox.width)).toBeLessThanOrEqual(2);
-		expect(Math.abs(extraStaffBox.width - sharedLeaderBox.width)).toBeLessThanOrEqual(2);
-		expect(Math.abs(extraStaffBox.height - sharedLeaderBox.height)).toBeLessThanOrEqual(2);
+		expect(newMemberBox.x).toBeGreaterThan(sharedLeaderBox.x + sharedLeaderBox.width - 1);
+		expect(Math.abs(newMemberBox.y - sharedLeaderBox.y)).toBeLessThanOrEqual(2);
+		expect(Math.abs(newMemberBox.width - sharedLeaderBox.width)).toBeLessThanOrEqual(2);
+		expect(Math.abs(extraMemberBox.width - sharedLeaderBox.width)).toBeLessThanOrEqual(2);
+		expect(Math.abs(extraMemberBox.height - sharedLeaderBox.height)).toBeLessThanOrEqual(2);
 	});
 });
 

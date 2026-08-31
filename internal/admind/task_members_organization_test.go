@@ -51,9 +51,9 @@ func TestTaskMembersOnlyIncludeOrganizationChartPeople(t *testing.T) {
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{
 				"people":[
-					{"personID":"agent","displayName":"김인턴","emails":["bot@example.com"],"circles":["staff"],"isAdmin":false}
+					{"personID":"agent","displayName":"김인턴","emails":["bot@example.com"],"circles":["member"],"isAdmin":false}
 				],
-				"circles":[{"circleID":"staff","displayName":"Staff"}]
+				"circles":[{"circleID":"member","displayName":"Member"}]
 			}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())

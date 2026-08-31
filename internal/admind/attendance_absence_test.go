@@ -17,7 +17,7 @@ type attendanceAbsenceTestResponse struct {
 func TestAttendanceAbsenceResponseKeepsLabelsLocaleNeutral(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	response := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	response := createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "leave",
 		"startDate": "2026-05-13"
 	}`)
@@ -43,7 +43,7 @@ func TestAttendanceAbsenceRejectsUnknownKind(t *testing.T) {
 		"startDate": "2026-05-13"
 	}`))
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleAttendance(recorder, request)
@@ -56,7 +56,7 @@ func TestAttendanceAbsenceRejectsUnknownKind(t *testing.T) {
 func TestAttendanceAbsenceNormalizesLegacyDayOffToLeave(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 
-	response := createAttendanceAbsenceForTest(t, service, "staff@example.com", `{
+	response := createAttendanceAbsenceForTest(t, service, "member@example.com", `{
 		"kind": "day_off",
 		"startDate": "2026-05-13"
 	}`)
@@ -81,12 +81,12 @@ func TestAttendanceAbsenceSummaryNormalizesStoredLegacyDayOffToLeave(t *testing.
 INSERT INTO attendance_absence_ranges (id, email, kind, start_date, end_date, reason, created_by, created_at, updated_at, canceled_at, replaced_by)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"legacy-day-off",
-		"staff@example.com",
+		"member@example.com",
 		attendanceAbsenceDayOff,
 		"2026-05-13",
 		"2026-05-13",
 		"",
-		"staff@example.com",
+		"member@example.com",
 		"2026-05-01T00:00:00Z",
 		"2026-05-01T00:00:00Z",
 		"",
@@ -96,7 +96,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.Fatalf("insert legacy day_off range: %v", errorValue)
 	}
 
-	summaryResponse := readAttendanceSummaryForTest(t, service, "staff@example.com", "2026-05")
+	summaryResponse := readAttendanceSummaryForTest(t, service, "member@example.com", "2026-05")
 	if len(summaryResponse.Absences) != 1 {
 		t.Fatalf("expected 1 summary absence, got %d", len(summaryResponse.Absences))
 	}
@@ -131,7 +131,7 @@ func TestAttendanceAbsenceRejectsPrivateKindInputs(t *testing.T) {
 			"startDate": "2026-05-13"
 		}`))
 		request.RemoteAddr = "203.0.113.10:1234"
-		request.Header.Set("X-Forwarded-Email", "staff@example.com")
+		request.Header.Set("X-Forwarded-Email", "member@example.com")
 		recorder := httptest.NewRecorder()
 
 		service.handleAttendance(recorder, request)
@@ -151,7 +151,7 @@ func TestAttendanceAbsenceRejectsRangeOverPerRequestLimit(t *testing.T) {
 		"endDate": "2027-01-02"
 	}`))
 	request.RemoteAddr = "203.0.113.10:1234"
-	request.Header.Set("X-Forwarded-Email", "staff@example.com")
+	request.Header.Set("X-Forwarded-Email", "member@example.com")
 	recorder := httptest.NewRecorder()
 
 	service.handleAttendance(recorder, request)

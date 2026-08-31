@@ -20,7 +20,7 @@ func (service *Service) writeAttendanceLeaveRequestAttachment(
 	requestID string,
 	attachmentID string,
 ) {
-	employeeEmail := normalizeAttendanceLeaveEmail(service.webStaffActorEmail(request))
+	employeeEmail := normalizeAttendanceLeaveEmail(service.webMemberActorEmail(request))
 	isAdministrator := service.canManageAttendance(request)
 	database, errorValue := service.openAttendanceDatabase(request.Context())
 	if errorValue != nil {

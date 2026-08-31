@@ -21,7 +21,7 @@
 | Cost item | Quantity | Unit | Unit cost KRW | Owner |
 | --- | ---: | --- | ---: | --- |
 | Venue rental | 2 | days | 950000 | Mina Kwon |
-| Part-time staff | 6 | shifts | 120000 | Jae Lee |
+| Part-time member | 6 | shifts | 120000 | Jae Lee |
 | Display fixtures | 8 | units | 85000 | Sana Park |
 | Print signage | 14 | pieces | 18000 | Mina Kwon |
 | Payment terminal rental | 2 | units | 65000 | Jae Lee |

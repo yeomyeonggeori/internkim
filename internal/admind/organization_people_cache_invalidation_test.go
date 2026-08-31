@@ -204,13 +204,13 @@ func TestOrganizationPeopleCacheInvalidatesTheProxyUsersOwnIdentity(t *testing.T
 					}
 					policySaved = true
 					return jsonResponse(http.StatusOK, `{}`, nil), nil
-				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/circle-staff":
-					return jsonResponse(http.StatusOK, `{"id":"circle-staff-channel"}`, nil), nil
-				case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/patch":
+				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/circle-member":
+					return jsonResponse(http.StatusOK, `{"id":"circle-member-channel"}`, nil), nil
+				case request.Method == http.MethodPut && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-member-channel/patch":
 					return jsonResponse(http.StatusOK, `{}`, nil), nil
-				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/posts?per_page=100":
+				case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-member-channel/posts?per_page=100":
 					return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
-				case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-staff-channel/members":
+				case request.Method == http.MethodPost && request.URL.String() == "http://mattermost.local/api/v4/channels/circle-member-channel/members":
 					return jsonResponse(http.StatusCreated, `{}`, nil), nil
 				default:
 					t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())

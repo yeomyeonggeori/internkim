@@ -272,7 +272,7 @@ func TestCredentialProviderRejectsNonAdmin(t *testing.T) {
 		AdminEmailPath: writeTestFile(t, "admin@example.com"),
 	})
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/credentials/providers", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -1868,13 +1868,13 @@ func TestTaskAPIRejectsUnauthenticatedRemoteCaller(t *testing.T) {
 	}
 }
 
-func TestTaskAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
+func TestTaskAPIAllowsMemberSummaryAndOwnTask(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
 
 	stateRequest := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
 	stateRequest.RemoteAddr = "198.51.100.10:443"
-	stateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	stateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	stateResponse := httptest.NewRecorder()
 	handler.ServeHTTP(stateResponse, stateRequest)
 	if stateResponse.Code != http.StatusOK {
@@ -1884,11 +1884,11 @@ func TestTaskAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 	if errorValue := json.NewDecoder(stateResponse.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if state.CurrentUserEmail != "staff@example.com" || state.IsAdmin {
+	if state.CurrentUserEmail != "member@example.com" || state.IsAdmin {
 		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
 	}
 
-	taskRequest := newTaskRequest("staff@example.com", "staff@example.com")
+	taskRequest := newTaskRequest("member@example.com", "member@example.com")
 	taskResponse := httptest.NewRecorder()
 	handler.ServeHTTP(taskResponse, taskRequest)
 	if taskResponse.Code != http.StatusOK {
@@ -1898,7 +1898,7 @@ func TestTaskAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if task.Status != "in_progress" || task.OwnerID != stableTaskID("staff@example.com") {
+	if task.Status != "in_progress" || task.OwnerID != stableTaskID("member@example.com") {
 		t.Fatalf("task = %+v", task)
 	}
 }
@@ -1906,7 +1906,7 @@ func TestTaskAPIAllowsStaffSummaryAndOwnTask(t *testing.T) {
 func TestTaskAPIDeletesOwnTask(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	taskRequest := newTaskRequest("staff@example.com", "staff@example.com")
+	taskRequest := newTaskRequest("member@example.com", "member@example.com")
 	taskResponse := httptest.NewRecorder()
 	handler.ServeHTTP(taskResponse, taskRequest)
 	if taskResponse.Code != http.StatusOK {
@@ -1918,7 +1918,7 @@ func TestTaskAPIDeletesOwnTask(t *testing.T) {
 	}
 	deleteRequest := httptest.NewRequest(http.MethodDelete, "/flow/api/tasks/"+task.ID, nil)
 	deleteRequest.RemoteAddr = "198.51.100.10:443"
-	deleteRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	deleteRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	deleteResponse := httptest.NewRecorder()
 	handler.ServeHTTP(deleteResponse, deleteRequest)
 	if deleteResponse.Code != http.StatusOK {
@@ -1948,7 +1948,7 @@ func TestTaskAPIRejectsDeletingOtherUserTask(t *testing.T) {
 	}
 	deleteRequest := httptest.NewRequest(http.MethodDelete, "/flow/api/tasks/"+task.ID, nil)
 	deleteRequest.RemoteAddr = "198.51.100.10:443"
-	deleteRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	deleteRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	deleteResponse := httptest.NewRecorder()
 	handler.ServeHTTP(deleteResponse, deleteRequest)
 	if deleteResponse.Code != http.StatusForbidden {
@@ -1963,9 +1963,9 @@ func TestTaskAPIRejectsDeletingOtherUserTask(t *testing.T) {
 	}
 }
 
-func TestTaskAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
+func TestTaskAPIAllowsSignedWebSessionMemberSummary(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	cookieValue := webSessionCookieForTest(t, service, "staff@example.com")
+	cookieValue := webSessionCookieForTest(t, service, "member@example.com")
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.AddCookie(&http.Cookie{Name: webSessionCookieName, Value: cookieValue})
@@ -1980,20 +1980,20 @@ func TestTaskAPIAllowsSignedWebSessionStaffSummary(t *testing.T) {
 	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if state.CurrentUserEmail != "staff@example.com" || state.IsAdmin {
+	if state.CurrentUserEmail != "member@example.com" || state.IsAdmin {
 		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
 	}
 }
 
 func TestTaskSummaryIncludesDistanceReport(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	staffID := stableTaskID("staff@example.com")
+	memberID := stableTaskID("member@example.com")
 	otherID := stableTaskID("other@example.com")
 	tasks := []Task{
-		taskReportTestTask("current", "26W18", []string{staffID, otherID}, []string{"Staff", "Other"}, "M", "completed", "2026-04-27", "2026-04-29"),
+		taskReportTestTask("current", "26W18", []string{memberID, otherID}, []string{"Member", "Other"}, "M", "completed", "2026-04-27", "2026-04-29"),
 		taskReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "completed", "2026-04-20", "2026-04-21"),
-		taskReportTestTask("previous-month", "26W10", []string{staffID}, []string{"Staff"}, "XS", "completed", "2026-03-03", "2026-03-03"),
-		taskReportTestTask("future-week", "26W19", []string{staffID}, []string{"Staff"}, "XS", "planned", "2026-05-04", ""),
+		taskReportTestTask("previous-month", "26W10", []string{memberID}, []string{"Member"}, "XS", "completed", "2026-03-03", "2026-03-03"),
+		taskReportTestTask("future-week", "26W19", []string{memberID}, []string{"Member"}, "XS", "planned", "2026-05-04", ""),
 	}
 	for _, task := range tasks {
 		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
@@ -2003,7 +2003,7 @@ func TestTaskSummaryIncludesDistanceReport(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary?week=26W18", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -2042,13 +2042,13 @@ func TestTaskSummaryIncludesDistanceReport(t *testing.T) {
 
 func TestTaskStateIncludesCurrentGlobalData(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	staffID := stableTaskID("staff@example.com")
+	memberID := stableTaskID("member@example.com")
 	otherID := stableTaskID("other@example.com")
 	now := time.Now()
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
 	tasks := []Task{
-		taskReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "completed", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
+		taskReportTestTask("current-score", currentWeekCode, []string{memberID}, []string{"Member"}, "M", "completed", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
 		taskReportTestTask("older", weekCodeForDate(currentWeekStart.AddDate(0, 0, -7*2)), []string{otherID}, []string{"Other"}, "XS", "in_progress", currentWeekStart.AddDate(0, 0, -14).Format("2006-01-02"), ""),
 	}
 	for _, task := range tasks {
@@ -2059,7 +2059,7 @@ func TestTaskStateIncludesCurrentGlobalData(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -2081,7 +2081,7 @@ func TestTaskStateIncludesCurrentGlobalData(t *testing.T) {
 	if len(state.Members) != 3 {
 		t.Fatalf("state members = %+v", state.Members)
 	}
-	if state.Metrics.MemberScores[staffID] == 0 || state.Metrics.MemberScoreDetails[staffID].CurrentScore == 0 {
+	if state.Metrics.MemberScores[memberID] == 0 || state.Metrics.MemberScoreDetails[memberID].CurrentScore == 0 {
 		t.Fatalf("state member scores = %+v details = %+v", state.Metrics.MemberScores, state.Metrics.MemberScoreDetails)
 	}
 	assertJSONFieldsAbsent(t, body, "week", "weeklyTasks", "report")
@@ -2102,7 +2102,7 @@ func assertJSONFieldsAbsent(t *testing.T, document []byte, fields ...string) {
 
 func TestTaskSummaryMemberScoresUseCurrentWeek(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	staffID := stableTaskID("staff@example.com")
+	memberID := stableTaskID("member@example.com")
 	now := time.Now()
 	currentWeekCode := weekCodeForDate(now)
 	currentWeekStart := weekStartForCode(currentWeekCode, now)
@@ -2111,9 +2111,9 @@ func TestTaskSummaryMemberScoresUseCurrentWeek(t *testing.T) {
 	selectedWeekStart := currentWeekStart.AddDate(0, 0, -7*30)
 	selectedWeekCode := weekCodeForDate(selectedWeekStart)
 	tasks := []Task{
-		taskReportTestTask("selected-score", selectedWeekCode, []string{staffID}, []string{"Staff"}, "M", "completed", selectedWeekStart.Format("2006-01-02"), selectedWeekStart.Format("2006-01-02")),
-		taskReportTestTask("current-score", currentWeekCode, []string{staffID}, []string{"Staff"}, "M", "completed", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
-		taskReportTestTask("previous-current-score", previousCurrentWeekCode, []string{staffID}, []string{"Staff"}, "M", "completed", previousCurrentWeekStart.Format("2006-01-02"), previousCurrentWeekStart.Format("2006-01-02")),
+		taskReportTestTask("selected-score", selectedWeekCode, []string{memberID}, []string{"Member"}, "M", "completed", selectedWeekStart.Format("2006-01-02"), selectedWeekStart.Format("2006-01-02")),
+		taskReportTestTask("current-score", currentWeekCode, []string{memberID}, []string{"Member"}, "M", "completed", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
+		taskReportTestTask("previous-current-score", previousCurrentWeekCode, []string{memberID}, []string{"Member"}, "M", "completed", previousCurrentWeekStart.Format("2006-01-02"), previousCurrentWeekStart.Format("2006-01-02")),
 	}
 	for _, task := range tasks {
 		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
@@ -2123,7 +2123,7 @@ func TestTaskSummaryMemberScoresUseCurrentWeek(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -2148,30 +2148,30 @@ func TestTaskSummaryMemberScoresUseCurrentWeek(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	selectedWeekDetails := buildTaskMemberScoreDetails(selectedScoreTasks, members, state.Definitions, selectedWeekStart)
-	if expectedCurrentDetails[staffID].CurrentScore == selectedWeekDetails[staffID].CurrentScore {
-		t.Fatalf("test setup did not distinguish current and selected score details: current=%+v selected=%+v", expectedCurrentDetails[staffID], selectedWeekDetails[staffID])
+	if expectedCurrentDetails[memberID].CurrentScore == selectedWeekDetails[memberID].CurrentScore {
+		t.Fatalf("test setup did not distinguish current and selected score details: current=%+v selected=%+v", expectedCurrentDetails[memberID], selectedWeekDetails[memberID])
 	}
-	if state.Metrics.MemberScoreDetails[staffID] != expectedCurrentDetails[staffID] {
-		t.Fatalf("staff score detail = %+v, want current-week detail %+v", state.Metrics.MemberScoreDetails[staffID], expectedCurrentDetails[staffID])
+	if state.Metrics.MemberScoreDetails[memberID] != expectedCurrentDetails[memberID] {
+		t.Fatalf("member score detail = %+v, want current-week detail %+v", state.Metrics.MemberScoreDetails[memberID], expectedCurrentDetails[memberID])
 	}
-	if state.Metrics.MemberScores[staffID] != expectedCurrentDetails[staffID].CurrentScore {
-		t.Fatalf("staff score = %d, want %d", state.Metrics.MemberScores[staffID], expectedCurrentDetails[staffID].CurrentScore)
+	if state.Metrics.MemberScores[memberID] != expectedCurrentDetails[memberID].CurrentScore {
+		t.Fatalf("member score = %d, want %d", state.Metrics.MemberScores[memberID], expectedCurrentDetails[memberID].CurrentScore)
 	}
 }
 
 func TestWebSessionRejectsExpiredTamperedAndStaleCookies(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	expiredCookie := expiredWebSessionCookieForTest(t, service, "staff@example.com")
+	expiredCookie := expiredWebSessionCookieForTest(t, service, "member@example.com")
 	if errorValue := webSessionFailureForTest(service, expiredCookie); errorValue == nil || errorValue.Error() != "expired" {
 		t.Fatalf("expired cookie error = %v", errorValue)
 	}
-	validCookie := webSessionCookieForTest(t, service, "staff@example.com")
+	validCookie := webSessionCookieForTest(t, service, "member@example.com")
 	encodedPayload, _, _ := strings.Cut(validCookie, ".")
 	tamperedCookie := encodedPayload + ".AAAA"
 	if errorValue := webSessionFailureForTest(service, tamperedCookie); errorValue == nil || errorValue.Error() != "bad_signature" {
 		t.Fatalf("tampered cookie error = %v", errorValue)
 	}
-	staleCookie := staleWebSessionCookieForTest(t, service, "staff@example.com")
+	staleCookie := staleWebSessionCookieForTest(t, service, "member@example.com")
 	if errorValue := webSessionFailureForTest(service, staleCookie); errorValue == nil || errorValue.Error() != "policy_changed" {
 		t.Fatalf("stale cookie error = %v", errorValue)
 	}
@@ -2179,7 +2179,7 @@ func TestWebSessionRejectsExpiredTamperedAndStaleCookies(t *testing.T) {
 
 func TestWebSessionDoesNotAuthorizeAdminAPI(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	cookieValue := webSessionCookieForTest(t, service, "staff@example.com")
+	cookieValue := webSessionCookieForTest(t, service, "member@example.com")
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.AddCookie(&http.Cookie{Name: webSessionCookieName, Value: cookieValue})
@@ -2196,7 +2196,7 @@ func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	logoutRequest := httptest.NewRequest(http.MethodPost, "/auth/logout?return=/tasks/", nil)
 	logoutRequest.RemoteAddr = "198.51.100.10:443"
-	logoutRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	logoutRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	logoutResponse := httptest.NewRecorder()
 
 	service.router().ServeHTTP(logoutResponse, logoutRequest)
@@ -2221,7 +2221,7 @@ func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 
 	sessionRequest := httptest.NewRequest(http.MethodGet, "/auth/session?return=/tasks/", nil)
 	sessionRequest.RemoteAddr = "198.51.100.10:443"
-	sessionRequest.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	sessionRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	for _, cookie := range logoutCookies {
 		sessionRequest.AddCookie(cookie)
 	}
@@ -2298,7 +2298,7 @@ func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -2320,7 +2320,7 @@ func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 	}
 }
 
-func TestCloudflareAuthCallbackRejectsNonStaff(t *testing.T) {
+func TestCloudflareAuthCallbackRejectsNonMember(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
@@ -2406,11 +2406,11 @@ func webSessionFailureForTest(service *Service, cookieValue string) error {
 	return errorValue
 }
 
-func TestTaskAPIForcesStaffTaskForOtherMemberToRequestWithoutRequesterParticipant(t *testing.T) {
+func TestTaskAPIForcesMemberTaskForOtherMemberToRequestWithoutRequesterParticipant(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	response := httptest.NewRecorder()
 
-	service.router().ServeHTTP(response, newTaskRequest("staff@example.com", "other@example.com"))
+	service.router().ServeHTTP(response, newTaskRequest("member@example.com", "other@example.com"))
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("task status = %d body = %s", response.Code, response.Body.String())
@@ -2422,7 +2422,7 @@ func TestTaskAPIForcesStaffTaskForOtherMemberToRequestWithoutRequesterParticipan
 	if task.Status != "requested" {
 		t.Fatalf("status = %q", task.Status)
 	}
-	if containsString(task.ParticipantIDs, stableTaskID("staff@example.com")) {
+	if containsString(task.ParticipantIDs, stableTaskID("member@example.com")) {
 		t.Fatalf("requester should not be a participant by default, got %+v", task.ParticipantIDs)
 	}
 }
@@ -2453,7 +2453,7 @@ func TestTaskAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testin
 	service := newTaskAuthorizationTestService(t)
 	payload := taskWriteRequest{
 		OwnerID:        stableTaskID("other@example.com"),
-		ParticipantIDs: []string{stableTaskID("other@example.com"), stableTaskID("staff@example.com")},
+		ParticipantIDs: []string{stableTaskID("other@example.com"), stableTaskID("member@example.com")},
 		Type:           "회의",
 		Content:        "같이 10분 회의",
 		Size:           "XS",
@@ -2463,7 +2463,7 @@ func TestTaskAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testin
 	document, _ := json.Marshal(payload)
 	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
 	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "staff@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
@@ -2475,7 +2475,7 @@ func TestTaskAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testin
 	if errorValue := json.NewDecoder(response.Body).Decode(&task); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !containsString(task.ParticipantIDs, stableTaskID("staff@example.com")) {
+	if !containsString(task.ParticipantIDs, stableTaskID("member@example.com")) {
 		t.Fatalf("expected requester participant for joint work, got %+v", task.ParticipantIDs)
 	}
 }
@@ -2483,11 +2483,11 @@ func TestTaskAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testin
 func TestTaskAPIDefinitionsRequireAdmin(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
-	staffRequest := newTaskDefinitionsRequest("staff@example.com")
-	staffResponse := httptest.NewRecorder()
-	handler.ServeHTTP(staffResponse, staffRequest)
-	if staffResponse.Code != http.StatusForbidden {
-		t.Fatalf("staff status = %d body = %s", staffResponse.Code, staffResponse.Body.String())
+	memberRequest := newTaskDefinitionsRequest("member@example.com")
+	memberResponse := httptest.NewRecorder()
+	handler.ServeHTTP(memberResponse, memberRequest)
+	if memberResponse.Code != http.StatusForbidden {
+		t.Fatalf("member status = %d body = %s", memberResponse.Code, memberResponse.Body.String())
 	}
 
 	adminRequest := newTaskDefinitionsRequest("admin@example.com")
@@ -2511,7 +2511,7 @@ func TestTaskAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
 	}
 
 	request = httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
-	request.Header.Set(requesterEmailHeader, "staff@example.com")
+	request.Header.Set(requesterEmailHeader, "member@example.com")
 	response = httptest.NewRecorder()
 	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
 	if response.Code != http.StatusOK {
@@ -2521,7 +2521,7 @@ func TestTaskAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
 	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if state.CurrentUserEmail != "staff@example.com" || state.IsAdmin {
+	if state.CurrentUserEmail != "member@example.com" || state.IsAdmin {
 		t.Fatalf("local requester state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
 	}
 }
@@ -2854,10 +2854,10 @@ func newTaskAuthorizationTestService(t *testing.T) *Service {
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-staff","email":"staff@example.com","name":"Staff","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-member","email":"member@example.com","name":"Member","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
 		}
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token") {
-			return jsonResponse(http.StatusOK, `{"id":"staff-mm","email":"staff@example.com","username":"staff"}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"id":"member-mm","email":"member@example.com","username":"member"}`, nil), nil
 		}
 		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusUnauthorized, `{}`, nil), nil
@@ -5191,7 +5191,7 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 	taskChannelCreated := false
 	calendarChannelCreated := false
 	adminJoinedAttendanceChannel := false
-	staffJoinedDefaultChannels := map[string]bool{}
+	memberJoinedDefaultChannels := map[string]bool{}
 	botTokenPath := filepath.Join(stateDirectory, "bot-token")
 	writeFile(t, botTokenPath, "bot-token")
 	service := NewService(Configuration{
@@ -5208,7 +5208,7 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.URL.String() == "https://api.intern.test/api/users?fleet_id=device-1":
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"staff@example.com","role":"member","mattermostUserID":"staff-1","mattermostUsername":"staff"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","role":"member","mattermostUserID":"member-1","mattermostUsername":"member"}]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/username/admin":
@@ -5218,8 +5218,8 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/admin/roles" && request.Method == http.MethodPut:
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/staff-1":
-			return jsonResponse(http.StatusOK, `{"id":"staff-1","email":"staff@example.com","username":"staff"}`, nil), nil
+		case request.URL.String() == "http://mattermost.local/api/v4/users/member-1":
+			return jsonResponse(http.StatusOK, `{"id":"member-1","email":"member@example.com","username":"member"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
 			assertMattermostRuntimeSettingsPatch(t, request, "https://device-1.intern.test")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
@@ -5302,29 +5302,29 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 			assertMattermostBearerToken(t, request, "bot-token")
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/town-square-channel/members" && request.Method == http.MethodPost:
-			if mattermostChannelMemberUserID(t, request) == "staff-1" {
-				staffJoinedDefaultChannels["town-square-channel"] = true
+			if mattermostChannelMemberUserID(t, request) == "member-1" {
+				memberJoinedDefaultChannels["town-square-channel"] = true
 			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/members" && request.Method == http.MethodPost:
-			if mattermostChannelMemberUserID(t, request) == "staff-1" {
-				staffJoinedDefaultChannels["off-topic-channel"] = true
+			if mattermostChannelMemberUserID(t, request) == "member-1" {
+				memberJoinedDefaultChannels["off-topic-channel"] = true
 			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
 			userID := mattermostChannelMemberUserID(t, request)
 			if userID == "admin" {
 			}
-			if userID == "staff-1" {
-				staffJoinedDefaultChannels["flow-channel"] = true
+			if userID == "member-1" {
+				memberJoinedDefaultChannels["flow-channel"] = true
 			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members" && request.Method == http.MethodPost:
 			userID := mattermostChannelMemberUserID(t, request)
 			if userID == "admin" {
 			}
-			if userID == "staff-1" {
-				staffJoinedDefaultChannels["calendar-channel"] = true
+			if userID == "member-1" {
+				memberJoinedDefaultChannels["calendar-channel"] = true
 			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members" && request.Method == http.MethodPost:
@@ -5332,8 +5332,8 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 			if userID == "admin" {
 				adminJoinedAttendanceChannel = true
 			}
-			if userID == "staff-1" {
-				staffJoinedDefaultChannels["attendance-channel"] = true
+			if userID == "member-1" {
+				memberJoinedDefaultChannels["attendance-channel"] = true
 			}
 			return jsonResponse(http.StatusCreated, `{}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
@@ -5354,13 +5354,13 @@ func TestMattermostProvisionerAccountSkipsRetiredChannels(t *testing.T) {
 		t.Fatalf("retired channels must not be provisioned: flow=%v calendar=%v attendance=%v", taskChannelCreated, calendarChannelCreated, adminJoinedAttendanceChannel)
 	}
 	for _, channelID := range []string{"town-square-channel", "off-topic-channel"} {
-		if !staffJoinedDefaultChannels[channelID] {
-			t.Fatalf("staff was not joined to default channel %s: %#v", channelID, staffJoinedDefaultChannels)
+		if !memberJoinedDefaultChannels[channelID] {
+			t.Fatalf("member was not joined to default channel %s: %#v", channelID, memberJoinedDefaultChannels)
 		}
 	}
 	for _, retiredChannelID := range []string{"flow-channel", "calendar-channel", "attendance-channel"} {
-		if staffJoinedDefaultChannels[retiredChannelID] {
-			t.Fatalf("staff was joined to retired channel %s: %#v", retiredChannelID, staffJoinedDefaultChannels)
+		if memberJoinedDefaultChannels[retiredChannelID] {
+			t.Fatalf("member was joined to retired channel %s: %#v", retiredChannelID, memberJoinedDefaultChannels)
 		}
 	}
 }

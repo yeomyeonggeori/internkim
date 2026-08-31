@@ -16,7 +16,7 @@ func leaveRequestOf(toolName string, input string) capabilities.ToolInvokeReques
 	return capabilities.ToolInvokeRequest{
 		ToolName: toolName,
 		Input:    json.RawMessage(input),
-		Context:  capabilityprotocol.ToolInvokeContext{RequesterEmail: "staff@example.com"},
+		Context:  capabilityprotocol.ToolInvokeContext{RequesterEmail: "member@example.com"},
 	}
 }
 
@@ -42,7 +42,7 @@ func TestLeaveCallsReachTheRecordAsTheRequester(t *testing.T) {
 	if reachedPath != "/record/api/tools/leave_balance/invoke" {
 		t.Fatalf("the call went to %q", reachedPath)
 	}
-	if reachedRequester != "staff@example.com" {
+	if reachedRequester != "member@example.com" {
 		t.Fatalf("admind was asked as %q", reachedRequester)
 	}
 	if reachedBody != `{"year":2026}` {
