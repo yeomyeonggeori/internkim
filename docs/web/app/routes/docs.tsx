@@ -17,8 +17,11 @@ import { useMDXComponents } from '@/components/mdx';
 import { use } from 'react';
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const locale = params.lang ?? i18n.defaultLanguage;
-  const slugs = params['*'].split('/').filter((v) => v.length > 0);
+  const segments = params['*'].split('/').filter((v) => v.length > 0);
+  const languages: readonly string[] = i18n.languages;
+  const hasLanguagePrefix = languages.includes(segments[0] ?? '');
+  const locale = hasLanguagePrefix ? segments[0] : i18n.defaultLanguage;
+  const slugs = hasLanguagePrefix ? segments.slice(1) : segments;
   const page = source.getPage(slugs, locale);
   if (!page) throw new Response('Not found', { status: 404 });
 

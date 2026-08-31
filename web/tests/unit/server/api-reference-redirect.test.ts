@@ -3,9 +3,9 @@ import { apiReferenceHomeFor } from '../../../src/lib/server/api-reference-redir
 
 describe('the API reference has one home', () => {
 	test('the reference page and its languages go to the docs site', () => {
-		expect(apiReferenceHomeFor('/api-docs')).toBe('https://docs.intern.kim/docs/api');
-		expect(apiReferenceHomeFor('/api-docs/ko')).toBe('https://docs.intern.kim/docs/api');
-		expect(apiReferenceHomeFor('/api-docs/en')).toBe('https://docs.intern.kim/docs/api');
+		expect(apiReferenceHomeFor('/api-docs')).toBe('https://docs.intern.kim/api');
+		expect(apiReferenceHomeFor('/api-docs/ko')).toBe('https://docs.intern.kim/api');
+		expect(apiReferenceHomeFor('/api-docs/en')).toBe('https://docs.intern.kim/api');
 	});
 
 	test('the document keeps its language where it lands', () => {
