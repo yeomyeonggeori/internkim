@@ -237,9 +237,9 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 				query: 'quarterly',
 				taskHint: 'draft the quarterly report',
 				eventHint: 'weekly sync',
-				personHint: 'Alex Example',
-				participantPersonHints: ['Alex Example', 'Sam Sample'],
-				recipientPersonHints: ['Alex Example'],
+				personHint: 'Sample Lee',
+				participantPersonHints: ['Sample Lee', 'Example Park'],
+				recipientPersonHints: ['Sample Lee'],
 				channelHint: 'company-announcements'
 			},
 			resultPlaceholder: "the tool's own document",
