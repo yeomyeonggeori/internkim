@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# The gate over every tool the catalog offers.
+#
+# It runs in two halves because the tools do: the device implements some of them
+# in Go, the central plane implements the rest in TypeScript. Neither half can
+# see the other's count, so this adds them up and refuses to pass unless
+# together they reach the whole catalog.
+set -euo pipefail
+
+repository="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$repository"
+
+catalog="pkg/capabilityprotocol/generated/capability-tools.json"
+inTheCatalog="$(python3 -c "import json;print(len(json.load(open('$catalog'))['tools']))")"
+
+echo "== the device half"
+go test ./internal/capabilityd/ -run 'Catalog|Gate|Uncovered|Carrying' -count=1
+
+echo
+echo "== the central plane half"
+(cd web && ./scripts/test-integration.sh tests/integration)
+
+onTheDevice="$(python3 - <<'PYTHON'
+import re, pathlib
+source = pathlib.Path('internal/capabilityd/catalog_gate_test.go').read_text()
+print(len(re.findall(r'\n\t\t"(\w+)": \{', source)))
+PYTHON
+)"
+waiting="$(python3 - <<'PYTHON'
+import re, pathlib
+source = pathlib.Path('internal/capabilityd/catalog_gate_test.go').read_text()
+held = re.search(r'toolsWithNoGateCaseYet = \[\]string\{(.*?)\n\}', source, re.S)
+print(len(re.findall(r'"(\w+)"', held.group(1))) if held else 0)
+PYTHON
+)"
+
+echo
+echo "== the whole catalog"
+echo "  $inTheCatalog tools offered"
+echo "  $onTheDevice with a case on the device"
+echo "  $waiting waiting for the step that deletes their Go handler"
+
+covered=$(( onTheDevice + waiting ))
+if [ "$covered" -ne "$inTheCatalog" ]; then
+  echo
+  echo "✗ $covered of $inTheCatalog accounted for; a tool is in neither the cases nor the waiting list" >&2
+  exit 1
+fi
+echo
+echo "✓ every tool the catalog offers is accounted for"
