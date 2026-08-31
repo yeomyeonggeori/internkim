@@ -111,10 +111,18 @@ func (service *Service) writeTaskSummary(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	dependencyKeys := taskSummaryDependencyKeysForWeek(weekCode, weekStart)
-	readModel, errorValue := service.readCachedTaskSummaryReadModel(request.Context(), weekCode, dependencyKeys, memberFingerprint, func(ctx context.Context) (taskSummaryReadModel, error) {
-		return service.buildTaskSummaryReadModel(ctx, weekCode, weekStart, members)
-	})
+	// The cache is keyed by week alone while a company board is read per person
+	// under row level security, so a cached entry would hand one member's board
+	// to everyone. A company device builds the summary fresh each time.
+	var readModel taskSummaryReadModel
+	if service.centralPlane() != nil {
+		readModel, errorValue = service.buildTaskSummaryReadModel(request.Context(), weekCode, weekStart, members)
+	} else {
+		dependencyKeys := taskSummaryDependencyKeysForWeek(weekCode, weekStart)
+		readModel, errorValue = service.readCachedTaskSummaryReadModel(request.Context(), weekCode, dependencyKeys, memberFingerprint, func(ctx context.Context) (taskSummaryReadModel, error) {
+			return service.buildTaskSummaryReadModel(ctx, weekCode, weekStart, members)
+		})
+	}
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
@@ -125,7 +133,7 @@ func (service *Service) writeTaskSummary(responseWriter http.ResponseWriter, req
 		WeeklyTasks: readModel.WeeklyTasks,
 		Metrics:     readModel.Metrics,
 		Report:      readModel.Report,
-		Source:      "sqlite",
+		Source:      taskAnswerSource(service),
 	}
 	service.writeJSON(responseWriter, response)
 }
@@ -169,7 +177,7 @@ func (service *Service) writeTaskState(responseWriter http.ResponseWriter, reque
 		CurrentUserEmail: callerEmail,
 		CurrentUserName:  resolveCurrentUserName(distanceMembers, callerEmail),
 		IsAdmin:          service.isTaskAdminEmail(request.Context(), callerEmail),
-		Source:           "sqlite",
+		Source:           taskAnswerSource(service),
 	}
 	service.writeJSON(responseWriter, response)
 }
@@ -307,6 +315,10 @@ func (service *Service) moveTaskOnBoard(responseWriter http.ResponseWriter, requ
 		writeTaskBoardMoveError(responseWriter, errorValue)
 		return
 	}
+	if service.centralPlane() != nil {
+		service.moveCompanyBoardTask(responseWriter, request, payload)
+		return
+	}
 	task, errorValue := service.writeTaskBoardMove(request.Context(), payload, func(task Task) bool {
 		return service.canUpdateTask(request, task)
 	})
@@ -316,6 +328,41 @@ func (service *Service) moveTaskOnBoard(responseWriter http.ResponseWriter, requ
 	}
 	task = service.applyTaskMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, service.taskAnsweredWithCompanyIdentity(request.Context(), task))
+}
+
+func taskAnswerSource(service *Service) string {
+	if service.centralPlane() != nil {
+		return "central"
+	}
+	return "sqlite"
+}
+
+func (service *Service) moveCompanyBoardTask(responseWriter http.ResponseWriter, request *http.Request, payload taskBoardMoveRequest) {
+	members := service.taskMembers(request)
+	task, found, errorValue := service.readTaskAnswering(request.Context(), payload.TaskID, members)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	if !found {
+		writeTaskBoardMoveError(responseWriter, errTaskBoardMoveTaskNotFound)
+		return
+	}
+	if !service.canUpdateTask(request, task) {
+		writeTaskBoardMoveError(responseWriter, errTaskBoardMoveForbidden)
+		return
+	}
+	task.Status = payload.TargetStatus
+	saved, answered, saveError := service.saveCentralTask(request, task, service.taskPeopleByID(request.Context()))
+	if !answered {
+		writeTaskBoardMoveError(responseWriter, errTaskBoardMoveForbidden)
+		return
+	}
+	if saveError != nil {
+		http.Error(responseWriter, saveError.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, saved)
 }
 
 func writeTaskBoardMoveError(responseWriter http.ResponseWriter, errorValue error) {
