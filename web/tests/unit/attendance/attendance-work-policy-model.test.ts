@@ -4,6 +4,7 @@ import {
 	currentAttendanceWorkPolicyRevision,
 	attendanceMonthlyTargetMinutes,
 	fixedAttendanceTargetMinutes,
+	sameAttendanceWorkPolicyRevision,
 	setAttendanceWorkMode,
 	setAttendanceWorkingWeekdays,
 	setAttendanceWeeklyTargetMinutes
@@ -80,6 +81,30 @@ describe('attendance work policy model', () => {
 		const policyRevision = revision();
 
 		expect(attendanceMonthlyTargetMinutes(policyRevision, '2026-07', ['2026-07-17'])).toBe(22 * 480);
+	});
+
+	test('sees no change between a revision and its copy', () => {
+		expect(sameAttendanceWorkPolicyRevision(revision(), copyAttendanceWorkPolicyRevision(revision()))).toBe(
+			true
+		);
+	});
+
+	test('sees a change in a scalar, a weekday and a break period alike', () => {
+		expect(
+			sameAttendanceWorkPolicyRevision(revision(), { ...revision(), nightStartTime: '23:00' })
+		).toBe(false);
+		expect(
+			sameAttendanceWorkPolicyRevision(revision(), setAttendanceWorkingWeekdays(revision(), [1, 2]))
+		).toBe(false);
+		expect(
+			sameAttendanceWorkPolicyRevision(revision(), {
+				...revision(),
+				breakPeriods: [{ startTime: '12:00', endTime: '13:30' }]
+			})
+		).toBe(false);
+		expect(
+			sameAttendanceWorkPolicyRevision(revision(), { ...revision(), breakPeriods: [] })
+		).toBe(false);
 	});
 
 	test('normalizes fields when changing work mode', () => {
