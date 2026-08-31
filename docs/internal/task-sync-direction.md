@@ -113,7 +113,7 @@ configured keeps what it recorded and sends nothing.
 |---|---|
 | the write, and the answer it returns | `internal/admind/flow_task_central_plane.go` |
 | the board, read as the member asking | `internal/admind/flow_central_board.go` |
-| what the central plane called a task | `internal/admind/flow_central_identity.go` |
+| what the central plane called a task | `internal/centralplane/task_mirror.go` |
 | the words each side uses for a status | `internal/admind/flow_central_terms.go` |
 | the calls, as the member they are for | `internal/centralplane/task.go` |
 

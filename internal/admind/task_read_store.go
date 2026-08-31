@@ -131,14 +131,7 @@ func (service *Service) readTaskByID(ctx context.Context, taskID string) (Task, 
 		return Task{}, false, errorValue
 	}
 	defer database.Close()
-	if task, found, errorValue := readTaskByIDWithQueryer(ctx, database, taskID); found || errorValue != nil {
-		return task, found, errorValue
-	}
-	deviceTaskID, errorValue := readTaskIDCarrying(ctx, database, taskID)
-	if errorValue != nil || deviceTaskID == "" {
-		return Task{}, false, errorValue
-	}
-	return readTaskByIDWithQueryer(ctx, database, deviceTaskID)
+	return readTaskByIDWithQueryer(ctx, database, taskID)
 }
 
 func (service *Service) readTaskByCalendarEventID(ctx context.Context, eventID string) (Task, bool, error) {
