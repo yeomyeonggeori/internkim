@@ -64,6 +64,5 @@ func (service *Service) pairedEventIntoTheRecord(request *http.Request, event ca
 	if _, found, errorValue := service.readTaskByCalendarEventID(request.Context(), event.ID); errorValue != nil || found {
 		return false
 	}
-	service.createPairedTaskForCalendarEvent(request, event)
-	return true
+	return service.createPairedTaskForCalendarEvent(request, event)
 }
