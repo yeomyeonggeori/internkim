@@ -1,15 +1,14 @@
 package capabilityd
 
 import (
+	"net/http"
 	"context"
 	"encoding/json"
-	"net/http"
 	"sort"
 	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/openroutertest"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
@@ -33,17 +32,38 @@ const (
 
 type catalogGateCase struct {
 	kind gateCaseKind
-	// what the record or the device answers when the tool is called
-	answer string
-	input  string
-	expect func(*testing.T, capabilities.ToolInvokeResponse)
+	// the addresses this call reaches, and what each of them answers
+	reaches map[gateBackend]*standingIn
+	input   string
+	expect  func(*testing.T, capabilities.ToolInvokeResponse)
 }
 
 func gateCases() map[string]catalogGateCase {
 	return map[string]catalogGateCase{
+		"web_search": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{openRouterOverHTTP: answeringPerCall(func(*http.Request) (int, string) {
+				return http.StatusOK, `{"id":"gate","model":"gate-model","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"{\"provider\": \"openrouter\", \"query\": \"새 세법 개정안\", \"answer\": \"세법 개정안은 이렇게 바뀌었습니다.\", \"results\": [{\"title\": \"세법 개정\", \"url\": \"https://example.test/tax\", \"snippet\": \"바뀐 것\"}]}"}}]}`
+			})},
+			input: `{"query":"새 세법 개정안"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"query":"새 세법 개정안"`)
+				expectResultHolds(t, answered, "example.test/tax")
+			},
+		},
+		"site_list": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"sites":[{"siteID":"s1","slug":"q3-report","status":"published","title":"3분기 보고"}]}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"q3-report"`)
+			},
+		},
 		"leave_list": {
 			kind:   provesCarrying,
-			answer: `{"tool":"leave_list","result":{"count":1,"scope":"person","leave":[{"leaveID":"l1","kind":"연차","days":2,"status":"approved"}]}}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_list","result":{"count":1,"scope":"person","leave":[{"leaveID":"l1","kind":"연차","days":2,"status":"approved"}]}}`)},
 			input:  `{"status":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -52,7 +72,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_balance": {
 			kind:   provesCarrying,
-			answer: `{"tool":"leave_balance","result":{"personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_balance","result":{"personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`)},
 			input:  `{"year":2026}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -61,7 +81,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_request": {
 			kind:   provesCarrying,
-			answer: `{"tool":"leave_request","result":{"leaveID":"l2","kind":"연차","days":1,"status":"requested"}}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_request","result":{"leaveID":"l2","kind":"연차","days":1,"status":"requested"}}`)},
 			input:  `{"kind":"연차","startsAt":"2026-09-01","endsAt":"2026-09-01","days":1}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -70,7 +90,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_decide": {
 			kind:   provesCarrying,
-			answer: `{"tool":"leave_decide","result":{"leaveID":"l2","status":"approved"}}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_decide","result":{"leaveID":"l2","status":"approved"}}`)},
 			input:  `{"leaveHint":"이샘플 · 연차 · 2026-09-01","decision":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -102,14 +122,12 @@ var toolsWithNoGateCaseYet = []string{
 	"message_send",
 	"message_update",
 	"person_list",
-	"site_list",
 	"site_serve",
 	"site_unserve",
 	"task_add",
 	"task_delete",
 	"task_list",
 	"task_update",
-	"web_search",
 }
 
 func TestNoCatalogToolEscapesTheGateUnnoticed(t *testing.T) {
@@ -187,22 +205,7 @@ func TestEveryGateCaseNamesAToolTheCatalogCarries(t *testing.T) {
 func TestTheCoveredCatalogToolsAnswerTheirCalls(t *testing.T) {
 	for name, gateCase := range gateCases() {
 		t.Run(name, func(t *testing.T) {
-			socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-				if request.Header.Get(admindRequesterEmailHeader) == "" {
-					http.Error(responseWriter, "this call named nobody", http.StatusForbidden)
-					return
-				}
-				responseWriter.Header().Set("Content-Type", "application/json")
-				_, _ = responseWriter.Write([]byte(gateCase.answer))
-			}))
-			fake := openroutertest.Start()
-			defer fake.Close()
-
-			service := Service{Configuration: Configuration{
-				AdmindBaseURL:     admindOnLoopbackThatFailsTheTest(t),
-				AdmindSocketPath:  socketPath,
-				OpenRouterBaseURL: fake.BaseURL(),
-			}}
+			service := serviceReaching(t, gateCase.reaches)
 
 			route, hasRoute := capabilityToolRouteFor(name)
 			if !hasRoute {
