@@ -2,6 +2,15 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const databaseServerTime = '2026-08-18T03:04:05.678Z';
 
+type AttendanceRow = {
+	id: string;
+	member_id: string;
+	kind: 'clock_in' | 'clock_out';
+	location: string | null;
+	occurred_at: string;
+	original_occurred_at: string | null;
+};
+
 type LeaveRow = {
 	id: string;
 	member_id: string;
@@ -14,6 +23,8 @@ type LeaveRow = {
 
 let leaveRows: LeaveRow[] = [];
 let coveringLeaveRows: LeaveRow[] = [];
+let attendanceRows: AttendanceRow[] = [];
+let attendanceWindow: { from: string; until: string } | null = null;
 
 function leaveRow(startsAt: string, endsAt: string): LeaveRow {
 	return {
@@ -53,8 +64,14 @@ const client = {
 		if (table === 'attendance') {
 			return {
 				select: () => ({
-					gte: () => ({
-						lt: () => ({ order: () => ({ returns: () => response([]) }) })
+					gte: (_column: string, from: string) => ({
+						lt: (_lessThanColumn: string, until: string) => {
+							attendanceWindow = { from, until };
+							const inWindow = attendanceRows.filter(
+								(row) => row.occurred_at >= from && row.occurred_at < until
+							);
+							return { order: () => ({ returns: () => response(inWindow) }) };
+						}
 					})
 				})
 			};
@@ -89,6 +106,36 @@ describe('supabaseAttendanceSummary', () => {
 	beforeEach(() => {
 		leaveRows = [];
 		coveringLeaveRows = [];
+		attendanceRows = [];
+		attendanceWindow = null;
+	});
+
+	test('asks for the month as the company time zone bounds it', async () => {
+		await supabaseAttendanceSummary('2026-09');
+
+		expect(attendanceWindow).toEqual({
+			from: '2026-08-31T15:00:00.000Z',
+			until: '2026-09-30T15:00:00.000Z'
+		});
+	});
+
+	test('carries a clock in made before the UTC day began on the first of the month', async () => {
+		attendanceRows = [
+			{
+				id: 'attendance-one',
+				member_id: 'member-one',
+				kind: 'clock_in',
+				location: '재택',
+				occurred_at: '2026-08-31T23:30:00.000Z',
+				original_occurred_at: null
+			}
+		];
+
+		const summary = await supabaseAttendanceSummary('2026-09');
+
+		expect(summary.events.map((event) => [event.localDate, event.localTime])).toEqual([
+			['2026-09-01', '08:30']
+		]);
 	});
 
 	test('reports no active leave when nothing covers the moment', async () => {
