@@ -1,4 +1,5 @@
 import { announceToTheCompany } from './announce-attendance';
+import { companyMonthTimeRange } from './supabase-work-status-range';
 import { supabase } from '$lib/supabase';
 import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
 import { colourOf, type NamedColour } from '$lib/task/task-vocabulary';
@@ -56,13 +57,13 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 
 	const timeZone = company.data.timezone;
 	const selectedMonth = month || monthIn(new Date(), timeZone);
-	const [from, until] = monthBounds(selectedMonth);
+	const { from, until } = companyMonthTimeRange(selectedMonth, timeZone);
 
 	const attendance = await client
 		.from('attendance')
 		.select('id, member_id, kind, location, occurred_at, original_occurred_at')
-		.gte('occurred_at', from.toISOString())
-		.lt('occurred_at', until.toISOString())
+		.gte('occurred_at', from)
+		.lt('occurred_at', until)
 		.order('occurred_at')
 		.returns<AttendanceRow[]>();
 	if (attendance.error) throw new Error(attendance.error.message);
@@ -71,8 +72,8 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		.from('leave')
 		.select('id, member_id, kind, is_paid, starts_at, ends_at')
 		.eq('status', 'approved')
-		.lt('starts_at', until.toISOString())
-		.gte('ends_at', from.toISOString())
+		.lt('starts_at', until)
+		.gte('ends_at', from)
 		.returns<LeaveRow[]>();
 	if (leave.error) throw new Error(leave.error.message);
 	const [serverTime, correctionWindow] = await Promise.all([
@@ -242,11 +243,6 @@ function todayStatusOf(events: AttendanceEvent[], email: string, timeZone: strin
 	const last = mine.at(-1);
 	if (!last) return 'none';
 	return last.kind === 'clock_in' ? 'working' : 'done';
-}
-
-function monthBounds(month: string): [Date, Date] {
-	const [year, monthNumber] = month.split('-').map(Number);
-	return [new Date(Date.UTC(year, monthNumber - 1, 1)), new Date(Date.UTC(year, monthNumber, 1))];
 }
 
 function monthIn(instant: Date, timeZone: string): string {
