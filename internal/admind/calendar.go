@@ -262,7 +262,11 @@ func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, r
 	if startTime.IsZero() && endTime.IsZero() && query.Get("window") == "upcoming" {
 		startTime, endTime = service.upcomingCalendarWindow(time.Now())
 	}
-	if centralEvents, answered := service.centralCalendarEvents(request, startTime, endTime); answered {
+	if centralEvents, answered, readError := service.centralCalendarEvents(request, startTime, endTime); answered {
+		if readError != nil {
+			writeCalendarCentralError(responseWriter, request, "", readError)
+			return
+		}
 		service.writeJSON(responseWriter, calendarEventsResponse{Events: centralEvents})
 		return
 	}
