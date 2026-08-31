@@ -1,9 +1,23 @@
-import { supabase, vapidPublicKey } from '$lib/supabase';
+import { isSupabaseConfigured, supabase, vapidPublicKey } from '$lib/supabase';
 import { decodeBase64URL, encodeBase64URL } from './base64url';
 
 export type Reachability = 'unsupported' | 'unconfigured' | 'blocked' | 'off' | 'on';
 
 const webPush = 'web-push';
+
+let cachedServerKey: Promise<string> | undefined;
+
+function applicationServerKey(): Promise<string> {
+	cachedServerKey ??= resolveServerKey();
+	return cachedServerKey;
+}
+
+async function resolveServerKey(): Promise<string> {
+	if (!isSupabaseConfigured()) return vapidPublicKey();
+	const { data, error } = await supabase().rpc('vapid_public_key');
+	if (!error && typeof data === 'string' && data !== '') return data;
+	return vapidPublicKey();
+}
 
 function isSupported(): boolean {
 	return (
@@ -22,14 +36,15 @@ async function heldSubscription(): Promise<PushSubscription | null> {
 
 export async function reachability(): Promise<Reachability> {
 	if (!isSupported()) return 'unsupported';
-	if (!vapidPublicKey()) return 'unconfigured';
+	if (!(await applicationServerKey())) return 'unconfigured';
 	if (Notification.permission === 'denied') return 'blocked';
 	return (await heldSubscription()) ? 'on' : 'off';
 }
 
 export async function startBeingReached(): Promise<Reachability> {
 	if (!isSupported()) return 'unsupported';
-	if (!vapidPublicKey()) return 'unconfigured';
+	const serverKey = await applicationServerKey();
+	if (!serverKey) return 'unconfigured';
 	if ((await Notification.requestPermission()) !== 'granted') return 'blocked';
 
 	const registration = await navigator.serviceWorker.ready;
@@ -37,7 +52,7 @@ export async function startBeingReached(): Promise<Reachability> {
 		(await registration.pushManager.getSubscription()) ??
 		(await registration.pushManager.subscribe({
 			userVisibleOnly: true,
-			applicationServerKey: decodeBase64URL(vapidPublicKey())
+			applicationServerKey: decodeBase64URL(serverKey)
 		}));
 
 	const { error } = await supabase().rpc('push_device_claim', {
