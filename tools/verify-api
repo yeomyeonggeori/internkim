@@ -13,6 +13,14 @@ cd "$repository"
 catalog="pkg/capabilityprotocol/generated/capability-tools.json"
 inTheCatalog="$(python3 -c "import json;print(len(json.load(open('$catalog'))['tools']))")"
 
+if [ -n "${INTERNKIM_GATE_MODEL:-}" ]; then
+  echo "== asking ${INTERNKIM_GATE_MODEL} for real; this costs money"
+  : "${INTERNKIM_GATE_OPENROUTER_KEY_PATH:?name a key file to reach the model with}"
+else
+  echo "== the model is stood in for; name one in INTERNKIM_GATE_MODEL to ask it for real"
+fi
+echo
+
 echo "== the device half"
 go test ./internal/capabilityd/ -run 'Catalog|Gate|Uncovered|Carrying' -count=1
 
