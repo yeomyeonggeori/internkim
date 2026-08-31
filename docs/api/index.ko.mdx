@@ -128,14 +128,19 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 
 ## 구현 위치 [#where-it-is-implemented]
 
+API는 웹 앱의 일부입니다. 앱을 직접 호스팅하는 회사는 API도 함께 갖습니다.
+`api.<zone>/v1`과 `<회사 호스트>/api/v1`은 같은 라우트입니다.
+
 | 관심사 | 위치 |
 |---|---|
-| `/api/v1` 아래 전체 라우팅 | `internal/admind/public_tool_gateway.go`의 `handlePublicAPI`, 마운트는 `internal/admind/service.go` |
-| 토큰 발급, `ik_` 포맷, SHA-256 해싱, 저장 | 같은 파일의 `issuePublicAPIToken`, `publicAPITokenHash`; 저장 경로는 `publicAPITokenStorePath` |
-| 범위 정규화와 등급 | `normalizePublicAPITokenScopes`, `publicAPIScopeRank`, `publicToolScopeForDescriptor`, `publicToolAllowedForActor` |
-| `capabilityd`로의 도구 호출 전달 | `invokeCapabilityTool`, `CapabilitySocketPath`가 가리키는 unix 소켓 |
+| `/api/v1` 아래 전체 라우팅 | `web/src/routes/api/v1/`; `/v1/*`는 `web/src/hooks.ts`에서 이 경로로 다시 씌워집니다 |
+| 세션 토큰이든 `ik_` 키든, 부르는 사람의 신원 | `web/src/lib/server/member-request.ts`의 `callingMember` |
+| 토큰 발급, `ik_` 포맷, SHA-256 해싱, 저장 | `web/src/lib/server/control-plane.ts`의 `issuePersonalAccessToken`; 규칙은 `web/src/lib/server/public-api/tokens.ts` |
+| 권한 등급과 등급이 닿는 도구 | `web/src/lib/server/public-api/catalog.ts`, 바탕은 `web/src/lib/public-api-permission.ts` |
+| 회사 장비로 도구 호출 전달 | `web/src/lib/server/public-api/company-call.ts`, `workers/connection-gateway`를 지나 회사 릴레이로 |
+| 회사 장비가 그 호출로 하는 일 | `internal/admind/public_tool_gateway.go`의 `handlePublicAPI`, 그다음 `capabilityd` 소켓의 `invokeCapabilityTool` |
 | 에이전트 엔드포인트 | `internal/admind/agent_drive.go`, `blueclawJSONRequest`로 Blueclaw에 전달 |
 | 와이어 타입 | `pkg/capabilityprotocol/protocol.go` |
 | 도구 카탈로그 | `pkg/capabilityprotocol/generated/capability-tools.json` |
-| 테스트로 적힌 계약 | `internal/admind/public_tool_gateway_test.go` |
-| OpenAPI 문서와 `/api-docs` 셸 | `web/src/lib/server/openapi.ts`, `web/src/routes/openapi/[language].json/`, `web/src/routes/api-docs/` |
+| 테스트로 적힌 계약 | `web/tests/integration/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
+| OpenAPI 문서와 `/api-docs` 셸 | `docs/web/app/lib/openapi.ts`, `web/src/routes/api-docs/` |
