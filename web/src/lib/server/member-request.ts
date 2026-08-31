@@ -14,13 +14,16 @@ export type CallingMember = {
 	caller: SupabaseClient;
 	record: SupabaseClient;
 	memberID: string;
+	companyID: string;
 	email: string;
 	permission: PublicAPIPermission;
+	tokenName: string;
 };
 
 export type MemberCall = {
 	accessToken: string;
 	permission: PublicAPIPermission;
+	tokenName: string;
 };
 
 export async function memberAccessTokenOf(
@@ -30,11 +33,13 @@ export async function memberAccessTokenOf(
 	const authorization = request.headers.get('authorization') ?? '';
 	const presented = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
 	if (!presented) error(401, 'sign in first');
-	if (!isPersonalAccessToken(presented)) return { accessToken: presented, permission: fullPublicAPIPermission };
+	if (!isPersonalAccessToken(presented)) {
+		return { accessToken: presented, permission: fullPublicAPIPermission, tokenName: '' };
+	}
 
 	const session = await sessionForPersonalAccessToken(credentials, presented);
 	if (!session) error(401, 'that key belongs to nobody');
-	return { accessToken: session.accessToken, permission: session.permission };
+	return { accessToken: session.accessToken, permission: session.permission, tokenName: session.tokenName };
 }
 
 export async function callingMember(request: Request, environment: Environment): Promise<CallingMember> {
@@ -45,7 +50,10 @@ export async function callingMember(request: Request, environment: Environment):
 		error(500, 'the control plane is not configured');
 	}
 
-	const { accessToken, permission } = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
+	const { accessToken, permission, tokenName } = await memberAccessTokenOf(request, {
+		projectURL,
+		serviceRoleKey,
+	});
 
 	const caller = asMember({ projectURL, publishableKey }, accessToken);
 	const { data: account } = await caller.auth.getUser();
@@ -53,9 +61,9 @@ export async function callingMember(request: Request, environment: Environment):
 
 	const member = await caller
 		.from('member')
-		.select('id, email')
+		.select('id, company_id, email')
 		.eq('user_id', account.user.id)
-		.maybeSingle<{ id: string; email: string | null }>();
+		.maybeSingle<{ id: string; company_id: string; email: string | null }>();
 	if (member.error) error(500, member.error.message);
 	if (!member.data) error(403, 'refused');
 
@@ -63,7 +71,9 @@ export async function callingMember(request: Request, environment: Environment):
 		caller,
 		record: controlPlane({ projectURL, serviceRoleKey }),
 		memberID: member.data.id,
+		companyID: member.data.company_id,
 		email: member.data.email ?? account.user.email ?? '',
-		permission
+		permission,
+		tokenName
 	};
 }
