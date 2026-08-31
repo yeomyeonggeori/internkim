@@ -25,9 +25,10 @@ admind의 Flow API가 뒤를 받칩니다(`internal/capabilityd/flow_tool.go`).
 <ToolCatalog namespace="person" language="ko" />
 
 같은 Flow 구성원 데이터 위에 구현되어 있습니다
-(`internal/capabilityd/person_list_tool.go`). 메시지가 사람을 조각으로
-부를 때마다 에이전트가 이것을 불러, 이후의 모든 힌트가 정확한 이름,
-@핸들, 이메일을 담게 합니다.
+(`internal/capabilityd/person_list_tool.go`). 사람이 누구인지, 여기 누가
+일하는지에 답합니다. 힌트 앞 단계가 아닙니다. 힌트는 조각을 쓰인 그대로
+받아 서버가 풀고, 이 도구는 힌트가 후보 여럿과 함께 돌아왔을 때 에이전트가
+읽는 것입니다.
 
 ## 캘린더 [#calendar]
 

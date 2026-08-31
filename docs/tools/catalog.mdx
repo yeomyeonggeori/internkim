@@ -26,8 +26,10 @@ before calling.
 <ToolCatalog namespace="person" />
 
 Implemented in `internal/capabilityd/person_list_tool.go` over the same Flow
-membership data. The agent calls it whenever a message names someone partially,
-so every later hint carries an exact name, @handle, or email.
+membership data. It answers who a person is and who works here. It is not a
+step before a hint: a hint takes the fragment as it was written and the server
+resolves it, and this is what the agent reads when a hint comes back with
+candidates to choose between.
 
 ## Calendar [#calendar]
 
