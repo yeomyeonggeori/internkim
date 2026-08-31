@@ -19,11 +19,11 @@ them under your identity. There is no command syntax to learn.
 | "in last week's announcement, fix the date and nothing else" | `message_search`, then `message_update` | the corrected span in your earlier message |
 | "find out what changed in the new tax bill" | `web_search` | ranked public-web results, summarized |
 
-When a request names a person by a fragment ("Park"), the agent calls
-`person_list` first and passes the exact name. Mutating tools take *hints*
-(`taskHint`, `eventHint`, `personHint`): the exact current title, name, or ID
-you actually know, resolved server-side to one canonical record. An ambiguous
-hint never guesses: the call fails with a candidate list to choose from.
+Mutating tools take *hints* (`taskHint`, `eventHint`, `personHint`): the
+title, name, or ID you actually know, resolved server-side to one canonical
+record. A fragment is enough — "Park" reaches Example Park without the agent
+looking anybody up first. An ambiguous hint never guesses: the call fails with
+a candidate list to choose from, and choosing is what `person_list` is for.
 
 ## Two families [#families]
 
