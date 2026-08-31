@@ -38,6 +38,18 @@ admind의 Flow API가 뒤를 받칩니다(`internal/capabilityd/flow_tool.go`).
 업무입니다. 시각은 시간대가 붙은 ISO 타임스탬프이고, `eventHint`는
 `taskHint`와 같은 해석 규칙을 따릅니다.
 
+## 휴가 [#leave]
+
+<ToolCatalog namespace="leave" language="ko" />
+
+중앙 평면의 `web/src/lib/server/public-api/record/leave-tools.ts`에 구현되어
+있습니다. 기록의 `leave` 테이블과 `leave_in_full`, `member_leave_remaining`
+함수를 부르는 사람의 신원으로 호출하므로, 무엇이 보이는지는 row level
+security가 정합니다. 수량은 숫자 `days`이고 종류는 회사가 등록한 자기
+어휘입니다. 유급인지, 연차를 차감하는지는 그 종류에서 따라오므로 에이전트는
+종류만 말하고 나머지는 기록이 정합니다. `leave_decide`는 승인이 곧 연차를
+쓰는 일이라 게이트되어 있습니다.
+
 ## 메시지 [#message]
 
 <ToolCatalog namespace="message" language="ko" />
