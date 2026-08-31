@@ -1,0 +1,158 @@
+#!/usr/bin/env bun
+// Drive every public API endpoint that costs nothing: no model, no messenger,
+// no company. The worker runs in this process against the local control plane
+// and the fixture company that `supabase db reset` seeds.
+
+import worker, { type CompanyAnswer, type CompanyCall, type WorkerEnvironment } from '../workers/public-api/src/index';
+
+const fixtureMemberID = '000000ee-0000-0000-0000-000000000001';
+const smokeTokenName = 'smoke';
+
+type Check = { name: string; passed: boolean; detail: string };
+
+const checks: Check[] = [];
+
+function expect(name: string, passed: boolean, detail: string): void {
+	checks.push({ name, passed, detail });
+}
+
+function localPlane(): { projectURL: string; serviceRoleKey: string } {
+	const status = Bun.spawnSync(['supabase', 'status', '-o', 'json'], { cwd: `${import.meta.dir}/..` });
+	if (status.exitCode !== 0) {
+		throw new Error('supabase is not running here; start it with `supabase start`');
+	}
+	const document = JSON.parse(new TextDecoder().decode(status.stdout).slice(new TextDecoder().decode(status.stdout).indexOf('{')));
+	return { projectURL: document.API_URL, serviceRoleKey: document.SERVICE_ROLE_KEY };
+}
+
+const plane = localPlane();
+
+async function hashOf(secret: string): Promise<string> {
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+	return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function recordHeaders(extra: Record<string, string> = {}) {
+	return {
+		apikey: plane.serviceRoleKey,
+		Authorization: `Bearer ${plane.serviceRoleKey}`,
+		...extra
+	};
+}
+
+async function seedToken(name: string, permission: string): Promise<string> {
+	const token = `ik_${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
+	const response = await fetch(`${plane.projectURL}/rest/v1/credential?on_conflict=member_id,kind,name`, {
+		method: 'POST',
+		headers: recordHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' }),
+		body: JSON.stringify({
+			member_id: fixtureMemberID,
+			kind: 'api_key',
+			name,
+			external_id: await hashOf(token),
+			permission
+		})
+	});
+	if (!response.ok) throw new Error(`seeding ${name} answered ${response.status}: ${await response.text()}`);
+	return token;
+}
+
+async function forgetSmokeTokens(): Promise<void> {
+	await fetch(
+		`${plane.projectURL}/rest/v1/credential?member_id=eq.${fixtureMemberID}&kind=eq.api_key&name=like.smoke*`,
+		{ method: 'DELETE', headers: recordHeaders() }
+	);
+	await fetch(`${plane.projectURL}/rest/v1/credential?member_id=eq.${fixtureMemberID}&kind=eq.api_key&name=like.pat-*`, {
+		method: 'DELETE',
+		headers: recordHeaders()
+	});
+}
+
+let companyCalls = 0;
+const environment: WorkerEnvironment = {
+	COMPANY_CALLS: {
+		async callCompany(_companyID: string, call: CompanyCall): Promise<CompanyAnswer> {
+			companyCalls += 1;
+			return { requestID: call.requestID, status: 200, body: { ok: true } };
+		}
+	},
+	SUPABASE_URL: plane.projectURL,
+	SUPABASE_SECRET_KEY: plane.serviceRoleKey
+};
+
+function call(path: string, token: string | null, options: RequestInit = {}): Promise<Response> {
+	const headers = token ? { Authorization: `Bearer ${token}`, ...options.headers } : options.headers;
+	return worker.fetch(new Request(`https://api.intern.kim${path}`, { ...options, headers }), environment);
+}
+
+function mint(token: string, body: unknown): Promise<Response> {
+	return call('/v1/tokens', token, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body)
+	});
+}
+
+async function run(): Promise<void> {
+	await forgetSmokeTokens();
+	const held = await seedToken(smokeTokenName, 'delete');
+	const reader = await seedToken(`${smokeTokenName}-reader`, 'read');
+
+	expect('a call with no token is refused', (await call('/v1/tools', null)).status === 401, '401');
+	expect('a token nobody holds is refused', (await call('/v1/tools', 'ik_nobody')).status === 401, '401');
+	expect('a path outside /v1 is not found', (await call('/other', held)).status === 404, '404');
+
+	const catalog = await call('/v1/tools', held);
+	const tools = ((await catalog.json()) as { tools: { canonicalName: string }[] }).tools;
+	expect('the catalog answers at the edge', catalog.status === 200 && tools.length > 0, `${tools.length} tools`);
+
+	const readerCatalog = (await (await call('/v1/tools', reader)).json()) as { tools: unknown[] };
+	expect('a read token sees fewer tools than a delete token', readerCatalog.tools.length < tools.length,
+		`${readerCatalog.tools.length} < ${tools.length}`);
+
+	const named = tools[0]?.canonicalName ?? '';
+	expect('one tool answers by name', (await call(`/v1/tools/${named}`, held)).status === 200, named);
+	expect('an unknown tool is not found', (await call('/v1/tools/no_such_tool', held)).status === 404, '404');
+
+	const minted = (await (await mint(held, { name: `${smokeTokenName}-made`, permission: 'read' })).json()) as {
+		name: string;
+		permission: string;
+		token: string;
+	};
+	expect('a token mints another', minted.token?.startsWith('ik_') === true, minted.name);
+	expect('the minted rung is the one asked for', minted.permission === 'read', minted.permission);
+
+	expect('a read token may not mint a delete token',
+		(await mint(reader, { name: `${smokeTokenName}-escalation`, permission: 'delete' })).status === 403, '403');
+	expect('a token may not be named after the one making the call',
+		(await mint(held, { name: smokeTokenName })).status === 409, '409');
+
+	const unnamed = (await (await mint(held, {})).json()) as { name: string };
+	expect('an unnamed token takes an ordinal', unnamed.name === 'pat-1', unnamed.name);
+
+	const listed = (await (await call('/v1/tokens', held)).json()) as { tokens: { name: string }[] };
+	expect('the list holds what was minted',
+		listed.tokens.some((token) => token.name === minted.name) && listed.tokens.some((token) => token.name === 'pat-1'),
+		listed.tokens.map((token) => token.name).join(', '));
+
+	expect('a token may not revoke itself',
+		(await call(`/v1/tokens?name=${smokeTokenName}`, held, { method: 'DELETE' })).status === 409, '409');
+	expect('an unknown name is not found',
+		(await call('/v1/tokens?name=never-existed', held, { method: 'DELETE' })).status === 404, '404');
+	expect('a token revokes another',
+		(await call(`/v1/tokens?name=${minted.name}`, held, { method: 'DELETE' })).status === 200, '200');
+	expect('the revoked token is refused', (await call('/v1/tools', minted.token)).status === 401, '401');
+
+	expect('nothing above reached the company', companyCalls === 0, `${companyCalls} company calls`);
+
+	await forgetSmokeTokens();
+}
+
+await run();
+
+const failed = checks.filter((check) => !check.passed);
+for (const check of checks) {
+	console.log(`${check.passed ? '✓' : '✗'} ${check.name} (${check.detail})`);
+}
+console.log(`\n${checks.length - failed.length}/${checks.length} passed`);
+process.exit(failed.length === 0 ? 0 : 1);
