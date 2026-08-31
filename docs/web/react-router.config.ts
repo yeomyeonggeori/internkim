@@ -30,7 +30,7 @@ export default {
     for await (const entry of glob(publishedSections, { cwd: publishedContentDirectory })) {
       const language = entryLanguage(entry);
       const slugs = entrySlugs(entry);
-      paths.push(`${localePrefix(language)}${createGetUrl('/docs')(slugs)}`);
+      paths.push(`${localePrefix(language)}${createGetUrl('/')(slugs)}`);
       if (language === i18n.defaultLanguage) {
         paths.push(`/llms.mdx/docs/${[...slugs, 'content.md'].join('/')}`);
       }
