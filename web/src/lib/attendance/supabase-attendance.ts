@@ -1,4 +1,5 @@
 import { announceToTheCompany } from './announce-attendance';
+import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import { companyMonthTimeRange } from './supabase-work-status-range';
 import { supabase } from '$lib/supabase';
 import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
@@ -194,8 +195,8 @@ function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: st
 		kind: row.kind,
 		occurredAt: row.occurred_at,
 		originalOccurredAt: row.original_occurred_at ?? undefined,
-		localDate: dateIn(new Date(row.occurred_at), timeZone),
-		localTime: timeIn(new Date(row.occurred_at), timeZone),
+		localDate: companyDateOf(new Date(row.occurred_at), timeZone),
+		localTime: companyTimeOf(new Date(row.occurred_at), timeZone),
 		timeZoneAtEvent: timeZone,
 		source: 'web',
 		resultPostID: '',
@@ -205,7 +206,7 @@ function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: st
 }
 
 function absencesOf(row: LeaveRow, member: MemberRow | undefined, timeZone: string): AttendanceAbsence[] {
-	const startDate = dateIn(new Date(row.starts_at), timeZone);
+	const startDate = companyDateOf(new Date(row.starts_at), timeZone);
 	const endDate = lastLeaveDate(startDate, row.ends_at, timeZone);
 	const email = member?.email ?? '';
 	const days: AttendanceAbsence[] = [];
@@ -238,7 +239,7 @@ function locationsOf(workLocations: NamedColour[] | null): AttendanceLocation[] 
 }
 
 function todayStatusOf(events: AttendanceEvent[], email: string, timeZone: string): string {
-	const today = dateIn(new Date(), timeZone);
+	const today = companyDateOf(new Date(), timeZone);
 	const mine = events.filter((event) => event.email === email && event.localDate === today);
 	const last = mine.at(-1);
 	if (!last) return 'none';
@@ -246,30 +247,12 @@ function todayStatusOf(events: AttendanceEvent[], email: string, timeZone: strin
 }
 
 function monthIn(instant: Date, timeZone: string): string {
-	return dateIn(instant, timeZone).slice(0, 7);
-}
-
-function dateIn(instant: Date, timeZone: string): string {
-	return new Intl.DateTimeFormat('en-CA', {
-		timeZone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit'
-	}).format(instant);
-}
-
-function timeIn(instant: Date, timeZone: string): string {
-	return new Intl.DateTimeFormat('en-GB', {
-		timeZone,
-		hour: '2-digit',
-		minute: '2-digit',
-		hour12: false
-	}).format(instant);
+	return companyDateOf(instant, timeZone).slice(0, 7);
 }
 
 function lastLeaveDate(startDate: string, endsAt: string, timeZone: string): string {
 	const lastCoveredInstant = new Date(new Date(endsAt).getTime() - 1);
-	const lastDate = dateIn(lastCoveredInstant, timeZone);
+	const lastDate = companyDateOf(lastCoveredInstant, timeZone);
 	return lastDate < startDate ? startDate : lastDate;
 }
 

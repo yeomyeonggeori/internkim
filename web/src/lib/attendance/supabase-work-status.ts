@@ -1,8 +1,8 @@
 import { supabase } from '$lib/supabase';
 import { membersInReadingOrder } from '$lib/member-order';
 import { shiftedDay, supabaseWorkStatusTimeRange } from '$lib/attendance/supabase-work-status-range';
+import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import {
-	companyLocalDate,
 	supabaseWorkedDay,
 	supabaseWorkRecordsFromEvents,
 	type SupabaseWorkRecords
@@ -296,8 +296,8 @@ function dayStatusOf(
 	const revision = revisionForDate(policy.revisions, day);
 	const worked = supabaseWorkedDay(records, day, timeZone, revision);
 	const segments = worked.spans.map((span) => ({
-		startTime: timeIn(span.startAt, timeZone),
-		endTime: timeIn(span.endAt, timeZone),
+		startTime: companyTimeOf(span.startAt, timeZone),
+		endTime: companyTimeOf(span.endAt, timeZone),
 		provisional: span.provisional
 	}));
 	const workedMinutes = worked.actualMinutes;
@@ -385,11 +385,11 @@ function dayInterval(startAt: Date, endAt: Date, dayStart: number): DayMinuteInt
 function leaveRowAppliesToDay(row: SupabaseWorkStatusLeave, day: string, timeZone: string): boolean {
 	if (row.days > 0.5) {
 		return (
-			day >= companyLocalDate(new Date(row.starts_at), timeZone) &&
-			day < companyLocalDate(new Date(row.ends_at), timeZone)
+			day >= companyDateOf(new Date(row.starts_at), timeZone) &&
+			day < companyDateOf(new Date(row.ends_at), timeZone)
 		);
 	}
-	return day === companyLocalDate(new Date(row.starts_at), timeZone);
+	return day === companyDateOf(new Date(row.starts_at), timeZone);
 }
 
 function leaveMinutesForDay(dayLeave: SupabaseWorkStatusLeave[], dayTargetMinutes: number): number {
@@ -403,7 +403,7 @@ function leaveMinutesForDay(dayLeave: SupabaseWorkStatusLeave[], dayTargetMinute
 }
 
 function daysOf(request: AttendanceWorkStatusRequest, timeZone: string, now: Date): string[] {
-	const anchor = request.anchor || companyLocalDate(now, timeZone);
+	const anchor = request.anchor || companyDateOf(now, timeZone);
 	if (request.period === 'day') return [anchor];
 	if (request.period === 'week') {
 		const weekday = new Date(`${anchor}T00:00:00Z`).getUTCDay();
@@ -413,8 +413,4 @@ function daysOf(request: AttendanceWorkStatusRequest, timeZone: string, now: Dat
 	const [year, month] = anchor.split('-').map(Number);
 	const dayCount = new Date(Date.UTC(year, month, 0)).getUTCDate();
 	return Array.from({ length: dayCount }, (_, index) => `${anchor.slice(0, 7)}-${String(index + 1).padStart(2, '0')}`);
-}
-
-function timeIn(instant: Date, timeZone: string): string {
-	return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(instant);
 }
