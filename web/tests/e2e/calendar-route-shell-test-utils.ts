@@ -45,10 +45,10 @@ export async function routeCalendarShellAPI(page: Page): Promise<void> {
 	await page.route('**/calendar/api/sync', async (route) => {
 		await route.fulfill({
 			json: {
-				caldavURL: '',
-				caldavUsername: '',
-				caldavPassword: '',
-				icsURL: ''
+				caldavURL: 'https://calendar.example.test/calendar/dav/team/calendars/internkim/',
+				caldavUsername: 'internkim',
+				caldavPassword: 'a-subscription-token',
+				icsURL: 'https://calendar.example.test/calendar/ics/a-subscription-token.ics'
 			}
 		});
 	});

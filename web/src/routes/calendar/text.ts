@@ -19,6 +19,7 @@ export type CalendarLocaleText = {
 	nextTwelveYears: string;
 	subscriptionSettings: string;
 	subscriptionReady: string;
+	subscriptionShownOnce: string;
 	externalCalendarAccount: string;
 	accountStatusLoading: string;
 	accountStatusLoadFailed: string;
@@ -210,7 +211,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		previousTwelveYears: '이전 12년',
 		nextTwelveYears: '다음 12년',
 		subscriptionSettings: '구독 설정',
-		subscriptionReady: 'CalDAV/ICS 구독 URL 준비됨',
+		subscriptionReady: '구독 URL 준비됨',
+		subscriptionShownOnce: '구독 URL은 만들 때 한 번만 보여 줍니다. 잃어버렸다면 새로 발급하세요.',
 		externalCalendarAccount: '연결된 Google 캘린더',
 		accountStatusLoading: '연결 상태 확인 중',
 		accountStatusLoadFailed: '연결 상태 확인 실패',
@@ -259,7 +261,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		settings: '설정',
 		refresh: '새로고침',
 		syncTitle: '설정',
-		syncDescription: 'CalDAV/ICS 구독 URL을 확인합니다.',
+		syncDescription: '캘린더 앱에서 구독할 URL을 확인합니다.',
 		caldav: 'CalDAV',
 		username: '사용자 이름',
 		password: '비밀번호',
@@ -371,7 +373,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		previousTwelveYears: 'Previous 12 years',
 		nextTwelveYears: 'Next 12 years',
 		subscriptionSettings: 'Subscription settings',
-		subscriptionReady: 'CalDAV/ICS subscription ready',
+		subscriptionReady: 'Subscription URL ready',
+		subscriptionShownOnce: 'A subscription URL is shown once, when it is made. Make another if it was lost.',
 		externalCalendarAccount: 'Connected Google Calendar',
 		accountStatusLoading: 'Checking connection status',
 		accountStatusLoadFailed: 'Could not check connection status',
@@ -420,7 +423,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		settings: 'Settings',
 		refresh: 'Refresh',
 		syncTitle: 'Settings',
-		syncDescription: 'Review CalDAV/ICS subscription URLs.',
+		syncDescription: 'Review the URL a calendar app subscribes to.',
 		caldav: 'CalDAV',
 		username: 'Username',
 		password: 'Password',
