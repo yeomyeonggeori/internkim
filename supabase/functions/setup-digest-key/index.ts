@@ -33,5 +33,12 @@ Deno.serve(async (request) => {
 		return json({ error: kept.error.message }, kept.error.code === '42501' ? 403 : 500);
 	}
 
+	const target = await caller.rpc('digest_target_keep', {
+		new_project_url: Deno.env.get('SUPABASE_URL') ?? ''
+	});
+	if (target.error) {
+		return json({ error: target.error.message }, target.error.code === '42501' ? 403 : 500);
+	}
+
 	return json({ stored: kept.data === true });
 });
