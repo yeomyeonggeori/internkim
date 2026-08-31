@@ -80,10 +80,15 @@ describe('resolveMember', () => {
 			'account-1',
 			(_url, options) => {
 				seenAuthorization = options?.headers?.Authorization ?? '';
-				return Promise.resolve(Response.json([{ id: 'member-1', company_id: 'company-1' }]));
+				return Promise.resolve(Response.json([{ id: 'member-1', company_id: 'company-1', email: 'Sample@Example.com ' }]));
 			}
 		);
-		expect(identity).toEqual({ accountID: 'account-1', memberID: 'member-1', companyID: 'company-1' });
+		expect(identity).toEqual({
+			accountID: 'account-1',
+			memberID: 'member-1',
+			companyID: 'company-1',
+			email: 'sample@example.com'
+		});
 		expect(seenAuthorization).toBe('Bearer the-token');
 	});
 
