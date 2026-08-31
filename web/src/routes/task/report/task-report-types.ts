@@ -32,8 +32,7 @@ export type TaskReportSectionLabels = Record<TaskReportSectionID, TaskReportSect
 
 export type TaskReportCopy = {
 	weekdays: string[];
-	fallbackType: string;
-	fallbackBusiness: string;
+	etcLabel: string;
 	memberScoreLabel: string;
 	weeklyScoreLabel: string;
 	monthlyScoreLabel: string;
@@ -145,8 +144,8 @@ export type TaskReportSections = {
 
 export type TaskReportTask = {
 	participantNames: string[];
-	business: string;
-	type: string;
+	business: string | null;
+	type: string | null;
 	size: string;
 	status: string;
 	startDate?: string;

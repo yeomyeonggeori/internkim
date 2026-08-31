@@ -5,8 +5,7 @@ import { taskReportFixtureDefinitions, taskReportFixtureMembers, taskReportFixtu
 
 const koreanReportCopy: TaskReportCopy = {
 	weekdays: ['월', '화', '수', '목', '금', '토', '일'],
-	fallbackType: '기타',
-	fallbackBusiness: '미지정',
+	etcLabel: '기타',
 	memberScoreLabel: '점수',
 	weeklyScoreLabel: '주간',
 	monthlyScoreLabel: '월간',
@@ -260,8 +259,7 @@ describe('buildTaskReportSections', () => {
 			},
 			copy: {
 				weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-				fallbackType: 'Other',
-				fallbackBusiness: 'Unassigned',
+				etcLabel: 'Etc.',
 				memberScoreLabel: 'Score',
 				weeklyScoreLabel: 'Weekly',
 				monthlyScoreLabel: 'Monthly',
@@ -278,7 +276,7 @@ describe('buildTaskReportSections', () => {
 			members: taskReportFixtureMembers,
 			tasks: [
 				...taskReportFixtureTasks,
-				{ participantNames: ['정의'], business: '', type: '구현', size: 'S', status: 'completed', startDate: '2026-06-01', endDate: '2026-06-01' }
+				{ participantNames: ['정의'], business: null, type: '구현', size: 'S', status: 'completed', startDate: '2026-06-01', endDate: '2026-06-01' }
 			],
 			definitions: taskReportFixtureDefinitions,
 			weekStartISO: '2026-06-01'
@@ -288,7 +286,7 @@ describe('buildTaskReportSections', () => {
 
 		expect(sections.weeklyStatus.rows.map((row) => row.label)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 		expect(sections.weeklyStatus.items[0].label).toBe('구현');
-		expect(sections.businessDistance.items.map((item) => item.label)).toEqual(['샘플거리', '김인턴', 'Unassigned']);
+		expect(sections.businessDistance.items.map((item) => item.label)).toEqual(['샘플거리', '김인턴', 'Etc.']);
 		expect(sections.memberDistance.rows[0].summary).toBe('Weekly 115 pts · Monthly 173 pts');
 		expect(sections.memberDistance.teamAverageLabel).toBe('Team average');
 		expect(sections.memberDistance.memberScrollHint).toBe('{count} members total · scroll inside list');

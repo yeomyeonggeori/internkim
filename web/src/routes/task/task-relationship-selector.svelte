@@ -10,6 +10,7 @@
 		taskParentCandidates
 	} from './task-relationships';
 	import type { TaskRelationshipsText } from './task-editor-types';
+	import { taskDefinitionLabel } from './task-workspace-model';
 	import type { Task } from './task-types';
 
 	type RelationshipMode = 'parent' | 'children';
@@ -23,7 +24,7 @@
 		currentMemberID: string;
 		pendingTaskIDs: string[];
 		text: TaskRelationshipsText;
-		taskTypeColor: (type: string) => string;
+		taskTypeColor: (type: string | null) => string;
 		onSetParent: (taskID: string, parentID?: string) => RelationshipResult | Promise<RelationshipResult>;
 		onSetParents: (taskIDs: string[], parentID: string) => boolean | Promise<boolean>;
 		onCreateChild: () => boolean;
@@ -104,7 +105,7 @@
 			{#each candidates as candidate (candidate.id)}
 				<Command.Item
 					value={`relationship-${mode}-${candidate.id}`}
-					keywords={[candidate.content, candidate.ownerName, candidate.type, candidate.business]}
+					keywords={[candidate.content, candidate.ownerName, candidate.type ?? '', candidate.business ?? '']}
 					data-checked={mode === 'parent' ? task.parentTaskID === candidate.id : selectedTaskIDs.includes(candidate.id)}
 					disabled={submitting || pendingTaskIDs.includes(candidate.id)}
 					onSelect={() => mode === 'parent' ? void selectParent(candidate.id) : toggleChild(candidate.id)}
@@ -117,7 +118,7 @@
 								class="h-5 max-w-28 rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none"
 								style={taskDefinitionOutlineBadgeStyle(taskTypeColor(candidate.type))}
 							>
-								<span class="truncate">{candidate.type}</span>
+								<span class="truncate">{taskDefinitionLabel(candidate.type, text.etcLabel)}</span>
 							</Badge>
 							<span class="truncate text-xs text-muted-foreground">{candidate.ownerName}</span>
 						</div>

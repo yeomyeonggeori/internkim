@@ -301,7 +301,7 @@
 					{task}
 					businessColor={taskSearch.businessColor}
 					taskTypeColor={taskSearch.taskTypeColor}
-					businessFallback={taskLabels.task.businessFallback}
+					etcLabel={taskLabels.task.etcLabel}
 					openTask={() => openTask(task)}
 					isDraggable={false}
 					isInteractive={false}

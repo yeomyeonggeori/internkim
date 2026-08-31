@@ -22,8 +22,8 @@ class TaskSearch {
 		}
 	};
 
-	businessColor = (business: string) => taskBusinessColor(business, this.definitions);
-	taskTypeColor = (type: string) => taskTypeColor(type, this.definitions);
+	businessColor = (business: string | null) => taskBusinessColor(business, this.definitions);
+	taskTypeColor = (type: string | null) => taskTypeColor(type, this.definitions);
 
 	search = (query: string): Task[] => {
 		const normalizedQuery = query.trim().toLowerCase();

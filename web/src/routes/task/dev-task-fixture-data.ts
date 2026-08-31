@@ -6,8 +6,8 @@ export type DevTaskSpec = {
 	requesterID?: string;
 	ownerID: string;
 	participantIDs: string[];
-	business: string;
-	type: string;
+	business: string | null;
+	type: string | null;
 	content: string;
 	size: string;
 	status: string;
@@ -15,7 +15,7 @@ export type DevTaskSpec = {
 	endOffset: number;
 };
 
-export const devTaskTypes = ['운동', '마케팅', '데이터 분석', '운영', '기획', '미팅', '회의', '문서', '보안', '연동', '변경', '설계', 'UI', '기능 추가', '리팩터링', '버그 수정', '기능', '개선', '검증', '디자인', '기타'];
+export const devTaskTypes = ['운동', '마케팅', '데이터 분석', '운영', '기획', '미팅', '회의', '문서', '보안', '연동', '변경', '설계', 'UI', '기능 추가', '리팩터링', '버그 수정', '기능', '개선', '검증', '디자인'];
 export const devTaskStatuses = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'stopped'];
 export const devTaskBaselineWeekStartISO = '2026-06-01';
 
@@ -46,7 +46,7 @@ export const devTaskSpecs: DevTaskSpec[] = [
 	taskSpec('regression-check', 'qa', ['qa'], '샘플거리', '검증', 'Flow 회귀 테스트 체크리스트 실행', 'M', 'completed', 3, 5),
 	taskSpec('customer-reply', 'support', ['support'], '김인턴', '운영', '고객 문의 답변 정리', 'S', 'in_progress', 2, 0, { parentTaskID: 'task-dashboard' }),
 	taskSpec('release-note', 'writer', ['writer', 'kim-intern'], '샘플거리', '문서', '릴리즈 노트 초안 작성', 'S', 'completed', 4, 5),
-	taskSpec('market-scan', 'researcher', ['researcher'], '김인턴', '기타', '경쟁 서비스 화면 조사', 'M', 'rejected', 0, 0, { parentTaskID: 'task-dashboard' })
+	taskSpec('market-scan', 'researcher', ['researcher'], '김인턴', null, '경쟁 서비스 화면 조사', 'M', 'rejected', 0, 0, { parentTaskID: 'task-dashboard' })
 ];
 
 export const devTaskFutureTaskSpecs: DevTaskSpec[] = [
@@ -64,8 +64,8 @@ function taskSpec(
 	id: string,
 	ownerID: string,
 	participantIDs: string[],
-	business: string,
-	type: string,
+	business: string | null,
+	type: string | null,
 	content: string,
 	size: string,
 	status: string,

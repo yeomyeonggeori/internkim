@@ -32,8 +32,8 @@ export type Task = {
 	participantNames: string[];
 	requesterID?: string;
 	requesterName?: string;
-	business: string;
-	type: string;
+	business: string | null;
+	type: string | null;
 	content: string;
 	size: string;
 	status: string;
@@ -85,6 +85,8 @@ export type TaskDefinitions = {
 	categoryColors?: Record<string, string>;
 	types: string[];
 	typeColors?: Record<string, string>;
+	etcBusinessColor?: string;
+	etcTypeColor?: string;
 	sizes: TaskSizeDefinition[];
 };
 

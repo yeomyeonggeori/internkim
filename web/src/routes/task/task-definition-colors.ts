@@ -1,13 +1,15 @@
 import { colorPickerPalette, normalizeColor } from '$lib/color-picker-palette';
 import type { TaskDefinitions } from './task-types';
 
-const unknownDefinitionColor = '#64748b';
+export const unknownDefinitionColor = '#64748b';
 
-export function taskBusinessColor(business: string, definitions: TaskDefinitions): string {
+export function taskBusinessColor(business: string | null, definitions: TaskDefinitions): string {
+	if (business === null) return definitions.etcBusinessColor ?? unknownDefinitionColor;
 	return definitionColor(business, definitions.categories, definitions.categoryColors);
 }
 
-export function taskTypeColor(type: string, definitions: TaskDefinitions): string {
+export function taskTypeColor(type: string | null, definitions: TaskDefinitions): string {
+	if (type === null) return definitions.etcTypeColor ?? unknownDefinitionColor;
 	return definitionColor(type, definitions.types, definitions.typeColors);
 }
 

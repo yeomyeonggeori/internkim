@@ -20,7 +20,7 @@
 		canManageRelationships?: boolean;
 		pendingTaskIDs?: string[];
 		text: TaskRelationshipsText;
-		taskTypeColor: (type: string) => string;
+		taskTypeColor: (type: string | null) => string;
 		onOpenTask: (task: Task) => void;
 		onSetParent: (taskID: string, parentID?: string) => RelationshipResult | Promise<RelationshipResult>;
 		onSetParents: (taskIDs: string[], parentID: string) => boolean | Promise<boolean>;
@@ -85,6 +85,7 @@
 				{editable}
 				pending={isPending(task.id)}
 				openTaskLabel={text.parent}
+				etcLabel={text.etcLabel}
 				moreActionsLabel={text.moreActions}
 				removeRelationshipLabel={text.removeRelationship}
 				onOpenTask={openTask}
@@ -118,6 +119,7 @@
 						{editable}
 						pending={isPending(child.id)}
 						openTaskLabel={text.children}
+						etcLabel={text.etcLabel}
 						moreActionsLabel={text.moreActions}
 						removeRelationshipLabel={text.removeRelationship}
 						onOpenTask={openTask}

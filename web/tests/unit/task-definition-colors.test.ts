@@ -33,6 +33,15 @@ describe('flow definition colors', () => {
 	test('falls back to a neutral color for values the definitions do not list', () => {
 		expect(taskBusinessColor('사라진 사업', taskDefinitions({}))).toBe('#64748b');
 	});
+
+	test('colors a null value with the saved etc color', () => {
+		const definitions = taskDefinitions({ etcBusinessColor: '#DC2626', etcTypeColor: '#0891b2' });
+
+		expect(taskBusinessColor(null, definitions)).toBe('#DC2626');
+		expect(taskTypeColor(null, definitions)).toBe('#0891b2');
+		expect(taskBusinessColor(null, taskDefinitions({}))).toBe('#64748b');
+		expect(taskTypeColor(null, taskDefinitions({}))).toBe('#64748b');
+	});
 });
 
 function taskDefinitions(overrides: Partial<TaskDefinitions>): TaskDefinitions {

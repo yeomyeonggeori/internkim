@@ -53,8 +53,7 @@ export function createTaskReportSections(input: TaskReportSectionsInput) {
 		},
 		copy: {
 			weekdays: [...input.text.report.weekdays],
-			fallbackType: input.text.report.fallbackType,
-			fallbackBusiness: input.text.report.fallbackBusiness,
+			etcLabel: input.text.report.etcLabel,
 			memberScoreLabel: input.text.report.memberScoreLabel,
 			weeklyScoreLabel: input.text.report.weeklyScoreLabel,
 			monthlyScoreLabel: input.text.report.monthlyScoreLabel,

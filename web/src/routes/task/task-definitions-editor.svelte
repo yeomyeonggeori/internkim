@@ -5,7 +5,8 @@
 	import TaskDefinitionsView from './task-definitions-view.svelte';
 	import type { LoadTask } from './task-load-tracker';
 	import type { TaskDefinitions, TaskSizeDefinition, TaskSummary } from './task-types';
-	import { taskDefinitionPaletteColor } from './task-definition-colors';
+	import { taskDefinitionPaletteColor, unknownDefinitionColor } from './task-definition-colors';
+	import { isCentralTaskSource } from './task-source';
 	import { taskText } from './text';
 
 	type TaskDefinitionsText = typeof taskText.ko.definitions;
@@ -25,6 +26,8 @@
 	let sizeDrafts = $state<TaskSizeDefinition[]>([]);
 	let categoryColorDrafts = $state<Record<string, string>>({});
 	let typeColorDrafts = $state<Record<string, string>>({});
+	let etcBusinessColorDraft = $state('');
+	let etcTypeColorDraft = $state('');
 	let newCategoryColor = $state('');
 	let newTypeColor = $state('');
 	let newCategoryText = $state('');
@@ -49,6 +52,8 @@
 		typeDrafts = [...currentDefinitions.types];
 		categoryColorDrafts = { ...(currentDefinitions.categoryColors ?? {}) };
 		typeColorDrafts = { ...(currentDefinitions.typeColors ?? {}) };
+		etcBusinessColorDraft = currentDefinitions.etcBusinessColor ?? '';
+		etcTypeColorDraft = currentDefinitions.etcTypeColor ?? '';
 		sizeDrafts = currentDefinitions.sizes.map((size) => ({ ...size }));
 	});
 
@@ -94,6 +99,16 @@
 		void saveDefinitions();
 	}
 
+	function setEtcBusinessColor(color: string): void {
+		etcBusinessColorDraft = color;
+		void saveDefinitions();
+	}
+
+	function setEtcTypeColor(color: string): void {
+		etcTypeColorDraft = color;
+		void saveDefinitions();
+	}
+
 	function updateCategory(index: number, value: string): void {
 		categoryDrafts = categoryDrafts.map((item, itemIndex) => (itemIndex === index ? value : item));
 	}
@@ -131,6 +146,8 @@
 					categoryColors: colorsForValues(categoryDrafts, categoryColorDrafts),
 					types: typeDrafts,
 					typeColors: colorsForValues(typeDrafts, typeColorDrafts),
+					...(etcBusinessColorDraft ? { etcBusinessColor: etcBusinessColorDraft } : {}),
+					...(etcTypeColorDraft ? { etcTypeColor: etcTypeColorDraft } : {}),
 					sizes
 				},
 				text.saveError,
@@ -191,6 +208,11 @@
 	{typeDrafts}
 	{newCategoryText}
 	{newTypeText}
+	etcBusinessColor={etcBusinessColorDraft || unknownDefinitionColor}
+	etcTypeColor={etcTypeColorDraft || unknownDefinitionColor}
+	{setEtcBusinessColor}
+	{setEtcTypeColor}
+	canEditEtcColor={isCentralTaskSource(summary?.source ?? '')}
 	isAdmin={summary?.isAdmin ?? false}
 	canEditDefinitions={canEditDefinitions()}
 	{isSavingDefinitions}

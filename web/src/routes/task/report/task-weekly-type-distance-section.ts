@@ -1,3 +1,4 @@
+import { taskDefinitionLabel } from '../task-workspace-model';
 import { taskTeamDistance, weeklyTaskDayIndex } from './task-report-distance';
 import { emptyTrend, incrementNested, percentage, sortedTypeDistances, typeIndex } from './task-report-section-helpers';
 import type { TaskDailyTypeDistanceSection, TaskReportCopy, TaskReportDefinitions, TaskReportRow, TaskReportSectionLabel, TaskReportTask } from './task-report-types';
@@ -26,10 +27,10 @@ export function buildWeeklyTypeDistanceSection(input: BuildWeeklyTypeDistanceSec
 		const distance = taskTeamDistance(task, input.definitions);
 		if (distance <= 0) continue;
 
-		incrementNested(dailyTypeDistances, weeklyDayLabels[dayIndex], task.type, distance);
+		incrementNested(dailyTypeDistances, weeklyDayLabels[dayIndex], taskDefinitionLabel(task.type, input.copy.etcLabel), distance);
 	}
 
-	const typeOrder = [...input.definitions.types, input.copy.fallbackType];
+	const typeOrder = [...input.definitions.types, input.copy.etcLabel];
 	const rows = weeklyDayLabels.map((label) => dailyTypeDistanceRow(label, dailyTypeDistances.get(label) ?? new Map<string, number>(), typeOrder));
 	const total = rows.reduce((sum, row) => sum + row.total, 0);
 	const typeTotals = totalTypeDistances(rows, typeOrder);

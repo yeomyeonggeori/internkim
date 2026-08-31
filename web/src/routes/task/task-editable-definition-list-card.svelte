@@ -24,6 +24,10 @@
 		newColor: string;
 		setNewColor: (color: string) => void;
 		colorLabel: string;
+		etcLabel: string;
+		etcColor: string;
+		setEtcColor: (color: string) => void;
+		canEditEtcColor: boolean;
 	};
 
 	let {
@@ -43,7 +47,11 @@
 		setItemColor,
 		newColor,
 		setNewColor,
-		colorLabel
+		colorLabel,
+		etcLabel,
+		etcColor,
+		setEtcColor,
+		canEditEtcColor
 	}: Props = $props();
 </script>
 
@@ -82,6 +90,20 @@
 				</Button>
 			</div>
 		{/each}
+		<div class="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+			{#if isAdmin && canEditEtcColor}
+				<ColorPicker
+					value={etcColor}
+					label={colorLabel}
+					class="size-7"
+					onChange={setEtcColor}
+				/>
+			{:else}
+				<span class="size-2.5 rounded-full" style={`background: ${etcColor}`}></span>
+			{/if}
+			<Input value={etcLabel} disabled />
+			<div class="size-8"></div>
+		</div>
 		{#if isAdmin}
 			<div class="grid grid-cols-[auto_1fr_auto] items-center gap-2">
 				<ColorPicker value={newColor} label={colorLabel} class="size-7" onChange={setNewColor} />
