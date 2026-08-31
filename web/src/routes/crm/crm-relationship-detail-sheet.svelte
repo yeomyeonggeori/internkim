@@ -27,7 +27,7 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content side="right" class="w-full overflow-y-auto scroll-pb-24 sm:max-w-xl">
+	<Sheet.Content side="right" class="w-full sm:max-w-xl">
 		{#if organization}
 			<Sheet.Header class="border-b pb-4">
 				<div class="flex items-start justify-between gap-3 pr-8">
@@ -37,7 +37,7 @@
 				<Sheet.Title>{organization.name}</Sheet.Title>
 				<Sheet.Description>{organization.description}</Sheet.Description>
 			</Sheet.Header>
-				<div class="px-4 pb-24 pt-4"><CRMRelationshipDetailView {organization} {contacts} {opportunities} {activities} {stages} {organizationTypeDefinitions} {currencyCatalogue} {text} /></div>
+				<div class="min-h-0 flex-1 overflow-y-auto scroll-pb-24 px-4 pb-24 pt-4"><CRMRelationshipDetailView {organization} {contacts} {opportunities} {activities} {stages} {organizationTypeDefinitions} {currencyCatalogue} {text} /></div>
 		{/if}
 	</Sheet.Content>
 </Sheet.Root>
