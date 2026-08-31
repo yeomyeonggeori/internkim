@@ -264,13 +264,13 @@ test.describe('flow task board drag interactions', () => {
 		await openTaskBoard(page);
 		await dragToLocator(taskCard(page, scheduledTaskID), columnAppendTarget(page, 'in_progress'));
 		await page.getByRole('button', { name: '다음 주', exact: true }).click();
-		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('다음 주');
+		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('6/8 - 6/14');
 		shouldCountOldWeekReload = true;
 		releaseSave();
 
 		await page.waitForTimeout(300);
 		expect(oldWeekReloads).toBe(0);
-		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('다음 주');
+		await expect(page.getByRole('button', { name: '날짜로 주차 이동' })).toContainText('6/8 - 6/14');
 		await expect(page).toHaveURL(/week=26W24/);
 	});
 

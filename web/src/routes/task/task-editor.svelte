@@ -9,6 +9,7 @@
 	import TaskEditorParticipants from './task-editor-participants.svelte';
 	import TaskEditorSummary from './task-editor-summary.svelte';
 	import TaskRelationshipsSection from './task-relationships-section.svelte';
+	import { formatTaskWeekCodeRange } from './task-week-label';
 	import type { TaskEditorOption, TaskEditorText } from './task-editor-types';
 	import type { TaskMember, Task } from './task-types';
 
@@ -118,7 +119,7 @@
 	<Sheet.Content class="w-full gap-0 sm:max-w-xl">
 		<Sheet.Header>
 			<Sheet.Title>{sheetTitle()}</Sheet.Title>
-			<Sheet.Description>{taskDraft?.weekCode} · {pageTitle}</Sheet.Description>
+			<Sheet.Description>{formatTaskWeekCodeRange(taskDraft?.weekCode ?? '')} · {pageTitle}</Sheet.Description>
 		</Sheet.Header>
 		{#if taskDraft}
 			{#if !isEditingTask}

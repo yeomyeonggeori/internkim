@@ -1,13 +1,28 @@
+import {
+	addTaskWeekDays,
+	taskWeekCodeForMonday,
+	taskWeekDateFromISO,
+	taskWeekDateISO,
+	taskWeekMondayForCode
+} from '$lib/task/task-week-code';
+
 export type TaskWeekDateRange = {
 	startISO: string;
 	endISO: string;
 };
 
-const millisecondsPerDay = 24 * 60 * 60 * 1000;
-
 export function formatTaskWeekDateRange(week: TaskWeekDateRange | null | undefined): string {
 	if (!week?.startISO || !week.endISO) return '...';
 	return `${formatMonthDay(week.startISO)} - ${formatMonthDay(week.endISO)}`;
+}
+
+export function formatTaskWeekCodeRange(weekCode: string): string {
+	const monday = taskWeekMondayForCode(weekCode);
+	if (!monday) return weekCode;
+	return formatTaskWeekDateRange({
+		startISO: taskWeekDateISO(monday),
+		endISO: taskWeekDateISO(addTaskWeekDays(monday, 6))
+	});
 }
 
 export type TaskWeekOption = {
@@ -21,26 +36,19 @@ export function taskWeekOptions(
 	weeksBefore: number,
 	weeksAfter: number
 ): TaskWeekOption[] {
-	const currentMonday = dateFromDateISO(currentWeekStartISO);
+	const currentMonday = taskWeekDateFromISO(currentWeekStartISO);
 	if (!currentMonday) return [];
 	const options: TaskWeekOption[] = [];
 	for (let offset = weeksBefore; offset >= -weeksAfter; offset -= 1) {
-		const monday = addUTCDate(currentMonday, -offset * 7);
-		const sunday = addUTCDate(monday, 6);
+		const monday = addTaskWeekDays(currentMonday, -offset * 7);
+		const sunday = addTaskWeekDays(monday, 6);
 		options.push({
-			value: weekCodeForMonday(monday),
-			label: formatTaskWeekDateRange({ startISO: dateISOFromDate(monday), endISO: dateISOFromDate(sunday) }),
+			value: taskWeekCodeForMonday(monday),
+			label: formatTaskWeekDateRange({ startISO: taskWeekDateISO(monday), endISO: taskWeekDateISO(sunday) }),
 			offsetFromCurrent: offset === 0 ? 0 : -offset
 		});
 	}
 	return options;
-}
-
-export function taskWeekCodeForDateISO(dateISO: string): string {
-	const date = dateFromDateISO(dateISO);
-	if (!date) return '';
-	const monday = addUTCDate(date, -((date.getUTCDay() + 6) % 7));
-	return weekCodeForMonday(monday);
 }
 
 function formatMonthDay(dateISO: string): string {
@@ -48,34 +56,4 @@ function formatMonthDay(dateISO: string): string {
 	const day = Number(dateISO.slice(8, 10));
 	if (!month || !day) return dateISO;
 	return `${month}/${day}`;
-}
-
-function dateISOFromDate(date: Date): string {
-	return date.toISOString().slice(0, 10);
-}
-
-function dateFromDateISO(dateISO: string): Date | null {
-	const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateISO);
-	if (!matched) return null;
-	const year = Number(matched[1]);
-	const month = Number(matched[2]);
-	const day = Number(matched[3]);
-	const date = new Date(Date.UTC(year, month - 1, day));
-	if (date.getUTCFullYear() !== year) return null;
-	if (date.getUTCMonth() !== month - 1) return null;
-	if (date.getUTCDate() !== day) return null;
-	return date;
-}
-
-function weekCodeForMonday(monday: Date): string {
-	const thursday = addUTCDate(monday, 3);
-	const year = thursday.getUTCFullYear();
-	const januaryFourth = new Date(Date.UTC(year, 0, 4));
-	const isoWeekOneMonday = addUTCDate(januaryFourth, -((januaryFourth.getUTCDay() + 6) % 7));
-	const week = Math.floor((monday.getTime() - isoWeekOneMonday.getTime()) / (7 * millisecondsPerDay)) + 1;
-	return `${String(year).slice(2)}W${String(week).padStart(2, '0')}`;
-}
-
-function addUTCDate(date: Date, days: number): Date {
-	return new Date(date.getTime() + days * millisecondsPerDay);
 }
