@@ -62,10 +62,6 @@
 				</Button>
 			</div>
 			<OrganizationInviteDialog bind:isOpen={isInviteOpen} onInvited={() => {}} />
-			<header class="grid gap-1 pt-2">
-				<h2 class="text-xl font-semibold">{text.attendance}</h2>
-				<p class="text-sm text-muted-foreground">{text.attendanceDescription}</p>
-			</header>
 			<AttendanceWorkSettingsSection adminBaseURL="" text={attendanceSettingsText} />
 			<AttendanceLeavePolicySettings adminBaseURL="" text={attendanceSettingsText} />
 			<header class="grid gap-1 pt-2">
