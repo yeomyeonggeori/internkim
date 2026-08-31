@@ -13,6 +13,11 @@ import {
 	PersonalTokenCache,
 	RecordRefused,
 	callerOfPersonalAccessToken,
+	issueToken,
+	permissionNamed,
+	reachesRung,
+	revokeToken,
+	tokensOfMember,
 	type Caller,
 	type CallerPermission,
 	type ControlPlaneCredentials
@@ -41,6 +46,8 @@ export type WorkerEnvironment = {
 };
 
 const apiPrefix = '/v1';
+const tokensPath = '/tokens';
+const longestTokenName = 64;
 const personAPICapability = 'person.api.request';
 const catalogHeader = 'X-INTERNKIM-CATALOG';
 
@@ -68,6 +75,9 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (!caller) return jsonResponse({ error: 'this token belongs to nobody' }, 401);
 
 	const path = url.pathname.slice(apiPrefix.length) || '/';
+	if (path === tokensPath) {
+		return answerAboutTokens(request, environment, caller, url);
+	}
 	if (request.method === 'POST' && path === filesPath) {
 		return keepThenMaterialise(request, environment, caller, url);
 	}
@@ -189,6 +199,54 @@ function queryTheCompanySees(url: URL): string {
 	const parameters = new URLSearchParams(url.search);
 	parameters.delete(liveParameter);
 	return parameters.toString();
+}
+
+// A token makes and revokes tokens so a caller can rotate one without a browser.
+// It may never mint a rung above its own, and it may not revoke itself: the new
+// token has to be shown working before the one that made it can be taken away.
+async function answerAboutTokens(
+	request: Request,
+	environment: WorkerEnvironment,
+	caller: Caller,
+	url: URL
+): Promise<Response> {
+	const credentials = credentialsOf(environment);
+	if (request.method === 'GET') {
+		return jsonResponse({ tokens: await tokensOfMember(credentials, caller.memberID) }, 200);
+	}
+	if (request.method === 'POST') {
+		const asked = (await request.json().catch(() => null)) as { name?: unknown; permission?: unknown } | null;
+		if (!asked || typeof asked !== 'object') {
+			return jsonResponse({ error: 'this call carried a body that is not a json object' }, 400);
+		}
+		const name = typeof asked.name === 'string' ? asked.name.trim() : '';
+		if (!name) return jsonResponse({ error: 'a token needs a name' }, 400);
+		if (name.length > longestTokenName) return jsonResponse({ error: 'that name is too long for a token' }, 400);
+		if (name === caller.tokenName) {
+			return jsonResponse({ error: 'that name belongs to the token making this call' }, 409);
+		}
+		const permission = asked.permission === undefined ? caller.permission : permissionNamed(asked.permission);
+		if (asked.permission !== undefined && permission !== asked.permission) {
+			return jsonResponse({ error: 'a token reads, writes or deletes' }, 400);
+		}
+		if (!reachesRung(caller.permission, permission)) {
+			return jsonResponse({ error: `this token may not make one that ${permission}s` }, 403);
+		}
+		const token = await issueToken(credentials, caller.memberID, name, permission);
+		return jsonResponse({ name, permission, token }, 200);
+	}
+	if (request.method === 'DELETE') {
+		const name = (url.searchParams.get('name') ?? '').trim();
+		if (!name) return jsonResponse({ error: 'a revocation names the token' }, 400);
+		if (name === caller.tokenName) {
+			return jsonResponse({ error: 'a token cannot revoke itself; revoke it with the one that replaced it' }, 409);
+		}
+		if (!(await revokeToken(credentials, caller.memberID, name))) {
+			return jsonResponse({ error: 'no token of yours goes by that' }, 404);
+		}
+		return jsonResponse({ forgotten: name }, 200);
+	}
+	return jsonResponse({ error: 'a token is listed, made or revoked' }, 405);
 }
 
 function credentialsOf(environment: WorkerEnvironment): ControlPlaneCredentials {

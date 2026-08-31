@@ -2,26 +2,42 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import worker, { type CompanyAnswer, type CompanyCall, type WorkerEnvironment } from './index';
 import { largestFileAnAttachmentCanBe } from './files';
 
-type Row = { permission: string; member: { email: string; company_id: string } };
+type Row = { name: string; permission: string; member: { id: string; email: string; company_id: string } };
 
 let recordAnswers: Row[] = [];
 
 let storeStatuses: number[] = [];
 let storePuts: string[] = [];
 
+type RecordCall = { url: string; method: string; body: unknown };
+
+let recordCalls: RecordCall[] = [];
+let credentialRows: unknown[] = [];
+
 Object.assign(globalThis, {
-	fetch: async (url: string) => {
+	fetch: async (url: string, options: { method?: string; body?: string } = {}) => {
 		if (String(url).includes('/storage/v1/object/')) {
 			storePuts.push(String(url));
 			const status = storeStatuses.shift() ?? 200;
 			return { ok: status < 400, status, json: async () => null };
 		}
-		return { ok: true, status: 200, json: async () => recordAnswers };
+		const method = options.method ?? 'GET';
+		recordCalls.push({ url: String(url), method, body: options.body ? JSON.parse(options.body) : null });
+		if (method !== 'GET') return { ok: true, status: 200, json: async () => credentialRows };
+		if (String(url).includes('external_id=')) {
+			return { ok: true, status: 200, json: async () => recordAnswers };
+		}
+		return { ok: true, status: 200, json: async () => credentialRows };
 	}
 });
 
-function keyHeldBy(permission: string, email = 'someone@example.com', companyID = 'c1'): void {
-	recordAnswers = [{ permission, member: { email, company_id: companyID } }];
+function keyHeldBy(
+	permission: string,
+	email = 'someone@example.com',
+	companyID = 'c1',
+	name = 'laptop'
+): void {
+	recordAnswers = [{ name, permission, member: { id: 'm1', email, company_id: companyID } }];
 }
 
 type CompanyCallRecord = { companyID: string; call: CompanyCall };
@@ -49,6 +65,8 @@ beforeEach(() => {
 	carried = [];
 	storeStatuses = [];
 	storePuts = [];
+	recordCalls = [];
+	credentialRows = [];
 	companyAnswer = { requestID: '', status: 200, body: { ok: true } };
 });
 
@@ -320,5 +338,108 @@ describe('putting a file where a message can attach it', () => {
 
 		expect(response.status).toBe(502);
 		expect(carried).toHaveLength(0);
+	});
+});
+
+describe('a token makes and revokes tokens', () => {
+	function mint(token: string, body: unknown): Promise<Response> {
+		return call('/v1/tokens', token, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+	}
+
+	test('mints one for the member the presented token belongs to, and never asks the company', async () => {
+		keyHeldBy('write', 'someone@example.com', 'c1', 'laptop');
+
+		const response = await mint('ik_writer', { name: 'ci' });
+
+		expect(response.status).toBe(200);
+		const answered = (await response.json()) as { name: string; permission: string; token: string };
+		expect(answered.name).toBe('ci');
+		expect(answered.permission).toBe('write');
+		expect(answered.token).toStartWith('ik_');
+		expect(carried).toHaveLength(0);
+		const written = recordCalls.find((made) => made.method === 'POST');
+		expect((written?.body as { member_id: string }).member_id).toBe('m1');
+		expect(JSON.stringify(written?.body)).not.toContain(answered.token);
+	});
+
+	test('takes the presented token rung when none is asked for', async () => {
+		keyHeldBy('read');
+		const answered = (await (await mint('ik_reader', { name: 'ci' })).json()) as { permission: string };
+		expect(answered.permission).toBe('read');
+	});
+
+	test('refuses to mint a rung above the one presented', async () => {
+		keyHeldBy('read');
+		const response = await mint('ik_reader', { name: 'ci', permission: 'delete' });
+		expect(response.status).toBe(403);
+		expect(recordCalls.some((made) => made.method === 'POST')).toBe(false);
+	});
+
+	test('mints a rung below the one presented', async () => {
+		keyHeldBy('delete');
+		const response = await mint('ik_admin', { name: 'ci', permission: 'read' });
+		expect(response.status).toBe(200);
+		expect(((await response.json()) as { permission: string }).permission).toBe('read');
+	});
+
+	test('refuses a nameless token and one named after the token making the call', async () => {
+		keyHeldBy('write', 'someone@example.com', 'c1', 'laptop');
+		expect((await mint('ik_writer', {})).status).toBe(400);
+		expect((await mint('ik_writer', { name: 'laptop' })).status).toBe(409);
+	});
+
+	test('refuses a rung that is not on the ladder', async () => {
+		keyHeldBy('delete');
+		const response = await mint('ik_admin', { name: 'ci', permission: 'root' });
+		expect(response.status).toBe(400);
+	});
+
+	test('lists the tokens the member holds', async () => {
+		keyHeldBy('read');
+		credentialRows = [{ name: 'ci', permission: 'read' }];
+
+		const response = await call('/v1/tokens', 'ik_reader');
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ tokens: [{ name: 'ci', permission: 'read' }] });
+		expect(carried).toHaveLength(0);
+	});
+
+	test('revokes another token of the same member', async () => {
+		keyHeldBy('read', 'someone@example.com', 'c1', 'laptop');
+		credentialRows = [{ name: 'ci' }];
+
+		const response = await call('/v1/tokens?name=ci', 'ik_reader', { method: 'DELETE' });
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ forgotten: 'ci' });
+		expect(recordCalls.some((made) => made.method === 'DELETE')).toBe(true);
+	});
+
+	test('will not revoke the token making the call', async () => {
+		keyHeldBy('delete', 'someone@example.com', 'c1', 'laptop');
+
+		const response = await call('/v1/tokens?name=laptop', 'ik_admin', { method: 'DELETE' });
+
+		expect(response.status).toBe(409);
+		expect(recordCalls.some((made) => made.method === 'DELETE')).toBe(false);
+	});
+
+	test('answers 404 when no token of the member goes by that name', async () => {
+		keyHeldBy('delete', 'someone@example.com', 'c1', 'laptop');
+		credentialRows = [];
+
+		const response = await call('/v1/tokens?name=gone', 'ik_admin', { method: 'DELETE' });
+
+		expect(response.status).toBe(404);
+	});
+
+	test('is refused without a token of its own', async () => {
+		const response = await call('/v1/tokens', null);
+		expect(response.status).toBe(401);
 	});
 });

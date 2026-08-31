@@ -21,7 +21,9 @@ function recordAnswering(rows: unknown, status = 200): { fetchDocument: FetchDoc
 	return { fetchDocument, asked };
 }
 
-const oneKeyRow = [{ permission: 'write', member: { email: 'Someone@Example.com', company_id: 'c1' } }];
+const oneTokenRow = [
+	{ name: 'laptop', permission: 'write', member: { id: 'm1', email: 'Someone@Example.com', company_id: 'c1' } }
+];
 
 describe('telling a personal access token from anything else', () => {
 	test('is the prefix the web app issues', () => {
@@ -46,22 +48,24 @@ describe('the permission a key carries', () => {
 
 describe('resolving a key to the member who holds it', () => {
 	test('asks the credential table for the hash of the key, never the key', async () => {
-		const { fetchDocument, asked } = recordAnswering(oneKeyRow);
+		const { fetchDocument, asked } = recordAnswering(oneTokenRow);
 		await callerOfPersonalAccessToken(credentials, 'ik_secret', fetchDocument);
 
 		const url = new URL(asked[0]);
 		expect(url.pathname).toBe('/rest/v1/credential');
 		expect(url.searchParams.get('kind')).toBe('eq.api_key');
-		expect(url.searchParams.get('select')).toBe('permission,member(email,company_id)');
+		expect(url.searchParams.get('select')).toBe('name,permission,member(id,email,company_id)');
 		expect(url.searchParams.get('external_id')).toStartWith('eq.');
 		expect(asked[0]).not.toContain('ik_secret');
 	});
 
 	test('answers the address and company the call runs as', async () => {
-		const { fetchDocument } = recordAnswering(oneKeyRow);
+		const { fetchDocument } = recordAnswering(oneTokenRow);
 		expect(await callerOfPersonalAccessToken(credentials, 'ik_secret', fetchDocument)).toEqual({
 			email: 'someone@example.com',
 			companyID: 'c1',
+			memberID: 'm1',
+			tokenName: 'laptop',
 			permission: 'write'
 		});
 	});
@@ -72,7 +76,7 @@ describe('resolving a key to the member who holds it', () => {
 	});
 
 	test('answers nobody for a bearer that is not a personal access token, without asking the record', async () => {
-		const { fetchDocument, asked } = recordAnswering(oneKeyRow);
+		const { fetchDocument, asked } = recordAnswering(oneTokenRow);
 		expect(await callerOfPersonalAccessToken(credentials, 'not-a-key', fetchDocument)).toBeNull();
 		expect(asked).toHaveLength(0);
 	});
