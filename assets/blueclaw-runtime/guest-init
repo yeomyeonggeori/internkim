@@ -63,6 +63,16 @@ prepare_blueclaw_workspace() {
     fi
   fi
 
+  # Moving a directory does not move who may read it, and a boot that finds the
+  # move already done still has to check: the group the files answer to has to
+  # be the one the circle's people are put in, or the circle is there and
+  # nobody can open it.
+  if [ -d /workspace/circles/member ] && getent group bc_circle_member >/dev/null 2>&1; then
+    chgrp -R bc_circle_member /workspace/circles/member 2>/dev/null || true
+    find /workspace/circles/member -type d -exec chmod 2770 {} + 2>/dev/null || true
+    find /workspace/circles/member -type f -exec chmod 660 {} + 2>/dev/null || true
+  fi
+
   for workspaceDirectory in \
     /workspace/.blueclaw/postgres/data \
     /workspace/.blueclaw/graphiti \
