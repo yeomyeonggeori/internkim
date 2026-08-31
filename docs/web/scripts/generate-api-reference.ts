@@ -74,6 +74,7 @@ const koreanGroupTitles: Record<string, string> = {
   document: '문서',
   files: '파일',
   image: '이미지',
+  leave: '휴가',
   message: '메시지',
   person: '사람',
   site: '사이트',
