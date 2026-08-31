@@ -211,8 +211,8 @@ func (service *Service) runReleaseUpdateJobWithProvider(ctx context.Context, job
 		service.updateJob(jobID, "failed", "verifying", errorValue.Error())
 		return
 	}
-	stagingPath := filepath.Join(service.Configuration.StateDirectory, "release-updates", "staging", jobID)
-	_ = os.RemoveAll(stagingPath)
+	stagingPath := service.releaseStagingPath(jobID)
+	defer service.forgetReleaseStaging(jobID)
 	if errorValue := os.MkdirAll(stagingPath, 0o700); errorValue != nil {
 		service.updateJob(jobID, "failed", "staging", errorValue.Error())
 		return
