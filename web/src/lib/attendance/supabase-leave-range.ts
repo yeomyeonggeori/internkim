@@ -1,3 +1,4 @@
+import { companyDateString, companyDateTimeOf, companyInstantOf, companyTimeString } from '$lib/company-time';
 import type {
 	EmployeeLeavePartialPeriod,
 	EmployeeLeavePreviewRequest
@@ -20,15 +21,6 @@ type LeaveDisplayRange = {
 	partialPeriod?: EmployeeLeavePartialPeriod;
 	startTime?: string;
 	endTime?: string;
-};
-
-type LocalDateTime = {
-	year: number;
-	month: number;
-	day: number;
-	hour: number;
-	minute: number;
-	second: number;
 };
 
 const lunchStartMinutes = 12 * 60;
@@ -91,11 +83,11 @@ export function leaveDisplayRange(
 			endDate: shiftedDay(leaveAllDayDate(endsAt, timeZone), -1)
 		};
 	}
-	const start = localDateTime(startsAt, timeZone);
-	const end = localDateTime(endsAt, timeZone);
-	const startDate = dateString(start);
-	const startTime = timeString(start);
-	const endTime = timeString(end);
+	const start = companyDateTimeOf(new Date(startsAt), timeZone);
+	const end = companyDateTimeOf(new Date(endsAt), timeZone);
+	const startDate = companyDateString(start);
+	const startTime = companyTimeString(start);
+	const endTime = companyTimeString(end);
 	return {
 		startDate,
 		partialPeriod: partialPeriodOf(days, startTime, endTime),
@@ -105,7 +97,7 @@ export function leaveDisplayRange(
 }
 
 export function companyDateOfTimestamp(value: string, timeZone: string): string {
-	return dateString(localDateTime(value, timeZone));
+	return companyDateString(companyDateTimeOf(new Date(value), timeZone));
 }
 
 export function leaveAllDayDate(value: string, timeZone: string): string {
@@ -148,63 +140,11 @@ function addWorkMinutes(startTime: string, workMinutes: number): string {
 
 export function companyDateTimeISO(date: string, time: string, timeZone: string): string {
 	if (!isISODate(date) || !isClockTime(time)) throw new Error('Leave range contains an invalid date or time');
-	const [year, month, day] = date.split('-').map(Number);
-	const [hour, minute] = time.split(':').map(Number);
-	const expectedEpoch = Date.UTC(year, month - 1, day, hour, minute);
-	let resolvedEpoch = expectedEpoch;
-	for (let attempt = 0; attempt < 3; attempt += 1) {
-		const resolved = localDateTime(new Date(resolvedEpoch).toISOString(), timeZone);
-		const representedEpoch = Date.UTC(
-			resolved.year,
-			resolved.month - 1,
-			resolved.day,
-			resolved.hour,
-			resolved.minute,
-			resolved.second
-		);
-		const correction = expectedEpoch - representedEpoch;
-		if (correction === 0) break;
-		resolvedEpoch += correction;
-	}
-	const result = new Date(resolvedEpoch);
-	const resolved = localDateTime(result.toISOString(), timeZone);
-	if (dateString(resolved) !== date || timeString(resolved) !== time) {
+	const instant = companyInstantOf(date, time, timeZone);
+	if (!instant) {
 		throw new Error(`Leave time does not exist in company timezone: ${date} ${time} ${timeZone}`);
 	}
-	return result.toISOString();
-}
-
-function localDateTime(value: string, timeZone: string): LocalDateTime {
-	const parts = new Intl.DateTimeFormat('en-CA', {
-		timeZone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		hourCycle: 'h23'
-	}).formatToParts(new Date(value));
-	const valueOf = (type: Intl.DateTimeFormatPartTypes): number =>
-		Number(parts.find((part) => part.type === type)?.value ?? Number.NaN);
-	const result = {
-		year: valueOf('year'),
-		month: valueOf('month'),
-		day: valueOf('day'),
-		hour: valueOf('hour'),
-		minute: valueOf('minute'),
-		second: valueOf('second')
-	};
-	if (Object.values(result).some(Number.isNaN)) throw new Error(`Invalid leave timestamp: ${value}`);
-	return result;
-}
-
-function dateString(value: LocalDateTime): string {
-	return `${value.year}-${twoDigits(value.month)}-${twoDigits(value.day)}`;
-}
-
-function timeString(value: LocalDateTime): string {
-	return `${twoDigits(value.hour)}:${twoDigits(value.minute)}`;
+	return instant;
 }
 
 function shiftedDay(date: string, days: number): string {

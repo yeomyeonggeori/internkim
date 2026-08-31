@@ -1,4 +1,5 @@
 import type { CurrentAttendanceWorkPolicy } from './current-work-policy';
+import { companyDateOf } from '$lib/company-time';
 import {
 	companyTimeInstant,
 	supabaseWorkStatusTimeRange
@@ -56,7 +57,7 @@ export function supabaseWorkRecordsFromEvents(
 		if (event.kind === 'clock_in') {
 			if (openedAt) {
 				if (attendanceLocationsMatch(openedLocation, eventLocation)) {
-					incompleteDates.add(companyLocalDate(openedAt, timeZone));
+					incompleteDates.add(companyDateOf(openedAt, timeZone));
 					openedAt = occurredAt;
 				}
 				openedLocation = eventLocation;
@@ -67,7 +68,7 @@ export function supabaseWorkRecordsFromEvents(
 			continue;
 		}
 		if (!openedAt || occurredAt.getTime() <= openedAt.getTime()) {
-			incompleteDates.add(companyLocalDate(occurredAt, timeZone));
+			incompleteDates.add(companyDateOf(occurredAt, timeZone));
 			continue;
 		}
 		completedSegments.push({ startAt: openedAt, endAt: occurredAt });
@@ -76,10 +77,10 @@ export function supabaseWorkRecordsFromEvents(
 	}
 	let provisionalSegment: SupabaseWorkRecordSegment | null = null;
 	if (openedAt && now.getTime() > openedAt.getTime()) {
-		if (companyLocalDate(openedAt, timeZone) === companyLocalDate(now, timeZone)) {
+		if (companyDateOf(openedAt, timeZone) === companyDateOf(now, timeZone)) {
 			provisionalSegment = { startAt: openedAt, endAt: now };
 		} else {
-			incompleteDates.add(companyLocalDate(openedAt, timeZone));
+			incompleteDates.add(companyDateOf(openedAt, timeZone));
 		}
 	}
 	return { completedSegments, provisionalSegment, incompleteDates };
@@ -87,15 +88,6 @@ export function supabaseWorkRecordsFromEvents(
 
 function attendanceLocationsMatch(left: string | null, right: string | null): boolean {
 	return (left ?? '').trim() === (right ?? '').trim();
-}
-
-export function companyLocalDate(instant: Date, timeZone: string): string {
-	return new Intl.DateTimeFormat('en-CA', {
-		timeZone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit'
-	}).format(instant);
 }
 
 export function supabaseWorkedDay(

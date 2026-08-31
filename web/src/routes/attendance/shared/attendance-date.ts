@@ -1,16 +1,15 @@
+import { companyDateOf, companyTimeOf, isValidTimeZone } from '$lib/company-time';
+
 export function todayDateInTimeZone(timeZone?: string, date: Date = new Date()): string {
-	const parts = datePartsInTimeZone(timeZone, date);
-	return `${parts.year}-${parts.month}-${parts.day}`;
+	return companyDateOf(date, normalizeTimeZone(timeZone));
 }
 
 export function currentMonthInTimeZone(timeZone?: string, date: Date = new Date()): string {
-	const parts = datePartsInTimeZone(timeZone, date);
-	return `${parts.year}-${parts.month}`;
+	return todayDateInTimeZone(timeZone, date).slice(0, 7);
 }
 
 export function timeInTimeZone(timeZone?: string, date: Date = new Date()): string {
-	const parts = timePartsInTimeZone(timeZone, date);
-	return `${parts.hour}:${parts.minute}`;
+	return companyTimeOf(date, normalizeTimeZone(timeZone));
 }
 
 export function isFutureAttendanceLocalTime(
@@ -93,42 +92,7 @@ export function isoWeekStart(date: string): string {
 	return utcDateKey(d);
 }
 
-const dateFormatterByTimeZone = new Map<string, Intl.DateTimeFormat>();
-const timeFormatterByTimeZone = new Map<string, Intl.DateTimeFormat>();
 const normalizedTimeZoneByInput = new Map<string, string>();
-
-function dateFormatterFor(timeZone: string): Intl.DateTimeFormat {
-	const formatter = dateFormatterByTimeZone.get(timeZone);
-	if (formatter) return formatter;
-	const createdFormatter = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
-	dateFormatterByTimeZone.set(timeZone, createdFormatter);
-	return createdFormatter;
-}
-
-function timeFormatterFor(timeZone: string): Intl.DateTimeFormat {
-	const formatter = timeFormatterByTimeZone.get(timeZone);
-	if (formatter) return formatter;
-	const createdFormatter = new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false });
-	timeFormatterByTimeZone.set(timeZone, createdFormatter);
-	return createdFormatter;
-}
-
-function datePartsInTimeZone(timeZone: string | undefined, date: Date): { year: string; month: string; day: string } {
-	const parts = dateFormatterFor(normalizeTimeZone(timeZone)).formatToParts(date);
-	return {
-		year: partValue(parts, 'year'),
-		month: partValue(parts, 'month'),
-		day: partValue(parts, 'day'),
-	};
-}
-
-function timePartsInTimeZone(timeZone: string | undefined, date: Date): { hour: string; minute: string } {
-	const parts = timeFormatterFor(normalizeTimeZone(timeZone)).formatToParts(date);
-	return {
-		hour: partValue(parts, 'hour'),
-		minute: partValue(parts, 'minute'),
-	};
-}
 
 function normalizeTimeZone(timeZone: string | undefined): string {
 	const trimmedTimeZone = timeZone?.trim() ?? '';
@@ -147,18 +111,4 @@ function resolveTimeZone(trimmedTimeZone: string): string {
 
 function browserTimeZone(): string {
 	return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-}
-
-function isValidTimeZone(timeZone: string): boolean {
-	try {
-		new Intl.DateTimeFormat('en-US', { timeZone });
-		return true;
-	} catch (error) {
-		if (error instanceof RangeError) return false;
-		throw error;
-	}
-}
-
-function partValue(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
-	return parts.find((part) => part.type === type)?.value ?? '';
 }
