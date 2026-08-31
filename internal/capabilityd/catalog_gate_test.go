@@ -57,6 +57,60 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"platform":"mattermost"`)
 			},
 		},
+		"browser_open": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{"url":"https://example.test/"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, "example.test")
+			},
+		},
+		"browser_snapshot": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, "@e1")
+			},
+		},
+		"artifact_review": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				workspaceOnDisk: holdingFiles(map[string]string{"shared/reports/shot.png": "a rendered page"}),
+				openRouterOverHTTP: answeringPerCall(func(*http.Request) (int, string) {
+				return http.StatusOK, `{"id":"gate","model":"gate-model","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"{\"passed\": true, \"issues\": [], \"acceptedWarnings\": [\"여백이 조금 넓습니다\"], \"summary\": \"의도대로 보입니다.\"}"}}]}`
+			})},
+			input: `{"artifactKind":"deck","intent":"3분기 실적을 한 장으로","rubric":"숫자가 읽히는가","evidence":[{"role":"rendered","path":"/workspace/shared/reports/shot.png","mimeType":"image/png","label":"1쪽"}]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"passed": true`)
+			},
+		},
+		"browser_click": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{"ref":"@e1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"target":"@e1"`)
+			},
+		},
+		// The device browser cannot take a picture; the companion's can. Saying so
+		// is the whole of this tool on a device, and a case that expected a
+		// screenshot would be asserting a thing the product does not do.
+		"browser_screenshot": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				if answered.Outcome == capabilities.ToolOutcomeSucceeded {
+					t.Fatalf("the device browser answered a screenshot: %s", answered.Result)
+				}
+				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
+			},
+		},
 		"channel_update": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{
@@ -206,6 +260,42 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"count":1`)
 			},
 		},
+		"document_read": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{converterAsACommand: answering(`{"content":"# 3분기 보고\n\n지출은 이렇게 되었습니다."}`)},
+			input:   `{"path":"shared/reports/q3.md"}`,
+			arrives: func(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
+				arriving.Transport.WorkspaceFile = &capabilities.WorkspaceFile{
+					WorkspacePath: "shared/reports/q3.md",
+					Filename:      "q3.md",
+					ContentBase64: "IyAz67aE6riwIOuztOqzoAoK7KeA7Lac7J2AIOydtOugh+qyjCDrkJjsl4jsirXri4jri6QuCg==",
+					SHA256:        "d7c030e5d5e46e721000a0fbbd93944deadfae6572ae013387544dec30864c39",
+				}
+				return arriving
+			},
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, "3분기 보고")
+			},
+		},
+		"image_read": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{},
+			input:   `{"path":"shared/reports/q3.png"}`,
+			arrives: func(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
+				arriving.Transport.WorkspaceFile = &capabilities.WorkspaceFile{
+					WorkspacePath: "shared/reports/q3.png",
+					Filename:      "q3.png",
+					ContentBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGNgAAACAAEA",
+					SHA256:        "58ac0dfd8909f6d06eec8b91cc318c4761b315db23aff59f439c27d29afd2df5",
+				}
+				return arriving
+			},
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, "q3.png")
+			},
+		},
 		"leave_balance": {
 			kind:   provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_balance","result":{"personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`)},
@@ -255,13 +345,6 @@ var toolsWithNoGateCaseYet = []string{
 	"task_delete",
 	"task_list",
 	"task_update",
-	"artifact_review",
-	"browser_click",
-	"browser_open",
-	"browser_screenshot",
-	"browser_snapshot",
-	"document_read",
-	"image_read",
 }
 
 func TestNoCatalogToolEscapesTheGateUnnoticed(t *testing.T) {
@@ -352,6 +435,22 @@ func TestTheCoveredCatalogToolsAnswerTheirCalls(t *testing.T) {
 			gateCase.expect(t, answered)
 		})
 	}
+}
+
+// agent-browser prints the current URL for one command and a JSON snapshot for
+// another, so the stand-in answers by what it was asked to do.
+func runningTheBrowser() *standingIn {
+	return answeringPerCall(func(request *http.Request) (int, string) {
+		asked := request.URL.Path
+		switch {
+		case strings.Contains(asked, "snapshot"):
+			return 0, `{"url":"https://example.test/","title":"예시","elements":[{"ref":"@e1","role":"button","name":"보내기"}]}`
+		case strings.Contains(asked, "screenshot"):
+			return 0, `{"path":"/tmp/shot.png"}`
+		default:
+			return 0, "https://example.test/"
+		}
+	})
 }
 
 // Mattermost answers the bot lookup and then whatever the tool asks of it, and
