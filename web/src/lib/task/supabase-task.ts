@@ -2,6 +2,7 @@ import { supabase } from '$lib/supabase';
 import { announceTaskMoved } from '$lib/task/announce-task';
 import { taskDefinitionsOf, taskVocabularyOfDefinitions, vocabularyOf } from '$lib/task/task-vocabulary';
 import { heldTasks, holdTasks, mergeChangedTasks, newestStamp } from '$lib/task/task-cache';
+import { taskWeekCodeForDateISO, taskWeekForCode, taskWeekOfDate } from '$lib/task/task-week-code';
 import {
 	centralTaskStatusOptions,
 	centralTaskFromRow,
@@ -25,7 +26,6 @@ import type {
 	TaskMetrics,
 	TaskState,
 	Task,
-	TaskWeek,
 	TaskWeeklySummary
 } from '../../routes/task/task-types';
 
@@ -148,7 +148,7 @@ export async function supabaseTaskState(): Promise<TaskState> {
 	const me = members.data.find((member) => member.user_id === accountID);
 
 	return {
-		currentWeek: weekOf(new Date()),
+		currentWeek: taskWeekOfDate(new Date()),
 		members: members.data.map((member) => memberOf(member, standing.tallies[member.id])),
 		tasks: tasks,
 		metrics: { ...metricsOf(tasks), ...standingMetricsOf(standing) },
@@ -163,7 +163,7 @@ export async function supabaseTaskState(): Promise<TaskState> {
 
 export async function supabaseTaskWeeklySummary(week: string): Promise<TaskWeeklySummary> {
 	const state = await supabaseTaskState();
-	const shown = week ? weekOfCode(week) : weekOf(new Date());
+	const shown = week ? taskWeekForCode(week, new Date()) : taskWeekOfDate(new Date());
 	const weeklyTasks = state.tasks.filter((task) => task.weekCode === shown.code);
 	return {
 		week: shown,
@@ -325,7 +325,7 @@ function taskOf(task: TaskRow, nameByID: Map<string, string>, timeZone: string):
 		task,
 		nameByID,
 		(instant) => dayOf(instant, timeZone),
-		(day) => weekOf(new Date(`${day}T00:00:00Z`)).code
+		(day) => taskWeekCodeForDateISO(day)
 	);
 }
 
@@ -364,33 +364,4 @@ export function dayOf(instant: string | null, timeZone: string): string | undefi
 	const moment = new Date(isoInstantOf(instant));
 	if (Number.isNaN(moment.getTime())) return undefined;
 	return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(moment);
-}
-
-function weekOf(instant: Date): TaskWeek {
-	return weekFromMonday(startOfISOWeek(instant), true);
-}
-
-function weekOfCode(code: string): TaskWeek {
-	const monday = new Date(`${code}T00:00:00Z`);
-	if (Number.isNaN(monday.getTime())) return weekOf(new Date());
-	return weekFromMonday(monday, code === weekOf(new Date()).code);
-}
-
-function weekFromMonday(monday: Date, isCurrent: boolean): TaskWeek {
-	const sunday = new Date(monday);
-	sunday.setUTCDate(sunday.getUTCDate() + 6);
-	return {
-		code: monday.toISOString().slice(0, 10),
-		startISO: monday.toISOString().slice(0, 10),
-		endISO: sunday.toISOString().slice(0, 10),
-		previous: shiftedWeek(monday, -7),
-		next: shiftedWeek(monday, 7),
-		isCurrent
-	};
-}
-
-function shiftedWeek(monday: Date, days: number): string {
-	const moved = new Date(monday);
-	moved.setUTCDate(moved.getUTCDate() + days);
-	return moved.toISOString().slice(0, 10);
 }
