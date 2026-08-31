@@ -36,6 +36,8 @@ export default {
       }
     }
 
+    paths.push('/openapi/en.json', '/openapi/ko.json');
+
     return paths;
   },
 } satisfies Config;

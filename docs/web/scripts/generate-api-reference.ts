@@ -1,8 +1,8 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { generateFiles } from 'fumadocs-openapi';
 import { createOpenAPI, type OpenAPIOptions } from 'fumadocs-openapi/server';
-import { baseTools, createOpenApiDocument, type ApiDocumentationLanguage } from '../../../web/src/lib/server/openapi';
+import { baseTools, createOpenApiDocument, type ApiDocumentationLanguage } from '../app/lib/openapi';
 
 type OperationItem = { path: string; method: string };
 type PathsOfDocument = Record<string, Record<string, { operationId?: string } | undefined> | undefined>;
@@ -62,6 +62,19 @@ async function bundledDocument(language: ApiDocumentationLanguage, document: unk
   return loaded.bundled;
 }
 
+// Every group under Reference is a section a reader scans, not a drawer they
+// open one at a time. Reference itself still folds.
+async function writeGroupHeadings(): Promise<void> {
+  for (const entry of await readdir(referenceDirectory, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const title = entry.name.replace(/(^|[-_])([a-z])/g, (_match, gap, letter) => (gap ? ' ' : '') + letter.toUpperCase());
+    const heading = { title, collapsible: false, defaultOpen: true };
+    const document = `${JSON.stringify(heading, null, 2)}\n`;
+    await writeFile(`${referenceDirectory}/${entry.name}/meta.json`, document);
+    await writeFile(`${referenceDirectory}/${entry.name}/meta.ko.json`, document);
+  }
+}
+
 await rm(referenceDirectory, { recursive: true, force: true });
 await mkdir(generatedDirectory, { recursive: true });
 
@@ -71,6 +84,8 @@ for (const language of languages) {
   await generatePages(language, document);
   bundled[language] = await bundledDocument(language, document);
 }
+
+await writeGroupHeadings();
 
 await writeFile(`${generatedDirectory}/openapi.json`, JSON.stringify(bundled));
 

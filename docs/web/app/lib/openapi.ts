@@ -1,8 +1,7 @@
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
-import type { Locale } from '../i18n/locale';
-import { publicAPIPermissions } from '../public-api-permission';
+import { publicAPIPermissions } from '../../../../web/src/lib/public-api-permission';
 
-export type ApiDocumentationLanguage = Locale;
+export type ApiDocumentationLanguage = 'ko' | 'en';
 
 type CatalogTool = {
 	name: string;
