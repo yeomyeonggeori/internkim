@@ -89,9 +89,11 @@ func (service Service) upPlans(skipWeb bool) []CommandPlan {
 
 func (service Service) preparedFleetPlans() []CommandPlan {
 	return []CommandPlan{
+		service.startCentralPlanePlan(),
 		service.labCommand("vm-up"),
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
+		service.shellPlan("give the device its company", service.joinCentralPlaneCommand()),
 	}
 }
 
@@ -99,6 +101,7 @@ func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkip
 	plans := []CommandPlan{
 		service.prepareContainerKernelPlan(),
 		service.prepareLocalEmbeddingPlan(),
+		service.startCentralPlanePlan(),
 		service.labCommand("vm-up"),
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
 		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
@@ -108,6 +111,7 @@ func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkip
 		plans = append(plans, service.shellPlan("ensure reusable runtime base", service.ensureRuntimeBaseCommand()))
 	}
 	plans = append(plans,
+		service.shellPlan("give the device its company", service.joinCentralPlaneCommand()),
 		service.shellPlan("setup local fleet", service.setupCommand(skipWeb, additionalSkippedSteps...)),
 		service.configureLocalEmbeddingPlan(),
 	)
@@ -169,6 +173,7 @@ func (service Service) prepareContainerKernelPlan() CommandPlan {
 func (service Service) downPlans() []CommandPlan {
 	return []CommandPlan{
 		service.shellPlan("stop localhost tunnel", service.stopTunnelCommand()),
+		service.shellPlan("stop the company app", service.stopCentralPlaneCommand()),
 		service.labCommand("vm-down"),
 	}
 }
@@ -182,6 +187,7 @@ func (service Service) resetPlans() []CommandPlan {
 func (service Service) ephemeralCleanupPlans() []CommandPlan {
 	return []CommandPlan{
 		service.shellPlan("stop localhost tunnel", service.stopTunnelCommand()),
+		service.shellPlan("stop the company app", service.stopCentralPlaneCommand()),
 		service.shellPlan("remove ephemeral VM", service.removeVirtualMachineCommand()),
 	}
 }
@@ -375,12 +381,16 @@ func (service Service) startTunnelCommand() string {
 	adminForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:18080", service.options.AdminHostPort)
 	mattermostForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:8065", service.options.MattermostHostPort)
 	forwardHealthCheck := fmt.Sprintf("nc -z 127.0.0.1 %d && nc -z 127.0.0.1 %d", service.options.AdminHostPort, service.options.MattermostHostPort)
+	// The device belongs to a company, and the company lives on this machine, so
+	// the same session carries the app and the record back the other way.
+	appReverseForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", service.options.CompanyAppPort, service.options.CompanyAppPort)
+	recordReverseForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", localRecordPort, localRecordPort)
 	return strings.Join([]string{
 		"host=$(" + hostCommand + ")",
 		"test -n \"$host\"",
 		"if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null && " + forwardHealthCheck + "; then exit 0; fi",
 		"if [ -s " + pidPath + " ]; then kill \"$(cat " + pidPath + ")\" 2>/dev/null || true; fi",
-		"for attempt in 1 2 3 4 5 6 7 8 9 10; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -L " + quoteShell(mattermostForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null && " + forwardHealthCheck + "; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
+		"for attempt in 1 2 3 4 5 6 7 8 9 10; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -L " + quoteShell(mattermostForward) + " -R " + quoteShell(appReverseForward) + " -R " + quoteShell(recordReverseForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null && " + forwardHealthCheck + "; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
 	}, " && ")
 }
 
