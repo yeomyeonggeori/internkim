@@ -12,12 +12,8 @@ import (
 // stores are that seam; the sync machinery retires with the copy it syncs.
 func TestNothingReadsTheTasksTableBehindTheStores(t *testing.T) {
 	allowed := map[string]bool{
-		"task_read_store.go":      true,
-		"task_write_store.go":     true,
-		"flow_central_mirror_mark.go":  true,
-		"flow_central_event_repair.go": true,
-		"flow_central_backfill.go":     true,
-		"flow_central_comparison.go":   true,
+		"task_read_store.go":  true,
+		"task_write_store.go": true,
 	}
 
 	entries, errorValue := os.ReadDir(".")
