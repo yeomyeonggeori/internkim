@@ -228,7 +228,7 @@ func mattermostReadableMention(sender platformContextSender) string {
 	if name == "" || strings.EqualFold(name, handle) {
 		return "@" + handle
 	}
-	return "@" + handle + "(" + name + ")"
+	return name + " (@" + handle + ")"
 }
 
 func mattermostMentionAliases(sender platformContextSender) []string {
