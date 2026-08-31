@@ -25,6 +25,14 @@ begin
     return false;
   end if;
 
+  if public_id is null and private_id is null and not replace_existing
+     and exists (select 1 from public.push_device where kind = 'web-push') then
+    raise exception using
+      errcode = 'P0001',
+      message = 'devices are already subscribed to a key this vault does not hold',
+      hint = 'keep the pair those devices carry instead: select public.vapid_keys_keep(<public>, <private>, <subject>, true)';
+  end if;
+
   if public_id is null then
     perform vault.create_secret(new_public_key, 'vapid_public_key');
   else
