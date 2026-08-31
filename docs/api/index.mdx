@@ -21,40 +21,40 @@ Nothing under `/api/v1` executes a tool itself.
 
 ## Getting a token [#getting-a-token]
 
-Tokens are issued from a signed-in staff web session, either through the token
-section on the Admin page or with the session cookie directly:
+The first token is made signed in, from the personal access tokens panel in
+settings. It is shown once.
+
+After that a token makes its own successors, so a script rotates one without a
+browser:
 
 ```bash
 curl -X POST https://api.intern.kim/v1/tokens \
-  --cookie "$SESSION" \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
   --header 'Content-Type: application/json' \
-  --data '{"label":"reporting script","scopes":["write"]}'
+  --data '{"name":"reporting script","permission":"write"}'
 ```
 
 ```json
-{
-  "token": "ik_...",
-  "actor": {
-    "personID": "...",
-    "email": "sample@example.com",
-    "displayName": "이샘플",
-    "source": "public_api_token",
-    "scopes": ["read", "write"]
-  },
-  "record": {
-    "id": "tok_...",
-    "label": "reporting script",
-    "email": "sample@example.com",
-    "scopes": ["read", "write"],
-    "createdAt": "2026-08-27T00:00:00Z"
-  }
-}
+{ "name": "reporting script", "permission": "write", "token": "ik_..." }
 ```
 
-`token` is returned exactly once. The server keeps only a SHA-256 hash of it,
-in `api-tokens.json` under admind's state directory
-(`/root/.internkim/state/admin` by default). The owner is whoever the signed-in
-session belongs to; there is no way to issue a token for someone else.
+`token` is answered once and only its SHA-256 hash is kept, so a lost token is
+replaced rather than recovered. `permission` defaults to the rung the calling
+token holds, and a token may never mint one that reaches further than itself.
+
+`GET /v1/tokens` lists the names and rungs the member holds. `DELETE
+/v1/tokens?name=<name>` revokes one.
+
+## Rotating a token [#rotating]
+
+A token cannot revoke itself, and that is what makes rotation safe: the
+replacement has to answer before the token it replaces goes away.
+
+1. `POST /v1/tokens` with the old token, naming the new one.
+2. Call something with the new token and see it answer.
+3. `DELETE /v1/tokens?name=<old>` with the new token.
+
+Naming the presented token in either call answers `409`.
 
 ## Authentication [#authentication]
 
@@ -101,7 +101,7 @@ Success bodies are JSON. Error bodies are plain text.
 | `400` | decode error, `message is required`, `conversationID is required` | the body is not valid JSON, or a required field is missing |
 | `401` | `bearer token required` | no `Authorization: Bearer` header |
 | `401` | `invalid bearer token` | the token is unknown or revoked |
-| `403` | `staff web session required` | `POST /api/v1/tokens` without a signed-in staff session |
+| `409` | `a token cannot revoke itself...` | `DELETE /v1/tokens` naming the token that authenticated the call |
 | `403` | `token owner is not active staff` | the owner left or was deactivated |
 | `403` | `tool is not available for this token` | the token's rank is below what the tool requires |
 | `403` | `write scope required` | an agent endpoint with a rank-1 token |
