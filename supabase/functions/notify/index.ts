@@ -1,7 +1,7 @@
 import { callingAgent } from '../_shared/agent-caller.ts';
 import { notificationCategories, type NotificationCategory } from '../_shared/categories.ts';
 import { rememberConversationMembers } from '../_shared/conversation-members.ts';
-import { json, refuse, serveRefusals } from '../_shared/http.ts';
+import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
 import { membersOfCompanyByExternalID, pictureURLOfMember } from '../_shared/member-directory.ts';
 import { notifyMember, type Delivery, type Notification } from '../_shared/notify-member.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
@@ -27,7 +27,7 @@ Deno.serve(
 		const vapid = await vapidKeysFromVault(client);
 		if (!vapid) refuse(503, 'this deployment cannot send notifications yet');
 
-		const asked = (await request.json().catch(() => ({}))) as NotifyRequest;
+		const asked = (await askedObject(request)) as NotifyRequest;
 		const recipients = askedExternalIDs(asked.externalIDs);
 		const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
 

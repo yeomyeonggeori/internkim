@@ -1,11 +1,12 @@
 import { error, json } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { callingAgent, environmentOf, type Environment } from '$lib/server/agent-request';
+import { callingAgent, environmentOf } from '$lib/server/agent-request';
 import { membersOfCompanyByExternalID } from '$lib/server/member-credential';
 import { notificationCategories, type NotificationCategory } from '$lib/notifications/categories';
 import { notifyMember, type Delivery, type Notification } from '$lib/server/notify-member';
 import { pictureURLOfMember } from '$lib/server/member-picture-url';
 import { rememberConversationMembers } from '$lib/server/conversation-members';
+import { vapidKeysInUse } from '$lib/server/vapid-keys';
 import type { VapidKeys } from '$lib/server/web-push-vapid';
 import type { RequestHandler } from './$types';
 
@@ -24,7 +25,8 @@ type NotifyRequest = {
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const environment = environmentOf(platform);
 	const { client, companyID } = await callingAgent(request, environment);
-	const vapid = vapidKeys(environment);
+	const vapid = await vapidKeysInUse(client, environment);
+	if (!vapid) error(503, 'this deployment cannot send notifications yet');
 
 	const asked = (await request.json().catch(() => ({}))) as NotifyRequest;
 	const recipients = askedExternalIDs(asked.externalIDs);
@@ -91,12 +93,4 @@ function askedNotification(asked: NotifyRequest): Notification {
 		openPath: typeof asked.openPath === 'string' ? asked.openPath : '/task/',
 		tag: typeof asked.tag === 'string' ? asked.tag : 'internkim'
 	};
-}
-
-function vapidKeys(environment: Environment): VapidKeys {
-	const publicKey = environment.VAPID_PUBLIC_KEY ?? '';
-	const privateKey = environment.VAPID_PRIVATE_KEY ?? '';
-	const subject = environment.VAPID_SUBJECT ?? '';
-	if (!publicKey || !privateKey || !subject) error(503, 'this deployment cannot send notifications yet');
-	return { publicKey, privateKey, subject };
 }
