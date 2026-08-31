@@ -11,3 +11,11 @@ export function localeOfPath(pathname: string): string {
   const languages: readonly string[] = i18n.languages;
   return languages.includes(first) ? first : i18n.defaultLanguage;
 }
+
+export function pathInLocale(pathname: string, locale: string): string {
+  const segments = pathname.split('/').filter(Boolean);
+  const languages: readonly string[] = i18n.languages;
+  const withoutLocale = languages.includes(segments[0] ?? '') ? segments.slice(1) : segments;
+  const prefixed = locale === i18n.defaultLanguage ? withoutLocale : [locale, ...withoutLocale];
+  return `/${prefixed.join('/')}`;
+}
