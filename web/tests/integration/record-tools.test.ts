@@ -7,7 +7,7 @@ mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
 }));
 
-const { runToolOverTheRecord, recordRunsTheTool } = await import('../../src/lib/server/public-api/record');
+const { runToolOverTheRecord, recordRunsTheTool, toolsTheRecordRuns } = await import('../../src/lib/server/public-api/record');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -71,22 +71,28 @@ function resultOf(answer: { status: number; body: unknown }): Record<string, unk
 }
 
 describe('which tools run over the record', () => {
-	test('are the nine whose rows live there, and nothing else', () => {
-		for (const name of [
-			'task_add',
-			'task_update',
-			'task_list',
-			'task_delete',
+	test('are exactly the ones whose rows live there', () => {
+		expect([...toolsTheRecordRuns()].sort()).toEqual([
 			'event_add',
-			'event_update',
-			'event_list',
 			'event_delete',
-			'person_list'
-		]) {
-			expect(recordRunsTheTool(name)).toBe(true);
-		}
+			'event_list',
+			'event_update',
+			'leave_balance',
+			'leave_decide',
+			'leave_list',
+			'leave_request',
+			'person_list',
+			'task_add',
+			'task_delete',
+			'task_list',
+			'task_update'
+		]);
+	});
+
+	test('leave the tools the company machine runs to it', () => {
 		expect(recordRunsTheTool('message_send')).toBe(false);
 		expect(recordRunsTheTool('site_serve')).toBe(false);
+		expect(recordRunsTheTool('browser_open')).toBe(false);
 	});
 });
 

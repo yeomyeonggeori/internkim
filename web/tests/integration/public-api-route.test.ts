@@ -255,8 +255,11 @@ describe('the documented endpoints', () => {
 	test('are all reachable, and none answers as if it carried no token', async () => {
 		const wrong: string[] = [];
 		for (const [ordinal, operation] of documentedOperations().entries()) {
+			// Only the revoking operation spends a token, so only it needs one minted.
 			const revocableName = `conformance-${ordinal}`;
-			await mint(holdersToken, { name: revocableName, permission: 'read' });
+			if (operation.path === '/token' && operation.method.toUpperCase() === 'DELETE') {
+				await mint(holdersToken, { name: revocableName, permission: 'read' });
+			}
 			const answered = await reachDocumented(operation, revocableName);
 			if ([401, 404, 405].includes(answered.status)) {
 				wrong.push(`${operation.method.toUpperCase()} ${operation.path} -> ${answered.status}`);

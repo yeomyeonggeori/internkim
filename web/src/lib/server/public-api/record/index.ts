@@ -33,6 +33,10 @@ export function recordRunsTheTool(name: string): boolean {
 	return Object.hasOwn(toolsOverTheRecord, name);
 }
 
+export function toolsTheRecordRuns(): string[] {
+	return Object.keys(toolsOverTheRecord);
+}
+
 export type ToolAnswer = { status: number; body: unknown };
 
 export async function runToolOverTheRecord(
