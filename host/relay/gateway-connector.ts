@@ -64,8 +64,16 @@ async function servedCall(
 	call: RoutedCall,
 	dispatch: Dispatch
 ): Promise<{ status: number; body: unknown }> {
-	if (call.capability === apiRequestCapability) return servePublicAPIRequest(dispatch, call.body);
-	if (call.capability === apiFileCapability) return servePublicAPIFile(dispatch, call.body);
+	if (call.capability === apiRequestCapability || call.capability === apiFileCapability) {
+		if (call.memberID) {
+			return {
+				status: 403,
+				body: { error: `${call.capability} names its own requester, so it is carried by the gateway itself, never over a member connection` }
+			};
+		}
+		if (call.capability === apiRequestCapability) return servePublicAPIRequest(dispatch, call.body);
+		return servePublicAPIFile(dispatch, call.body);
+	}
 	if (!call.memberID) {
 		return { status: 400, body: { error: `${call.capability} is asked for by a member, and none was named` } };
 	}

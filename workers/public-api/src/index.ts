@@ -13,6 +13,7 @@ import {
 	PersonalTokenCache,
 	RecordRefused,
 	callerOfPersonalAccessToken,
+	isPersonalAccessToken,
 	issueToken,
 	permissionNamed,
 	reachesRung,
@@ -22,6 +23,8 @@ import {
 	type CallerPermission,
 	type ControlPlaneCredentials
 } from './personal-access-token';
+import { JSONWebKeyCache, TokenRefused } from '../../connection-gateway/src/identity';
+import { callerOfSessionToken, jwksURLOf } from './session-caller';
 
 export type CompanyCall = {
 	requestID: string;
@@ -55,14 +58,37 @@ const catalogHeader = 'X-INTERNKIM-CATALOG';
 
 export default {
 	async fetch(request: Request, environment: WorkerEnvironment): Promise<Response> {
+		if (request.method === 'OPTIONS') return preflightAnswer();
 		try {
-			return await route(request, environment);
+			return reachableFromABrowser(await route(request, environment));
 		} catch (refusal) {
-			if (refusal instanceof RecordRefused) return jsonResponse({ error: refusal.message }, 502);
+			if (refusal instanceof RecordRefused) {
+				return reachableFromABrowser(jsonResponse({ error: refusal.message }, 502));
+			}
+			if (refusal instanceof TokenRefused) {
+				return reachableFromABrowser(jsonResponse({ error: refusal.message }, 401));
+			}
 			throw refusal;
 		}
 	}
 } satisfies ExportedHandler<WorkerEnvironment>;
+
+function preflightAnswer(): Response {
+	return new Response(null, {
+		status: 204,
+		headers: {
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+			'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+			'Access-Control-Max-Age': '86400'
+		}
+	});
+}
+
+function reachableFromABrowser(response: Response): Response {
+	response.headers.set('Access-Control-Allow-Origin', '*');
+	return response;
+}
 
 async function route(request: Request, environment: WorkerEnvironment): Promise<Response> {
 	const url = new URL(request.url);
@@ -73,7 +99,9 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	const presented = bearerOf(request);
 	if (!presented) return jsonResponse({ error: 'this call carried no token' }, 401);
 
-	const caller = await keyCacheFor(environment).callerOf(presented, Date.now());
+	const caller = isPersonalAccessToken(presented)
+		? await keyCacheFor(environment).callerOf(presented, Date.now())
+		: await sessionCacheFor(environment).callerOf(presented, Date.now());
 	if (!caller) return jsonResponse({ error: 'this token belongs to nobody' }, 401);
 
 	const path = url.pathname.slice(apiPrefix.length) || '/';
@@ -276,6 +304,18 @@ function keyCacheFor(environment: WorkerEnvironment): PersonalTokenCache {
 		callerOfPersonalAccessToken(credentialsOf(environment), presented)
 	);
 	return sharedKeyCache;
+}
+
+let sharedSessionCache: PersonalTokenCache | undefined;
+
+function sessionCacheFor(environment: WorkerEnvironment): PersonalTokenCache {
+	if (!sharedSessionCache) {
+		const issuerKeys = new JSONWebKeyCache(jwksURLOf(environment.SUPABASE_URL));
+		sharedSessionCache = new PersonalTokenCache((presented) =>
+			callerOfSessionToken(environment, issuerKeys, presented, Math.floor(Date.now() / 1000))
+		);
+	}
+	return sharedSessionCache;
 }
 
 function bearerOf(request: Request): string | null {
