@@ -48,6 +48,7 @@ export type WorkerEnvironment = {
 const apiPrefix = '/v1';
 const tokensPath = '/tokens';
 const longestTokenName = 64;
+const unnamedTokenPrefix = 'pat-';
 const personAPICapability = 'person.api.request';
 const catalogHeader = 'X-INTERNKIM-CATALOG';
 
@@ -219,8 +220,8 @@ async function answerAboutTokens(
 		if (!asked || typeof asked !== 'object') {
 			return jsonResponse({ error: 'this call carried a body that is not a json object' }, 400);
 		}
-		const name = typeof asked.name === 'string' ? asked.name.trim() : '';
-		if (!name) return jsonResponse({ error: 'a token needs a name' }, 400);
+		const namedByTheCaller = typeof asked.name === 'string' ? asked.name.trim() : '';
+		const name = namedByTheCaller || nextUnusedName(await tokensOfMember(credentials, caller.memberID));
 		if (name.length > longestTokenName) return jsonResponse({ error: 'that name is too long for a token' }, 400);
 		if (name === caller.tokenName) {
 			return jsonResponse({ error: 'that name belongs to the token making this call' }, 409);
@@ -247,6 +248,16 @@ async function answerAboutTokens(
 		return jsonResponse({ forgotten: name }, 200);
 	}
 	return jsonResponse({ error: 'a token is listed, made or revoked' }, 405);
+}
+
+// A caller who does not care what the token is called still needs the names to
+// differ, because a name is what a revocation aims at.
+function nextUnusedName(held: { name: string }[]): string {
+	const taken = new Set(held.map((token) => token.name));
+	for (let ordinal = 1; ; ordinal += 1) {
+		const name = `${unnamedTokenPrefix}${ordinal}`;
+		if (!taken.has(name)) return name;
+	}
 }
 
 function credentialsOf(environment: WorkerEnvironment): ControlPlaneCredentials {

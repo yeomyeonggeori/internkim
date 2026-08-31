@@ -386,10 +386,27 @@ describe('a token makes and revokes tokens', () => {
 		expect(((await response.json()) as { permission: string }).permission).toBe('read');
 	});
 
-	test('refuses a nameless token and one named after the token making the call', async () => {
+	test('refuses one named after the token making the call', async () => {
 		keyHeldBy('write', 'someone@example.com', 'c1', 'laptop');
-		expect((await mint('ik_writer', {})).status).toBe(400);
 		expect((await mint('ik_writer', { name: 'laptop' })).status).toBe(409);
+	});
+
+	test('names an unnamed token after the first ordinal nobody holds', async () => {
+		keyHeldBy('write');
+		credentialRows = [{ name: 'pat-1', permission: 'write' }, { name: 'pat-3', permission: 'read' }];
+
+		const answered = (await (await mint('ik_writer', {})).json()) as { name: string };
+
+		expect(answered.name).toBe('pat-2');
+	});
+
+	test('names the first unnamed token pat-1', async () => {
+		keyHeldBy('write');
+		credentialRows = [];
+
+		const answered = (await (await mint('ik_writer', {})).json()) as { name: string };
+
+		expect(answered.name).toBe('pat-1');
 	});
 
 	test('refuses a rung that is not on the ladder', async () => {
