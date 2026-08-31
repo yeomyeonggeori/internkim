@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { createOpenApiDocument } from '../../../web/src/lib/server/openapi';
+import { createOpenApiDocument } from '../../../docs/web/app/lib/openapi';
 import worker, { type CompanyAnswer, type CompanyCall, type WorkerEnvironment } from './index';
 
 type Operation = { path: string; method: string };
