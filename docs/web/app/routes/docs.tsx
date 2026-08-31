@@ -17,7 +17,7 @@ import { useMDXComponents } from '@/components/mdx';
 import { use } from 'react';
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const segments = params['*'].split('/').filter((v) => v.length > 0);
+  const segments = (params['*'] ?? '').split('/').filter((segment) => segment.length > 0);
   const languages: readonly string[] = i18n.languages;
   const hasLanguagePrefix = languages.includes(segments[0] ?? '');
   const locale = hasLanguagePrefix ? segments[0] : i18n.defaultLanguage;
