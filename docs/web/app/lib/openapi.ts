@@ -11,11 +11,12 @@ type CatalogTool = {
 	sideEffectClass?: string;
 	requiresApproval?: boolean;
 	requiresUserPresence: boolean;
+	idempotency?: { supported?: boolean };
 	inputSchema?: Record<string, unknown>;
 	outputSchema?: Record<string, unknown>;
 };
 
-type EndpointCopy = { summary: string; description: string };
+type EndpointCopy = { summary: string; description: string; idempotency?: string };
 
 type ApiCopy = {
 	title: string;
@@ -109,7 +110,9 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			invokeTool: {
 				summary: '도구 부르기',
 				description:
-					'`input`은 그 도구의 입력 스키마를 따릅니다. `toolName`, `actor`, `context`는 토큰과 도구 명세에서 정해지므로 본문에 담아도 무시됩니다.'
+					'`input`은 그 도구의 입력 스키마를 따릅니다. `toolName`, `actor`, `context`는 토큰과 도구 명세에서 정해지므로 본문에 담아도 무시됩니다.',
+				idempotency:
+					'같은 키로 다시 부르면 이 도구는 같은 일을 두 번 하지 않습니다. 이 필드는 그것을 지원하는 도구에만 있습니다.'
 			}
 		},
 		errors: {
@@ -185,7 +188,9 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			invokeTool: {
 				summary: 'Invoke a tool',
 				description:
-					'`input` follows that tool\'s own input schema. `toolName`, `actor` and `context` come from the token and the descriptor, so a body that carries them is ignored.'
+					'`input` follows that tool\'s own input schema. `toolName`, `actor` and `context` come from the token and the descriptor, so a body that carries them is ignored.',
+				idempotency:
+					'Calling again with the same key makes this tool do the same work once. Only tools that support it carry this field.'
 			}
 		},
 		errors: {
@@ -439,6 +444,86 @@ function describeTool(tool: CatalogTool): string {
 	return [tool.description ?? '', '', `${facts.join(' · ')} · v${tool.version}`].join('\n').trim();
 }
 
+const exampleValuesByField: Record<string, unknown> = {
+	title: '3분기 결산 자료 정리',
+	content: '지출 내역을 표로 정리해 주세요',
+	message: '오늘 회의는 15시로 옮깁니다',
+	query: '결산',
+	scope: 'self',
+	status: 'planned',
+	size: 'M',
+	startsAt: '2026-09-01',
+	endsAt: '2026-09-05',
+	startISO: '2026-09-01T10:00:00+09:00',
+	endISO: '2026-09-01T11:00:00+09:00',
+	limit: 20,
+	taskHint: '3분기 결산 자료 정리',
+	eventHint: '주간 회의',
+	personHint: '이샘플',
+	participantPersonHints: ['이샘플', '박예시'],
+	recipientPersonHints: ['이샘플'],
+	channelHint: '전사-공지',
+	url: 'https://intern.kim/files/example.png',
+	path: 'shared/reports/q3.md',
+	slug: 'q3-report'
+};
+
+function exampleValueOf(name: string, schema: Record<string, unknown>): unknown {
+	if (name in exampleValuesByField) return exampleValuesByField[name];
+	const listed = schema.enum;
+	if (Array.isArray(listed) && listed.length > 0) return listed[0];
+	if (schema.type === 'integer' || schema.type === 'number') return 1;
+	if (schema.type === 'boolean') return true;
+	if (schema.type === 'array') return [];
+	return '…';
+}
+
+// The example carries the required fields plus the ones a first call usually
+// wants, so it runs as pasted instead of teasing with placeholders.
+function exampleInputOf(tool: CatalogTool): Record<string, unknown> {
+	const schema = (tool.inputSchema ?? {}) as {
+		required?: string[];
+		properties?: Record<string, Record<string, unknown>>;
+	};
+	const properties = schema.properties ?? {};
+	const chosen = new Set(schema.required ?? []);
+	for (const name of Object.keys(properties)) {
+		if (name in exampleValuesByField && chosen.size < 4) chosen.add(name);
+	}
+	const example: Record<string, unknown> = {};
+	for (const name of chosen) {
+		example[name] = exampleValueOf(name, properties[name] ?? {});
+	}
+	return example;
+}
+
+function inputSchemaNameOf(tool: CatalogTool): string {
+	return tool.name.replace(/(^|_)([a-z])/g, (_match, _gap, letter) => letter.toUpperCase()) + 'Input';
+}
+
+function successExampleOf(tool: CatalogTool): Record<string, unknown> {
+	return {
+		toolName: tool.name,
+		outcome: 'succeeded',
+		selectedBackend: 'device',
+		...(tool.sideEffectClass && tool.sideEffectClass !== 'read'
+			? { effects: [{ objectType: tool.namespace, effect: 'created', id: '7a93de11-…' }] }
+			: {}),
+		result: { '…': "the tool's own document" }
+	};
+}
+
+const failureExample = {
+	toolName: 'task_update',
+	outcome: 'failed',
+	selectedBackend: 'device',
+	message: 'no task matched taskHint, and these are the closest…',
+	errorCode: 'task_hint_unresolved',
+	failureStage: 'target_resolution',
+	retryable: true,
+	result: { candidates: [{ taskID: '7a93de11-…', content: '3분기 결산 자료 정리' }] }
+};
+
 function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 	return {
 		post: {
@@ -454,16 +539,29 @@ function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 							type: 'object',
 							required: ['input'],
 							properties: {
-								input: withoutSchemaDialect(tool.inputSchema),
-								idempotencyKey: { type: 'string' },
-								timeoutSecond: { type: 'integer' }
+								input: { $ref: `#/components/schemas/${inputSchemaNameOf(tool)}` },
+								...(tool.idempotency?.supported
+									? { idempotencyKey: { type: 'string', description: copy.endpoints.invokeTool.idempotency } }
+									: {})
 							}
-						}
+						},
+						example: { input: exampleInputOf(tool) }
 					}
 				}
 			},
 			responses: {
-				'200': jsonResponse(tool.name, 'ToolInvokeResponse'),
+				'200': {
+					description: tool.name,
+					content: {
+						'application/json': {
+							schema: { $ref: '#/components/schemas/ToolInvokeResponse' },
+							examples: {
+								succeeded: { value: successExampleOf(tool) },
+								failed: { value: failureExample }
+							}
+						}
+					}
+				},
 				'400': errorResponse(copy.errors.badRequest),
 				'401': errorResponse(copy.errors.unauthorized),
 				'403': errorResponse(copy.errors.forbidden),
@@ -490,12 +588,21 @@ function createPaths(copy: ApiCopy) {
 	return paths;
 }
 
+function toolInputSchemas(): Record<string, unknown> {
+	const schemas: Record<string, unknown> = {};
+	for (const tool of baseTools()) {
+		schemas[inputSchemaNameOf(tool)] = withoutSchemaDialect(tool.inputSchema);
+	}
+	return schemas;
+}
+
 function createComponents(copy: ApiCopy) {
 	return {
 		securitySchemes: {
 			memberToken: { type: 'http', scheme: 'bearer', description: copy.description }
 		},
 		schemas: {
+			...toolInputSchemas(),
 			TokenRequest: {
 				type: 'object',
 				properties: {
@@ -593,13 +700,25 @@ function createComponents(copy: ApiCopy) {
 			},
 			ToolInvokeResponse: {
 				type: 'object',
+				required: ['toolName', 'outcome', 'result'],
 				properties: {
 					toolName: { type: 'string' },
-					status: { type: 'string' },
-					content: { type: 'string' },
-					isError: { type: 'boolean' },
+					outcome: { type: 'string', enum: ['succeeded', 'failed'] },
+					selectedBackend: { type: 'string' },
+					effects: {
+						type: 'array',
+						items: {
+							type: 'object',
+							properties: {
+								objectType: { type: 'string' },
+								effect: { type: 'string' },
+								id: { type: 'string' }
+							}
+						}
+					},
 					message: { type: 'string' },
 					errorCode: { type: 'string' },
+					failureStage: { type: 'string' },
 					retryable: { type: 'boolean' },
 					result: {}
 				}
