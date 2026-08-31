@@ -1,10 +1,9 @@
-import type { Route } from './+types/not-found';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { Link } from 'react-router';
 import { baseOptions } from '@/lib/layout.shared';
 import { i18n } from '@/lib/i18n';
 
-export function meta({}: Route.MetaArgs) {
+export function meta() {
   return [{ title: 'Not Found' }];
 }
 

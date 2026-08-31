@@ -1,1 +1,4 @@
-/    /docs   302
+/docs / 308
+/docs/* /:splat 308
+/ko/docs /ko 308
+/ko/docs/* /ko/:splat 308
