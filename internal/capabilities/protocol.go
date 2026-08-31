@@ -99,6 +99,7 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, MattermostDescriptors()...)
 	descriptors = append(descriptors, TaskToolDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
+	descriptors = append(descriptors, LeaveDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, CompanyDescriptors()...)
@@ -159,6 +160,15 @@ func TaskToolDescriptors() []Descriptor {
 		"task_update",
 		"task_delete",
 		"person_list",
+	))
+}
+
+func LeaveDescriptors() []Descriptor {
+	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
+		"leave_list",
+		"leave_balance",
+		"leave_request",
+		"leave_decide",
 	))
 }
 
@@ -381,6 +391,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, MattermostDescriptors()...)
 	descriptors = append(descriptors, TaskToolDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
+	descriptors = append(descriptors, LeaveDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, ArtifactDescriptors()...)

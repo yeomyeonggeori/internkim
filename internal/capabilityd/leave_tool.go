@@ -1,0 +1,122 @@
+package capabilityd
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/capabilities"
+)
+
+// Leave lives in the record, so this carries the call to admind, which runs it
+// on the plane as the person who asked. Nothing about leave is decided here.
+func (service Service) invokeLeaveTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	toolName := strings.TrimSpace(request.ToolName)
+	switch toolName {
+	case "leave_list", "leave_balance", "leave_request", "leave_decide":
+	default:
+		return capabilities.ToolInvokeResponse{}, fmt.Errorf("leave tool is not configured: %s", toolName)
+	}
+
+	answer, status, errorValue := service.askTheRecord(ctx, toolName, request.Input, request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if status >= http.StatusBadRequest {
+		return recordToolFailure(toolName, status, answer), nil
+	}
+
+	var answered struct {
+		Result json.RawMessage `json:"result"`
+	}
+	if errorValue := json.Unmarshal(answer, &answered); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "record",
+		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Status:          "ok",
+		Result:          answered.Result,
+	}, nil
+}
+
+func (service Service) askTheRecord(
+	ctx context.Context,
+	toolName string,
+	input json.RawMessage,
+	requesterEmail string,
+) (json.RawMessage, int, error) {
+	body := input
+	if len(bytes.TrimSpace(body)) == 0 {
+		body = json.RawMessage("{}")
+	}
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost,
+		admindRequesterURL("/record/api/tools/"+toolName+"/invoke"), bytes.NewReader(body))
+	if errorValue != nil {
+		return nil, 0, errorValue
+	}
+	httpRequest.Header.Set("Content-Type", "application/json")
+
+	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, requesterEmail)
+	if errorValue != nil {
+		return nil, 0, errorValue
+	}
+	defer httpResponse.Body.Close()
+	answer, errorValue := io.ReadAll(httpResponse.Body)
+	if errorValue != nil {
+		return nil, 0, errorValue
+	}
+	return json.RawMessage(answer), httpResponse.StatusCode, nil
+}
+
+// The record says why it refused in its own words, and a hint it could not
+// resolve comes back with the candidates to choose from. Both are what the
+// model needs, so they are carried rather than summarised.
+func recordToolFailure(toolName string, status int, answer json.RawMessage) capabilities.ToolInvokeResponse {
+	var refusal struct {
+		Error string `json:"error"`
+	}
+	json.Unmarshal(answer, &refusal)
+	message := strings.TrimSpace(refusal.Error)
+	if message == "" {
+		message = strings.TrimSpace(string(answer))
+	}
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "record",
+		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
+		Status:          "error",
+		Content:         message,
+		IsError:         true,
+		Message:         message,
+		ErrorCode:       recordToolErrorCode(status),
+		FailureStage:    recordToolFailureStage(status),
+		Retryable:       status == http.StatusConflict,
+		Result:          answer,
+	}
+}
+
+func recordToolErrorCode(status int) string {
+	switch status {
+	case http.StatusConflict:
+		return "interaction_required"
+	case http.StatusForbidden:
+		return "not_allowed"
+	default:
+		return "record_refused"
+	}
+}
+
+func recordToolFailureStage(status int) string {
+	if status == http.StatusConflict {
+		return "target_resolution"
+	}
+	return "execution"
+}
