@@ -1,4 +1,5 @@
 import { supabase } from '$lib/supabase';
+import { companyTimeOf } from '$lib/company-time';
 import { supabaseLeaveTypeDirectory } from './supabase-leave-types';
 import type { AttendanceActiveLeave } from '../../routes/attendance/attendance-context.svelte';
 
@@ -35,8 +36,8 @@ export async function supabaseActiveLeave(
 		occurrenceID: row.id,
 		leaveTypeID: row.kind,
 		leaveTypeName: directory.nameOf(row.kind),
-		startTime: timeIn(new Date(row.starts_at), timeZone),
-		endTime: timeIn(new Date(row.ends_at), timeZone),
+		startTime: companyTimeOf(new Date(row.starts_at), timeZone),
+		endTime: companyTimeOf(new Date(row.ends_at), timeZone),
 		deductionMilliDays: Math.round(row.days * 1000),
 		startAt: row.starts_at,
 		endAt: row.ends_at
@@ -48,13 +49,4 @@ export async function returnEarlyFromSupabaseLeave(locationID?: string): Promise
 		work_location: locationID ?? ''
 	});
 	if (error) throw new Error(error.message);
-}
-
-function timeIn(instant: Date, timeZone: string): string {
-	return new Intl.DateTimeFormat('en-GB', {
-		timeZone,
-		hour: '2-digit',
-		minute: '2-digit',
-		hour12: false
-	}).format(instant);
 }
