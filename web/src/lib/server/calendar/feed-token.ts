@@ -43,3 +43,13 @@ export async function forgetFeedToken(caller: SupabaseClient): Promise<void> {
 	const { error } = await caller.rpc('calendar_subscription_save', { target_token_hash: null });
 	if (error) throw new Error(`calendar subscription: ${error.message}`);
 }
+
+export async function companyHasAFeedToken(caller: SupabaseClient, companyID: string): Promise<boolean> {
+	const { data, error } = await caller
+		.from('company')
+		.select('calendar')
+		.eq('id', companyID)
+		.maybeSingle<{ calendar: { subscription?: { tokenHash?: string } } }>();
+	if (error) throw new Error(`calendar subscription: ${error.message}`);
+	return Boolean(data?.calendar?.subscription?.tokenHash);
+}
