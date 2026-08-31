@@ -85,3 +85,34 @@ func TestOnlyTheNewestPayloadsAreKept(t *testing.T) {
 		t.Fatal("the payload running and the one before it are what a rollback needs")
 	}
 }
+
+func TestWhatAnOlderVersionLeftIsCleared(t *testing.T) {
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{StateDirectory: stateDirectory})
+	fetched := stagedDirectoryForTest(t, filepath.Join(stateDirectory, "release-updates", "uploads", "old"), time.Minute)
+	unpacked := stagedDirectoryForTest(t, filepath.Join(stateDirectory, "release-updates", "bundles", "old"), time.Minute)
+
+	service.sweepUpdateLeftovers()
+
+	if exists(fetched) || exists(unpacked) {
+		t.Fatal("nothing has written these since #489, so age is not what decides")
+	}
+}
+
+func TestClearingWhatNoVersionWritesLeavesTheRestAlone(t *testing.T) {
+	stateDirectory := t.TempDir()
+	service := NewService(Configuration{StateDirectory: stateDirectory})
+	if errorValue := os.MkdirAll(filepath.Join(stateDirectory, "release-updates"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	current := filepath.Join(stateDirectory, "release-updates", "current.json")
+	if errorValue := os.WriteFile(current, []byte("{}"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	service.sweepUpdateLeftovers()
+
+	if !exists(current) {
+		t.Fatal("the release the device is running is what current.json names")
+	}
+}
