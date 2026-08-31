@@ -1,4 +1,4 @@
-import { companyDateString, companyDateTimeOf, companyInstantOf, companyTimeString } from '$lib/company-time';
+import { companyDateString, companyDateTimeOf, companyInstantOf, companyTimeString } from '../company-time';
 import type {
 	EmployeeLeavePartialPeriod,
 	EmployeeLeavePreviewRequest

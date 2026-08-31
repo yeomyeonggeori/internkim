@@ -1,4 +1,4 @@
-import { companyDateOf, companyTimeOf, isValidTimeZone } from '$lib/company-time';
+import { companyDateOf, companyTimeOf, isValidTimeZone } from '../../../lib/company-time';
 
 export function todayDateInTimeZone(timeZone?: string, date: Date = new Date()): string {
 	return companyDateOf(date, normalizeTimeZone(timeZone));
