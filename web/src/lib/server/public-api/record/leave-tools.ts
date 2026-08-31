@@ -1,0 +1,181 @@
+import { dayIn, dayOfInstant, instantWritten } from './days';
+import { personOfHint } from './people';
+import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
+import {
+	leaveDaysGranted,
+	leaveDaysRemaining,
+	leaveKindOf,
+	leaveOfCompany,
+	NoSuchLeave,
+	type LeaveRow
+} from './leave';
+import type { RecordContext } from './company';
+
+export type AnsweredLeave = {
+	leaveID: string;
+	person: string;
+	kind: string;
+	days: number;
+	status: string;
+	isPaid: boolean;
+	isDeducted: boolean;
+	startDate: string;
+	endDate: string;
+	note: string | null;
+};
+
+function answeredLeave(context: RecordContext, row: LeaveRow): AnsweredLeave {
+	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));
+	return {
+		leaveID: row.id,
+		person: nameOf.get(row.member_id) ?? row.member_id,
+		kind: context.leaveKinds.find((kind) => kind.id === row.kind)?.name ?? row.kind,
+		days: Number(row.days),
+		status: row.status,
+		isPaid: row.is_paid,
+		isDeducted: row.is_deducted,
+		startDate: dayOfInstant(context.labels.timezone, row.starts_at),
+		endDate: dayOfInstant(context.labels.timezone, row.ends_at),
+		note: row.note
+	};
+}
+
+function describedLeave(context: RecordContext, row: LeaveRow): string {
+	const answered = answeredLeave(context, row);
+	return `${answered.person} · ${answered.kind} · ${answered.startDate}`;
+}
+
+function leaveOfHint(context: RecordContext, rows: LeaveRow[], hint: string): LeaveRow {
+	const asked = hint.trim();
+	if (!asked) throw new NoSuchLeave(hint, []);
+
+	const byID = rows.find((row) => row.id === asked);
+	if (byID) return byID;
+
+	const described = rows.filter((row) => describedLeave(context, row).includes(asked));
+	if (described.length === 1) return described[0];
+	throw new NoSuchLeave(hint, described.map((row) => describedLeave(context, row)));
+}
+
+function targetMember(context: RecordContext, personHint: string | undefined): string {
+	return personHint ? personOfHint(context.people, personHint).personID : context.requesterID;
+}
+
+export type LeaveListInput = {
+	personHint?: string;
+	scope?: string;
+	from?: string;
+	to?: string;
+	status?: string;
+	limit?: number;
+};
+
+export async function leaveList(context: RecordContext, input: LeaveListInput) {
+	const everyone = input.scope === 'all' && !input.personHint;
+	const memberID = everyone ? null : targetMember(context, input.personHint);
+	const from = input.from ? dayIn(context.labels.timezone, new Date(instantWritten(context.labels.timezone, input.from))) : '';
+	const to = input.to ? dayIn(context.labels.timezone, new Date(instantWritten(context.labels.timezone, input.to, true))) : '';
+
+	const rows = (await leaveOfCompany(context.caller)).filter((row) => {
+		if (memberID && row.member_id !== memberID) return false;
+		if (input.status && row.status !== input.status) return false;
+		const startDate = dayOfInstant(context.labels.timezone, row.starts_at);
+		const endDate = dayOfInstant(context.labels.timezone, row.ends_at);
+		if (from && endDate < from) return false;
+		if (to && startDate > to) return false;
+		return true;
+	});
+
+	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
+	return {
+		scope: memberID ? 'person' : 'everyone',
+		personID: memberID,
+		personName: memberID ? context.people.find((one) => one.personID === memberID)?.name ?? '' : '',
+		statusFilter: input.status ?? null,
+		count: kept.length,
+		leave: kept.map((row) => answeredLeave(context, row)),
+		registeredKinds: context.leaveKinds.map((kind) => kind.name)
+	};
+}
+
+export type LeaveBalanceInput = { personHint?: string; year?: number };
+
+export async function leaveBalance(context: RecordContext, input: LeaveBalanceInput) {
+	const memberID = targetMember(context, input.personHint);
+	const year = input.year ?? Number(dayIn(context.labels.timezone, context.now).slice(0, 4));
+	const granted = await leaveDaysGranted(context.caller, memberID);
+	const remaining = await leaveDaysRemaining(context.caller, memberID, year);
+
+	return {
+		personID: memberID,
+		personName: context.people.find((one) => one.personID === memberID)?.name ?? '',
+		year,
+		grantedDays: granted,
+		remainingDays: remaining,
+		usedDays: granted === null || remaining === null ? null : Number((granted - remaining).toFixed(2)),
+		tracking: granted === null ? 'unlimited' : 'managed'
+	};
+}
+
+export type LeaveRequestInput = {
+	kind?: string;
+	startsAt?: string;
+	endsAt?: string;
+	days?: number;
+	note?: string;
+};
+
+export async function leaveRequest(
+	context: RecordContext,
+	input: LeaveRequestInput
+): Promise<AnsweredLeave> {
+	if (!input.kind?.trim()) throw new Error('a leave request names the kind of leave it is');
+	if (!input.startsAt || !input.endsAt) throw new Error('a leave request names the days it covers');
+	if (input.days === undefined || input.days <= 0) {
+		throw new Error('a leave request says how many days it consumes; a half day is 0.5');
+	}
+
+	const kind = leaveKindOf(context.leaveKinds, input.kind);
+	const written = {
+		member_id: context.requesterID,
+		kind: kind.id,
+		is_paid: kind.isPaid,
+		is_deducted: kind.isDeducted,
+		days: input.days,
+		status: 'requested',
+		starts_at: instantWritten(context.labels.timezone, input.startsAt),
+		ends_at: instantWritten(context.labels.timezone, input.endsAt, true),
+		note: input.note?.trim() || null
+	};
+
+	const { data, error } = await context.caller
+		.from('leave')
+		.insert(written)
+		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
+		.single<LeaveRow>();
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	return answeredLeave(context, data);
+}
+
+export type LeaveDecideInput = { leaveHint?: string; decision?: string };
+
+export async function leaveDecide(
+	context: RecordContext,
+	input: LeaveDecideInput
+): Promise<AnsweredLeave> {
+	if (!input.leaveHint) throw new Error('a decision names the leave it decides');
+	if (input.decision !== 'approved' && input.decision !== 'rejected') {
+		throw new Error('a decision is approved or rejected');
+	}
+
+	const rows = await leaveOfCompany(context.caller);
+	const row = leaveOfHint(context, rows, input.leaveHint);
+	const { data, error } = await context.caller
+		.from('leave')
+		.update({ status: input.decision })
+		.eq('id', row.id)
+		.select('id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
+		.single<LeaveRow>();
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	return answeredLeave(context, data);
+}
