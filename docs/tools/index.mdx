@@ -60,7 +60,9 @@ Whether a call pauses for your approval is descriptor metadata
 (`requiresApproval`), checked by the approval gate in
 `.dependency/blueclaw/internal/approvalgate` before the call executes. In the
 current catalog that flag is set on `task_delete`, `calendar_delete`,
-`message_send`, `message_delete`, `channel_update`, and `site_unserve`; the
+`message_send`, `message_delete`, `channel_update`, `site_unserve`,
+`leave_decide`, `attendance_update`, `attendance_delete`, and
+`approval_decide`; the
 generated catalog is authoritative when they diverge. Among workspace tools,
 `file_delete` is gated, and `terminal_run` gates itself per call: the agent
 sets `approvalRequired` on a command it judges consequential.
