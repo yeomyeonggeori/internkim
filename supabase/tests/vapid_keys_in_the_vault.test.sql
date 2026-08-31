@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(15);
 
 select has_function(
   'public',
@@ -71,6 +71,31 @@ select is(
   (select decrypted_secret from vault.decrypted_secrets where name = 'vapid_subject'),
   'mailto:three@example.com',
   'the missing subject is filled in without touching the pair'
+);
+
+delete from vault.secrets where name in ('vapid_public_key', 'vapid_private_key', 'vapid_subject');
+
+insert into public.push_device (member_id, kind, address, keys)
+select member.id, 'web-push', 'https://push.example.com/standing', '{"p256dh":"x","auth":"y"}'::jsonb
+from public.member
+limit 1;
+
+select throws_ok(
+  $$select public.vapid_keys_keep('pub-four', 'priv-four', 'mailto:four@example.com', false)$$,
+  'P0001',
+  'devices are already subscribed to a key this vault does not hold',
+  'a first issuance refuses while devices carry a key the vault never held'
+);
+
+select is(
+  (select count(*)::int from vault.secrets where name = 'vapid_public_key'),
+  0,
+  'the refused issuance stored nothing'
+);
+
+select ok(
+  public.vapid_keys_keep('pub-standing', 'priv-standing', 'mailto:standing@example.com', true),
+  'the standing pair is adopted with replace_existing, which is how a running deployment moves in'
 );
 
 select * from finish();
