@@ -15,7 +15,14 @@ mock.module('$lib/supabase', () => ({
 	}
 }));
 
-const registration = { pushManager: { getSubscription: () => Promise.resolve(null) } };
+function subscriptionUnder(key: string | null): PushSubscription {
+	return {
+		options: key === null ? {} : { applicationServerKey: new TextEncoder().encode(key).buffer }
+	} as unknown as PushSubscription;
+}
+
+let heldSubscription: PushSubscription | null = null;
+const registration = { pushManager: { getSubscription: () => Promise.resolve(heldSubscription) } };
 const heldNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
 
 Object.defineProperty(globalThis, 'navigator', {
@@ -28,7 +35,7 @@ Object.defineProperty(globalThis, 'window', {
 	value: { PushManager: class {}, Notification: { permission: 'granted' } }
 });
 
-const { answersTo, reachability } = await import('../../src/lib/notifications/subscribe');
+const { answersTo, reachability, stale } = await import('../../src/lib/notifications/subscribe');
 const { encodeBase64URL } = await import('../../src/lib/notifications/base64url');
 
 afterAll(() => {
@@ -63,18 +70,22 @@ describe('a subscription made under another key does not count as reachable', ()
 	const current = 'BJnB-current-key';
 	const other = 'BJnB-other-key';
 
-	function subscriptionUnder(key: string | null): PushSubscription {
-		return {
-			options: key === null ? {} : { applicationServerKey: new TextEncoder().encode(key).buffer }
-		} as unknown as PushSubscription;
-	}
+	const encoded = (key: string) => encodeBase64URL(new TextEncoder().encode(key).buffer);
 
 	test('the key it was made with is the one that counts', () => {
-		expect(answersTo(subscriptionUnder(current), encodeBase64URL(new TextEncoder().encode(current).buffer))).toBe(true);
-		expect(answersTo(subscriptionUnder(other), encodeBase64URL(new TextEncoder().encode(current).buffer))).toBe(false);
+		expect(answersTo(subscriptionUnder(current), encoded(current))).toBe(true);
+		expect(answersTo(subscriptionUnder(other), encoded(current))).toBe(false);
 	});
 
 	test('a browser that will not say which key it used is taken at its word', () => {
-		expect(answersTo(subscriptionUnder(null), encodeBase64URL(new TextEncoder().encode(current).buffer))).toBe(true);
+		expect(answersTo(subscriptionUnder(null), encoded(current))).toBe(true);
+	});
+
+	test('only a key the vault answered condemns a subscription', () => {
+		const held = subscriptionUnder(other);
+		expect(stale(held, { key: encoded(current), vaulted: true })).toBe(true);
+		expect(stale(held, { key: encoded(current), vaulted: false })).toBe(false);
+		expect(stale(subscriptionUnder(current), { key: encoded(current), vaulted: true })).toBe(false);
+		expect(stale(null, { key: encoded(current), vaulted: true })).toBe(false);
 	});
 });
