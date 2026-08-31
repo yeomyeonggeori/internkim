@@ -1,4 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { approvalDecide, approvalList, NoSuchApproval } from './approval-tools';
+import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } from './attendance-tools';
+import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
 import { eventAdd, eventDelete, eventList, eventUpdate } from './event-tools';
 import { HintUnresolved } from './people';
@@ -26,7 +29,13 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	leave_list: (context, input) => leaveList(context, input),
 	leave_balance: (context, input) => leaveBalance(context, input),
 	leave_request: (context, input) => leaveRequest(context, input),
-	leave_decide: (context, input) => leaveDecide(context, input)
+	leave_decide: (context, input) => leaveDecide(context, input),
+	attendance_list: (context, input) => attendanceList(context, input),
+	attendance_add: (context, input) => attendanceAdd(context, input),
+	attendance_update: (context, input) => attendanceUpdate(context, input),
+	attendance_delete: (context, input) => attendanceDelete(context, input),
+	approval_list: (context) => approvalList(context),
+	approval_decide: (context, input) => approvalDecide(context, input)
 };
 
 export function recordRunsTheTool(name: string): boolean {
@@ -74,6 +83,12 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 	}
 	if (refusal instanceof NoSuchLeaveKind) {
 		return { status: 409, body: { error: refusal.message, registered: refusal.registered } };
+	}
+	if (refusal instanceof NoSuchAttendanceRecord) {
+		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
+	}
+	if (refusal instanceof NoSuchApproval) {
+		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
 	}
 	if (refusal instanceof RecordRefusedTheWrite) {
 		return { status: refusal.status, body: { error: refusal.message } };
