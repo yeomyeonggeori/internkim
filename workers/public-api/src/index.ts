@@ -47,6 +47,7 @@ export type WorkerEnvironment = {
 
 const apiPrefix = '/v1';
 const tokensPath = '/tokens';
+const tokenPath = '/token';
 const longestTokenName = 64;
 const unnamedTokenPrefix = 'pat-';
 const personAPICapability = 'person.api.request';
@@ -76,8 +77,8 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (!caller) return jsonResponse({ error: 'this token belongs to nobody' }, 401);
 
 	const path = url.pathname.slice(apiPrefix.length) || '/';
-	if (path === tokensPath) {
-		return answerAboutTokens(request, environment, caller, url);
+	if (path === tokensPath || path === tokenPath) {
+		return answerAboutTokens(request, environment, caller, url, path);
 	}
 	if (request.method === 'POST' && path === filesPath) {
 		return keepThenMaterialise(request, environment, caller, url);
@@ -209,10 +210,14 @@ async function answerAboutTokens(
 	request: Request,
 	environment: WorkerEnvironment,
 	caller: Caller,
-	url: URL
+	url: URL,
+	path: string
 ): Promise<Response> {
 	const credentials = credentialsOf(environment);
-	if (request.method === 'GET') {
+	if (path === tokensPath) {
+		if (request.method !== 'GET') {
+			return jsonResponse({ error: `one token is made and revoked at ${apiPrefix}${tokenPath}` }, 405);
+		}
 		return jsonResponse({ tokens: await tokensOfMember(credentials, caller.memberID) }, 200);
 	}
 	if (request.method === 'POST') {
@@ -247,7 +252,7 @@ async function answerAboutTokens(
 		}
 		return jsonResponse({ forgotten: name }, 200);
 	}
-	return jsonResponse({ error: 'a token is listed, made or revoked' }, 405);
+	return jsonResponse({ error: `the tokens a member holds are listed at ${apiPrefix}${tokensPath}` }, 405);
 }
 
 // A caller who does not care what the token is called still needs the names to

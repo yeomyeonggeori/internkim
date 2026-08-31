@@ -86,7 +86,7 @@ function call(path: string, token: string | null, options: RequestInit = {}): Pr
 }
 
 function mint(token: string, body: unknown): Promise<Response> {
-	return call('/v1/tokens', token, {
+	return call('/v1/token', token, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(body)
@@ -136,12 +136,16 @@ async function run(): Promise<void> {
 		listed.tokens.map((token) => token.name).join(', '));
 
 	expect('a token may not revoke itself',
-		(await call(`/v1/tokens?name=${smokeTokenName}`, held, { method: 'DELETE' })).status === 409, '409');
+		(await call(`/v1/token?name=${smokeTokenName}`, held, { method: 'DELETE' })).status === 409, '409');
 	expect('an unknown name is not found',
-		(await call('/v1/tokens?name=never-existed', held, { method: 'DELETE' })).status === 404, '404');
+		(await call('/v1/token?name=never-existed', held, { method: 'DELETE' })).status === 404, '404');
 	expect('a token revokes another',
-		(await call(`/v1/tokens?name=${minted.name}`, held, { method: 'DELETE' })).status === 200, '200');
+		(await call(`/v1/token?name=${minted.name}`, held, { method: 'DELETE' })).status === 200, '200');
 	expect('the revoked token is refused', (await call('/v1/tools', minted.token)).status === 401, '401');
+
+	expect('a verb on the wrong path names the right one',
+		(await call('/v1/tokens', held, { method: 'POST', body: '{}' })).status === 405 &&
+			(await call('/v1/token', held)).status === 405, '405');
 
 	expect('nothing above reached the company', companyCalls === 0, `${companyCalls} company calls`);
 
