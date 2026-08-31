@@ -182,8 +182,8 @@ it is short, otherwise its size and where it sits in the request. Prompt weight
 is invisible in a diff that reads as documentation, and it is charged on every
 turn forever.
 
-Branch names, commit messages, pull request titles and pull request
-descriptions are written in English. Discussion in review can be in whatever
+Branch names, commit messages, issue titles and bodies, and pull request
+titles and descriptions are written in English. Discussion in review can be in whatever
 language the reviewers share; the repository's permanent record is English.
 
 Say a thing once. Edit the existing review comment rather than adding another,
