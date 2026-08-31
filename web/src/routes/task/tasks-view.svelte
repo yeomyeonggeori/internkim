@@ -8,6 +8,7 @@
 	import { taskBoardWeekPosition } from './task-board-week-position';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { untrack } from 'svelte';
+	import { toast } from 'svelte-sonner';
 	import { createTasksController } from './tasks-controller.svelte';
 	import type { LoadTask } from './task-load-tracker';
 	import type { TaskSummary } from './task-types';
@@ -39,7 +40,8 @@
 				summary: nextSummary,
 				text: nextText,
 				loadTask: nextLoadTask,
-				setPageErrorMessage: nextSetPageErrorMessage
+				setPageErrorMessage: nextSetPageErrorMessage,
+				announceMove: (message) => toast.success(message)
 			});
 		});
 	});

@@ -14,6 +14,7 @@ type TaskBoardControllerInput = {
 	getSummary: () => TaskSummary | null;
 	setSummary: (summary: TaskSummary) => void;
 	setPageErrorMessage: (message: string) => void;
+	announceMove?: (message: string) => void;
 };
 
 export class TaskBoardController {
@@ -25,6 +26,7 @@ export class TaskBoardController {
 	private getSummary: () => TaskSummary | null;
 	private setSummary: (summary: TaskSummary) => void;
 	private setPageErrorMessage: (message: string) => void;
+	private announceMove: (message: string) => void = () => {};
 
 	constructor() {
 		this.loadTask = async () => false;
@@ -41,6 +43,7 @@ export class TaskBoardController {
 		this.getSummary = input.getSummary;
 		this.setSummary = input.setSummary;
 		this.setPageErrorMessage = input.setPageErrorMessage;
+		this.announceMove = input.announceMove ?? (() => {});
 	};
 
 	moveTaskOnBoard = async (request: TaskBoardMoveRequest): Promise<void> => {
@@ -69,6 +72,10 @@ export class TaskBoardController {
 			});
 			if (saveResult === 'failed' && this.currentWeek() === week) {
 				this.setSummary(previousSummary);
+			}
+			if (saveResult !== 'failed') {
+				const statusLabels: Record<string, string> = this.text.status;
+				this.announceMove(`${task.content} → ${statusLabels[request.targetStatus] ?? request.targetStatus}`);
 			}
 			if (saveResult === 'saved_with_reload_error' && this.currentWeek() === week) {
 				this.setSummary({ ...previousSummary, tasks: move.tasks });
