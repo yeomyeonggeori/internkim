@@ -100,6 +100,11 @@ SUPABASE_URL  SUPABASE_PUBLISHABLE_KEY  INTERNKIM_APP_URL  AGENT_API_KEY_PATH
 MESSENGER_PLATFORM
 ```
 
+`ADMIND_SOCKET_PATH` names the socket that carries the workspace screens and
+every tool run through the public API; it defaults to
+`/run/internkim/admind.sock`. This bundle starts no `admind`, so those calls
+land nowhere until one is running.
+
 `INTERNKIM_APP_URL` is where everyone signs in, `https://<zone>` unless
 the company serves the app itself; the agent key is what decides which company
 the relay acts for. `MESSENGER_PLATFORM` names which messenger the company runs,

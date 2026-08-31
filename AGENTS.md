@@ -465,17 +465,22 @@ and delete the duplicates.
   device paths stay under test; without it a local `web/.env` leaks in and the
   suites silently exercise the wrong branch.
 
-- The OpenAPI document is the public API's contract, generated in
-  `web/src/lib/server/openapi.ts` and served to both the reference site and the
-  docs build. Tool paths come from the catalog; the gateway paths are written by
-  hand, so `workers/public-api/src/openapi-conformance.test.ts` holds them to
-  what the worker answers. An endpoint added to the worker is added there too.
-- Every public API endpoint has a smoke check. `bun tools/smoke-public-api`
-  runs the worker in-process against the local control plane and the fixture
-  company `supabase db reset` seeds, so it costs nothing: no model, no
-  messenger, no device. It covers refusals, the catalog, and the token
-  lifecycle, and asserts the company was never called. Add a case there when
-  an endpoint is added, and run it before deploying `workers/public-api`.
+- The public API is the web app. `web/src/routes/api/v1/` answers it, so a
+  company that hosts the app hosts the API; there is no separate worker to
+  deploy. `api.<zone>/v1` reaches the same routes through the rewrite in
+  `web/src/hooks.ts`. A caller is either a signed-in session or an `ik_` token,
+  resolved once by `callingMember`.
+- The OpenAPI document is that API's contract, generated in
+  `docs/web/app/lib/openapi.ts` and served to both the reference site and the
+  docs build. Tool paths come from the catalog; the rest are written by hand,
+  so `web/tests/integration/public-api-route.test.ts` holds the routes and the
+  document to each other. An endpoint added to one is added to the other.
+- That integration suite is also the API's smoke check. `cd web && bun run
+  test:integration` runs the route handlers against the local control plane, so
+  it costs nothing: no model, no messenger, no device. It covers refusals, the
+  catalog, the token lifecycle, and that an invocation is refused rather than
+  answered here when no gateway is configured. Add a case there when an
+  endpoint is added, and run it before deploying the web app.
 
 ## Central Plane (Supabase)
 

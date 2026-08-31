@@ -82,9 +82,15 @@ GATEWAY_URL=…            GATEWAY_SERVER_KEY=…
 
 <Callout type="warn">
 With the two gateway settings absent the relay starts, logs nothing about it,
-and never answers the app. An empty messenger screen with a green process
-table is the symptom.
+and answers neither the app nor the API. An empty messenger screen with a
+green process table is the symptom.
 </Callout>
+
+Calls that reach `admind` — the workspace screens, and every tool run through
+the public API — go over a unix socket, `ADMIND_SOCKET_PATH`, which defaults to
+`/run/internkim/admind.sock`. The bundle above starts no `admind`, so on a
+stock host those calls have nowhere to land: the API answers its catalog and
+its tokens, and an invocation does not.
 
 A company that chats on Buzz also runs the Buzz stack itself; `host/buzz/`
 carries a compose file that brings up Postgres, Redis, MinIO and the relay
