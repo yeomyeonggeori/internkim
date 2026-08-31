@@ -122,7 +122,7 @@ absent, so a caller that finds the port gets whatever an anonymous caller gets.
 
 ## Who a call runs as
 
-The key says. A personal key from `credential` resolves to exactly one member,
+The key says. A personal access token from `credential` resolves to exactly one member,
 so the caller never names a person and has no way to name a different one. The
 public API takes no requester header at all; the only header about identity is
 `Authorization`.
@@ -149,7 +149,7 @@ so checking that a named task is running with a named actor costs nothing.
 A key carries one of `read`, `write`, `delete`. They are a ladder: `delete`
 implies `write` implies `read`, because a caller that cannot read cannot know
 what to delete. New keys get `delete`, and every key issued before this gets
-`delete`. Nothing is migrated and nothing is counted: no personal key reaches
+`delete`. Nothing is migrated and nothing is counted: no personal access token reaches
 the public API today, so there is no narrower key to widen.
 
 This replaces the ten scope constants with the three ranks they already
@@ -208,7 +208,7 @@ machinery of its own.
 
 ## What this does not build
 
-No REST implementation in TypeScript. No second token system: the personal key
+No REST implementation in TypeScript. No second token system: the personal access token
 is the credential, issued in the web app where the caller is already signed in.
 `POST /v1/tokens` stays on the device path, because a machine cannot mint its
 own first key and the plane's answer to that is a signed-in page.

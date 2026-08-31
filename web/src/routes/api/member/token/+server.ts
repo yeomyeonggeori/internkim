@@ -3,10 +3,10 @@ import {
 	asMember,
 	claimMemberFor,
 	controlPlane,
-	forgetPersonalKey,
-	isPersonalKey,
-	issuePersonalKey,
-	personalKeys,
+	forgetPersonalAccessToken,
+	isPersonalAccessToken,
+	issuePersonalAccessToken,
+	personalAccessTokens,
 } from '$lib/server/control-plane';
 import { fullPublicAPIPermission, publicAPIPermissionOf } from '$lib/public-api-permission';
 import { error, json } from '@sveltejs/kit';
@@ -27,7 +27,7 @@ async function memberOf(request: Request, platform: App.Platform | undefined): P
 	const authorization = request.headers.get('authorization') ?? '';
 	const accessToken = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
 	if (!accessToken) error(401, 'sign in first');
-	if (isPersonalKey(accessToken)) error(403, 'keys are made and revoked signed in, not with a key');
+	if (isPersonalAccessToken(accessToken)) error(403, 'keys are made and revoked signed in, not with a key');
 
 	const { data: account } = await asMember({ projectURL, publishableKey }, accessToken).auth.getUser();
 	const email = account.user?.email?.trim().toLowerCase();
@@ -45,7 +45,7 @@ function keyStore(platform: App.Platform | undefined) {
 
 export const GET: RequestHandler = async ({ request, platform }) => {
 	const memberID = await memberOf(request, platform);
-	return json({ keys: await personalKeys(keyStore(platform), memberID) });
+	return json({ keys: await personalAccessTokens(keyStore(platform), memberID) });
 };
 
 // The key is answered once. Only its hash is kept, so nothing can read it back
@@ -64,7 +64,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	return json({
 		name,
 		permission,
-		apiKey: await issuePersonalKey(keyStore(platform), memberID, name, permission),
+		apiKey: await issuePersonalAccessToken(keyStore(platform), memberID, name, permission),
 	});
 };
 
@@ -74,7 +74,7 @@ export const DELETE: RequestHandler = async ({ request, url, platform }) => {
 	const name = (url.searchParams.get('name') ?? '').trim();
 	if (!name) error(400, 'a revocation names the key');
 
-	if (!(await forgetPersonalKey(keyStore(platform), memberID, name))) {
+	if (!(await forgetPersonalAccessToken(keyStore(platform), memberID, name))) {
 		error(404, 'no key of yours goes by that');
 	}
 	return json({ forgotten: name });

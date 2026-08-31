@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import {
-	PersonalKeyCache,
+	PersonalTokenCache,
 	RecordRefused,
-	callerOfPersonalKey,
-	isPersonalKey,
+	callerOfPersonalAccessToken,
+	isPersonalAccessToken,
 	keyCacheSeconds,
 	permissionNamed,
 	type Caller,
 	type FetchDocument
-} from './personal-key';
+} from './personal-access-token';
 
 const credentials = { projectURL: 'https://plane.supabase.co', serviceRoleKey: 'service-role' };
 
@@ -23,10 +23,10 @@ function recordAnswering(rows: unknown, status = 200): { fetchDocument: FetchDoc
 
 const oneKeyRow = [{ permission: 'write', member: { email: 'Someone@Example.com', company_id: 'c1' } }];
 
-describe('telling a personal key from anything else', () => {
+describe('telling a personal access token from anything else', () => {
 	test('is the prefix the web app issues', () => {
-		expect(isPersonalKey('ik_0123')).toBe(true);
-		expect(isPersonalKey('eyJhbGciOi')).toBe(false);
+		expect(isPersonalAccessToken('ik_0123')).toBe(true);
+		expect(isPersonalAccessToken('eyJhbGciOi')).toBe(false);
 	});
 });
 
@@ -47,7 +47,7 @@ describe('the permission a key carries', () => {
 describe('resolving a key to the member who holds it', () => {
 	test('asks the credential table for the hash of the key, never the key', async () => {
 		const { fetchDocument, asked } = recordAnswering(oneKeyRow);
-		await callerOfPersonalKey(credentials, 'ik_secret', fetchDocument);
+		await callerOfPersonalAccessToken(credentials, 'ik_secret', fetchDocument);
 
 		const url = new URL(asked[0]);
 		expect(url.pathname).toBe('/rest/v1/credential');
@@ -59,7 +59,7 @@ describe('resolving a key to the member who holds it', () => {
 
 	test('answers the address and company the call runs as', async () => {
 		const { fetchDocument } = recordAnswering(oneKeyRow);
-		expect(await callerOfPersonalKey(credentials, 'ik_secret', fetchDocument)).toEqual({
+		expect(await callerOfPersonalAccessToken(credentials, 'ik_secret', fetchDocument)).toEqual({
 			email: 'someone@example.com',
 			companyID: 'c1',
 			permission: 'write'
@@ -68,30 +68,30 @@ describe('resolving a key to the member who holds it', () => {
 
 	test('answers nobody for a key the record does not hold', async () => {
 		const { fetchDocument } = recordAnswering([]);
-		expect(await callerOfPersonalKey(credentials, 'ik_unknown', fetchDocument)).toBeNull();
+		expect(await callerOfPersonalAccessToken(credentials, 'ik_unknown', fetchDocument)).toBeNull();
 	});
 
-	test('answers nobody for a bearer that is not a personal key, without asking the record', async () => {
+	test('answers nobody for a bearer that is not a personal access token, without asking the record', async () => {
 		const { fetchDocument, asked } = recordAnswering(oneKeyRow);
-		expect(await callerOfPersonalKey(credentials, 'not-a-key', fetchDocument)).toBeNull();
+		expect(await callerOfPersonalAccessToken(credentials, 'not-a-key', fetchDocument)).toBeNull();
 		expect(asked).toHaveLength(0);
 	});
 
 	test('answers nobody when the row names no member', async () => {
 		const { fetchDocument } = recordAnswering([{ permission: 'delete', member: null }]);
-		expect(await callerOfPersonalKey(credentials, 'ik_orphan', fetchDocument)).toBeNull();
+		expect(await callerOfPersonalAccessToken(credentials, 'ik_orphan', fetchDocument)).toBeNull();
 	});
 
 	test('refuses rather than answering nobody when the record itself is unreachable', async () => {
 		const { fetchDocument } = recordAnswering(null, 500);
-		expect(callerOfPersonalKey(credentials, 'ik_secret', fetchDocument)).rejects.toThrow(RecordRefused);
+		expect(callerOfPersonalAccessToken(credentials, 'ik_secret', fetchDocument)).rejects.toThrow(RecordRefused);
 	});
 });
 
 describe('the key cache each colo keeps', () => {
-	function cacheOver(callers: Caller[]): { cache: PersonalKeyCache; reads: number[] } {
+	function cacheOver(callers: Caller[]): { cache: PersonalTokenCache; reads: number[] } {
 		const reads = [0];
-		const cache = new PersonalKeyCache(async () => {
+		const cache = new PersonalTokenCache(async () => {
 			reads[0] += 1;
 			return callers[Math.min(reads[0] - 1, callers.length - 1)];
 		});
@@ -116,7 +116,7 @@ describe('the key cache each colo keeps', () => {
 
 	test('keeps nothing for a key the record does not hold', async () => {
 		const reads = [0];
-		const cache = new PersonalKeyCache(async () => {
+		const cache = new PersonalTokenCache(async () => {
 			reads[0] += 1;
 			return null;
 		});

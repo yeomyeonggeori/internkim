@@ -1,5 +1,5 @@
 import catalogDocument from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
-import type { CallerPermission } from './personal-key';
+import type { CallerPermission } from './personal-access-token';
 
 export type ToolDescriptor = { name: string; sideEffectClass: string };
 

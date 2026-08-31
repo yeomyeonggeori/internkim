@@ -3,7 +3,7 @@
 	import CompanyProfileImage from './company-profile-image.svelte';
 	import CompanyConnections from './company-connections.svelte';
 	import SignInPasskeys from './sign-in-passkeys.svelte';
-	import PersonalAPIKeys from './personal-api-keys.svelte';
+	import PersonalAPIKeys from './personal-access-tokens.svelte';
 	import Notifications from './notifications.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
 	import OrganizationInviteDialog from '../organization/organization-invite-dialog.svelte';
