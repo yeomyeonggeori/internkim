@@ -8,7 +8,7 @@ import (
 func TestSelectTargetsReturnsAllWhenFleetIDsAreEmpty(t *testing.T) {
 	registry := TargetRegistry{Targets: []Target{
 		{ID: "jetson-1", AdminURL: "https://jetson-1.example"},
-		{ID: "poc-1", Kind: "poc-container", SSHHost: "studio.local"},
+		{ID: "jetson-2", AdminURL: "https://jetson-2.example"},
 	}}
 
 	targets, errorValue := SelectTargets(registry, nil)
@@ -23,15 +23,15 @@ func TestSelectTargetsReturnsAllWhenFleetIDsAreEmpty(t *testing.T) {
 func TestSelectTargetsReturnsSubsetByID(t *testing.T) {
 	registry := TargetRegistry{Targets: []Target{
 		{ID: "jetson-1", AdminURL: "https://jetson-1.example"},
-		{ID: "poc-1", Kind: "poc-container", SSHHost: "studio.local"},
+		{ID: "jetson-2", AdminURL: "https://jetson-2.example"},
 	}}
 
-	targets, errorValue := SelectTargets(registry, []string{"poc-1"})
+	targets, errorValue := SelectTargets(registry, []string{"jetson-2"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(targets) != 1 || targets[0].ID != "poc-1" {
-		t.Fatalf("targets = %#v, want poc-1 only", targets)
+	if len(targets) != 1 || targets[0].ID != "jetson-2" {
+		t.Fatalf("targets = %#v, want jetson-2 only", targets)
 	}
 }
 
@@ -47,11 +47,16 @@ func TestSelectTargetsReturnsErrorForUnknownID(t *testing.T) {
 	}
 }
 
-func TestTargetResolvedKindDefaultsToJetson(t *testing.T) {
-	if kind := (Target{}).ResolvedKind(); kind != "jetson" {
-		t.Fatalf("kind = %q, want jetson", kind)
+func TestATargetNamingNoKindIsADevice(t *testing.T) {
+	if kind := (Target{}).ResolvedKind(); kind != deviceTargetKind {
+		t.Fatalf("kind = %q, want %q", kind, deviceTargetKind)
 	}
+}
+
+// A registry kept on somebody's machine can still name a kind this repository
+// retired. It is read back as what it says rather than taken for a device.
+func TestATargetNamingARetiredKindKeepsSayingSo(t *testing.T) {
 	if kind := (Target{Kind: "poc-container"}).ResolvedKind(); kind != "poc-container" {
-		t.Fatalf("kind = %q, want poc-container", kind)
+		t.Fatalf("kind = %q, want the kind the registry named", kind)
 	}
 }

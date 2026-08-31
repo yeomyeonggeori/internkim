@@ -3,6 +3,8 @@ package cli
 import (
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/deployops"
 )
 
 func TestSelectedReleaseComponentNamesParsesCommaList(t *testing.T) {
@@ -166,5 +168,22 @@ func TestAnOrdinaryFailureIsLeftAlone(t *testing.T) {
 
 	if errorValue.Error() != "download timed out" {
 		t.Fatalf("a failure with a different cause must not be dressed up as this one: %v", errorValue)
+	}
+}
+
+// A registry kept on somebody's machine can still name a kind this repository
+// retired. Deploying to it as though it were a device would put the device
+// bundle somewhere that never asked for one.
+func TestDeployRefusesATargetThatIsNotADevice(t *testing.T) {
+	errorValue := deployReleaseToRegistryTargets("", []deployops.Target{
+		{ID: "jetson-1", AdminURL: "https://jetson-1.example"},
+		{ID: "studio", Kind: "poc-container", AdminURL: "https://studio.example"},
+	}, nil)
+
+	if errorValue == nil {
+		t.Fatal("a target that is not a device is refused rather than deployed to")
+	}
+	if !strings.Contains(errorValue.Error(), "studio") || !strings.Contains(errorValue.Error(), "poc-container") {
+		t.Fatalf("the refusal names the target and the kind it claims, got %q", errorValue.Error())
 	}
 }

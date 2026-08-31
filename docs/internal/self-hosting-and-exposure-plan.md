@@ -105,10 +105,9 @@ Blueclaw/internkim을 오픈소스 셀프호스팅 가능하게. "clone → env 
 
 ## 5. 재사용 가능한 기존 자산
 
-- `internal/tenantruntime/cloudflare_tunnel.go` — CF 터널 ingress(기존규칙 보존) + DNS `upsertCNAME` API 관리. (PoC 테넌트용, 재사용)
+- CF 터널 ingress(기존 규칙 보존)와 DNS `upsertCNAME` 관리는 PoC 테넌트 런타임이 들고 있었고, 그 코드는 PoC와 함께 사라졌다. 다시 필요하면 새로 쓴다.
 - `internal/provisioning/steps/` — 멱등 step provisioner (SSH/SD 백엔드), `steps_stub.go` Registry.
 - `internal/cli/main.go` — `.env` 로딩.
-- PoC(Apple Container / poc-container kind) — 컨테이너화 선례(단 앱-컨테이너 아닌 시스템 성격).
 - buzz 릴레이 공개호스트 컷오버 — `StepBuzzPublicHost`(stunnel/cert/hosts/rekey/drop-in)가
   "호스트를 공개 도달가능하게" 구성하는 패턴의 첫 사례.
 
