@@ -253,7 +253,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_list": {
 			kind:   provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_list","result":{"count":1,"scope":"person","leave":[{"leaveID":"l1","kind":"연차","days":2,"status":"approved"}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_list","result":{"count":1,"scope":"person","personID":"p1","personName":"이샘플","statusFilter":"approved","registeredKinds":["연차"],"leave":[{"leaveID":"l1","person":"이샘플","kind":"연차","days":2,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-01","endDate":"2026-09-02","note":null}]}}`)},
 			input:  `{"status":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -298,7 +298,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_balance": {
 			kind:   provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_balance","result":{"personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_balance","result":{"personID":"p1","personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`)},
 			input:  `{"year":2026}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -307,17 +307,17 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_request": {
 			kind:   provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_request","result":{"leaveID":"l2","kind":"연차","days":1,"status":"requested"}}`)},
-			input:  `{"kind":"연차","startsAt":"2026-09-01","endsAt":"2026-09-01","days":1}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_request","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
+			input:  `{"kind":"연차","startsAt":"2026-09-04","endsAt":"2026-09-04","days":1}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"status":"requested"`)
+				expectResultHolds(t, answered, `"status":"approved"`)
 			},
 		},
 		"leave_decide": {
 			kind:   provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_decide","result":{"leaveID":"l2","status":"approved"}}`)},
-			input:  `{"leaveHint":"이샘플 · 연차 · 2026-09-01","decision":"approved"}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_decide","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
+			input:  `{"leaveHint":"이샘플 · 연차 · 2026-09-04","decision":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"status":"approved"`)
@@ -432,6 +432,7 @@ func TestTheCoveredCatalogToolsAnswerTheirCalls(t *testing.T) {
 			if errorValue != nil {
 				t.Fatalf("%s: %v", name, errorValue)
 			}
+			expectAnswerKeepsItsContract(t, name, answered)
 			gateCase.expect(t, answered)
 		})
 	}
@@ -516,6 +517,22 @@ func arrivingCall(name string, gateCase catalogGateCase) capabilities.ToolInvoke
 		return arriving
 	}
 	return gateCase.arrives(arriving)
+}
+
+// A handler answers; the caller that reaches the agent runs that answer past
+// the tool's own descriptor first, and rejects it whole when the declared
+// effects, schema or identity do not hold. Calling the handler alone proves
+// the call was carried, never that the answer is usable, so the gate holds
+// every covered tool to the same check its real caller applies.
+func expectAnswerKeepsItsContract(t *testing.T, toolName string, answered capabilities.ToolInvokeResponse) {
+	t.Helper()
+	descriptor, isRegistered := capabilityToolDescriptorFor(toolName)
+	if !isRegistered {
+		t.Fatalf("%s is in the catalog and has no descriptor", toolName)
+	}
+	if errorValue := validateContractedCapabilityResponse(descriptor, answered, "", ""); errorValue != nil {
+		t.Fatalf("%s answered something its caller refuses: %v", toolName, errorValue)
+	}
 }
 
 func expectSucceeded(t *testing.T, answered capabilities.ToolInvokeResponse) {

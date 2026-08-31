@@ -36,14 +36,12 @@ func (service Service) invokeLeaveTool(ctx context.Context, request capabilities
 	if errorValue := json.Unmarshal(answer, &answered); errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "record",
-		ToolName:        toolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Status:          "ok",
-		Result:          answered.Result,
-	}, nil
+	return capabilitySuccessResponseFrom(
+		toolName,
+		"ok",
+		answered.Result,
+		capabilityResponseOrigin{Provider: "internkim", SelectedBackend: "record"},
+	)
 }
 
 func (service Service) askTheRecord(
