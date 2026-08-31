@@ -16,7 +16,7 @@ const (
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
 	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
 	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
-	BlueclawTestEscalationModelName                     = "google/gemini-3.1-flash-lite"
+	BlueclawTestEscalationModelName                     = "z-ai/glm-5.3-flash"
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
 	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
 	BlueclawTestMaximumModelTierEnvironment             = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
