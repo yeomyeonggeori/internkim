@@ -12,6 +12,7 @@
 	import AttendanceWorkModeSelector from './attendance-work-mode-selector.svelte';
 	import {
 		currentAttendanceWorkPolicyRevision,
+		sameAttendanceWorkPolicyRevision,
 		setAttendanceWorkMode
 	} from './attendance-work-policy-model';
 	import AttendanceWorkPolicyForm from './attendance-work-policy-form.svelte';
@@ -32,6 +33,11 @@
 	let isSaving = $state(false);
 	let currentMonth = $state('');
 	let holidayDates = $state<string[]>([]);
+	const hasChanges = $derived(
+		Boolean(
+			draft && policy && !sameAttendanceWorkPolicyRevision(draft, currentAttendanceWorkPolicyRevision(policy))
+		)
+	);
 
 	$effect(() => {
 		const source = settingsSource(adminBaseURL);
@@ -110,14 +116,9 @@
 </script>
 
 <div class="@container space-y-5" data-testid="attendance-work-settings">
-	<div class="flex flex-wrap items-start justify-between gap-4">
-		<div>
-			<h2 class="text-lg font-semibold">{text.workSettings.title}</h2>
-			<p class="mt-1 text-sm text-muted-foreground">{text.workSettings.description}</p>
-		</div>
-		<Button disabled={!draft || isLoading || isSaving} onclick={() => void savePolicy()}>
-			{text.workSettings.save}
-		</Button>
+	<div>
+		<h2 class="text-lg font-semibold">{text.workSettings.title}</h2>
+		<p class="mt-1 text-sm text-muted-foreground">{text.workSettings.description}</p>
 	</div>
 
 	{#if isLoading && !draft}
@@ -129,6 +130,14 @@
 					<Card.Header>
 						<Card.Title>{text.workSettings.workMode}</Card.Title>
 						<Card.Description>{text.workSettings.workModeDescription}</Card.Description>
+						<Card.Action>
+							<Button
+								disabled={!hasChanges || isLoading || isSaving}
+								onclick={() => void savePolicy()}
+							>
+								{text.workSettings.save}
+							</Button>
+						</Card.Action>
 					</Card.Header>
 					<Card.Content>
 						<AttendanceWorkModeSelector
