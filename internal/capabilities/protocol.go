@@ -100,6 +100,8 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, TaskToolDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, LeaveDescriptors()...)
+	descriptors = append(descriptors, AttendanceDescriptors()...)
+	descriptors = append(descriptors, ApprovalDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, CompanyDescriptors()...)
@@ -169,6 +171,22 @@ func LeaveDescriptors() []Descriptor {
 		"leave_balance",
 		"leave_request",
 		"leave_decide",
+	))
+}
+
+func AttendanceDescriptors() []Descriptor {
+	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
+		"attendance_list",
+		"attendance_add",
+		"attendance_update",
+		"attendance_delete",
+	))
+}
+
+func ApprovalDescriptors() []Descriptor {
+	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
+		"approval_list",
+		"approval_decide",
 	))
 }
 
@@ -392,6 +410,8 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, TaskToolDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, LeaveDescriptors()...)
+	descriptors = append(descriptors, AttendanceDescriptors()...)
+	descriptors = append(descriptors, ApprovalDescriptors()...)
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, ArtifactDescriptors()...)
