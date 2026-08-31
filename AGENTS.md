@@ -465,6 +465,13 @@ and delete the duplicates.
   device paths stay under test; without it a local `web/.env` leaks in and the
   suites silently exercise the wrong branch.
 
+- Every public API endpoint has a smoke check. `bun tools/smoke-public-api`
+  runs the worker in-process against the local control plane and the fixture
+  company `supabase db reset` seeds, so it costs nothing: no model, no
+  messenger, no device. It covers refusals, the catalog, and the token
+  lifecycle, and asserts the company was never called. Add a case there when
+  an endpoint is added, and run it before deploying `workers/public-api`.
+
 ## Central Plane (Supabase)
 
 - **Read `docs/internal/saas-design.md` §2 and §6 before shaping anything that
