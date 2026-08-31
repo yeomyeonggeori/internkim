@@ -29,21 +29,23 @@ func taskActorOf(ctx context.Context) string {
 	return actorEmail
 }
 
-func (service *Service) companyBoardTasks(ctx context.Context, members []taskMember) ([]Task, bool) {
+// The company board is the record, so a read that fails is an error rather
+// than a quiet fall back to the device's stale copy.
+func (service *Service) companyBoardTasks(ctx context.Context, members []taskMember) ([]Task, bool, error) {
 	actorEmail := taskActorOf(ctx)
 	if actorEmail == "" {
-		return nil, false
+		return nil, false, nil
 	}
 	client := service.centralPlane()
 	if client == nil {
-		return nil, false
+		return nil, false, nil
 	}
 	tasks, errorValue := client.BoardTasks(ctx, "email", actorEmail)
 	if errorValue != nil {
-		log.Printf("the board stays on this device for %s: %v", actorEmail, errorValue)
-		return nil, false
+		log.Printf("the company board did not answer for %s: %v", actorEmail, errorValue)
+		return nil, true, errorValue
 	}
-	return tasksOfBoardTasks(tasks, members), true
+	return tasksOfBoardTasks(tasks, members), true, nil
 }
 
 func tasksOfBoardTasks(tasks []centralplane.BoardTask, members []taskMember) []Task {

@@ -12,7 +12,10 @@ type taskQueryer interface {
 }
 
 func (service *Service) readTasks(ctx context.Context, weekCode string, members []taskMember) ([]Task, error) {
-	if tasks, answered := service.companyBoardTasks(ctx, members); answered {
+	if tasks, answered, errorValue := service.companyBoardTasks(ctx, members); answered {
+		if errorValue != nil {
+			return nil, errorValue
+		}
 		return tasksInWeek(tasks, weekCode), nil
 	}
 	database, errorValue := service.openTaskDatabase(ctx)
@@ -41,7 +44,10 @@ ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
 }
 
 func (service *Service) readAllTasks(ctx context.Context, members []taskMember) ([]Task, error) {
-	if tasks, answered := service.companyBoardTasks(ctx, members); answered {
+	if tasks, answered, errorValue := service.companyBoardTasks(ctx, members); answered {
+		if errorValue != nil {
+			return nil, errorValue
+		}
 		return tasks, nil
 	}
 	database, errorValue := service.openTaskDatabase(ctx)
@@ -69,7 +75,10 @@ ORDER BY status = '요청' DESC, week_code DESC, owner_name, updated_at DESC`)
 }
 
 func (service *Service) readTasksBetweenDates(ctx context.Context, startDate string, endDate string, members []taskMember) ([]Task, error) {
-	if tasks, answered := service.companyBoardTasks(ctx, members); answered {
+	if tasks, answered, errorValue := service.companyBoardTasks(ctx, members); answered {
+		if errorValue != nil {
+			return nil, errorValue
+		}
 		return tasksBetweenDays(tasks, startDate, endDate), nil
 	}
 	database, errorValue := service.openTaskDatabase(ctx)
@@ -107,9 +116,12 @@ func (service *Service) readTaskAnswering(ctx context.Context, taskID string, me
 	if found || errorValue != nil {
 		return task, found, errorValue
 	}
-	boardTasks, answered := service.companyBoardTasks(ctx, members)
+	boardTasks, answered, boardError := service.companyBoardTasks(ctx, members)
 	if !answered {
 		return Task{}, false, nil
+	}
+	if boardError != nil {
+		return Task{}, false, boardError
 	}
 	for _, boardTask := range boardTasks {
 		if boardTask.ID == strings.TrimSpace(taskID) {
