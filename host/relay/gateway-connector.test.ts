@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parseRoutedCall, serveRoutedCall } from './gateway-connector';
-import type { Dispatch, PublicAPIRequest } from './forward';
+import type { AdmindCall, Dispatch, PublicAPIRequest } from './forward';
 
 const ceiling = 3_000_000;
 const call = {
@@ -149,5 +149,51 @@ describe('a call from the public API', () => {
 		);
 
 		expect(result.status).toBe(400);
+	});
+});
+
+describe('a telling the plane sends as the bot', () => {
+	const telling = {
+		kind: 'call' as const,
+		requestID: 'r3',
+		capability: 'person.message.tell',
+		body: { recipientEmail: 'sample@example.test', message: '결재를 기다리는 건이 있습니다' }
+	};
+
+	test('names no member on the envelope, and is taken all the same', () => {
+		expect(parseRoutedCall(telling)).toEqual({ ...telling, memberID: null });
+	});
+
+	test('is delivered to admind though the recipient holds no messenger credential', async () => {
+		const calls: AdmindCall[] = [];
+		const dispatch = {
+			...dispatchAnswering(null),
+			messengerCredentialOf: async () => null,
+			askAdmindAsRequester: async (call: AdmindCall) => {
+				calls.push(call);
+				return { status: 200, body: { delivered: true } };
+			}
+		} as unknown as Dispatch;
+
+		const result = await serveRoutedCall({ ...telling, memberID: null }, dispatch, ceiling);
+
+		expect(result).toEqual({ kind: 'result', requestID: 'r3', status: 200, body: { delivered: true } });
+		expect(calls[0]?.url).toBe('http://internkim/tell/api/direct-message');
+	});
+
+	test('arriving over a member connection, it is refused rather than sent as the bot', async () => {
+		const calls: AdmindCall[] = [];
+		const dispatch = {
+			...dispatchAnswering(null),
+			askAdmindAsRequester: async (call: AdmindCall) => {
+				calls.push(call);
+				return { status: 200, body: { delivered: true } };
+			}
+		} as unknown as Dispatch;
+
+		const result = await serveRoutedCall({ ...telling, memberID: 'm1' }, dispatch, ceiling);
+
+		expect(result.status).toBe(403);
+		expect(calls).toHaveLength(0);
 	});
 });
