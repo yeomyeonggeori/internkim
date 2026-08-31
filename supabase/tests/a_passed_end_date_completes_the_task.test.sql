@@ -30,8 +30,8 @@ select is((select status from public.task where id = '88800000-0000-0000-0000-00
 
 select is(
   (select schedule from cron.job where jobname = 'complete-tasks-past-their-end'),
-  '*/30 * * * *',
-  'rollover: the pass settles on the half hour'
+  '* * * * *',
+  'rollover: the pass runs every minute'
 );
 
 select * from finish();
