@@ -9,3 +9,10 @@ export function serviceClient(): SupabaseClient {
 		{ auth: { autoRefreshToken: false, persistSession: false } }
 	);
 }
+
+export function callerClient(request: Request): SupabaseClient {
+	return createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+		auth: { autoRefreshToken: false, persistSession: false },
+		global: { headers: { Authorization: request.headers.get('Authorization') ?? '' } }
+	});
+}

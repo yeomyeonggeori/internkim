@@ -1,45 +1,37 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
 import { encodeBase64URL } from '../_shared/base64url.ts';
+import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
+import { callerClient, serviceClient } from '../_shared/service-client.ts';
 
-function json(body: Record<string, unknown>, status = 200): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' }
-	});
-}
+Deno.serve(
+	serveRefusals(async (request) => {
+		if (request.method !== 'POST') refuse(405, 'POST only');
 
-Deno.serve(async (request) => {
-	if (request.method !== 'POST') return json({ error: 'POST only' }, 405);
+		const caller = callerClient(request);
+		const admin = await caller.rpc('is_company_admin');
+		if (admin.error || admin.data !== true) refuse(403, 'admins only');
 
-	const projectURL = Deno.env.get('SUPABASE_URL') ?? '';
-	const caller = createClient(projectURL, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
-		global: { headers: { Authorization: request.headers.get('Authorization') ?? '' } }
-	});
-	const admin = await caller.rpc('is_company_admin');
-	if (admin.error || admin.data !== true) return json({ error: 'admins only' }, 403);
+		const asked = await askedObject(request);
+		const subject = typeof asked.subject === 'string' ? asked.subject : '';
+		if (!subject.startsWith('mailto:') && !subject.startsWith('https://')) {
+			refuse(400, 'pass subject as a mailto: address or an https:// url');
+		}
 
-	const body = await request.json().catch(() => ({}));
-	const subject = typeof body.subject === 'string' ? body.subject : '';
-	if (!subject.startsWith('mailto:') && !subject.startsWith('https://')) {
-		return json({ error: 'pass subject as a mailto: address or an https:// url' }, 400);
-	}
+		const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+			'sign',
+			'verify'
+		]);
+		const publicPoint = await crypto.subtle.exportKey('raw', pair.publicKey);
+		const privateJWK = await crypto.subtle.exportKey('jwk', pair.privateKey);
+		if (!privateJWK.d) refuse(500, 'the generated key carries no private scalar');
 
-	const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
-		'sign',
-		'verify'
-	]);
-	const publicPoint = await crypto.subtle.exportKey('raw', pair.publicKey);
-	const privateJWK = await crypto.subtle.exportKey('jwk', pair.privateKey);
-	if (!privateJWK.d) return json({ error: 'the generated key carries no private scalar' }, 500);
+		const kept = await serviceClient().rpc('vapid_keys_keep', {
+			new_public_key: encodeBase64URL(publicPoint),
+			new_private_key: privateJWK.d,
+			new_subject: subject,
+			replace_existing: false
+		});
+		if (kept.error) refuse(500, kept.error.message);
 
-	const service = createClient(projectURL, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
-	const kept = await service.rpc('vapid_keys_keep', {
-		new_public_key: encodeBase64URL(publicPoint),
-		new_private_key: privateJWK.d,
-		new_subject: subject,
-		replace_existing: false
-	});
-	if (kept.error) return json({ error: kept.error.message }, 500);
-
-	return json({ stored: kept.data === true });
-});
+		return json({ stored: kept.data === true });
+	})
+);
