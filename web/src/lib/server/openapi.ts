@@ -1,6 +1,6 @@
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
-import type { Locale } from '$lib/i18n/locale';
-import { publicAPIPermissions } from '$lib/public-api-permission';
+import type { Locale } from '../i18n/locale';
+import { publicAPIPermissions } from '../public-api-permission';
 
 export type ApiDocumentationLanguage = Locale;
 
@@ -24,7 +24,10 @@ type ApiCopy = {
 	serverDescription: string;
 	tags: Record<'token' | 'agent' | 'tools' | 'capabilities', string>;
 	endpoints: Record<
+		| 'listTokens'
 		| 'createToken'
+		| 'revokeToken'
+		| 'uploadFile'
 		| 'sendMessage'
 		| 'readReplies'
 		| 'listTools'
@@ -32,7 +35,20 @@ type ApiCopy = {
 		| 'invokeTool',
 		EndpointCopy
 	>;
-	errors: Record<'badRequest' | 'unauthorized' | 'forbidden' | 'notFound' | 'badGateway', string>;
+	errors: Record<
+		| 'badRequest'
+		| 'unauthorized'
+		| 'forbidden'
+		| 'notFound'
+		| 'badGateway'
+		| 'aboveOwnRung'
+		| 'namesItself'
+		| 'revokesItself'
+		| 'noSuchToken'
+		| 'wrongTokenPath'
+		| 'tooLarge',
+		string
+	>;
 };
 
 const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
@@ -43,8 +59,10 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			'호출은 언제나 그 사람의 신원으로 실행됩니다. 토큰이 할 수 있는 일은 그 사람이 할 수 있는 일을',
 			'넘지 않습니다.',
 			'',
-			'`POST /tokens`으로 토큰을 만들고, 이후 모든 요청에 `Authorization: Bearer <token>`을 담습니다.',
-			'토큰 발급만은 관리 화면에 로그인한 세션으로 합니다.'
+			'첫 토큰은 설정 화면에서 로그인한 채로 만듭니다. 그 뒤로는 토큰이 자기 후임을 만들 수 있어서,',
+			'`POST /token`으로 새 토큰을 받고 `DELETE /token`으로 옛 토큰을 폐기하면 브라우저 없이 교체됩니다.',
+			'토큰은 자기보다 높은 등급을 만들 수 없고 자기 자신도 폐기할 수 없습니다.',
+			'모든 요청에는 `Authorization: Bearer <token>`을 담습니다.'
 		].join('\n'),
 		serverDescription: '모든 회사가 이 한 주소를 씁니다. 어느 회사인지는 토큰이 말합니다.',
 		tags: {
@@ -54,10 +72,25 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			capabilities: '도구'
 		},
 		endpoints: {
-			createToken: {
-				summary: 'API 토큰 발급',
+			listTokens: {
+				summary: '토큰 목록',
 				description:
-					'로그인한 직원 본인 앞으로 토큰을 발급합니다. 응답의 `token`은 이때 한 번만 보여집니다.'
+					'이 토큰의 주인이 가진 토큰의 이름과 등급을 나열합니다. 토큰 값은 어디에도 남아 있지 않아 답하지 않습니다.'
+			},
+			createToken: {
+				summary: '토큰 발급',
+				description:
+					'부른 토큰과 같은 사람 앞으로 새 토큰을 발급합니다. `permission`을 생략하면 부른 토큰과 같은 등급이 되고, 그보다 높은 등급은 만들 수 없습니다. `name`을 생략하면 아직 안 쓰인 첫 번째 번호를 붙입니다. 응답의 `token`은 이때 한 번만 보여집니다.'
+			},
+			revokeToken: {
+				summary: '토큰 폐기',
+				description:
+					'이름으로 토큰 하나를 폐기합니다. 인증에 쓴 그 토큰은 폐기할 수 없습니다. 새 토큰이 답하는 걸 확인한 뒤 그것으로 옛 토큰을 폐기하는 것이 교체 순서입니다.'
+			},
+			uploadFile: {
+				summary: '파일 올리기',
+				description:
+					'첨부로 쓸 파일을 올리고, 도구에 넘길 수 있는 자리를 돌려받습니다.'
 			},
 			sendMessage: {
 				summary: '에이전트에게 메시지 보내기',
@@ -83,9 +116,15 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 		errors: {
 			badRequest: '요청 본문이나 조건이 올바르지 않습니다',
 			unauthorized: '토큰이 없거나 유효하지 않습니다',
-			forbidden: '토큰의 scope로는 부를 수 없는 도구입니다',
+			forbidden: '이 토큰의 등급으로는 부를 수 없는 도구입니다',
 			notFound: '그런 도구가 없습니다',
-			badGateway: '기기 안쪽 서비스가 응답하지 않았습니다'
+			badGateway: '회사 안쪽 서비스가 응답하지 않았습니다',
+			aboveOwnRung: '자기보다 높은 등급의 토큰은 만들 수 없습니다',
+			namesItself: '그 이름은 이 호출을 인증한 토큰의 것입니다',
+			revokesItself: '토큰은 자기 자신을 폐기할 수 없습니다. 자기를 대체한 토큰으로 폐기하세요',
+			noSuchToken: '그런 이름의 토큰이 없습니다',
+			wrongTokenPath: '토큰 하나를 만들고 폐기하는 곳은 /token 입니다',
+			tooLarge: '파일이 너무 큽니다'
 		}
 	},
 	en: {
@@ -94,8 +133,10 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			'The tools internkim uses inside a company, callable from outside it. A token belongs to a',
 			'person, and every call runs as that person, so a token can never do more than its owner can.',
 			'',
-			'Create a token with `POST /tokens`, then send `Authorization: Bearer <token>` on every request.',
-			'Creating the token itself uses a signed-in staff session.'
+			'The first token is made signed in, from the settings screen. After that a token makes its own',
+			'successors: `POST /token` for a new one, `DELETE /token` for the old one, so a script rotates',
+			'without a browser. A token can neither mint a rung above its own nor revoke itself.',
+			'Send `Authorization: Bearer <token>` on every request.'
 		].join('\n'),
 		serverDescription: 'Every company calls this one address; the token says which company it is.',
 		tags: {
@@ -105,10 +146,24 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			capabilities: 'Tools'
 		},
 		endpoints: {
-			createToken: {
-				summary: 'Create an API token',
+			listTokens: {
+				summary: 'List tokens',
 				description:
-					'Issues a token to the signed-in member. The `token` field is shown this once and never again.'
+					"The names and rungs of the tokens this token's owner holds. No token value is kept anywhere, so none is answered."
+			},
+			createToken: {
+				summary: 'Make a token',
+				description:
+					'Issues a token to the same person as the one calling. `permission` defaults to the calling rung and may not reach past it. Omitting `name` takes the first ordinal nobody holds. The `token` field is shown this once and never again.'
+			},
+			revokeToken: {
+				summary: 'Revoke a token',
+				description:
+					'Revokes one token by name. The token authenticating the call cannot be the one revoked: see the replacement answer first, then revoke the old one with it.'
+			},
+			uploadFile: {
+				summary: 'Upload a file',
+				description: 'Keeps a file for use as an attachment and answers with the place a tool can be handed.'
 			},
 			sendMessage: {
 				summary: 'Send the agent a message',
@@ -137,9 +192,15 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 		errors: {
 			badRequest: 'The body or the query is not usable',
 			unauthorized: 'No token, or a token that is not valid',
-			forbidden: "The token's scopes do not reach this tool",
+			forbidden: "This token's rung does not reach this tool",
 			notFound: 'No tool by that name',
-			badGateway: 'A service inside the device did not answer'
+			badGateway: 'A service inside the company did not answer',
+			aboveOwnRung: 'A token may not make one that reaches past itself',
+			namesItself: 'That name belongs to the token making this call',
+			revokesItself: 'A token cannot revoke itself; revoke it with the one that replaced it',
+			noSuchToken: 'No token of yours goes by that name',
+			wrongTokenPath: 'One token is made and revoked at /token',
+			tooLarge: 'That file is too large'
 		}
 	}
 };
@@ -184,19 +245,83 @@ function jsonBody(schemaName: string) {
 	};
 }
 
-function createTokenPath(copy: ApiCopy) {
+function listTokensPath(copy: ApiCopy) {
+	return {
+		get: {
+			tags: [copy.tags.token],
+			operationId: 'listTokens',
+			summary: copy.endpoints.listTokens.summary,
+			description: copy.endpoints.listTokens.description,
+			responses: {
+				'200': jsonResponse(copy.endpoints.listTokens.summary, 'TokenList'),
+				'401': errorResponse(copy.errors.unauthorized),
+				'405': errorResponse(copy.errors.wrongTokenPath)
+			}
+		}
+	};
+}
+
+function tokenPath(copy: ApiCopy) {
 	return {
 		post: {
 			tags: [copy.tags.token],
 			operationId: 'createToken',
 			summary: copy.endpoints.createToken.summary,
 			description: copy.endpoints.createToken.description,
-			security: [],
 			requestBody: jsonBody('TokenRequest'),
 			responses: {
 				'200': jsonResponse(copy.endpoints.createToken.summary, 'TokenResponse'),
 				'400': errorResponse(copy.errors.badRequest),
-				'403': errorResponse(copy.errors.forbidden)
+				'401': errorResponse(copy.errors.unauthorized),
+				'403': errorResponse(copy.errors.aboveOwnRung),
+				'409': errorResponse(copy.errors.namesItself)
+			}
+		},
+		delete: {
+			tags: [copy.tags.token],
+			operationId: 'revokeToken',
+			summary: copy.endpoints.revokeToken.summary,
+			description: copy.endpoints.revokeToken.description,
+			parameters: [
+				{
+					name: 'name',
+					in: 'query',
+					required: true,
+					schema: { type: 'string' },
+					description: copy.endpoints.revokeToken.summary
+				}
+			],
+			responses: {
+				'200': jsonResponse(copy.endpoints.revokeToken.summary, 'TokenRevoked'),
+				'400': errorResponse(copy.errors.badRequest),
+				'401': errorResponse(copy.errors.unauthorized),
+				'404': errorResponse(copy.errors.noSuchToken),
+				'409': errorResponse(copy.errors.revokesItself)
+			}
+		}
+	};
+}
+
+function uploadFilePath(copy: ApiCopy) {
+	return {
+		post: {
+			tags: [copy.tags.token],
+			operationId: 'uploadFile',
+			summary: copy.endpoints.uploadFile.summary,
+			description: copy.endpoints.uploadFile.description,
+			parameters: [
+				{ name: 'filename', in: 'query', required: false, schema: { type: 'string' } }
+			],
+			requestBody: {
+				required: true,
+				content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } }
+			},
+			responses: {
+				'200': { description: copy.endpoints.uploadFile.summary },
+				'400': errorResponse(copy.errors.badRequest),
+				'401': errorResponse(copy.errors.unauthorized),
+				'403': errorResponse(copy.errors.forbidden),
+				'413': errorResponse(copy.errors.tooLarge)
 			}
 		}
 	};
@@ -351,7 +476,9 @@ function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 
 function createPaths(copy: ApiCopy) {
 	const paths: Record<string, unknown> = {
-		'/tokens': createTokenPath(copy),
+		'/tokens': listTokensPath(copy),
+		'/token': tokenPath(copy),
+		'/files': uploadFilePath(copy),
 		'/agent/messages': agentMessagePath(copy),
 		'/agent/replies': agentRepliesPath(copy),
 		'/tools': listToolsPath(copy),
@@ -367,32 +494,46 @@ function createPaths(copy: ApiCopy) {
 function createComponents(copy: ApiCopy) {
 	return {
 		securitySchemes: {
-			memberToken: { type: 'http', scheme: 'bearer', description: copy.tags.token }
+			memberToken: { type: 'http', scheme: 'bearer', description: copy.description }
 		},
 		schemas: {
 			TokenRequest: {
 				type: 'object',
 				properties: {
-					label: { type: 'string' },
-					scopes: { type: 'array', items: { type: 'string', enum: [...publicAPIPermissions] } }
+					name: { type: 'string', maxLength: 64 },
+					permission: { type: 'string', enum: [...publicAPIPermissions] }
 				}
 			},
 			TokenResponse: {
 				type: 'object',
+				required: ['name', 'permission', 'token'],
 				properties: {
-					token: { type: 'string' },
-					actor: { $ref: '#/components/schemas/ActorContext' },
-					record: {
-						type: 'object',
-						properties: {
-							id: { type: 'string' },
-							label: { type: 'string' },
-							email: { type: 'string', format: 'email' },
-							scopes: { type: 'array', items: { type: 'string' } },
-							createdAt: { type: 'string', format: 'date-time' }
+					name: { type: 'string' },
+					permission: { type: 'string', enum: [...publicAPIPermissions] },
+					token: { type: 'string' }
+				}
+			},
+			TokenList: {
+				type: 'object',
+				required: ['tokens'],
+				properties: {
+					tokens: {
+						type: 'array',
+						items: {
+							type: 'object',
+							required: ['name', 'permission'],
+							properties: {
+								name: { type: 'string' },
+								permission: { type: 'string', enum: [...publicAPIPermissions] }
+							}
 						}
 					}
 				}
+			},
+			TokenRevoked: {
+				type: 'object',
+				required: ['forgotten'],
+				properties: { forgotten: { type: 'string' } }
 			},
 			ActorContext: {
 				type: 'object',
