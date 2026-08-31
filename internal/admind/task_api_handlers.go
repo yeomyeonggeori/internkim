@@ -214,7 +214,7 @@ func (service *Service) createTask(responseWriter http.ResponseWriter, request *
 		return
 	}
 	task = service.applyTaskMattermostProjection(request.Context(), task)
-	service.writeJSON(responseWriter, service.taskAnsweredWithCompanyIdentity(request.Context(), task))
+	service.writeJSON(responseWriter, task)
 }
 
 func defaultTaskBusiness(definitions taskDefinitions) string {
@@ -301,7 +301,7 @@ func (service *Service) updateTask(responseWriter http.ResponseWriter, request *
 		}
 	}
 	task = service.applyTaskMattermostProjection(request.Context(), task)
-	service.writeJSON(responseWriter, service.taskAnsweredWithCompanyIdentity(request.Context(), task))
+	service.writeJSON(responseWriter, task)
 }
 
 func (service *Service) moveTaskOnBoard(responseWriter http.ResponseWriter, request *http.Request) {
@@ -327,7 +327,7 @@ func (service *Service) moveTaskOnBoard(responseWriter http.ResponseWriter, requ
 		return
 	}
 	task = service.applyTaskMattermostProjection(request.Context(), task)
-	service.writeJSON(responseWriter, service.taskAnsweredWithCompanyIdentity(request.Context(), task))
+	service.writeJSON(responseWriter, task)
 }
 
 func taskAnswerSource(service *Service) string {
