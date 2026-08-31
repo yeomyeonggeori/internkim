@@ -10,6 +10,7 @@
 	import TaskTabRow from './task-tab-row.svelte';
 	import TasksView from './tasks-view.svelte';
 	import { fetchTaskState, fetchTaskWeeklySummary, mergeTaskSummary } from './task-api';
+	import { subscribeTaskWrites } from '$lib/task/task-live-refresh';
 	import { createTaskLoadTracker, type TaskLoadOptions } from './task-load-tracker';
 	import { lastSeenTask, rememberTask } from './task-last-seen';
 	import { createTaskReportSections, emptyTaskMetrics } from './task-report-sections-model';
@@ -53,6 +54,7 @@
 		const week = params.get('week') ?? '';
 		pendingTaskID = params.get('task') ?? '';
 		loadTask(week, { reloadState: true });
+		return subscribeTaskWrites(() => { void refreshCurrentWeek(); });
 	});
 
 	async function loadTask(week: string, options: TaskLoadOptions = {}): Promise<boolean> {
