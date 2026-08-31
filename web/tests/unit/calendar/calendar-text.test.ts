@@ -4,7 +4,7 @@ import { calendarText } from '../../../src/routes/calendar/text';
 describe('calendar text', () => {
 	test('separates subscription settings from external account status', () => {
 		expect(calendarText.en.subscriptionSettings).toBe('Subscription settings');
-		expect(calendarText.en.subscriptionReady).toBe('CalDAV/ICS subscription ready');
+		expect(calendarText.en.subscriptionReady).toBe('Subscription URL ready');
 		expect(calendarText.en.settings).toBe('Settings');
 		expect(calendarText.en.externalCalendarAccount).toBe('Connected Google Calendar');
 		expect(calendarText.en.googleCalendarDisconnected).toBe('Not connected');
@@ -63,7 +63,7 @@ describe('calendar text', () => {
 		expect(calendarText.en.googleOAuthClientGuide.javascriptOrigin).toBe('Authorized JavaScript origin');
 		expect(calendarText.en.googleOAuthClientGuide.steps.length).toBe(7);
 		expect(calendarText.ko.subscriptionSettings).toBe('구독 설정');
-		expect(calendarText.ko.subscriptionReady).toBe('CalDAV/ICS 구독 URL 준비됨');
+		expect(calendarText.ko.subscriptionReady).toBe('구독 URL 준비됨');
 		expect(calendarText.ko.settings).toBe('설정');
 		expect(calendarText.ko.externalCalendarAccount).toBe('연결된 Google 캘린더');
 		expect(calendarText.ko.googleCalendarDisconnected).toBe('미연결');
