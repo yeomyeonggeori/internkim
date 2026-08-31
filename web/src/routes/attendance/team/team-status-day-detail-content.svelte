@@ -21,8 +21,8 @@
 	let { text, detail }: Props = $props();
 	const sectionCountBadgeClass = 'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground';
 
-	const taskBusinessFallback = $derived(
-		text.dateLocale === 'ko-KR' ? taskText.ko.task.businessFallback : taskText.en.task.businessFallback
+	const taskEtcLabel = $derived(
+		text.dateLocale === 'ko-KR' ? taskText.ko.task.etcLabel : taskText.en.task.etcLabel
 	);
 
 	function openCalendarEvent(eventID: string): void {
@@ -147,7 +147,7 @@
 						<div data-testid="team-status-completed-task">
 							<TaskBoardCard
 								task={task.task}
-								businessFallback={taskBusinessFallback}
+								etcLabel={taskEtcLabel}
 								openTask={openTask}
 								isDraggable={false}
 							/>

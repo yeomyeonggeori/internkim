@@ -12,7 +12,7 @@
 		isTaskStatusStopped
 	} from './task-status';
 	import { hasTaskRequestProvenance } from './task-options';
-	import { taskBusinessLabel, taskBusinessOptionValue, taskBusinessValueFromOption } from './task-workspace-model';
+	import { taskDefinitionLabel, taskDefinitionOptionValue, taskDefinitionValueFromOption } from './task-workspace-model';
 	import type { TaskEditorOption, TaskEditorText } from './task-editor-types';
 	import type { Task } from './task-types';
 
@@ -40,10 +40,15 @@
 		memberEmail
 	}: Props = $props();
 
-	let businessSelectValue = $derived(taskBusinessOptionValue(taskDraft.business));
+	let businessSelectValue = $derived(taskDefinitionOptionValue(taskDraft.business));
+	let typeSelectValue = $derived(taskDefinitionOptionValue(taskDraft.type));
 
 	function updateBusiness(value: string): void {
-		taskDraft.business = taskBusinessValueFromOption(value);
+		taskDraft.business = taskDefinitionValueFromOption(value);
+	}
+
+	function updateType(value: string): void {
+		taskDraft.type = taskDefinitionValueFromOption(value);
 	}
 
 	function completeWhenEndDatePassed(): void {
@@ -94,7 +99,7 @@
 			{text.business}
 			<Select.Root type="single" value={businessSelectValue} onValueChange={updateBusiness} disabled={!canEditTask}>
 				<Select.Trigger class="w-full">
-					{taskBusinessLabel(taskDraft.business, text.businessFallback)}
+					{taskDefinitionLabel(taskDraft.business, text.etcLabel)}
 				</Select.Trigger>
 				<Select.Content>
 					{#each categoryOptions as option (option.value)}
@@ -106,9 +111,9 @@
 	{/if}
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 		{text.type}
-		<Select.Root type="single" bind:value={taskDraft.type} disabled={!canEditTask}>
+		<Select.Root type="single" value={typeSelectValue} onValueChange={updateType} disabled={!canEditTask}>
 			<Select.Trigger class="w-full">
-				{taskDraft.type || '-'}
+				{taskDefinitionLabel(taskDraft.type, text.etcLabel)}
 			</Select.Trigger>
 			<Select.Content>
 				{#each typeOptions as option (option.value)}

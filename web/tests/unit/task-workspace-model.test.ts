@@ -1,8 +1,9 @@
 // Flow 업무 작업공간 모델의 필터와 권한 규칙을 검증한다.
 import { describe, expect, test } from 'bun:test';
 import {
-	EMPTY_FLOW_BUSINESS_VALUE,
+	ETC_TASK_OPTION_VALUE,
 	buildBusinessFilterOptions,
+	buildTypeSelectOptions,
 	buildTaskTabs,
 	buildMemberFilterOptions,
 	canDeleteTask,
@@ -11,7 +12,10 @@ import {
 	canUpdateTask,
 	defaultParticipantFilterIDs,
 	filterTasks,
-	taskBusinessLabel,
+	normalizedTaskDefinitionValue,
+	taskDefinitionLabel,
+	taskDefinitionOptionValue,
+	taskDefinitionValueFromOption,
 	isDefaultParticipantFilter,
 	sortTaskList
 } from '../../src/routes/task/task-workspace-model';
@@ -36,9 +40,9 @@ describe('flow task workspace model', () => {
 		expect(isDefaultParticipantFilter(['engineer', 'designer'], summary)).toBe(false);
 	});
 
-	test('filters tasks by multiple participants and empty business', () => {
+	test('filters tasks by multiple participants and null business', () => {
 		const tasks = [
-			taskOf({ id: 'task-1', participantIDs: ['engineer'], business: '' }),
+			taskOf({ id: 'task-1', participantIDs: ['engineer'], business: null }),
 			taskOf({ id: 'task-2', participantIDs: ['designer'], business: '샘플거리' }),
 			taskOf({ id: 'task-3', participantIDs: ['engineer', 'designer'], business: '샘플거리' })
 		];
@@ -54,19 +58,52 @@ describe('flow task workspace model', () => {
 			searchText: '',
 			statusFilter: 'all',
 			participantFilterIDs: ['engineer', 'designer'],
-			businessFilter: EMPTY_FLOW_BUSINESS_VALUE,
+			businessFilter: ETC_TASK_OPTION_VALUE,
 			typeFilter: 'all'
 		}).map((task) => task.id)).toEqual(['task-1']);
 	});
 
-	test('labels empty business as 기타 without changing the persisted value', () => {
-		expect(taskBusinessLabel('', '기타')).toBe('기타');
-		expect(taskBusinessLabel('샘플거리', '기타')).toBe('샘플거리');
+	test('filters tasks with a null type through the etc option', () => {
+		const tasks = [
+			taskOf({ id: 'task-1', type: null }),
+			taskOf({ id: 'task-2', type: '기능' })
+		];
+
+		expect(filterTasks(tasks, {
+			searchText: '',
+			statusFilter: 'all',
+			participantFilterIDs: [],
+			businessFilter: 'all',
+			typeFilter: ETC_TASK_OPTION_VALUE
+		}).map((task) => task.id)).toEqual(['task-1']);
+	});
+
+	test('labels a null value with the localized etc label', () => {
+		expect(taskDefinitionLabel(null, 'Etc.')).toBe('Etc.');
+		expect(taskDefinitionLabel('샘플거리', 'Etc.')).toBe('샘플거리');
 		expect(buildBusinessFilterOptions(['샘플거리'], '전체', '기타')).toEqual([
 			{ value: 'all', label: '전체' },
-			{ value: EMPTY_FLOW_BUSINESS_VALUE, label: '기타' },
+			{ value: ETC_TASK_OPTION_VALUE, label: '기타' },
 			{ value: '샘플거리', label: '샘플거리' }
 		]);
+		expect(buildTypeSelectOptions({ categories: [], types: ['기능'], sizes: [] }, 'Etc.')).toEqual([
+			{ value: ETC_TASK_OPTION_VALUE, label: 'Etc.' },
+			{ value: '기능', label: '기능' }
+		]);
+	});
+
+	test('maps the etc select option to a null persisted value', () => {
+		expect(taskDefinitionOptionValue(null)).toBe(ETC_TASK_OPTION_VALUE);
+		expect(taskDefinitionOptionValue('기능')).toBe('기능');
+		expect(taskDefinitionValueFromOption(ETC_TASK_OPTION_VALUE)).toBe(null);
+		expect(taskDefinitionValueFromOption('기능')).toBe('기능');
+	});
+
+	test('normalizes blank incoming values to null', () => {
+		expect(normalizedTaskDefinitionValue('')).toBe(null);
+		expect(normalizedTaskDefinitionValue('  ')).toBe(null);
+		expect(normalizedTaskDefinitionValue(undefined)).toBe(null);
+		expect(normalizedTaskDefinitionValue(' 기능 ')).toBe('기능');
 	});
 
 	test('keeps member profile images in participant filter options', () => {

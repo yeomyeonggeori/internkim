@@ -10,8 +10,8 @@
 		task: Task;
 		text: TaskEditorText;
 		statusLabel: (status: string) => string;
-		businessColor: (business: string) => string;
-		taskTypeColor: (type: string) => string;
+		businessColor: (business: string | null) => string;
+		taskTypeColor: (type: string | null) => string;
 		memberEmail: (memberID: string) => string;
 	};
 

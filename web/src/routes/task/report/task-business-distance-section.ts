@@ -1,3 +1,4 @@
+import { taskDefinitionLabel } from '../task-workspace-model';
 import { taskTeamDistance } from './task-report-distance';
 import { emptyTrend, percentage } from './task-report-section-helpers';
 import type { TaskBusinessDistanceSection, TaskReportCopy, TaskReportDefinitions, TaskReportSectionLabel, TaskReportTask } from './task-report-types';
@@ -17,7 +18,7 @@ export function buildBusinessDistanceSection(input: BuildBusinessDistanceSection
 		const distance = taskTeamDistance(task, input.definitions);
 		if (distance <= 0) continue;
 
-		const business = task.business.trim() || input.copy.fallbackBusiness;
+		const business = taskDefinitionLabel(task.business, input.copy.etcLabel);
 		values.set(business, (values.get(business) ?? 0) + distance);
 	}
 

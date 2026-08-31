@@ -7,7 +7,7 @@ import (
 )
 
 func defaultTaskTypes() []string {
-	return []string{"기능", "개선", "변경", "수정", "기획", "디자인", "마케팅", "운영", "회의", "미팅", "문서", "기타"}
+	return []string{"기능", "개선", "변경", "수정", "기획", "디자인", "마케팅", "운영", "회의", "미팅", "문서"}
 }
 
 func defaultTaskSizeDefinitions() []taskSizeDefinition {

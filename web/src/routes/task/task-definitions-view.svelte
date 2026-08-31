@@ -15,6 +15,7 @@
 		note: string;
 		business: string;
 		businessDescription: string;
+		etcLabel: string;
 		color: string;
 		type: string;
 		typeDescription: string;
@@ -41,6 +42,11 @@
 		typeDrafts: string[];
 		newCategoryText: string;
 		newTypeText: string;
+		etcBusinessColor: string;
+		etcTypeColor: string;
+		setEtcBusinessColor: (color: string) => void;
+		setEtcTypeColor: (color: string) => void;
+		canEditEtcColor: boolean;
 		isAdmin: boolean;
 		canEditDefinitions: boolean;
 		isSavingDefinitions: boolean;
@@ -71,6 +77,11 @@
 		typeDrafts,
 		newCategoryText,
 		newTypeText,
+		etcBusinessColor,
+		etcTypeColor,
+		setEtcBusinessColor,
+		setEtcTypeColor,
+		canEditEtcColor,
 		isAdmin,
 		canEditDefinitions,
 		isSavingDefinitions,
@@ -113,6 +124,10 @@
 				newColor={newCategoryColor}
 				setNewColor={setNewCategoryColor}
 				colorLabel={text.color}
+				etcLabel={text.etcLabel}
+				etcColor={etcBusinessColor}
+				setEtcColor={setEtcBusinessColor}
+				{canEditEtcColor}
 			/>
 			<TaskEditableDefinitionListCard
 				title={text.type}
@@ -132,6 +147,10 @@
 				newColor={newTypeColor}
 				setNewColor={setNewTypeColor}
 				colorLabel={text.color}
+				etcLabel={text.etcLabel}
+				etcColor={etcTypeColor}
+				setEtcColor={setEtcTypeColor}
+				{canEditEtcColor}
 			/>
 		</div>
 		{#if isAdmin}

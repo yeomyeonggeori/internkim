@@ -26,8 +26,8 @@
 		pageTitle: string;
 		text: TaskEditorText;
 		statusLabel: (status: string) => string;
-		businessColor: (business: string) => string;
-		taskTypeColor: (type: string) => string;
+		businessColor: (business: string | null) => string;
+		taskTypeColor: (type: string | null) => string;
 		tasks: Task[];
 		currentMemberID: string;
 		canUseTaskRelationships: boolean;
