@@ -18,6 +18,12 @@ type CatalogTool = {
 
 type EndpointCopy = { summary: string; description: string; idempotency?: string };
 
+type ExampleCopy = {
+	valuesByField: Record<string, unknown>;
+	resultPlaceholder: string;
+	unresolvedHint: string;
+};
+
 type ApiCopy = {
 	title: string;
 	description: string;
@@ -49,6 +55,7 @@ type ApiCopy = {
 		| 'tooLarge',
 		string
 	>;
+	examples: ExampleCopy;
 };
 
 const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
@@ -127,6 +134,22 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			noSuchToken: '그런 이름의 토큰이 없습니다',
 			wrongTokenPath: '토큰 하나를 만들고 폐기하는 곳은 /token 입니다',
 			tooLarge: '파일이 너무 큽니다'
+		},
+		examples: {
+			valuesByField: {
+				title: '3분기 결산 자료 정리',
+				content: '지출 내역을 표로 정리해 주세요',
+				message: '오늘 회의는 15시로 옮깁니다',
+				query: '결산',
+				taskHint: '3분기 결산 자료 정리',
+				eventHint: '주간 회의',
+				personHint: '이샘플',
+				participantPersonHints: ['이샘플', '박예시'],
+				recipientPersonHints: ['이샘플'],
+				channelHint: '전사-공지'
+			},
+			resultPlaceholder: '도구마다 다른 그 도구의 응답',
+			unresolvedHint: '`taskHint`에 맞는 task가 없습니다. 가장 가까운 후보들입니다…'
 		}
 	},
 	en: {
@@ -205,6 +228,22 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			noSuchToken: 'No token of yours goes by that name',
 			wrongTokenPath: 'One token is made and revoked at /token',
 			tooLarge: 'That file is too large'
+		},
+		examples: {
+			valuesByField: {
+				title: 'draft the quarterly report',
+				content: 'summarize the spending into a table',
+				message: "today's meeting moves to 3pm",
+				query: 'quarterly',
+				taskHint: 'draft the quarterly report',
+				eventHint: 'weekly sync',
+				personHint: 'Alex Example',
+				participantPersonHints: ['Alex Example', 'Sam Sample'],
+				recipientPersonHints: ['Alex Example'],
+				channelHint: 'company-announcements'
+			},
+			resultPlaceholder: "the tool's own document",
+			unresolvedHint: 'no task matched `taskHint`, and these are the closest…'
 		}
 	}
 };
@@ -444,11 +483,7 @@ function describeTool(tool: CatalogTool): string {
 	return [tool.description ?? '', '', `${facts.join(' · ')} · v${tool.version}`].join('\n').trim();
 }
 
-const exampleValuesByField: Record<string, unknown> = {
-	title: '3분기 결산 자료 정리',
-	content: '지출 내역을 표로 정리해 주세요',
-	message: '오늘 회의는 15시로 옮깁니다',
-	query: '결산',
+const languageFreeExampleValues: Record<string, unknown> = {
 	scope: 'self',
 	status: 'planned',
 	size: 'M',
@@ -457,19 +492,21 @@ const exampleValuesByField: Record<string, unknown> = {
 	startISO: '2026-09-01T10:00:00+09:00',
 	endISO: '2026-09-01T11:00:00+09:00',
 	limit: 20,
-	taskHint: '3분기 결산 자료 정리',
-	eventHint: '주간 회의',
-	personHint: '이샘플',
-	participantPersonHints: ['이샘플', '박예시'],
-	recipientPersonHints: ['이샘플'],
-	channelHint: '전사-공지',
 	url: 'https://intern.kim/files/example.png',
 	path: 'shared/reports/q3.md',
 	slug: 'q3-report'
 };
 
-function exampleValueOf(name: string, schema: Record<string, unknown>): unknown {
-	if (name in exampleValuesByField) return exampleValuesByField[name];
+function exampleValuesOf(copy: ApiCopy): Record<string, unknown> {
+	return { ...languageFreeExampleValues, ...copy.examples.valuesByField };
+}
+
+function exampleValueOf(
+	name: string,
+	schema: Record<string, unknown>,
+	values: Record<string, unknown>
+): unknown {
+	if (name in values) return values[name];
 	const listed = schema.enum;
 	if (Array.isArray(listed) && listed.length > 0) return listed[0];
 	if (schema.type === 'integer' || schema.type === 'number') return 1;
@@ -480,19 +517,20 @@ function exampleValueOf(name: string, schema: Record<string, unknown>): unknown 
 
 // The example carries the required fields plus the ones a first call usually
 // wants, so it runs as pasted instead of teasing with placeholders.
-function exampleInputOf(tool: CatalogTool): Record<string, unknown> {
+function exampleInputOf(tool: CatalogTool, copy: ApiCopy): Record<string, unknown> {
 	const schema = (tool.inputSchema ?? {}) as {
 		required?: string[];
 		properties?: Record<string, Record<string, unknown>>;
 	};
 	const properties = schema.properties ?? {};
+	const values = exampleValuesOf(copy);
 	const chosen = new Set(schema.required ?? []);
 	for (const name of Object.keys(properties)) {
-		if (name in exampleValuesByField && chosen.size < 4) chosen.add(name);
+		if (name in values && chosen.size < 4) chosen.add(name);
 	}
 	const example: Record<string, unknown> = {};
 	for (const name of chosen) {
-		example[name] = exampleValueOf(name, properties[name] ?? {});
+		example[name] = exampleValueOf(name, properties[name] ?? {}, values);
 	}
 	return example;
 }
@@ -501,7 +539,7 @@ function inputSchemaNameOf(tool: CatalogTool): string {
 	return tool.name.replace(/(^|_)([a-z])/g, (_match, _gap, letter) => letter.toUpperCase()) + 'Input';
 }
 
-function successExampleOf(tool: CatalogTool): Record<string, unknown> {
+function successExampleOf(tool: CatalogTool, copy: ApiCopy): Record<string, unknown> {
 	return {
 		toolName: tool.name,
 		outcome: 'succeeded',
@@ -509,20 +547,24 @@ function successExampleOf(tool: CatalogTool): Record<string, unknown> {
 		...(tool.sideEffectClass && tool.sideEffectClass !== 'read'
 			? { effects: [{ objectType: tool.namespace, effect: 'created', id: '7a93de11-…' }] }
 			: {}),
-		result: { '…': "the tool's own document" }
+		result: { '…': copy.examples.resultPlaceholder }
 	};
 }
 
-const failureExample = {
-	toolName: 'task_update',
-	outcome: 'failed',
-	selectedBackend: 'device',
-	message: 'no task matched taskHint, and these are the closest…',
-	errorCode: 'task_hint_unresolved',
-	failureStage: 'target_resolution',
-	retryable: true,
-	result: { candidates: [{ taskID: '7a93de11-…', content: '3분기 결산 자료 정리' }] }
-};
+function failureExampleOf(copy: ApiCopy) {
+	return {
+		toolName: 'task_update',
+		outcome: 'failed',
+		selectedBackend: 'device',
+		message: copy.examples.unresolvedHint,
+		errorCode: 'task_hint_unresolved',
+		failureStage: 'target_resolution',
+		retryable: true,
+		result: {
+			candidates: [{ taskID: '7a93de11-…', content: copy.examples.valuesByField.title }]
+		}
+	};
+}
 
 function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 	return {
@@ -545,7 +587,7 @@ function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 									: {})
 							}
 						},
-						example: { input: exampleInputOf(tool) }
+						example: { input: exampleInputOf(tool, copy) }
 					}
 				}
 			},
@@ -556,8 +598,8 @@ function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 						'application/json': {
 							schema: { $ref: '#/components/schemas/ToolInvokeResponse' },
 							examples: {
-								succeeded: { value: successExampleOf(tool) },
-								failed: { value: failureExample }
+								succeeded: { value: successExampleOf(tool, copy) },
+								failed: { value: failureExampleOf(copy) }
 							}
 						}
 					}
