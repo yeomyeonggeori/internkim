@@ -51,7 +51,7 @@ test.describe('calendar localization', () => {
 		await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 		await expect(page.getByText('Connected Google Calendar', { exact: true })).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Connect' })).toBeHidden();
-		await expect(page.getByText('CalDAV/ICS subscription ready')).toBeVisible();
+		await expect(page.getByText('Subscription URL ready')).toBeVisible();
 		await page.keyboard.press('Escape');
 		await expect(page.getByRole('heading', { name: 'Settings' })).toBeHidden();
 
