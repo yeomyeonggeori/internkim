@@ -16,6 +16,21 @@ export function supabaseWorkStatusTimeRange(
 	};
 }
 
+export function companyMonthTimeRange(
+	month: string,
+	timeZone: string
+): SupabaseWorkStatusTimeRange {
+	const [year, monthNumber] = month.split('-').map(Number);
+	if (!Number.isInteger(year) || !Number.isInteger(monthNumber) || monthNumber < 1 || monthNumber > 12) {
+		throw new Error(`invalid company month: ${month}`);
+	}
+	const firstDayOfNextMonth = new Date(Date.UTC(year, monthNumber, 1)).toISOString().slice(0, 10);
+	return {
+		from: companyTimeInstant(`${month}-01`, '00:00', timeZone),
+		until: companyTimeInstant(firstDayOfNextMonth, '00:00', timeZone)
+	};
+}
+
 export function shiftedDay(day: string, days: number): string {
 	const moved = new Date(`${day}T00:00:00Z`);
 	moved.setUTCDate(moved.getUTCDate() + days);
