@@ -41,20 +41,22 @@ a passkey or a Google account. The schema is the directory of migrations at
 
 Alongside it, three more things we run:
 
-- a static web app people sign into (`web/`)
+- a web app (`web/`): the pages people sign into, and the HTTP API those same
+  pages are backed by, which anything holding a token can call
 - a handful of server routes holding the one key that can bypass row level
   security (`web/src/routes/api/agent/`) — they issue what a member cannot
   issue alone: a session for an agent, a session for a host
 - a small Cloudflare Worker (`workers/connection-gateway/`) that passes calls
-  between a browser and the company's computer, since neither can connect to
-  the other directly
+  to the company's computer, from a browser or from the API, since neither end
+  can connect to the other directly
 
 This documentation names those separately, because they behave differently
 even though they deploy together. See the [glossary](/docs/glossary).
 
 The Supabase project can be a hosted one or your own. The schema is a
-directory of migrations, the app is a static build, and which project the app
-talks to is configuration read at runtime. Self-hosted Supabase ships the same
+directory of migrations, the app is one build, and which project the app talks
+to is configuration read at runtime. Hosting the app is also how a company
+hosts the API. Self-hosted Supabase ships the same
 Postgres, the same row level security, and the vault extension the schema
 uses.
 

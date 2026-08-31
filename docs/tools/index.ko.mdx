@@ -80,8 +80,9 @@ description: 에이전트가 부를 수 있는 것들, 각 호출의 대가, 그
 [컴패니언](/ko/docs/introduction)이 연결되어 있을 때 사용자 자기 컴퓨터로
 라우팅되고, `browser_open`은 사람이 자리에 있어야 합니다. 설정된
 [MCP](https://modelcontextprotocol.io) 서버의 도구도 같은 레지스트리에
-올라와 같은 게이트를 받습니다. 지금 이 토큰으로 무엇이 있는지는
-`GET /api/v1/tools`가 답합니다.
+올라와 같은 게이트를 받습니다. 이 토큰이 닿는 기본 집합은
+`GET /api/v1/tools`가 답하고, 지금 무엇을 실행할 수 있는지는 `?live=true`로
+회사 컴퓨터에 묻습니다.
 
 ## 어디에 구현되어 있나 [#implementation]
 
