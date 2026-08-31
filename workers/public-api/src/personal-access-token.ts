@@ -3,6 +3,8 @@ export type CallerPermission = 'read' | 'write' | 'delete';
 export type Caller = {
 	email: string;
 	companyID: string;
+	memberID: string;
+	tokenName: string;
 	permission: CallerPermission;
 };
 
@@ -13,7 +15,7 @@ export type ControlPlaneCredentials = {
 
 export type FetchDocument = (
 	url: string,
-	options?: { headers?: Record<string, string> }
+	options?: { method?: string; headers?: Record<string, string>; body?: string }
 ) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
 
 export class RecordRefused extends Error {
@@ -39,8 +41,9 @@ async function hashOf(secret: string): Promise<string> {
 }
 
 type CredentialRow = {
+	name?: unknown;
 	permission?: unknown;
-	member?: { email?: unknown; company_id?: unknown } | null;
+	member?: { id?: unknown; email?: unknown; company_id?: unknown } | null;
 };
 
 export function permissionNamed(offered: unknown): CallerPermission {
@@ -51,12 +54,15 @@ export function permissionNamed(offered: unknown): CallerPermission {
 function callerOfRow(row: CredentialRow): Caller | null {
 	const member = row.member;
 	if (typeof member !== 'object' || member === null) return null;
-	const { email, company_id: companyID } = member;
+	const { id: memberID, email, company_id: companyID } = member;
 	if (typeof email !== 'string' || email.trim() === '') return null;
 	if (typeof companyID !== 'string' || companyID.trim() === '') return null;
+	if (typeof memberID !== 'string' || memberID.trim() === '') return null;
 	return {
 		email: email.trim().toLowerCase(),
 		companyID,
+		memberID,
+		tokenName: typeof row.name === 'string' ? row.name : '',
 		permission: permissionNamed(row.permission)
 	};
 }
@@ -70,7 +76,7 @@ export async function callerOfPersonalAccessToken(
 	const query = new URLSearchParams({
 		kind: `eq.${personalAccessTokenKind}`,
 		external_id: `eq.${await hashOf(presented)}`,
-		select: `${permissionColumn},member(email,company_id)`
+		select: `name,${permissionColumn},member(id,email,company_id)`
 	});
 	const response = await fetchDocument(
 		`${credentials.projectURL.replace(/\/+$/, '')}/rest/v1/credential?${query.toString()}`,
@@ -85,6 +91,97 @@ export async function callerOfPersonalAccessToken(
 	const rows = (await response.json()) as CredentialRow[];
 	if (!Array.isArray(rows) || rows.length !== 1) return null;
 	return callerOfRow(rows[0]);
+}
+
+export type TokenSummary = { name: string; permission: CallerPermission };
+
+const permissionRungs: CallerPermission[] = ['read', 'write', 'delete'];
+
+export function reachesRung(held: CallerPermission, asked: CallerPermission): boolean {
+	return permissionRungs.indexOf(asked) <= permissionRungs.indexOf(held);
+}
+
+function recordHeaders(credentials: ControlPlaneCredentials, extra: Record<string, string> = {}) {
+	return {
+		apikey: credentials.serviceRoleKey,
+		Authorization: `Bearer ${credentials.serviceRoleKey}`,
+		...extra
+	};
+}
+
+function recordURL(credentials: ControlPlaneCredentials, query: URLSearchParams): string {
+	return `${credentials.projectURL.replace(/\/+$/, '')}/rest/v1/credential?${query.toString()}`;
+}
+
+function mineQuery(memberID: string, extra: Record<string, string> = {}): URLSearchParams {
+	return new URLSearchParams({
+		member_id: `eq.${memberID}`,
+		kind: `eq.${personalAccessTokenKind}`,
+		...extra
+	});
+}
+
+function mintedToken(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(32));
+	return personalAccessTokenPrefix + [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function tokensOfMember(
+	credentials: ControlPlaneCredentials,
+	memberID: string,
+	fetchDocument: FetchDocument = fetchThroughTheRuntime
+): Promise<TokenSummary[]> {
+	const query = mineQuery(memberID, { select: `name,${permissionColumn}`, order: 'name' });
+	const response = await fetchDocument(recordURL(credentials, query), { headers: recordHeaders(credentials) });
+	if (!response.ok) throw new RecordRefused(`the record answered ${response.status} for this member's tokens`);
+	const rows = (await response.json()) as { name?: unknown; permission?: unknown }[];
+	if (!Array.isArray(rows)) return [];
+	return rows
+		.filter((row) => typeof row.name === 'string')
+		.map((row) => ({ name: row.name as string, permission: permissionNamed(row.permission) }));
+}
+
+export async function issueToken(
+	credentials: ControlPlaneCredentials,
+	memberID: string,
+	name: string,
+	permission: CallerPermission,
+	fetchDocument: FetchDocument = fetchThroughTheRuntime
+): Promise<string> {
+	const token = mintedToken();
+	const query = new URLSearchParams({ on_conflict: 'member_id,kind,name' });
+	const response = await fetchDocument(recordURL(credentials, query), {
+		method: 'POST',
+		headers: recordHeaders(credentials, {
+			'Content-Type': 'application/json',
+			Prefer: 'resolution=merge-duplicates'
+		}),
+		body: JSON.stringify({
+			member_id: memberID,
+			kind: personalAccessTokenKind,
+			name,
+			external_id: await hashOf(token),
+			permission
+		})
+	});
+	if (!response.ok) throw new RecordRefused(`the record answered ${response.status} making the token ${name}`);
+	return token;
+}
+
+export async function revokeToken(
+	credentials: ControlPlaneCredentials,
+	memberID: string,
+	name: string,
+	fetchDocument: FetchDocument = fetchThroughTheRuntime
+): Promise<boolean> {
+	const query = mineQuery(memberID, { name: `eq.${name}`, select: 'name' });
+	const response = await fetchDocument(recordURL(credentials, query), {
+		method: 'DELETE',
+		headers: recordHeaders(credentials, { Prefer: 'return=representation' })
+	});
+	if (!response.ok) throw new RecordRefused(`the record answered ${response.status} revoking the token ${name}`);
+	const rows = (await response.json()) as unknown;
+	return Array.isArray(rows) && rows.length > 0;
 }
 
 export const keyCacheSeconds = 60;
