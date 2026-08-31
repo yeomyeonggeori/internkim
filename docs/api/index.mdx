@@ -41,6 +41,8 @@ curl -X POST https://api.intern.kim/v1/tokens \
 `token` is answered once and only its SHA-256 hash is kept, so a lost token is
 replaced rather than recovered. `permission` defaults to the rung the calling
 token holds, and a token may never mint one that reaches further than itself.
+`name` may be left out, and the token is called `pat-1`, `pat-2`, and so on by
+the first ordinal the member does not already hold.
 
 `GET /v1/tokens` lists the names and rungs the member holds. `DELETE
 /v1/tokens?name=<name>` revokes one.
