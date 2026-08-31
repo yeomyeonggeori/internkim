@@ -13,9 +13,13 @@ const generatedDirectory = fileURLToPath(new URL('../app/generated', import.meta
 
 const namespaceByTool = new Map(baseTools().map((tool) => [tool.name, tool.namespace]));
 
+// One token and the list of them are the same subject to a reader, so they read
+// as one group however the paths divide them.
+const groupByResource: Record<string, string> = { token: 'tokens' };
+
 function groupOf(item: OperationItem): string {
   const [, resource, toolName] = item.path.split('/');
-  if (resource !== 'tools') return resource ?? 'other';
+  if (resource !== 'tools') return groupByResource[resource ?? ''] ?? resource ?? 'other';
   return namespaceByTool.get(toolName ?? '') ?? 'discovery';
 }
 

@@ -465,6 +465,11 @@ and delete the duplicates.
   device paths stay under test; without it a local `web/.env` leaks in and the
   suites silently exercise the wrong branch.
 
+- The OpenAPI document is the public API's contract, generated in
+  `web/src/lib/server/openapi.ts` and served to both the reference site and the
+  docs build. Tool paths come from the catalog; the gateway paths are written by
+  hand, so `workers/public-api/src/openapi-conformance.test.ts` holds them to
+  what the worker answers. An endpoint added to the worker is added there too.
 - Every public API endpoint has a smoke check. `bun tools/smoke-public-api`
   runs the worker in-process against the local control plane and the fixture
   company `supabase db reset` seeds, so it costs nothing: no model, no

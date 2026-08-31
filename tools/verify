@@ -75,9 +75,24 @@ GROUPS = [
     ),
     Group(
         "public-api",
-        ["workers/public-api/*", "pkg/capabilityprotocol/generated/*", "host/relay/asset-store.ts"],
+        [
+            "workers/public-api/*",
+            "pkg/capabilityprotocol/generated/*",
+            "host/relay/asset-store.ts",
+            "web/src/lib/server/openapi.ts",
+        ],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
         working_directory="workers/public-api",
+    ),
+    Group(
+        "public-api-smoke",
+        [
+            "workers/public-api/*",
+            "pkg/capabilityprotocol/generated/*",
+            "web/src/lib/server/openapi.ts",
+            "tools/smoke-public-api",
+        ],
+        [["bun", "tools/smoke-public-api"]],
     ),
     Group(
         "schema",
