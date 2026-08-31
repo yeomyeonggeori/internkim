@@ -2,6 +2,7 @@ export type CallerIdentity = {
 	accountID: string;
 	memberID: string;
 	companyID: string;
+	email: string;
 };
 
 export type TokenClaims = {
@@ -114,24 +115,29 @@ export async function verifyToken(
 	return claimsOf(decodeSegment(payloadSegment), expectedIssuer, nowSeconds);
 }
 
-type MemberRow = { id: string; company_id: string };
+type MemberRow = { id: string; company_id: string; email: string | null };
 
 // The member row is read with the caller's own token, so row level security is
 // what decides the answer; the gateway holds no key that could read another
 // company's rows.
 export async function resolveMember(
 	supabaseURL: string,
-	publishableKey: string,
+	apiKey: string,
 	token: string,
 	accountID: string,
 	fetchDocument: FetchDocument = fetchThroughTheRuntime
 ): Promise<CallerIdentity> {
-	const url = `${supabaseURL.replace(/\/+$/, '')}/rest/v1/member?user_id=eq.${encodeURIComponent(accountID)}&select=id,company_id`;
+	const url = `${supabaseURL.replace(/\/+$/, '')}/rest/v1/member?user_id=eq.${encodeURIComponent(accountID)}&select=id,company_id,email`;
 	const response = await fetchDocument(url, {
-		headers: { apikey: publishableKey, Authorization: `Bearer ${token}` }
+		headers: { apikey: apiKey, Authorization: `Bearer ${token}` }
 	});
 	if (!response.ok) throw new TokenRefused(`the record answered ${response.status} for this account`);
 	const rows = (await response.json()) as MemberRow[];
 	if (!Array.isArray(rows) || rows.length !== 1) throw new TokenRefused('this account belongs to no company');
-	return { accountID, memberID: rows[0].id, companyID: rows[0].company_id };
+	return {
+		accountID,
+		memberID: rows[0].id,
+		companyID: rows[0].company_id,
+		email: (rows[0].email ?? '').trim().toLowerCase()
+	};
 }

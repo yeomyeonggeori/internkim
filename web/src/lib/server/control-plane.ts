@@ -1,9 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import {
-	fullPublicAPIPermission,
-	publicAPIPermissionOf,
-	type PublicAPIPermission,
-} from '$lib/public-api-permission';
+import { publicAPIPermissionOf, type PublicAPIPermission } from '$lib/public-api-permission';
 import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
 
 export type ControlPlaneCredentials = {
@@ -309,74 +305,12 @@ function storedTokenPermission(stored: unknown): PublicAPIPermission {
 	return permission;
 }
 
-export type PersonalAccessToken = {
-	name: string;
-	permission: PublicAPIPermission;
-};
-
 export type PersonalAccessTokenSession = MemberSession & {
 	permission: PublicAPIPermission;
 };
 
 export function isPersonalAccessToken(presented: string): boolean {
 	return presented.startsWith(personalAccessTokenPrefix);
-}
-
-export async function issuePersonalAccessToken(
-	client: SupabaseClient,
-	memberID: string,
-	name: string,
-	permission: PublicAPIPermission = fullPublicAPIPermission,
-): Promise<string> {
-	const apiKey =
-		personalAccessTokenPrefix +
-		[...crypto.getRandomValues(new Uint8Array(32))]
-			.map((byte) => byte.toString(16).padStart(2, '0'))
-			.join('');
-	const { error } = await client
-		.from('credential')
-		.upsert(
-			{
-				member_id: memberID,
-				kind: personalAccessTokenKind,
-				name,
-				external_id: await hashOf(apiKey),
-				permission,
-			},
-			{ onConflict: 'member_id,kind,name' },
-		);
-	if (error) throw new Error(`personal access token ${name}: ${error.message}`);
-	return apiKey;
-}
-
-export async function personalAccessTokens(client: SupabaseClient, memberID: string): Promise<PersonalAccessToken[]> {
-	const { data, error } = await client
-		.from('credential')
-		.select('name, permission')
-		.eq('member_id', memberID)
-		.eq('kind', personalAccessTokenKind)
-		.order('name');
-	if (error) throw new Error(`personal access tokens: ${error.message}`);
-	return (data ?? []).map((row) => ({
-		name: row.name as string,
-		permission: storedTokenPermission(row.permission),
-	}));
-}
-
-export async function forgetPersonalAccessToken(
-	client: SupabaseClient,
-	memberID: string,
-	name: string,
-): Promise<boolean> {
-	const { data, error } = await client
-		.from('credential')
-		.delete()
-		.eq('member_id', memberID)
-		.eq('kind', personalAccessTokenKind)
-		.eq('name', name)
-		.select('name');
-	if (error) throw new Error(`personal access token ${name}: ${error.message}`);
-	return (data ?? []).length > 0;
 }
 
 // The caller of a personal access token is the member it belongs to, so this issues that
