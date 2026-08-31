@@ -4,6 +4,8 @@ import { eventAdd, eventDelete, eventList, eventUpdate } from './event-tools';
 import { HintUnresolved } from './people';
 import { LabelUnresolved } from './labels';
 import { NothingMatchesTheHint, RecordRefusedTheWrite } from './tasks';
+import { NoSuchLeave, NoSuchLeaveKind } from './leave';
+import { leaveBalance, leaveDecide, leaveList, leaveRequest } from './leave-tools';
 import { personList, taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
 
 type ToolInput = Record<string, unknown>;
@@ -20,7 +22,11 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	event_update: (context, input) => eventUpdate(context, input),
 	event_list: (context, input) => eventList(context, input),
 	event_delete: (context, input) => eventDelete(context, input),
-	person_list: (context) => personList(context)
+	person_list: (context) => personList(context),
+	leave_list: (context, input) => leaveList(context, input),
+	leave_balance: (context, input) => leaveBalance(context, input),
+	leave_request: (context, input) => leaveRequest(context, input),
+	leave_decide: (context, input) => leaveDecide(context, input)
 };
 
 export function recordRunsTheTool(name: string): boolean {
@@ -57,6 +63,12 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
 	}
 	if (refusal instanceof LabelUnresolved) {
+		return { status: 409, body: { error: refusal.message, registered: refusal.registered } };
+	}
+	if (refusal instanceof NoSuchLeave) {
+		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
+	}
+	if (refusal instanceof NoSuchLeaveKind) {
 		return { status: 409, body: { error: refusal.message, registered: refusal.registered } };
 	}
 	if (refusal instanceof RecordRefusedTheWrite) {
