@@ -271,6 +271,9 @@ func newOperationsAdminAuthorizationTestService(t *testing.T) *Service {
 		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
 			return jsonResponse(http.StatusOK, `{"users":["operator@example.com","admin@example.com"],"records":[{"email":"operator@example.com","role":"operationsAdmin"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		}
+		if strings.Contains(request.URL.Path, "/api/agent/key") {
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
