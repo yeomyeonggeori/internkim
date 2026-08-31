@@ -42,24 +42,6 @@ ensure_workspace_directory() {
 
 prepare_blueclaw_workspace() {
   local workspaceDirectory
-  # The circle everyone belongs to was called staff until internkim#507. A
-  # workspace written before that still holds its files, and the group that owns
-  # them is renamed rather than recreated: a new group is a new GID, and every
-  # file it owns stops being readable by the people who own it.
-  if [ -d /workspace/circles/staff ] && [ ! -d /workspace/circles/member ]; then
-    mv /workspace/circles/staff /workspace/circles/member
-  elif [ -d /workspace/circles/staff ]; then
-    cp -a /workspace/circles/staff/. /workspace/circles/member/ 2>/dev/null || true
-    rm -rf /workspace/circles/staff
-  fi
-  if getent group bc_circle_staff >/dev/null 2>&1; then
-    if getent group bc_circle_member >/dev/null 2>&1; then
-      groupdel bc_circle_staff 2>/dev/null || true
-    else
-      groupmod -n bc_circle_member bc_circle_staff
-    fi
-  fi
-
   for workspaceDirectory in \
     /workspace/.blueclaw/postgres/data \
     /workspace/.blueclaw/graphiti \
