@@ -84,6 +84,16 @@ describe('the document is usable as OpenAPI', () => {
 		expect(Object.keys(korean.paths).sort()).toEqual(Object.keys(english.paths).sort());
 	});
 
+	test('each language shows examples written in that language', () => {
+		const hangul = /[\uAC00-\uD7A3]/;
+		const koreanTaskAdd = JSON.stringify(korean.paths['/tools/task_add/invoke']);
+		const englishTaskAdd = JSON.stringify(english.paths['/tools/task_add/invoke']);
+
+		expect(hangul.test(koreanTaskAdd)).toBe(true);
+		expect(hangul.test(JSON.stringify(english))).toBe(false);
+		expect(englishTaskAdd).toContain('draft the quarterly report');
+	});
+
 	test('every referenced schema exists', () => {
 		const defined = Object.keys(english.components.schemas);
 
