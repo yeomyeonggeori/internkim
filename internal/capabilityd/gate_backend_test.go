@@ -94,6 +94,7 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 			configuration.BlueclawBaseURL = servedOnLoopback(t, standIn.handler(t))
 		case mattermostOverHTTP:
 			configuration.MattermostBaseURL = servedOnLoopback(t, standIn.handler(t))
+			configuration.MattermostTokenPath = keyFileHolding(t, "mattermost-bot-token")
 		case companionOverHTTP:
 			configuration.CompanionBaseURL = servedOnLoopback(t, standIn.handler(t))
 		case openRouterOverHTTP:
@@ -137,6 +138,10 @@ func servedOnASocket(t *testing.T, handler http.Handler) string {
 	return socketPath
 }
 
+// A stand-in answers as the thing itself, and reaching the thing itself takes a
+// credential, so the credential comes with the address rather than being a
+// separate arrangement in every case.
+//
 // An address the case did not name still has to go somewhere, and going
 // somewhere that fails the test is how a tool reaching past its declaration is
 // caught rather than quietly answered.
