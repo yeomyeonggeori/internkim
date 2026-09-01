@@ -32,6 +32,7 @@ export type ACompanyPlane = {
 	people: { email: string; name: string; memberID: string }[];
 	agentAPIKey: string;
 	admindURL: string;
+	blueclawURL: string;
 	requesterSocketPath: string;
 	connector: ARecordingMessenger;
 	messenger: ARecordingMessenger;
@@ -272,26 +273,14 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// runtime document proves nothing about the one a company runs on.
 		const runtimeConfigurationPath = join(runDirectory, 'runtime.json');
 		const policyPath = join(runDirectory, 'policy.json');
-		// The people the company knows, written the way admind's roster reconcile
-		// writes them. The reconcile itself is not exercised here: it goes out through
-		// the app, whose dev emulator answers SQLITE_BUSY to concurrent callers, and a
-		// scenario about which messenger a message leaves on should not also be a
-		// scenario about roster reconciliation. What this sandbox therefore does NOT
-		// prove is that a company's roster reaches the policy on a real box.
+		// blueclaw starts with nobody in it, exactly as host/entrypoint.sh writes it
+		// when no policy is mounted. Who works here arrives the way it arrives on a
+		// real box: admind reads the company's roster and reconciles it on.
 		writeFileSync(
 			policyPath,
-			JSON.stringify({
-				people: [
-					{ personID: company.adminMemberID, name: '이샘플', emails: [`sample-${runIdentifier}@example.test`] },
-					{ personID: colleagueID, name: '박예시', emails: [colleagueEmail] }
-				],
-				circles: [],
-				circleSync: {},
-				resourceAccess: [],
-				channels: [],
-				retention: {}
-			}) + '\n'
+			'{"people":[],"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n'
 		);
+
 		const render = Bun.spawnSync(
 			[
 				join(repositoryRoot, 'tools', 'render-company-runtime'),
@@ -383,10 +372,18 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			return answer?.ok ?? false;
 		});
 
+		// admind reconciles the company's roster onto blueclaw as it starts, which is
+		// why it starts after it. Nobody here is written by hand: they arrive the way
+		// they arrive on a real box.
+		await untilReady('the company roster on blueclaw', async () => {
+			const policy = await fetch(`${blueclawURL}/admin/api/policy`)
+				.then((answer) => (answer.ok ? (answer.json() as Promise<{ people?: unknown[] }>) : null))
+				.catch(() => null);
+			return (policy?.people?.length ?? 0) >= 2;
+		}, 60);
+
 		// A plane is not up when its processes are: it is up when it can say who works
-		// here. admind asks the company that through the app, and the app's dev
-		// emulator drops its isolate under the burst of calls admind makes as it
-		// starts — so this waits for the answer rather than for the port.
+		// here.
 		await untilReady('the company directory', async () => {
 			const answer = await fetch(`${admindURL}/admin/api/directory/people`).catch(() => null);
 			if (!answer?.ok) return false;
@@ -405,6 +402,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			],
 			agentAPIKey: agent.apiKey,
 			admindURL,
+			blueclawURL,
 			requesterSocketPath,
 			connector,
 			messenger,

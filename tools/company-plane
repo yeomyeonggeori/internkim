@@ -25,11 +25,12 @@ eval "$(supabase status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY|D
 # the plane asks it.
 say "the company app"
 appPort="${COMPANY_PLANE_APP_PORT:-5183}"
-# The app emulates its KV in SQLite under web/.wrangler, and a run that was
-# interrupted leaves a journal the next one cannot recover: every concurrent
-# call then answers 500 with SQLITE_BUSY_RECOVERY, which reaches the plane as a
-# company that will not say who works there. The emulator's cache is not state
-# any gate should inherit, so each run starts without one.
+# The emulator's cache is not state a gate should inherit, so each run starts
+# without one. This is hygiene, not the fix for the SQLITE_BUSY this used to
+# hit: that was concurrent callers each booting their own emulator over the same
+# database, because adapter-cloudflare caches the resolved proxy rather than the
+# promise (index.js:211). start-local-fleet-central-plane closes that window by
+# waiting on a path the app answers itself.
 rm -rf "$repositoryRoot/web/.wrangler/state"
 "$repositoryRoot/tools/start-local-fleet-central-plane" \
   --state-root "$repositoryRoot/.local/company-plane" \

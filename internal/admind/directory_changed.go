@@ -11,6 +11,11 @@ import (
 func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWriter, request *http.Request) {
 	log.Printf("the company says its directory changed, so this device reads it again")
 	service.triggerUsersSync(request.Context())
+	// The roster is what decides who may act at all, and it was the one thing this
+	// door did not read again: somebody invited and asking a question in the same
+	// minute was told they are not an active member until the two-minute pass came
+	// round.
+	service.reconcileBlueclawRosterWithTimeout(request.Context())
 	recording := service.recordBuzzCredentials(request.Context())
 	log.Printf("buzz credentials after the directory changed: %s", recording)
 	service.forgetProfilesOfWhoeverLeft(request.Context())
