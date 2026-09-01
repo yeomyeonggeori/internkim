@@ -6,9 +6,8 @@ import type { CompanyCallTransport } from '../../src/lib/server/public-api/compa
 const environment = {
 	GATEWAY_URL: 'wss://gateway.example.test',
 	GATEWAY_ADMIN_TOKEN: 'an-admin-token',
-	VAPID_PUBLIC_KEY: 'BG0w6CuCogoJKa593BzjeAk_VAOmSYtz4Crk7OBQPEYa3_peOcMJEln_GG6LyW-0nl82LPHDClzU8_0nB4Z5dcs',
-	VAPID_PRIVATE_KEY: 'NNK7ZJuRBBHnpKs9X0R0aM4Tff6BaVUfPwmnYTdPuWA',
-	VAPID_SUBJECT: 'mailto:support@example.com'
+	SUPABASE_URL: 'https://ours.supabase.co',
+	SUPABASE_SECRET_KEY: 'a-service-key'
 };
 
 const telling: Telling = {
@@ -18,132 +17,172 @@ const telling: Telling = {
 	body: '이샘플님의 연차 신청이 기다립니다'
 };
 
+const tellMemberURL = 'https://ours.supabase.co/functions/v1/tell-member';
+
 type MemberRow = { company_id: string | null; email: string | null };
 
-function recordWhere(options: { member?: MemberRow | null; settingsFailure?: string; reads?: string[] }): SupabaseClient {
-	const reads = options.reads ?? [];
+function recordWhere(member: MemberRow | null): SupabaseClient {
 	return {
-		from(table: string) {
-			if (table === 'member') {
-				return {
-					select: (columns: string) => {
-						reads.push(columns);
-						return {
-							eq: () => ({
-								maybeSingle: async () => {
-									if (columns !== 'notification_settings') {
-										return { data: options.member ?? null, error: null };
-									}
-									if (options.settingsFailure) return { data: null, error: { message: options.settingsFailure } };
-									return { data: { notification_settings: null }, error: null };
-								}
-							})
-						};
-					}
-				};
-			}
-			return {
-				select: () => ({ eq: () => ({ eq: () => ({ returns: async () => ({ data: [], error: null }) }) }) }),
-				delete: () => ({ eq: async () => ({ error: null }) })
-			};
-		}
+		from: () => ({
+			select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: member, error: null }) }) })
+		})
 	} as unknown as SupabaseClient;
 }
 
-type CompanyCallRecord = { url: string; capability: string; body: Record<string, unknown> };
+type Sent = { url: string; authorization: string; body: Record<string, unknown> };
 
-function transportAnswering(status: number, calls: CompanyCallRecord[]): CompanyCallTransport {
+type Answers = { push?: { status: number; reached?: number; error?: string }; gateway?: number };
+
+function transportRecording(sent: Sent[], answers: Answers = {}): CompanyCallTransport {
 	return async (url, options) => {
-		const sent = JSON.parse(options.body) as { capability: string; body: Record<string, unknown> };
-		calls.push({ url, capability: sent.capability, body: sent.body });
+		const authorization = (options.headers as Record<string, string>)?.Authorization ?? '';
+		const body = JSON.parse(options.body) as Record<string, unknown>;
+		sent.push({ url, authorization, body });
+
+		if (url === tellMemberURL) {
+			const push = answers.push ?? { status: 200, reached: 0 };
+			const said = push.error ? { error: push.error } : { reached: push.reached ?? 0, pruned: 0 };
+			return { status: push.status, json: async () => said };
+		}
+		const status = answers.gateway ?? 200;
 		return { status: 200, json: async () => ({ status, body: { delivered: status < 300 } }) };
 	};
 }
 
+function pushesOf(sent: Sent[]): Sent[] {
+	return sent.filter((one) => one.url === tellMemberURL);
+}
+
+function gatewayCallsOf(sent: Sent[]): Sent[] {
+	return sent.filter((one) => one.url !== tellMemberURL);
+}
+
 describe('tell', () => {
 	test('asks the company to write the person a direct message, naming their address', async () => {
-		const calls: CompanyCallRecord[] = [];
-		const record = recordWhere({ member: { company_id: 'company-1', email: 'sample@example.test' } });
+		const sent: Sent[] = [];
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
 
-		const told = await tell(environment, telling, record, transportAnswering(200, calls));
+		const told = await tell(environment, telling, record, transportRecording(sent));
 
 		expect(told.messaged).toBe(true);
 		expect(told.failure).toBeUndefined();
+
+		const calls = gatewayCallsOf(sent);
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.url).toBe('https://gateway.example.test/company/company-1/call');
-		expect(calls[0]?.capability).toBe(tellCapability);
-		expect(calls[0]?.body).toEqual({
+		expect((calls[0]?.body as { capability?: string }).capability).toBe(tellCapability);
+		expect((calls[0]?.body as { body?: unknown }).body).toEqual({
 			recipientEmail: 'sample@example.test',
 			message: '결재 요청\n이샘플님의 연차 신청이 기다립니다'
 		});
 	});
 
-	test('a person no device is subscribed for is not a failure, only a person no push reached', async () => {
-		const record = recordWhere({ member: { company_id: 'company-1', email: 'sample@example.test' } });
+	test('the push goes to the project, signed with the key only the project holds', async () => {
+		const sent: Sent[] = [];
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
 
-		const told = await tell(environment, telling, record, transportAnswering(200, []));
+		await tell(environment, telling, record, transportRecording(sent, { push: { status: 200, reached: 1 } }));
+
+		const pushes = pushesOf(sent);
+		expect(pushes).toHaveLength(1);
+		expect(pushes[0]?.authorization).toBe('Bearer a-service-key');
+		expect(pushes[0]?.body).toEqual({
+			memberID: 'member-1',
+			category: 'approval',
+			title: '결재 요청',
+			body: '이샘플님의 연차 신청이 기다립니다',
+			openPath: '/attendance/'
+		});
+	});
+
+	test('a person no device is subscribed for is not a failure, only a person no push reached', async () => {
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
+
+		const told = await tell(environment, telling, record, transportRecording([]));
 
 		expect(told).toEqual({ pushed: false, messaged: true });
 	});
 
-	test('the messenger still hears it when the push channel throws', async () => {
-		const calls: CompanyCallRecord[] = [];
-		const record = recordWhere({
-			member: { company_id: 'company-1', email: 'sample@example.test' },
-			settingsFailure: 'the notification settings are out of reach'
-		});
+	test('a push that reaches a device is reported as pushed', async () => {
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
 
-		const told = await tell(environment, telling, record, transportAnswering(200, calls));
+		const told = await tell(
+			environment,
+			telling,
+			record,
+			transportRecording([], { push: { status: 200, reached: 2 } })
+		);
+
+		expect(told).toEqual({ pushed: true, messaged: true });
+	});
+
+	test('the messenger still hears it when the project refuses the push', async () => {
+		const sent: Sent[] = [];
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
+
+		const told = await tell(
+			environment,
+			telling,
+			record,
+			transportRecording(sent, { push: { status: 503, error: 'this deployment has no VAPID keys' } })
+		);
 
 		expect(told.messaged).toBe(true);
 		expect(told.pushed).toBe(false);
-		expect(told.failure).toBe('web push: the notification settings are out of reach');
-		expect(calls).toHaveLength(1);
+		expect(told.failure).toBe('web push: this deployment has no VAPID keys');
+		expect(gatewayCallsOf(sent)).toHaveLength(1);
 	});
 
-	test('the push channel is still tried when the company refuses the direct message', async () => {
-		const reads: string[] = [];
-		const record = recordWhere({ member: { company_id: 'company-1', email: 'sample@example.test' }, reads });
+	test('a refusal the project does not explain still names the status', async () => {
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
 
-		const told = await tell(environment, telling, record, transportAnswering(503, []));
+		const told = await tell(environment, telling, record, transportRecording([], { push: { status: 500 } }));
+
+		expect(told.failure).toBe('web push: the project answered 500');
+	});
+
+	test('the push is still tried when the company refuses the direct message', async () => {
+		const sent: Sent[] = [];
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
+
+		const told = await tell(environment, telling, record, transportRecording(sent, { gateway: 503 }));
 
 		expect(told.messaged).toBe(false);
 		expect(told.failure).toBe('direct message: the company answered 503');
-		expect(reads).toContain('notification_settings');
+		expect(pushesOf(sent)).toHaveLength(1);
 	});
 
-	test('a deployment with no push keys says so and still writes the person', async () => {
-		const calls: CompanyCallRecord[] = [];
-		const record = recordWhere({ member: { company_id: 'company-1', email: 'sample@example.test' } });
+	test('a deployment with no project configured says so and still writes the person', async () => {
+		const sent: Sent[] = [];
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
 
 		const told = await tell(
-			{ ...environment, VAPID_PRIVATE_KEY: '' },
+			{ ...environment, SUPABASE_SECRET_KEY: '' },
 			telling,
 			record,
-			transportAnswering(200, calls)
+			transportRecording(sent)
 		);
 
 		expect(told).toEqual({
 			pushed: false,
 			messaged: true,
-			failure: 'web push: this deployment holds no web push keys'
+			failure: 'web push: the project is not configured'
 		});
-		expect(calls).toHaveLength(1);
+		expect(pushesOf(sent)).toHaveLength(0);
+		expect(gatewayCallsOf(sent)).toHaveLength(1);
 	});
 
 	test('a member with no company and no address is reported rather than silently skipped', async () => {
-		const record = recordWhere({ member: null });
-
-		const told = await tell(environment, telling, record, transportAnswering(200, []));
+		const told = await tell(environment, telling, recordWhere(null), transportRecording([]));
 
 		expect(told.messaged).toBe(false);
 		expect(told.failure).toBe('direct message: member member-1 has no company and no address');
 	});
 
 	test('a plane with no gateway configured fails the messenger alone', async () => {
-		const record = recordWhere({ member: { company_id: 'company-1', email: 'sample@example.test' } });
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
 
-		const told = await tell({ ...environment, GATEWAY_URL: '' }, telling, record, transportAnswering(200, []));
+		const told = await tell({ ...environment, GATEWAY_URL: '' }, telling, record, transportRecording([]));
 
 		expect(told.messaged).toBe(false);
 		expect(told.failure).toBe('direct message: the company gateway is not configured');
