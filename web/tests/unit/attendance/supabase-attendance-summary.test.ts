@@ -139,9 +139,13 @@ describe('supabaseAttendanceSummary', () => {
 		expect(summary.events.map((event) => [event.localDate, event.localTime])).toEqual([
 			['2026-08-31', '22:00']
 		]);
-		const today = computeDayEvents('2026-09-01', summary.events, { currentDate: '2026-09-01' });
+		const morning = new Date('2026-09-01T09:00:00+09:00');
+		const today = computeDayEvents('2026-09-01', summary.events, {
+			currentDate: '2026-09-01',
+			now: morning
+		});
 		expect(today.inProgress).toBe(true);
-		expect(statusForDay('2026-09-01', summary.events, [], '2026-09-01')).toBe('working');
+		expect(statusForDay('2026-09-01', summary.events, [], '2026-09-01', morning)).toBe('working');
 	});
 
 	test('carries a clock in made before the UTC day began on the first of the month', async () => {
