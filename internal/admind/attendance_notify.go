@@ -28,13 +28,12 @@ func (service *Service) alsoTellTheCompanyAboutAttendance(event attendanceEvent)
 		ctx, cancel := context.WithTimeout(context.Background(), attendanceNotifyTimeout)
 		defer cancel()
 		service.tell(ctx, client, centralplane.Notification{
-			Platform:    "mattermost",
-			ExternalIDs: service.everyoneExcept(ctx, event.MattermostUserID),
-			Category:    "attendance",
-			Title:       title,
-			Body:        attendanceNotifyBody(event),
-			OpenPath:    "/attendance/",
-			Tag:         "attendance-" + event.ID,
+			Emails:   service.everyoneExcept(ctx, event.Email),
+			Category: "attendance",
+			Title:    title,
+			Body:     attendanceNotifyBody(event),
+			OpenPath: "/attendance/",
+			Tag:      "attendance-" + event.ID,
 		})
 	}()
 }
@@ -51,19 +50,18 @@ func (service *Service) alsoTellTheAdministratorsAboutLeave(record attendanceLea
 		ctx, cancel := context.WithTimeout(context.Background(), attendanceNotifyTimeout)
 		defer cancel()
 		service.tell(ctx, client, centralplane.Notification{
-			Platform:    "mattermost",
-			ExternalIDs: service.administrators(ctx),
-			Category:    "leave",
-			Title:       "휴가 신청: " + firstNonEmpty(service.attendanceLeaveEmployeeName(ctx, record.EmployeeEmail), record.EmployeeEmail),
-			Body:        leaveNotifyBody(record),
-			OpenPath:    "/attendance/",
-			Tag:         "leave-" + record.ID,
+			Emails:   service.administrators(ctx),
+			Category: "leave",
+			Title:    "휴가 신청: " + firstNonEmpty(service.attendanceLeaveEmployeeName(ctx, record.EmployeeEmail), record.EmployeeEmail),
+			Body:     leaveNotifyBody(record),
+			OpenPath: "/attendance/",
+			Tag:      "leave-" + record.ID,
 		})
 	}()
 }
 
 func (service *Service) tell(ctx context.Context, client *centralplane.Client, notification centralplane.Notification) {
-	if len(notification.ExternalIDs) == 0 {
+	if len(notification.Emails) == 0 && len(notification.ExternalIDs) == 0 {
 		return
 	}
 	result, errorValue := client.Notify(ctx, notification)
@@ -72,12 +70,13 @@ func (service *Service) tell(ctx context.Context, client *centralplane.Client, n
 		return
 	}
 	log.Printf("attendance notify: %s addressed %d, told %d, reached %d",
-		notification.Tag, len(notification.ExternalIDs), result.Told, result.Reached)
+		notification.Tag, result.Addressed, result.Told, result.Reached)
 }
 
-func (service *Service) everyoneExcept(ctx context.Context, externalID string) []string {
+func (service *Service) everyoneExcept(ctx context.Context, email string) []string {
+	excluded := strings.ToLower(strings.TrimSpace(email))
 	return attendanceNotifyRecipients(service.attendanceNotifyDirectory(ctx), func(record adminUserMutation) bool {
-		return record.MattermostUserID != externalID
+		return strings.ToLower(strings.TrimSpace(record.Email)) != excluded
 	})
 }
 
@@ -88,14 +87,15 @@ func (service *Service) administrators(ctx context.Context) []string {
 }
 
 func attendanceNotifyRecipients(records []adminUserMutation, wanted func(adminUserMutation) bool) []string {
-	externalIDs := make([]string, 0, len(records))
+	emails := make([]string, 0, len(records))
 	for _, record := range records {
-		if record.MattermostUserID == "" || !wanted(record) {
+		email := strings.ToLower(strings.TrimSpace(record.Email))
+		if email == "" || !wanted(record) {
 			continue
 		}
-		externalIDs = append(externalIDs, record.MattermostUserID)
+		emails = append(emails, email)
 	}
-	return externalIDs
+	return emails
 }
 
 func (service *Service) attendanceNotifyDirectory(ctx context.Context) []adminUserMutation {
