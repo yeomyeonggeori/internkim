@@ -3,13 +3,11 @@ package admind
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 func (service *Service) authorizeTaskRequest(request *http.Request, action string, resource string) bool {
@@ -112,69 +110,12 @@ func (service *Service) webActorEmail(request *http.Request) string {
 	if actorEmail := service.authenticatedCallerEmail(request); actorEmail != "" {
 		return actorEmail
 	}
-	if actorEmail := strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request))); actorEmail != "" {
-		return actorEmail
-	}
-	return service.emailOfMattermostSession(request)
+	return strings.ToLower(strings.TrimSpace(service.webSessionActorEmail(request)))
 }
 
 func hasWebLogoutMarker(request *http.Request) bool {
 	cookie, errorValue := request.Cookie(webLogoutMarkerCookieName)
 	return errorValue == nil && strings.TrimSpace(cookie.Value) != ""
-}
-
-func mattermostSessionCookieHeader(request *http.Request) string {
-	cookies := make([]string, 0, len(request.Cookies()))
-	for _, cookie := range request.Cookies() {
-		if strings.HasPrefix(strings.ToUpper(cookie.Name), "MM") {
-			cookies = append(cookies, cookie.String())
-		}
-	}
-	return strings.Join(cookies, "; ")
-}
-
-func (service *Service) mattermostSessionUser(request *http.Request, cookieHeader string) (mattermostUserRecord, bool) {
-	if strings.TrimSpace(service.Configuration.MattermostBaseURL) == "" {
-		return mattermostUserRecord{}, false
-	}
-	cacheKey := mattermostSessionCacheKey(cookieHeader)
-	now := time.Now()
-	if userRecord, found := service.mattermostSessions.lookup(cacheKey, now, mattermostSessionFreshTTL); found {
-		return userRecord, true
-	}
-	if userRecord, found := service.fetchMattermostSessionUser(request.Context(), cookieHeader); found {
-		service.mattermostSessions.store(cacheKey, userRecord, now)
-		return userRecord, true
-	}
-	return service.mattermostSessions.lookup(cacheKey, now, mattermostSessionStaleTTL)
-}
-
-func (service *Service) fetchMattermostSessionUser(ctx context.Context, cookieHeader string) (mattermostUserRecord, bool) {
-	lookupContext, cancel := context.WithTimeout(ctx, mattermostSessionLookupTimeout)
-	defer cancel()
-	requestURL := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/api/v4/users/me"
-	mattermostRequest, errorValue := http.NewRequestWithContext(lookupContext, http.MethodGet, requestURL, nil)
-	if errorValue != nil {
-		return mattermostUserRecord{}, false
-	}
-	mattermostRequest.Header.Set("Cookie", cookieHeader)
-	response, errorValue := service.httpClient().Do(mattermostRequest)
-	if errorValue != nil {
-		return mattermostUserRecord{}, false
-	}
-	defer response.Body.Close()
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		_, _ = io.Copy(io.Discard, response.Body)
-		return mattermostUserRecord{}, false
-	}
-	var userRecord mattermostUserRecord
-	if errorValue := json.NewDecoder(response.Body).Decode(&userRecord); errorValue != nil {
-		return mattermostUserRecord{}, false
-	}
-	if strings.TrimSpace(userRecord.Email) == "" {
-		return mattermostUserRecord{}, false
-	}
-	return userRecord, true
 }
 
 func (service *Service) isTaskMemberActor(ctx context.Context, actorEmail string) bool {

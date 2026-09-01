@@ -5,7 +5,6 @@ export type WebAuthSession = {
 	email: string;
 	image: string;
 	canViewTasks: boolean;
-	mattermostLoginURL: string;
 	cloudflareLoginURL: string;
 	isUnavailable: boolean;
 };
@@ -15,14 +14,8 @@ type SessionResponse = {
 	email?: string;
 	image?: string;
 	canViewTasks?: boolean;
-	loginURL?: string;
-	mattermostLoginURL?: string;
 	cloudflareLoginURL?: string;
 };
-
-export function mattermostLoginURLFor(returnPath: string): string {
-	return `/auth/mattermost/start?return=${encodeURIComponent(returnPath)}`;
-}
 
 export function cloudflareLoginURLFor(returnPath: string): string {
 	return `/auth/cloudflare/start?return=${encodeURIComponent(returnPath)}`;
@@ -34,7 +27,6 @@ export function signedOutSession(returnPath: string, isUnavailable: boolean): We
 		email: '',
 		image: '',
 		canViewTasks: false,
-		mattermostLoginURL: mattermostLoginURLFor(returnPath),
 		cloudflareLoginURL: cloudflareLoginURLFor(returnPath),
 		isUnavailable
 	};
@@ -46,7 +38,6 @@ export function webAuthSessionFrom(response: SessionResponse, returnPath: string
 		email: response.email ?? '',
 		image: response.image ?? '',
 		canViewTasks: response.canViewTasks === true,
-		mattermostLoginURL: response.mattermostLoginURL || response.loginURL || mattermostLoginURLFor(returnPath),
 		cloudflareLoginURL: response.cloudflareLoginURL || cloudflareLoginURLFor(returnPath),
 		isUnavailable: false
 	};

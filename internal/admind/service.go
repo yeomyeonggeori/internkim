@@ -89,7 +89,6 @@ type Configuration struct {
 	FleetIDPath                    string
 	DeviceURLPath                  string
 	TaskPublicURLPath              string
-	MattermostSessionSignInPath    string
 	FleetSecretPath                string
 	AdminUIPath                    string
 	RepositoryRoot                 string
@@ -181,7 +180,6 @@ type Service struct {
 	legacyDatabaseMigration            sync.Once
 	calendarWindowCache                calendarEventWindowCacheAvailability
 	calendarWindowBuilds               calendarEventWindowCacheBuildCoordinator
-	mattermostSessions                 *mattermostSessionCache
 	removeTokenQuarantineFile          func(string) error
 	promoteCalendarTokenFile           func(string, string) error
 	startedAt                          time.Time
@@ -343,7 +341,6 @@ func DefaultConfiguration() Configuration {
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
 		BuzzRelayPublicURLPath:         blueclawruntime.BuzzRelayPublicURLFilePath,
 		TaskPublicURLPath:              "/root/.internkim/env/flow-public-url",
-		MattermostSessionSignInPath:    "/root/.internkim/env/mattermost-session-signin",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
 		RepositoryRoot:                 "/",
@@ -380,7 +377,6 @@ func NewService(configuration Configuration) *Service {
 		companyShareAttempts:       map[string]companyShareAttempt{},
 		requestMetrics:             newAdminRequestMetrics(),
 		databaseSchemas:            newAdminDatabaseSchemas(),
-		mattermostSessions:         newMattermostSessionCache(),
 		startedAt:                  time.Now().UTC(),
 	}
 	service.calendarHolidayRetryLoadError = service.loadCalendarHolidayRetryStates()
@@ -434,7 +430,6 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startBuzzAccountLinkSync(ctx)
 	service.startMemberChannelMembershipSync(ctx)
 	service.startCircleRoomMembershipSync(ctx)
-	service.startMattermostPasswordHashSync(ctx)
 	service.ensureBuzzRelayTerminator()
 	service.ensureMattermostConfig(ctx)
 	service.warnWhenFontAssetsMissing()
@@ -588,7 +583,6 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/auth/vault", service.handleAuthVault)
 	multiplexer.HandleFunc("/auth/challenge", service.handleKeyLoginChallenge)
 	multiplexer.HandleFunc("/auth/key-login", service.handleKeyLogin)
-	multiplexer.HandleFunc("/auth/password-login", service.handleMattermostPasswordLogin)
 	multiplexer.HandleFunc("/auth/identity", service.handleAuthIdentity)
 	multiplexer.HandleFunc("/auth/verify/start", service.handleEmailVerifyStart)
 	multiplexer.HandleFunc("/auth/verify/callback", service.handleEmailVerifyCallback)
@@ -706,7 +700,6 @@ func (responseWriter *bodyRecordingResponseWriter) Write(document []byte) (int, 
 	responseWriter.body.Write(document)
 	return responseWriter.ResponseWriter.Write(document)
 }
-
 
 func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
 	if !isLocalRequest(request) {
@@ -2686,9 +2679,6 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.TaskPublicURLPath == "" {
 		configuration.TaskPublicURLPath = defaultConfiguration.TaskPublicURLPath
-	}
-	if configuration.MattermostSessionSignInPath == "" {
-		configuration.MattermostSessionSignInPath = defaultConfiguration.MattermostSessionSignInPath
 	}
 	if configuration.FleetSecretPath == "" {
 		configuration.FleetSecretPath = defaultConfiguration.FleetSecretPath

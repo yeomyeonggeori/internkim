@@ -16,7 +16,6 @@ export async function supabaseWebAuthSession(returnPath: string): Promise<WebAut
 		email,
 		image: '',
 		canViewTasks: true,
-		mattermostLoginURL: '',
 		cloudflareLoginURL: '',
 		isUnavailable: false
 	};
