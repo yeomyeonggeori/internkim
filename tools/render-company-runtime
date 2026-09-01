@@ -1,0 +1,76 @@
+#!/bin/sh
+# Writes the runtime document a company plane runs on: the template with this
+# box's addresses filled in, and the capabilities block read out of the installed
+# capabilityd rather than kept in the template, where it would age out of step.
+#
+# The container calls this and so does the sandbox, because a sandbox that
+# renders its own document proves nothing about the one a company runs.
+set -e
+
+usage() {
+  cat >&2 <<'USAGE'
+usage: render-company-runtime --template <path> --capabilityd <path> --out <path> [--work <dir>]
+
+Every address is taken from the environment, and each one defaults to what a
+container gets:
+
+  DATABASE_URL              (required)
+  MESSENGER_PLATFORM        (required)
+  BLUECLAW_BASE_URL         http://127.0.0.1:8080
+  CAPABILITY_SOCKET_PATH    /run/internkim/capability.sock
+  CHATD_ENDPOINT            http://127.0.0.1:18090
+  OPENROUTER_KEY_PATH       /secrets/openrouter-key
+  WORKSPACE_ROOT_PATH       /workspace
+  MIGRATION_DIRECTORY_PATH  /opt/blueclaw/migrations
+  LOG_DIRECTORY_PATH        /var/log/internkim
+USAGE
+  exit 2
+}
+
+templatePath=""
+capabilitydPath="internkim-capabilityd"
+outputPath=""
+workDirectory=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --template) templatePath="${2:-}"; shift 2 ;;
+    --capabilityd) capabilitydPath="${2:-}"; shift 2 ;;
+    --out) outputPath="${2:-}"; shift 2 ;;
+    --work) workDirectory="${2:-}"; shift 2 ;;
+    *) usage ;;
+  esac
+done
+
+[ -n "${templatePath}" ] && [ -n "${outputPath}" ] || usage
+: "${DATABASE_URL:?set DATABASE_URL}"
+: "${MESSENGER_PLATFORM:?set MESSENGER_PLATFORM}"
+
+: "${BLUECLAW_BASE_URL:=http://127.0.0.1:8080}"
+: "${CAPABILITY_SOCKET_PATH:=/run/internkim/capability.sock}"
+: "${CHATD_ENDPOINT:=http://127.0.0.1:18090}"
+: "${OPENROUTER_KEY_PATH:=/secrets/openrouter-key}"
+: "${WORKSPACE_ROOT_PATH:=/workspace}"
+: "${MIGRATION_DIRECTORY_PATH:=/opt/blueclaw/migrations}"
+: "${LOG_DIRECTORY_PATH:=/var/log/internkim}"
+
+if [ -z "${workDirectory}" ]; then
+  workDirectory="$(dirname "${outputPath}")"
+fi
+mkdir -p "${workDirectory}"
+renderedPath="${workDirectory}/runtime.rendered.json"
+capabilitiesPath="${workDirectory}/capabilities.json"
+
+sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
+    -e "s|\${MESSENGER_PLATFORM}|${MESSENGER_PLATFORM}|g" \
+    -e "s|\${BLUECLAW_BASE_URL}|${BLUECLAW_BASE_URL}|g" \
+    -e "s|\${CAPABILITY_SOCKET_PATH}|${CAPABILITY_SOCKET_PATH}|g" \
+    -e "s|\${CHATD_ENDPOINT}|${CHATD_ENDPOINT}|g" \
+    -e "s|\${OPENROUTER_KEY_PATH}|${OPENROUTER_KEY_PATH}|g" \
+    -e "s|\${WORKSPACE_ROOT_PATH}|${WORKSPACE_ROOT_PATH}|g" \
+    -e "s|\${MIGRATION_DIRECTORY_PATH}|${MIGRATION_DIRECTORY_PATH}|g" \
+    -e "s|\${LOG_DIRECTORY_PATH}|${LOG_DIRECTORY_PATH}|g" \
+    "${templatePath}" > "${renderedPath}"
+
+"${capabilitydPath}" --print-capabilities --socket "${CAPABILITY_SOCKET_PATH}" > "${capabilitiesPath}"
+jq -s '.[0] * {capabilities: .[1]}' "${renderedPath}" "${capabilitiesPath}" > "${outputPath}"

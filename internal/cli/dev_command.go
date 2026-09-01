@@ -62,6 +62,8 @@ func runDevArguments(arguments []string) error {
 		return runDevSimulateArguments(commandArguments)
 	case "fleet":
 		return runDevFleetArguments(commandArguments)
+	case "plane":
+		return runDevPlaneArguments(commandArguments)
 	case "help":
 		printDevUsage()
 		return nil
@@ -590,9 +592,29 @@ func flagWasPassed(flagSet *flag.FlagSet, name string) bool {
 	return isFound
 }
 
+// The company plane a customer runs: admind, capabilityd and blueclaw against the
+// local record, with the two messengers standing in as recorders. It answers what
+// the fleet gate cannot answer quickly — which messenger a message leaves on, who
+// a requester resolves to, what the public API will take — in seconds rather than
+// the ten minutes a device costs.
+func runDevPlaneArguments(arguments []string) error {
+	repositoryRootPath, errorValue := os.Getwd()
+	if errorValue != nil {
+		return errorValue
+	}
+	command := exec.Command(filepath.Join(repositoryRootPath, "tools", "company-plane"), arguments...)
+	command.Dir = repositoryRootPath
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Run()
+}
+
 func printDevUsage() {
-	fmt.Println("Usage: internkim dev <simulate|fleet> [options]")
+	fmt.Println("Usage: internkim dev <simulate|fleet|plane> [options]")
 	fmt.Println("  internkim dev simulate --scenario dm_send_confirm_acceptance")
+	fmt.Println("  internkim dev plane")
+	fmt.Println("  internkim dev plane -t \"leaves on the messenger\"")
 	fmt.Println("  internkim dev fleet run")
 	fmt.Println("  internkim dev fleet run --scenario mattermost-direct-message-send")
 	fmt.Println("  internkim dev fleet run --keep --scenario mattermost-manual")
