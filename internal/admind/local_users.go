@@ -178,6 +178,9 @@ func (service *Service) localRemoveUser(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
+	if errorValue := service.forgetOrganizationProfile(request.Context(), userRecord.Email, identity.MemberID); errorValue != nil {
+		log.Printf("the organization profile of %s outlived them: %v", userRecord.Email, errorValue)
+	}
 	mutation.completeAfterSourceMutation(request.Context())
 	service.triggerUsersSync(request.Context())
 	service.writeJSON(responseWriter, map[string]bool{"ok": true})
