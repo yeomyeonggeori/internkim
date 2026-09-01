@@ -257,7 +257,7 @@ func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
 	}
 
 	joinedPlan := strings.Join(plan, ",")
-	for _, expectedName := range []string{"preflight", "binaries", "skills", "blueclaw-runtime-base", "blueclaw-config", "blueclaw-payload", "openrouter", "local-llm", "mattermost", "services", "users-sync", "health"} {
+	for _, expectedName := range []string{"preflight", "binaries", "skills", "blueclaw-runtime-base", "blueclaw-config", "blueclaw-payload", "openrouter", "local-llm", "buzz-relay", "services", "users-sync", "health"} {
 		if !strings.Contains(joinedPlan, expectedName) {
 			t.Fatalf("expected plan to include %s, got %s", expectedName, joinedPlan)
 		}
