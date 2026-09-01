@@ -1,3 +1,7 @@
+import type {
+	AttendanceWriteOutcome,
+	AttendanceWriteResult
+} from '$lib/attendance/attendance-write';
 import type { UpdateAttendanceEventRequest } from '../attendance-api';
 import type { AttendanceEvent, AttendanceSummary } from '../attendance-context.svelte';
 import {
@@ -6,7 +10,10 @@ import {
 	todayDateInTimeZone
 } from '../shared/attendance-date';
 import { localTimeMinutes } from '../shared/day-timeline';
-import { editableAttendanceEventIDs } from './attendance-correction-access';
+import {
+	attendanceEventsWriteOutcome,
+	editableAttendanceEventIDs
+} from './attendance-correction-access';
 import type { TeamStatusPersonDaySegment } from './team-status-table-model';
 
 export type WorkEventDraft = {
@@ -27,7 +34,7 @@ export type WorkRecordEditorDependencies = Readonly<{
 	getSummary: () => AttendanceSummary | null;
 	hasServerClock: () => boolean;
 	getCurrentServerTime: () => Date;
-	updateEvents: (updates: WorkRecordUpdate[]) => Promise<void>;
+	updateEvents: (updates: WorkRecordUpdate[]) => Promise<AttendanceWriteResult>;
 	processingFailedMessage: string;
 }>;
 
@@ -41,6 +48,7 @@ export class WorkRecordEditorState {
 	timeZone = $state('');
 	editableEventIDs = $state<Set<string>>(new Set<string>());
 	segments = $state<TeamStatusPersonDaySegment[]>([]);
+	completedOutcome = $state<AttendanceWriteResult['outcome'] | null>(null);
 
 	constructor(private readonly dependencies: WorkRecordEditorDependencies) {}
 
@@ -48,6 +56,17 @@ export class WorkRecordEditorState {
 		return (
 			this.dependencies.hasServerClock() &&
 			this.dependencies.getSummary()?.timeZoneAuthoritative === true
+		);
+	}
+
+	get writeOutcome(): AttendanceWriteOutcome {
+		const summary = this.dependencies.getSummary();
+		if (!summary) return 'blocked';
+		const changedEventIDs = this.changedDrafts().map((draft) => draft.eventID);
+		return attendanceEventsWriteOutcome(
+			summary,
+			changedEventIDs.length > 0 ? changedEventIDs : this.editableEventIDs,
+			this.currentTime
 		);
 	}
 
@@ -85,6 +104,7 @@ export class WorkRecordEditorState {
 		this.drafts = createWorkEventDrafts(summary.events, segments, summary.locations[0]?.id ?? '');
 		this.reason = '';
 		this.errorMessage = '';
+		this.completedOutcome = null;
 		this.isEditing = true;
 		return true;
 	}
@@ -103,6 +123,7 @@ export class WorkRecordEditorState {
 		this.timeZone = '';
 		this.editableEventIDs = new Set<string>();
 		this.segments = [];
+		this.completedOutcome = null;
 	}
 
 	setCurrentTime(currentTime: Date): void {
@@ -176,8 +197,9 @@ export class WorkRecordEditorState {
 		this.isSaving = true;
 		this.errorMessage = '';
 		try {
-			await this.dependencies.updateEvents(this.changedUpdates());
+			const result = await this.dependencies.updateEvents(this.changedUpdates());
 			this.reset();
+			this.completedOutcome = result.outcome;
 		} catch {
 			this.errorMessage = this.dependencies.processingFailedMessage;
 		} finally {
@@ -186,15 +208,18 @@ export class WorkRecordEditorState {
 	}
 
 	private hasChanges(): boolean {
-		return Object.values(this.drafts).some(
+		return this.changedDrafts().length > 0;
+	}
+
+	private changedDrafts(): WorkEventDraft[] {
+		return Object.values(this.drafts).filter(
 			(draft) => this.isEventEditable(draft.eventID) && isChangedDraft(draft)
 		);
 	}
 
 	private changedUpdates(): WorkRecordUpdate[] {
 		const reason = this.reason.trim();
-		return Object.values(this.drafts)
-			.filter((draft) => this.isEventEditable(draft.eventID) && isChangedDraft(draft))
+		return this.changedDrafts()
 			.map((draft) => ({
 				eventID: draft.eventID,
 				request: {

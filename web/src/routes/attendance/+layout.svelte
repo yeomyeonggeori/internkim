@@ -10,6 +10,10 @@
 		setAttendanceViewState
 	} from './attendance-view-state.svelte';
 	import {
+		AttendanceApprovalState,
+		setAttendanceApprovalState
+	} from './approval/attendance-approval-state.svelte';
+	import {
 		LeaveApprovalState,
 		setLeaveApprovalState
 	} from './approval/leave-approval-state.svelte';
@@ -34,6 +38,10 @@
 	const attendance = new AttendanceState(text.loadFailed);
 	const attendanceView = new AttendanceViewState();
 	const workStatus = new WorkStatusState();
+
+	async function refreshAfterAttendanceApprovalMutation(): Promise<void> {
+		await attendance.load();
+	}
 
 	async function refreshAfterEmployeeLeaveMutation(): Promise<void> {
 		const refreshes: Promise<void>[] = [attendance.load()];
@@ -65,11 +73,16 @@
 		text.management,
 		refreshAfterManagementMutation
 	);
+	const attendanceApproval = new AttendanceApprovalState(
+		text.approval,
+		refreshAfterAttendanceApprovalMutation
+	);
 	setAttendanceState(attendance);
 	setEmployeeLeaveState(employeeLeave);
 	setAttendanceViewState(attendanceView);
 	setLeaveApprovalState(leaveApproval);
 	setLeaveManagementState(leaveManagement);
+	setAttendanceApprovalState(attendanceApproval);
 	setWorkStatusState(workStatus);
 
 	function refreshServerClock(): void {
@@ -84,8 +97,9 @@
 	onMount(() => {
 		void attendance.load();
 		void employeeLeave.load();
+		void attendanceApproval.load();
 		const releaseRefresh = pageActions.setRefresh(async () => {
-			await Promise.all([attendance.load(), employeeLeave.load()]);
+			await Promise.all([attendance.load(), employeeLeave.load(), attendanceApproval.load()]);
 		});
 		window.addEventListener('focus', refreshServerClock);
 		window.addEventListener('pageshow', refreshServerClock);
