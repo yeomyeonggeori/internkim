@@ -130,11 +130,11 @@ func requestAdminUsersForPolicyScope(t *testing.T, service *Service, includePoli
 	return usersResponse
 }
 
-func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
+func TestAdminUserSaveRenamesInTheDirectoryAndLeavesMattermostAlone(t *testing.T) {
 	var pagesPayload map[string]any
-	var mattermostPatch map[string]string
 	var service *Service
 	checkedDirty := false
+	mattermostWasPatched := false
 	service = newAdminUsersProxyTestService(t, func(request *http.Request) (*http.Response, error) {
 		if response, isHandled := adminUsersProxyCommonMattermostResponse(t, request); isHandled {
 			return response, nil
@@ -147,6 +147,9 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
 			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"oldhandle","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/patch" && request.Method == http.MethodPut:
+			mattermostWasPatched = true
+			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"newhandle"}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
 			listKey := organizationPeopleCacheKey{Kind: organizationPeopleCacheList, Key: organizationPeopleCacheSingletonKey}
 			personKey := organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "user-member"}
 			keys := []organizationPeopleCacheKey{listKey, personKey}
@@ -161,11 +164,6 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 				t.Fatalf("unknown person cache state before remote write = %#v", snapshots[personKey])
 			}
 			checkedDirty = true
-			if errorValue := json.NewDecoder(request.Body).Decode(&mattermostPatch); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"newhandle"}`, nil), nil
-		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
 			if errorValue := json.NewDecoder(request.Body).Decode(&pagesPayload); errorValue != nil {
 				t.Fatal(errorValue)
 			}
@@ -190,8 +188,8 @@ func TestAdminUserSavePatchesMattermostIdentityByStoredID(t *testing.T) {
 	if !checkedDirty {
 		t.Fatal("expected dirty cache check before remote write")
 	}
-	if mattermostPatch["username"] != "newhandle" || mattermostPatch["first_name"] != "New" || mattermostPatch["last_name"] != "Name" || mattermostPatch["nickname"] != "New" {
-		t.Fatalf("mattermost patch = %#v", mattermostPatch)
+	if mattermostWasPatched {
+		t.Fatal("renaming somebody reached into Mattermost")
 	}
 	if _, carriesAPersonID := pagesPayload["memberID"]; carriesAPersonID {
 		t.Fatalf("the fleet account list is not where a person's identity lives: %#v", pagesPayload)

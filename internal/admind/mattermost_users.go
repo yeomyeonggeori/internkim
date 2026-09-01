@@ -1453,29 +1453,6 @@ func (service *Service) showMattermostDirectChannel(ctx context.Context, token s
 	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(userID)+"/preferences", token, preferences, nil)
 }
 
-func (service *Service) ensureMattermostBotDirectChannelsForRecords(ctx context.Context, records []adminUserMutation) error {
-	if len(records) == 0 || strings.TrimSpace(service.Configuration.MattermostAdminPasswordPath) == "" {
-		return nil
-	}
-	adminToken, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	for _, record := range records {
-		userRecord, found, errorValue := service.mattermostUserRecordForAdminRecord(ctx, adminToken, record)
-		if errorValue != nil {
-			return errorValue
-		}
-		if !found || userRecord.DeleteAt != 0 || isProtectedMattermostUser(userRecord) {
-			continue
-		}
-		if errorValue := service.ensureMattermostBotDirectChannel(ctx, adminToken, userRecord.ID); errorValue != nil {
-			return errorValue
-		}
-	}
-	return nil
-}
-
 func (service *Service) mattermostUserRecordForAdminRecord(ctx context.Context, token string, record adminUserMutation) (mattermostUserRecord, bool, error) {
 	if strings.TrimSpace(record.MattermostUserID) != "" {
 		return service.findMattermostUserByID(ctx, token, record.MattermostUserID)
