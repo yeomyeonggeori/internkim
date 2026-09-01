@@ -1,5 +1,5 @@
-import { encryptForSubscription, isUsableSubscriptionKey, type SubscriptionKeys } from './web-push-encrypt';
-import { vapidAuthorization, type VapidKeys } from './web-push-vapid';
+import { encryptForSubscription, isUsableSubscriptionKey, type SubscriptionKeys } from './web-push-encrypt.ts';
+import { vapidAuthorization, type VapidKeys } from './web-push-vapid.ts';
 
 export type PushTarget = {
 	address: string;
