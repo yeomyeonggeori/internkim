@@ -1,9 +1,7 @@
-import { leaveAllDayDate } from '../attendance/supabase-leave-range';
-import { shiftedDay } from '../attendance/supabase-work-status-range';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { dayOffColor } from './day-off-color';
 import { localizedLeaveUnitName } from '../i18n/leave-type-name';
 import type { Locale } from '../i18n/locale.svelte';
-import { supabase } from '../supabase';
 import type { CalendarEvent } from '../../routes/calendar/embed/calendar-event-persistence';
 
 export type CalendarLeaveMember = {
@@ -23,13 +21,14 @@ export type ApprovedLeaveRow = {
 };
 
 export async function approvedLeaveCalendarEvents(
+	caller: SupabaseClient,
 	startDate: Date,
 	endDate: Date,
 	members: Map<string, CalendarLeaveMember>,
 	timeZone: string,
 	locale: Locale = 'ko'
 ): Promise<CalendarEvent[]> {
-	const leave = await supabase()
+	const leave = await caller
 		.from('leave')
 		.select('id, member_id, kind, days, status, starts_at, ends_at')
 		.eq('status', 'approved')
@@ -58,8 +57,8 @@ export function calendarEventFromApprovedLeave(
 		title: `${name} · ${leaveKindLabel(leave.kind, leave.days, locale)}`,
 		description: '',
 		location: '',
-		startISO: isAllDay ? calendarDayISO(leaveAllDayDate(leave.starts_at, timeZone)) : leave.starts_at,
-		endISO: isAllDay ? calendarDayISO(lastCoveredDay(leave.ends_at, timeZone)) : leave.ends_at,
+		startISO: leave.starts_at,
+		endISO: isAllDay ? lastCoveredMoment(leave.ends_at) : leave.ends_at,
 		timeZone,
 		isAllDay,
 		color: dayOffColor,
@@ -77,10 +76,6 @@ function leaveKindLabel(kind: string, days: number, locale: Locale): string {
 	return localizedLeaveUnitName(days, locale);
 }
 
-function calendarDayISO(day: string): string {
-	return `${day}T00:00:00.000Z`;
-}
-
-function lastCoveredDay(endsAt: string, timeZone: string): string {
-	return shiftedDay(leaveAllDayDate(endsAt, timeZone), -1);
+function lastCoveredMoment(endsAt: string): string {
+	return new Date(new Date(endsAt).getTime() - 1).toISOString();
 }
