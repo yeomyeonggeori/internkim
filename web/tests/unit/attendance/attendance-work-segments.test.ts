@@ -28,7 +28,7 @@ describe('attendance work segments', () => {
 			attendanceEvent('field-in', 'clock_in', '2026-06-17T09:00:00.000Z', '18:00:00', 'field', '외부'),
 		];
 
-		const day = computeDayEvents('2026-06-17', events);
+		const day = computeDayEvents('2026-06-17', events, { now: new Date('2026-06-17T10:00:00.000Z') });
 
 		expect(day.inProgress).toBe(true);
 		expect(day.activeSegment?.locationName).toBe('외부');
@@ -43,7 +43,7 @@ describe('attendance work segments', () => {
 			attendanceEvent('home-in', 'clock_in', '2026-06-17T02:00:00.000Z', '11:00:00', 'home', '재택'),
 		];
 
-		const day = computeDayEvents('2026-06-17', events);
+		const day = computeDayEvents('2026-06-17', events, { now: new Date('2026-06-17T03:00:00.000Z') });
 
 		expect(day.segments.length).toBe(2);
 		expect(day.segments[0]).toMatchObject({
@@ -131,8 +131,9 @@ describe('attendance work segments', () => {
 			}),
 		];
 
-		const firstDay = computeDayEvents('2026-06-01', events, { currentDate: '2026-06-02' });
-		const secondDay = computeDayEvents('2026-06-02', events, { currentDate: '2026-06-02' });
+		const options = { currentDate: '2026-06-02', now: new Date('2026-06-02T02:00:00+09:00') };
+		const firstDay = computeDayEvents('2026-06-01', events, options);
+		const secondDay = computeDayEvents('2026-06-02', events, options);
 
 		expect(firstDay.inProgress).toBe(false);
 		expect(firstDay.workedMinutes).toBe(120);
@@ -153,6 +154,56 @@ describe('attendance work segments', () => {
 		expect(secondDay.clockOut).toBe(undefined);
 	});
 
+	test('shows a shift that has been open since last night', () => {
+		const events = [
+			attendanceEvent('night-in', 'clock_in', '2026-06-01T22:00:00+09:00', '22:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+		];
+
+		const day = computeDayEvents('2026-06-02', events, {
+			currentDate: '2026-06-02',
+			now: new Date('2026-06-02T08:00:00+09:00'),
+		});
+
+		expect(day.inProgress).toBe(true);
+		expect(day.activeSegment?.startTime).toBe('00:00:00');
+	});
+
+	test('shows nothing for a shift nobody closed for over a day', () => {
+		const events = [
+			attendanceEvent('forgotten-in', 'clock_in', '2026-06-01T09:00:00+09:00', '09:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+		];
+
+		const options = { currentDate: '2026-06-03', now: new Date('2026-06-03T09:00:00+09:00') };
+
+		expect(computeDayEvents('2026-06-03', events, options).inProgress).toBe(false);
+		expect(computeDayEvents('2026-06-03', events, options).segments).toEqual([]);
+		expect(computeDayEvents('2026-06-01', events, options).segments).toEqual([]);
+	});
+
+	test('stops showing the shift the moment it outlives its day', () => {
+		const events = [
+			attendanceEvent('long-in', 'clock_in', '2026-06-01T09:00:00+09:00', '09:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+		];
+
+		const justUnder = computeDayEvents('2026-06-02', events, {
+			currentDate: '2026-06-02',
+			now: new Date('2026-06-02T08:59:00+09:00'),
+		});
+		const justOver = computeDayEvents('2026-06-02', events, {
+			currentDate: '2026-06-02',
+			now: new Date('2026-06-02T09:01:00+09:00'),
+		});
+
+		expect(justUnder.inProgress).toBe(true);
+		expect(justOver.inProgress).toBe(false);
+	});
+
 	test('ignores canceled events when building segments', () => {
 		const events = [
 			attendanceEvent('home-in', 'clock_in', '2026-06-17T01:30:00.000Z', '10:30:00', 'home', '재택', {
@@ -162,7 +213,7 @@ describe('attendance work segments', () => {
 			attendanceEvent('office-in', 'clock_in', '2026-06-17T04:00:00.000Z', '13:00:00', 'office', '사무실'),
 		];
 
-		const day = computeDayEvents('2026-06-17', events);
+		const day = computeDayEvents('2026-06-17', events, { now: new Date('2026-06-17T05:00:00.000Z') });
 
 		expect(day.segments.length).toBe(1);
 		expect(day.activeSegment?.locationName).toBe('사무실');

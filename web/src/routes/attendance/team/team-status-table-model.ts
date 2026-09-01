@@ -87,9 +87,10 @@ export function buildTeamStatusRows(
 	text: AttendanceText,
 	today: string = todayDateInTimeZone(summary.timeZone),
 	currentSummary: AttendanceSummary = summary,
-	nowLocalTime: string = timeInTimeZone(summary.timeZone)
+	nowLocalTime: string = timeInTimeZone(summary.timeZone),
+	now: Date = new Date()
 ): TeamStatusPersonRow[] {
-	return buildTeamRowsForDates(eachDayOfMonth(month), summary, text, today, currentSummary, nowLocalTime);
+	return buildTeamRowsForDates(eachDayOfMonth(month), summary, text, today, currentSummary, nowLocalTime, now);
 }
 
 export function resolveDefaultDate(
@@ -113,13 +114,14 @@ function buildTeamRowsForDates(
 	text: AttendanceText,
 	today: string,
 	currentSummary: AttendanceSummary,
-	nowLocalTime: string
+	nowLocalTime: string,
+	now: Date
 ): TeamStatusPersonRow[] {
 	const people = buildTeamPeopleForDates(summary, dates);
 	const locationColors = buildLocationColors(summary.locations);
 	const peopleByDate = new Map<string, Map<string, PersonToday>>();
 	for (const date of dates) {
-		const dayPeople = computePeopleToday(date, summary.events, summary.presences, today, summary.absences);
+		const dayPeople = computePeopleToday(date, summary.events, summary.presences, today, summary.absences, now);
 		peopleByDate.set(date, new Map(dayPeople.map((person) => [person.email, person])));
 	}
 	const currentLocationColors = buildLocationColors(currentSummary.locations);
@@ -128,7 +130,8 @@ function buildTeamRowsForDates(
 		currentSummary.events,
 		currentSummary.presences,
 		today,
-		currentSummary.absences
+		currentSummary.absences,
+		now
 	).map((person) => [person.email, person]));
 	return people.map((person) => {
 		const todayPerson = todayPeople.get(person.email);
