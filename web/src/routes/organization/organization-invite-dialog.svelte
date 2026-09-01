@@ -12,6 +12,7 @@
 	const text = createPageText(organizationDirectoryText);
 	const fieldID = $props.id();
 	let email = $state('');
+	let name = $state('');
 	let isSaving = $state(false);
 	let errorMessage = $state('');
 	let invitation = $state<MemberInvitation | null>(null);
@@ -21,8 +22,9 @@
 		isSaving = true;
 		errorMessage = '';
 		try {
-			invitation = await inviteMemberToCompany(email);
+			invitation = await inviteMemberToCompany(email, name);
 			email = '';
+			name = '';
 			await onInvited();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.inviteFailed;
@@ -56,6 +58,15 @@
 		{:else}
 			<form class="grid gap-4" onsubmit={invite}>
 				<div class="grid gap-1.5">
+					<Label for="invite-name-{fieldID}">{text.inviteName}</Label>
+					<Input
+						id="invite-name-{fieldID}"
+						autocomplete="off"
+						bind:value={name}
+						disabled={isSaving}
+					/>
+				</div>
+				<div class="grid gap-1.5">
 					<Label for="invite-email-{fieldID}">{text.inviteEmail}</Label>
 					<Input
 						id="invite-email-{fieldID}"
@@ -70,7 +81,7 @@
 				{/if}
 				<Dialog.Footer>
 					<Button type="button" variant="outline" disabled={isSaving} onclick={close}>{text.cancel}</Button>
-					<Button type="submit" disabled={isSaving || !email.trim()}>{text.invite}</Button>
+					<Button type="submit" disabled={isSaving || !email.trim() || !name.trim()}>{text.invite}</Button>
 				</Dialog.Footer>
 			</form>
 		{/if}
