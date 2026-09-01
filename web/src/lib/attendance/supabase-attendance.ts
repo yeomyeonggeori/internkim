@@ -1,6 +1,6 @@
 import { announceToTheCompany } from './announce-attendance';
 import { companyDateOf, companyTimeOf } from '$lib/company-time';
-import { companyMonthTimeRange } from './supabase-work-status-range';
+import { companyMonthTimeRange, shiftedDay, supabaseWorkStatusTimeRange } from './supabase-work-status-range';
 import { announceApprovalRequestInBackground } from './announce-approval';
 import {
 	attendanceWriteResultFrom,
@@ -73,11 +73,15 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 	const timeZone = company.data.timezone;
 	const selectedMonth = month || monthIn(new Date(), timeZone);
 	const { from, until } = companyMonthTimeRange(selectedMonth, timeZone);
+	const attendanceFrom = supabaseWorkStatusTimeRange(
+		[shiftedDay(`${selectedMonth}-01`, -1)],
+		timeZone
+	).from;
 
 	const attendance = await client
 		.from('attendance')
 		.select('id, member_id, kind, location, occurred_at, original_occurred_at')
-		.gte('occurred_at', from)
+		.gte('occurred_at', attendanceFrom)
 		.lt('occurred_at', until)
 		.order('occurred_at')
 		.returns<AttendanceRow[]>();
