@@ -84,12 +84,19 @@ export async function addMember(
 	client: SupabaseClient,
 	companyID: string,
 	email: string,
-	options: { isAdmin?: boolean } = {},
+	options: { isAdmin?: boolean; name?: string } = {},
 ): Promise<string> {
+	const name = (options.name ?? '').trim();
 	const { data, error } = await client
 		.from('member')
 		.upsert(
-			{ company_id: companyID, email, is_admin: options.isAdmin ?? false, status: 'pending' },
+			{
+				company_id: companyID,
+				email,
+				is_admin: options.isAdmin ?? false,
+				status: 'pending',
+				...(name ? { name } : {}),
+			},
 			{ onConflict: 'email' },
 		)
 		.select('id')
@@ -97,6 +104,36 @@ export async function addMember(
 	if (error) throw new Error(`member ${email}: ${error.message}`);
 	return data.id;
 }
+
+// Somebody who worked here leaves their attendance, their leave and the tasks
+// they carried behind, and those records name the row they belong to. Marking
+// them withdrawn is what a colleague leaving looks like: the record still
+// reads and every screen stops showing them.
+//
+// Purging is the other case, an address typed by mistake with nothing to keep.
+// Postgres decides whether it may go: a reference that refuses the delete is a
+// record worth keeping, so it falls back to withdrawing and says so.
+export async function removeMember(
+	client: SupabaseClient,
+	companyID: string,
+	memberID: string,
+	options: { purge?: boolean } = {},
+): Promise<{ wasRemoved: boolean }> {
+	if (options.purge) {
+		const removed = await client.from('member').delete().eq('company_id', companyID).eq('id', memberID);
+		if (!removed.error) return { wasRemoved: true };
+		if (removed.error.code !== foreignKeyViolation) throw new Error(removed.error.message);
+	}
+	const withdrawn = await client
+		.from('member')
+		.update({ status: 'withdrawn' })
+		.eq('company_id', companyID)
+		.eq('id', memberID);
+	if (withdrawn.error) throw new Error(withdrawn.error.message);
+	return { wasRemoved: false };
+}
+
+const foreignKeyViolation = '23503';
 
 export type FoundedCompany = {
 	companyID: string;

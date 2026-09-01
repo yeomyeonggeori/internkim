@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 // A room the company opened holds the company. A seat in one that no address
@@ -20,14 +22,16 @@ func (service *Service) removeSeatsNobodyAccountsFor(ctx context.Context, relay 
 		return
 	}
 	if report.Removed > 0 {
-		log.Printf("buzz membership: took back %d seat(s) nobody accounts for: %v", report.Removed, report.Seats)
+		log.Printf("buzz membership: took back %d seat(s) and %d community place(s) nobody accounts for: %v",
+			report.Removed, report.LeftTheCommunity, report.Seats)
 	}
 }
 
 type buzzSeatSweepReport struct {
-	Rooms   int      `json:"rooms"`
-	Seats   []string `json:"seats"`
-	Removed int      `json:"removed"`
+	Rooms            int      `json:"rooms"`
+	Seats            []string `json:"seats"`
+	Removed          int      `json:"removed"`
+	LeftTheCommunity int      `json:"leftTheCommunity"`
 }
 
 func (service *Service) sweepSeatsNobodyAccountsFor(
@@ -64,7 +68,31 @@ func (service *Service) sweepSeatsNobodyAccountsFor(
 			return report, errorValue
 		}
 	}
+	if apply {
+		left, errorValue := showOutOfTheCommunity(ctx, relay, report.Seats)
+		if errorValue != nil {
+			return report, errorValue
+		}
+		report.LeftTheCommunity = left
+	}
 	return report, nil
+}
+
+// Somebody the company no longer holds a seat for is not in the company, and
+// the community is what lets them read it at all. Only the keys whose seats
+// this pass just took are shown out, so the people the history carried over -
+// who hold no seat and never did - are left where they are.
+func showOutOfTheCommunity(ctx context.Context, relay *sql.DB, pubkeys []string) (int, error) {
+	if len(pubkeys) == 0 {
+		return 0, nil
+	}
+	result, errorValue := relay.ExecContext(ctx,
+		"DELETE FROM relay_members WHERE pubkey = ANY($1) AND role <> 'owner'", pq.Array(pubkeys))
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	left, errorValue := result.RowsAffected()
+	return int(left), errorValue
 }
 
 // The daily pass is what keeps a room to the people in it, and this is the same
