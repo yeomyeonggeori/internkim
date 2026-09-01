@@ -11,28 +11,6 @@ import (
 
 const softDeletedMattermostPostGrace = 10 * time.Minute
 
-func (service *Service) startSoftDeletedMattermostPostPurge(ctx context.Context) {
-	service.runSoftDeletedMattermostPostPurge(ctx, time.Now().UTC())
-	go func() {
-		ticker := time.NewTicker(time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case now := <-ticker.C:
-				service.runSoftDeletedMattermostPostPurge(ctx, now.UTC())
-			}
-		}
-	}()
-}
-
-func (service *Service) runSoftDeletedMattermostPostPurge(ctx context.Context, now time.Time) {
-	if errorValue := service.purgeSoftDeletedMattermostPosts(ctx, now); errorValue != nil {
-		log.Printf("soft-deleted Mattermost post purge failed: %v", errorValue)
-	}
-}
-
 func (service *Service) purgeSoftDeletedMattermostPosts(ctx context.Context, now time.Time) error {
 	cutoff := softDeletedMattermostPostPurgeCutoff(now)
 	purgedCount, errorValue := service.softDeletedMattermostPostCount(ctx, cutoff)
