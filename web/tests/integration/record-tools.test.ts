@@ -73,6 +73,12 @@ function resultOf(answer: { status: number; body: unknown }): Record<string, unk
 describe('which tools run over the record', () => {
 	test('are exactly the ones whose rows live there', () => {
 		expect([...toolsTheRecordRuns()].sort()).toEqual([
+			'approval_decide',
+			'approval_list',
+			'attendance_add',
+			'attendance_delete',
+			'attendance_list',
+			'attendance_update',
 			'event_add',
 			'event_delete',
 			'event_list',
