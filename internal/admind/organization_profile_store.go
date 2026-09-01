@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -111,6 +112,30 @@ func (service *Service) readOrganizationProfilesByUserID(ctx context.Context) (m
 		}
 	}
 	return profilesByUserID, nil
+}
+
+// A job title, a supervisor and a phone number describe somebody who works
+// here. When they no longer do, the description is not a record of anything
+// that happened - the attendance and the leave are that - so it goes with them.
+func (service *Service) forgetOrganizationProfile(ctx context.Context, email string, memberID string) error {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	normalizedMemberID := strings.TrimSpace(memberID)
+	if normalizedEmail == "" && normalizedMemberID == "" {
+		return nil
+	}
+	database, errorValue := service.openOrganizationDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer database.Close()
+	_, errorValue = database.ExecContext(ctx, `
+DELETE FROM organization_profiles
+WHERE (email != '' AND email = ?)
+	OR (user_id != '' AND user_id = ?)`,
+		normalizedEmail,
+		normalizedMemberID,
+	)
+	return errorValue
 }
 
 func (service *Service) readOrganizationProfiles(ctx context.Context) ([]organizationProfile, error) {

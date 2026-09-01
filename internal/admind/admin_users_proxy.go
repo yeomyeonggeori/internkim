@@ -225,6 +225,9 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
 			}
+			if errorValue := service.forgetOrganizationProfile(request.Context(), removedUser.Email, removedUser.MemberID); errorValue != nil {
+				log.Printf("the organization profile of %s outlived them: %v", removedUser.Email, errorValue)
+			}
 			service.triggerUsersSync(request.Context())
 		}
 		if len(organizationMutationIdentities) > 0 {
