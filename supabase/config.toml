@@ -28,3 +28,6 @@ otp_length = 8
 [auth.email.template.magic_link]
 subject = "Set up your internkim sign-in"
 content_path = "./supabase/templates/magic-link.html"
+
+[functions.setup-vapid]
+verify_jwt = true
