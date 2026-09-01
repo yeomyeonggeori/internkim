@@ -101,8 +101,6 @@ func (service *Service) finalizeCalendarDeleteIntent(ctx context.Context, operat
 		return errorValue
 	}
 	service.runCalendarStoreSideEffectUnlocked(func() {
-		service.reconcileCalendarEventNotifications(ctx, event.ID)
-		service.applyCalendarMattermostProjectionByID(ctx, event.ID)
 	})
 	if shouldSignalSync {
 		service.signalCalendarSyncWakeUp()

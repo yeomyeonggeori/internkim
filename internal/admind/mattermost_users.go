@@ -1603,3 +1603,29 @@ func generateTemporaryPassword() string {
 	}
 	return builder.String()
 }
+
+func (service *Service) ensureMattermostBotDirectChannelID(ctx context.Context, token string, userID string) (string, error) {
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedUserID == "" {
+		return "", fmt.Errorf("Mattermost user ID is required")
+	}
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, service.Configuration.BotUsername)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if !found || botRecord.ID == "" || botRecord.DeleteAt != 0 || botRecord.ID == normalizedUserID {
+		return "", fmt.Errorf("internkim bot user is not available")
+	}
+	body := []string{normalizedUserID, botRecord.ID}
+	var channelRecord mattermostChannelRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/direct", token, body, &channelRecord); errorValue != nil && !isMattermostBadRequest(errorValue) {
+		return "", errorValue
+	}
+	if errorValue := service.showMattermostDirectChannel(ctx, token, normalizedUserID, botRecord.ID); errorValue != nil {
+		return "", errorValue
+	}
+	if strings.TrimSpace(channelRecord.ID) != "" {
+		return channelRecord.ID, nil
+	}
+	return "", fmt.Errorf("Mattermost direct channel was not created")
+}

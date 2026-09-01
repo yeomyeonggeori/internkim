@@ -83,9 +83,6 @@ WHERE id = ? AND updated_at = ? AND deleted_at = ''`,
 	if errorValue := replaceCalendarMutationOrigin(ctx, transaction, event.ID, updatedAt, nil); errorValue != nil {
 		return "", errorValue
 	}
-	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
-		return "", errorValue
-	}
 	if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, event); errorValue != nil {
 		return "", errorValue
 	}

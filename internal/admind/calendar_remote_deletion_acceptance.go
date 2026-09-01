@@ -29,8 +29,6 @@ func (service *Service) acceptCalendarRemoteDeletion(ctx context.Context, row ca
 		return false, errorValue
 	}
 	service.runCalendarStoreSideEffectUnlocked(func() {
-		service.reconcileCalendarEventNotifications(ctx, snapshotEvent.ID)
-		service.applyCalendarMattermostProjectionByID(ctx, snapshotEvent.ID)
 	})
 	return true, nil
 }
@@ -53,9 +51,6 @@ WHERE id = ? AND updated_at = ? AND deleted_at = ''`,
 		return false, errorValue
 	}
 	if errorValue := replaceCalendarMutationOrigin(ctx, transaction, snapshotEvent.ID, deletedAt, nil); errorValue != nil {
-		return false, errorValue
-	}
-	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, snapshotEvent.ID); errorValue != nil {
 		return false, errorValue
 	}
 	if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, snapshotEvent); errorValue != nil {

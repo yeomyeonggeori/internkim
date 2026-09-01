@@ -157,12 +157,6 @@ type Service struct {
 	calendarSyncCycleMutex             sync.Mutex
 	calendarRemoteMutex                sync.Mutex
 	calendarOAuthTokenMutex            sync.Mutex
-	calendarNotificationMutex          sync.Mutex
-	calendarNotificationStates         map[string]*calendarNotificationReconciliationState
-	calendarNotificationLive           chan calendarNotificationReconciliationJob
-	calendarNotificationRepair         chan calendarNotificationReconciliationJob
-	calendarNotificationCtx            context.Context
-	calendarNotificationGroup          sync.WaitGroup
 	calendarSwitchWaiters              atomic.Int64
 	calendarStoreWriteMutex            sync.Mutex
 	calendarHolidayCacheMutex          sync.RWMutex
@@ -380,7 +374,6 @@ func NewService(configuration Configuration) *Service {
 		mailBackend:                mail.StandardBackend{},
 		calendarSyncWakeUp:         make(chan struct{}, 1),
 		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
-		calendarNotificationStates: map[string]*calendarNotificationReconciliationState{},
 		calendarActorCache:         map[string]calendarActorProfileCacheEntry{},
 		calendarHolidayCache:       map[calendarHolidayCacheKey][]calendarHoliday{},
 		calendarHolidayRetryStates: map[calendarHolidayRetryKey]calendarHolidayRetryState{},
@@ -428,10 +421,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCompanionFileCleanup(ctx)
 	service.startMattermostProvisionerSync(ctx)
 	service.startMattermostCircleSync(ctx)
-	service.startMattermostProjectionOutboxWorker(ctx)
 	service.startBlueclawRosterReconcile(ctx)
-	service.startCalendarNotificationReconciliation(ctx)
-	service.startCalendarNotificationWorker(ctx)
 	service.startCalendarDeleteIntentWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
 	service.startSoftDeletedMattermostPostPurge(ctx)
@@ -504,32 +494,6 @@ func (service *Service) startMattermostCircleSync(ctx context.Context) {
 			}
 		}
 	}()
-}
-
-func (service *Service) startMattermostProjectionOutboxWorker(ctx context.Context) {
-	if strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath)) == "" {
-		return
-	}
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-		expiryTicker := time.NewTicker(time.Hour)
-		defer expiryTicker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				service.drainMattermostProjectionOutboxWithTimeout(ctx)
-			}
-		}
-	}()
-}
-
-func (service *Service) drainMattermostProjectionOutboxWithTimeout(ctx context.Context) {
-	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	service.drainMattermostManagedChannelProjections(syncContext)
 }
 
 func (service *Service) syncMattermostCirclesWithTimeout(ctx context.Context) {
