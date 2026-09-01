@@ -21,8 +21,7 @@ const writingSideEffectClasses = new Set([
 	'browser',
 	'browser_write',
 	'handoff',
-	'local_file',
-	'approval'
+	'local_file'
 ]);
 
 export function permissionForTool(descriptor: ToolDescriptor): PublicAPIPermission {
