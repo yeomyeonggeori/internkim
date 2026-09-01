@@ -1,6 +1,7 @@
 package localfleet
 
 import (
+	"encoding/base64"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -35,6 +36,13 @@ var centralPlaneDeviceSettings = []struct {
 
 // A device that names no company keeps its own records, so the fleet says which
 // company this one belongs to before setup brings its services up.
+//
+// vm-ssh hands ssh whatever it is given, and ssh joins every operand after the
+// host with a space into one string for the remote login shell to re-split. So
+// the remote command is written here as a single argument, and the script it
+// runs travels encoded rather than through two shells' worth of quoting: the
+// values are the company's own keys, and a quote inside one used to end the
+// command early and run the rest of it as the unprivileged user.
 func (service Service) joinCentralPlaneCommand() string {
 	remoteSteps := []string{
 		"set -e",
@@ -42,17 +50,20 @@ func (service Service) joinCentralPlaneCommand() string {
 	}
 	carried := []string{}
 	for _, setting := range centralPlaneDeviceSettings {
+		encodedVariable := setting.variable + "_BASE64"
 		remoteSteps = append(remoteSteps,
-			"printf '%s\\n' \"$"+setting.variable+"\" > "+setting.path,
+			"printf '%s\\n' \"$(printf %s \"$"+encodedVariable+"\" | base64 -d)\" > "+setting.path,
 			"chmod "+setting.mode+" "+setting.path,
 		)
-		carried = append(carried, setting.variable+"=\"$"+setting.variable+"\"")
+		carried = append(carried, encodedVariable+"=$(printf %s \\\"$"+setting.variable+"\\\" | base64 | tr -d '\\n')")
 	}
+	encodedScript := base64.StdEncoding.EncodeToString([]byte(strings.Join(remoteSteps, "\n")))
+	remoteCommand := "\"sudo env " + strings.Join(carried, " ") +
+		" sh -c \\\"echo " + encodedScript + " | base64 -d | sh\\\"\""
 	return strings.Join([]string{
 		". " + quoteShell(service.centralPlaneSettingsPath()),
 		quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) +
-			" -- sudo env " + strings.Join(carried, " ") +
-			" sh -c " + quoteShell(strings.Join(remoteSteps, "; ")),
+			" -- " + remoteCommand,
 	}, " && ")
 }
 
