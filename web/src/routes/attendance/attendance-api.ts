@@ -1,9 +1,12 @@
 import {
+	addSupabaseAttendanceEvent,
 	correctSupabaseAttendanceEvents,
 	recordSupabaseAttendance,
+	removeSupabaseAttendanceEvent,
 	setSupabaseTeamViewVisibility,
 	supabaseAttendanceSummary
 } from '$lib/attendance/supabase-attendance';
+import type { AttendanceWriteResult } from '$lib/attendance/attendance-write';
 import {
 	attendanceWorkStatusFrom,
 	rangeCovers,
@@ -121,6 +124,20 @@ export type UpdateAttendanceEvent = {
 	request: UpdateAttendanceEventRequest;
 };
 
+export type AddAttendanceEventRequest = {
+	email: string;
+	kind: AttendanceKind;
+	localDate: string;
+	localTime: string;
+	locationID: string;
+	reason: string;
+};
+
+export type RemoveAttendanceEventRequest = {
+	eventID: string;
+	reason: string;
+};
+
 export async function fetchAttendanceSummary(request: AttendanceSummaryRequest): Promise<AttendanceSummary> {
 	if (isSupabaseConfigured()) return supabaseAttendanceSummary(request.month);
 	const path = attendanceSummaryPath(request);
@@ -204,12 +221,17 @@ export async function deleteAttendanceAbsence(absenceID: string): Promise<void> 
 	if (!response.ok) throw new Error(await response.text());
 }
 
-export async function updateAttendanceEvent(eventID: string, request: UpdateAttendanceEventRequest): Promise<void> {
+export async function updateAttendanceEvent(
+	eventID: string,
+	request: UpdateAttendanceEventRequest
+): Promise<AttendanceWriteResult> {
 	return updateAttendanceEvents([{ eventID, request }]);
 }
 
-export async function updateAttendanceEvents(updates: UpdateAttendanceEvent[]): Promise<void> {
-	if (updates.length === 0) return;
+export async function updateAttendanceEvents(
+	updates: UpdateAttendanceEvent[]
+): Promise<AttendanceWriteResult> {
+	if (updates.length === 0) throw new Error('at least one attendance correction is required');
 	if (isSupabaseConfigured()) {
 		const reasons = new Set(updates.map((update) => update.request.reason.trim()));
 		if (reasons.size !== 1) throw new Error('attendance corrections must share one reason');
@@ -224,6 +246,25 @@ export async function updateAttendanceEvents(updates: UpdateAttendanceEvent[]): 
 		);
 	}
 	await Promise.all(updates.map((update) => patchAttendanceEvent(update.eventID, update.request)));
+	return { outcome: 'saved' };
+}
+
+export async function addAttendanceEvent(
+	request: AddAttendanceEventRequest
+): Promise<AttendanceWriteResult> {
+	if (!isSupabaseConfigured()) {
+		throw new Error('this deployment records attendance on the device, which cannot add a record');
+	}
+	return addSupabaseAttendanceEvent(request);
+}
+
+export async function removeAttendanceEvent(
+	request: RemoveAttendanceEventRequest
+): Promise<AttendanceWriteResult> {
+	if (!isSupabaseConfigured()) {
+		throw new Error('this deployment records attendance on the device, which cannot remove a record');
+	}
+	return removeSupabaseAttendanceEvent(request.eventID, request.reason);
 }
 
 async function patchAttendanceEvent(eventID: string, request: UpdateAttendanceEventRequest): Promise<void> {

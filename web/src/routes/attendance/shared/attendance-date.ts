@@ -1,4 +1,4 @@
-import { companyDateOf, companyTimeOf, isValidTimeZone } from '../../../lib/company-time';
+import { companyDateOf, companyInstantOf, companyTimeOf, isValidTimeZone } from '../../../lib/company-time';
 
 export function todayDateInTimeZone(timeZone?: string, date: Date = new Date()): string {
 	return companyDateOf(date, normalizeTimeZone(timeZone));
@@ -32,6 +32,21 @@ export function fallbackFutureAttendanceLocalTime(
 	if (localDate !== todayDateInTimeZone(timeZone, now)) return localTime;
 	if (!isFutureAttendanceLocalTime(localDate, localTime, timeZone, now)) return localTime;
 	return timeInTimeZone(timeZone, now);
+}
+
+const localDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+const localTimePattern = /^\d{2}:\d{2}$/;
+
+export function attendanceInstantOfLocalTime(
+	localDate: string,
+	localTime: string,
+	timeZone?: string
+): Date {
+	if (!localDatePattern.test(localDate) || !localTimePattern.test(localTime)) {
+		return new Date(Number.NaN);
+	}
+	const instant = companyInstantOf(localDate, localTime, normalizeTimeZone(timeZone));
+	return instant ? new Date(instant) : new Date(Number.NaN);
 }
 
 export function timeZoneDisplayLabel(timeZone?: string, date: Date = new Date()): string {

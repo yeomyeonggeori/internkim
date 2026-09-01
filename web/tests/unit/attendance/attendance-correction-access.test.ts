@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import type { AttendanceEvent, AttendanceSummary } from '../../../src/routes/attendance/attendance-context.svelte';
-import { editableAttendanceEventIDs } from '../../../src/routes/attendance/team/attendance-correction-access';
+import {
+	attendanceAdditionWriteOutcome,
+	attendanceEventsWriteOutcome,
+	editableAttendanceEventIDs
+} from '../../../src/routes/attendance/team/attendance-correction-access';
 import type { TeamStatusPersonDaySegment } from '../../../src/routes/attendance/team/team-status-table-model';
 
 const currentTime = new Date('2026-07-15T10:30:00+09:00');
@@ -20,7 +24,7 @@ const segment: TeamStatusPersonDaySegment = {
 };
 
 describe('attendance correction access', () => {
-	test('allows a member only within the original event time window', () => {
+	test('keeps an own record reachable outside the window so it can become a request', () => {
 		const summary = summaryWith(
 			{
 				id: 'clock-in',
@@ -29,7 +33,48 @@ describe('attendance correction access', () => {
 			},
 			{ id: 'clock-out', occurredAt: '2026-07-15T10:00:00+09:00' }
 		);
-		expect(editableAttendanceEventIDs(summary, [segment], currentTime)).toEqual(new Set(['clock-out']));
+		expect(editableAttendanceEventIDs(summary, [segment], currentTime)).toEqual(
+			new Set(['clock-in', 'clock-out'])
+		);
+		expect(attendanceEventsWriteOutcome(summary, ['clock-in'], currentTime)).toBe('requested');
+		expect(attendanceEventsWriteOutcome(summary, ['clock-out'], currentTime)).toBe('saved');
+		expect(attendanceEventsWriteOutcome(summary, ['clock-in', 'clock-out'], currentTime)).toBe(
+			'requested'
+		);
+	});
+
+	test('leaves a colleague record out of reach for a member', () => {
+		const summary = summaryWith(
+			{ id: 'clock-in', email: 'colleague@example.com' },
+			{ id: 'clock-out', email: 'colleague@example.com' }
+		);
+		expect(editableAttendanceEventIDs(summary, [segment], currentTime)).toEqual(new Set<string>());
+		expect(attendanceEventsWriteOutcome(summary, ['clock-in'], currentTime)).toBe('blocked');
+	});
+
+	test('reads a record being added through the same window', () => {
+		const summary = summaryWith({ id: 'clock-in' });
+		expect(
+			attendanceAdditionWriteOutcome(
+				summary,
+				{ email: 'member@example.com', localDate: '2026-07-15', localTime: '10:00' },
+				currentTime
+			)
+		).toBe('saved');
+		expect(
+			attendanceAdditionWriteOutcome(
+				summary,
+				{ email: 'member@example.com', localDate: '2026-07-01', localTime: '09:00' },
+				currentTime
+			)
+		).toBe('requested');
+		expect(
+			attendanceAdditionWriteOutcome(
+				summary,
+				{ email: 'colleague@example.com', localDate: '2026-07-15', localTime: '09:00' },
+				currentTime
+			)
+		).toBe('blocked');
 	});
 
 	test('allows an administrator to correct another member regardless of event age', () => {

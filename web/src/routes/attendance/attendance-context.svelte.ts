@@ -1,13 +1,18 @@
 import { getContext, setContext } from 'svelte';
 import {
+	addAttendanceEvent,
+	type AddAttendanceEventRequest,
 	createAttendanceAbsence,
 	type CreateAttendanceAbsenceRequest,
 	deleteAttendanceAbsence,
 	fetchAttendanceSummary,
+	removeAttendanceEvent,
+	type RemoveAttendanceEventRequest,
 	updateAttendanceEvent,
 	updateAttendanceEvents,
 	type UpdateAttendanceEventRequest
 } from './attendance-api';
+import type { AttendanceWriteResult } from '$lib/attendance/attendance-write';
 import { readPersistedAttendanceFilters, writePersistedAttendanceFilters } from './attendance-storage';
 import { clearCachedAttendanceSummaries, readCachedAttendanceSummary, writeCachedAttendanceSummary } from './attendance-summary-cache';
 import { currentMonthInTimeZone } from './shared/attendance-date';
@@ -128,6 +133,7 @@ export type AttendanceSummary = {
 	timeZoneAuthoritative?: boolean;
 	correctionWindowMinutes?: number;
 	currentUserEmail: string;
+	currentMemberID?: string;
 	isAdmin: boolean;
 	timeZone: string;
 	events: AttendanceEvent[];
@@ -312,13 +318,27 @@ export class AttendanceState {
 	}
 
 	async updateEvent(eventID: string, request: UpdateAttendanceEventRequest) {
-		await updateAttendanceEvent(eventID, request);
+		const result = await updateAttendanceEvent(eventID, request);
 		await this.load();
+		return result;
 	}
 
 	async updateEvents(updates: { eventID: string; request: UpdateAttendanceEventRequest }[]) {
-		await updateAttendanceEvents(updates);
+		const result = await updateAttendanceEvents(updates);
 		await this.load();
+		return result;
+	}
+
+	async addEvent(request: AddAttendanceEventRequest): Promise<AttendanceWriteResult> {
+		const result = await addAttendanceEvent(request);
+		await this.load();
+		return result;
+	}
+
+	async removeEvent(request: RemoveAttendanceEventRequest): Promise<AttendanceWriteResult> {
+		const result = await removeAttendanceEvent(request);
+		await this.load();
+		return result;
 	}
 }
 
