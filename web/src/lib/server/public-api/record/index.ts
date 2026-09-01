@@ -14,7 +14,7 @@ import { personList, taskAdd, taskDelete, taskList, taskUpdate } from './task-to
 type ToolInput = Record<string, unknown>;
 type ToolRun = (context: RecordContext, input: ToolInput) => Promise<unknown> | unknown;
 
-// A tool runs where its records live. These nine write nothing but rows in the
+// A tool runs where its records live. These write nothing but rows in the
 // record, so nothing about them needs the company's own computer.
 const toolsOverTheRecord: Record<string, ToolRun> = {
 	task_add: (context, input) => taskAdd(context, input),
