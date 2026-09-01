@@ -9,6 +9,7 @@
 	import { mailProviderSetupGuide } from './mail-provider-setup-guides';
 	import type { MailAccount, MailAccountDraft } from './mail-types';
 	import type { mailText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type Props = {
 		account: MailAccount;
@@ -16,7 +17,7 @@
 		emailLocalPart: string;
 		emailProviderID: MailProviderID;
 		customEmailDomain: string;
-		text: (typeof mailText)['ko'];
+		text: PageText<typeof mailText>;
 		handleEmailProviderChange: (event: Event) => void;
 		syncAccountEmailFromParts: (forceUsernameSync: boolean) => void;
 		syncCommonAppPassword: (event: Event) => void;

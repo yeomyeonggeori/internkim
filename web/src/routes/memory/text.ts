@@ -1,3 +1,5 @@
+import type { PageText } from '$lib/i18n/page-text.svelte';
+
 export const memoryText = {
 	ko: {
 		pageTitle: '기억 · 김인턴',
@@ -259,4 +261,4 @@ export const memoryText = {
 	}
 } as const;
 
-export type MemoryText = { readonly [Key in keyof typeof memoryText.ko]: string };
+export type MemoryText = PageText<typeof memoryText>;

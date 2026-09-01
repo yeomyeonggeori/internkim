@@ -1,7 +1,8 @@
 import type { MailProviderID } from './mail-provider-presets';
 import type { mailText } from './text';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-type MailText = (typeof mailText)[keyof typeof mailText];
+type MailText = PageText<typeof mailText>;
 
 export type MailProviderSetupGuideImage = {
 	src: string;

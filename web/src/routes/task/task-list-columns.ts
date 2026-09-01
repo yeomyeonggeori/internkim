@@ -10,8 +10,9 @@ import TaskListTextCell from './task-list-text-cell.svelte';
 import { taskDefinitionLabel } from './task-workspace-model';
 import type { Task } from './task-types';
 import { taskText } from './text';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-type TaskPageText = typeof taskText.ko;
+type TaskPageText = PageText<typeof taskText>;
 
 export type TaskListStatusOption = {
 	value: string;

@@ -2,9 +2,9 @@ export type CalendarGoogleOAuthClientGuideText = {
 	title: string;
 	intro: string;
 	checklistTitle: string;
-	checks: string[];
+	checks: readonly string[];
 	stepsTitle: string;
-	steps: Array<{
+	steps: ReadonlyArray<{
 		title: string;
 		body: string;
 		action?: {

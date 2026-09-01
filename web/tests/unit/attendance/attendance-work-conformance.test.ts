@@ -271,8 +271,12 @@ describe('the central plane walks a scheduled day the way the device does', () =
 				).toThrow('crosses the day boundary');
 				return;
 			}
+			const expectedEndTime = endCase.expectedEndTime;
+			if (expectedEndTime === undefined) {
+				throw new Error(`schedule end case ${endCase.name} names neither a refusal nor an expected end time`);
+			}
 			expect(scheduleEndTime(endCase.startTime, endCase.requiredMinutes, endCase.breakPeriods)).toBe(
-				endCase.expectedEndTime
+				expectedEndTime
 			);
 		});
 	}

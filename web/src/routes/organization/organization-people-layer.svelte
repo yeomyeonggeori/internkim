@@ -4,6 +4,7 @@
 	import type { OrganizationOrganizationSection } from './organization-model';
 	import { organizationSectionsWithRecords, organizationSectionTree } from './organization-section-tree';
 	import type { organizationDirectoryText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	let {
 		sections,
@@ -15,7 +16,7 @@
 		sections: OrganizationOrganizationSection[];
 		selectedUserID: string;
 		hidesEmptySections?: boolean;
-		text: typeof organizationDirectoryText.ko;
+		text: PageText<typeof organizationDirectoryText>;
 		selectRecord: (record: UserRecord) => void;
 	} = $props();
 

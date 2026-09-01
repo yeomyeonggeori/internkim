@@ -1,3 +1,5 @@
+import type { PageText } from '$lib/i18n/page-text.svelte';
+
 export const attendanceText = {
 	ko: {
 		pageTitle: '근태 · intern kim',
@@ -875,4 +877,4 @@ export const attendanceText = {
 	}
 } as const;
 
-export type AttendanceText = typeof attendanceText.ko;
+export type AttendanceText = PageText<typeof attendanceText>;

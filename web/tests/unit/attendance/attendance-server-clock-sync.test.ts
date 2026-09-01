@@ -134,7 +134,7 @@ describe('attendance server clock synchronization', () => {
 		});
 		await newerRefresh;
 
-		expect(loadedSummary).toEqual({
+		expect<LoadedSummaryState | null>(loadedSummary).toEqual({
 			month: 'older',
 			serverTime: '2026-07-15T16:00:00+09:00',
 			timeZone: 'Asia/Seoul',
@@ -218,7 +218,7 @@ describe('attendance server clock synchronization', () => {
 		});
 
 		expect((await load)?.month).toBe('load');
-		expect(loadedSummary).toEqual({
+		expect<LoadedSummaryState | null>(loadedSummary).toEqual({
 			month: 'load',
 			serverTime: '2026-07-15T16:00:00+09:00',
 			timeZone: 'Asia/Seoul',

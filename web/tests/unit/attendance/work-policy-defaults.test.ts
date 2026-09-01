@@ -4,6 +4,9 @@ import {
 	defaultWorkPolicy,
 	initialWorkPolicyEffectiveDate
 } from '../../../src/lib/attendance/work-policy-defaults';
+import type { CurrentAttendanceWorkPolicy } from '../../../src/lib/attendance/current-work-policy';
+
+type WorkPolicyAsGoDeclaresIt = Omit<CurrentAttendanceWorkPolicy, 'workMode'> & { workMode: string };
 
 const goSource = [
 	readFileSync('../internal/admind/attendance_work_policy.go', 'utf8'),
@@ -63,7 +66,8 @@ describe('the central plane answers the device default work policy', () => {
 	});
 
 	test('the default work policy matches the one internal/admind declares', () => {
-		expect(defaultWorkPolicy()).toEqual({
+		const fromWeb: WorkPolicyAsGoDeclaresIt = defaultWorkPolicy();
+		expect(fromWeb).toEqual({
 			workMode: goStringField('WorkMode'),
 			workingWeekdays: goWorkingWeekdays(),
 			dailyTargetMinutes: goMinutesField('DailyTargetMinutes'),

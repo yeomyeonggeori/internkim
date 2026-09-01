@@ -19,6 +19,7 @@
 		type OrganizationOrganizationTreeNode
 	} from './organization-tree-model';
 	import type { organizationDirectoryText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	let {
 		tree,
@@ -37,7 +38,7 @@
 		canManage: boolean;
 		isEditing: boolean;
 		isSaving: boolean;
-		text: typeof organizationDirectoryText.ko;
+		text: PageText<typeof organizationDirectoryText>;
 		onSelect: (organizationID: string) => void;
 		onAddOrganization: () => void;
 		onBeginEdit: () => void;

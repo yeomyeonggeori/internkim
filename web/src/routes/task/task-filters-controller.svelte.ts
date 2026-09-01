@@ -8,8 +8,9 @@ import {
 } from './task-workspace-model';
 import { taskText } from './text';
 import type { TaskDefinitions, TaskSummary, Task } from './task-types';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-type TaskPageText = typeof taskText.ko;
+type TaskPageText = PageText<typeof taskText>;
 
 const emptyDefinitions: TaskDefinitions = {
 	categories: [],

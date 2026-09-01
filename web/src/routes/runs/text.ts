@@ -1,3 +1,5 @@
+import type { PageText } from '$lib/i18n/page-text.svelte';
+
 export const tasksText = {
 	ko: {
 		pageTitle: '작업 기록 · 김인턴',
@@ -159,4 +161,4 @@ export const tasksText = {
 	}
 };
 
-export type TasksText = { readonly [Key in keyof typeof tasksText.ko]: string };
+export type TasksText = PageText<typeof tasksText>;
