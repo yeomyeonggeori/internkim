@@ -58,7 +58,9 @@ func (service *Service) addressesTheDirectoryHolds(ctx context.Context) ([]strin
 			return nil, fmt.Errorf("the company did not answer with its members: %w", errorValue)
 		}
 		for _, member := range members {
-			addresses = append(addresses, member.Email)
+			if member.IsActive() {
+				addresses = append(addresses, member.Email)
+			}
 		}
 	}
 	addresses = append(addresses, service.addressesInvitedAndStillWaiting()...)
