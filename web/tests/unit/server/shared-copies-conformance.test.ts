@@ -5,7 +5,6 @@ import { describe, expect, test } from 'bun:test';
 const copies = [
 	['announce-attendance.ts', 'src/lib/server/announce-attendance.ts'],
 	['announce-the-day.ts', 'src/lib/server/announce-the-day.ts'],
-	['conversation-members.ts', 'src/lib/server/conversation-members.ts'],
 	['day-digest-timing.ts', 'src/lib/notifications/day-digest-timing.ts'],
 	['notify-member.ts', 'src/lib/server/notify-member.ts'],
 	['push-to-member-devices.ts', 'src/lib/server/push-to-member-devices.ts'],
