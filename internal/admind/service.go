@@ -415,8 +415,6 @@ func (service *Service) Run(ctx context.Context) error {
 	service.adoptAccountHireDates(ctx)
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
-	service.startMattermostProvisionerSync(ctx)
-	service.startMattermostCircleSync(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarDeleteIntentWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
@@ -472,44 +470,12 @@ func (service *Service) startRequesterSocketListener(socketServer *http.Server) 
 	}()
 }
 
-func (service *Service) startMattermostCircleSync(ctx context.Context) {
-	if strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath)) == "" {
-		return
-	}
-	go func() {
-		service.syncMattermostCirclesWithTimeout(ctx)
-		ticker := time.NewTicker(2 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				service.syncMattermostCirclesWithTimeout(ctx)
-			}
-		}
-	}()
-}
-
 func (service *Service) syncMattermostCirclesWithTimeout(ctx context.Context) {
 	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if errorValue := service.syncMattermostCirclesBestEffort(syncContext); errorValue != nil {
 		log.Printf("Mattermost circle policy sync failed: %v", errorValue)
 	}
-}
-
-func (service *Service) startMattermostProvisionerSync(ctx context.Context) {
-	if strings.TrimSpace(readTrimmedFile(service.Configuration.MattermostAdminPasswordPath)) == "" {
-		return
-	}
-	go func() {
-		syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		if errorValue := service.ensureMattermostProvisionerDefaults(syncContext); errorValue != nil {
-			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
-		}
-	}()
 }
 
 // Everyone signs in at the zone itself, and the API address answers only by
@@ -614,8 +580,6 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
-	multiplexer.HandleFunc("/_internkim/mattermost/commands", service.handleMattermostCommand)
-	multiplexer.HandleFunc("/_internkim/mattermost/actions", service.handleMattermostInteractiveAction)
 	multiplexer.Handle(relayProxyPrefix, service.handleRelayProxy())
 	multiplexer.Handle(relayProxyPrefix+"/", service.handleRelayProxy())
 	multiplexer.HandleFunc("/messenger", service.serveBoardSection("messenger"))
@@ -842,8 +806,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.saveBlueclawCircle(responseWriter, request)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/circles/"):
 		service.deleteBlueclawCircle(responseWriter, request, strings.TrimPrefix(path, "/circles/"))
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/users/") && strings.HasSuffix(path, "/password-reset"):
-		service.resetUserPassword(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/users/"), "/password-reset"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/companion/pairing-codes":
@@ -1271,39 +1233,6 @@ func (service *Service) lookupRemovableUser(ctx context.Context, fleetID string,
 		return &record, nil
 	}
 	return nil, nil
-}
-
-func (service *Service) resetUserPassword(responseWriter http.ResponseWriter, request *http.Request, encodedEmail string) {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID == "" || fleetSecret == "" {
-		http.Error(responseWriter, "device auth is not configured", http.StatusServiceUnavailable)
-		return
-	}
-	email, errorValue := url.PathUnescape(strings.Trim(encodedEmail, "/"))
-	if errorValue != nil {
-		http.Error(responseWriter, "invalid email", http.StatusBadRequest)
-		return
-	}
-	userRecord, errorValue := service.lookupUserRecordByEmail(request.Context(), fleetID, fleetSecret, email)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	if userRecord == nil {
-		http.Error(responseWriter, "user not found", http.StatusNotFound)
-		return
-	}
-	resetResult, errorValue := service.resetMattermostUserPasswordAndHistory(request.Context(), *userRecord)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	service.writeJSON(responseWriter, map[string]any{
-		"temporaryPassword":      resetResult.TemporaryPassword,
-		"temporaryPasswordEmail": userRecord.Email,
-		"deletedDMPostCount":     resetResult.DeletedPostCount,
-	})
 }
 
 func (service *Service) lookupUserRecordByEmail(ctx context.Context, fleetID string, fleetSecret string, email string) (*adminUserMutation, error) {
@@ -2004,29 +1933,18 @@ func (service *Service) claimFirstAdmin(ctx context.Context, email string) (firs
 	return bootstrapResult, nil
 }
 
+// The first admin is a person the company already knows: they founded it on
+// the record and signed in there. This claims that person on the device, and
+// mints nothing on their behalf.
 func (service *Service) ensureFirstAdminAccount(ctx context.Context, email string) (firstAdminBootstrapResult, error) {
-	provisionResult, errorValue := service.provisionMattermostUserWithPassword(ctx, adminUserMutation{
-		Email:  email,
-		Role:   "admin",
-		Handle: mattermostUsernameBase(email),
-	}, firstAdminMattermostPassword)
-	if errorValue != nil {
-		return firstAdminBootstrapResult{}, errorValue
-	}
-	if provisionResult.TemporaryPassword != "" {
-		if errorValue := service.writeFirstAdminPassword(email, provisionResult.TemporaryPassword); errorValue != nil {
-			return firstAdminBootstrapResult{}, errorValue
-		}
-	}
 	if errorValue := service.claimBlueclawAdminPerson(ctx, email); errorValue != nil {
 		return firstAdminBootstrapResult{}, errorValue
 	}
 	service.triggerUsersSync(ctx)
 	return firstAdminBootstrapResult{
-		Email:                     email,
-		Status:                    firstAdminBootstrapClaimed,
-		MattermostPasswordVersion: firstAdminMattermostPasswordVersion,
-		PolicyVersion:             firstAdminPolicyVersion,
+		Email:         email,
+		Status:        firstAdminBootstrapClaimed,
+		PolicyVersion: firstAdminPolicyVersion,
 	}, nil
 }
 
