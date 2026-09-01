@@ -4,8 +4,9 @@ import type { LoadTask } from './task-load-tracker';
 import { canUpdateTask } from './task-workspace-model';
 import { taskText } from './text';
 import type { TaskSummary } from './task-types';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-type TaskPageText = typeof taskText.ko;
+type TaskPageText = PageText<typeof taskText>;
 
 type TaskBoardControllerInput = {
 	text: TaskPageText;

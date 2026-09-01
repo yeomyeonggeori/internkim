@@ -26,7 +26,7 @@ function permissionsAdmindKnows(): string[] {
 
 describe('the permissions a key may carry are the list admind keeps', () => {
 	test('the web copy names exactly what knownPublicAPIPermissions returns, in order', () => {
-		expect([...publicAPIPermissions]).toEqual(permissionsAdmindKnows());
+		expect([...publicAPIPermissions].map(String)).toEqual(permissionsAdmindKnows());
 	});
 
 	test('the ladder admind reads is the one this app offers', () => {

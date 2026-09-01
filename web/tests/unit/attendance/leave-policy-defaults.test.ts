@@ -21,6 +21,12 @@ type GoLeaveType = {
 	sortOrder: number;
 };
 
+type GoDefaultLeaveType = GoLeaveType & {
+	carryoverEnabled: boolean;
+	isActive: boolean;
+	isSystem: boolean;
+};
+
 function topLevelArguments(call: string): string[] {
 	const found: string[] = [];
 	let depth = 0;
@@ -126,7 +132,8 @@ describe('the central plane answers the device catalogue of leave types', () => 
 	});
 
 	test('every default leave type matches the one internal/admind declares', () => {
-		expect(defaultLeaveTypes()).toEqual(
+		const fromWeb: GoDefaultLeaveType[] = defaultLeaveTypes();
+		expect(fromWeb).toEqual(
 			goLeaveTypes().map((leaveType) => ({
 				...leaveType,
 				carryoverEnabled: false,

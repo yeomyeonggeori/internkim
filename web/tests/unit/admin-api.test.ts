@@ -14,6 +14,11 @@ import {
 	updateAttendanceWorkPolicy,
 	updateAttendanceLeavePolicy
 } from '../../src/routes/admin/admin-api';
+import type {
+	AttendanceLeavePolicy,
+	AttendanceWorkPolicy,
+	CalendarHolidayStatus
+} from '../../src/routes/admin/admin-types';
 
 const originalFetch = globalThis.fetch;
 const originalWindow = (globalThis as { window?: unknown }).window;
@@ -91,7 +96,7 @@ describe('apiErrorMessage', () => {
 
 describe('attendance leave policy API', () => {
 	test('uses the attendance leave policy GET endpoint', async () => {
-		const policy = { version: 2, balanceTrackingMode: 'managed', fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' };
+		const policy = { version: 2, balanceTrackingMode: 'managed', fiscalYearStartMonth: 1, fiscalYearStartDay: 1, leaveTypes: [], updatedAt: '' } satisfies AttendanceLeavePolicy;
 		globalThis.fetch = (async (input) => { expect(input).toBe('/admin/api/attendance-leave-policy'); return new Response(JSON.stringify(policy)); }) as typeof fetch;
 		expect(await fetchAttendanceLeavePolicy('/admin/api', 'load failed')).toEqual(policy);
 		restoreGlobals();
@@ -165,7 +170,7 @@ describe('company holiday API', () => {
 
 describe('attendance work policy API', () => {
 	test('loads the work policy revisions', async () => {
-		const policy = { version: 1, updatedAt: '', revisions: [] };
+		const policy = { version: 1, updatedAt: '', revisions: [] } satisfies AttendanceWorkPolicy;
 		const response = {
 			policy,
 			currentMonth: '2026-08',
@@ -197,7 +202,7 @@ describe('attendance work policy API', () => {
 			nightStartTime: '22:00',
 			nightEndTime: '06:00'
 		};
-		const policy = { version: 1, updatedAt: '', revisions: [revision] };
+		const policy = { version: 1, updatedAt: '', revisions: [revision] } satisfies AttendanceWorkPolicy;
 		const response = {
 			policy,
 			currentMonth: '2026-08',
@@ -217,7 +222,7 @@ describe('attendance work policy API', () => {
 
 describe('calendar holiday status API', () => {
 	test('loads status and posts a manual refresh', async () => {
-		const status = { status: 'degraded', countryCode: 'KR', provider: 'nager', years: [] };
+		const status = { status: 'degraded', countryCode: 'KR', provider: 'nager', years: [] } satisfies CalendarHolidayStatus;
 		const requests: { input: string; method?: string }[] = [];
 		globalThis.fetch = (async (input, init) => {
 			requests.push({ input: String(input), method: init?.method });

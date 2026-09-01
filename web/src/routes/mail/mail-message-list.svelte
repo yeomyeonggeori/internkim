@@ -9,6 +9,7 @@
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import type { MailAccount, MailMessage } from './mail-types';
 	import type { mailText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type Props = {
 		account: MailAccount;
@@ -23,7 +24,7 @@
 		messages: MailMessage[];
 		selectedMessage: MailMessage | null;
 		hasMailboxTrigger: boolean;
-		text: (typeof mailText)['ko'];
+		text: PageText<typeof mailText>;
 		openSettings: () => void;
 		loadMoreMessages: () => void | Promise<void>;
 		setUnreadOnly: (isUnreadOnly: boolean) => void | Promise<void>;

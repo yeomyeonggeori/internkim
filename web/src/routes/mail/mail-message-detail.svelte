@@ -14,6 +14,7 @@
 	import { MAIL_MESSAGE_IFRAME_SANDBOX, mailHTMLDocument } from './mail-message-utils';
 	import type { MailAccount, MailMessage } from './mail-types';
 	import type { mailText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type Props = {
 		account: MailAccount;
@@ -22,7 +23,7 @@
 		isLoadingMessage: boolean;
 		messageBody: string;
 		messageBodyHTML: string;
-		text: (typeof mailText)['ko'];
+		text: PageText<typeof mailText>;
 		moveSelectedMessage: (targetHint: string) => void | Promise<void>;
 		openReply: () => void;
 		openForward: () => void;

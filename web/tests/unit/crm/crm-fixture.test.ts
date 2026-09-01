@@ -57,8 +57,10 @@ describe('CRM fixture integrity', () => {
 
 		for (const opportunity of crmOpportunities) {
 			const organization = organizationsByID.get(opportunity.organizationID);
-			expect(organization !== undefined).toBe(true);
-			expect(opportunity.ownerName).toBe(organization?.ownerName);
+			if (organization === undefined) {
+				throw new Error(`opportunity ${opportunity.id} names organization ${opportunity.organizationID}, which no fixture declares`);
+			}
+			expect(opportunity.ownerName).toBe(organization.ownerName);
 			expect(opportunity.business).not.toBe('');
 
 			if (opportunity.nextActionID) {

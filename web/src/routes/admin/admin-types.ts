@@ -2,6 +2,7 @@ import type { adminText } from './text';
 
 import type { OrgGroup, UserRecord } from '$lib/organization/types';
 import type { UserRole } from '$lib/types';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
 export type { OrgGroup, UserRecord } from '$lib/organization/types';
 export type { UserRole } from '$lib/types';
@@ -28,7 +29,7 @@ export type BuzzInviteRecord = {
 	expiresAt: string;
 	claimedPubkey?: string;
 };
-export type AdminPageText = typeof adminText.ko;
+export type AdminPageText = PageText<typeof adminText>;
 
 export type CircleRecord = {
 	circleID: string;

@@ -1,3 +1,5 @@
+import type { PageText } from '$lib/i18n/page-text.svelte';
+
 export const crmText = {
 	ko: {
 		pageTitle: 'CRM · 김인턴',
@@ -561,4 +563,4 @@ export const crmText = {
 	}
 } as const;
 
-export type CRMText = typeof crmText.ko;
+export type CRMText = PageText<typeof crmText>;

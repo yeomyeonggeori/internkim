@@ -1,8 +1,9 @@
 import type { MailErrorMessages } from './mail-api';
 import type { ComposeDraft, MailAccount, MailAccountDraft, Mailbox, MailMessage } from './mail-types';
 import type { mailText } from './text';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-export type MailPageText = (typeof mailText)[keyof typeof mailText];
+export type MailPageText = PageText<typeof mailText>;
 
 export type MailComposeFocusField = 'to' | 'body';
 

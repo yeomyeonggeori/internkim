@@ -6,12 +6,13 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import type { MailAccount, MailAccountDraft } from './mail-types';
 	import type { mailText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type Props = {
 		account: MailAccount;
 		accountDraft: MailAccountDraft;
 		isAdvancedSettingsOpen: boolean;
-		text: (typeof mailText)['ko'];
+		text: PageText<typeof mailText>;
 		syncSMTPAppPassword: (event: Event) => void;
 	};
 
