@@ -34,3 +34,6 @@ verify_jwt = true
 
 [functions.setup-digest-key]
 verify_jwt = true
+
+[functions.notify]
+verify_jwt = false
