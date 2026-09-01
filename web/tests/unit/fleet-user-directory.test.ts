@@ -42,7 +42,7 @@ function directoryHolding(rows: MemberRow[]): { directory: FleetDirectory; writt
 }
 
 describe('the fleet user list is the company directory', () => {
-	test('reads people from member, carrying the note and the messenger account', async () => {
+	test('reads people from member, and their handle is their address', async () => {
 		const { directory } = directoryHolding([
 			{
 				id: 'member-1',
@@ -51,7 +51,7 @@ describe('the fleet user list is the company directory', () => {
 				note: 'HR compensation follow-up',
 				is_admin: true,
 				status: 'active',
-				messenger: { mattermost: 'user-1', mattermostUsername: 'member' }
+				messenger: { buzz: 'a-buzz-key' }
 			}
 		]);
 
@@ -64,8 +64,7 @@ describe('the fleet user list is the company directory', () => {
 			name: '이샘플',
 			note: 'HR compensation follow-up',
 			role: 'admin',
-			handle: 'member',
-			mattermostUserID: 'user-1'
+			handle: 'member'
 		});
 	});
 
@@ -91,7 +90,7 @@ describe('the fleet user list is the company directory', () => {
 		expect(records[0].role).toBe('member');
 	});
 
-	test('saving a person writes the note and the messenger account onto their member row', async () => {
+	test('saving a person writes the note, and leaves their messenger accounts alone', async () => {
 		const { directory, written } = directoryHolding([
 			{ id: 'member-1', email: 'member@example.com', name: '이샘플', note: null, is_admin: false, status: 'active', messenger: null }
 		]);
@@ -101,15 +100,14 @@ describe('the fleet user list is the company directory', () => {
 			name: '이샘플',
 			email: 'member@example.com',
 			note: 'HR compensation follow-up',
-			role: 'admin',
-			mattermostUserID: 'user-1'
+			role: 'admin'
 		});
 
 		expect(written[0]).toMatchObject({
 			email: 'member@example.com',
 			note: 'HR compensation follow-up',
-			is_admin: true,
-			messenger: { mattermost: 'user-1', mattermostUsername: 'member' }
+			is_admin: true
 		});
+		expect(written[0].messenger).toBeUndefined();
 	});
 });
