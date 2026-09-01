@@ -28,7 +28,6 @@
 		text: AdminPageText;
 		userRecords: UserRecord[];
 		onRemoveUser: (email: string) => Promise<void> | void;
-		onResetPassword: (record: UserRecord) => Promise<void> | void;
 		onSaveUser: (record: UserRecord, role?: UserRole) => Promise<boolean> | boolean | Promise<void> | void;
 		onSaveNote: (record: UserRecord, note: string) => Promise<boolean>;
 	};
@@ -40,7 +39,6 @@
 		text,
 		userRecords = $bindable(),
 		onRemoveUser,
-		onResetPassword,
 		onSaveUser,
 		onSaveNote
 	}: UsersDirectoryProps = $props();
@@ -222,16 +220,6 @@
 			onclick={() => onSaveUser(record)}
 		>
 			{text.users.save}
-		</Button>
-		<Button
-			class="gap-2"
-			variant="outline"
-			size="sm"
-			disabled={isSavingUser || !userCanManage(record) || !isValidUserRecord(record)}
-			onclick={() => onResetPassword(record)}
-		>
-			<RefreshCwIcon class="size-4" />
-			{text.users.resetPassword}
 		</Button>
 		{#if record.role === 'admin' && canGrantAdminRole}
 			<Button

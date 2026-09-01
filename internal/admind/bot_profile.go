@@ -50,12 +50,7 @@ func (service *Service) startBotProfileSync(ctx context.Context) {
 			return
 		case <-timer.C:
 		}
-		profile, errorValue := service.loadOrSeedBotProfile(ctx)
-		if errorValue != nil {
-			log.Printf("bot profile startup sync skipped: %v", errorValue)
-			return
-		}
-		if errorValue := service.syncMattermostBotProfile(ctx, profile); errorValue != nil {
+		if _, errorValue := service.loadOrSeedBotProfile(ctx); errorValue != nil {
 			log.Printf("bot profile startup sync skipped: %v", errorValue)
 		}
 	}()
@@ -89,17 +84,13 @@ func (service *Service) updateBotProfile(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	if errorValue := service.syncMattermostBotProfile(request.Context(), profile); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
 	service.writeJSON(responseWriter, profile)
 }
 
 func (service *Service) loadOrSeedBotProfile(ctx context.Context) (botProfile, error) {
 	profile, found := service.loadBotProfile()
 	if !found {
-		profile = service.seedBotProfileFromMattermost(ctx)
+		profile = defaultBotProfile()
 		if errorValue := service.saveBotProfile(profile); errorValue != nil {
 			return botProfile{}, errorValue
 		}
@@ -135,35 +126,6 @@ func (service *Service) loadBotProfile() (botProfile, bool) {
 	return botProfile{}, false
 }
 
-func (service *Service) seedBotProfileFromMattermost(ctx context.Context) botProfile {
-	profile := defaultBotProfile()
-	adminToken, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return profile
-	}
-	userRecord, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, service.Configuration.BotUsername)
-	if errorValue != nil || !found {
-		return profile
-	}
-	if strings.TrimSpace(userRecord.DisplayName) != "" {
-		profile.DisplayName = strings.TrimSpace(userRecord.DisplayName)
-	}
-	if strings.TrimSpace(userRecord.Nickname) != "" {
-		profile.DisplayName = strings.TrimSpace(userRecord.Nickname)
-	}
-	fullName := strings.TrimSpace(strings.Join(strings.Fields(userRecord.FirstName+" "+userRecord.LastName), " "))
-	if fullName != "" {
-		profile.EnglishDisplayName = fullName
-	}
-	if strings.TrimSpace(userRecord.Position) != "" {
-		profile.PublicDescription = strings.TrimSpace(userRecord.Position)
-	}
-	if isLegacyDefaultBotPublicDescription(profile.PublicDescription) {
-		profile.PublicDescription = ""
-	}
-	return profile
-}
-
 func (service *Service) saveBotProfile(profile botProfile) error {
 	document := []byte(renderBotProfileYAML(normalizeBotProfile(profile)))
 	if errorValue := os.MkdirAll(filepath.Dir(service.Configuration.BotProfilePath), 0o700); errorValue != nil {
@@ -186,28 +148,6 @@ func (service *Service) writeWorkspaceBotProfile(profile botProfile) error {
 		return errorValue
 	}
 	_ = os.Remove(filepath.Join(service.Configuration.BlueclawWorkspacePath, "BOT_PROFILE.md"))
-	return nil
-}
-
-func (service *Service) syncMattermostBotProfile(ctx context.Context, profile botProfile) error {
-	adminToken, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, adminToken, service.Configuration.BotUsername)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !found || botRecord.ID == "" {
-		return fmt.Errorf("Mattermost bot %s is missing", service.Configuration.BotUsername)
-	}
-	body := mattermostBotProfilePatch(profile)
-	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/users/"+url.PathEscape(botRecord.ID)+"/patch", adminToken, body, nil); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := service.syncMattermostBotProfileImage(ctx, adminToken, botRecord.ID); errorValue != nil {
-		return errorValue
-	}
 	return nil
 }
 

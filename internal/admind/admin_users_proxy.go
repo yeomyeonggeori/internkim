@@ -25,11 +25,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	if request.Method == http.MethodDelete && request.URL.Query().Get("purge") == "true" {
 		targetURL += "&purge=true"
 	}
-	if request.Method == http.MethodDelete {
-		if errorValue := service.ensureMattermostProvisionerAccount(request.Context()); errorValue != nil {
-			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
-		}
-	}
 	var removedUser *adminUserMutation
 	var upsertedEmail string
 	var organizationMutationIdentities []organizationPersonIdentity
@@ -54,17 +49,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				return
 			}
 			defer organizationMutation.completeAfterRequest(request.Context())
-		}
-		if removedUser != nil && strings.TrimSpace(removedUser.MattermostUserID) != "" {
-			if errorValue := service.deactivateMattermostUserByID(request.Context(), removedUser.MattermostUserID); errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-				return
-			}
-		} else if removedUser != nil {
-			if errorValue := service.deactivateMattermostUserByEmail(request.Context(), removedUser.Email); errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-				return
-			}
 		}
 	}
 	body := request.Body

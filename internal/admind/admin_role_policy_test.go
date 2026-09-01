@@ -68,6 +68,12 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		}
+		if isBlueclawPolicyGet(request) {
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		}
+		if request.Method == http.MethodPost && strings.Contains(request.URL.String(), "/admin/api/policy") {
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}

@@ -109,10 +109,6 @@ func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWrit
 		}
 	}
 	if !countryChanged || languageChanged {
-		if errorValue := service.syncMattermostWorkspaceChannelDisplayNames(request.Context(), settings.Language); errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-			return
-		}
 	}
 	service.writeJSON(responseWriter, settings)
 }
@@ -229,26 +225,6 @@ func validateWorkspaceLanguage(language string) error {
 	return fmt.Errorf("language must be ko or en")
 }
 
-func (service *Service) syncMattermostWorkspaceChannelDisplayNames(ctx context.Context, language string) error {
-	if errorValue := validateWorkspaceLanguage(language); errorValue != nil {
-		return errorValue
-	}
-	token, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
-	if errorValue != nil {
-		return errorValue
-	}
-	for _, channel := range mattermostdefaults.PublicChannelsForLanguage(language) {
-		if errorValue := service.ensureMattermostLocalizedPublicChannel(ctx, token, teamRecord.ID, channel); errorValue != nil {
-			return errorValue
-		}
-	}
-	return service.ensureMattermostPublicChannelDisplayName(ctx, token, teamRecord.ID, calendarAnnouncementsChannelName, announcementsChannelDisplayName(language))
-}
-
 func (service *Service) ensureMattermostLocalizedPublicChannel(ctx context.Context, token string, teamID string, channel mattermostdefaults.PublicChannel) error {
 	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
 	if errorValue != nil {
@@ -257,35 +233,10 @@ func (service *Service) ensureMattermostLocalizedPublicChannel(ctx context.Conte
 	return service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel)
 }
 
-func (service *Service) ensureMattermostPublicChannelDisplayName(ctx context.Context, token string, teamID string, channelName string, displayName string) error {
-	channelID, errorValue := service.mattermostChannelIDByName(ctx, token, teamID, channelName)
-	if errorValue == nil && channelID != "" {
-		return service.updateMattermostChannelDisplayName(ctx, token, channelID, displayName)
-	}
-	if errorValue != nil && !isMattermostNotFound(errorValue) {
-		return errorValue
-	}
-	body := map[string]string{
-		"team_id":      teamID,
-		"name":         channelName,
-		"display_name": displayName,
-		"type":         "O",
-	}
-	var channelRecord mattermostChannelRecord
-	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels", token, body, &channelRecord)
-}
-
 func (service *Service) updateMattermostChannelDisplayName(ctx context.Context, token string, channelID string, displayName string) error {
 	body := map[string]string{"display_name": displayName}
 	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil); errorValue != nil {
 		return errorValue
 	}
 	return service.cleanupMattermostManagedChannelSystemPosts(ctx, token, channelID)
-}
-
-func announcementsChannelDisplayName(language string) string {
-	if strings.EqualFold(strings.TrimSpace(language), workspaceLanguageEnglish) {
-		return "Announcements"
-	}
-	return "공지사항"
 }

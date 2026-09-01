@@ -345,13 +345,6 @@ export async function removeUser(adminBaseURL: string, email: string, fallbackMe
 	return readJSON<UsersResponse>(response, fallbackMessage);
 }
 
-export async function resetUserPassword(adminBaseURL: string, email: string, fallbackMessage: string): Promise<UsersResponse> {
-	const response = await fetch(`${adminBaseURL}/users/${encodeURIComponent(email)}/password-reset`, {
-		method: 'POST',
-		credentials: 'include'
-	});
-	return readJSON<UsersResponse>(response, fallbackMessage);
-}
 
 export async function fetchWifiProfiles(adminBaseURL: string, fallbackMessage: string): Promise<WifiProfilesResponse> {
 	const response = await fetch(`${adminBaseURL}/wifi-profiles`, { credentials: 'include' });
