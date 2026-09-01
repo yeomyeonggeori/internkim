@@ -195,7 +195,7 @@ func (service Service) invokePlatformMessageTool(ctx context.Context, request ca
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
-		if service.chatdServesPlatform(request.Context.Platform) {
+		if service.chatdServesTheMessenger() {
 			return service.invokeChatdPlatformMessageContext(ctx, request)
 		}
 		return service.invokeMattermostContextInspect(ctx, request)
@@ -234,7 +234,7 @@ func (service Service) invokePlatformMessageSearch(ctx context.Context, request 
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
-	if service.chatdServesPlatform(request.Context.Platform) {
+	if service.chatdServesTheMessenger() {
 		return service.invokeChatdPlatformMessageSearch(ctx, request, input)
 	}
 	mattermostInput := mattermostPostSearchInput{
@@ -260,7 +260,7 @@ func (service Service) invokePlatformMessageSend(ctx context.Context, request ca
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
-	if service.chatdServesPlatform(request.Context.Platform) {
+	if service.chatdServesTheMessenger() {
 		return service.invokeChatdPlatformMessageSend(ctx, request, input)
 	}
 	if input.DeliveryTarget.Type == "directMessage" {
@@ -445,7 +445,7 @@ func (service Service) invokePlatformMessageUpdate(ctx context.Context, request 
 	if errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
-	if service.chatdServesPlatform(request.Context.Platform) {
+	if service.chatdServesTheMessenger() {
 		return service.invokeChatdPlatformMessageUpdate(ctx, request, input)
 	}
 	if len(input.Attachments) > 0 {
@@ -502,7 +502,7 @@ func (service Service) invokePlatformMessageDelete(ctx context.Context, request 
 		failure := mattermostToolStaticFailure("invalid_input", "input_decode", "messageIDs is required; use message_search first to find message IDs")
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
-	if service.chatdServesPlatform(request.Context.Platform) {
+	if service.chatdServesTheMessenger() {
 		return service.invokeChatdPlatformMessageDelete(ctx, request, input.MessageIDs)
 	}
 	if len(input.MessageIDs) > mattermostPostSearchPageLimit {

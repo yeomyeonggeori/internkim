@@ -411,3 +411,29 @@ func startPublicToolGatewayCapabilityServer(t *testing.T, handler func(capabilit
 	}()
 	return socketPath
 }
+
+func TestPublicAPICarriesNoConversationAtAll(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
+	service.Configuration.ChatdPlatform = "buzz"
+	var invoked capabilities.ToolInvokeRequest
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
+		invoked = request
+		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "sent", Result: json.RawMessage(`{"messageIDs":["message-1"],"deliveryStatus":"sent"}`)}
+	})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/message_send/invoke", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"이샘플","message":"확인 부탁드립니다"}}`))
+	request.Header.Set(requesterEmailHeader, "member@example.com")
+	request.Header.Set(requesterPermissionHeader, publicAPIPermissionWrite)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, arrivingOnTheRequesterSocket(request))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if invoked.Context.Platform != "" || invoked.Context.ConversationID != "" || invoked.Context.ChannelID != "" || invoked.Context.ReplyTargetID != "" {
+		t.Fatalf("the public API is a door, not a conversation: %#v", invoked.Context)
+	}
+	if invoked.Context.TaskSource != "public_api" {
+		t.Fatalf("task source = %q", invoked.Context.TaskSource)
+	}
+}

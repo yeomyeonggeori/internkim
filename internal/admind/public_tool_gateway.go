@@ -422,13 +422,14 @@ func decodeOptionalJSONBody(reader io.Reader, target any) error {
 	return json.Unmarshal(document, target)
 }
 
+// The public API is a door, not a conversation. Every conversation field stays
+// empty, Platform among them, and TaskSource is where the door is named.
 func publicToolInvokeContext(actor capabilities.ActorContext, descriptor capabilities.Descriptor) capabilities.ToolInvokeContext {
 	return capabilities.ToolInvokeContext{
 		RequesterPersonID:      actor.PersonID,
 		RequesterEmail:         strings.ToLower(strings.TrimSpace(actor.Email)),
 		RequesterName:          actor.DisplayName,
 		TaskSource:             "public_api",
-		Platform:               "public_api",
 		IsApprovalContinuation: publicToolPermissionForDescriptor(descriptor) != "",
 	}
 }
