@@ -580,8 +580,6 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:attendance_add", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:attendance_update", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:attendance_delete", "actions": []string{"execute"}, "circles": []string{"member"}},
-		{"resource": "tool:approval_list", "actions": []string{"execute"}, "circles": []string{"member"}},
-		{"resource": "tool:approval_decide", "actions": []string{"execute"}, "circles": []string{"admin"}},
 		{"resource": "tool:message_context", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:message_search", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:message_send", "actions": []string{"execute"}, "circles": []string{"member"}},

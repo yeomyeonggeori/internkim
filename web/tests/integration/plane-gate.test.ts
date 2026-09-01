@@ -45,7 +45,7 @@ describe('the gate over the tools the record runs', () => {
 
 	// The two halves of the gate are in different runtimes, so the thing that
 	// says the whole catalog is covered has to be able to see both counts.
-	test('the record half covers nineteen of the catalog', () => {
-		expect(toolsTheRecordRuns().length).toBe(19);
+	test('the record half covers seventeen of the catalog', () => {
+		expect(toolsTheRecordRuns().length).toBe(17);
 	});
 });

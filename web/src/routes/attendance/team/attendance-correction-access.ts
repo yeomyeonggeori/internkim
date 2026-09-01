@@ -62,7 +62,6 @@ export function editableAttendanceEventIDs(
 	currentTime: Date
 ): Set<string> {
 	const eventIDs = eventIDsFor(segments);
-	if (summary.correctionWindowMinutes === undefined) return eventIDs;
 	if (!Number.isFinite(currentTime.getTime())) return new Set<string>();
 
 	const eventsByID = new Map(summary.events.map((event) => [event.id, event]));
