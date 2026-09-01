@@ -204,19 +204,6 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		InstallUsersSyncSSH:         state.installUsersSyncSSH,
 		StageUsersSyncSD:            state.stageUsersSyncSD,
 		StageBootstrapSD:            state.stageBootstrapSD,
-		InstallMattermost: func(context *setup.Context) error {
-			if state.sshClient == nil {
-				return nil
-			}
-			return installMattermost(state.messenger, state.sshClient, context.Force)
-		},
-		SetupMattermost: func(context *setup.Context) error {
-			if state.sshClient == nil {
-				return nil
-			}
-			setupMattermost(state.messenger, state.sshClient, state.stateDir, context.Force)
-			return nil
-		},
 	}
 }
 

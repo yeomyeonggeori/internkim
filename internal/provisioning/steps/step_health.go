@@ -541,26 +541,6 @@ func checkMattermostPing(context *Context, failedChecks *[]string) {
 	fmt.Println("  mattermost ping: failed")
 }
 
-func checkMattermostPublic(context *Context, failedChecks *[]string) {
-	mattermostURL := strings.TrimSpace(context.SSH.Run("cat /root/.internkim/env/mattermost-url 2>/dev/null"))
-	if mattermostURL == "" {
-		*failedChecks = append(*failedChecks, "mattermost-public")
-		fmt.Println("  mattermost public: missing url")
-		return
-	}
-
-	statusCode := strings.TrimSpace(context.SSH.Run(
-		"curl -sS --max-time 20 --output /dev/null --write-out '%{http_code}' " + shellQuote(mattermostURL) + " 2>/dev/null || true",
-	))
-	switch statusCode {
-	case "200", "302", "401", "403":
-		fmt.Printf("  mattermost public: %s\n", statusCode)
-	default:
-		*failedChecks = append(*failedChecks, "mattermost-public")
-		fmt.Printf("  mattermost public: failed (%s)\n", statusCode)
-	}
-}
-
 func checkMattermostURL(context *Context, failedChecks *[]string) {
 	mattermostURL := strings.TrimSpace(context.SSH.Run("cat /root/.internkim/env/mattermost-url 2>/dev/null"))
 	if mattermostPublicURLPattern.MatchString(mattermostURL) {

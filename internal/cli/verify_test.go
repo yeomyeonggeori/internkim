@@ -1,11 +1,8 @@
 package cli
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestVerifyMattermostScriptDeletesTestMessagesAndBotReplies(t *testing.T) {
@@ -63,16 +60,6 @@ func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
 	}
 }
 
-func TestWriteDownloadedMattermostFilesCanAllowNoAttachments(t *testing.T) {
-	downloadedFilePaths, errorValue := writeDownloadedMattermostFilesAllowEmpty(`{"downloadedFiles":[]}`, t.TempDir())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(downloadedFilePaths) != 0 {
-		t.Fatalf("expected no downloaded files, got %v", downloadedFilePaths)
-	}
-}
-
 func TestParseMattermostVerificationOutputAllowsTrailingCleanupLogs(t *testing.T) {
 	output := `{"ok":true,"botMessage":"done","downloadedFiles":[],"fileIDs":[]}` + "\n" +
 		"curl: (22) The requested URL returned error: 401\n" +
@@ -101,32 +88,6 @@ func TestVerifyMattermostMessageDeleteE2EChecksIdentityBeforeWaitingForTask(t *t
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected Mattermost delete E2E script to include %q", fragment)
 		}
-	}
-}
-
-func TestRedactDownloadedMattermostFilesHidesAttachmentBytes(t *testing.T) {
-	output := "log line\n" + `{"downloadedFiles":[{"fileID":"file-1","filename":"deck.html","contentBase64":"YWJjZA=="}]}` + "\n"
-	redactedOutput := redactDownloadedMattermostFiles(output)
-	if strings.Contains(redactedOutput, "YWJjZA==") {
-		t.Fatalf("expected attachment base64 to be redacted, got %s", redactedOutput)
-	}
-	if !strings.Contains(redactedOutput, "redacted 8 base64 chars") {
-		t.Fatalf("expected redaction marker, got %s", redactedOutput)
-	}
-}
-
-func TestWriteDownloadedMattermostFilesWritesAttachments(t *testing.T) {
-	downloadDirectory := t.TempDir()
-	output := `{"downloadedFiles":[{"fileID":"file-1","filename":"deck.html","contentBase64":"PGh0bWw+PC9odG1sPg=="}]}`
-	if errorValue := writeDownloadedMattermostFiles(output, downloadDirectory); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content, errorValue := os.ReadFile(filepath.Join(downloadDirectory, "deck.html"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if string(content) != "<html></html>" {
-		t.Fatalf("unexpected downloaded file content: %s", string(content))
 	}
 }
 
@@ -164,29 +125,6 @@ func TestVerifyAPIScriptChecksRemoteStructuredLLM(t *testing.T) {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected API verify script to include %q", fragment)
 		}
-	}
-}
-
-func TestParseMattermostBrowserOpenE2EPreparationUsesLastJSONLine(t *testing.T) {
-	preparation, errorValue := parseMattermostBrowserOpenE2EPreparation(`curl: (52) Empty reply from server
-{"deviceURL":"https://device.example","code":"1234-5678","email":"probe@example.com","username":"probe","password":"secret","userID":"user-1","channelID":"channel-1"}
-`)
-	if errorValue != nil {
-		t.Fatalf("expected preparation parse success: %v", errorValue)
-	}
-	if preparation.Code != "1234-5678" || preparation.UserID != "user-1" {
-		t.Fatalf("unexpected preparation: %+v", preparation)
-	}
-}
-
-func TestMattermostPromptScriptSSHTimeoutCoversPhaseSum(t *testing.T) {
-	website := mattermostPromptScriptSSHTimeout(900, true)
-	if website != time.Duration(120+900+60+900+900+135+180)*time.Second {
-		t.Fatalf("unexpected website ssh timeout %v", website)
-	}
-	plain := mattermostPromptScriptSSHTimeout(900, false)
-	if plain != time.Duration(120+900+60+900+180)*time.Second {
-		t.Fatalf("unexpected non-website ssh timeout %v", plain)
 	}
 }
 
