@@ -11,6 +11,7 @@ import {
 import type { Environment } from './agent-request';
 
 export type CallingMember = {
+	accessToken: string;
 	caller: SupabaseClient;
 	record: SupabaseClient;
 	memberID: string;
@@ -68,6 +69,7 @@ export async function callingMember(request: Request, environment: Environment):
 	if (!member.data) error(403, 'refused');
 
 	return {
+		accessToken,
 		caller,
 		record: controlPlane({ projectURL, serviceRoleKey }),
 		memberID: member.data.id,

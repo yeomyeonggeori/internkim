@@ -1,8 +1,7 @@
 import { environmentOf, type Environment } from '$lib/server/agent-request';
-import { announceClock } from '$lib/server/announce-attendance';
 import { askWhoAnswersFor, type AttendanceAsked } from '$lib/server/ask-who-answers';
-import { vapidKeysInUse } from '$lib/server/vapid-keys';
 import { callingMember, type CallingMember } from '$lib/server/member-request';
+import { askTheProject } from '$lib/server/project-function';
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from '$lib/server/public-api/catalog';
 import { fullPublicAPIPermission } from '$lib/public-api-permission';
 import { callCompany } from '$lib/server/public-api/company-call';
@@ -118,9 +117,9 @@ async function announce(
 		return askWhoAnswersFor(environment, member.record, member.memberID, name, asked);
 	}
 	if (written.backdated || written.status !== 'added') return { told: 0, reached: 0 };
-	const keys = await vapidKeysInUse(member.record, environment);
-	if (!keys) return { told: 0, reached: 0 };
-	return announceClock(member.caller, member.record, member.memberID, keys, Math.floor(Date.now() / 1000));
+	const answer = await askTheProject(environment, 'announce-attendance', { what: 'clock' }, member.accessToken);
+	if (answer.status >= 300) return { told: 0, reached: 0 };
+	return answer.body;
 }
 
 function attendanceWrittenIn(body: unknown): AttendanceWrite | null {
