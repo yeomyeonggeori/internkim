@@ -1,9 +1,27 @@
 package localfleet
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
+
+func joinedCentralPlaneScript(t *testing.T, command string) string {
+	t.Helper()
+	_, payload, isCarried := strings.Cut(command, "echo ")
+	if !isCarried {
+		t.Fatalf("the join carries no script: %q", command)
+	}
+	encoded, _, isTerminated := strings.Cut(payload, " | base64 -d")
+	if !isTerminated {
+		t.Fatalf("the join carries no script: %q", command)
+	}
+	script, errorValue := base64.StdEncoding.DecodeString(encoded)
+	if errorValue != nil {
+		t.Fatalf("the script the device runs is not readable: %v", errorValue)
+	}
+	return string(script)
+}
 
 func fleetForTest(t *testing.T) Service {
 	t.Helper()
@@ -21,15 +39,16 @@ func fleetForTest(t *testing.T) Service {
 
 func TestTheDeviceIsToldWhichCompanyItBelongsTo(t *testing.T) {
 	command := fleetForTest(t).joinCentralPlaneCommand()
+	script := joinedCentralPlaneScript(t, command)
 
 	if !strings.Contains(command, "/state/central-plane.env") {
 		t.Fatalf("the settings the plane wrote are read back, got %q", command)
 	}
 	for _, setting := range centralPlaneDeviceSettings {
-		if !strings.Contains(command, setting.path) {
-			t.Fatalf("%s is not written to the device: %q", setting.variable, command)
+		if !strings.Contains(script, setting.path) {
+			t.Fatalf("%s is not written to the device: %q", setting.variable, script)
 		}
-		if !strings.Contains(command, setting.variable+"=\"$"+setting.variable+"\"") {
+		if !strings.Contains(command, "$"+setting.variable) {
 			t.Fatalf("%s is not carried to the device: %q", setting.variable, command)
 		}
 	}
@@ -40,8 +59,10 @@ func TestTheDeviceIsToldWhichCompanyItBelongsTo(t *testing.T) {
 func TestTheAgentKeyLandsUnreadableToAnybodyElse(t *testing.T) {
 	command := fleetForTest(t).joinCentralPlaneCommand()
 
-	if !strings.Contains(command, "chmod 600 /root/.internkim/secrets/central-plane-agent-key") {
-		t.Fatalf("the agent key is not kept to itself: %q", command)
+	script := joinedCentralPlaneScript(t, command)
+
+	if !strings.Contains(script, "chmod 600 /root/.internkim/secrets/central-plane-agent-key") {
+		t.Fatalf("the agent key is not kept to itself: %q", script)
 	}
 }
 
