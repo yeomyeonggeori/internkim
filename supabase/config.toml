@@ -52,3 +52,6 @@ verify_jwt = false
 
 [functions.notify-test]
 verify_jwt = true
+
+[functions.tell-member]
+verify_jwt = false

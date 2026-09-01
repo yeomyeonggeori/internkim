@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 
 const copies = [
-	['announce-attendance.ts', 'src/lib/server/announce-attendance.ts'],
 	['announce-the-day.ts', 'src/lib/server/announce-the-day.ts'],
 	['day-digest-timing.ts', 'src/lib/notifications/day-digest-timing.ts'],
 	['notify-member.ts', 'src/lib/server/notify-member.ts'],
