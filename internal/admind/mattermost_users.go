@@ -367,41 +367,6 @@ func isMattermostManagedChannelSystemPost(post mattermostPostRecord) bool {
 	}
 }
 
-func (service *Service) syncMattermostCircleMemberships(ctx context.Context, token string) error {
-	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
-	if errorValue != nil {
-		return errorValue
-	}
-	circleEmailsByID, errorValue := service.mattermostCircleEmails(ctx, token, teamRecord.ID)
-	if errorValue != nil {
-		return errorValue
-	}
-	return service.applyCircleEmailsToBlueclawPolicy(ctx, circleEmailsByID)
-}
-
-func (service *Service) mattermostCircleEmails(ctx context.Context, token string, teamID string) (map[string]map[string]bool, error) {
-	circleChannels, errorValue := service.mattermostCircleChannelDefinitions(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	circleEmailsByID := map[string]map[string]bool{}
-	for _, circleChannel := range circleChannels {
-		channelID, errorValue := service.mattermostChannelIDByName(ctx, token, teamID, circleChannel.ChannelName)
-		if errorValue != nil && !isMattermostNotFound(errorValue) {
-			return nil, errorValue
-		}
-		if channelID == "" {
-			continue
-		}
-		emails, errorValue := service.mattermostChannelMemberEmails(ctx, token, channelID)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		circleEmailsByID[circleChannel.CircleID] = emails
-	}
-	return circleEmailsByID, nil
-}
-
 func (service *Service) mattermostChannelMemberEmails(ctx context.Context, token string, channelID string) (map[string]bool, error) {
 	var members []mattermostChannelMemberRecord
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/members?per_page=200"
