@@ -216,8 +216,6 @@ func (service *Service) readCalendarEvents(ctx context.Context, startTime time.T
 	return loadCalendarEventListParticipants(ctx, database, events)
 }
 
-
-
 func (service *Service) readRemoteCalendarEventsByProvider(ctx context.Context, source string) ([]calendarEvent, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {

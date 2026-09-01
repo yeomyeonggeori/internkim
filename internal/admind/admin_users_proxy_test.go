@@ -374,3 +374,15 @@ func onlyDeliveredPerson(t *testing.T, service *Service) map[string]any {
 	person, _ := people[0].(map[string]any)
 	return person
 }
+
+func localUsersPolicyDocument() string {
+	return `{
+		"people":[
+			{"personID":"user-admin","displayName":"Admin User","emails":["admin@example.com"],"circles":["member","admin"],"isAdmin":true},
+			{"personID":"user-member","displayName":"Member User","emails":["member@example.com"],"circles":["member"],"isAdmin":false,"note":"Existing member note"},
+			{"personID":"user-new","displayName":"New User","emails":["new@example.com"],"circles":["member"],"isAdmin":false}
+		],
+		"circles":[{"circleID":"member","displayName":"Member"}],
+		"circleSync":{"mattermostPrivateChannels":[{"circleID":"member","channelName":"circle-member"}]}
+	}`
+}

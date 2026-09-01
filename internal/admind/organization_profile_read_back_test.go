@@ -12,7 +12,7 @@ func TestOrganizationReadBackTakesTheDirectorysProfile(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if response, isHandled := localOrganizationMattermostResponse(t, request); isHandled {
+		if response, isHandled := localOrganizationDirectoryResponse(t, request); isHandled {
 			return response, nil
 		}
 		if isCompanyDirectoryRequest(request) {

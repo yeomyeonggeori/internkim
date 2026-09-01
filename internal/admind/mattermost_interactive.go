@@ -188,7 +188,6 @@ func (service *Service) isValidMattermostInteractivePayload(payload mattermostIn
 	return false
 }
 
-
 func (service *Service) mattermostInteractiveButtonWithContext(actionID string, name string, tooltip string, style string, context mattermostInteractiveContext) mattermostAction {
 	return service.mattermostInteractiveActionBuilder().Button(actionID, name, tooltip, style, context)
 }

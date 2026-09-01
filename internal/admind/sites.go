@@ -50,7 +50,7 @@ const publishedSiteLimit = 10
 
 const (
 	memberCircleSitesWorkspacePath = "/workspace/circles/member/sites"
-	siteIDStorageDirectoryName    = ".ids"
+	siteIDStorageDirectoryName     = ".ids"
 )
 
 var (

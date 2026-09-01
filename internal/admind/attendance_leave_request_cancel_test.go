@@ -8,7 +8,7 @@ import (
 
 func TestAttendanceLeaveRequestCancelApprovedFutureRestoresUsedBalance(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "member@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	if _, errorValue := service.grantAttendanceLeave(t.Context(), attendanceLeaveGrant{
 		Operation: attendanceLeaveOperation{
 			OperationKey: "grant-leave-request-approved-cancel",

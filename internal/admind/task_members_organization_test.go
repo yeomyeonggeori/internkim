@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +56,15 @@ func TestTaskMembersOnlyIncludeOrganizationChartPeople(t *testing.T) {
 				],
 				"circles":[{"circleID":"member","displayName":"Member"}]
 			}`, nil), nil
+		case strings.Contains(request.URL.String(), "/api/agent/key"):
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[
+				{"memberID":"user-ada","email":"ada@example.com","name":"Ada Kim","role":"member"},
+				{"memberID":"user-grace","email":"grace@example.com","name":"Grace Lee","role":"member"},
+				{"memberID":"user-hidden","email":"hidden@example.com","name":"Hidden Lee","role":"member"},
+				{"memberID":"user-resigned","email":"resigned@example.com","name":"Resigned Park","role":"member"}
+			]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
