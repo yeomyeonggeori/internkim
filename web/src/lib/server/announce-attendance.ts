@@ -3,9 +3,15 @@ import { notifyMember, type Notification } from './notify-member';
 import { whoAnswersFor } from './who-answers';
 import type { VapidKeys } from './web-push-vapid';
 
-type Member = { id: string; name: string | null; company_id: string };
-type ClockRow = { id: string; kind: string; location: string | null; occurred_at: string };
-type LeaveRow = { id: string; kind: string; starts_at: string; ends_at: string | null };
+export type Member = {
+	id: string;
+	name: string | null;
+	company_id: string;
+	timezone: string | null;
+	company: { timezone: string } | null;
+};
+export type ClockRow = { id: string; kind: string; location: string | null; occurred_at: string };
+export type LeaveRow = { id: string; kind: string; starts_at: string; ends_at: string | null };
 
 export type Announced = { told: number; reached: number };
 
@@ -22,7 +28,7 @@ export async function announceClock(
 	const announcer = await memberOf(record, memberID);
 	const notification: Notification = {
 		title: `${nameOf(announcer)} ${clocked.kind === 'clock_in' ? '출근' : '퇴근'}`,
-		body: clockBody(clocked),
+		body: clockBody(clocked, zoneOf(announcer)),
 		openPath: '/attendance/',
 		tag: `attendance-${clocked.id}`
 	};
@@ -42,7 +48,7 @@ export async function announceLeaveRequest(
 	const announcer = await memberOf(record, memberID);
 	const notification: Notification = {
 		title: `휴가 신청: ${nameOf(announcer)}`,
-		body: leaveBody(asked),
+		body: leaveBody(asked, zoneOf(announcer)),
 		openPath: '/attendance/',
 		tag: `leave-${asked.id}`
 	};
@@ -77,11 +83,17 @@ async function newestLeaveRequest(caller: SupabaseClient, memberID: string): Pro
 async function memberOf(record: SupabaseClient, memberID: string): Promise<Member> {
 	const { data, error } = await record
 		.from('member')
-		.select('id, name, company_id')
+		.select('id, name, company_id, timezone, company (timezone)')
 		.eq('id', memberID)
 		.single<Member>();
 	if (error) throw new Error(error.message);
 	return data;
+}
+
+export function zoneOf(member: Member): string {
+	const timeZone = member.timezone ?? member.company?.timezone ?? '';
+	if (!timeZone) throw new Error(`member ${member.id} keeps no time zone and belongs to no company with one`);
+	return timeZone;
 }
 
 async function tellEachExcept(
@@ -142,27 +154,45 @@ function nameOf(member: Member): string {
 	return (member.name ?? '').trim() || '누군가';
 }
 
-function clockBody(clocked: ClockRow): string {
+export function clockBody(clocked: ClockRow, timeZone: string): string {
 	const where = (clocked.location ?? '').trim();
-	const at = clockTime(clocked.occurred_at);
+	const at = clockTime(clocked.occurred_at, timeZone);
 	if (where && at) return `${where} · ${at}`;
 	return where || at;
 }
 
-function clockTime(occurredAt: string): string {
+function clockTime(occurredAt: string, timeZone: string): string {
 	const moment = new Date(occurredAt);
 	if (Number.isNaN(moment.getTime())) return '';
-	return new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }).format(moment);
+	return new Intl.DateTimeFormat('en-GB', {
+		timeZone,
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23'
+	}).format(moment);
 }
 
-function leaveBody(asked: LeaveRow): string {
-	const starts = dayOf(asked.starts_at);
-	const ends = dayOf(asked.ends_at ?? '');
-	const when = ends && ends !== starts ? `${starts} ~ ${ends}` : starts;
+export function leaveBody(asked: LeaveRow, timeZone: string): string {
+	const starts = dayOf(asked.starts_at, timeZone);
+	const ends = lastDayOff(asked.ends_at, timeZone);
+	const when = ends > starts ? `${starts} ~ ${ends}` : starts;
 	return [asked.kind, when].filter((part) => part !== '').join(' ');
 }
 
-function dayOf(value: string): string {
+function dayOf(value: string, timeZone: string): string {
 	const moment = new Date(value);
-	return Number.isNaN(moment.getTime()) ? '' : moment.toISOString().slice(0, 10);
+	if (Number.isNaN(moment.getTime())) return '';
+	return new Intl.DateTimeFormat('en-CA', {
+		timeZone,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	}).format(moment);
+}
+
+function lastDayOff(endsAt: string | null, timeZone: string): string {
+	if (endsAt === null) return '';
+	const ended = new Date(endsAt);
+	if (Number.isNaN(ended.getTime())) return '';
+	return dayOf(new Date(ended.getTime() - 1).toISOString(), timeZone);
 }
