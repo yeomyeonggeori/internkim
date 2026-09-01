@@ -86,13 +86,22 @@ func TestTaskNotifyExcerptCountsRunesAndFlattensLines(t *testing.T) {
 	}
 }
 
-func TestTaskNotifyExternalIDByPersonIDSkipsWhatCannotBeReached(t *testing.T) {
-	byPersonID := taskNotifyExternalIDByPersonID([]adminUserMutation{
-		{MemberID: "person-1", MattermostUserID: "mm-1"},
-		{MemberID: "person-2", MattermostUserID: ""},
-		{MemberID: "", MattermostUserID: "mm-3"},
+func TestTaskNotifyAddressByPersonIDSkipsWhoTheDirectoryCannotName(t *testing.T) {
+	byPersonID := taskNotifyAddressByPersonID([]adminUserMutation{
+		{MemberID: "person-1", Email: "Person1@Example.com"},
+		{MemberID: "person-2", Email: ""},
+		{MemberID: "", Email: "person3@example.com"},
 	})
-	if len(byPersonID) != 1 || byPersonID["person-1"] != "mm-1" {
+	if len(byPersonID) != 1 || byPersonID["person-1"] != "person1@example.com" {
+		t.Fatalf("byPersonID = %+v", byPersonID)
+	}
+}
+
+// Somebody added since the company left Mattermost has no account there, and a
+// task run they asked for is not a thing to go quiet about.
+func TestTaskNotifyAddressByPersonIDReachesSomebodyWithNoMessengerAccount(t *testing.T) {
+	byPersonID := taskNotifyAddressByPersonID([]adminUserMutation{{MemberID: "person-1", Email: "new@example.com"}})
+	if byPersonID["person-1"] != "new@example.com" {
 		t.Fatalf("byPersonID = %+v", byPersonID)
 	}
 }

@@ -213,7 +213,6 @@ func (service *Service) createTask(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task = service.applyTaskMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 
@@ -300,7 +299,6 @@ func (service *Service) updateTask(responseWriter http.ResponseWriter, request *
 			return
 		}
 	}
-	task = service.applyTaskMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 
@@ -326,7 +324,6 @@ func (service *Service) moveTaskOnBoard(responseWriter http.ResponseWriter, requ
 		writeTaskBoardMoveError(responseWriter, errorValue)
 		return
 	}
-	task = service.applyTaskMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 

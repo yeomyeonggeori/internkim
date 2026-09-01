@@ -2,76 +2,8 @@ package admind
 
 import (
 	"context"
-	"net/http"
-	"path/filepath"
-	"strings"
 	"testing"
 )
-
-func newTwoRecipientTaskService(t *testing.T, failSecondRecipientOnce *bool, postedChannels *[]string) *Service {
-	t.Helper()
-	service := NewService(Configuration{
-		MattermostBaseURL:           "http://mattermost.local",
-		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
-		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
-		TaskDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
-	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.Path == "/api/v4/users/login":
-			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
-		case request.URL.Path == "/api/v4/users/me":
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
-		case strings.HasPrefix(request.URL.Path, "/api/v4/users/username/"):
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200":
-			return jsonResponse(http.StatusOK, `[{"id":"user-owner","username":"owner","nickname":"김민수","email":"owner@example.com"},{"id":"user-mate","username":"mate","nickname":"박예시","email":"mate@example.com"}]`, nil), nil
-		case request.URL.Path == "/api/v4/channels/direct" && request.Method == http.MethodPost:
-			recipientID := mattermostDirectChannelOtherUserID(t, request, "bot-1")
-			return jsonResponse(http.StatusCreated, `{"id":"direct-`+recipientID+`"}`, nil), nil
-		case strings.HasSuffix(request.URL.Path, "/preferences"):
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.Path == "/api/v4/posts" && request.Method == http.MethodPost:
-			channelID := mattermostPostChannelID(t, request)
-			if channelID == "direct-user-mate" && *failSecondRecipientOnce {
-				*failSecondRecipientOnce = false
-				return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
-			}
-			*postedChannels = append(*postedChannels, channelID)
-			return jsonResponse(http.StatusCreated, `{"id":"post-1"}`, nil), nil
-		case isMattermostTaskSetupRequest(request):
-			return mattermostExistingTaskSetupResponse(t, request), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-	return service
-}
-
-func TestTaskNoticeRetryDoesNotRepeatDeliveredRecipients(t *testing.T) {
-	failSecondRecipientOnce := true
-	postedChannels := []string{}
-	service := newTwoRecipientTaskService(t, &failSecondRecipientOnce, &postedChannels)
-	task := taskNotificationTestTask("requested")
-	task.ParticipantNames = []string{"김민수", "박예시"}
-	if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	service.applyTaskMattermostProjection(context.Background(), task)
-	if strings.Join(postedChannels, "|") != "direct-user-owner" {
-		t.Fatalf("first attempt delivered %+v", postedChannels)
-	}
-	assertTaskProjectionOutboxCount(t, service, 1)
-
-	service.drainTaskMattermostProjectionOutbox(context.Background())
-
-	if strings.Join(postedChannels, "|") != "direct-user-owner|direct-user-mate" {
-		t.Fatalf("retry must reach only the recipient that missed the notice, got %+v", postedChannels)
-	}
-	assertTaskProjectionOutboxCount(t, service, 0)
-}
 
 func TestChangeNoticeKeepsDetailWhenWordingIsUnavailable(t *testing.T) {
 	service := NewService(Configuration{})

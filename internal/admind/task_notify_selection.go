@@ -72,13 +72,14 @@ func taskNotifyExcerpt(text string, longest int) string {
 	return strings.TrimSpace(string(runes[:longest])) + "…"
 }
 
-func taskNotifyExternalIDByPersonID(records []adminUserMutation) map[string]string {
-	externalIDByPersonID := map[string]string{}
+func taskNotifyAddressByPersonID(records []adminUserMutation) map[string]string {
+	addressByPersonID := map[string]string{}
 	for _, record := range records {
-		if record.MemberID == "" || record.MattermostUserID == "" {
+		email := strings.ToLower(strings.TrimSpace(record.Email))
+		if record.MemberID == "" || email == "" {
 			continue
 		}
-		externalIDByPersonID[record.MemberID] = record.MattermostUserID
+		addressByPersonID[record.MemberID] = email
 	}
-	return externalIDByPersonID
+	return addressByPersonID
 }
