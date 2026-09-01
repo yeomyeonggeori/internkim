@@ -86,7 +86,7 @@ func (service *Service) tellDirectMessageToolRequest(ctx context.Context, tellin
 		ToolName:             tellDirectMessageToolName,
 		Input:                input,
 		Actor:                toolActor,
-		Context:              tellDirectMessageInvokeContext(toolActor, service.messengerPlatformForTelling()),
+		Context:              tellDirectMessageInvokeContext(toolActor),
 		PrivacyClass:         descriptor.PrivacyClass,
 		RequiresUserPresence: descriptor.RequiresUserPresence,
 	}, true, nil
@@ -103,17 +103,12 @@ func tellDirectMessageActorContext(actor userActor) capabilities.ActorContext {
 	}
 }
 
-func tellDirectMessageInvokeContext(actor capabilities.ActorContext, platform string) capabilities.ToolInvokeContext {
+func tellDirectMessageInvokeContext(actor capabilities.ActorContext) capabilities.ToolInvokeContext {
 	return capabilities.ToolInvokeContext{
 		RequesterPersonID:      actor.PersonID,
 		RequesterEmail:         actor.Email,
 		RequesterName:          actor.DisplayName,
 		TaskSource:             tellDirectMessageSource,
-		Platform:               platform,
 		IsApprovalContinuation: true,
 	}
-}
-
-func (service *Service) messengerPlatformForTelling() string {
-	return firstNonEmpty(service.Configuration.ChatdPlatform, "mattermost")
 }
