@@ -18,7 +18,7 @@ export function buildDailyWorkTimeValues(
 ): DailyValue[] {
 	if (!month) return [];
 	return eachDayOfMonth(month).map((date) => {
-		const day = computeDayEvents(date, events, { currentDate: options.currentDate });
+		const day = computeDayEvents(date, events, { currentDate: options.currentDate, now: options.now });
 		return {
 			date,
 			minutesByLocation: sumSegmentMinutesByLocation(day.segments, options.fallbackLocationName, options.now),

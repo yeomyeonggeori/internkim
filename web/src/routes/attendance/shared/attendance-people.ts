@@ -54,7 +54,8 @@ export function computePeopleToday(
 	events: AttendanceEvent[],
 	presences?: Record<string, AttendancePresence>,
 	today: string = todayDateInTimeZone(),
-	absences: AttendanceAbsence[] = []
+	absences: AttendanceAbsence[] = [],
+	now: Date = new Date()
 ): PersonToday[] {
 	const activeAbsences = isWeekend(date) ? [] : absences.filter((absence) => absence.date === date && !absence.canceledAt);
 	const people = uniquePeople(events, activeAbsences);
@@ -71,7 +72,7 @@ export function computePeopleToday(
 			? 'upcoming'
 			: 'absent';
 	return people.map((person) => {
-		const day = computeDayEvents(date, byPerson.get(person.email) ?? [], { currentDate: today });
+		const day = computeDayEvents(date, byPerson.get(person.email) ?? [], { currentDate: today, now });
 		const absence = absencesForDate(activeAbsences, date, person.email)[0];
 		let status: PersonStatus = fallbackStatus;
 		if (day.inProgress) status = 'working';
@@ -98,9 +99,10 @@ export function statusForDay(
 	date: string,
 	events: AttendanceEvent[],
 	absences: AttendanceAbsence[] = [],
-	today: string = todayDateInTimeZone()
+	today: string = todayDateInTimeZone(),
+	now: Date = new Date()
 ): PersonStatus {
-	const day = computeDayEvents(date, events, { currentDate: today });
+	const day = computeDayEvents(date, events, { currentDate: today, now });
 	if (day.inProgress) return 'working';
 	if (day.segments.length > 0) return 'finished';
 	if (!isWeekend(date) && absences.some((absence) => absence.date === date && !absence.canceledAt)) return 'absence';
