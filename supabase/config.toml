@@ -37,3 +37,6 @@ verify_jwt = true
 
 [functions.notify]
 verify_jwt = false
+
+[functions.announce-attendance]
+verify_jwt = true
