@@ -188,6 +188,8 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 		return service.runPlans(contextValue, logger, service.mattermostDocxAttachmentScenarioPlans(keepArtifacts))
 	case "buzz-attachment":
 		return service.runPlans(contextValue, logger, service.buzzAttachmentScenarioPlans())
+	case "buzz-direct-message":
+		return service.runPlans(contextValue, logger, service.buzzDirectMessageScenarioPlans())
 	case "restart-policy-survival":
 		return service.runPlans(contextValue, logger, service.restartPolicySurvivalScenarioPlans())
 	case "workspace-persistence":
