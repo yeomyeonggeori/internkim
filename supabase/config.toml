@@ -40,3 +40,6 @@ verify_jwt = false
 
 [functions.announce-attendance]
 verify_jwt = true
+
+[functions.announce-task]
+verify_jwt = true
