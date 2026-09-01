@@ -49,3 +49,6 @@ verify_jwt = false
 
 [functions.announce-event-reminder]
 verify_jwt = false
+
+[functions.notify-test]
+verify_jwt = true
