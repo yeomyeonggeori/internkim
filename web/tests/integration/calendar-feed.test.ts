@@ -41,6 +41,17 @@ async function seatMember(companyID: string, email: string, isAdmin: boolean): P
 	return memberID;
 }
 
+const seoulOffset = 9 * 60 * 60 * 1000;
+
+function companyDay(instant: Date): string {
+	return new Date(instant.getTime() + seoulOffset).toISOString().slice(0, 10);
+}
+
+function companyMidnight(instant: Date, daysLater: number): string {
+	const day = new Date(`${companyDay(instant)}T00:00:00.000Z`);
+	return new Date(day.getTime() + daysLater * 24 * 60 * 60 * 1000 - seoulOffset).toISOString();
+}
+
 async function companyWithAnEvent(slug: string, title: string): Promise<Company> {
 	const provisioned = await provisionCompany(
 		record,
@@ -67,6 +78,19 @@ async function companyWithAnEvent(slug: string, title: string): Promise<Company>
 		.single<{ id: string }>();
 	if (error) throw new Error(error.message);
 	await record.from('task_participant').insert({ task_id: task.id, member_id: adminID });
+
+	const dayOff = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+	const { error: leaveRefused } = await record.from('leave').insert({
+		member_id: colleagueID,
+		kind: '연차',
+		is_paid: true,
+		is_deducted: true,
+		days: 1,
+		status: 'approved',
+		starts_at: companyMidnight(dayOff, 0),
+		ends_at: companyMidnight(dayOff, 1)
+	});
+	if (leaveRefused) throw new Error(leaveRefused.message);
 
 	return {
 		companyID: provisioned.companyID,
@@ -116,6 +140,14 @@ describe('a subscription address', () => {
 		expect(feed).not.toBeNull();
 		expect(feed).toContain('BEGIN:VCALENDAR');
 		expect(feed).toContain('SUMMARY:우리 회의');
+	});
+
+	test('shows who is off, not only what is scheduled', async () => {
+		const feed = await calendarFeedForToken(credentials, mine.token, now);
+		const dayOff = companyDay(new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)).replace(/-/g, '');
+
+		expect(feed).toContain('· 휴가');
+		expect(feed).toContain(`DTSTART;VALUE=DATE:${dayOff}`);
 	});
 
 	test('shows nothing of another company, whose token is its own', async () => {

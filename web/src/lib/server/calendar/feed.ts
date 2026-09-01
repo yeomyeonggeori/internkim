@@ -4,21 +4,20 @@ import {
 	sessionForMember,
 	type ControlPlaneCredentials
 } from '$lib/server/control-plane';
-import { calendarFeedOf, type CalendarFeedEvent } from './ics';
+import { companyCalendarEntries } from '$lib/calendar/company-calendar';
+import { calendarFeedOf } from './ics';
 import { companyOfFeedToken } from './feed-token';
-
-const feedSelection = 'id, title, note, location, starts_at, ends_at, is_whole_day, updated_at, calendar';
 
 const daysBehind = 90;
 const daysAhead = 400;
 
 export type FeedCredentials = ControlPlaneCredentials & { publishableKey: string };
 
-function windowAround(now: Date): { from: string; to: string } {
+function windowAround(now: Date): { from: Date; to: Date } {
 	const day = 24 * 60 * 60 * 1000;
 	return {
-		from: new Date(now.getTime() - daysBehind * day).toISOString(),
-		to: new Date(now.getTime() + daysAhead * day).toISOString()
+		from: new Date(now.getTime() - daysBehind * day),
+		to: new Date(now.getTime() + daysAhead * day)
 	};
 }
 
@@ -53,18 +52,6 @@ export async function calendarFeedForToken(
 		session.accessToken
 	);
 
-	const window = windowAround(now);
-	const events = await caller
-		.from('task')
-		.select(feedSelection)
-		.eq('is_event', true)
-		.neq('status', 'rejected')
-		.gte('ends_at', window.from)
-		.lt('starts_at', window.to)
-		.order('starts_at')
-		.returns<CalendarFeedEvent[]>();
-	if (events.error) throw new Error(`calendar subscription: ${events.error.message}`);
-
 	const company = await caller
 		.from('company')
 		.select('name, timezone')
@@ -72,9 +59,9 @@ export async function calendarFeedForToken(
 		.maybeSingle<{ name: string | null; timezone: string | null }>();
 	if (company.error) throw new Error(`calendar subscription: ${company.error.message}`);
 
-	return calendarFeedOf(
-		events.data ?? [],
-		company.data?.name?.trim() || 'internkim',
-		company.data?.timezone?.trim() || 'Asia/Seoul'
-	);
+	const timezone = company.data?.timezone?.trim() || 'Asia/Seoul';
+	const window = windowAround(now);
+	const entries = await companyCalendarEntries(caller, window.from, window.to, timezone);
+
+	return calendarFeedOf(entries, company.data?.name?.trim() || 'internkim', timezone);
 }

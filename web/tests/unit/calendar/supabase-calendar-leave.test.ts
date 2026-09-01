@@ -26,24 +26,24 @@ describe('calendarEventFromApprovedLeave', () => {
 			uid: 'leave:leave-1',
 			title: '이샘플 · 휴가',
 			description: '',
-			startISO: '2026-08-03T00:00:00.000Z',
-			endISO: '2026-08-03T00:00:00.000Z',
+			startISO: '2026-08-02T15:00:00.000Z',
+			endISO: '2026-08-03T14:59:59.999Z',
 			isAllDay: true,
 			readOnly: true,
 			source: 'leave'
 		});
 	});
 
-	test('maps legacy UTC-midnight full-day bounds in a negative UTC offset', () => {
+	test('ends a whole day on the day it covers, west of UTC as well', () => {
 		const event = calendarEventFromApprovedLeave(
 			{
-				id: 'legacy-full-day',
+				id: 'full-day-west',
 				member_id: 'member-1',
 				kind: 'leave',
 				days: 1,
 				status: 'approved',
-				starts_at: '2026-08-03T00:00:00.000Z',
-				ends_at: '2026-08-04T00:00:00.000Z'
+				starts_at: '2026-08-03T07:00:00.000Z',
+				ends_at: '2026-08-04T07:00:00.000Z'
 			},
 			members,
 			'America/Los_Angeles'
@@ -51,8 +51,8 @@ describe('calendarEventFromApprovedLeave', () => {
 
 		expect(event).toMatchObject({
 			title: '이샘플 · 휴가',
-			startISO: '2026-08-03T00:00:00.000Z',
-			endISO: '2026-08-03T00:00:00.000Z',
+			startISO: '2026-08-03T07:00:00.000Z',
+			endISO: '2026-08-04T06:59:59.999Z',
 			isAllDay: true
 		});
 	});

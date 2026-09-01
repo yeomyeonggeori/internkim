@@ -1,40 +1,7 @@
-export type EventCalendarFields = {
-	timeZone?: string;
-	color?: string;
-};
-
-export type CalendarFeedEvent = {
-	id: string;
-	title: string;
-	note: string | null;
-	location: unknown;
-	starts_at: string;
-	ends_at: string;
-	is_whole_day: boolean;
-	updated_at: string;
-	calendar: unknown;
-};
-
-export function calendarFieldsOf(carried: unknown): EventCalendarFields {
-	if (typeof carried !== 'object' || carried === null) return {};
-	const { timeZone, color } = carried as Record<string, unknown>;
-	return {
-		timeZone: typeof timeZone === 'string' && timeZone.trim() ? timeZone.trim() : undefined,
-		color: typeof color === 'string' && color.trim() ? color.trim() : undefined
-	};
-}
+import type { CalendarEvent } from '../../../routes/calendar/embed/calendar-event-persistence';
 
 const productIdentifier = '-//internkim//calendar//EN';
 const longestLine = 75;
-
-export function locationNameOf(location: unknown): string {
-	if (typeof location === 'string') return location;
-	if (typeof location === 'object' && location !== null) {
-		const named = (location as { name?: unknown }).name;
-		if (typeof named === 'string') return named;
-	}
-	return '';
-}
 
 export function escapedText(written: string): string {
 	return written
@@ -83,32 +50,32 @@ function dayAfter(instant: string, timezone: string): string {
 	return dayOf(new Date(new Date(instant).getTime() + 24 * 60 * 60 * 1000).toISOString(), timezone);
 }
 
-function eventLines(event: CalendarFeedEvent, companyTimezone: string): string[] {
-	const carried = calendarFieldsOf(event.calendar);
-	const timezone = carried.timeZone ?? companyTimezone;
+function eventLines(event: CalendarEvent, companyTimezone: string): string[] {
+	const timezone = event.timeZone.trim() || companyTimezone;
 	const lines = [
 		'BEGIN:VEVENT',
-		`UID:${event.id}`,
-		`DTSTAMP:${momentOf(event.updated_at)}`,
+		`UID:${event.uid}`,
+		`DTSTAMP:${momentOf(event.updatedAt)}`,
 		`SUMMARY:${escapedText(event.title)}`
 	];
-	if (event.is_whole_day) {
-		lines.push(`DTSTART;VALUE=DATE:${dayOf(event.starts_at, timezone)}`);
-		lines.push(`DTEND;VALUE=DATE:${dayAfter(event.ends_at, timezone)}`);
+	if (event.isAllDay) {
+		lines.push(`DTSTART;VALUE=DATE:${dayOf(event.startISO, timezone)}`);
+		lines.push(`DTEND;VALUE=DATE:${dayAfter(event.endISO, timezone)}`);
 	} else {
-		lines.push(`DTSTART:${momentOf(event.starts_at)}`);
-		lines.push(`DTEND:${momentOf(event.ends_at)}`);
+		lines.push(`DTSTART:${momentOf(event.startISO)}`);
+		lines.push(`DTEND:${momentOf(event.endISO)}`);
 	}
-	const note = (event.note ?? '').trim();
+	const note = event.description.trim();
 	if (note) lines.push(`DESCRIPTION:${escapedText(note)}`);
-	const location = locationNameOf(event.location).trim();
+	const location = event.location.trim();
 	if (location) lines.push(`LOCATION:${escapedText(location)}`);
-	if (carried.color) lines.push(`COLOR:${escapedText(carried.color)}`);
+	const color = event.color.trim();
+	if (color) lines.push(`COLOR:${escapedText(color)}`);
 	lines.push('END:VEVENT');
 	return lines;
 }
 
-export function calendarFeedOf(events: CalendarFeedEvent[], companyName: string, timezone: string): string {
+export function calendarFeedOf(events: CalendarEvent[], companyName: string, timezone: string): string {
 	const lines = [
 		'BEGIN:VCALENDAR',
 		'VERSION:2.0',
