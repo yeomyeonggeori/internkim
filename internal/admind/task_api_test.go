@@ -264,31 +264,6 @@ func TestTaskAPIMovesBoardTaskWithNormalizedRanksInOneRequest(t *testing.T) {
 	}
 }
 
-func TestTaskAPIMovesBoardTaskWithoutQueueingNeighborRankProjections(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	handler := service.router()
-	memberID := stableTaskID("member@example.com")
-	firstTask := createTaskForTest(t, handler, "member@example.com", newTaskPayload("member@example.com", "첫 번째 진행 업무", "in_progress", 0, []string{memberID}))
-	secondTask := createTaskForTest(t, handler, "member@example.com", newTaskPayload("member@example.com", "두 번째 진행 업무", "in_progress", 0, []string{memberID}))
-	movedTask := createTaskForTest(t, handler, "member@example.com", newTaskPayload("member@example.com", "이동할 요청 업무", "requested", 0, []string{memberID}))
-	firstTask = updateTaskForTest(t, handler, "member@example.com", firstTask.ID, newTaskPayload("member@example.com", firstTask.Content, "in_progress", 1, []string{memberID}))
-	secondTask = updateTaskForTest(t, handler, "member@example.com", secondTask.ID, newTaskPayload("member@example.com", secondTask.Content, "in_progress", 2, []string{memberID}))
-	clearTaskChannelOutboxForTest(t, service)
-
-	response := moveTaskOnBoardResponseForTest(t, handler, "member@example.com", movedTask.ID, "in_progress", &secondTask.ID)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("move status = %d body = %s", response.Code, response.Body.String())
-	}
-	taskIDs, errorValue := service.pendingTaskMattermostProjectionTaskIDs(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(taskIDs) != 0 {
-		t.Fatalf("flow projection outbox task ids = %#v, want empty", taskIDs)
-	}
-}
-
 func TestTaskAPIRejectsBoardTaskMoveFromUnrelatedUser(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	handler := service.router()
@@ -606,18 +581,6 @@ func readTaskByIDForTest(t *testing.T, service *Service, taskID string) Task {
 		t.Fatalf("expected task %q to exist", taskID)
 	}
 	return task
-}
-
-func clearTaskChannelOutboxForTest(t *testing.T, service *Service) {
-	t.Helper()
-	database, errorValue := service.openTaskDatabase(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	defer database.Close()
-	if _, errorValue := database.ExecContext(context.Background(), "DELETE FROM flow_channel_outbox"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
 }
 
 func sameStringSet(left []string, right []string) bool {

@@ -89,13 +89,7 @@ func taskWithCreatedAt(task Task) Task {
 }
 
 func writeTaskInTransaction(ctx context.Context, transaction *sql.Tx, task Task) error {
-	if errorValue := writeTaskRowInTransaction(ctx, transaction, task); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := enqueueTaskChannelProjection(ctx, transaction, task.ID); errorValue != nil {
-		return errorValue
-	}
-	return nil
+	return writeTaskRowInTransaction(ctx, transaction, task)
 }
 
 func writeTaskRowInTransaction(ctx context.Context, transaction *sql.Tx, task Task) error {
