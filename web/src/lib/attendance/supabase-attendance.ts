@@ -171,17 +171,17 @@ export async function correctSupabaseAttendanceEvents(
 	reason: string
 ): Promise<AttendanceWriteResult> {
 	if (corrections.length === 0) throw new Error('at least one attendance correction is required');
-	const { data, error } = await supabase().rpc('attendance_correct', {
-		corrections: corrections.map((correction) => ({
-			event_id: correction.eventID,
-			local_date: correction.localDate,
-			local_time: correction.localTime,
-			location: correction.locationID
-		})),
-		reason
-	});
-	if (error) throw new Error(error.message);
-	return attendanceWriteResultFrom(data);
+	return attendanceWriteResultFrom(
+		await invokeTool('attendance_update', {
+			corrections: corrections.map((correction) => ({
+				eventHint: correction.eventID,
+				date: correction.localDate,
+				time: correction.localTime,
+				location: correction.locationID || undefined
+			})),
+			reason
+		})
+	);
 }
 
 export async function addSupabaseAttendanceEvent(

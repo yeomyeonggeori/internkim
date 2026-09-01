@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyMember, type Notification } from './notify-member';
+import { whoAnswersFor } from './who-answers';
 import type { VapidKeys } from './web-push-vapid';
 
 type Member = { id: string; name: string | null; company_id: string };
@@ -45,7 +46,7 @@ export async function announceLeaveRequest(
 		openPath: '/attendance/',
 		tag: `leave-${asked.id}`
 	};
-	return tellAdministrators(record, announcer.company_id, memberID, notification, vapid, nowInSeconds);
+	return tellWhoAnswers(record, announcer.company_id, memberID, notification, vapid, nowInSeconds);
 }
 
 async function newestClock(caller: SupabaseClient, memberID: string): Promise<ClockRow | null> {
@@ -92,11 +93,11 @@ async function tellEachExcept(
 	vapid: VapidKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
-	const listeners = await companyMembers(record, companyID, false);
+	const listeners = await companyMembers(record, companyID);
 	return tellEach(record, listeners.filter((id) => id !== announcerID), category, notification, vapid, nowInSeconds);
 }
 
-async function tellAdministrators(
+async function tellWhoAnswers(
 	record: SupabaseClient,
 	companyID: string,
 	announcerID: string,
@@ -104,14 +105,17 @@ async function tellAdministrators(
 	vapid: VapidKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
-	const administrators = await companyMembers(record, companyID, true);
-	return tellEach(record, administrators.filter((id) => id !== announcerID), 'leave', notification, vapid, nowInSeconds);
+	const answering = await whoAnswersFor(record, companyID, announcerID);
+	return tellEach(record, answering, 'leave', notification, vapid, nowInSeconds);
 }
 
-async function companyMembers(record: SupabaseClient, companyID: string, administratorsOnly: boolean): Promise<string[]> {
-	let asked = record.from('member').select('id').eq('company_id', companyID).neq('status', 'withdrawn');
-	if (administratorsOnly) asked = asked.eq('is_admin', true);
-	const { data, error } = await asked.returns<{ id: string }[]>();
+async function companyMembers(record: SupabaseClient, companyID: string): Promise<string[]> {
+	const { data, error } = await record
+		.from('member')
+		.select('id')
+		.eq('company_id', companyID)
+		.neq('status', 'withdrawn')
+		.returns<{ id: string }[]>();
 	if (error) throw new Error(error.message);
 	return (data ?? []).map((member) => member.id);
 }

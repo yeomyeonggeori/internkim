@@ -18,6 +18,8 @@ var toolsTheRecordRuns = map[string]bool{
 	"leave_list":        true,
 	"leave_balance":     true,
 	"leave_request":     true,
+	"leave_update":      true,
+	"leave_delete":      true,
 	"leave_decide":      true,
 	"attendance_list":   true,
 	"attendance_add":    true,

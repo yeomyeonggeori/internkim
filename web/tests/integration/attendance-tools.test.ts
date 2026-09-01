@@ -133,8 +133,7 @@ describe('the attendance tools write a record and say when the company was told'
 
 	test('a hint that names nothing comes back with candidates rather than a guess', async () => {
 		const missed = await asSample('attendance_update', {
-			eventHint: '있지도 않은 기록',
-			time: '10:00',
+			corrections: [{ eventHint: '있지도 않은 기록', time: '10:00' }],
 			reason: '잘못된 힌트'
 		});
 		expect(missed.status).toBe(409);
@@ -145,8 +144,7 @@ describe('the attendance tools write a record and say when the company was told'
 		const listed = await asSample('attendance_list', { from: dayShiftedBy(-10) });
 		const [held] = resultOf(listed).attendance as { eventID: string }[];
 		const corrected = await asSample('attendance_update', {
-			eventHint: held.eventID,
-			time: '08:30',
+			corrections: [{ eventHint: held.eventID, time: '08:30' }],
 			reason: '실제로는 8시 30분에 출근했습니다'
 		});
 		expect(resultOf(corrected).status).toBe('corrected');
@@ -182,8 +180,7 @@ describe('the attendance tools write a record and say when the company was told'
 		const eventID = resultOf(added).eventID as string;
 
 		const corrected = await asAdmin('attendance_update', {
-			eventHint: eventID,
-			time: '09:30',
+			corrections: [{ eventHint: eventID, time: '09:30' }],
 			reason: '넉 달 전 기록의 시각 정정'
 		});
 		expect(corrected.status).toBe(200);
