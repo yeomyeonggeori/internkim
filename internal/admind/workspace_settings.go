@@ -75,6 +75,10 @@ func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWrit
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	if service.centralPlane() != nil && strings.TrimSpace(payload.TimeZone) != previousSettings.TimeZone {
+		http.Error(responseWriter, "the company record keeps the time zone", http.StatusConflict)
+		return
+	}
 	settings, errorValue := normalizeWorkspaceSettings(payload)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)

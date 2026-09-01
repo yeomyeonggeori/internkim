@@ -113,6 +113,8 @@ func TestReconcileBlueclawRosterDeliversTheRosterFromTheHost(t *testing.T) {
 	policyReloaded := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":
+			return jsonResponse(http.StatusOK, `{"company":{"name":"예시회사","profileImage":"","timezone":"Asia/Seoul"}}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/member":
 			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member","status":"active","circles":["c-level"]}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
@@ -167,9 +169,11 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
 		StateDirectory:             t.TempDir(),
 	})
-	settledPolicy := `{"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
+	settledPolicy := `{"company":{"brandName":"","description":"","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":
+			return jsonResponse(http.StatusOK, `{"company":{"name":"예시회사","profileImage":"","timezone":"Asia/Seoul"}}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/member":
 			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member","status":"active","circles":["c-level"]}]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
@@ -250,5 +254,34 @@ func TestTheSeedAdminStaysEvenWhenTheDirectoryDoesNotNameThem(t *testing.T) {
 
 	if !slices.Contains(rosterPolicyEmails(policyDocument), "seed@example.com") {
 		t.Fatal("the address this device lets an admin in by must survive a directory that forgot them")
+	}
+}
+
+func TestTheReconcileCarriesTheCompanyTimeZoneOntoTheDevice(t *testing.T) {
+	service := NewService(Configuration{
+		CentralPlaneAppURL:         "https://company.example.test",
+		CentralPlaneProjectURL:     "https://project.example.test",
+		CentralPlanePublishableKey: "publishable",
+		CentralPlaneAgentKeyPath:   writeTestFile(t, "agent-key"),
+		BlueclawBaseURL:            "http://blueclaw.local",
+		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
+		StateDirectory:             t.TempDir(),
+	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":
+			return jsonResponse(http.StatusOK, `{"company":{"name":"예시회사","profileImage":"","timezone":"America/Los_Angeles"}}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
+		}
+	})}
+
+	if errorValue := service.reconcileCompanyTimeZone(context.Background(), service.centralPlane()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if resolved := service.workspaceTimeZone(); resolved.name != "America/Los_Angeles" {
+		t.Fatalf("the device reads the zone the company keeps, got %+v", resolved)
 	}
 }
