@@ -71,6 +71,7 @@ func (service *Service) localUpsertUser(responseWriter http.ResponseWriter, requ
 	mutation.completeAfterSourceMutation(request.Context())
 	service.persistOrganizationHireDate(request.Context(), payload.MemberID, payload.Email, payload.HireDate)
 	service.triggerUsersSync(request.Context())
+	go service.seatAndNameOneMemberInBuzz(context.Background(), payload.Email, payload.Name)
 	response := pagesUsersResponse{Records: []adminUserMutation{payload}}
 	responseBody, errorValue := service.localUsersResponseBody(request.Context(), response)
 	if errorValue != nil {

@@ -18,11 +18,27 @@ import (
 	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
 )
 
+// Rooms drift between passes: somebody joins the company, somebody leaves it,
+// and a profile the directory could have written never got written. One pass a
+// day keeps the drift to a day.
+const memberChannelSyncInterval = 24 * time.Hour
+
 func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 	if !service.canWriteToBuzzRelay() {
 		return
 	}
-	go service.ensureMemberChannelMembership(ctx)
+	go func() {
+		ticker := time.NewTicker(memberChannelSyncInterval)
+		defer ticker.Stop()
+		for {
+			service.ensureMemberChannelMembership(ctx)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 }
 
 func (service *Service) grantRelayMembership(ctx context.Context, pubkey string) {
@@ -389,6 +405,8 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	}
 	log.Printf("buzz member membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
 	service.retireBootstrapFromRemainingRooms(ctx, relay, connections, seed)
+	service.nameMembersTheRelayCannotName(ctx, relay)
+	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, seed)
 }
 
 // The member and circle syncs cover the rooms the company runs, but the company
@@ -518,6 +536,24 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 	return channelIDs, rows.Err()
 }
 
+// Everyone the device holds a record of, from the policy it serves and the
+// fleet directory it belongs to. The record carries the name as well as the
+// address, so one read answers both who is seated and what they are called.
+func (service *Service) directoryRecords(ctx context.Context) []adminUserMutation {
+	records := service.blueclawPolicyUserRecords(ctx)
+	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
+	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
+	if fleetID != "" && fleetSecret != "" {
+		if found, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
+			records = append(records, found...)
+		}
+	}
+	if found, errorValue := service.currentUserRecords(ctx); errorValue == nil {
+		records = append(records, found...)
+	}
+	return records
+}
+
 func (service *Service) allMemberEmails(ctx context.Context) []string {
 	seen := map[string]bool{}
 	var emails []string
@@ -529,25 +565,11 @@ func (service *Service) allMemberEmails(ctx context.Context) []string {
 		seen[email] = true
 		emails = append(emails, email)
 	}
-	for _, record := range service.blueclawPolicyUserRecords(ctx) {
+	for _, record := range service.directoryRecords(ctx) {
 		add(record.Email)
-	}
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID != "" && fleetSecret != "" {
-		if records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
-			for _, record := range records {
-				add(record.Email)
-			}
-		}
 	}
 	for _, email := range service.usersSyncCacheEmails() {
 		add(email)
-	}
-	if records, errorValue := service.currentUserRecords(ctx); errorValue == nil {
-		for _, record := range records {
-			add(record.Email)
-		}
 	}
 	add(service.seedAdminEmail())
 	add(service.claimedAdminEmail())
