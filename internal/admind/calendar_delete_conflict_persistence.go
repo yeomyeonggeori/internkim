@@ -72,9 +72,6 @@ func (service *Service) persistCalendarDeleteConflictResolutionLocked(ctx contex
 		return errorValue
 	}
 	event.UpdatedAt = updatedAt
-	service.runCalendarStoreSideEffectUnlocked(func() {
-		service.finishCalendarEventPersistence(ctx, event)
-	})
 	return nil
 }
 

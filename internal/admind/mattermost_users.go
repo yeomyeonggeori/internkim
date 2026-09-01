@@ -110,10 +110,6 @@ const mattermostProvisionerEmail = "admin@localhost"
 const firstAdminMattermostPassword = "admin"
 const mattermostTeammateNameDisplay = "nickname_full_name"
 
-func (service *Service) provisionMattermostUser(ctx context.Context, email string, role string) (mattermostProvisionResult, error) {
-	return service.provisionMattermostUserWithPassword(ctx, adminUserMutation{Email: email, Role: role}, "")
-}
-
 func (service *Service) provisionMattermostUserWithPassword(ctx context.Context, user adminUserMutation, initialPassword string) (mattermostProvisionResult, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(user.Email))
 	if normalizedEmail == "" {
@@ -835,23 +831,6 @@ func (service *Service) activeMattermostUsers(ctx context.Context, token string)
 	return activeUsers, nil
 }
 
-func (service *Service) ensureMattermostCircleChannels(ctx context.Context, token string) error {
-	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
-	if errorValue != nil {
-		return errorValue
-	}
-	circleChannels, errorValue := service.mattermostCircleChannelDefinitions(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	for _, circleChannel := range circleChannels {
-		if _, errorValue := service.ensureMattermostPrivateChannel(ctx, token, teamRecord.ID, circleChannel.ChannelName); errorValue != nil {
-			return errorValue
-		}
-	}
-	return nil
-}
-
 func (service *Service) ensureMattermostPrivateChannel(ctx context.Context, token string, teamID string, channelName string) (string, error) {
 	channelID, errorValue := service.mattermostChannelIDByName(ctx, token, teamID, channelName)
 	if errorValue == nil || channelID != "" {
@@ -932,21 +911,6 @@ func (service *Service) mattermostManagedPublicChannelPurpose(channel mattermost
 	return channel.Purpose
 }
 
-func (service *Service) ensureMattermostManagedChannelModeration(ctx context.Context, token string, channelID string) error {
-	body := []map[string]any{
-		mattermostChannelModerationPatch("create_post", map[string]bool{"members": true, "guests": false}),
-		mattermostChannelModerationPatch("create_reactions", map[string]bool{"members": false, "guests": false}),
-		mattermostChannelModerationPatch("manage_members", map[string]bool{"members": false}),
-		mattermostChannelModerationPatch("use_channel_mentions", map[string]bool{"members": false, "guests": false}),
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/moderations/patch", token, body, nil)
-	if errorValue != nil && isMattermostChannelModerationUnavailable(errorValue) {
-		log.Printf("channel moderation unavailable on this Mattermost edition, leaving channel %s unmoderated", channelID)
-		return nil
-	}
-	return errorValue
-}
-
 func isMattermostChannelModerationUnavailable(errorValue error) bool {
 	message := errorValue.Error()
 	return strings.Contains(message, "channel moderation") || strings.Contains(message, "patch_channel_moderations")
@@ -980,12 +944,6 @@ func (service *Service) cleanupMattermostManagedChannelSystemPosts(ctx context.C
 		}
 	}
 	return nil
-}
-
-func (service *Service) syncMattermostTaskEntryPost(ctx context.Context, adminToken string, channelID string) {
-	if errorValue := service.deleteMattermostTaskEntryPost(ctx, adminToken, channelID); errorValue != nil {
-		log.Printf("Mattermost Flow entry post sync failed: %v", errorValue)
-	}
 }
 
 func (service *Service) deleteMattermostTaskEntryPost(ctx context.Context, adminToken string, channelID string) error {
@@ -1351,56 +1309,6 @@ func (service *Service) ensureMattermostTeam(ctx context.Context, token string) 
 	return teamRecord, nil
 }
 
-func (service *Service) ensureMattermostTownSquareChannel(ctx context.Context, token string, teamID string) (string, error) {
-	channel, _ := service.mattermostManagedPublicChannel(mattermostdefaults.TownSquareChannelName)
-	channelIDPath := filepath.Join(filepath.Dir(service.Configuration.FleetIDPath), "channel-id")
-	channelID := strings.TrimSpace(readTrimmedFile(channelIDPath))
-	if channelID != "" {
-		var channelRecord mattermostChannelRecord
-		errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+url.PathEscape(channelID), token, nil, &channelRecord)
-		if errorValue == nil && channelRecord.ID != "" {
-			return channelRecord.ID, service.updateMattermostManagedPublicChannelText(ctx, token, channelRecord.ID, channel)
-		}
-		if errorValue != nil && !isMattermostNotFound(errorValue) {
-			return "", errorValue
-		}
-	}
-
-	var channelRecord mattermostChannelRecord
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/name/town-square", token, nil, &channelRecord)
-	if errorValue != nil && !isMattermostNotFound(errorValue) {
-		return "", errorValue
-	}
-	if channelRecord.ID == "" {
-		body := map[string]string{"team_id": teamID, "name": channel.Name, "display_name": channel.DisplayName, "type": "O"}
-		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels", token, body, &channelRecord); errorValue != nil {
-			return "", errorValue
-		}
-	}
-	if channelRecord.ID == "" {
-		return "", fmt.Errorf("Mattermost channel town-square was not created")
-	}
-	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelRecord.ID, channel); errorValue != nil {
-		return "", errorValue
-	}
-	if errorValue := os.WriteFile(channelIDPath, []byte(channelRecord.ID), 0o640); errorValue != nil {
-		return "", errorValue
-	}
-	return channelRecord.ID, nil
-}
-
-func (service *Service) ensureMattermostOffTopicChannel(ctx context.Context, token string, teamID string) (string, error) {
-	channel, _ := service.mattermostManagedPublicChannel(mattermostdefaults.OffTopicChannelName)
-	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel); errorValue != nil {
-		return "", errorValue
-	}
-	return channelID, nil
-}
-
 func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, token string, userID string) error {
 	normalizedUserID := strings.TrimSpace(userID)
 	if normalizedUserID == "" {
@@ -1418,17 +1326,6 @@ func (service *Service) ensureMattermostBotDirectChannel(ctx context.Context, to
 		return errorValue
 	}
 	return service.showMattermostDirectChannel(ctx, token, normalizedUserID, botRecord.ID)
-}
-
-func (service *Service) ensureMattermostBotChannelMember(ctx context.Context, token string, channelID string) error {
-	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, service.Configuration.BotUsername)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !found || botRecord.ID == "" || botRecord.DeleteAt != 0 {
-		return fmt.Errorf("internkim bot user is not available")
-	}
-	return service.ensureMattermostChannelMember(ctx, token, channelID, botRecord.ID)
 }
 
 func (service *Service) ensureMattermostChannelMember(ctx context.Context, token string, channelID string, userID string) error {
@@ -1529,16 +1426,6 @@ func isMattermostNotFound(errorValue error) bool {
 	return errors.As(errorValue, &apiError) && apiError.StatusCode == http.StatusNotFound
 }
 
-func isMattermostForbidden(errorValue error) bool {
-	var apiError mattermostAPIError
-	return errors.As(errorValue, &apiError) && apiError.StatusCode == http.StatusForbidden
-}
-
-func isMattermostConflict(errorValue error) bool {
-	var apiError mattermostAPIError
-	return errors.As(errorValue, &apiError) && apiError.StatusCode == http.StatusBadRequest
-}
-
 func isMattermostBadRequest(errorValue error) bool {
 	var apiError mattermostAPIError
 	return errors.As(errorValue, &apiError) && apiError.StatusCode == http.StatusBadRequest
@@ -1602,4 +1489,80 @@ func generateTemporaryPassword() string {
 		builder.WriteByte(alphabet[int(value)%len(alphabet)])
 	}
 	return builder.String()
+}
+
+func (service *Service) ensureMattermostBotDirectChannelID(ctx context.Context, token string, userID string) (string, error) {
+	normalizedUserID := strings.TrimSpace(userID)
+	if normalizedUserID == "" {
+		return "", fmt.Errorf("Mattermost user ID is required")
+	}
+	botRecord, found, errorValue := service.findMattermostUserByUsername(ctx, token, service.Configuration.BotUsername)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if !found || botRecord.ID == "" || botRecord.DeleteAt != 0 || botRecord.ID == normalizedUserID {
+		return "", fmt.Errorf("internkim bot user is not available")
+	}
+	body := []string{normalizedUserID, botRecord.ID}
+	var channelRecord mattermostChannelRecord
+	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/direct", token, body, &channelRecord); errorValue != nil && !isMattermostBadRequest(errorValue) {
+		return "", errorValue
+	}
+	if errorValue := service.showMattermostDirectChannel(ctx, token, normalizedUserID, botRecord.ID); errorValue != nil {
+		return "", errorValue
+	}
+	if strings.TrimSpace(channelRecord.ID) != "" {
+		return channelRecord.ID, nil
+	}
+	return "", fmt.Errorf("Mattermost direct channel was not created")
+}
+
+func (service *Service) ensureMattermostTownSquareChannel(ctx context.Context, token string, teamID string) (string, error) {
+	channel, _ := service.mattermostManagedPublicChannel(mattermostdefaults.TownSquareChannelName)
+	channelIDPath := filepath.Join(filepath.Dir(service.Configuration.FleetIDPath), "channel-id")
+	channelID := strings.TrimSpace(readTrimmedFile(channelIDPath))
+	if channelID != "" {
+		var channelRecord mattermostChannelRecord
+		errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+url.PathEscape(channelID), token, nil, &channelRecord)
+		if errorValue == nil && channelRecord.ID != "" {
+			return channelRecord.ID, service.updateMattermostManagedPublicChannelText(ctx, token, channelRecord.ID, channel)
+		}
+		if errorValue != nil && !isMattermostNotFound(errorValue) {
+			return "", errorValue
+		}
+	}
+
+	var channelRecord mattermostChannelRecord
+	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/name/town-square", token, nil, &channelRecord)
+	if errorValue != nil && !isMattermostNotFound(errorValue) {
+		return "", errorValue
+	}
+	if channelRecord.ID == "" {
+		body := map[string]string{"team_id": teamID, "name": channel.Name, "display_name": channel.DisplayName, "type": "O"}
+		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels", token, body, &channelRecord); errorValue != nil {
+			return "", errorValue
+		}
+	}
+	if channelRecord.ID == "" {
+		return "", fmt.Errorf("Mattermost channel town-square was not created")
+	}
+	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelRecord.ID, channel); errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := os.WriteFile(channelIDPath, []byte(channelRecord.ID), 0o640); errorValue != nil {
+		return "", errorValue
+	}
+	return channelRecord.ID, nil
+}
+
+func (service *Service) ensureMattermostOffTopicChannel(ctx context.Context, token string, teamID string) (string, error) {
+	channel, _ := service.mattermostManagedPublicChannel(mattermostdefaults.OffTopicChannelName)
+	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel); errorValue != nil {
+		return "", errorValue
+	}
+	return channelID, nil
 }

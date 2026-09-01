@@ -127,17 +127,16 @@ func (service *Service) finishUnchangedCalendarPullIfCurrent(ctx context.Context
 }
 
 func (service *Service) applyCalendarPullCycleIfCurrent(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, objects []calDAVCalendarObject, serverCTag string, snapshotCompletedAt time.Time) (calendarPullReconciliationResult, bool, error) {
-	deferredProjections := &calendarPullDeferredProjectionQueue{}
 	var reconciliationResult calendarPullReconciliationResult
 	var isCurrentTarget bool
 	var errorValue error
-	service.runCalendarPullLocked(ctx, deferredProjections, func() {
-		reconciliationResult, isCurrentTarget, errorValue = service.applyCalendarPullCycleLocked(ctx, account, target, objects, serverCTag, snapshotCompletedAt, deferredProjections)
+	service.runCalendarPullLocked(func() {
+		reconciliationResult, isCurrentTarget, errorValue = service.applyCalendarPullCycleLocked(ctx, account, target, objects, serverCTag, snapshotCompletedAt)
 	})
 	return reconciliationResult, isCurrentTarget, errorValue
 }
 
-func (service *Service) applyCalendarPullCycleLocked(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, objects []calDAVCalendarObject, serverCTag string, snapshotCompletedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) (calendarPullReconciliationResult, bool, error) {
+func (service *Service) applyCalendarPullCycleLocked(ctx context.Context, account remoteCalendarAccount, target remoteCalendarTarget, objects []calDAVCalendarObject, serverCTag string, snapshotCompletedAt time.Time) (calendarPullReconciliationResult, bool, error) {
 	isCurrentTarget, errorValue := service.calendarPullTargetIsCurrentLocked(ctx, account, target)
 	if errorValue != nil || !isCurrentTarget {
 		return calendarPullReconciliationResult{}, isCurrentTarget, errorValue
@@ -146,7 +145,7 @@ func (service *Service) applyCalendarPullCycleLocked(ctx context.Context, accoun
 	if errorValue != nil {
 		return calendarPullReconciliationResult{}, false, fmt.Errorf("list calendar push observation fences: %w", errorValue)
 	}
-	reconciliationResult, errorValue := service.reconcileCalendarPullSnapshotWithFencesLocked(ctx, account, objects, fencedUIDs, snapshotCompletedAt, deferredProjections)
+	reconciliationResult, errorValue := service.reconcileCalendarPullSnapshotWithFencesLocked(ctx, account, objects, fencedUIDs, snapshotCompletedAt)
 	if errorValue != nil || !reconciliationResult.IsComplete {
 		return reconciliationResult, true, errorValue
 	}

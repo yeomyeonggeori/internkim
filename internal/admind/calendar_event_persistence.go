@@ -104,9 +104,6 @@ func (service *Service) writeCalendarEventWithSourceLockedAndOriginIfCurrent(ctx
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
 	}
-	service.runCalendarStoreSideEffectUnlocked(func() {
-		event = service.finishCalendarEventPersistence(ctx, event)
-	})
 	if shouldSignalSync {
 		service.signalCalendarSyncWakeUp()
 	}
@@ -192,15 +189,7 @@ ON CONFLICT(id) DO UPDATE SET
 	if errorValue := replaceCalendarEventParticipants(ctx, transaction, event.ID, calendarParticipantIdentities(event.Participants)); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
-		return errorValue
-	}
 	return nil
-}
-
-func (service *Service) finishCalendarEventPersistence(ctx context.Context, event calendarEvent) calendarEvent {
-	service.reconcileCalendarEventNotifications(ctx, event.ID)
-	return service.applyCalendarMattermostProjection(ctx, event)
 }
 
 func (service *Service) softDeleteCalendarEvent(ctx context.Context, eventID string) error {
@@ -255,8 +244,6 @@ func (service *Service) softDeleteCalendarEventWithSourceLocked(ctx context.Cont
 	}
 	service.deletePairedTaskForCalendarEvent(ctx, event.ID)
 	service.runCalendarStoreSideEffectUnlocked(func() {
-		service.reconcileCalendarEventNotifications(ctx, eventID)
-		service.applyCalendarMattermostProjectionByID(ctx, event.ID)
 	})
 	if shouldSignalSync {
 		service.signalCalendarSyncWakeUp()

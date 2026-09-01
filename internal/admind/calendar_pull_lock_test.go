@@ -1,7 +1,6 @@
 package admind
 
 import (
-	"context"
 	"testing"
 	"time"
 )
@@ -10,11 +9,10 @@ func TestCalendarPullLockReleasesAndPropagatesPanic(t *testing.T) {
 	service := newCalendarTestService(t)
 	panicValue := "calendar pull panic"
 	recoveredValue := func() (recovered any) {
-		deferredProjections := &calendarPullDeferredProjectionQueue{}
 		defer func() {
 			recovered = recover()
 		}()
-		service.runCalendarPullLocked(context.Background(), deferredProjections, func() {
+		service.runCalendarPullLocked(func() {
 			panic(panicValue)
 		})
 		return nil
@@ -24,7 +22,7 @@ func TestCalendarPullLockReleasesAndPropagatesPanic(t *testing.T) {
 	}
 	reacquired := make(chan struct{})
 	go func() {
-		service.runCalendarPullLocked(context.Background(), &calendarPullDeferredProjectionQueue{}, func() {
+		service.runCalendarPullLocked(func() {
 			close(reacquired)
 		})
 	}()
