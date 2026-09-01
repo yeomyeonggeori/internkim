@@ -178,6 +178,42 @@ describe('deciding a leave', () => {
 		expect(balance.usedDays).toBe(2);
 	});
 
+	test('moves a leave filed for the wrong year onto the right one', async () => {
+		const filed = resultOf(
+			await asSample('leave_request', { kind: '연차', startsAt: '2025-06-05', endsAt: '2025-06-05', days: 1 })
+		);
+		expect(filed.startDate).toBe('2025-06-05');
+
+		const moved = resultOf(
+			await asAdmin('leave_update', {
+				leaveHint: filed.leaveID as string,
+				startsAt: '2026-06-05',
+				endsAt: '2026-06-05'
+			})
+		);
+		expect(moved.leaveID).toBe(filed.leaveID);
+		expect(moved.startDate).toBe('2026-06-05');
+		expect(moved.endDate).toBe('2026-06-05');
+		expect(moved.days).toBe(1);
+
+		const listed = resultOf(await asSample('leave_list', { from: '2026-06-01', to: '2026-06-30' }));
+		const leave = listed.leave as { leaveID: string }[];
+		expect(leave.some((row) => row.leaveID === filed.leaveID)).toBe(true);
+	});
+
+	test('takes a leave back out of the record entirely', async () => {
+		const filed = resultOf(
+			await asSample('leave_request', { kind: '연차', startsAt: '2026-07-06', endsAt: '2026-07-06', days: 1 })
+		);
+
+		const taken = resultOf(await asSample('leave_delete', { leaveHint: filed.leaveID as string }));
+		expect(taken.leaveID).toBe(filed.leaveID);
+
+		const listed = resultOf(await asSample('leave_list', { from: '2026-07-01', to: '2026-07-31' }));
+		const leave = listed.leave as { leaveID: string }[];
+		expect(leave.some((row) => row.leaveID === filed.leaveID)).toBe(false);
+	});
+
 	test('refuses a hint two rows answer to, and names them', async () => {
 		await asSample('leave_request', { kind: '연차', startsAt: '2026-11-02', endsAt: '2026-11-02', days: 1 });
 		await asSample('leave_request', { kind: '연차', startsAt: '2026-11-09', endsAt: '2026-11-09', days: 1 });

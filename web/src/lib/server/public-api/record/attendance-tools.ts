@@ -147,34 +147,39 @@ export async function attendanceAdd(context: RecordContext, input: AttendanceAdd
 	return answeredWrite(data);
 }
 
-export type AttendanceUpdateInput = {
+export type AttendanceCorrection = {
 	eventHint?: string;
 	date?: string;
 	time?: string;
 	location?: string;
-	reason?: string;
 };
 
-export async function attendanceUpdate(context: RecordContext, input: AttendanceUpdateInput) {
-	if (!input.eventHint) throw new Error('a correction names the attendance record it corrects');
-	if (!input.reason?.trim()) throw new Error('a correction says why the record was wrong');
+export type AttendanceUpdateInput = { corrections?: AttendanceCorrection[]; reason?: string };
 
-	const row = await attendanceOfHint(context, input.eventHint);
-	const held = answeredAttendance(context, row);
+export async function attendanceUpdate(context: RecordContext, input: AttendanceUpdateInput) {
+	const asked = input.corrections ?? [];
+	if (asked.length === 0) throw new Error('a correction names the attendance records it corrects');
+	if (!input.reason?.trim()) throw new Error('a correction says why the records were wrong');
+
+	const corrections = [];
+	for (const correction of asked) {
+		if (!correction.eventHint) throw new Error('a correction names the attendance record it corrects');
+		const row = await attendanceOfHint(context, correction.eventHint);
+		const held = answeredAttendance(context, row);
+		corrections.push({
+			event_id: row.id,
+			local_date: correction.date?.trim() || held.date,
+			local_time: correction.time?.trim() || held.time,
+			location: correction.location?.trim() || held.location
+		});
+	}
 
 	const { data, error } = await context.caller.rpc('attendance_correct', {
-		corrections: [
-			{
-				event_id: row.id,
-				local_date: input.date?.trim() || held.date,
-				local_time: input.time?.trim() || held.time,
-				location: input.location?.trim() || held.location
-			}
-		],
+		corrections,
 		reason: input.reason.trim()
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	return { ...answeredWrite(data), eventID: row.id };
+	return { ...answeredWrite(data), eventID: corrections[0].event_id };
 }
 
 export type AttendanceDeleteInput = { eventHint?: string; reason?: string };

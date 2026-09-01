@@ -7,7 +7,7 @@ import { HintUnresolved } from './people';
 import { LabelUnresolved } from './labels';
 import { NothingMatchesTheHint, RecordRefusedTheWrite } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
-import { leaveBalance, leaveDecide, leaveList, leaveRequest } from './leave-tools';
+import { leaveBalance, leaveDecide, leaveDelete, leaveList, leaveRequest, leaveUpdate } from './leave-tools';
 import { personList, taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
 
 type ToolInput = Record<string, unknown>;
@@ -28,6 +28,8 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	leave_list: (context, input) => leaveList(context, input),
 	leave_balance: (context, input) => leaveBalance(context, input),
 	leave_request: (context, input) => leaveRequest(context, input),
+	leave_update: (context, input) => leaveUpdate(context, input),
+	leave_delete: (context, input) => leaveDelete(context, input),
 	leave_decide: (context, input) => leaveDecide(context, input),
 	attendance_list: (context, input) => attendanceList(context, input),
 	attendance_add: (context, input) => attendanceAdd(context, input),

@@ -6,7 +6,7 @@ mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
 }));
 
-const { whoAnswersFor } = await import('../../src/lib/server/ask-who-answers');
+const { whoAnswersFor } = await import('../../src/lib/server/who-answers');
 
 const networkHookTimeout = 60_000;
 const record = controlPlane({ projectURL, serviceRoleKey });

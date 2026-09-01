@@ -169,6 +169,8 @@ func LeaveDescriptors() []Descriptor {
 		"leave_list",
 		"leave_balance",
 		"leave_request",
+		"leave_update",
+		"leave_delete",
 		"leave_decide",
 	))
 }

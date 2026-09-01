@@ -12,7 +12,8 @@ const copies = [
 	['base64url.ts', 'src/lib/notifications/base64url.ts'],
 	['web-push.ts', 'src/lib/server/web-push.ts'],
 	['web-push-encrypt.ts', 'src/lib/server/web-push-encrypt.ts'],
-	['web-push-vapid.ts', 'src/lib/server/web-push-vapid.ts']
+	['web-push-vapid.ts', 'src/lib/server/web-push-vapid.ts'],
+	['who-answers.ts', 'src/lib/server/who-answers.ts']
 ] as const;
 
 function bodyOf(path: string): string {

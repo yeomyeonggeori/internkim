@@ -15,8 +15,8 @@ func TestGeneratedCatalogLoadsCanonicalToolDescriptors(t *testing.T) {
 	if catalog.protocolVersion == "" || len(catalog.aggregateHash) != 64 {
 		t.Fatalf("generated protocol identity is incomplete: %+v", catalog)
 	}
-	if len(catalog.tools) != 34 {
-		t.Fatalf("expected thirty-four generated tool descriptors, got %d", len(catalog.tools))
+	if len(catalog.tools) != 36 {
+		t.Fatalf("expected thirty-six generated tool descriptors, got %d", len(catalog.tools))
 	}
 	if errorValue := ValidateDescriptorSet(catalog.tools); errorValue != nil {
 		t.Fatal(errorValue)
