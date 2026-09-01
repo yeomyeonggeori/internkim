@@ -313,7 +313,11 @@ and delete the duplicates.
   company's messages travel over; the `mattermost-*` scenarios cover the older
   half. The scenario invites a person, derives their key from the device seed
   the way `buzzidentity.Secret` does, sends the agent a picture through chatd's
-  person capabilities, and reads the task ledger.
+  person capabilities, and reads the task ledger. A message going the other way —
+  the agent writing to a person — is
+  `./internkim dev fleet run --scenario buzz-direct-message`: it asks through the
+  public API the way the `internkim-api` skill does, then reads the recipient's
+  own Buzz inbox for it.
 - The guest's `/workspace` is `/var/lib/blueclaw/workspace.ext4`, attached to
   the VM. `/root/.blueclaw/workspace` on the host is a different tree, not a
   mount of that image. A host daemon that writes there and answers with a

@@ -75,7 +75,7 @@ lab runner의 `--llm-provider capability --live-llm --strict-assertions` 조합�
 | 1 | 웹사이트 생성+배포 | COVERED | `site_artifact_acceptance` |
 | 2 | 배포된 웹사이트 수정 | COVERED | `site_edit_redeploy_acceptance` |
 | 2a | 배포된 웹사이트 삭제 | COVERED | `site_lifecycle_acceptance` (structured `requiredEvidence:["site_unserve"]` 승인 후 삭제) |
-| 3 | DM 보내기 (confirm + 상대 수신 확인) | PARTIAL | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); `dm-recipient-resolve`가 실 Mattermost 계정 이메일과 Blueclaw 정책 사람 연결을 통해 수신자 해석을 단언. 실제 상대 수신 확인은 실플랫폼 스모크 영역 |
+| 3 | DM 보내기 (confirm + 상대 수신 확인) | COVERED | `dm_send_confirm_acceptance` (confirm 게이트→송신→messageID 관측 단언); `dm-recipient-resolve`가 수신자 해석을 단언; `buzz-direct-message`가 공개 API로 보낸 DM을 수신자 본인 Buzz 수신함에서 읽어 확인. 매터모스트 쪽 실수신은 `mattermost-direct-message-send` |
 | 4 | 채널 포스트 작성 | COVERED | `channel_post_acceptance` |
 | 5 | 포스트 수정 | COVERED | `platform_message_edit_acceptance` (`message_update`) |
 | 6 | 반복 예약 생성/수정/삭제 | COVERED | `schedule_lifecycle_acceptance` (생성→`schedule_update` 수정→취소) |
