@@ -2198,3 +2198,93 @@ func TestOpenRouterContextWindowFallsBackWhenCatalogUnreachable(t *testing.T) {
 		t.Fatalf("expected unreachable catalog to fall back to the default window, got %d", tokens)
 	}
 }
+
+// A model that answers with nothing has dropped the turn, not refused the
+// schema. Giving up on it hands the turn to whatever stands next in the chain,
+// which on a device is small enough to invent its answer.
+func TestOpenRouterBackendRetriesOnceWhenTheModelAnswersWithNothing(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	attempts := 0
+	backend := OpenRouterBackend{
+		KeyPath:   secretPath,
+		BaseURL:   "https://openrouter.ai/api/v1/chat/completions",
+		ModelName: "z-ai/glm-5.3-flash",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			attempts++
+			body := "{\"choices\":[{\"message\":{\"content\":\"\"}}]}"
+			if attempts > 2 {
+				body = "{\"choices\":[{\"message\":{\"content\":\"{\\\"reply\\\":\\\"ok\\\"}\"}}]}"
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+
+	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
+		Messages: []Message{{Role: "user", Content: "세은 님한테 테스트로 뭐라고 dm 보내봐."}},
+		StructuredOutputSchema: StructuredOutputSchema{
+			Name:               "bluecollar_turn_router",
+			Document:           json.RawMessage(`{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}`),
+			IsStrictlyEnforced: true,
+		},
+	})
+	if errorValue != nil {
+		t.Fatalf("an empty answer should not end the attempt: %v", errorValue)
+	}
+	if response.Content != `{"reply":"ok"}` {
+		t.Fatalf("content = %q", response.Content)
+	}
+	if attempts != 3 {
+		t.Fatalf("attempts = %d, want the schema attempt, the prompted one, and one retry", attempts)
+	}
+}
+
+func TestProviderChainSaysTheAnswerCameFromAFallback(t *testing.T) {
+	failing := stubStructuredProvider{failure: errors.New("structured response content was empty")}
+	standing := stubStructuredProvider{response: Response{Provider: "llamacpp", Model: "local/gemma", Content: "{}"}}
+
+	response, errorValue := completeWithProviderChain(
+		[]Provider{failing, standing},
+		"schemaName=bluecollar_turn_router",
+		func(candidate Provider) (Response, error) {
+			return candidate.(stubStructuredProvider).complete()
+		},
+	)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !response.UsedFallback {
+		t.Fatal("an answer from further down the chain must say so, or a device model passes for the tier that was asked for")
+	}
+	if !strings.Contains(response.FallbackReason, "content was empty") {
+		t.Fatalf("fallback reason = %q", response.FallbackReason)
+	}
+}
+
+type stubStructuredProvider struct {
+	response Response
+	failure  error
+}
+
+func (provider stubStructuredProvider) Name() string { return "stub" }
+
+func (provider stubStructuredProvider) CompleteStructured(context.Context, StructuredRequest) (Response, error) {
+	return provider.complete()
+}
+
+func (provider stubStructuredProvider) CompleteText(context.Context, TextRequest) (Response, error) {
+	return provider.complete()
+}
+
+func (provider stubStructuredProvider) complete() (Response, error) {
+	if provider.failure != nil {
+		return Response{}, provider.failure
+	}
+	return provider.response, nil
+}
