@@ -8,18 +8,28 @@ this way answered `approval_requested` with no `eventID`, the completion gate
 read that as work not done, and the task reported failure to the person who
 had just been served correctly.
 
-So there is no approval on attendance. `attendance_add`, `attendance_correct`
-and `attendance_remove` write, every time, for the person the record belongs
-to and for an administrator on anybody's behalf. Three days is still in the
-code, and it now decides one thing: whether the administrators are told.
+So there is no approval record on attendance, and no held call waiting to be
+replayed. There is authority. A person writes, corrects and removes their own
+records from the last three days. Reaching further back is an administrator's
+write, for anybody. Asked by anybody else, the record does not write it and
+does not refuse either: it answers `asked`, the administrators are told what
+was wanted, and the task is finished. The administrator who agrees writes it
+with the same tool, which already lets an administrator write anybody's
+record.
 
 ## What the call answers
 
-`{ status, eventID, backdated }`. `status` is `added`, `corrected` or
-`removed` — the values the record actually returns, which the descriptions
-used to get wrong. `backdated` is true when the moment written or corrected is
-more than `attendance_backdated_after_minutes()` old, and it means the
-administrators heard about it.
+`{ status, eventID, backdated }`. `status` is `added`, `corrected`, `removed`
+or `asked`. `asked` means the write was an administrator's to make and the
+administrators have been told; `eventID` is null and nothing was written.
+`backdated` is true when the moment is older than
+`attendance_backdated_after_minutes()`, and it exists so a backdated write
+does not announce somebody's arrival to their colleagues.
+
+`asked` is a success. The first version of this made it a refusal, and a
+refusal is what broke the feature it was meant to serve: a null `eventID`
+read as work not done, a completion gate refusing `finish`, and a person told
+their request had failed when the right person had just been asked.
 
 `attendance_add` with no `date` and no `time` clocks the moment of the call
 and needs no reason. That is somebody pressing the button as they walk in, and
@@ -30,15 +40,16 @@ reason.
 ## Who is told
 
 `web/src/routes/api/v1/[...path]/+server.ts` reads the shape of the answer:
-`backdated` is a field no other tool returns. A backdated write reaches
-every administrator except the writer through `tell()`, which is web push plus
-a direct message from the bot. A live clock announces to colleagues through
-`announceClock`, the same notice the web button has always sent, which the
-agent path never sent before.
+`backdated` is a field no other tool returns. On `asked` it tells every
+administrator but the asker what was wanted, through `tell()`, which is web
+push plus a direct message from the bot. A live clock announces to colleagues
+through `announceClock`, the same notice the web button has always sent, which
+the agent path never sent before.
 
-Nothing waits. An administrator who disagrees corrects or removes the record
-with the tools they already have, and the record keeps `original_occurred_at`,
-`edit_reason` and `deleted_at` so the disagreement is legible afterwards.
+Nothing waits and nothing is stored. An administrator who agrees writes the
+record; one who does not, does nothing. The record keeps
+`original_occurred_at`, `edit_reason` and `deleted_at`, so what an
+administrator did afterwards is legible.
 
 ## What this replaced
 

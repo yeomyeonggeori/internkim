@@ -1,6 +1,6 @@
 import { environmentOf, type Environment } from '$lib/server/agent-request';
-import { announceHandWrittenAttendance } from '$lib/server/announce-hand-written-attendance';
 import { announceClock } from '$lib/server/announce-attendance';
+import { askAnAdministrator, type AttendanceAsked } from '$lib/server/ask-an-administrator';
 import { vapidKeysInUse } from '$lib/server/vapid-keys';
 import { callingMember, type CallingMember } from '$lib/server/member-request';
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from '$lib/server/public-api/catalog';
@@ -79,7 +79,10 @@ async function runHere(
 		(input as Record<string, unknown>) ?? {},
 		new Date()
 	);
-	return json(await withTheCompanyTold(environment, member, answered.body), { status: answered.status });
+	return json(
+		await withTheCompanyTold(environment, member, name, input as AttendanceAsked, answered.body),
+		{ status: answered.status }
+	);
 }
 
 type AttendanceWrite = { status: string; eventID: string | null; backdated: boolean };
@@ -87,12 +90,17 @@ type AttendanceWrite = { status: string; eventID: string | null; backdated: bool
 async function withTheCompanyTold(
 	environment: Environment,
 	member: CallingMember,
+	name: string,
+	asked: AttendanceAsked,
 	body: unknown
 ): Promise<unknown> {
 	const written = attendanceWrittenIn(body);
 	if (!written) return body;
 	try {
-		return { ...(body as Record<string, unknown>), notified: await announce(environment, member, written) };
+		return {
+			...(body as Record<string, unknown>),
+			notified: await announce(environment, member, name, asked, written)
+		};
 	} catch (refusal) {
 		const reason = refusal instanceof Error ? refusal.message : String(refusal);
 		return { ...(body as Record<string, unknown>), notified: { failures: [reason] } };
@@ -102,19 +110,14 @@ async function withTheCompanyTold(
 async function announce(
 	environment: Environment,
 	member: CallingMember,
+	name: string,
+	asked: AttendanceAsked,
 	written: AttendanceWrite
 ): Promise<unknown> {
-	if (written.backdated) {
-		if (!written.eventID) return { failures: ['the record did not name the row it wrote'] };
-		return announceHandWrittenAttendance(
-			environment,
-			member.record,
-			member.memberID,
-			written.eventID,
-			written.status
-		);
+	if (written.status === 'asked') {
+		return askAnAdministrator(environment, member.record, member.memberID, name, asked);
 	}
-	if (written.status !== 'added') return { told: 0, reached: 0 };
+	if (written.backdated || written.status !== 'added') return { told: 0, reached: 0 };
 	const keys = await vapidKeysInUse(member.record, environment);
 	if (!keys) return { told: 0, reached: 0 };
 	return announceClock(member.caller, member.record, member.memberID, keys, Math.floor(Date.now() / 1000));

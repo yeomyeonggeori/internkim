@@ -34,7 +34,7 @@ describe('attendance write outcome', () => {
 				{ subjectEmail: 'member@example.com', anchorTime: new Date('2026-07-01T09:00:00+09:00') },
 				currentTime
 			)
-		).toBe('backdated');
+		).toBe('asked');
 	});
 
 	test('blocks a member from writing somebody else record', () => {
@@ -80,11 +80,11 @@ describe('attendance write outcome', () => {
 
 describe('combined attendance write outcome', () => {
 	test('one blocked record blocks the whole write', () => {
-		expect(combineAttendanceWriteOutcomes(['saved', 'backdated', 'blocked'])).toBe('blocked');
+		expect(combineAttendanceWriteOutcomes(['saved', 'asked', 'blocked'])).toBe('blocked');
 	});
 
 	test('one backdated record makes the whole write one the administrators hear about', () => {
-		expect(combineAttendanceWriteOutcomes(['saved', 'backdated'])).toBe('backdated');
+		expect(combineAttendanceWriteOutcomes(['saved', 'asked'])).toBe('asked');
 	});
 
 	test('an empty write is blocked', () => {
@@ -99,9 +99,9 @@ describe('attendance write result', () => {
 		}
 	});
 
-	test('reads a backdated write as one the administrators were told about', () => {
-		expect(attendanceWriteResultFrom({ status: 'added', backdated: true })).toEqual({
-			outcome: 'backdated'
+	test('reads a write the record handed to an administrator as an asking', () => {
+		expect(attendanceWriteResultFrom({ status: 'asked', eventID: null, backdated: true })).toEqual({
+			outcome: 'asked'
 		});
 	});
 
@@ -116,18 +116,18 @@ describe('attendance write wording', () => {
 
 	test('tells the person whether the write goes quietly or reaches the administrators', () => {
 		expect(attendanceWriteIntent('saved', text)).toBe(text.savesImmediately);
-		expect(attendanceWriteIntent('backdated', text)).toBe(text.tellsAdministrators);
+		expect(attendanceWriteIntent('asked', text)).toBe(text.asksAnAdministrator);
 		expect(attendanceWriteIntent('blocked', text)).toBe(text.blocked);
 	});
 
 	test('names the submit button after what pressing it does', () => {
 		expect(attendanceWriteSubmitLabel('saved', text, text.addSubmit)).toBe(text.addSubmit);
-		expect(attendanceWriteSubmitLabel('backdated', text, text.addSubmit)).toBe(text.backdatedSubmit);
+		expect(attendanceWriteSubmitLabel('asked', text, text.addSubmit)).toBe(text.askSubmit);
 	});
 
 	test('reports what happened once the write came back', () => {
 		expect(attendanceWriteConfirmation('saved', text)).toBe(text.saved);
-		expect(attendanceWriteConfirmation('backdated', text)).toBe(text.savedAndTold);
+		expect(attendanceWriteConfirmation('asked', text)).toBe(text.askedAnAdministrator);
 	});
 });
 
