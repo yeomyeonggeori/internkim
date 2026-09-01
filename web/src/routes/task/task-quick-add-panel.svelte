@@ -3,8 +3,9 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import { taskText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
-	type TaskPageText = typeof taskText.ko;
+	type TaskPageText = PageText<typeof taskText>;
 
 	type Props = {
 		quickTaskText: string;

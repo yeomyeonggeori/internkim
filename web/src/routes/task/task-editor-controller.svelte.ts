@@ -18,8 +18,9 @@ import {
 import { taskText } from './text';
 import { isCentralTaskSource } from './task-source';
 import type { TaskMember, TaskSummary, Task } from './task-types';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-type TaskPageText = typeof taskText.ko;
+type TaskPageText = PageText<typeof taskText>;
 
 type TaskEditorControllerInput = {
 	summary: TaskSummary | null;

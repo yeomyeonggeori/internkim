@@ -3,8 +3,9 @@ import { requestQuickTaskCreation } from './task-quick-task-create';
 import { defaultTaskOwner } from './task-draft';
 import { taskText } from './text';
 import type { TaskQuickTaskCreateResult, TaskSummary } from './task-types';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-type TaskPageText = typeof taskText.ko;
+type TaskPageText = PageText<typeof taskText>;
 
 type TaskQuickCreateControllerInput = {
 	summary: TaskSummary | null;

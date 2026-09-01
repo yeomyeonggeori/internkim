@@ -17,6 +17,7 @@
 	import OrganizationPeopleGroup from './organization-people-group.svelte';
 	import type { OrganizationSectionNode } from './organization-section-tree';
 	import type { organizationDirectoryText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	let {
 		node,
@@ -26,7 +27,7 @@
 	}: {
 		node: OrganizationSectionNode;
 		selectedUserID: string;
-		text: typeof organizationDirectoryText.ko;
+		text: PageText<typeof organizationDirectoryText>;
 		selectRecord: (record: UserRecord) => void;
 	} = $props();
 

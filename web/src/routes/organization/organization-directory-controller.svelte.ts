@@ -36,8 +36,9 @@ import {
 import { organizationOrganizationSections, type OrganizationOrganizationSection } from './organization-model';
 import type { OrgGroup, UserRecord, UsersResponse } from '../../lib/organization/types';
 import type { organizationDirectoryText } from './text';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-type OrganizationDirectoryPageText = typeof organizationDirectoryText.ko;
+type OrganizationDirectoryPageText = PageText<typeof organizationDirectoryText>;
 
 export class OrganizationDirectoryController {
 	records = $state<UserRecord[]>(lastSeenDirectory()?.records ?? []);

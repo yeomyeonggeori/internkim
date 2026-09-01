@@ -8,8 +8,9 @@
 	import { quickAddOverlayClass, quickAddPanelClass } from './task-quick-add-style';
 	import type { TaskQuickTaskCreateResult } from './task-types';
 	import { taskText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
-	type TaskPageText = typeof taskText.ko;
+	type TaskPageText = PageText<typeof taskText>;
 
 	type Props = {
 		quickTaskText: string;

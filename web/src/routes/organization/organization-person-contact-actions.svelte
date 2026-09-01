@@ -5,6 +5,7 @@
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import PhoneIcon from '@lucide/svelte/icons/phone';
 	import type { organizationDirectoryText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	let {
 		email,
@@ -13,7 +14,7 @@
 	}: {
 		email: string;
 		phoneNumber?: string;
-		text: typeof organizationDirectoryText.ko;
+		text: PageText<typeof organizationDirectoryText>;
 	} = $props();
 </script>
 

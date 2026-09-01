@@ -18,6 +18,7 @@
 	} from './mail-provider-presets';
 	import type { MailAccount, MailAccountDraft } from './mail-types';
 	import type { mailText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type Props = {
 		open: boolean;
@@ -26,7 +27,7 @@
 		settingsMessage: string;
 		isSavingAccount: boolean;
 		isTestingAccount: boolean;
-		text: (typeof mailText)['ko'];
+		text: PageText<typeof mailText>;
 		saveAccount: () => void | Promise<void>;
 		testAccount: () => void | Promise<void>;
 	};

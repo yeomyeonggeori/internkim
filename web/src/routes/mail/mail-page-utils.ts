@@ -1,7 +1,8 @@
 import type { ComposeDraft, MailAccount, Mailbox, MailMessage } from './mail-types';
 import type { mailText } from './text';
+import type { PageText } from '$lib/i18n/page-text.svelte';
 
-type MailPageText = (typeof mailText)[keyof typeof mailText];
+type MailPageText = PageText<typeof mailText>;
 
 export function defaultMailboxes(text: MailPageText): Mailbox[] {
 	return [
