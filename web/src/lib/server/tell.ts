@@ -3,10 +3,8 @@ import { homePath } from '$lib/home-path';
 import type { NotificationCategory } from '$lib/notifications/categories';
 import type { Environment } from './agent-request';
 import { controlPlane } from './control-plane';
-import { notifyMember } from './notify-member';
-import type { Notification } from './push-to-member-devices';
+import { askTheProject, type FunctionAnswer } from './project-function';
 import { callCompany, type CompanyCallTransport } from './public-api/company-call';
-import type { VapidKeys } from './web-push-vapid';
 
 export const tellCapability = 'person.message.tell';
 
@@ -41,7 +39,7 @@ export async function tell(
 	if (!plane) return { pushed: false, messaged: false, failure: 'the control plane is not configured' };
 
 	const [pushed, messaged] = await Promise.all([
-		pushToTheirDevices(plane, environment, telling),
+		pushToTheirDevices(environment, telling, transport),
 		messageThemOnTheirMessenger(plane, environment, telling, transport)
 	]);
 	return toldOf(pushed, messaged);
@@ -58,26 +56,29 @@ function toldOf(pushed: Attempt, messaged: Attempt): Told {
 }
 
 async function pushToTheirDevices(
-	record: SupabaseClient,
 	environment: Environment,
-	telling: Telling
+	telling: Telling,
+	transport?: CompanyCallTransport
 ): Promise<Attempt> {
-	const vapid = vapidKeysOf(environment);
-	if (!vapid) return failed(pushChannel, 'this deployment holds no web push keys');
 	try {
-		const nowInSeconds = Math.floor(Date.now() / 1000);
-		const delivery = await notifyMember(
-			record,
-			telling.memberID,
-			telling.category,
-			notificationOf(telling),
-			vapid,
-			nowInSeconds
-		);
-		return { done: delivery.reached > 0, failure: '' };
+		const answer = await askTheProject(environment, 'tell-member', {
+			memberID: telling.memberID,
+			category: telling.category,
+			title: telling.title,
+			body: telling.body,
+			openPath: telling.openPath ?? homePath
+		}, undefined, transport);
+		if (answer.status >= 300) return failed(pushChannel, refusalOf(answer));
+		const reached = (answer.body as { reached?: unknown } | null)?.reached;
+		return { done: typeof reached === 'number' && reached > 0, failure: '' };
 	} catch (refusal) {
 		return failed(pushChannel, reasonOf(refusal));
 	}
+}
+
+function refusalOf(answer: FunctionAnswer): string {
+	const said = (answer.body as { error?: unknown } | null)?.error;
+	return typeof said === 'string' && said ? said : `the project answered ${answer.status}`;
 }
 
 async function messageThemOnTheirMessenger(
@@ -115,15 +116,6 @@ async function memberToTell(record: SupabaseClient, memberID: string): Promise<M
 	return { companyID: data.company_id, email: data.email };
 }
 
-function notificationOf(telling: Telling): Notification {
-	return {
-		title: telling.title,
-		body: telling.body,
-		openPath: telling.openPath ?? homePath,
-		tag: `${telling.category}-${crypto.randomUUID()}`
-	};
-}
-
 function messageOf(telling: Telling): string {
 	return [telling.title, telling.body].map((line) => line.trim()).filter((line) => line !== '').join('\n');
 }
@@ -133,14 +125,6 @@ function controlPlaneOf(environment: Environment): SupabaseClient | null {
 	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
 	if (!projectURL || !serviceRoleKey) return null;
 	return controlPlane({ projectURL, serviceRoleKey });
-}
-
-function vapidKeysOf(environment: Environment): VapidKeys | null {
-	const publicKey = environment.VAPID_PUBLIC_KEY ?? '';
-	const privateKey = environment.VAPID_PRIVATE_KEY ?? '';
-	const subject = environment.VAPID_SUBJECT ?? '';
-	if (!publicKey || !privateKey || !subject) return null;
-	return { publicKey, privateKey, subject };
 }
 
 function reasonOf(refusal: unknown): string {
