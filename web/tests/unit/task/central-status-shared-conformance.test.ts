@@ -13,7 +13,7 @@ const task = {
 
 describe('the shared task status copy stays interchangeable with the web one', () => {
 	test('both name the same statuses', () => {
-		expect([...centralTaskStatuses].sort()).toEqual([...centralTaskStatusOptions].sort());
+		expect([...centralTaskStatuses].map(String).sort()).toEqual([...centralTaskStatusOptions].sort());
 	});
 });
 

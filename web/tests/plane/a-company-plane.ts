@@ -57,6 +57,9 @@ async function aFreePort(): Promise<number> {
 	const server = Bun.serve({ port: 0, fetch: () => new Response('') });
 	const port = server.port;
 	server.stop(true);
+	// A server that bound nothing has no port to hand out, and a plane built on a
+	// port nobody holds fails later and further away.
+	if (port === undefined) throw new Error('the port probe bound no port');
 	return port;
 }
 

@@ -52,9 +52,11 @@ describe('createDevTaskSummary', () => {
 		expect(summary.metrics.totalScore).toBe(703);
 		expect(summary.members.find((member) => member.name === '윤도현')?.score).toBe(101);
 		expect(summary.tasks.length > 0).toBe(true);
-		expect((summary.weeklyTasks?.length ?? 0) > 0).toBe(true);
-		expect(summary.tasks.length > (summary.weeklyTasks?.length ?? 0)).toBe(true);
-		expect(summary.metrics.totalTasks).toBe(summary.weeklyTasks?.length);
+		const weeklyTasks = summary.weeklyTasks;
+		if (weeklyTasks === undefined) throw new Error('the dev task summary carries no weekly tasks');
+		expect(weeklyTasks.length > 0).toBe(true);
+		expect(summary.tasks.length > weeklyTasks.length).toBe(true);
+		expect(summary.metrics.totalTasks).toBe(weeklyTasks.length);
 		expect(summary.report.weeklyDistanceTrend.currentValues.length).toBe(7);
 		expect(summary.report.weeklyDistanceTrend.labels).toEqual(['1', '2', '3', '4', '5', '6', '7']);
 		expect(summary.report.monthlyDistanceTrend.currentValues.length).toBe(30);
