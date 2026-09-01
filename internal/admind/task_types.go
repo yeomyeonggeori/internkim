@@ -3,7 +3,7 @@ package admind
 type taskSummaryResponse struct {
 	Week        taskWeek    `json:"week"`
 	CurrentWeek taskWeek    `json:"currentWeek"`
-	WeeklyTasks []Task  `json:"weeklyTasks"`
+	WeeklyTasks []Task      `json:"weeklyTasks"`
 	Metrics     taskMetrics `json:"metrics"`
 	Report      taskReport  `json:"report"`
 	Source      string      `json:"source"`
@@ -12,7 +12,7 @@ type taskSummaryResponse struct {
 type taskStateResponse struct {
 	CurrentWeek      taskWeek        `json:"currentWeek"`
 	Members          []taskMember    `json:"members"`
-	Tasks            []Task      `json:"tasks"`
+	Tasks            []Task          `json:"tasks"`
 	Metrics          taskMetrics     `json:"metrics"`
 	Definitions      taskDefinitions `json:"definitions"`
 	StatusOptions    []string        `json:"statusOptions"`

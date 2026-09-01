@@ -20,7 +20,7 @@ func TestOrganizationGroupUpdateReachesTheCompanyDirectory(t *testing.T) {
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	var offered []map[string]any
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if response, isHandled := localOrganizationMattermostResponse(t, request); isHandled {
+		if response, isHandled := localOrganizationDirectoryResponse(t, request); isHandled {
 			return response, nil
 		}
 		if isCompanyTeamRequest(request) {

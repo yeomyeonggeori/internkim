@@ -16,7 +16,7 @@ type attendanceLeaveRequestLedgerAllocationForTest struct {
 
 func TestAttendanceLeaveRequestReservesEachOccurrenceFromDateEligibleLots(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "member@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	grants := []attendanceLeaveGrant{
 		{
 			Operation: attendanceLeaveOperation{
@@ -119,7 +119,7 @@ func TestAttendanceLeaveRequestReservesEachOccurrenceFromDateEligibleLots(t *tes
 
 func TestAttendanceLeaveRequestDatedReservationShortageRollsBackAtomically(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
-	employee := attendanceLeaveEmployee{Email: "member@example.com"}
+	employee := attendanceLeaveEmployee{Email: "member@example.com", UserID: "user-1"}
 	grants := []attendanceLeaveGrant{
 		{
 			Operation: attendanceLeaveOperation{

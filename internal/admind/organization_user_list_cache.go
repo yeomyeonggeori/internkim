@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,25 +152,6 @@ func (service *Service) organizationUserSourceRevision() (string, error) {
 }
 
 func (service *Service) loadOrganizationUserListSource(ctx context.Context) (pagesUsersResponse, error) {
-	if service.hasDeviceAuth() {
-		records, errorValue := service.currentUserRecords(ctx)
-		return pagesUsersResponse{Records: records}, errorValue
-	}
-	response, errorValue := service.buildLocalUsersResponse(ctx)
-	if errorValue != nil {
-		return pagesUsersResponse{}, errorValue
-	}
-	responseBody, errorValue := json.Marshal(response)
-	if errorValue != nil {
-		return pagesUsersResponse{}, errorValue
-	}
-	enhancedBody, errorValue := service.withBlueclawCircles(ctx, responseBody)
-	if errorValue != nil {
-		log.Printf("Blueclaw circle merge failed: %v", errorValue)
-		enhancedBody = responseBody
-	}
-	if errorValue := json.Unmarshal(enhancedBody, &response); errorValue != nil {
-		return pagesUsersResponse{}, errorValue
-	}
-	return response, nil
+	records, errorValue := service.currentUserRecords(ctx)
+	return pagesUsersResponse{Records: records}, errorValue
 }

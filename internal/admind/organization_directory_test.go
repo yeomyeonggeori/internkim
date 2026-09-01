@@ -85,13 +85,13 @@ func TestOrganizationDirectoryListsVisibleProfilesForMember(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
-		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/users?in_team=team-1&per_page=200":
-			return jsonResponse(http.StatusOK, `[
-				{"id":"user-1","email":"ada@example.com","username":"ada","nickname":"Ada Kim","roles":"system_user","delete_at":0},
-				{"id":"user-2","email":"grace@example.com","username":"grace","nickname":"Grace Lee","roles":"system_user","delete_at":0},
-				{"id":"user-3","email":"hidden@example.com","username":"hidden","nickname":"Hidden Lee","roles":"system_user","delete_at":0},
-				{"id":"user-4","email":"resigned@example.com","username":"resigned","nickname":"Resigned Park","roles":"system_user","delete_at":0}
-			]`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[
+				{"memberID":"user-ada","email":"ada@example.com","name":"Ada Kim","role":"member"},
+				{"memberID":"user-grace","email":"grace@example.com","name":"Grace Lee","role":"member"},
+				{"memberID":"user-hidden","email":"hidden@example.com","name":"Hidden Lee","role":"member"},
+				{"memberID":"user-resigned","email":"resigned@example.com","name":"Resigned Park","role":"member"}
+			]}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
 			return jsonResponse(http.StatusOK, `[
 				{"user_id":"user-1","roles":"team_user"},

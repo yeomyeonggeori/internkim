@@ -28,6 +28,9 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
 		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
 		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
+		APIBaseURL:                  "https://api.example.test",
+		FleetIDPath:                 writeTestFile(t, "dc719d8e"),
+		FleetSecretPath:             writeTestFile(t, "secret-value"),
 	})
 	if errorValue := service.writeOrganizationProfiles(t.Context(), []organizationProfile{{
 		MemberID: "user-1",
@@ -38,6 +41,13 @@ func newAttendanceActionTestService(t *testing.T) (*Service, *[]attendanceAction
 	}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case strings.Contains(request.URL.String(), "/api/agent/key"):
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[
+				{"memberID":"user-1","email":"member@example.com","name":"Member","role":"member"},
+				{"memberID":"admin","email":"admin@example.com","name":"Admin","role":"admin"}
+			]}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
 			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Header.Get("Authorization") == "Bearer admin-token":
