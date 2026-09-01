@@ -704,3 +704,87 @@ func TestADirectMessageWithNoConversationStillReachesTheCompanyMessenger(testCon
 		testContext.Fatalf("chatd received %q, so the message left on a messenger nobody here reads", receivedPath)
 	}
 }
+
+// A message somebody asked the agent to pass on is their words, so it goes out
+// under their name. The seed lives in admind, so this daemon names two members
+// and never holds a key.
+func TestADirectMessageAskedForGoesOutAsThePersonWhoAskedForIt(testContext *testing.T) {
+	var sentDocument map[string]string
+	admindServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/admin/api/directory/people":
+			json.NewEncoder(writer).Encode(map[string]any{"people": []map[string]any{{"memberID": "m-1", "email": "sample@example.com", "name": "이샘플"}}})
+		case "/admin/api/directory/direct-message":
+			json.NewDecoder(request.Body).Decode(&sentDocument)
+			json.NewEncoder(writer).Encode(map[string]string{"channelID": "dm-uuid", "messageID": "event-11"})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer admindServer.Close()
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		testContext.Fatalf("the agent signed for somebody else at %s", request.URL.Path)
+	}))
+	defer chatdServer.Close()
+
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz", AdmindBaseURL: admindServer.URL}}
+	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"이샘플","message":"안내"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", RequesterEmail: "asker@example.com"},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("send failed: %v", errorValue)
+	}
+	if response.Outcome == capabilities.ToolOutcomeFailed {
+		testContext.Fatalf("send answered failure: %s", response.Content)
+	}
+	if sentDocument["senderEmail"] != "asker@example.com" || sentDocument["recipientEmail"] != "sample@example.com" {
+		testContext.Fatalf("the message went out as %+v", sentDocument)
+	}
+}
+
+// The runtime speaks for itself when it tells somebody about a decision the
+// company made, so a telling keeps the agent's own name.
+func TestATellingKeepsTheAgentsOwnName(testContext *testing.T) {
+	memberPubkey := strings.Repeat("4", 64)
+	admindServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/admin/api/directory/people":
+			json.NewEncoder(writer).Encode(map[string]any{"people": []map[string]any{{"memberID": "m-1", "email": "sample@example.com", "name": "이샘플"}}})
+		case "/admin/api/directory/buzz-key":
+			json.NewEncoder(writer).Encode(map[string]string{"pubkeyHex": memberPubkey})
+		case "/admin/api/directory/direct-message":
+			testContext.Fatal("a telling must not go out under a person's name")
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer admindServer.Close()
+	var receivedPath string
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedPath = request.URL.Path
+		json.NewEncoder(writer).Encode(map[string]string{"channelID": "dm-uuid", "messageID": "event-12"})
+	}))
+	defer chatdServer.Close()
+
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz", AdmindBaseURL: admindServer.URL}}
+	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"이샘플","message":"결재를 기다리는 건이 있습니다"}`),
+		Context: capabilities.ToolInvokeContext{
+			Platform:       "buzz",
+			RequesterEmail: "sample@example.com",
+			TaskSource:     platformTellingTaskSource,
+		},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("send failed: %v", errorValue)
+	}
+	if response.Outcome == capabilities.ToolOutcomeFailed {
+		testContext.Fatalf("send answered failure: %s", response.Content)
+	}
+	if receivedPath != "/v1/platform/buzz/dm.post" {
+		testContext.Fatalf("chatd received %q", receivedPath)
+	}
+}
