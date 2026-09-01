@@ -1,4 +1,5 @@
 import { leaveAllDayDate } from '../attendance/supabase-leave-range';
+import { shiftedDay } from '../attendance/supabase-work-status-range';
 import { dayOffColor } from './day-off-color';
 import { localizedLeaveUnitName } from '../i18n/leave-type-name';
 import type { Locale } from '../i18n/locale.svelte';
@@ -57,8 +58,8 @@ export function calendarEventFromApprovedLeave(
 		title: `${name} · ${leaveKindLabel(leave.kind, leave.days, locale)}`,
 		description: '',
 		location: '',
-		startISO: isAllDay ? calendarMidnightISO(leave.starts_at, timeZone) : leave.starts_at,
-		endISO: isAllDay ? calendarMidnightISO(leave.ends_at, timeZone) : leave.ends_at,
+		startISO: isAllDay ? calendarDayISO(leaveAllDayDate(leave.starts_at, timeZone)) : leave.starts_at,
+		endISO: isAllDay ? calendarDayISO(lastCoveredDay(leave.ends_at, timeZone)) : leave.ends_at,
 		timeZone,
 		isAllDay,
 		color: dayOffColor,
@@ -76,6 +77,10 @@ function leaveKindLabel(kind: string, days: number, locale: Locale): string {
 	return localizedLeaveUnitName(days, locale);
 }
 
-function calendarMidnightISO(value: string, timeZone: string): string {
-	return `${leaveAllDayDate(value, timeZone)}T00:00:00.000Z`;
+function calendarDayISO(day: string): string {
+	return `${day}T00:00:00.000Z`;
+}
+
+function lastCoveredDay(endsAt: string, timeZone: string): string {
+	return shiftedDay(leaveAllDayDate(endsAt, timeZone), -1);
 }
