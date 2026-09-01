@@ -1,6 +1,11 @@
 import { announceToTheCompany } from './announce-attendance';
 import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import { companyMonthTimeRange } from './supabase-work-status-range';
+import { announceApprovalRequestInBackground } from './announce-approval';
+import {
+	attendanceWriteResultFrom,
+	type AttendanceWriteResult
+} from './attendance-write';
 import { supabase } from '$lib/supabase';
 import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
 import { colourOf, type NamedColour } from '$lib/task/task-vocabulary';
@@ -39,6 +44,15 @@ export type SupabaseAttendanceCorrection = {
 	localDate: string;
 	localTime: string;
 	locationID: string;
+};
+
+export type SupabaseAttendanceAddition = {
+	email: string;
+	kind: AttendanceKind;
+	localDate: string;
+	localTime: string;
+	locationID: string;
+	reason: string;
 };
 
 export async function supabaseAttendanceSummary(month: string): Promise<AttendanceSummary> {
@@ -98,6 +112,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		timeZoneAuthoritative: true,
 		correctionWindowMinutes,
 		currentUserEmail: me?.email ?? '',
+		currentMemberID: me?.id,
 		isAdmin: me?.is_admin ?? false,
 		timeZone,
 		events,
@@ -153,9 +168,9 @@ export async function recordSupabaseAttendance(
 export async function correctSupabaseAttendanceEvents(
 	corrections: SupabaseAttendanceCorrection[],
 	reason: string
-): Promise<void> {
-	if (corrections.length === 0) return;
-	const { error } = await supabase().rpc('attendance_correct', {
+): Promise<AttendanceWriteResult> {
+	if (corrections.length === 0) throw new Error('at least one attendance correction is required');
+	const { data, error } = await supabase().rpc('attendance_correct', {
 		corrections: corrections.map((correction) => ({
 			event_id: correction.eventID,
 			local_date: correction.localDate,
@@ -165,6 +180,52 @@ export async function correctSupabaseAttendanceEvents(
 		reason
 	});
 	if (error) throw new Error(error.message);
+	return announcedWriteResult(data);
+}
+
+export async function addSupabaseAttendanceEvent(
+	addition: SupabaseAttendanceAddition
+): Promise<AttendanceWriteResult> {
+	const { data, error } = await supabase().rpc('attendance_add', {
+		target_member: await memberIDForEmail(addition.email),
+		kind: addition.kind,
+		local_date: addition.localDate,
+		local_time: addition.localTime,
+		location: addition.kind === 'clock_in' ? addition.locationID || null : null,
+		reason: addition.reason
+	});
+	if (error) throw new Error(error.message);
+	return announcedWriteResult(data);
+}
+
+export async function removeSupabaseAttendanceEvent(
+	eventID: string,
+	reason: string
+): Promise<AttendanceWriteResult> {
+	const { data, error } = await supabase().rpc('attendance_remove', {
+		event_id: eventID,
+		reason
+	});
+	if (error) throw new Error(error.message);
+	return announcedWriteResult(data);
+}
+
+function announcedWriteResult(data: unknown): AttendanceWriteResult {
+	const result = attendanceWriteResultFrom(data);
+	if (result.outcome === 'requested') announceApprovalRequestInBackground(result.approvalID);
+	return result;
+}
+
+async function memberIDForEmail(email: string): Promise<string> {
+	if (!email) throw new Error('an attendance record needs the person it belongs to');
+	const member = await supabase()
+		.from('member')
+		.select('id')
+		.eq('email', email)
+		.maybeSingle<{ id: string }>();
+	if (member.error) throw new Error(member.error.message);
+	if (!member.data) throw new Error(`nobody in this company goes by ${email}`);
+	return member.data.id;
 }
 
 async function nextKindFor(memberID: string): Promise<AttendanceKind> {

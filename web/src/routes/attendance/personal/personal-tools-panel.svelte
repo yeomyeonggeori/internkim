@@ -6,6 +6,7 @@
 	import DeferredSection from '$lib/components/deferred-section.svelte';
 	import LeaveBalanceSummary from '../leave/leave-balance-summary.svelte';
 	import LeaveRequestDialog from '../leave/leave-request-dialog.svelte';
+	import MyApprovalRequests from './my-approval-requests.svelte';
 	import QuickActions from '../quick-actions.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
@@ -62,5 +63,6 @@
 		</DeferredSection>
 		<LeaveBalanceSummary />
 		<LeaveRequestDialog />
+		<MyApprovalRequests />
 	{/if}
 </div>

@@ -14,6 +14,8 @@ declare module 'bun:test' {
 		toBeNull(): void;
 		toBeUndefined(): void;
 		toBeInstanceOf(expected: unknown): void;
+		toBeString(): void;
+		toBeGreaterThanOrEqual(expected: number | bigint): void;
 	};
 
 	export function beforeEach(callback: () => void | Promise<void>): void;

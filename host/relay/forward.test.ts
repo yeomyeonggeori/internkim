@@ -16,6 +16,8 @@ import {
 	serveCallForMember,
 	servePublicAPIFile,
 	servePublicAPIRequest,
+	serveTelling,
+	tellCallOf,
 	workspaceCallOf,
 	workspaceCapabilityPaths,
 	workspaceUploadURL,
@@ -1137,5 +1139,45 @@ describe('a workspace call from a member, over the socket admind listens on', ()
 		expect(arrived[0]?.path).toBe('/runs/api');
 		expect(arrived[0]?.headers['x-internkim-requester-email']).toBe('sample@example.test');
 		expect(arrived[0]?.headers['x-internkim-requester-permission']).toBeUndefined();
+	});
+});
+
+describe('a telling the plane sends as the bot', () => {
+	test('is carried to admind, without asking which messenger credential anybody holds', async () => {
+		const { dispatch, admindCalls } = dispatchThatKnows({});
+		const withoutACredential = { ...dispatch, messengerCredentialOf: async () => null };
+
+		const served = await serveTelling(withoutACredential, {
+			recipientEmail: 'Sample@Example.test',
+			message: '결재를 기다리는 건이 있습니다'
+		});
+
+		expect(served.status).toBe(200);
+		expect(admindCalls).toHaveLength(1);
+		expect(admindCalls[0]).toMatchObject({
+			method: 'POST',
+			url: 'http://internkim/tell/api/direct-message',
+			requester: 'sample@example.test',
+			contentType: 'application/json'
+		});
+		expect(JSON.parse(String(admindCalls[0]?.body))).toEqual({
+			recipientEmail: 'sample@example.test',
+			message: '결재를 기다리는 건이 있습니다'
+		});
+	});
+
+	test('names a recipient and carries a message, or it is nothing to deliver', () => {
+		expect(tellCallOf({ recipientEmail: 'sample@example.test', message: '   ' })).toBeNull();
+		expect(tellCallOf({ recipientEmail: '', message: '안녕하세요' })).toBeNull();
+		expect(tellCallOf({ recipientEmail: 'sample@example.test\nX: y', message: '안녕하세요' })).toBeNull();
+	});
+
+	test('is refused before admind hears of it when it names nobody', async () => {
+		const { dispatch, admindCalls } = dispatchThatKnows({});
+
+		const served = await serveTelling(dispatch, { message: '안녕하세요' });
+
+		expect(served.status).toBe(400);
+		expect(admindCalls).toHaveLength(0);
 	});
 });
