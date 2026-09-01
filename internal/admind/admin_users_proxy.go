@@ -25,7 +25,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	if request.Method == http.MethodDelete && request.URL.Query().Get("purge") == "true" {
 		targetURL += "&purge=true"
 	}
-	if request.Method == http.MethodPost || request.Method == http.MethodDelete {
+	if request.Method == http.MethodDelete {
 		if errorValue := service.ensureMattermostProvisionerAccount(request.Context()); errorValue != nil {
 			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
 		}
@@ -68,14 +68,11 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 	}
 	body := request.Body
-	var temporaryPassword string
-	var temporaryPasswordEmail string
 	var upsertedName string
 	var upsertedHireDate string
 	var upsertedNote string
 	var upsertedRole string
 	var upsertedCircles []string
-	var upsertedMattermostUserID string
 	var upsertedUserID string
 	var upsertedBlueclawUserID string
 	var hasExplicitCircleMutation bool
@@ -136,18 +133,8 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		defer organizationMutation.completeAfterRequest(request.Context())
-		provisionResult, errorValue := service.provisionMattermostUserWithPassword(request.Context(), payload, "")
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-		payload.MattermostUserID = provisionResult.UserID
-		payload.MattermostUsername = provisionResult.Username
-		payload.Handle = provisionResult.Username
-		payload.Status = provisionResult.Status
-		upsertedMattermostUserID = payload.MattermostUserID
-		temporaryPassword = provisionResult.TemporaryPassword
-		temporaryPasswordEmail = payload.Email
+		payload.Handle = firstNonEmpty(strings.TrimSpace(payload.Handle), handleFromEmail(payload.Email))
+		payload.Status = firstNonEmpty(strings.TrimSpace(payload.Status), "active")
 		proxyPayload := fleetAccountUpsertPayload(payload, fleetID)
 		document, errorValue := json.Marshal(proxyPayload)
 		if errorValue != nil {
@@ -186,14 +173,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		if request.Method == http.MethodPost {
 			upsertedUserID = firstNonEmpty(upsertedUserID, userIDFromAdminUsersResponse(responseBody, upsertedEmail))
 		}
-		if request.Method == http.MethodPost && temporaryPassword != "" {
-			var responseDocument map[string]any
-			if errorValue := json.Unmarshal(responseBody, &responseDocument); errorValue == nil {
-				responseDocument["temporaryPassword"] = temporaryPassword
-				responseDocument["temporaryPasswordEmail"] = temporaryPasswordEmail
-				responseBody, _ = json.Marshal(responseDocument)
-			}
-		}
 		if upsertedEmail != "" {
 			service.persistOrganizationHireDate(request.Context(), upsertedUserID, upsertedEmail, upsertedHireDate)
 			var errorValue error
@@ -205,17 +184,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			if errorValue != nil {
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
-			}
-			if hasExplicitCircleMutation {
-				if errorValue := service.syncMattermostUserCircleMemberships(request.Context(), adminUserMutation{
-					Email:            upsertedEmail,
-					Name:             upsertedName,
-					Role:             upsertedRole,
-					Circles:          upsertedCircles,
-					MattermostUserID: upsertedMattermostUserID,
-				}); errorValue != nil {
-					log.Printf("Mattermost circle membership sync failed: %v", errorValue)
-				}
 			}
 			service.triggerUsersSync(request.Context())
 			go service.seatAndNameOneMemberInBuzz(context.Background(), upsertedEmail, upsertedName)
@@ -262,11 +230,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			} else {
 				log.Printf("Organization metadata merge failed: %v", errorValue)
 			}
-			if len(usersResponse.Records) > 0 {
-				if errorValue := service.ensureMattermostBotDirectChannelsForRecords(request.Context(), usersResponse.Records); errorValue != nil {
-					log.Printf("Mattermost bot DM sync failed: %v", errorValue)
-				}
-			}
 		}
 	}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
@@ -288,4 +251,14 @@ func fleetAccountUpsertPayload(payload adminUserMutation, fleetID string) map[st
 		"mattermostUsername": payload.MattermostUsername,
 		"status":             payload.Status,
 	}
+}
+
+// A handle is an identifier the company issues, not something a messenger hands
+// back. The address already carries one everybody recognises.
+func handleFromEmail(email string) string {
+	address := strings.ToLower(strings.TrimSpace(email))
+	if index := strings.Index(address, "@"); index > 0 {
+		return address[:index]
+	}
+	return address
 }

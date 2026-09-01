@@ -1066,66 +1066,7 @@ func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
 	}
 }
 
-func TestAdminUsersGetEnsuresBotDirectChannelsForInvitedUsers(t *testing.T) {
-	fleetIDPath := writeTestFile(t, "dc719d8e")
-	fleetSecretPath := writeTestFile(t, "secret-value")
-	adminPasswordPath := writeTestFile(t, "admin-pass")
-	directChannelCreated := false
-	service := NewService(Configuration{
-		APIBaseURL:                  "https://api.example.test",
-		MattermostBaseURL:           "http://mattermost.local",
-		MattermostAdminPasswordPath: adminPasswordPath,
-		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
-		ClaimedAdminEmailPath:       writeTestFile(t, "admin@example.com"),
-		FleetIDPath:                 fleetIDPath,
-		FleetSecretPath:             fleetSecretPath,
-		StateDirectory:              t.TempDir(),
-		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
-		AdminUIPath:                 t.TempDir(),
-	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","role":"member","mattermostUserID":"user-1","mattermostUsername":"member"}]}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
-			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"id":"user-1","email":"member@example.com","username":"member","roles":"system_user"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","roles":"system_user"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
-			var payload []string
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			if len(payload) != 2 || payload[0] != "user-1" || payload[1] != "bot-1" {
-				t.Fatalf("direct channel payload = %#v", payload)
-			}
-			directChannelCreated = true
-			return jsonResponse(http.StatusCreated, `{"id":"dm-1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/preferences" && request.Method == http.MethodPut:
-			assertBotDirectChannelShown(t, request, "user-1", "bot-1")
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-	handler := service.router()
-
-	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("users proxy status = %d body = %s", response.Code, response.Body.String())
-	}
-	if !directChannelCreated {
-		t.Fatal("bot direct channel was not created")
-	}
-}
-
-func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *testing.T) {
+func TestAdminInviteMakesNobodyAMattermostAccount(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
 	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
@@ -1136,6 +1077,7 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 
 	var pagesPayload map[string]any
 	blueclawInvited := false
+	mattermostWasAskedToMakeAnAccount := false
 	service := NewService(Configuration{
 		BlueclawPolicyDeliveryPath:  filepath.Join(t.TempDir(), "policy.json"),
 		APIBaseURL:                  "https://api.example.test",
@@ -1167,19 +1109,7 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member@example.com":
 			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/users" && request.Method == http.MethodPost:
-			var payload map[string]string
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			if payload["email"] != "member@example.com" {
-				t.Fatalf("mattermost email = %q", payload["email"])
-			}
-			if payload["username"] != "member" || payload["first_name"] != "Member" || payload["last_name"] != "One" || payload["nickname"] != "Member" {
-				t.Fatalf("mattermost identity payload = %#v", payload)
-			}
-			if payload["password"] == "" {
-				t.Fatal("mattermost password empty")
-			}
+			mattermostWasAskedToMakeAnAccount = true
 			return jsonResponse(http.StatusCreated, `{"id":"user-1","email":"member@example.com","username":"member"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
 			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
@@ -1251,20 +1181,17 @@ func TestAdminInviteCreatesMattermostUserAndReturnsTemporaryPasswordOnce(t *test
 	if errorValue := json.NewDecoder(response.Body).Decode(&document); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if document["temporaryPassword"] == "" {
-		t.Fatalf("temporary password missing: %#v", document)
+	if mattermostWasAskedToMakeAnAccount {
+		t.Fatal("adding somebody asked Mattermost for an account")
 	}
-	if document["temporaryPasswordEmail"] != "member@example.com" {
-		t.Fatalf("temporary password email = %#v", document["temporaryPasswordEmail"])
-	}
-	if pagesPayload["mattermostUserID"] != "user-1" || pagesPayload["mattermostUsername"] != "member" {
-		t.Fatalf("pages payload = %#v", pagesPayload)
+	if _, carriesOne := document["temporaryPassword"]; carriesOne {
+		t.Fatalf("a temporary password came back: %#v", document)
 	}
 	if pagesPayload["handle"] != "member" || pagesPayload["name"] != "Member One" {
 		t.Fatalf("pages identity payload = %#v", pagesPayload)
 	}
 	if !blueclawInvited {
-		t.Fatal("invited Mattermost user was not invited in Blueclaw policy")
+		t.Fatal("the person added was not invited in Blueclaw policy")
 	}
 }
 
