@@ -22,7 +22,6 @@
 		fetchUsers,
 		isAdminApiStatus,
 		removeUser,
-		resetUserPassword,
 		saveUser
 	} from './admin-api';
 	import { adminSessionRole } from './admin-role-policy';
@@ -251,26 +250,6 @@
 		}
 	}
 
-	async function resetPassword(record: UserRecord) {
-		if (!fleetID) return;
-		if (!confirm(text.users.resetPasswordConfirm)) return;
-
-		isSavingUser = true;
-		temporaryPasswordResult = null;
-		try {
-			const response = await resetUserPassword(adminBaseURL, record.email, text.users.resetPasswordError);
-			if (response.temporaryPassword && response.temporaryPasswordEmail) {
-				temporaryPasswordResult = {
-					email: response.temporaryPasswordEmail,
-					password: response.temporaryPassword
-				};
-			}
-		} catch (error) {
-			toast.error(apiErrorMessage(error, text.users.resetPasswordError));
-		} finally {
-			isSavingUser = false;
-		}
-	}
 </script>
 
 {#if !isDeviceContext}
@@ -441,7 +420,6 @@
 				{text}
 				bind:userRecords
 				onRemoveUser={removeEmail}
-				onResetPassword={resetPassword}
 				onSaveUser={submitUserRecord}
 				onSaveNote={saveUserNote}
 			/>

@@ -8,18 +8,6 @@ import (
 	"strings"
 )
 
-func (service *Service) ensureMattermostChannelMembership(ctx context.Context, token string, channelID string, userID string) error {
-	body := map[string]string{"user_id": userID}
-	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/"+url.PathEscape(channelID)+"/members", token, body, nil)
-	if errorValue == nil {
-		return nil
-	}
-	if !isMattermostBadRequest(errorValue) {
-		return errorValue
-	}
-	return service.ensureMattermostChannelMembershipExists(ctx, token, channelID, userID, errorValue)
-}
-
 func (service *Service) ensureMattermostChannelMembershipExists(ctx context.Context, token string, channelID string, userID string, cause error) error {
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/members/" + url.PathEscape(userID)
 	var member mattermostChannelMemberRecord
