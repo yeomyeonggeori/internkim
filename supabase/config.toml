@@ -46,3 +46,6 @@ verify_jwt = true
 
 [functions.announce-day]
 verify_jwt = false
+
+[functions.announce-event-reminder]
+verify_jwt = false
