@@ -711,6 +711,10 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.handleDirectoryBuzzKey(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodPost && path == "/directory/direct-message" {
+		service.handleDirectoryDirectMessage(responseWriter, request)
+		return
+	}
 	if request.Method == http.MethodPost && path == "/directory/changed" {
 		service.handleDirectoryChanged(responseWriter, request)
 		return
