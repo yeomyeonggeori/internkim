@@ -18,7 +18,10 @@ export type AttendanceWorkSegment = {
 
 export type AttendanceWorkSegmentOptions = {
 	currentDate?: string;
+	now?: Date;
 };
+
+const hoursAnOpenShiftMayLast = 24;
 
 export function buildAttendanceWorkSegments(
 	date: string,
@@ -46,12 +49,18 @@ export function buildAttendanceWorkSegments(
 		if (splitSegment) segments.push(splitSegment);
 		openClockIn = undefined;
 	}
-	if (openClockIn) {
+	if (openClockIn && !openShiftOutlivedItsDay(openClockIn, options.now ?? new Date())) {
 		const segment = createAttendanceWorkSegment(openClockIn.localDate, openClockIn);
 		const splitSegment = splitAttendanceWorkSegmentForDate(date, segment, options.currentDate);
 		if (splitSegment) segments.push(splitSegment);
 	}
 	return segments;
+}
+
+function openShiftOutlivedItsDay(clockIn: AttendanceEvent, now: Date): boolean {
+	const startedAt = new Date(clockIn.occurredAt).getTime();
+	if (Number.isNaN(startedAt)) return false;
+	return now.getTime() - startedAt > hoursAnOpenShiftMayLast * 60 * 60 * 1000;
 }
 
 function createAttendanceWorkSegment(
