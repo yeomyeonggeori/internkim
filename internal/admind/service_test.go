@@ -424,7 +424,7 @@ func TestWorkspaceSettingsDefaultsToKorean(t *testing.T) {
 	if settings.CountryCode != workspaceDefaultCountryCode {
 		t.Fatalf("workspace country = %q", settings.CountryCode)
 	}
-	if settings.TimeZone != workspaceBusinessTimeZone {
+	if settings.TimeZone != workspaceSystemTimeZone {
 		t.Fatalf("workspace time zone = %q", settings.TimeZone)
 	}
 }

@@ -15,6 +15,7 @@ import (
 type Company struct {
 	Name         string `json:"name"`
 	ProfileImage string `json:"profileImage"`
+	Timezone     string `json:"timezone"`
 }
 
 func (client *Client) Company(ctx context.Context) (Company, bool, error) {
