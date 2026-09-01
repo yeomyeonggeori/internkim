@@ -6,13 +6,13 @@ import (
 	"time"
 )
 
-func TestAbsentWorkspaceSettingsDefaultToTheBusinessTimeZone(t *testing.T) {
+func TestADeviceThatBelongsToNoCompanyReadsTheMachineClock(t *testing.T) {
 	service := &Service{Configuration: Configuration{StateDirectory: t.TempDir()}}
 
 	resolved := service.workspaceTimeZone()
 
-	if resolved.name != workspaceBusinessTimeZone || !resolved.isAuthoritative {
-		t.Fatalf("expected authoritative %s default, got %+v", workspaceBusinessTimeZone, resolved)
+	if resolved.name != systemTimeZone().name {
+		t.Fatalf("expected the machine's own zone, got %+v", resolved)
 	}
 }
 
