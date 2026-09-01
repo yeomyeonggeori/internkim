@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (service *Service) writePulledCalendarEventLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, remoteWinningFields []string, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) writePulledCalendarEventLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, remoteWinningFields []string) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -29,11 +29,10 @@ func (service *Service) writePulledCalendarEventLocked(ctx context.Context, acco
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
 	}
-	deferredProjections.add(event.ID)
 	return nil
 }
 
-func (service *Service) writePulledCalendarEventAndRetainOutboxLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, retainedFields []string, remoteWinningFields []string, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) writePulledCalendarEventAndRetainOutboxLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, retainedFields []string, remoteWinningFields []string) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -60,11 +59,10 @@ func (service *Service) writePulledCalendarEventAndRetainOutboxLocked(ctx contex
 		return errorValue
 	}
 	event.UpdatedAt = updatedAt
-	deferredProjections.add(event.ID)
 	return nil
 }
 
-func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, remoteWinningFields []string, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, remoteWinningFields []string) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -91,7 +89,6 @@ func (service *Service) writePulledCalendarEventAndDeleteOutboxLocked(ctx contex
 		return errorValue
 	}
 	event.UpdatedAt = updatedAt
-	deferredProjections.add(event.ID)
 	return nil
 }
 
@@ -114,7 +111,7 @@ func persistPulledCalendarFieldClocks(ctx context.Context, transaction *sql.Tx, 
 	return persistCalendarTargetFieldAcknowledgements(ctx, transaction, accountID, targetCalendarURL, event.UID, acknowledgements)
 }
 
-func (service *Service) acceptMissingCalendarRemoteDeletionLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) acceptMissingCalendarRemoteDeletionLocked(ctx context.Context, accountID string, targetCalendarURL string, event calendarEvent) error {
 	deletedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	database, errorValue := service.openCalendarDatabase(ctx)
 	if errorValue != nil {
@@ -146,10 +143,6 @@ WHERE id = ? AND updated_at = ? AND deleted_at = ''`, deletedAt, deletedAt, stri
 		_ = transaction.Rollback()
 		return errorValue
 	}
-	if errorValue := enqueueCalendarChannelProjection(ctx, transaction, event.ID); errorValue != nil {
-		_ = transaction.Rollback()
-		return errorValue
-	}
 	if errorValue := service.invalidateCalendarEventWindowCache(ctx, transaction, event); errorValue != nil {
 		_ = transaction.Rollback()
 		return errorValue
@@ -165,6 +158,5 @@ WHERE id = ? AND updated_at = ? AND deleted_at = ''`, deletedAt, deletedAt, stri
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
 	}
-	deferredProjections.add(event.ID)
 	return nil
 }

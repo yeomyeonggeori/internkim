@@ -439,31 +439,3 @@ func TestRemoteDeleteReconciliationDoesNotDeleteNewerLocalRevision(t *testing.T)
 		t.Fatalf("title=%q want Latest Local", storedEvent.Title)
 	}
 }
-
-func TestCalendarEventPersistenceDoesNotOverwriteMattermostProjection(t *testing.T) {
-	service := newCalendarTestService(t)
-	ctx := context.Background()
-	event := newLocalTestCalendarEvent("mattermost-projection-race", "Original")
-	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	staleEvent := event
-	if errorValue := service.updateCalendarEventMattermostPostID(ctx, event.ID, "new-post-id"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	staleEvent.Title = "Remote Update"
-	if errorValue := service.writeCalendarEventWithSource(ctx, staleEvent, calendarSourcePull); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	storedEvent, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
-	if errorValue != nil || !found {
-		t.Fatalf("stored event found=%v error=%v", found, errorValue)
-	}
-	if storedEvent.MattermostPostID != "new-post-id" {
-		t.Fatalf("Mattermost post ID=%q want new-post-id", storedEvent.MattermostPostID)
-	}
-	if storedEvent.Title != "Remote Update" {
-		t.Fatalf("title=%q want Remote Update", storedEvent.Title)
-	}
-}

@@ -2354,25 +2354,6 @@ func TestTaskAPIForcesMemberTaskForOtherMemberToRequestWithoutRequesterParticipa
 	}
 }
 
-func TestAdminLocalePersistsMattermostSystemTextLanguage(t *testing.T) {
-	service := NewService(Configuration{
-		StateDirectory: filepath.Join(t.TempDir(), "state"),
-		AdminEmailPath: writeTestFile(t, "admin@example.com"),
-	})
-	request := httptest.NewRequest(http.MethodPut, "/admin/api/locale", strings.NewReader(`{"locale":"en"}`))
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("locale status = %d body = %s", response.Code, response.Body.String())
-	}
-	if service.mattermostCalendarLink("") != "[일정 열기](/calendar/)" {
-		t.Fatalf("calendar link = %q", service.mattermostCalendarLink(""))
-	}
-}
-
 func TestTaskAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	payload := taskWriteRequest{

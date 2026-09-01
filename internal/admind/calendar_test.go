@@ -272,65 +272,6 @@ func TestCalendarEventStoresMattermostActorNames(t *testing.T) {
 	}
 }
 
-func TestCalendarPeopleLineParsing(t *testing.T) {
-	people, hasPeopleLine := calendarPeopleFromDescription("샘플, 수민\nBring passport")
-	if !hasPeopleLine || strings.Join(people, "|") != "샘플|수민" {
-		t.Fatalf("people=%+v hasPeopleLine=%v", people, hasPeopleLine)
-	}
-	users := []mattermostUserRecord{
-		{ID: "user-1", Username: "dongha", Nickname: "샘플", Email: "dongha@example.com"},
-		{ID: "user-2", Username: "sumin", DisplayName: "수민", Email: "sumin@example.com"},
-	}
-	targets := calendarTargetsForPeople(people, users)
-	if len(targets) != 2 || targets[0].Key != "dm:user-1" || targets[1].Key != "dm:user-2" {
-		t.Fatalf("targets = %+v", targets)
-	}
-	if normalizeCalendarReminderLeadHours(5) != calendarDefaultReminderLeadHours || normalizeCalendarReminderLeadHours(48) != 48 {
-		t.Fatal("reminder lead normalization failed")
-	}
-	if _, hasPeopleLine = calendarPeopleFromDescription("Calendar polish\nBring agenda"); hasPeopleLine {
-		t.Fatal("general note line was parsed as people")
-	}
-}
-
-func TestCalendarNotificationTimeMovesMorningReminderToPreviousEvening(t *testing.T) {
-	location, errorValue := time.LoadLocation("Asia/Seoul")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	startTime := time.Date(2026, 6, 16, 9, 0, 0, 0, location)
-	event := calendarEvent{
-		StartISO:          startTime.UTC().Format(time.RFC3339),
-		TimeZone:          "Asia/Seoul",
-		ReminderLeadHours: 3,
-	}
-	now := time.Date(2026, 6, 15, 12, 0, 0, 0, location).UTC()
-	notifyAt, shouldNotify := calendarNotificationTime(event, now)
-	expectedNotifyAt := time.Date(2026, 6, 15, 21, 0, 0, 0, location).UTC()
-	if !shouldNotify || !notifyAt.Equal(expectedNotifyAt) {
-		t.Fatalf("notifyAt=%s shouldNotify=%v", notifyAt.Format(time.RFC3339), shouldNotify)
-	}
-}
-
-func TestCalendarNotificationTimeKeepsDaytimeReminder(t *testing.T) {
-	location, errorValue := time.LoadLocation("Asia/Seoul")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	startTime := time.Date(2026, 6, 16, 15, 0, 0, 0, location)
-	event := calendarEvent{
-		StartISO:          startTime.UTC().Format(time.RFC3339),
-		TimeZone:          "Asia/Seoul",
-		ReminderLeadHours: 3,
-	}
-	now := time.Date(2026, 6, 16, 8, 0, 0, 0, location).UTC()
-	notifyAt, shouldNotify := calendarNotificationTime(event, now)
-	expectedNotifyAt := time.Date(2026, 6, 16, 12, 0, 0, 0, location).UTC()
-	if !shouldNotify || !notifyAt.Equal(expectedNotifyAt) {
-		t.Fatalf("notifyAt=%s shouldNotify=%v", notifyAt.Format(time.RFC3339), shouldNotify)
-	}
-}
-
 func assertCalendarProjectionOutboxCount(t *testing.T, service *Service, expectedCount int) {
 	t.Helper()
 	database, errorValue := service.openCalendarDatabase(context.Background())
@@ -366,12 +307,6 @@ func newCalendarTestService(t *testing.T) *Service {
 		AdminEmailPath:           writeTestFile(t, "admin@example.com"),
 		AdminUIPath:              adminUIPath,
 		CalendarSyncDisabled:     true,
-	})
-	notificationContext, cancelNotifications := context.WithCancel(context.Background())
-	service.startCalendarNotificationWorkers(notificationContext)
-	t.Cleanup(func() {
-		cancelNotifications()
-		service.calendarNotificationGroup.Wait()
 	})
 	return service
 }

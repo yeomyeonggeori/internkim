@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func (service *Service) applyPulledRemoteEventLocked(ctx context.Context, account remoteCalendarAccount, previousEvent calendarEvent, hasPreviousEvent bool, remoteEvent calendarEvent, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) applyPulledRemoteEventLocked(ctx context.Context, account remoteCalendarAccount, previousEvent calendarEvent, hasPreviousEvent bool, remoteEvent calendarEvent) error {
 	targetCalendarURL := activeRemoteCalendarTarget(account).CalendarURL
 	currentEvent := previousEvent
 	hasCurrentEvent := hasPreviousEvent
@@ -22,7 +22,7 @@ func (service *Service) applyPulledRemoteEventLocked(ctx context.Context, accoun
 		return errorValue
 	}
 	if hasPendingLocalDelete {
-		return service.reconcilePulledRemoteEventWithPendingLocalDeleteLocked(ctx, account, currentEvent, remoteEvent, deferredProjections)
+		return service.reconcilePulledRemoteEventWithPendingLocalDeleteLocked(ctx, account, currentEvent, remoteEvent)
 	}
 	if hasCurrentEvent {
 		if currentEvent.RemoteETag == remoteEvent.RemoteETag && currentEvent.RemoteETag != "" {
@@ -34,27 +34,27 @@ func (service *Service) applyPulledRemoteEventLocked(ctx context.Context, accoun
 			return errorValue
 		}
 		if hasPendingLocalChange {
-			return service.applyPulledRemoteEventWithPendingLocalChangeLocked(ctx, account, targetCalendarURL, currentEvent, remoteEvent, pendingLocalChange, deferredProjections)
+			return service.applyPulledRemoteEventWithPendingLocalChangeLocked(ctx, account, targetCalendarURL, currentEvent, remoteEvent, pendingLocalChange)
 		}
 		previousRemote := decodeCalendarEventFromRawICS(currentEvent.RawICS, currentEvent.RemoteHref, currentEvent.CreatedByEmail)
 		remoteWinningFields := diffCalendarEventFields(previousRemote, remoteEvent)
 		mergedRemoteEvent := preserveCalendarInternalParticipants(remoteEvent, currentEvent, nil)
 		remoteWinningFields = excludeCalendarFields(remoteWinningFields, diffCalendarEventFields(remoteEvent, mergedRemoteEvent))
 		remoteEvent = mergedRemoteEvent
-		if errorValue := service.writePulledCalendarEventLocked(ctx, account.ID, targetCalendarURL, remoteEvent, remoteWinningFields, deferredProjections); errorValue != nil {
+		if errorValue := service.writePulledCalendarEventLocked(ctx, account.ID, targetCalendarURL, remoteEvent, remoteWinningFields); errorValue != nil {
 			return fmt.Errorf("write pulled event %s: %w", remoteEvent.UID, errorValue)
 		}
 		return nil
 	} else {
 		remoteEvent.ID = randomHex(16)
 	}
-	if errorValue := service.writePulledCalendarEventLocked(ctx, account.ID, targetCalendarURL, remoteEvent, calendarAllUserEditableFields(), deferredProjections); errorValue != nil {
+	if errorValue := service.writePulledCalendarEventLocked(ctx, account.ID, targetCalendarURL, remoteEvent, calendarAllUserEditableFields()); errorValue != nil {
 		return fmt.Errorf("write pulled event %s: %w", remoteEvent.UID, errorValue)
 	}
 	return nil
 }
 
-func (service *Service) applyPulledRemoteEventWithPendingLocalChangeLocked(ctx context.Context, account remoteCalendarAccount, targetCalendarURL string, localEvent calendarEvent, remoteEvent calendarEvent, pendingLocalChange pendingCalendarLocalChange, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) applyPulledRemoteEventWithPendingLocalChangeLocked(ctx context.Context, account remoteCalendarAccount, targetCalendarURL string, localEvent calendarEvent, remoteEvent calendarEvent, pendingLocalChange pendingCalendarLocalChange) error {
 	if errorValue := service.recordCalendarFieldConflicts(ctx, localEvent, remoteEvent, pendingLocalChange.ChangedFields); errorValue != nil {
 		return errorValue
 	}
@@ -71,7 +71,7 @@ func (service *Service) applyPulledRemoteEventWithPendingLocalChangeLocked(ctx c
 	mergedEvent.UpdatedByName = localEvent.UpdatedByName
 	mergedEvent.UpdatedByAt = localEvent.UpdatedByAt
 	mergedEvent.MattermostPostID = localEvent.MattermostPostID
-	if errorValue := service.writePulledCalendarEventAndRetainOutboxLocked(ctx, account.ID, targetCalendarURL, mergedEvent, localWinningFields, remoteWinningFields, deferredProjections); errorValue != nil {
+	if errorValue := service.writePulledCalendarEventAndRetainOutboxLocked(ctx, account.ID, targetCalendarURL, mergedEvent, localWinningFields, remoteWinningFields); errorValue != nil {
 		return fmt.Errorf("write pulled pending local event %s: %w", mergedEvent.UID, errorValue)
 	}
 	return nil

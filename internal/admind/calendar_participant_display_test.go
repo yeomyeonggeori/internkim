@@ -40,28 +40,6 @@ func TestCalendarEventParticipantsFallbackToLegacyPeopleLine(t *testing.T) {
 	}
 }
 
-func TestCalendarNotificationTargetsPreferEventParticipants(t *testing.T) {
-	event := calendarEvent{
-		Description: "캘린더 메모\n이 줄은 일반 설명",
-		Participants: []calendarParticipant{
-			{PersonID: "person-dongha", Name: "이샘플", Email: "dongha@example.com"},
-		},
-	}
-	users := []mattermostUserRecord{
-		{ID: "user-1", Username: "dongha", Nickname: "이샘플", Email: "dongha@example.com"},
-	}
-
-	people, hasPeople := calendarNotificationPeople(event)
-	targets := calendarTargetsForPeople(people, users)
-
-	if !hasPeople || strings.Join(people, "|") != "이샘플" {
-		t.Fatalf("people=%+v hasPeople=%v", people, hasPeople)
-	}
-	if len(targets) != 1 || targets[0].Key != "dm:user-1" {
-		t.Fatalf("targets = %+v", targets)
-	}
-}
-
 func TestCalendarRelatedParticipantsIncludeCreatorWithoutMutatingParticipants(t *testing.T) {
 	event := calendarEvent{
 		Participants: []calendarParticipant{
@@ -97,44 +75,5 @@ func TestCalendarRelatedParticipantsDeduplicateCreator(t *testing.T) {
 
 	if len(relatedParticipants) != 1 || relatedParticipants[0].Name != "김예시" {
 		t.Fatalf("related participants = %+v", relatedParticipants)
-	}
-}
-
-func TestCalendarNotificationTargetsIncludeCreator(t *testing.T) {
-	event := calendarEvent{
-		Participants: []calendarParticipant{
-			{PersonID: "person-dongha", Name: "이샘플", Email: "dongha@example.com"},
-		},
-		CreatedByName:  "김예시",
-		CreatedByEmail: "yeomyeong@example.com",
-	}
-	users := []mattermostUserRecord{
-		{ID: "user-1", Username: "dongha", Nickname: "이샘플", Email: "dongha@example.com"},
-		{ID: "user-2", Username: "yeomyeong", Nickname: "김예시", Email: "yeomyeong@example.com"},
-	}
-
-	targets, resolved := calendarNotificationTargetsForUsers(event, users)
-
-	if !resolved || len(targets) != 2 || targets[0].Key != "dm:user-1" || targets[1].Key != "dm:user-2" {
-		t.Fatalf("targets = %+v resolved=%v", targets, resolved)
-	}
-}
-
-func TestCalendarNotificationTargetsIgnoreUnmatchedCreator(t *testing.T) {
-	event := calendarEvent{
-		Participants: []calendarParticipant{
-			{PersonID: "person-dongha", Name: "이샘플", Email: "dongha@example.com"},
-		},
-		CreatedByName:  "김예시",
-		CreatedByEmail: "yeomyeong@example.com",
-	}
-	users := []mattermostUserRecord{
-		{ID: "user-1", Username: "dongha", Nickname: "이샘플", Email: "dongha@example.com"},
-	}
-
-	targets, resolved := calendarNotificationTargetsForUsers(event, users)
-
-	if !resolved || len(targets) != 1 || targets[0].Key != "dm:user-1" {
-		t.Fatalf("targets = %+v resolved=%v", targets, resolved)
 	}
 }

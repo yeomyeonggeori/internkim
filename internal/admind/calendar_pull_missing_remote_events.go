@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (service *Service) softDeleteMissingRemoteEventsWithConflictStateLocked(ctx context.Context, accountID string, target remoteCalendarTarget, allEvents []calendarEvent, remoteUIDs map[string]struct{}, protectedUIDs map[string]struct{}, pendingLocalChanges map[string]pendingCalendarLocalChange, detectedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) softDeleteMissingRemoteEventsWithConflictStateLocked(ctx context.Context, accountID string, target remoteCalendarTarget, allEvents []calendarEvent, remoteUIDs map[string]struct{}, protectedUIDs map[string]struct{}, pendingLocalChanges map[string]pendingCalendarLocalChange, detectedAt time.Time) error {
 	for _, event := range allEvents {
 		if event.RemoteSource != remoteCalendarProviderGoogle {
 			continue
@@ -20,14 +20,14 @@ func (service *Service) softDeleteMissingRemoteEventsWithConflictStateLocked(ctx
 		if _, protected := protectedUIDs[event.UID]; protected {
 			continue
 		}
-		if errorValue := service.softDeleteMissingRemoteEventLocked(ctx, accountID, target, event, pendingLocalChanges[event.UID], detectedAt, deferredProjections); errorValue != nil {
+		if errorValue := service.softDeleteMissingRemoteEventLocked(ctx, accountID, target, event, pendingLocalChanges[event.UID], detectedAt); errorValue != nil {
 			return fmt.Errorf("soft delete %s: %w", event.ID, errorValue)
 		}
 	}
 	return nil
 }
 
-func (service *Service) softDeleteMissingRemoteEventLocked(ctx context.Context, accountID string, target remoteCalendarTarget, event calendarEvent, pendingLocalChange pendingCalendarLocalChange, detectedAt time.Time, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) softDeleteMissingRemoteEventLocked(ctx context.Context, accountID string, target remoteCalendarTarget, event calendarEvent, pendingLocalChange pendingCalendarLocalChange, detectedAt time.Time) error {
 	currentEvent, found, errorValue := service.readCalendarEventByID(ctx, event.ID)
 	if errorValue != nil {
 		return errorValue
@@ -66,7 +66,7 @@ func (service *Service) softDeleteMissingRemoteEventLocked(ctx context.Context, 
 		if winner == calendarConflictWinnerLocal {
 			return service.updatePendingCalendarOutboxRemoteState(ctx, accountID, target.CalendarURL, currentEvent.UID, "", "")
 		}
-		return service.acceptMissingCalendarRemoteDeletionLocked(ctx, accountID, target.CalendarURL, currentEvent, deferredProjections)
+		return service.acceptMissingCalendarRemoteDeletionLocked(ctx, accountID, target.CalendarURL, currentEvent)
 	}
-	return service.acceptMissingCalendarRemoteDeletionLocked(ctx, accountID, target.CalendarURL, currentEvent, deferredProjections)
+	return service.acceptMissingCalendarRemoteDeletionLocked(ctx, accountID, target.CalendarURL, currentEvent)
 }

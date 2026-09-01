@@ -216,52 +216,7 @@ func (service *Service) readCalendarEvents(ctx context.Context, startTime time.T
 	return loadCalendarEventListParticipants(ctx, database, events)
 }
 
-func (service *Service) readCalendarEventsWithMattermostPosts(ctx context.Context) ([]calendarEvent, error) {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
-FROM calendar_events
-WHERE deleted_at = '' AND mattermost_post_id != ''
-ORDER BY start_at, title`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	events, errorValue := scanCalendarEventRows(rows)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return loadCalendarEventListParticipants(ctx, database, events)
-}
 
-func (service *Service) readCalendarEventIDsRequiringMattermostProjection(ctx context.Context) ([]string, error) {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-	SELECT id
-	FROM calendar_events
-	WHERE mattermost_post_id != '' OR id IN (SELECT event_id FROM calendar_channel_outbox)
-	ORDER BY updated_at DESC`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
-	var eventIDs []string
-	for rows.Next() {
-		var eventID string
-		if errorValue := rows.Scan(&eventID); errorValue != nil {
-			return nil, errorValue
-		}
-		eventIDs = append(eventIDs, strings.TrimSpace(eventID))
-	}
-	return uniqueNonEmpty(eventIDs), rows.Err()
-}
 
 func (service *Service) readRemoteCalendarEventsByProvider(ctx context.Context, source string) ([]calendarEvent, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)

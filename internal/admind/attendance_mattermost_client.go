@@ -33,51 +33,6 @@ func (service *Service) ensureMattermostChannelMembershipExists(ctx context.Cont
 	return fmt.Errorf("Mattermost channel membership returned unexpected user %q after join failed: %w", member.UserID, cause)
 }
 
-func (service *Service) postMattermostUserAttendanceMessage(ctx context.Context, userToken string, channelID string, rootID string, message string) (string, error) {
-	body := map[string]string{
-		"channel_id": channelID,
-		"message":    message,
-	}
-	if strings.TrimSpace(rootID) != "" {
-		body["root_id"] = strings.TrimSpace(rootID)
-	}
-	var response struct {
-		ID string `json:"id"`
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", userToken, body, &response)
-	return strings.TrimSpace(response.ID), errorValue
-}
 
-func (service *Service) patchMattermostAttendanceResultPost(ctx context.Context, userToken string, postID string, message string) error {
-	if strings.TrimSpace(postID) == "" {
-		return fmt.Errorf("Mattermost attendance result post ID is empty")
-	}
-	body := map[string]string{"message": message}
-	return service.mattermostRequest(ctx, http.MethodPut, "/api/v4/posts/"+url.PathEscape(postID)+"/patch", userToken, body, nil)
-}
 
-func (service *Service) mattermostAttendanceResultPostExists(ctx context.Context, adminToken string, postID string, channelID string, rootID string) (bool, error) {
-	trimmedPostID := strings.TrimSpace(postID)
-	if trimmedPostID == "" {
-		return false, nil
-	}
-	var postRecord mattermostPostRecord
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/posts/"+url.PathEscape(trimmedPostID), adminToken, nil, &postRecord)
-	if errorValue == nil {
-		return isMattermostAttendanceResultPostCurrent(postRecord, channelID, rootID), nil
-	}
-	if isMattermostNotFound(errorValue) {
-		return false, nil
-	}
-	return false, errorValue
-}
 
-func isMattermostAttendanceResultPostCurrent(postRecord mattermostPostRecord, channelID string, rootID string) bool {
-	if strings.TrimSpace(postRecord.ID) == "" || postRecord.DeleteAt != 0 {
-		return false
-	}
-	if strings.TrimSpace(postRecord.ChannelID) != "" && strings.TrimSpace(postRecord.ChannelID) != strings.TrimSpace(channelID) {
-		return false
-	}
-	return strings.TrimSpace(postRecord.RootID) == strings.TrimSpace(rootID)
-}
