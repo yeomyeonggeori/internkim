@@ -3,51 +3,14 @@ import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
 import type { Locale } from '../i18n/locale.svelte';
-import { approvedLeaveCalendarEvents } from './supabase-calendar-leave';
-
-type MemberRow = { id: string; name: string | null; email: string | null };
-type EventRow = {
-	id: string;
-	title: string;
-	note: string | null;
-	location: { name?: string } | null;
-	starts_at: string;
-	ends_at: string;
-	is_whole_day: boolean;
-	updated_at: string;
-	task_participant: { member_id: string }[];
-};
+import { calendarEventByID, calendarMembers, companyCalendarEntries } from './company-calendar';
 
 export async function supabaseCalendarEvents(
 	startDate: Date,
 	endDate: Date,
 	locale: Locale = 'ko'
 ): Promise<CalendarEvent[]> {
-	const members = await membersByID();
-	const timeZone = await companyTimeZone();
-	const [events, leave] = await Promise.all([
-		taskCalendarEvents(startDate, endDate, members, timeZone),
-		approvedLeaveCalendarEvents(startDate, endDate, members, timeZone, locale)
-	]);
-	return [...events, ...leave].sort((left, right) => left.startISO.localeCompare(right.startISO));
-}
-
-async function taskCalendarEvents(
-	startDate: Date,
-	endDate: Date,
-	members: Map<string, MemberRow>,
-	timeZone: string
-): Promise<CalendarEvent[]> {
-	const events = await supabase()
-		.from('task')
-		.select('id, title, note, location, starts_at, ends_at, is_whole_day, updated_at, task_participant (member_id)')
-		.eq('is_event', true)
-		.lt('starts_at', endDate.toISOString())
-		.gte('ends_at', startDate.toISOString())
-		.order('starts_at')
-		.returns<EventRow[]>();
-	if (events.error) throw new Error(events.error.message);
-	return events.data.map((event) => eventOf(event, members, timeZone));
+	return companyCalendarEntries(supabase(), startDate, endDate, await companyTimeZone(), locale);
 }
 
 export async function saveSupabaseCalendarEvent(payload: CalendarEventPayload): Promise<CalendarEvent> {
@@ -98,7 +61,7 @@ export async function deleteSupabaseCalendarEvent(eventID: string): Promise<void
 }
 
 export async function supabaseCalendarParticipants(): Promise<CalendarParticipant[]> {
-	const members = await membersByID();
+	const members = await calendarMembers(supabase());
 	return [...members.values()].map((member) => ({
 		personID: member.id,
 		name: member.name || (member.email ?? '').split('@')[0],
@@ -107,54 +70,14 @@ export async function supabaseCalendarParticipants(): Promise<CalendarParticipan
 }
 
 async function readEvent(eventID: string): Promise<CalendarEvent> {
-	const event = await supabase()
-		.from('task')
-		.select('id, title, note, location, starts_at, ends_at, is_whole_day, updated_at, task_participant (member_id)')
-		.eq('id', eventID)
-		.single<EventRow>();
-	if (event.error) throw new Error(event.error.message);
-	return eventOf(event.data, await membersByID(), await companyTimeZone());
-}
-
-function eventOf(event: EventRow, members: Map<string, MemberRow>, timeZone: string): CalendarEvent {
-	return {
-		id: event.id,
-		uid: event.id,
-		title: event.title,
-		description: event.note ?? '',
-		location: event.location?.name ?? '',
-		startISO: event.starts_at,
-		endISO: event.ends_at,
-		timeZone,
-		isAllDay: event.is_whole_day,
-		color: '',
-		participants: event.task_participant.map((participant) => participantOf(participant.member_id, members)),
-		createdByEmail: '',
-		createdByName: '',
-		updatedAt: event.updated_at
-	};
-}
-
-function participantOf(memberID: string, members: Map<string, MemberRow>): CalendarParticipant {
-	const member = members.get(memberID);
-	const email = member?.email ?? '';
-	return { personID: memberID, name: member?.name || email.split('@')[0], email: email || undefined };
+	const client = supabase();
+	return calendarEventByID(client, eventID, await calendarMembers(client), await companyTimeZone());
 }
 
 function sizeOfEvent(startISO: string, endISO: string, isAllDay: boolean): string {
 	const hours = (new Date(endISO).getTime() - new Date(startISO).getTime()) / 3600000;
 	if (!isAllDay) return sizeOfHours(hours);
 	return sizeOfWholeDays(Math.max(1, Math.round(hours / 24)));
-}
-
-async function membersByID(): Promise<Map<string, MemberRow>> {
-	const members = await supabase()
-		.from('member')
-		.select('id, name, email')
-		.neq('status', 'withdrawn')
-		.returns<MemberRow[]>();
-	if (members.error) throw new Error(members.error.message);
-	return new Map(members.data.map((member) => [member.id, member]));
 }
 
 async function companyTimeZone(): Promise<string> {

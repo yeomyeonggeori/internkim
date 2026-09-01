@@ -1,26 +1,23 @@
 import { describe, expect, test } from 'bun:test';
-import {
-	calendarFeedOf,
-	calendarFieldsOf,
-	dayOf,
-	escapedText,
-	foldedLine,
-	locationNameOf,
-	momentOf,
-	type CalendarFeedEvent
-} from '$lib/server/calendar/ics';
+import { calendarFeedOf, dayOf, escapedText, foldedLine, momentOf } from '$lib/server/calendar/ics';
+import { calendarEventFromApprovedLeave } from '$lib/calendar/supabase-calendar-leave';
+import type { CalendarEvent } from '../../../../src/routes/calendar/embed/calendar-event-persistence';
 
-function event(overrides: Partial<CalendarFeedEvent> = {}): CalendarFeedEvent {
+function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
 	return {
 		id: '00000000-0000-0000-0000-000000000001',
+		uid: '00000000-0000-0000-0000-000000000001',
 		title: '주간 회의',
-		note: null,
-		location: null,
-		starts_at: '2026-09-01T01:00:00.000Z',
-		ends_at: '2026-09-01T02:00:00.000Z',
-		is_whole_day: false,
-		updated_at: '2026-08-31T00:00:00.000Z',
-		calendar: null,
+		description: '',
+		location: '',
+		startISO: '2026-09-01T01:00:00.000Z',
+		endISO: '2026-09-01T02:00:00.000Z',
+		timeZone: '',
+		isAllDay: false,
+		color: '',
+		createdByEmail: '',
+		createdByName: '',
+		updatedAt: '2026-08-31T00:00:00.000Z',
 		...overrides
 	};
 }
@@ -61,14 +58,14 @@ describe('an event at a time', () => {
 	});
 
 	test('leaves out what it does not have', () => {
-		const feed = calendarFeedOf([event({ note: '   ', location: null })], 'c', 'UTC');
+		const feed = calendarFeedOf([event({ description: '   ', location: '' })], 'c', 'UTC');
 
 		expect(feed).not.toContain('DESCRIPTION:');
 		expect(feed).not.toContain('LOCATION:');
 	});
 
 	test('carries a note and a place when it has them', () => {
-		const feed = calendarFeedOf([event({ note: '작년 것 참고', location: { name: '회의실' } })], 'c', 'UTC');
+		const feed = calendarFeedOf([event({ description: '작년 것 참고', location: '회의실' })], 'c', 'UTC');
 
 		expect(feed).toContain('DESCRIPTION:작년 것 참고');
 		expect(feed).toContain('LOCATION:회의실');
@@ -80,9 +77,9 @@ describe('a whole-day event', () => {
 		const feed = calendarFeedOf(
 			[
 				event({
-					is_whole_day: true,
-					starts_at: '2026-08-31T15:00:00.000Z',
-					ends_at: '2026-09-01T14:59:59.999Z'
+					isAllDay: true,
+					startISO: '2026-08-31T15:00:00.000Z',
+					endISO: '2026-09-01T14:59:59.999Z'
 				})
 			],
 			'c',
@@ -97,9 +94,9 @@ describe('a whole-day event', () => {
 		const feed = calendarFeedOf(
 			[
 				event({
-					is_whole_day: true,
-					starts_at: '2026-08-31T15:00:00.000Z',
-					ends_at: '2026-09-03T14:59:59.999Z'
+					isAllDay: true,
+					startISO: '2026-08-31T15:00:00.000Z',
+					endISO: '2026-09-03T14:59:59.999Z'
 				})
 			],
 			'c',
@@ -122,46 +119,54 @@ describe('the text a calendar app reads back', () => {
 	});
 });
 
-describe('what the task row cannot hold', () => {
-	test('is read from the calendar the event carries', () => {
-		const feed = calendarFeedOf(
-			[event({ calendar: { color: '#2563eb', timeZone: 'Asia/Seoul', mirrors: [] } })],
-			'c',
-			'UTC'
-		);
+describe('what an entry carries beyond its title', () => {
+	test('is the colour and the time zone the entry names', () => {
+		const feed = calendarFeedOf([event({ color: '#2563eb', timeZone: 'Asia/Seoul' })], 'c', 'UTC');
 
 		expect(feed).toContain('COLOR:#2563eb');
 	});
 
-	test('dates a whole day where the event was made, not where the company is', () => {
+	test('dates a whole day where the entry says it is, and where the company is when it says nothing', () => {
 		const inSeoul = event({
-			is_whole_day: true,
-			starts_at: '2026-08-31T15:00:00.000Z',
-			ends_at: '2026-09-01T14:59:59.999Z',
-			calendar: { timeZone: 'Asia/Seoul', mirrors: [] }
+			isAllDay: true,
+			startISO: '2026-08-31T15:00:00.000Z',
+			endISO: '2026-09-01T14:59:59.999Z',
+			timeZone: 'Asia/Seoul'
 		});
 
 		expect(calendarFeedOf([inSeoul], 'c', 'UTC')).toContain('DTSTART;VALUE=DATE:20260901');
-		expect(calendarFeedOf([{ ...inSeoul, calendar: null }], 'c', 'UTC')).toContain(
+		expect(calendarFeedOf([{ ...inSeoul, timeZone: '' }], 'c', 'UTC')).toContain(
 			'DTSTART;VALUE=DATE:20260831'
 		);
 	});
+});
 
-	test('reads nothing out of a calendar that carries nothing', () => {
-		expect(calendarFieldsOf(null)).toEqual({ timeZone: undefined, color: undefined });
-		expect(calendarFieldsOf({ mirrors: [] })).toEqual({ timeZone: undefined, color: undefined });
-		expect(calendarFieldsOf({ color: '  ' })).toEqual({ timeZone: undefined, color: undefined });
+describe('a day somebody is off', () => {
+	test('is in the feed a calendar app subscribes to, as a whole day in the company time zone', () => {
+		const leave = calendarEventFromApprovedLeave(
+			{
+				id: 'leave-1',
+				member_id: 'member-1',
+				kind: '연차',
+				days: 1,
+				status: 'approved',
+				starts_at: '2026-08-17T15:00:00.000Z',
+				ends_at: '2026-08-18T15:00:00.000Z'
+			},
+			new Map([['member-1', { id: 'member-1', name: '이샘플', email: 'sample@example.com' }]]),
+			'Asia/Seoul'
+		);
+
+		const feed = calendarFeedOf([leave], '예시회사', 'Asia/Seoul');
+
+		expect(feed).toContain('SUMMARY:이샘플 · 휴가');
+		expect(feed).toContain('DTSTART;VALUE=DATE:20260818');
+		expect(feed).toContain('DTEND;VALUE=DATE:20260819');
+		expect(feed).toContain('UID:leave:leave-1');
 	});
 });
 
 describe('the pieces a row carries', () => {
-	test('read a place written either way', () => {
-		expect(locationNameOf('회의실')).toBe('회의실');
-		expect(locationNameOf({ name: '회의실' })).toBe('회의실');
-		expect(locationNameOf(null)).toBe('');
-		expect(locationNameOf({ other: 1 })).toBe('');
-	});
-
 	test('read a moment and a day', () => {
 		expect(momentOf('2026-09-01T01:00:00.000Z')).toBe('20260901T010000Z');
 		expect(dayOf('2026-08-31T15:00:00.000Z', 'Asia/Seoul')).toBe('20260901');
