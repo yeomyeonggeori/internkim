@@ -7,11 +7,13 @@ export const GET: RequestHandler = async ({ request, platform }) => {
 
 	const { data, error: queryError } = await client
 		.from('company')
-		.select('name, profile_image')
+		.select('name, profile_image, timezone')
 		.eq('id', companyID)
 		.maybeSingle();
 	if (queryError) return json({ error: queryError.message }, { status: 502 });
 	if (!data) return json({ company: null });
 
-	return json({ company: { name: data.name, profileImage: data.profile_image ?? '' } });
+	return json({
+		company: { name: data.name, profileImage: data.profile_image ?? '', timezone: data.timezone ?? '' }
+	});
 };

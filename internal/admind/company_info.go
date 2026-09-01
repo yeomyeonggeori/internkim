@@ -129,7 +129,7 @@ func (service *Service) updateCompanyInfo(responseWriter http.ResponseWriter, re
 	service.writeJSON(responseWriter, resolveCompanyInfoView(info, language))
 }
 
-func companyPolicySnapshot(info companyInfo) map[string]string {
+func companyPolicySnapshot(info companyInfo, timeZone string) map[string]string {
 	primaryLanguage := "en"
 	return map[string]string{
 		"name":           resolveAnyLocalized(info.Name, primaryLanguage),
@@ -138,7 +138,20 @@ func companyPolicySnapshot(info companyInfo) map[string]string {
 		"description":    resolveAnyLocalized(info.Description, primaryLanguage),
 		"representative": resolveAnyLocalized(info.Representative, primaryLanguage),
 		"website":        strings.TrimSpace(info.Website),
+		"timeZone":       timeZone,
 	}
+}
+
+func (service *Service) companyTimeZoneName(ctx context.Context) string {
+	client := service.centralPlane()
+	if client == nil {
+		return service.workspaceTimeZone().name
+	}
+	company, found, errorValue := client.Company(ctx)
+	if errorValue != nil || !found || strings.TrimSpace(company.Timezone) == "" {
+		return service.workspaceTimeZone().name
+	}
+	return strings.TrimSpace(company.Timezone)
 }
 
 func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, info companyInfo) error {
@@ -146,7 +159,7 @@ func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, info 
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
 		return errorValue
 	}
-	policyDocument["company"] = companyPolicySnapshot(info)
+	policyDocument["company"] = companyPolicySnapshot(info, service.companyTimeZoneName(ctx))
 	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 

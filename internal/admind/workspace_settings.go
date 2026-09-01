@@ -33,7 +33,7 @@ const (
 func defaultWorkspaceSettings() workspaceSettings {
 	return workspaceSettings{
 		CountryCode: workspaceDefaultCountryCode,
-		TimeZone:    workspaceBusinessTimeZone,
+		TimeZone:    workspaceSystemTimeZone,
 		Language:    workspaceLanguageKorean,
 		CallingCode: workspaceDefaultCallingCode,
 	}

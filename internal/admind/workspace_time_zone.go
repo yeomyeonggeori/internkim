@@ -6,7 +6,6 @@ import (
 )
 
 const workspaceSystemTimeZone = "system"
-const workspaceBusinessTimeZone = "Asia/Seoul"
 
 type resolvedTimeZone struct {
 	location        *time.Location
