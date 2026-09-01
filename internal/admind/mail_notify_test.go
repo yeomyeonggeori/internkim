@@ -53,19 +53,18 @@ func TestOneSenderIsNamedAndTheRestAreCounted(t *testing.T) {
 }
 
 func TestAMailWithNoSenderStillSaysSomething(t *testing.T) {
-	notification := mailNotifyNotification([]mail.MessageResponse{{Subject: "제목만 있음"}}, "mm-1")
+	notification := mailNotifyNotification([]mail.MessageResponse{{Subject: "제목만 있음"}}, "member1@example.com")
 	if notification.Title != "메일" {
 		t.Fatalf("title = %q", notification.Title)
 	}
 }
 
-func TestOnlySomebodyWithABothAddressAndAnAccountIsMailed(t *testing.T) {
-	externalIDs := mailNotifyExternalIDs([]adminUserMutation{
-		{Email: "Member1@Example.com", MattermostUserID: "mm-1"},
-		{Email: "", MattermostUserID: "mm-2"},
-		{Email: "member3@example.com", MattermostUserID: ""},
-	})
-	if len(externalIDs) != 1 || externalIDs["member1@example.com"] != "mm-1" {
-		t.Fatalf("externalIDs = %+v", externalIDs)
+func TestMailIsAddressedToThePersonsOwnAddress(t *testing.T) {
+	notification := mailNotifyNotification([]mail.MessageResponse{{From: "보낸이"}}, "member1@example.com")
+	if len(notification.Emails) != 1 || notification.Emails[0] != "member1@example.com" {
+		t.Fatalf("emails = %+v", notification.Emails)
+	}
+	if len(notification.ExternalIDs) != 0 {
+		t.Fatalf("externalIDs = %+v", notification.ExternalIDs)
 	}
 }
