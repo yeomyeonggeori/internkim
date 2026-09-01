@@ -61,17 +61,19 @@ const saved = await caller.rpc('save_flow_task', {
 	target_parent_task_id: null
 });
 
-if (saved.error) {
-	console.error(`save_flow_task FAILED: ${saved.error.message}`);
-} else {
-	const { data: row } = await admin
-		.from('task')
-		.select('id, title, created_at')
-		.eq('id', saved.data)
-		.single();
-	console.log(`save_flow_task ok: ${row?.title} created_at=${row?.created_at}`);
+try {
+	if (saved.error) {
+		console.error(`save_flow_task FAILED: ${saved.error.message}`);
+	} else {
+		const { data: row } = await admin
+			.from('task')
+			.select('id, title, created_at')
+			.eq('id', saved.data)
+			.single();
+		console.log(`save_flow_task ok: ${row?.title} created_at=${row?.created_at}`);
+	}
+} finally {
+	await admin.from('company').delete().eq('id', company.companyID);
+	await admin.auth.admin.deleteUser(account.data.user.id);
+	console.log('test company and account removed');
 }
-
-await admin.from('company').delete().eq('id', company.companyID);
-await admin.auth.admin.deleteUser(account.data.user.id);
-console.log('test company and account removed');
