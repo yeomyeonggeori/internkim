@@ -101,6 +101,9 @@ const client = {
 mock.module('$lib/supabase', () => ({ supabase: () => client }));
 
 const { supabaseAttendanceSummary } = await import('../../../src/lib/attendance/supabase-attendance');
+const { computeDayEvents, statusForDay } = await import(
+	'../../../src/routes/attendance/shared/attendance-aggregation'
+);
 
 describe('supabaseAttendanceSummary', () => {
 	beforeEach(() => {
@@ -110,13 +113,35 @@ describe('supabaseAttendanceSummary', () => {
 		attendanceWindow = null;
 	});
 
-	test('asks for the month as the company time zone bounds it', async () => {
+	test('asks for the month as the company time zone bounds it, and a day before', async () => {
 		await supabaseAttendanceSummary('2026-09');
 
 		expect(attendanceWindow).toEqual({
-			from: '2026-08-31T15:00:00.000Z',
+			from: '2026-08-30T15:00:00.000Z',
 			until: '2026-09-30T15:00:00.000Z'
 		});
+	});
+
+	test('reaches back a day so an overnight clock in is still open this morning', async () => {
+		attendanceRows = [
+			{
+				id: 'attendance-overnight',
+				member_id: 'member-one',
+				kind: 'clock_in',
+				location: '재택',
+				occurred_at: '2026-08-31T13:00:00.000Z',
+				original_occurred_at: null
+			}
+		];
+
+		const summary = await supabaseAttendanceSummary('2026-09');
+
+		expect(summary.events.map((event) => [event.localDate, event.localTime])).toEqual([
+			['2026-08-31', '22:00']
+		]);
+		const today = computeDayEvents('2026-09-01', summary.events, { currentDate: '2026-09-01' });
+		expect(today.inProgress).toBe(true);
+		expect(statusForDay('2026-09-01', summary.events, [], '2026-09-01')).toBe('working');
 	});
 
 	test('carries a clock in made before the UTC day began on the first of the month', async () => {
