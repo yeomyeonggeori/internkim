@@ -31,3 +31,6 @@ content_path = "./supabase/templates/magic-link.html"
 
 [functions.setup-vapid]
 verify_jwt = true
+
+[functions.setup-digest-key]
+verify_jwt = true
