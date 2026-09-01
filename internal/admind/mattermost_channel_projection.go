@@ -12,22 +12,6 @@ type sqlContextExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
-func enqueueTaskChannelProjection(ctx context.Context, executor sqlContextExecutor, taskID string) error {
-	taskID = strings.TrimSpace(taskID)
-	if taskID == "" {
-		return nil
-	}
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, errorValue := executor.ExecContext(ctx, `
-	INSERT INTO flow_channel_outbox (task_id, attempt_count, last_error, created_at, updated_at, last_attempted_at)
-	VALUES (?, 0, '', ?, ?, '')
-	ON CONFLICT(task_id) DO UPDATE SET updated_at = excluded.updated_at`,
-		taskID,
-		now,
-		now,
-	)
-	return errorValue
-}
 
 func enqueueCalendarChannelProjection(ctx context.Context, executor sqlContextExecutor, eventID string) error {
 	eventID = strings.TrimSpace(eventID)
@@ -47,22 +31,9 @@ func enqueueCalendarChannelProjection(ctx context.Context, executor sqlContextEx
 }
 
 func (service *Service) drainMattermostManagedChannelProjections(ctx context.Context) {
-	service.drainTaskMattermostProjectionOutbox(ctx)
 	service.drainCalendarMattermostProjectionOutbox(ctx)
 }
 
-func (service *Service) drainTaskMattermostProjectionOutbox(ctx context.Context) {
-	taskIDs, errorValue := service.pendingTaskMattermostProjectionTaskIDs(ctx)
-	if errorValue != nil {
-		log.Printf("Flow Mattermost projection outbox read failed: %v", errorValue)
-		return
-	}
-	for _, taskID := range taskIDs {
-		if errorValue := service.applyTaskMattermostProjectionByID(ctx, taskID); errorValue != nil {
-			log.Printf("Flow Mattermost projection failed for %s: %v", taskID, errorValue)
-		}
-	}
-}
 
 func (service *Service) drainCalendarMattermostProjectionOutbox(ctx context.Context) {
 	eventIDs, errorValue := service.pendingCalendarMattermostProjectionEventIDs(ctx)
@@ -77,38 +48,7 @@ func (service *Service) drainCalendarMattermostProjectionOutbox(ctx context.Cont
 	}
 }
 
-func (service *Service) hasPendingTaskMattermostProjection(ctx context.Context, taskID string) (bool, error) {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return false, errorValue
-	}
-	defer database.Close()
-	var pendingCount int
-	errorValue = database.QueryRowContext(ctx, "SELECT COUNT(1) FROM flow_channel_outbox WHERE task_id = ?", strings.TrimSpace(taskID)).Scan(&pendingCount)
-	return pendingCount > 0, errorValue
-}
 
-func (service *Service) pendingTaskMattermostProjectionTaskIDs(ctx context.Context) ([]string, error) {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, "SELECT task_id FROM flow_channel_outbox ORDER BY updated_at, task_id")
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
-	var taskIDs []string
-	for rows.Next() {
-		var taskID string
-		if errorValue := rows.Scan(&taskID); errorValue != nil {
-			return nil, errorValue
-		}
-		taskIDs = append(taskIDs, strings.TrimSpace(taskID))
-	}
-	return uniqueNonEmpty(taskIDs), rows.Err()
-}
 
 func (service *Service) pendingCalendarMattermostProjectionEventIDs(ctx context.Context) ([]string, error) {
 	database, errorValue := service.openCalendarDatabase(ctx)
@@ -132,36 +72,7 @@ func (service *Service) pendingCalendarMattermostProjectionEventIDs(ctx context.
 	return uniqueNonEmpty(eventIDs), rows.Err()
 }
 
-func (service *Service) applyTaskMattermostProjection(ctx context.Context, task Task) Task {
-	nextTask, errorValue := service.trySyncTaskMattermostNotification(ctx, task)
-	if errorValue != nil {
-		_ = service.markTaskMattermostProjectionAttempt(ctx, task.ID, errorValue)
-		return task
-	}
-	_ = service.deleteTaskMattermostProjectionOutbox(ctx, task.ID)
-	return nextTask
-}
 
-func (service *Service) applyTaskMattermostProjectionByID(ctx context.Context, taskID string) error {
-	task, found, errorValue := service.readTaskByID(ctx, taskID)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !found {
-		return service.deleteTaskMattermostProjectionOutbox(ctx, taskID)
-	}
-	nextTask, errorValue := service.trySyncTaskMattermostNotification(ctx, task)
-	if errorValue != nil {
-		if markError := service.markTaskMattermostProjectionAttempt(ctx, taskID, errorValue); markError != nil {
-			return markError
-		}
-		return errorValue
-	}
-	if nextTask.MattermostPostID != task.MattermostPostID {
-		task = nextTask
-	}
-	return service.deleteTaskMattermostProjectionOutbox(ctx, task.ID)
-}
 
 func (service *Service) applyCalendarMattermostProjection(ctx context.Context, event calendarEvent) calendarEvent {
 	if errorValue := service.applyCalendarMattermostProjectionByID(ctx, event.ID); errorValue != nil {
@@ -221,22 +132,6 @@ func (service *Service) applyCalendarMattermostProjectionGeneration(ctx context.
 	return nil
 }
 
-func (service *Service) markTaskMattermostProjectionAttempt(ctx context.Context, taskID string, cause error) error {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	_, errorValue = database.ExecContext(ctx, `
-	UPDATE flow_channel_outbox
-	SET attempt_count = attempt_count + 1, last_error = ?, last_attempted_at = ?
-	WHERE task_id = ?`,
-		cause.Error(),
-		time.Now().UTC().Format(time.RFC3339Nano),
-		strings.TrimSpace(taskID),
-	)
-	return errorValue
-}
 
 func (service *Service) markCalendarMattermostProjectionAttempt(ctx context.Context, eventID string, cause error) error {
 	database, errorValue := service.openCalendarDatabase(ctx)
@@ -255,15 +150,6 @@ func (service *Service) markCalendarMattermostProjectionAttempt(ctx context.Cont
 	return errorValue
 }
 
-func (service *Service) deleteTaskMattermostProjectionOutbox(ctx context.Context, taskID string) error {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer database.Close()
-	_, errorValue = database.ExecContext(ctx, "DELETE FROM flow_channel_outbox WHERE task_id = ?", strings.TrimSpace(taskID))
-	return errorValue
-}
 
 func (service *Service) deleteCalendarMattermostProjectionOutbox(ctx context.Context, eventID string) error {
 	database, errorValue := service.openCalendarDatabase(ctx)

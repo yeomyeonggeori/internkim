@@ -89,7 +89,6 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task = service.applyTaskMattermostProjection(request.Context(), task)
 	service.writeJSON(responseWriter, task)
 }
 

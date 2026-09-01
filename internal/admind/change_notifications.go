@@ -91,11 +91,6 @@ func changeRecipientsForPeople(people []string, causedByName string, mattermostU
 	return recipients
 }
 
-func taskChangeRecipients(task Task, causedByName string, mattermostUsers []mattermostUserRecord) []changeRecipient {
-	people := append([]string{task.OwnerName}, task.ParticipantNames...)
-	return changeRecipientsForPeople(people, causedByName, mattermostUsers)
-}
-
 func calendarEventChangeRecipients(event calendarEvent, mattermostUsers []mattermostUserRecord) []changeRecipient {
 	people := append([]string{}, event.People...)
 	for _, participant := range event.Participants {
@@ -109,28 +104,6 @@ func calendarEventCausedByName(event calendarEvent) string {
 		return updatedByName
 	}
 	return strings.TrimSpace(event.CreatedByName)
-}
-
-func (service *Service) deliveredTaskRecipients(ctx context.Context, taskID string, noticeKey string) []string {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return nil
-	}
-	defer database.Close()
-	var storedValue string
-	if errorValue := database.QueryRowContext(ctx, "SELECT delivered_recipients FROM flow_channel_outbox WHERE task_id = ?", taskID).Scan(&storedValue); errorValue != nil {
-		return nil
-	}
-	return decodeDeliveredRecipients(storedValue, noticeKey)
-}
-
-func (service *Service) recordDeliveredTaskRecipients(ctx context.Context, taskID string, noticeKey string, recipients []string) {
-	database, errorValue := service.openTaskDatabase(ctx)
-	if errorValue != nil {
-		return
-	}
-	defer database.Close()
-	_, _ = database.ExecContext(ctx, "UPDATE flow_channel_outbox SET delivered_recipients = ? WHERE task_id = ?", encodeDeliveredRecipients(noticeKey, recipients), taskID)
 }
 
 func (service *Service) deliveredCalendarRecipients(ctx context.Context, eventID string, noticeKey string) []string {

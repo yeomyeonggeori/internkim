@@ -62,7 +62,6 @@ func TestTheFlagStillWinsOverTheFile(t *testing.T) {
 func TestEveryLinkKindFollowsTheSameBase(t *testing.T) {
 	service := aServiceWithLinkFiles(t, "https://device.example.test", "https://company.example.test")
 	links := map[string]string{
-		"flow":      service.mattermostTaskPageURL(""),
 		"calendar":  service.mattermostCalendarURL(""),
 		"messenger": service.messengerPublicURL(),
 	}

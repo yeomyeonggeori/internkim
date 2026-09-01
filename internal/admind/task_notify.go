@@ -14,7 +14,6 @@ const (
 	taskNotifyInterval    = time.Minute
 	taskNotifyBatch       = 200
 	taskNotifyMarkLife    = 30 * 24 * time.Hour
-	taskNotifyPlatform    = "mattermost"
 	taskNotifyListPath    = "/admin/api/run?viewerIsAdmin=true&limit=200"
 	taskNotifyDetailPath  = "/admin/api/run/detail?viewerIsAdmin=true&taskRunID="
 	taskNotifyConfirmName = "confirmation.requested"
@@ -87,7 +86,7 @@ func (service *Service) notifyChangedTaskRuns(
 	marks map[string]string,
 	now time.Time,
 ) {
-	externalIDByPersonID := taskNotifyExternalIDByPersonID(service.taskNotifyDirectoryRecords(ctx))
+	addressByPersonID := taskNotifyAddressByPersonID(service.taskNotifyDirectoryRecords(ctx))
 	for _, run := range runs {
 		if marks[run.TaskRunID] == run.Status {
 			continue
@@ -97,16 +96,15 @@ func (service *Service) notifyChangedTaskRuns(
 			service.markTaskRun(ctx, run, now)
 			continue
 		}
-		externalID := externalIDByPersonID[run.RequesterPersonID]
-		if externalID == "" {
+		address := addressByPersonID[run.RequesterPersonID]
+		if address == "" {
 			log.Printf("task notify: nobody here answers to person %q, so run %s is silent",
 				run.RequesterPersonID, run.TaskRunID)
 			service.markTaskRun(ctx, run, now)
 			continue
 		}
 		notification := taskNotifyContent(run, category, service.taskNotifyConfirmationMessage(ctx, run))
-		notification.Platform = taskNotifyPlatform
-		notification.ExternalIDs = []string{externalID}
+		notification.Emails = []string{address}
 
 		result, errorValue := client.Notify(ctx, notification)
 		if errorValue != nil {
