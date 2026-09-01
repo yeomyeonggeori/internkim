@@ -217,6 +217,30 @@ describe('attendance work segments', () => {
 		expect(computeDayEvents('2026-06-02', events, options).workedMinutes).toBe(480);
 	});
 
+	test('drops only the section that outlived its day, not the day around it', () => {
+		const events = [
+			attendanceEvent('home-in', 'clock_in', '2026-06-01T09:00:00+09:00', '09:00:00', 'home', '재택', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('home-out', 'clock_out', '2026-06-01T15:00:00+09:00', '15:00:00', 'home', '재택', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('office-in', 'clock_in', '2026-06-01T16:00:00+09:00', '16:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('office-out', 'clock_out', '2026-06-11T10:00:00+09:00', '10:00:00', 'office', '사무실', {
+				localDate: '2026-06-11',
+			}),
+		];
+
+		const options = { currentDate: '2026-06-12', now: new Date('2026-06-12T09:00:00+09:00') };
+		const day = computeDayEvents('2026-06-01', events, options);
+
+		expect(day.segments.map((segment) => segment.locationName)).toEqual(['재택']);
+		expect(day.workedMinutes).toBe(360);
+		expect(computeDayEvents('2026-06-05', events, options).segments).toEqual([]);
+	});
+
 	test('shows nothing for a shift the next clock in closed days later', () => {
 		const events = [
 			attendanceEvent('forgotten-in', 'clock_in', '2026-06-01T09:00:00+09:00', '09:00:00', 'office', '사무실', {
