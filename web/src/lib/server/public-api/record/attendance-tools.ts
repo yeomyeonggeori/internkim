@@ -134,19 +134,14 @@ export async function attendanceAdd(context: RecordContext, input: AttendanceAdd
 	if (input.kind !== 'clock_in' && input.kind !== 'clock_out') {
 		throw new Error('an attendance record is a clock_in or a clock_out');
 	}
-	if (!input.date?.trim() || !input.time?.trim()) {
-		throw new Error('an attendance record names the date and the time it happened');
-	}
-	if (!input.reason?.trim()) throw new Error('an attendance record says why it is being written by hand');
-
 	const memberID = targetMember(context, input.personHint);
 	const { data, error } = await context.caller.rpc('attendance_add', {
 		target_member: memberID,
 		kind: input.kind,
-		local_date: input.date.trim(),
-		local_time: input.time.trim(),
+		local_date: input.date?.trim() || null,
+		local_time: input.time?.trim() || null,
 		location: input.location?.trim() || null,
-		reason: input.reason.trim()
+		reason: input.reason?.trim() || null
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return answeredWrite(data);
@@ -179,7 +174,7 @@ export async function attendanceUpdate(context: RecordContext, input: Attendance
 		reason: input.reason.trim()
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	return answeredWrite(data);
+	return { ...answeredWrite(data), eventID: row.id };
 }
 
 export type AttendanceDeleteInput = { eventHint?: string; reason?: string };
@@ -203,10 +198,10 @@ function reachableFrom(context: RecordContext): string {
 }
 
 function answeredWrite(written: unknown) {
-	const answer = (written ?? {}) as { status?: string; eventID?: string; approvalID?: string };
+	const answer = (written ?? {}) as { status?: string; eventID?: string; backdated?: boolean };
 	return {
 		status: answer.status ?? 'unknown',
 		eventID: answer.eventID ?? null,
-		approvalID: answer.approvalID ?? null
+		backdated: answer.backdated === true
 	};
 }

@@ -50,12 +50,12 @@ describe('adding a work record', () => {
 		expect(fixture.addition.outcome).toBe('saved');
 	});
 
-	test('turns into a request once the chosen day falls outside the window', () => {
+	test('reaches the administrators once the chosen day falls outside the three days', () => {
 		const fixture = createAdditionFixture();
 		fixture.addition.open('2026-07-01', 'member@example.com');
 
 		expect(fixture.addition.localTime).toBe('09:00');
-		expect(fixture.addition.outcome).toBe('requested');
+		expect(fixture.addition.outcome).toBe('backdated');
 	});
 
 	test('refuses to submit a colleague record and an empty reason', () => {
@@ -72,7 +72,7 @@ describe('adding a work record', () => {
 
 	test('sends the trimmed reason and reports what the record did with it', async () => {
 		const fixture = createAdditionFixture();
-		fixture.result = { outcome: 'requested', approvalID: 'approval-1' };
+		fixture.result = { outcome: 'backdated' };
 		fixture.addition.open('2026-07-01', 'member@example.com');
 		fixture.addition.reason = '  깜빡했습니다  ';
 		await fixture.addition.submit();
@@ -88,7 +88,7 @@ describe('adding a work record', () => {
 			}
 		]);
 		expect(fixture.addition.isOpen).toBe(false);
-		expect(fixture.addition.completedOutcome).toBe('requested');
+		expect(fixture.addition.completedOutcome).toBe('backdated');
 	});
 
 	test('keeps the form open and says why when the record refuses', async () => {
@@ -108,7 +108,7 @@ describe('removing a work record', () => {
 	test('reads the outcome from the record it would remove', () => {
 		const fixture = createRemovalFixture();
 		fixture.removal.open('clock-in');
-		expect(fixture.removal.outcome).toBe('requested');
+		expect(fixture.removal.outcome).toBe('backdated');
 		fixture.removal.open('clock-out');
 		expect(fixture.removal.outcome).toBe('saved');
 	});
@@ -173,7 +173,7 @@ function createSummary(): AttendanceSummary {
 		currentMemberID: 'member-1',
 		isAdmin: false,
 		timeZone: 'Asia/Seoul',
-		correctionWindowMinutes: 4320,
+		backdatedAfterMinutes: 4320,
 		events: [
 			createEvent('clock-in', 'clock_in', '2026-07-01T09:00:00+09:00'),
 			createEvent('clock-out', 'clock_out', '2026-07-15T10:00:00+09:00')

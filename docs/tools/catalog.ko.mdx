@@ -9,7 +9,7 @@ description: 정본 카탈로그에서 생성되는, 네임스페이스별 능�
 없습니다. 설명이 영어인 것은 모델이 받는 문장 그대로이기 때문입니다.
 
 영향 열이 `destructive`인 도구와 `message_send`, `channel_update`, 그리고
-남의 연차를 쓰거나 남의 요청을 결정하는 도구는 실행 전에
+남의 연차를 쓰는 도구는 실행 전에
 [승인](/ko/docs/tools/index#approval)을 기다립니다.
 
 ## 업무 [#task]
@@ -61,22 +61,12 @@ security가 정합니다. 수량은 숫자 `days`이고 종류는 회사가 등�
 `attendance_correct`, `attendance_remove` 함수를 부르는 사람의 신원으로
 호출합니다. 날짜는 `yyyy-mm-dd`, 시각은 24시간 `HH:MM`이고 둘 다 회사
 시간대로 읽습니다. `attendance_list`는 `from`, `to`가 없으면 최근 30일을
-봅니다. 구성원은 최근 3일 안의 자기 기록을 바로 쓰고 고치고 지웁니다. 그보다
-오래된 것은 거절되는 대신 관리자에게 갈 결재 요청이 되고, 호출은
-`approval_requested`와 `approvalID`로 답합니다. 관리자는 창 제한 없이 누구의
-기록이든 씁니다. 수정은 고치기 전의 값을, 삭제는 누가 왜 지웠는지를 남깁니다.
-
-## 결재 [#approval]
-
-<ToolCatalog namespace="approval" language="ko" />
-
-중앙 평면의 `web/src/lib/server/public-api/record/approval-tools.ts`에
-구현되어 있습니다. 기록의 `approval` 테이블과 `approval_pending`,
-`approval_decide` 함수 위입니다. `approval_list`는 관리자에게 회사가 올린
-요청 전부를, 그 외에는 자기가 올린 것만 보여 줍니다. `approval_decide`는
-관리자만 할 수 있고 기록이 다른 사람을 거부합니다. 승인은 붙들려 있던 쓰기를
-요청한 사람으로서 그대로 실행합니다. 이미 결정된 요청은 다시 결정되지
-않습니다.
+봅니다. `date`와 `time`을 비우면 부른 그 순간을 찍고 사유도 필요 없습니다.
+지난 시각을 적으면 손으로 쓰는 것이라 사유가 필요합니다. 구성원은 자기
+기록을, 관리자는 누구의 기록이든 쓰고 고치고 지우며 아무도 결재하지
+않습니다. 3일보다 거슬러 올라간 쓰기는 `backdated: true`로 답하고, 그것은
+관리자에게 알렸다는 뜻입니다. 수정은 고치기 전의 값을, 삭제는 누가 왜
+지웠는지를 남깁니다.
 
 ## 메시지 [#message]
 

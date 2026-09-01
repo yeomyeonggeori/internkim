@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { approvalDecide, approvalList, NoSuchApproval } from './approval-tools';
 import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } from './attendance-tools';
 import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
@@ -33,9 +32,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	attendance_list: (context, input) => attendanceList(context, input),
 	attendance_add: (context, input) => attendanceAdd(context, input),
 	attendance_update: (context, input) => attendanceUpdate(context, input),
-	attendance_delete: (context, input) => attendanceDelete(context, input),
-	approval_list: (context) => approvalList(context),
-	approval_decide: (context, input) => approvalDecide(context, input)
+	attendance_delete: (context, input) => attendanceDelete(context, input)
 };
 
 export function recordRunsTheTool(name: string): boolean {
@@ -85,9 +82,6 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 		return { status: 409, body: { error: refusal.message, registered: refusal.registered } };
 	}
 	if (refusal instanceof NoSuchAttendanceRecord) {
-		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
-	}
-	if (refusal instanceof NoSuchApproval) {
 		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
 	}
 	if (refusal instanceof RecordRefusedTheWrite) {
