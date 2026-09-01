@@ -93,21 +93,20 @@ describe('the attendance tools write a record and say when the company was told'
 		expect(attendance[0].person).toBe('이샘플');
 	});
 
-	test('a record older than three days is written too, and says the company was told', async () => {
-		const written = await asSample('attendance_add', {
+	test('a record older than three days is an administrator to write, so the record asks one', async () => {
+		const asked = await asSample('attendance_add', {
 			kind: 'clock_in',
 			date: dayShiftedBy(-30),
 			time: '09:00',
 			location: '재택',
 			reason: '한 달 전 재택 출근 누락'
 		});
-		expect(written.status).toBe(200);
-		expect(resultOf(written).status).toBe('added');
-		expect(resultOf(written).eventID).toBeString();
-		expect(resultOf(written).backdated).toBe(true);
+		expect(asked.status).toBe(200);
+		expect(resultOf(asked).status).toBe('asked');
+		expect(resultOf(asked).eventID).toBeNull();
 
 		const listed = await asSample('attendance_list', { from: dayShiftedBy(-40) });
-		expect(resultOf(listed).count).toBe(2);
+		expect(resultOf(listed).count).toBe(1);
 	});
 
 	test('a clock with no day and no time is written at the moment it is called', async () => {
@@ -189,7 +188,6 @@ describe('the attendance tools write a record and say when the company was told'
 		});
 		expect(corrected.status).toBe(200);
 		expect(resultOf(corrected).status).toBe('corrected');
-		expect(resultOf(corrected).backdated).toBe(true);
 	});
 
 	test('an administrator writes an old record for somebody else', async () => {

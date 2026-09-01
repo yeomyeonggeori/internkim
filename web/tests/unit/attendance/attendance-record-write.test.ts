@@ -55,7 +55,7 @@ describe('adding a work record', () => {
 		fixture.addition.open('2026-07-01', 'member@example.com');
 
 		expect(fixture.addition.localTime).toBe('09:00');
-		expect(fixture.addition.outcome).toBe('backdated');
+		expect(fixture.addition.outcome).toBe('asked');
 	});
 
 	test('refuses to submit a colleague record and an empty reason', () => {
@@ -72,7 +72,7 @@ describe('adding a work record', () => {
 
 	test('sends the trimmed reason and reports what the record did with it', async () => {
 		const fixture = createAdditionFixture();
-		fixture.result = { outcome: 'backdated' };
+		fixture.result = { outcome: 'asked' };
 		fixture.addition.open('2026-07-01', 'member@example.com');
 		fixture.addition.reason = '  깜빡했습니다  ';
 		await fixture.addition.submit();
@@ -88,7 +88,7 @@ describe('adding a work record', () => {
 			}
 		]);
 		expect(fixture.addition.isOpen).toBe(false);
-		expect(fixture.addition.completedOutcome).toBe('backdated');
+		expect(fixture.addition.completedOutcome).toBe('asked');
 	});
 
 	test('keeps the form open and says why when the record refuses', async () => {
@@ -108,7 +108,7 @@ describe('removing a work record', () => {
 	test('reads the outcome from the record it would remove', () => {
 		const fixture = createRemovalFixture();
 		fixture.removal.open('clock-in');
-		expect(fixture.removal.outcome).toBe('backdated');
+		expect(fixture.removal.outcome).toBe('asked');
 		fixture.removal.open('clock-out');
 		expect(fixture.removal.outcome).toBe('saved');
 	});
