@@ -38,12 +38,12 @@ insert into public.attendance (id, member_id, kind, location, occurred_at) value
 		'clock_in', 'Branch', now() - interval '2 hours'
 	);
 
-select hasnt_table('public', 'approval', 'nothing about attendance waits on a decision any more');
+select hasnt_table('public', 'approval', 'nothing about attendance waits on a stored decision');
 
 select is(
 	public.attendance_backdated_after_minutes(),
 	4320,
-	'a record older than three days is one the administrators are told about'
+	'reaching back more than three days is an administrator write'
 );
 
 select lives_ok($block$do $$
@@ -89,15 +89,15 @@ begin
 		'41000000-0000-0000-0000-000000000011', 'clock_out', '2026-08-10'::date, '18:00'::time,
 		null, '8월 10일 퇴근 누락'
 	);
-	assert answer ->> 'status' = 'added', 'an old record is written, not raised as a request';
-	assert (answer ->> 'backdated')::boolean, 'a record this old is backdated';
+	assert answer ->> 'status' = 'asked', 'an old record is handed to an administrator';
+	assert answer ->> 'eventID' is null, 'nothing is written by the person who cannot write it';
 	assert (
-		select count(*) = 1
+		select count(*) = 0
 		from public.attendance
 		where member_id = '41000000-0000-0000-0000-000000000011'
 			and occurred_at = '2026-08-10 18:00:00+09'
-	), 'the record the person asked for is in the record';
-end $$;$block$, 'an owner writes a record older than three days without asking anybody');
+	), 'the record waits for the administrator who may write it';
+end $$;$block$, 'an owner reaching back more than three days asks an administrator');
 
 select lives_ok($block$do $$
 declare
@@ -156,19 +156,15 @@ begin
 	answer := public.attendance_remove(
 		'41000000-0000-0000-0000-000000000101', '두 번 찍혔습니다'
 	);
-	assert answer ->> 'status' = 'removed', 'an old record is removed at once';
-	assert (answer ->> 'backdated')::boolean, 'removing a record this old is backdated';
-end $$;$block$, 'an owner removes a record older than three days');
+	assert answer ->> 'status' = 'asked', 'removing an old record is handed to an administrator';
+end $$;$block$, 'an owner reaching back more than three days asks an administrator to remove it');
 
 set local role postgres;
 
 select is(
-	(
-		select deleted_at is not null and edit_reason = '두 번 찍혔습니다'
-		from public.attendance where id = '41000000-0000-0000-0000-000000000101'
-	),
+	(select deleted_at is null from public.attendance where id = '41000000-0000-0000-0000-000000000101'),
 	true,
-	'a removed record keeps who removed it and why, out of everybody sight'
+	'the record the person could not remove is still there'
 );
 
 select lives_ok($block$do $$
@@ -207,7 +203,7 @@ end $$;$block$, 'a colleague cannot remove somebody else record');
 select is(
 	(select count(*)::integer from public.attendance where member_id = '41000000-0000-0000-0000-000000000011' and deleted_at is null),
 	3,
-	'the owner is left with the records they wrote and the one they kept'
+	'the owner is left with the records they were allowed to write'
 );
 
 select * from finish();

@@ -1,4 +1,4 @@
-export type AttendanceWriteOutcome = 'blocked' | 'saved' | 'backdated';
+export type AttendanceWriteOutcome = 'blocked' | 'saved' | 'asked';
 
 export type AttendanceWriteAuthority = {
 	isAdmin: boolean;
@@ -11,7 +11,7 @@ export type AttendanceWriteSubject = {
 	anchorTime: Date;
 };
 
-export type AttendanceWriteResult = { outcome: 'saved' | 'backdated' };
+export type AttendanceWriteResult = { outcome: 'saved' | 'asked' };
 
 const writtenStatuses = ['added', 'corrected', 'removed'];
 
@@ -27,7 +27,7 @@ export function attendanceWriteOutcome(
 		return 'blocked';
 	}
 	return isBackdated(authority.backdatedAfterMinutes, subject.anchorTime, currentTime)
-		? 'backdated'
+		? 'asked'
 		: 'saved';
 }
 
@@ -36,7 +36,7 @@ export function combineAttendanceWriteOutcomes(
 ): AttendanceWriteOutcome {
 	if (outcomes.length === 0) return 'blocked';
 	if (outcomes.includes('blocked')) return 'blocked';
-	return outcomes.includes('backdated') ? 'backdated' : 'saved';
+	return outcomes.includes('asked') ? 'asked' : 'saved';
 }
 
 export function attendanceWriteResultFrom(data: unknown): AttendanceWriteResult {
@@ -46,10 +46,11 @@ export function attendanceWriteResultFrom(data: unknown): AttendanceWriteResult 
 	const answered = data as Record<string, unknown>;
 	const status = answered.status;
 	if (typeof status !== 'string') throw new Error('the attendance write answered without a status');
+	if (status === 'asked') return { outcome: 'asked' };
 	if (!writtenStatuses.includes(status)) {
 		throw new Error(`the attendance write answered an unknown status ${status}`);
 	}
-	return { outcome: answered.backdated === true ? 'backdated' : 'saved' };
+	return { outcome: 'saved' };
 }
 
 function isBackdated(
