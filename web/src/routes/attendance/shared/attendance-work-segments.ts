@@ -21,7 +21,7 @@ export type AttendanceWorkSegmentOptions = {
 	now?: Date;
 };
 
-const hoursAnOpenShiftMayLast = 24;
+const minutesAShiftMayLast = 24 * 60;
 
 export function buildAttendanceWorkSegments(
 	date: string,
@@ -35,7 +35,7 @@ export function buildAttendanceWorkSegments(
 	let openClockIn: AttendanceEvent | undefined;
 	for (const event of sortedEvents) {
 		if (event.kind === 'clock_in') {
-			if (openClockIn) {
+			if (openClockIn && !shiftOutlivedItsDay(openClockIn.occurredAt, event.occurredAt)) {
 				const segment = createAttendanceWorkSegment(openClockIn.localDate, openClockIn, event, 'next_clock_in');
 				const splitSegment = splitAttendanceWorkSegmentForDate(date, segment);
 				if (splitSegment) segments.push(splitSegment);
@@ -44,12 +44,14 @@ export function buildAttendanceWorkSegments(
 			continue;
 		}
 		if (!openClockIn) continue;
-		const segment = createAttendanceWorkSegment(openClockIn.localDate, openClockIn, event, 'clock_out');
-		const splitSegment = splitAttendanceWorkSegmentForDate(date, segment);
-		if (splitSegment) segments.push(splitSegment);
+		if (!shiftOutlivedItsDay(openClockIn.occurredAt, event.occurredAt)) {
+			const segment = createAttendanceWorkSegment(openClockIn.localDate, openClockIn, event, 'clock_out');
+			const splitSegment = splitAttendanceWorkSegmentForDate(date, segment);
+			if (splitSegment) segments.push(splitSegment);
+		}
 		openClockIn = undefined;
 	}
-	if (openClockIn && !openShiftOutlivedItsDay(openClockIn, options.now ?? new Date())) {
+	if (openClockIn && !shiftOutlivedItsDay(openClockIn.occurredAt, (options.now ?? new Date()).toISOString())) {
 		const segment = createAttendanceWorkSegment(openClockIn.localDate, openClockIn);
 		const splitSegment = splitAttendanceWorkSegmentForDate(date, segment, options.currentDate);
 		if (splitSegment) segments.push(splitSegment);
@@ -57,10 +59,8 @@ export function buildAttendanceWorkSegments(
 	return segments;
 }
 
-function openShiftOutlivedItsDay(clockIn: AttendanceEvent, now: Date): boolean {
-	const startedAt = new Date(clockIn.occurredAt).getTime();
-	if (Number.isNaN(startedAt)) return false;
-	return now.getTime() - startedAt > hoursAnOpenShiftMayLast * 60 * 60 * 1000;
+function shiftOutlivedItsDay(startedAt: string, endedAt: string): boolean {
+	return minutesBetween(startedAt, endedAt) > minutesAShiftMayLast;
 }
 
 function createAttendanceWorkSegment(
