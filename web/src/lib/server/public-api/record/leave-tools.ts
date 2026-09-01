@@ -1,4 +1,4 @@
-import { dayIn, dayOfInstant, instantWritten } from './days';
+import { dayIn, dayOfInstant, dayShifted, instantOfDay, instantWritten } from './days';
 import { personOfHint } from './people';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import {
@@ -24,6 +24,18 @@ export type AnsweredLeave = {
 	note: string | null;
 };
 
+const halfADay = 0.5;
+
+function midnightAfter(timezone: string, endsAt: string): string {
+	const lastDay = dayIn(timezone, new Date(instantWritten(timezone, endsAt, true)));
+	return instantOfDay(timezone, dayShifted(lastDay, 1));
+}
+
+function lastDayCovered(timezone: string, row: LeaveRow): string {
+	const ends = dayOfInstant(timezone, row.ends_at);
+	return Number(row.days) > halfADay ? dayShifted(ends, -1) : ends;
+}
+
 function answeredLeave(context: RecordContext, row: LeaveRow): AnsweredLeave {
 	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));
 	return {
@@ -35,7 +47,7 @@ function answeredLeave(context: RecordContext, row: LeaveRow): AnsweredLeave {
 		isPaid: row.is_paid,
 		isDeducted: row.is_deducted,
 		startDate: dayOfInstant(context.labels.timezone, row.starts_at),
-		endDate: dayOfInstant(context.labels.timezone, row.ends_at),
+		endDate: lastDayCovered(context.labels.timezone, row),
 		note: row.note
 	};
 }
@@ -150,7 +162,10 @@ export async function leaveRequest(
 		days: input.days,
 		status: 'requested',
 		starts_at: instantWritten(context.labels.timezone, input.startsAt),
-		ends_at: instantWritten(context.labels.timezone, input.endsAt, true),
+		ends_at:
+			input.days > halfADay
+				? midnightAfter(context.labels.timezone, input.endsAt)
+				: instantWritten(context.labels.timezone, input.endsAt, true),
 		note: input.note?.trim() || null
 	};
 
