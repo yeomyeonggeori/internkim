@@ -319,19 +319,24 @@ export async function sessionForMember(
 
 export type AgentKey = { agentID: string; companyID: string; apiKey: string };
 
+// A company holds one agent per name, and revoking does not give the name back.
+// So reissuing writes the new hash onto the row that stands, the way
+// digest_agent_key_keep does; a plain insert answers a duplicate key to anyone
+// who rotates a key twice.
 export async function issueAgentKey(
 	client: SupabaseClient,
 	companyID: string,
 	name: string,
+	options: { replaceStanding?: boolean } = {},
 ): Promise<AgentKey> {
 	const apiKey = [...crypto.getRandomValues(new Uint8Array(32))]
 		.map((byte) => byte.toString(16).padStart(2, '0'))
 		.join('');
-	const { data, error } = await client
-		.from('agent')
-		.insert({ company_id: companyID, name, api_key_hash: await hashOf(apiKey) })
-		.select('id')
-		.single();
+	const record = { company_id: companyID, name, api_key_hash: await hashOf(apiKey) };
+	const written = options.replaceStanding
+		? client.from('agent').upsert({ ...record, revoked_at: null }, { onConflict: 'company_id,name' })
+		: client.from('agent').insert(record);
+	const { data, error } = await written.select('id').single();
 	if (error) throw new Error(`agent ${name}: ${error.message}`);
 	return { agentID: data.id, companyID, apiKey };
 }
@@ -474,14 +479,7 @@ export async function replaceFleetAgentKey(
 	fleetID: string,
 ): Promise<AgentKey> {
 	const name = `${fleetCredentialKind} ${fleetID}`;
-	const { error } = await client
-		.from('agent')
-		.update({ revoked_at: new Date().toISOString() })
-		.eq('company_id', companyID)
-		.eq('name', name)
-		.is('revoked_at', null);
-	if (error) throw new Error(`agent ${name}: ${error.message}`);
-	return issueAgentKey(client, companyID, name);
+	return issueAgentKey(client, companyID, name, { replaceStanding: true });
 }
 
 export async function revokeAgent(client: SupabaseClient, agentID: string): Promise<void> {

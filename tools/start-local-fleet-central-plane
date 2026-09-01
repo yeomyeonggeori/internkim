@@ -90,7 +90,7 @@ done
 agentKey="$(
   cd "$repositoryRoot/web"
   SUPABASE_URL="$API_URL" SUPABASE_SECRET_KEY="$SECRET_KEY" \
-    bun run scripts/issue-agent-key.ts --company "$fixtureCompanyID" --name local-fleet --quiet
+    bun run scripts/issue-agent-key.ts --company "$fixtureCompanyID" --name local-fleet --replace --quiet
 )"
 if [ -z "$agentKey" ]; then
   echo "the record issued no agent key" >&2
