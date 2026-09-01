@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Brings up what a company plane needs to be tested against, then runs the
+# scenarios. Everything here is shared and warm — the local record, the app, the
+# binaries — and none of it is per-run, so a second run costs seconds.
+#
+# Per-run state lives in web/tests/plane, which creates its own company, its own
+# ports and its own run directory, and removes exactly those on the way out.
+set -euo pipefail
+
+repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
+binaryDirectory="$repositoryRoot/.local/company-plane/bin"
+cd "$repositoryRoot"
+
+say() { printf '[plane] %s\n' "$1"; }
+
+say "the local record"
+if ! supabase status >/dev/null 2>&1; then
+  supabase start >/dev/null
+fi
+eval "$(supabase status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY|DB_URL)=')"
+
+# start-local-fleet-central-plane already knows how to bring the record and the
+# app up together — the app has to be told which record it serves, and an app
+# started by hand reads whatever web/.env points at and answers 500 to everything
+# the plane asks it.
+say "the company app"
+appPort="${COMPANY_PLANE_APP_PORT:-5183}"
+# The app emulates its KV in SQLite under web/.wrangler, and a run that was
+# interrupted leaves a journal the next one cannot recover: every concurrent
+# call then answers 500 with SQLITE_BUSY_RECOVERY, which reaches the plane as a
+# company that will not say who works there. The emulator's cache is not state
+# any gate should inherit, so each run starts without one.
+rm -rf "$repositoryRoot/web/.wrangler/state"
+"$repositoryRoot/tools/start-local-fleet-central-plane" \
+  --state-root "$repositoryRoot/.local/company-plane" \
+  --app-port "$appPort" >/dev/null
+appURL="http://127.0.0.1:${appPort}"
+say "the app answers at ${appURL}"
+
+say "the binaries"
+mkdir -p "$binaryDirectory"
+GOCACHE="${GO_CACHE:-/tmp/internkim-go-cache-$(go env GOOS)-$(go env GOARCH)}" \
+GOMODCACHE="${GO_MOD_CACHE:-/tmp/internkim-go-mod-cache-$(go env GOOS)-$(go env GOARCH)}" \
+  go build -o "$binaryDirectory/internkim-capabilityd" ./cmd/internkim-capabilityd
+GOCACHE="${GO_CACHE:-/tmp/internkim-go-cache-$(go env GOOS)-$(go env GOARCH)}" \
+GOMODCACHE="${GO_MOD_CACHE:-/tmp/internkim-go-mod-cache-$(go env GOOS)-$(go env GOARCH)}" \
+  go build -o "$binaryDirectory/internkim-admind" ./cmd/internkim-admind
+(
+  cd .dependency/blueclaw
+  GOCACHE="${GO_CACHE:-/tmp/internkim-go-cache-$(go env GOOS)-$(go env GOARCH)}" \
+  GOMODCACHE="${GO_MOD_CACHE:-/tmp/internkim-go-mod-cache-$(go env GOOS)-$(go env GOARCH)}" \
+    go build -o "$binaryDirectory/blueclaw" ./cmd/blueclaw
+)
+
+say "the scenarios"
+cd web
+exec env \
+  SUPABASE_URL="$API_URL" \
+  SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+  SUPABASE_SECRET_KEY="$SECRET_KEY" \
+  INTERNKIM_APP_URL="$appURL" \
+  COMPANY_PLANE_BIN="$binaryDirectory" \
+  COMPANY_PLANE_DB_URL="$DB_URL" \
+  COMPANY_PLANE_ROOT="$repositoryRoot" \
+  bun test tests/plane "$@"

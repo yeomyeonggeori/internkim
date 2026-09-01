@@ -12,6 +12,7 @@ blueclawAddress="127.0.0.1:8080"
 chatdPort="${CHATD_LISTEN_PORT:-18090}"
 arrivalsPort="${ARRIVALS_PORT:-18091}"
 maildPort="${MAILD_PORT:-18092}"
+admindPort="${ADMIND_PORT:-18080}"
 agentKeyPath="/secrets/agent-key"
 
 : "${SUPABASE_URL:?set SUPABASE_URL}"
@@ -23,6 +24,7 @@ agentKeyPath="/secrets/agent-key"
 [ -r "${agentKeyPath}" ] || { echo "[host] no agent key at ${agentKeyPath}" >&2; exit 1; }
 
 capabilitydPid=""
+admindPid=""
 blueclawPid=""
 chatdPid=""
 maildPid=""
@@ -31,10 +33,10 @@ relayPid=""
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   exit "${exitCode}"
@@ -57,21 +59,21 @@ keepRelayRunning() {
 keepRelayRunning &
 relayPid="$!"
 
-# runtime.template.json is the runtime document with the two values only this
-# box knows left as holes. A configuration mounted at /etc/blueclaw wins, so a
-# company that outgrows the template keeps its own.
+# runtime.template.json is the runtime document with the values only this box
+# knows left as holes. A configuration mounted at /etc/blueclaw wins, so a
+# company that outgrows the template keeps its own. The render itself is
+# render-company-runtime, which the sandbox runs too — a sandbox that writes its
+# own document proves nothing about the one a company runs on.
 runtimeConfigurationPath="/etc/blueclaw/runtime.json"
 if [ ! -r "${runtimeConfigurationPath}" ]; then
   runtimeConfigurationPath="/run/internkim/runtime.json"
-  sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
-      -e "s|\${MESSENGER_PLATFORM}|${MESSENGER_PLATFORM}|g" \
-      /opt/internkim/runtime.template.json > /run/internkim/runtime.rendered.json
-  # The capabilities block is whatever the installed capabilityd speaks. The
-  # agent refuses a document naming a different protocol, so it is read from the
-  # binary rather than kept in the template, where it would age out of step.
-  internkim-capabilityd --print-capabilities --socket "${capabilitySocketPath}" > /run/internkim/capabilities.json
-  jq -s '.[0] * {capabilities: .[1]}' \
-      /run/internkim/runtime.rendered.json /run/internkim/capabilities.json > "${runtimeConfigurationPath}"
+  CAPABILITY_SOCKET_PATH="${capabilitySocketPath}" \
+  BLUECLAW_BASE_URL="http://${blueclawAddress}" \
+  CHATD_ENDPOINT="http://127.0.0.1:${chatdPort}" \
+    render-company-runtime \
+      --template /opt/internkim/runtime.template.json \
+      --out "${runtimeConfigurationPath}" \
+      --work /run/internkim
   echo "[host] wrote ${runtimeConfigurationPath} from the template and capabilityd's contract"
 fi
 
@@ -85,12 +87,19 @@ fi
 echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done
 
+# capabilityd chooses the messenger a message leaves on from these two flags and
+# nothing else: without them chatdServesTheMessenger() is false and every message
+# tool takes the Mattermost branch to a Mattermost this box does not run — and
+# answers "sent".
 echo "[host] starting capabilityd"
 internkim-capabilityd \
   --socket "${capabilitySocketPath}" \
   --openrouter-key /secrets/openrouter-key \
   --local-inference-mode remote \
-  --blueclaw-url "http://${blueclawAddress}" &
+  --blueclaw-url "http://${blueclawAddress}" \
+  --admind-url "http://127.0.0.1:${admindPort}" \
+  --chatd-endpoint "http://127.0.0.1:${chatdPort}" \
+  --chatd-platform "${MESSENGER_PLATFORM}" &
 capabilitydPid="$!"
 
 while [ ! -S "${capabilitySocketPath}" ]; do
@@ -104,6 +113,33 @@ blueclawPid="$!"
 
 until nc -z 127.0.0.1 8080 >/dev/null 2>&1; do
   kill -0 "${blueclawPid}" 2>/dev/null || { wait "${blueclawPid}"; exit 1; }
+  sleep 1
+done
+
+# The relay routes every workspace call — a person's memory, files, tasks and
+# buzz claim — to admind. Without it those answer 500, and a direct message
+# cannot go out under the name of the person who asked for it, because the seed
+# that signs as them lives here.
+#
+# It comes after blueclaw because it reconciles the company's roster onto it as
+# it starts, and a reconcile against a blueclaw that is not up yet waits two
+# minutes for the next one — two minutes in which nobody the company knows can
+# be resolved.
+echo "[host] starting admind"
+internkim-admind \
+  -listen "127.0.0.1:${admindPort}" \
+  -capability-socket "${capabilitySocketPath}" \
+  -chatd-endpoint "http://127.0.0.1:${chatdPort}" \
+  -chatd-platform "${MESSENGER_PLATFORM}" \
+  -blueclaw-url "http://${blueclawAddress}" \
+  -central-plane-app-url "${INTERNKIM_APP_URL}" \
+  -central-plane-agent-key "${agentKeyPath}" \
+  -central-plane-project-url "${SUPABASE_URL}" \
+  -central-plane-publishable-key "${SUPABASE_PUBLISHABLE_KEY}" &
+admindPid="$!"
+
+until nc -z 127.0.0.1 "${admindPort}" >/dev/null 2>&1; do
+  kill -0 "${admindPid}" 2>/dev/null || { wait "${admindPid}"; exit 1; }
   sleep 1
 done
 

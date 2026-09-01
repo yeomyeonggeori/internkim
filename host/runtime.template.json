@@ -1,20 +1,20 @@
 {
-  "baseURL": "http://127.0.0.1:8080",
+  "baseURL": "${BLUECLAW_BASE_URL}",
   "languageModel": {
     "defaultProvider": "direct",
     "direct": {
       "endpoint": "https://openrouter.ai/api/v1",
-      "apiKeyPath": "/secrets/openrouter-key"
+      "apiKeyPath": "${OPENROUTER_KEY_PATH}"
     }
   },
   "capabilities": {
-    "unixSocketPath": "/run/internkim/capability.sock",
+    "unixSocketPath": "${CAPABILITY_SOCKET_PATH}",
     "timeoutSecond": 30
   },
   "database": {
     "driver": "postgres",
     "connectionString": "${DATABASE_URL}",
-    "migrationDirectoryPath": "/opt/blueclaw/migrations"
+    "migrationDirectoryPath": "${MIGRATION_DIRECTORY_PATH}"
   },
   "agent": {
     "intake": { "enabled": true, "executionMode": "remote" },
@@ -22,15 +22,15 @@
   },
   "connectors": {
     "chatd": {
-      "endpoint": "http://127.0.0.1:18090",
+      "endpoint": "${CHATD_ENDPOINT}",
       "enabledPlatforms": ["${MESSENGER_PLATFORM}"],
       "timeoutSecond": 30
     }
   },
-  "logging": { "directoryPath": "/var/log/internkim", "retentionDays": 7 },
+  "logging": { "directoryPath": "${LOG_DIRECTORY_PATH}", "retentionDays": 7 },
   "terminal": {
     "mode": "native",
-    "workspaceRootPath": "/workspace",
+    "workspaceRootPath": "${WORKSPACE_ROOT_PATH}",
     "timeoutSecond": 120,
     "outputMaxBytes": 32768,
     "sessionMaxCount": 4,
