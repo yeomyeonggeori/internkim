@@ -43,7 +43,7 @@ func (client *Client) Notify(ctx context.Context, notification Notification) (No
 	}
 
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost,
-		strings.TrimSuffix(client.settings.AppURL, "/")+"/api/agent/notify", bytes.NewReader(payload))
+		strings.TrimSuffix(client.settings.ProjectURL, "/")+"/functions/v1/notify", bytes.NewReader(payload))
 	if errorValue != nil {
 		return NotifyResult{}, errorValue
 	}
