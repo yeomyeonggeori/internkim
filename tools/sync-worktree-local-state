@@ -77,6 +77,14 @@ syncRootMatches() {
   done
 }
 
+checkOutSubmodules() {
+  if ! git -C "$repositoryRoot" submodule update --init --recursive >/dev/null 2>&1; then
+    echo "skipped submodules (git submodule update failed)"
+    return
+  fi
+  echo "checked out submodules"
+}
+
 syncSharedDependencyArtifacts() {
   syncLocalState ".dependency/blueclaw-runtime"
   syncLocalState ".dependency/container-kernel"
@@ -119,3 +127,4 @@ syncRootMatches "*.token.enc"
 syncRootMatches "*.key"
 syncRootMatches "client_secret_*.apps.googleusercontent.com.json"
 syncSharedDependencyArtifacts
+checkOutSubmodules
