@@ -1,4 +1,4 @@
-//   bun run web/scripts/check-notification-delivery.ts --url http://127.0.0.1:54321 --key <service role> --app http://127.0.0.1:5173
+//   bun run web/scripts/check-notification-delivery.ts --url http://127.0.0.1:54321 --key <service role>
 
 import { createClient } from '@supabase/supabase-js';
 import { issueAgentKey, provisionCompany } from '../src/lib/server/control-plane';
@@ -11,7 +11,6 @@ function argument(name: string): string | undefined {
 
 const projectURL = argument('url') ?? process.env.SUPABASE_URL ?? '';
 const serviceRoleKey = argument('key') ?? process.env.SUPABASE_SECRET_KEY ?? '';
-const appURL = argument('app') ?? 'http://127.0.0.1:5173';
 if (!projectURL || !serviceRoleKey) throw new Error('pass --url and --key');
 
 const admin = createClient(projectURL, serviceRoleKey, {
@@ -40,7 +39,7 @@ async function aPushServiceThatRecords(status: number): Promise<{
 }
 
 async function notify(agentKey: string, body: Record<string, unknown>): Promise<Response> {
-	return fetch(`${appURL}/api/agent/notify`, {
+	return fetch(`${projectURL.replace(/\/+$/, '')}/functions/v1/notify`, {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${agentKey}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify(body)
