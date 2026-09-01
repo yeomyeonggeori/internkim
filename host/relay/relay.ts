@@ -234,7 +234,7 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 
 async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	if (arrived.recipientExternalIDs.length === 0) return 0;
-	const spoken = await askTheRecord<{ told?: number }>('POST', '/api/agent/notify', {
+	const spoken = await askTheProject<{ told?: number }>('notify', {
 		platform: messengerPlatform,
 		externalIDs: arrived.recipientExternalIDs,
 		category: 'message',
@@ -308,6 +308,16 @@ async function askTheRecord<Value>(method: string, path: string, body?: unknown)
 		body: body === undefined ? undefined : JSON.stringify(body)
 	});
 	if (!response.ok) throw new Error(`the central plane answered ${response.status} for ${path}`);
+	return (await response.json()) as Value;
+}
+
+async function askTheProject<Value>(functionName: string, body: unknown): Promise<Value> {
+	const response = await fetch(`${projectURL.replace(/\/+$/, '')}/functions/v1/${functionName}`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${agentKey}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify(body)
+	});
+	if (!response.ok) throw new Error(`the project answered ${response.status} for ${functionName}`);
 	return (await response.json()) as Value;
 }
 
