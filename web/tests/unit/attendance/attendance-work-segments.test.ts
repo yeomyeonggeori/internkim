@@ -184,6 +184,58 @@ describe('attendance work segments', () => {
 		expect(computeDayEvents('2026-06-01', events, options).segments).toEqual([]);
 	});
 
+	test('shows nothing for a shift that was closed days after it began', () => {
+		const events = [
+			attendanceEvent('trip-in', 'clock_in', '2026-06-01T09:00:00+09:00', '09:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('trip-out', 'clock_out', '2026-06-04T18:00:00+09:00', '18:00:00', 'office', '사무실', {
+				localDate: '2026-06-04',
+			}),
+		];
+
+		const options = { currentDate: '2026-06-10', now: new Date('2026-06-10T09:00:00+09:00') };
+
+		for (const date of ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04']) {
+			expect(computeDayEvents(date, events, options).segments).toEqual([]);
+		}
+	});
+
+	test('shows a long night that was closed inside the day it may last', () => {
+		const events = [
+			attendanceEvent('night-in', 'clock_in', '2026-06-01T14:00:00+09:00', '14:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('night-out', 'clock_out', '2026-06-02T08:00:00+09:00', '08:00:00', 'office', '사무실', {
+				localDate: '2026-06-02',
+			}),
+		];
+
+		const options = { currentDate: '2026-06-10', now: new Date('2026-06-10T09:00:00+09:00') };
+
+		expect(computeDayEvents('2026-06-01', events, options).workedMinutes).toBe(600);
+		expect(computeDayEvents('2026-06-02', events, options).workedMinutes).toBe(480);
+	});
+
+	test('shows nothing for a shift the next clock in closed days later', () => {
+		const events = [
+			attendanceEvent('forgotten-in', 'clock_in', '2026-06-01T09:00:00+09:00', '09:00:00', 'office', '사무실', {
+				localDate: '2026-06-01',
+			}),
+			attendanceEvent('back-in', 'clock_in', '2026-06-05T09:00:00+09:00', '09:00:00', 'home', '재택', {
+				localDate: '2026-06-05',
+			}),
+			attendanceEvent('back-out', 'clock_out', '2026-06-05T18:00:00+09:00', '18:00:00', 'home', '재택', {
+				localDate: '2026-06-05',
+			}),
+		];
+
+		const options = { currentDate: '2026-06-10', now: new Date('2026-06-10T09:00:00+09:00') };
+
+		expect(computeDayEvents('2026-06-02', events, options).segments).toEqual([]);
+		expect(computeDayEvents('2026-06-05', events, options).workedMinutes).toBe(540);
+	});
+
 	test('stops showing the shift the moment it outlives its day', () => {
 		const events = [
 			attendanceEvent('long-in', 'clock_in', '2026-06-01T09:00:00+09:00', '09:00:00', 'office', '사무실', {
