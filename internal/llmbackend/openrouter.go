@@ -68,6 +68,17 @@ func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request
 	if promptedError == nil {
 		return promptedResponse, nil
 	}
+	// A model that answers with nothing has not refused the schema, it has
+	// dropped the turn: the same request succeeds on the next attempt. Giving up
+	// here hands the turn to whatever stands next in the chain, which on a device
+	// is a model small enough to invent its answer.
+	if isEmptyStructuredContentError(errorValue) && isEmptyStructuredContentError(promptedError) {
+		retriedResponse, retryError := backend.completeJSONSchema(ctx, apiKey, request, modelName)
+		if retryError == nil {
+			log.Printf("structured completion recovered after an empty answer: model=%s schemaName=%s", modelName, request.StructuredOutputSchema.Name)
+			return retriedResponse, nil
+		}
+	}
 	return Response{}, errors.New("json schema completion failed: " + errorValue.Error() + "; prompted json fallback failed: " + promptedError.Error())
 }
 
@@ -463,10 +474,16 @@ func normalizeStructuredJSONContent(content string) string {
 	return content
 }
 
+const emptyStructuredContentMessage = "structured response content was empty"
+
+func isEmptyStructuredContentError(errorValue error) bool {
+	return errorValue != nil && strings.Contains(errorValue.Error(), emptyStructuredContentMessage)
+}
+
 func validateStructuredJSONContent(content string) error {
 	trimmedContent := strings.TrimSpace(content)
 	if trimmedContent == "" {
-		return errors.New("structured response content was empty")
+		return errors.New(emptyStructuredContentMessage)
 	}
 	if !json.Valid([]byte(trimmedContent)) {
 		return errors.New("structured response content was not valid json")
