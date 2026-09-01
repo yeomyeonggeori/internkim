@@ -107,6 +107,12 @@ type Response struct {
 	SelectedBackend string `json:"selectedBackend"`
 	ConstraintMode  string `json:"constraintMode,omitempty"`
 	Usage           Usage  `json:"usage"`
+	// A provider further down the chain answered because the ones before it
+	// failed. The caller asked for a model tier and got whatever was left, so
+	// the answer travels with the reason rather than passing for the one asked
+	// for.
+	UsedFallback   bool   `json:"usedFallback,omitempty"`
+	FallbackReason string `json:"fallbackReason,omitempty"`
 }
 
 type ChatResponse struct {
@@ -238,6 +244,10 @@ func completeWithProviderChain(providers []Provider, requestTrace string, comple
 		}
 		response, errorValue := complete(candidate)
 		if errorValue == nil {
+			if len(attempts) > 0 {
+				response.UsedFallback = true
+				response.FallbackReason = strings.Join(attempts, "; ")
+			}
 			return response, nil
 		}
 		attempts = append(attempts, providerFailure(candidate, errorValue))
