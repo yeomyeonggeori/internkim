@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { centralTaskStatusOptions } from '../../../src/lib/task/central-task';
-import { whoTaskMoveConcerns as webWhoItConcerns } from '../../../src/lib/server/announce-task';
 import { centralTaskStatuses } from '../../../../supabase/functions/_shared/central-task-status.ts';
-import { whoTaskMoveConcerns as sharedWhoItConcerns } from '../../../../supabase/functions/_shared/announce-task.ts';
+import { whoTaskMoveConcerns } from '../../../../supabase/functions/_shared/announce-task.ts';
 
 const task = {
 	id: 'task-one',
@@ -18,30 +17,27 @@ describe('the shared task status copy stays interchangeable with the web one', (
 	});
 });
 
-describe('the shared task announcement copy tells the same people', () => {
-	test('both leave the mover out and count everyone else once', () => {
-		expect(sharedWhoItConcerns(task, 'member-two')).toEqual(webWhoItConcerns(task, 'member-two'));
-		expect(webWhoItConcerns(task, 'member-two')).toEqual(['member-one', 'member-three']);
+describe('a task move concerns everyone but whoever moved it', () => {
+	test('the mover is left out and everyone else is counted once', () => {
+		expect(whoTaskMoveConcerns(task, 'member-two')).toEqual(['member-one', 'member-three']);
 	});
 
-	test('both keep a requester nobody participates as', () => {
-		const alone = { ...task, task_participant: [] };
-
-		expect(sharedWhoItConcerns(alone, 'member-two')).toEqual(webWhoItConcerns(alone, 'member-two'));
-		expect(webWhoItConcerns(alone, 'member-two')).toEqual(['member-one']);
+	test('a requester nobody participates as is still told', () => {
+		expect(whoTaskMoveConcerns({ ...task, task_participant: [] }, 'member-two')).toEqual([
+			'member-one'
+		]);
 	});
 
-	test('both tell nobody when the mover is the only one it concerns', () => {
+	test('nobody is told when the mover is the only one it concerns', () => {
 		const own = { ...task, requester_id: 'member-one', task_participant: [{ member_id: 'member-one' }] };
 
-		expect(sharedWhoItConcerns(own, 'member-one')).toEqual(webWhoItConcerns(own, 'member-one'));
-		expect(webWhoItConcerns(own, 'member-one')).toEqual([]);
+		expect(whoTaskMoveConcerns(own, 'member-one')).toEqual([]);
 	});
 
-	test('both accept a task with no requester', () => {
-		const unowned = { ...task, requester_id: null };
-
-		expect(sharedWhoItConcerns(unowned, 'member-three')).toEqual(webWhoItConcerns(unowned, 'member-three'));
-		expect(webWhoItConcerns(unowned, 'member-three')).toEqual(['member-two', 'member-one']);
+	test('a task with no requester tells its participants', () => {
+		expect(whoTaskMoveConcerns({ ...task, requester_id: null }, 'member-three')).toEqual([
+			'member-two',
+			'member-one'
+		]);
 	});
 });

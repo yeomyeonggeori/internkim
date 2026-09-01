@@ -1,4 +1,4 @@
-//   bun run web/scripts/check-notification-config.ts --url https://<project>.supabase.co --app https://<company host>
+//   bun run web/scripts/check-notification-config.ts --url https://<project>.supabase.co
 
 import { createClient } from '@supabase/supabase-js';
 import { issueAgentKey, revokeAgent } from '../src/lib/server/control-plane';
@@ -10,8 +10,8 @@ function argument(name: string): string | undefined {
 
 const projectURL = argument('url') ?? process.env.SUPABASE_URL ?? '';
 const serviceRoleKey = argument('key') ?? process.env.SUPABASE_SECRET_KEY ?? '';
-const appURL = (argument('app') ?? '').replace(/\/$/, '');
-if (!projectURL || !serviceRoleKey || !appURL) throw new Error('pass --url, --key and --app');
+const notifyURL = `${projectURL.replace(/\/+$/, '')}/functions/v1/notify`;
+if (!projectURL || !serviceRoleKey) throw new Error('pass --url and --key');
 
 const admin = createClient(projectURL, serviceRoleKey, {
 	auth: { autoRefreshToken: false, persistSession: false }
@@ -25,7 +25,7 @@ if (!company) throw new Error('the record holds no company to ask about');
 const agent = await issueAgentKey(admin, company.id, `notify-config-${crypto.randomUUID().slice(0, 8)}`);
 let failed = false;
 try {
-	const response = await fetch(`${appURL}/api/agent/notify`, {
+	const response = await fetch(notifyURL, {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${agent.apiKey}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify({})
@@ -33,7 +33,7 @@ try {
 	const said = await response.text();
 
 	const reachedTheRequest = response.status === 400;
-	console.log(`${response.status === 503 ? 'FAIL' : 'ok  '} ${appURL} holds the keys a push needs`);
+	console.log(`${response.status === 503 ? 'FAIL' : 'ok  '} ${projectURL} holds the keys a push needs`);
 	console.log(`${reachedTheRequest ? 'ok  ' : 'FAIL'} and got far enough to judge the request itself`);
 	console.log(`answered ${response.status}: ${said.slice(0, 160)}`);
 	failed = !reachedTheRequest;
