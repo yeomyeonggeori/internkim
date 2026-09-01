@@ -1,6 +1,6 @@
 # A refusal becomes a request
 
-Status: **Proposed** · Owner: TBD · Last updated: 2026-09-01
+Status: **Built** · Owner: TBD · Last updated: 2026-09-01
 
 Nobody can add a clock-out they forgot to press. Nobody can change a record
 older than an hour. An administrator cannot do either of those things on
@@ -18,7 +18,7 @@ instead of rebuilding.
 | `update` on the table is revoked from everyone; `attendance_correct(corrections, reason)` is the only way in | `20260818055747:176`, `:1-174` |
 | A member may correct their own event for 60 minutes; an administrator has no window | `attendance_correction_window_minutes()`, `20260818030000:1-9` |
 | There is no delete policy, no cancellation column, no correction history beyond one prior value | searched; absent |
-| `resolve_attendance()` validates an insert against the latest event, not against the neighbours of its own timestamp | `core_schema.sql:124-153` |
+| `resolve_attendance()` finds the event before the one being inserted, and never looks at the one after it | `core_schema.sql:124-153` |
 | Administrator means `member.is_admin`, one boolean, flat across the company | `core_schema.sql:36`, `is_company_admin()` `:244` |
 | The tool catalog has 30 tools and none of them is attendance | `pkg/capabilityprotocol/generated/capability-tools.json` |
 | 13 tools run against the record inside the web app; the rest travel to the machine | `web/src/lib/server/public-api/record/index.ts:14` |
@@ -82,7 +82,7 @@ create type public.approval_kind as enum (
   'attendance_add', 'attendance_edit', 'attendance_remove');
 
 create type public.approval_status as enum (
-  'pending', 'approved', 'rejected', 'withdrawn', 'expired');
+  'pending', 'approved', 'rejected', 'withdrawn');
 
 create table public.approval (
   id            uuid primary key default gen_random_uuid(),
@@ -90,7 +90,6 @@ create table public.approval (
   kind          public.approval_kind not null,
   payload       jsonb not null,
   reason        text not null check (btrim(reason) <> ''),
-  summary       text not null check (btrim(summary) <> ''),
   status        public.approval_status not null default 'pending',
   decided_by    uuid references public.member,
   decided_at    timestamptz,
@@ -104,9 +103,12 @@ create table public.approval (
 
 `member_id` is who asked. The company comes from that member, the way every
 other policy in the schema derives it. `payload` is the exact call that will
-run. It is validated at the moment it is stored. `summary` is
-the one line a human reads in a messenger, written at open time so that a
-request raised from the web app reads the same as one raised by an agent.
+run. It is validated at the moment it is stored.
+
+The row carries no human sentence. `kind` and `payload` are the facts, and
+whoever shows the request writes the words: the agent in a messenger, the web
+app on a screen. Building Korean strings inside a `security definer` function
+would put the product's language in the schema.
 
 `applied_at` earns its column: without it, a row can say `approved` while
 nothing happened, and no query can tell the difference. It is set in the same
@@ -120,7 +122,7 @@ leave module keeps in SQLite has nothing here to record.
 
 | Function | Who may call | What it does |
 |---|---|---|
-| `approval_open(kind, payload, reason, summary)` | internal, `security definer` | Validates `payload` for its kind, inserts `pending`. Never called by a client; only a gated write calls it |
+| `approval_open(asker, kind, payload, reason)` | internal, `security definer` | Inserts `pending`. Never called by a client; only a gated write calls it |
 | `approval_pending()` | `authenticated` | Rows the caller may decide. For an administrator, every pending row in the company; for anybody else, their own, read-only |
 | `approval_decide(id, decision, note)` | `authenticated` | `is_company_admin()` and same company. Compare-and-set on `status = 'pending'`, stamp `decided_by/at/note`, and on approval run the payload and stamp `applied_at` |
 | `approval_withdraw(id)` | `authenticated` | The asker cancels their own pending request |
@@ -149,7 +151,7 @@ the harness gates before it runs. Neither is a delivery channel for the system.
 So the reusable half of this work is a delivery module, not an approval module.
 
 ```
-tell(memberID, category, { title, body, threadKey })
+tell(environment, { memberID, category, title, body }) -> { pushed, messaged, failure? }
 ```
 
 Two channels, both from one call:
@@ -165,9 +167,10 @@ Two channels, both from one call:
 
 The op is deliberately not `message_send`. A notification is not a model
 decision, so it does not pass a tool descriptor, does not consume an approval
-gate, and cannot be steered by a prompt. `threadKey` makes delivery idempotent:
-the same approval never produces two direct messages, however many times the
-sweeper retries.
+gate, and cannot be steered by a prompt. There is no delivery store and no
+retry: the contract is that a caller tells once, and what happened on each
+channel comes back so the caller can pass a failure to a person rather than
+hiding it.
 
 Three known holes close the moment this exists:
 
@@ -212,15 +215,15 @@ insert against the member's latest event: a clock-out needs an open clock-in, a
 second clock-in at the same location is refused. Backdating breaks that
 premise, because the event being inserted has neighbours on both sides.
 
-The fix is to make the check local to the timestamp:
-validate the inserted or corrected event against the event immediately before
-and immediately after it. The statement-level ordering trigger added in
-`20260818050137` already does exactly this shape of reasoning for updates, so
-the work is to generalise one function and fire it for inserts too, then delete
-the tail-based branch.
+The trigger already finds the event before the one being inserted, because it
+searches for the newest event at or before the new timestamp. What it never
+had was the event after. Adding that, and skipping removed rows on both sides,
+is the whole change: a clock-out refuses a clock-out on either side of it, and
+a clock-in refuses a clock-in at the same location on either side, which keeps
+a move between sites legal in both directions.
 
-Doing this only for backdated inserts and leaving the live path alone would
-create two state machines that disagree. It is one function or it is a bug.
+The rule is one function for live and backdated writes alike. Two state
+machines that disagree about the same history is the bug this avoids.
 
 ### Four tools
 
@@ -233,6 +236,11 @@ learned:
 | `attendance_add` | `workspace_write` |
 | `attendance_update` | `workspace_write` |
 | `attendance_delete` | `destructive` |
+
+None of the three writes declares a recorded effect. Their `eventID` is null
+whenever the write becomes a request, and an effect identity has to be a
+required string, so declaring one would be a claim about a field that really
+does come back empty. `approval_decide` carries the effect instead.
 
 `attendance_update` and `attendance_delete` take an `eventHint`, resolved the
 way every other hint is: an exact id, else an exact or uniquely partial match
