@@ -60,7 +60,7 @@ export async function saveFleetUserRecord(
 	record: FleetUserRecord
 ): Promise<FleetUserRecord[]> {
 	const held = await memberByEmail(directory, record.email);
-	const messenger = messengerOf(held?.messenger ?? null, record);
+	const messenger = messengerOf(held?.messenger ?? null);
 	const row = {
 		company_id: directory.companyID,
 		email: record.email,
@@ -126,25 +126,22 @@ function recordOf(member: MemberRow, circles: string[]): FleetUserRecord {
 	const name = member.name?.trim() ?? '';
 	return {
 		memberID: member.id,
-		handle: messenger.mattermostUsername || handleFromEmail(email),
+		handle: handleFromEmail(email),
 		...(name ? { name } : {}),
 		email,
 		...(member.note ? { note: member.note } : {}),
 		role: (member.is_admin ? 'admin' : 'member') as UserRole,
-		...(messenger.mattermost ? { mattermostUserID: messenger.mattermost } : {}),
-		...(messenger.mattermostUsername ? { mattermostUsername: messenger.mattermostUsername } : {}),
 		...(circles.length > 0 ? { circles } : {}),
 		status: member.status,
 		isIncomplete: !name
 	};
 }
 
-function messengerOf(held: Record<string, string> | null, record: FleetUserRecord): Record<string, string> {
-	const messenger = { ...(held ?? {}) };
-	if (record.mattermostUserID) messenger.mattermost = record.mattermostUserID;
-	const username = record.mattermostUsername || record.handle;
-	if (username) messenger.mattermostUsername = username;
-	return messenger;
+// A handle is the company's own, derived from the address, so nothing writes
+// it into the map of messenger accounts. What a person already has there is
+// carried forward untouched: those are their accounts, not this app's to edit.
+function messengerOf(held: Record<string, string> | null): Record<string, string> {
+	return { ...(held ?? {}) };
 }
 
 function handleFromEmail(email: string): string {
