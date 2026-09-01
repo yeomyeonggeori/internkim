@@ -983,10 +983,46 @@ func carryTheRestOfTheDevice(repositoryRootPath string, channel string, componen
 	if errorValue != nil || len(published) == 0 {
 		return nil
 	}
+	if errorValue := refuseToSplitTheProtocol(components, published); errorValue != nil {
+		return errorValue
+	}
 	treeRevision := gitRevision(repositoryRootPath)
 	return carryComponentsForward(components, published, func(name string) string {
 		return releaseComponentRevision(name, repositoryRootPath, treeRevision)
 	})
+}
+
+// The capability host and the guest agent check each other's protocol identity
+// before either takes work, and refuse when the hashes differ. Replacing one
+// and carrying the other forward is not a partial deploy: it is an agent that
+// answers HTTP, reports healthy, and turns no message into a task.
+//
+// The drift check cannot see this one. A tree with no built payload artifact
+// says it has no opinion about the payload, which is honest and is exactly when
+// this happens — the payload is carried forward silently while capabilityd is
+// replaced.
+var componentsThatSpeakOneProtocol = []string{"blueclawPayload", "capabilityd"}
+
+func refuseToSplitTheProtocol(rebuilt map[string]releaseset.Component, published map[string]releaseset.Component) error {
+	replaced, carried := []string{}, []string{}
+	for _, name := range componentsThatSpeakOneProtocol {
+		if _, isRebuilt := rebuilt[name]; isRebuilt {
+			replaced = append(replaced, name)
+			continue
+		}
+		if _, wasPublished := published[name]; wasPublished {
+			carried = append(carried, name)
+		}
+	}
+	if len(replaced) == 0 || len(carried) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"this release replaces %s and keeps %s, and they refuse each other's work when their protocol identity differs:\n"+
+			"  name %s in --components as well\n"+
+			"  run `make prepare-blueclaw-payload` first, or the release ships the payload artifact it already has\n"+
+			"  if the deploy then says the guest still stamps the old hash, run `./internkim setup --only blueclaw-config` and deploy again",
+		strings.Join(replaced, ", "), strings.Join(carried, ", "), strings.Join(carried, ", "))
 }
 
 func describeComponentDrift(name string, carried string, expected string) string {
