@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -123,4 +124,43 @@ func withDiscardedUsersCommandOutput(t *testing.T) {
 	t.Cleanup(func() {
 		usersCommandOutput = previousOutput
 	})
+}
+
+func TestUsersRemoveWithoutPurgeAsksTheDirectoryToWithdraw(t *testing.T) {
+	withDiscardedUsersCommandOutput(t)
+	client := &fakeUsersAdminAPIClient{}
+
+	if errorValue := runUsersArgumentsWithClient([]string{"remove", "person@example.com"}, client); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(client.requests) != 1 || client.requests[0].path != "/users/person@example.com" {
+		t.Fatalf("requests = %+v", client.requests)
+	}
+}
+
+func TestUsersRemovePurgeAsksTheDirectoryToRemoveTheRow(t *testing.T) {
+	withDiscardedUsersCommandOutput(t)
+	client := &fakeUsersAdminAPIClient{response: commandUsersResponse{WasRemoved: true}}
+
+	if errorValue := runUsersArgumentsWithClient([]string{"remove", "person@example.com", "--purge"}, client); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(client.requests) != 1 || client.requests[0].path != "/users/person@example.com?purge=true" {
+		t.Fatalf("requests = %+v", client.requests)
+	}
+}
+
+func TestUsersRemovePurgeSaysSoWhenARecordKeepsTheRow(t *testing.T) {
+	previousOutput := usersCommandOutput
+	said := &strings.Builder{}
+	usersCommandOutput = said
+	t.Cleanup(func() { usersCommandOutput = previousOutput })
+	client := &fakeUsersAdminAPIClient{response: commandUsersResponse{WasRemoved: false}}
+
+	if errorValue := runUsersArgumentsWithClient([]string{"remove", "person@example.com", "--purge"}, client); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(said.String(), "Withdrew user") {
+		t.Fatalf("said = %q", said.String())
+	}
 }
