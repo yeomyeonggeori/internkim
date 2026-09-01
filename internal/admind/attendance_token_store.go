@@ -9,25 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
-
-func (service *Service) ensureMattermostUserAccessToken(ctx context.Context, adminToken string, userID string) (string, error) {
-	records := service.readMattermostUserTokenRecords()
-	if token := strings.TrimSpace(records[userID].Token); token != "" && service.isValidMattermostUserToken(ctx, token, userID) {
-		return token, nil
-	}
-	token, errorValue := service.createMattermostUserAccessToken(ctx, adminToken, userID)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	records[userID] = attendanceUserTokenRecord{
-		UserID:    userID,
-		Token:     token,
-		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
-	}
-	return token, service.writeMattermostUserTokenRecords(records)
-}
 
 func (service *Service) createMattermostUserAccessToken(ctx context.Context, adminToken string, userID string) (string, error) {
 	var response mattermostTokenResponse

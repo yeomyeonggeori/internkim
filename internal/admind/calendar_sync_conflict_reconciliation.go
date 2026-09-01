@@ -70,7 +70,7 @@ func (service *Service) reconcileCalendarLocalDeletionAgainstRemoteObject(ctx co
 	return nil
 }
 
-func (service *Service) reconcilePulledRemoteEventWithPendingLocalDeleteLocked(ctx context.Context, account remoteCalendarAccount, localEvent calendarEvent, remoteEvent calendarEvent, deferredProjections *calendarPullDeferredProjectionQueue) error {
+func (service *Service) reconcilePulledRemoteEventWithPendingLocalDeleteLocked(ctx context.Context, account remoteCalendarAccount, localEvent calendarEvent, remoteEvent calendarEvent) error {
 	targetCalendarURL := activeRemoteCalendarTarget(account).CalendarURL
 	projection, found, errorValue := service.readCalendarEventProjectionByID(ctx, localEvent.ID)
 	if errorValue != nil || !found {
@@ -83,7 +83,7 @@ func (service *Service) reconcilePulledRemoteEventWithPendingLocalDeleteLocked(c
 	}
 	remoteEvent = restoreCalendarRemoteEventFromProjection(remoteEvent, projection.Event)
 	remoteWinningFields := excludeCalendarFields(calendarAllUserEditableFields(), []string{calendarFieldParticipants})
-	return service.writePulledCalendarEventAndDeleteOutboxLocked(ctx, account.ID, targetCalendarURL, remoteEvent, remoteWinningFields, deferredProjections)
+	return service.writePulledCalendarEventAndDeleteOutboxLocked(ctx, account.ID, targetCalendarURL, remoteEvent, remoteWinningFields)
 }
 
 func restoreCalendarRemoteEventFromProjection(remoteEvent calendarEvent, projectionEvent calendarEvent) calendarEvent {

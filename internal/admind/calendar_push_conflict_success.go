@@ -32,9 +32,6 @@ func (service *Service) applyCalendarPushConflictSuccess(ctx context.Context, ro
 	if errorValue := service.persistCalendarPushConflictSuccessLocked(ctx, row, persistedEvent, remoteEvent, remoteWinningFields, fallbackChangedAt, hasConcurrentRevision); errorValue != nil {
 		return errorValue
 	}
-	service.runCalendarStoreSideEffectUnlocked(func() {
-		service.finishCalendarEventPersistence(ctx, persistedEvent)
-	})
 	return nil
 }
 
