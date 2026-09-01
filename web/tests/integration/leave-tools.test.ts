@@ -62,6 +62,15 @@ function asAdmin(name: string, input: Record<string, unknown> = {}) {
 	return runToolOverTheRecord(admin, adminID, name, input, now);
 }
 
+// The reader the attendance page uses, so a row this suite writes is held to
+// the meaning that page reads it with.
+function leaveCoversDay(days: number, row: { starts_at: string; ends_at: string }, day: string): boolean {
+	const companyDay = (value: string) =>
+		new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date(value));
+	if (days > 0.5) return day >= companyDay(row.starts_at) && day < companyDay(row.ends_at);
+	return day === companyDay(row.starts_at);
+}
+
 function resultOf(answer: { status: number; body: unknown }): Record<string, unknown> {
 	expect(answer.status).toBe(200);
 	return (answer.body as { result: Record<string, unknown> }).result;
@@ -95,6 +104,41 @@ describe('a leave the record has not decided', () => {
 		expect(filed.isDeducted).toBe(true);
 		expect(filed.startDate).toBe('2026-09-01');
 		expect(filed.endDate).toBe('2026-09-02');
+	});
+
+	test('covering whole days, it ends at the midnight after the last of them', async () => {
+		const filed = resultOf(
+			await asSample('leave_request', { kind: '연차', startsAt: '2026-06-01', endsAt: '2026-06-01', days: 1 })
+		);
+		expect(filed.endDate).toBe('2026-06-01');
+
+		const { data } = await client
+			.from('leave')
+			.select('starts_at, ends_at')
+			.eq('id', filed.leaveID as string)
+			.single<{ starts_at: string; ends_at: string }>();
+		expect(data!.starts_at).toBe('2026-05-31T15:00:00+00:00');
+		expect(data!.ends_at).toBe('2026-06-01T15:00:00+00:00');
+		expect(leaveCoversDay(1, data!, '2026-06-01')).toBe(true);
+	});
+
+	test('covering part of one day, it ends at the clock time it ends at', async () => {
+		const filed = resultOf(
+			await asSample('leave_request', {
+				kind: '연차',
+				startsAt: '2026-06-08T09:00:00+09:00',
+				endsAt: '2026-06-08T14:00:00+09:00',
+				days: 0.5
+			})
+		);
+		expect(filed.endDate).toBe('2026-06-08');
+
+		const { data } = await client
+			.from('leave')
+			.select('ends_at')
+			.eq('id', filed.leaveID as string)
+			.single<{ ends_at: string }>();
+		expect(data!.ends_at).toBe('2026-06-08T05:00:00+00:00');
 	});
 
 	test('spends nothing until somebody decides it', async () => {

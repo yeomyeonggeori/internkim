@@ -6,7 +6,7 @@ const members = new Map([
 ]);
 
 describe('calendarEventFromApprovedLeave', () => {
-	test('maps company-local midnight bounds to an all-day read-only event', () => {
+	test('ends an all-day leave on the last day it covers, not the midnight after it', () => {
 		const event = calendarEventFromApprovedLeave(
 			{
 				id: 'leave-1',
@@ -27,7 +27,7 @@ describe('calendarEventFromApprovedLeave', () => {
 			title: '이샘플 · 휴가',
 			description: '',
 			startISO: '2026-08-03T00:00:00.000Z',
-			endISO: '2026-08-04T00:00:00.000Z',
+			endISO: '2026-08-03T00:00:00.000Z',
 			isAllDay: true,
 			readOnly: true,
 			source: 'leave'
@@ -52,7 +52,7 @@ describe('calendarEventFromApprovedLeave', () => {
 		expect(event).toMatchObject({
 			title: '이샘플 · 휴가',
 			startISO: '2026-08-03T00:00:00.000Z',
-			endISO: '2026-08-04T00:00:00.000Z',
+			endISO: '2026-08-03T00:00:00.000Z',
 			isAllDay: true
 		});
 	});
