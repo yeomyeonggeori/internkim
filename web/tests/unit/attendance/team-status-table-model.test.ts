@@ -9,6 +9,7 @@ import type {
 import { attendanceText } from '../../../src/routes/attendance/text';
 import { dayWidthPercent } from '../../../src/routes/attendance/shared/day-timeline';
 import { buildTeamStatusRows } from '../../../src/routes/attendance/team/team-status-table-model';
+import { timeInTimeZone } from '../../../src/routes/attendance/shared/attendance-date';
 
 describe('team status table model', () => {
 	test('maps monthly rows to location-aware statuses', () => {
@@ -32,7 +33,15 @@ describe('team status table model', () => {
 			]
 		);
 
-		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-17', summary, '15:00');
+		const rows = buildTeamStatusRows(
+			'2026-06',
+			summary,
+			attendanceText.ko,
+			'2026-06-17',
+			summary,
+			'15:00',
+			new Date('2026-06-17T06:00:00.000Z')
+		);
 		const kim = rows.find((row) => row.email === 'kim@example.com');
 		const leesample = rows.find((row) => row.email === 'member1@example.com');
 		const park = rows.find((row) => row.email === 'park@example.com');
@@ -123,7 +132,15 @@ describe('team status table model', () => {
 			[]
 		);
 
-		const rows = buildTeamStatusRows('2026-06', summary, attendanceText.ko, '2026-06-16', summary, '09:45');
+		const rows = buildTeamStatusRows(
+			'2026-06',
+			summary,
+			attendanceText.ko,
+			'2026-06-16',
+			summary,
+			'09:45',
+			new Date('2026-06-16T00:45:00.000Z')
+		);
 		const choiDay = rows.find((row) => row.email === 'choi@example.com')?.days.find((day) => day.date === '2026-06-16');
 		const jungDay = rows.find((row) => row.email === 'jung@example.com')?.days.find((day) => day.date === '2026-06-16');
 
@@ -287,7 +304,15 @@ describe('team status table model', () => {
 			[]
 		);
 
-		const rows = buildTeamStatusRows('2026-05', selectedSummary, attendanceText.ko, '2026-06-24', currentSummary);
+		const rows = buildTeamStatusRows(
+			'2026-05',
+			selectedSummary,
+			attendanceText.ko,
+			'2026-06-24',
+			currentSummary,
+			timeInTimeZone(currentSummary.timeZone, new Date('2026-06-24T04:00:00.000Z')),
+			new Date('2026-06-24T04:00:00.000Z')
+		);
 		const kim = rows.find((row) => row.email === 'kim@example.com');
 
 		expect(kim).toMatchObject({
