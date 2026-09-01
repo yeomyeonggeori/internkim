@@ -684,28 +684,6 @@ func formatTestFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
-func writeTestDownloadedMattermostFiles(output string, outputFilePath string, downloadDirectoryPath string) ([]string, error) {
-	normalizedOutputFilePath := strings.TrimSpace(outputFilePath)
-	if normalizedOutputFilePath == "" {
-		return writeDownloadedMattermostFilesAllowEmpty(output, downloadDirectoryPath)
-	}
-	verificationOutput, errorValue := parseMattermostVerificationOutput(output)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if len(verificationOutput.DownloadedFiles) == 0 {
-		return nil, nil
-	}
-	if len(verificationOutput.DownloadedFiles) != 1 {
-		return nil, fmt.Errorf("-o can only write one Mattermost attachment; got %d", len(verificationOutput.DownloadedFiles))
-	}
-	downloadedFilePath, errorValue := writeDownloadedMattermostFileToPath(verificationOutput.DownloadedFiles[0], normalizedOutputFilePath)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return []string{downloadedFilePath}, nil
-}
-
 func resolveLocalFleetTestTarget(contextValue context.Context, service localfleet.Service, repositoryRootPath string, executablePath string) (verifyTarget, error) {
 	command := exec.CommandContext(contextValue, executablePath, "lab", "vm-ip", "--config", service.ConfigurationPath())
 	output, errorValue := command.CombinedOutput()
