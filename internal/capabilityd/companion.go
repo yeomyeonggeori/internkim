@@ -77,8 +77,6 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "attendance_add", Handler: Service.invokeRecordTool},
 	{ToolName: "attendance_update", Handler: Service.invokeRecordTool},
 	{ToolName: "attendance_delete", Handler: Service.invokeRecordTool},
-	{ToolName: "approval_list", Handler: Service.invokeRecordTool},
-	{ToolName: "approval_decide", Handler: Service.invokeRecordTool},
 	{ToolName: "mail_message_list", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_search", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_read", Handler: Service.invokeMailTool},

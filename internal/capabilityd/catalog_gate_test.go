@@ -334,47 +334,29 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"attendance_add": {
 			kind: provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_add","result":{"status":"recorded","eventID":"a2","approvalID":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_add","result":{"status":"added","eventID":"a2","backdated":false}}`)},
 			input: `{"kind":"clock_in","date":"2026-09-01","time":"09:02","reason":"출근 기록을 잊었습니다"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"status":"recorded"`)
+				expectResultHolds(t, answered, `"status":"added"`)
 			},
 		},
 		"attendance_update": {
 			kind: provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_update","result":{"status":"recorded","eventID":"a2","approvalID":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_update","result":{"status":"corrected","eventID":null,"backdated":false}}`)},
 			input: `{"eventHint":"이샘플 · clock_in · 2026-09-01 09:02","time":"08:52","reason":"10분 일찍 왔습니다"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"eventID":"a2"`)
+				expectResultHolds(t, answered, `"status":"corrected"`)
 			},
 		},
 		"attendance_delete": {
 			kind: provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_delete","result":{"status":"approval_requested","eventID":null,"approvalID":"r1"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_delete","result":{"status":"removed","eventID":"a3","backdated":true}}`)},
 			input: `{"eventHint":"이샘플 · clock_in · 2026-08-04 09:02","reason":"두 번 찍혔습니다"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"approvalID":"r1"`)
-			},
-		},
-		"approval_list": {
-			kind: provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"approval_list","result":{"count":1,"approvals":[{"approvalID":"r1","askedBy":"이샘플","kind":"attendance_remove","asks":"remove an attendance record","reason":"두 번 찍혔습니다","askedAt":"2026-09-01T00:02:00Z"}]}}`)},
-			input: `{}`,
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"approvalID":"r1"`)
-			},
-		},
-		"approval_decide": {
-			kind: provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"approval_decide","result":{"approvalID":"r1","askedBy":"이샘플","asks":"remove an attendance record","status":"approved","applied":{"eventID":"a3"}}}`)},
-			input: `{"approvalHint":"r1","decision":"approved"}`,
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"status":"approved"`)
+				expectResultHolds(t, answered, `"backdated":true`)
 			},
 		},
 	}
@@ -447,7 +429,6 @@ func TestACarryingCaseNamesAToolThePlaneImplements(t *testing.T) {
 		"person_list":  true,
 		"leave_list":   true, "leave_balance": true, "leave_request": true, "leave_decide": true,
 		"attendance_list": true, "attendance_add": true, "attendance_update": true, "attendance_delete": true,
-		"approval_list": true, "approval_decide": true,
 	}
 	for name, gateCase := range gateCases() {
 		if gateCase.kind == "" {

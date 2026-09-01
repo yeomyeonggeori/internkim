@@ -131,7 +131,7 @@ export type AttendanceSummary = {
 	month: string;
 	serverTime?: string;
 	timeZoneAuthoritative?: boolean;
-	correctionWindowMinutes?: number;
+	backdatedAfterMinutes?: number;
 	currentUserEmail: string;
 	currentMemberID?: string;
 	isAdmin: boolean;

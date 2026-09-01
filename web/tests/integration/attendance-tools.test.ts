@@ -69,8 +69,8 @@ function resultOf(answer: { body: unknown }): Record<string, unknown> {
 	return (answer.body as { result: Record<string, unknown> }).result;
 }
 
-describe('the attendance tools write a record and raise a request', () => {
-	test('a record inside the window is written at once', async () => {
+describe('the attendance tools write a record and say when the company was told', () => {
+	test('a record inside the three days is written without telling anybody', async () => {
 		const added = await asSample('attendance_add', {
 			kind: 'clock_in',
 			date: dayShiftedBy(-1),
@@ -81,7 +81,7 @@ describe('the attendance tools write a record and raise a request', () => {
 		expect(added.status).toBe(200);
 		expect(resultOf(added).status).toBe('added');
 		expect(resultOf(added).eventID).toBeString();
-		expect(resultOf(added).approvalID).toBeNull();
+		expect(resultOf(added).backdated).toBe(false);
 	});
 
 	test('the list answers with what was written', async () => {
@@ -93,51 +93,43 @@ describe('the attendance tools write a record and raise a request', () => {
 		expect(attendance[0].person).toBe('이샘플');
 	});
 
-	test('a record older than the window is raised as a request', async () => {
-		const asked = await asSample('attendance_add', {
+	test('a record older than three days is written too, and says the company was told', async () => {
+		const written = await asSample('attendance_add', {
 			kind: 'clock_in',
 			date: dayShiftedBy(-30),
 			time: '09:00',
 			location: '재택',
 			reason: '한 달 전 재택 출근 누락'
 		});
-		expect(resultOf(asked).status).toBe('approval_requested');
-		expect(resultOf(asked).approvalID).toBeString();
-		expect(resultOf(asked).eventID).toBeNull();
-
-		const listed = await asSample('attendance_list', { from: dayShiftedBy(-40) });
-		expect(resultOf(listed).count).toBe(1);
-	});
-
-	test('the asker and an administrator both see the request waiting', async () => {
-		expect(resultOf(await asSample('approval_list')).count).toBe(1);
-		const seen = resultOf(await asAdmin('approval_list'));
-		expect(seen.count).toBe(1);
-		const approvals = seen.approvals as { askedBy: string; asks: string; reason: string }[];
-		expect(approvals[0].askedBy).toBe('이샘플');
-		expect(approvals[0].reason).toBe('한 달 전 재택 출근 누락');
-	});
-
-	test('somebody who is not an administrator decides nothing', async () => {
-		const refused = await asSample('approval_decide', {
-			approvalHint: '이샘플',
-			decision: 'approved'
-		});
-		expect(refused.status).toBeGreaterThanOrEqual(400);
-	});
-
-	test('an administrator approves and the record appears', async () => {
-		const decided = await asAdmin('approval_decide', {
-			approvalHint: '이샘플',
-			decision: 'approved',
-			note: '확인했습니다'
-		});
-		expect(decided.status).toBe(200);
-		expect(resultOf(decided).status).toBe('approved');
+		expect(written.status).toBe(200);
+		expect(resultOf(written).status).toBe('added');
+		expect(resultOf(written).eventID).toBeString();
+		expect(resultOf(written).backdated).toBe(true);
 
 		const listed = await asSample('attendance_list', { from: dayShiftedBy(-40) });
 		expect(resultOf(listed).count).toBe(2);
-		expect(resultOf(await asAdmin('approval_list')).count).toBe(0);
+	});
+
+	test('a clock with no day and no time is written at the moment it is called', async () => {
+		const clocked = await asSample('attendance_add', { kind: 'clock_out' });
+		expect(clocked.status).toBe(200);
+		expect(resultOf(clocked).status).toBe('added');
+		expect(resultOf(clocked).backdated).toBe(false);
+
+		const removed = await asSample('attendance_delete', {
+			eventHint: resultOf(clocked).eventID as string,
+			reason: '방금 찍은 것을 되돌립니다'
+		});
+		expect(resultOf(removed).status).toBe('removed');
+	});
+
+	test('a record written by hand without a reason is refused', async () => {
+		const refused = await asSample('attendance_add', {
+			kind: 'clock_out',
+			date: dayShiftedBy(-1),
+			time: '18:00'
+		});
+		expect(refused.status).toBeGreaterThanOrEqual(400);
 	});
 
 	test('a hint that names nothing comes back with candidates rather than a guess', async () => {
@@ -150,7 +142,7 @@ describe('the attendance tools write a record and raise a request', () => {
 		expect((missed.body as { candidates: string[] }).candidates).toEqual([]);
 	});
 
-	test('a correction inside the window moves the record', async () => {
+	test('a correction inside the three days moves the record', async () => {
 		const listed = await asSample('attendance_list', { from: dayShiftedBy(-10) });
 		const [held] = resultOf(listed).attendance as { eventID: string }[];
 		const corrected = await asSample('attendance_update', {
@@ -159,6 +151,8 @@ describe('the attendance tools write a record and raise a request', () => {
 			reason: '실제로는 8시 30분에 출근했습니다'
 		});
 		expect(resultOf(corrected).status).toBe('corrected');
+		expect(resultOf(corrected).backdated).toBe(false);
+		expect(resultOf(corrected).eventID).toBe(held.eventID);
 
 		const again = await asSample('attendance_list', { from: dayShiftedBy(-10) });
 		const [moved] = resultOf(again).attendance as { time: string; wasCorrected: boolean }[];
@@ -166,7 +160,7 @@ describe('the attendance tools write a record and raise a request', () => {
 		expect(moved.wasCorrected).toBe(true);
 	});
 
-	test('a removal inside the window takes the record out of every read', async () => {
+	test('a removal takes the record out of every read', async () => {
 		const listed = await asSample('attendance_list', { from: dayShiftedBy(-10) });
 		const [held] = resultOf(listed).attendance as { eventID: string }[];
 		const removed = await asSample('attendance_delete', {
@@ -177,7 +171,7 @@ describe('the attendance tools write a record and raise a request', () => {
 		expect(resultOf(await asSample('attendance_list', { from: dayShiftedBy(-10) })).count).toBe(0);
 	});
 
-	test('an exact identifier resolves even outside the window a hint is scanned in', async () => {
+	test('an exact identifier resolves even outside the days a hint is scanned in', async () => {
 		const added = await asAdmin('attendance_add', {
 			personHint: '이샘플',
 			kind: 'clock_in',
@@ -195,9 +189,10 @@ describe('the attendance tools write a record and raise a request', () => {
 		});
 		expect(corrected.status).toBe(200);
 		expect(resultOf(corrected).status).toBe('corrected');
+		expect(resultOf(corrected).backdated).toBe(true);
 	});
 
-	test('an administrator writes an old record for somebody else with no request', async () => {
+	test('an administrator writes an old record for somebody else', async () => {
 		const added = await asAdmin('attendance_add', {
 			personHint: '이샘플',
 			kind: 'clock_out',

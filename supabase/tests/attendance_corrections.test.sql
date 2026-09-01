@@ -280,20 +280,16 @@ begin
 		'[{"event_id":"31000000-0000-0000-0000-000000000103","local_date":"2026-08-10","local_time":"08:30","location":"Branch"}]'::jsonb,
 		'수정 가능 시간 초과'
 	);
-	assert answer ->> 'status' = 'approval_requested',
-		'a correction older than the window is raised as a request';
+	assert answer ->> 'status' = 'corrected',
+		'a correction older than three days is applied, not raised as a request';
+	assert (answer ->> 'backdated')::boolean,
+		'a correction this old is one the administrators are told about';
 	assert (
-		select occurred_at = '2026-08-10 08:00:00+09'
+		select occurred_at = '2026-08-10 08:30:00+09'
 		from public.attendance
 		where id = '31000000-0000-0000-0000-000000000103'
-	), 'nothing changes until somebody decides the request';
-	assert (
-		select count(*) = 1
-		from public.approval
-		where kind = 'attendance_edit' and status = 'pending'
-			and member_id = '31000000-0000-0000-0000-000000000011'
-	), 'the request is waiting for an administrator';
-end $$;$block$, 'an owner correcting outside the window raises a request');
+	), 'the correction the owner asked for is in the record';
+end $$;$block$, 'an owner corrects a record older than three days');
 
 select lives_ok($block$do $$
 begin
