@@ -75,10 +75,14 @@ rm -f "$appPIDPath"
   echo $! > "$appPIDPath"
 )
 
-# The app answers this path with or without a token; either answer proves it is
-# listening, and only a connection failure means it is not up yet.
+# A path the app answers itself, not one vite proxies away: /api/v1 goes straight
+# to admind, so polling it proved only that vite was listening and left the app's
+# platform proxy unbooted. The first caller after that then raced every other
+# caller into booting it, and each one opened the same emulator database —
+# SQLITE_BUSY, and a company that will not say who works here. One completed
+# request closes that window for the life of the dev server.
 for attempt in $(seq 1 60); do
-  if curl --silent --output /dev/null "http://127.0.0.1:$appPort/api/v1/tools"; then break; fi
+  if curl --silent --output /dev/null "http://127.0.0.1:$appPort/api/agent/company"; then break; fi
   if [ "$attempt" -eq 60 ]; then
     cat "$appLogPath" >&2 || true
     echo "the app did not start serving on port $appPort" >&2
