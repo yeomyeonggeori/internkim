@@ -75,7 +75,10 @@ func TestATellingIsNotHeldAtTheApprovalGate(t *testing.T) {
 	}
 }
 
-func TestATellingCarriesThePlatformTheCompanyMessengerIsServedOn(t *testing.T) {
+// A telling names a recipient and nothing else. Which messenger carries it is
+// capabilityd's own configuration to read, guarded there by
+// TestADirectMessageWithNoConversationStillReachesTheCompanyMessenger.
+func TestATellingCarriesNoConversation(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.ChatdPlatform = "buzz"
 	var invoked capabilities.ToolInvokeRequest
@@ -90,8 +93,8 @@ func TestATellingCarriesThePlatformTheCompanyMessengerIsServedOn(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if invoked.Context.Platform != "buzz" {
-		t.Fatalf("platform = %q, so the delivery goes to a messenger this company does not use", invoked.Context.Platform)
+	if invoked.Context.Platform != "" || invoked.Context.ConversationID != "" || invoked.Context.ReplyTargetID != "" {
+		t.Fatalf("a telling is not a conversation: %#v", invoked.Context)
 	}
 }
 

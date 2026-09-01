@@ -43,7 +43,7 @@ func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, req
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
 	var response chatdMessageSearchResponse
-	if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "message.search", searchRequest, &response); errorValue != nil {
+	if errorValue := service.chatdRequest(ctx, "message.search", searchRequest, &response); errorValue != nil {
 		failure := mattermostToolStaticFailure("message_search_failed", "platform_search", errorValue.Error())
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -63,7 +63,7 @@ func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeConte
 	switch scope {
 	case "directMessage":
 		failure := mattermostToolStaticFailure("unsupported_scope", "platform_route",
-			"scope=directMessage is not yet routed for platform "+toolContext.Platform+"; search the current conversation or a named channel")
+			"scope=directMessage is not yet routed; search the current conversation or a named channel")
 		return chatdMessageSearchRequest{}, scope, failure, true
 	case "channel":
 		if input.DeliveryTarget.ChannelID == "" && input.DeliveryTarget.ChannelName == "" {
@@ -157,12 +157,12 @@ type chatdIdentitySelfResponse struct {
 
 func (service Service) invokeChatdPlatformMessageContext(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	var botIdentity chatdIdentitySelfResponse
-	if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "identity.self", map[string]any{}, &botIdentity); errorValue != nil {
+	if errorValue := service.chatdRequest(ctx, "identity.self", map[string]any{}, &botIdentity); errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("bot_lookup", "platform_unavailable", errorValue)), nil
 	}
 	toolContext := request.Context
 	result := platformMessageContextResult{
-		Platform:                toolContext.Platform,
+		Platform:                service.companyMessenger(),
 		ConversationID:          toolContext.ConversationID,
 		ConversationType:        toolContext.ConversationType,
 		ChannelID:               firstNonEmpty(strings.TrimSpace(toolContext.ChannelID), buzzReplyTargetChannel(toolContext.ReplyTargetID)),

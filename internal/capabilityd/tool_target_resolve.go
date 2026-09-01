@@ -147,16 +147,16 @@ func (service Service) messageTextsForApproval(ctx context.Context, toolContext 
 	if len(limitedMessageIDs) > messageDeletePreviewMessageLimit {
 		limitedMessageIDs = limitedMessageIDs[:messageDeletePreviewMessageLimit]
 	}
-	if service.chatdServesPlatform(toolContext.Platform) {
-		return service.chatdMessageTexts(ctx, toolContext.Platform, limitedMessageIDs)
+	if service.chatdServesTheMessenger() {
+		return service.chatdMessageTexts(ctx, limitedMessageIDs)
 	}
 	return service.mattermostMessageTexts(ctx, limitedMessageIDs)
 }
 
-func (service Service) chatdMessageTexts(ctx context.Context, platform string, messageIDs []string) []string {
+func (service Service) chatdMessageTexts(ctx context.Context, messageIDs []string) []string {
 	var response chatdMessageSearchResponse
 	searchRequest := chatdMessageSearchRequest{MessageIDs: messageIDs, Queries: []string{}, Limit: len(messageIDs)}
-	if service.chatdPlatformRequest(ctx, platform, "message.search", searchRequest, &response) != nil {
+	if service.chatdRequest(ctx, "message.search", searchRequest, &response) != nil {
 		return nil
 	}
 	messageTexts := []string{}
