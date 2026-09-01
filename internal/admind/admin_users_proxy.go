@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -214,6 +215,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				}
 			}
 			service.triggerUsersSync(request.Context())
+			go service.seatAndNameOneMemberInBuzz(context.Background(), upsertedEmail, upsertedName)
 		}
 		if request.Method == http.MethodDelete && removedUser != nil {
 			if errorValue := service.removeBlueclawPerson(request.Context(), removedUser.Email); errorValue != nil {
