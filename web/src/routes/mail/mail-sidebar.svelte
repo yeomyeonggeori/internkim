@@ -9,6 +9,7 @@
 	import { mailboxUnreadCount, mailboxUnreadCountText } from './mail-page-utils';
 	import type { MailAccount, Mailbox } from './mail-types';
 	import type { mailText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type Props = {
 		account: MailAccount;
@@ -16,7 +17,7 @@
 		selectedMailbox: string;
 		hasLoadedAccount: boolean;
 		isLoadingMailboxes: boolean;
-		text: (typeof mailText)['ko'];
+		text: PageText<typeof mailText>;
 		openSettings: () => void;
 		selectMailbox: (mailboxName: string) => void;
 	};

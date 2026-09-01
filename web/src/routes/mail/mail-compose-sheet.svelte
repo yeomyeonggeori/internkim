@@ -8,6 +8,7 @@
 	import type { ComposeDraft } from './mail-types';
 	import type { MailComposeFocusField } from './mail-page-controller-types';
 	import type { mailText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type Props = {
 		open: boolean;
@@ -16,7 +17,7 @@
 		isSending: boolean;
 		fromAddress: string;
 		focusField: MailComposeFocusField;
-		text: (typeof mailText)['ko'];
+		text: PageText<typeof mailText>;
 		sendMessage: () => void | Promise<void>;
 	};
 

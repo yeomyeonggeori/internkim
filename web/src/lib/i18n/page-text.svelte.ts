@@ -3,8 +3,20 @@ import { currentLocale, type Locale } from './locale.svelte';
 type TextTree = { readonly [key: string]: unknown };
 type PageMessages = { readonly [key in Locale]: TextTree };
 
-export function createPageText<const Messages extends PageMessages>(messages: Messages): Messages['ko'] {
-	return createTextProxy(messages, []) as Messages['ko'];
+type LocalizedValue<Value> = Value extends string
+	? string
+	: Value extends readonly (infer Item)[]
+		? readonly LocalizedValue<Item>[]
+		: { [Key in keyof Value]: LocalizedValue<Value[Key]> };
+
+export type PageText<Messages extends PageMessages> = {
+	[Key in keyof Messages['ko']]: LocalizedValue<Messages['ko'][Key]>;
+};
+
+export function createPageText<const Messages extends PageMessages>(
+	messages: Messages
+): PageText<Messages> {
+	return createTextProxy(messages, []) as PageText<Messages>;
 }
 
 function createTextProxy(messages: PageMessages, path: string[]): unknown {

@@ -5,8 +5,9 @@
 	import { taskText } from '../text';
 	import type { TaskMemberScoreSection } from './task-report-data';
 	import TaskMemberScoreList from './task-member-score-list.svelte';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
-	type TaskReportText = typeof taskText.ko.report;
+	type TaskReportText = PageText<typeof taskText>['report'];
 
 	type Props = {
 		section: TaskMemberScoreSection;

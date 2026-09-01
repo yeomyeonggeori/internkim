@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import type { organizationDirectoryText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	let {
 		isOpen = false,
@@ -9,7 +10,7 @@
 		onDiscard
 	}: {
 		isOpen?: boolean;
-		text: typeof organizationDirectoryText.ko;
+		text: PageText<typeof organizationDirectoryText>;
 		onKeepEditing: () => void;
 		onDiscard: () => void;
 	} = $props();

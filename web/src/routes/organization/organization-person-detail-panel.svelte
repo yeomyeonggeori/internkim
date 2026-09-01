@@ -14,6 +14,7 @@
 	import OrganizationProfileFields from '../admin/organization-profile-fields.svelte';
 	import type { OrgGroup, UserRecord } from '../../lib/organization/types';
 	import type { organizationDirectoryText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type OrganizationPersonDetailPanelProps = {
 		record: UserRecord | undefined;
@@ -21,7 +22,7 @@
 		isSavingOwnProfile?: boolean;
 		onSaveOwnProfile?: (profile: { phoneNumber: string; hireDate: string }) => void | Promise<void>;
 		groups: OrgGroup[];
-		text: typeof organizationDirectoryText.ko;
+		text: PageText<typeof organizationDirectoryText>;
 		canEdit?: boolean;
 		isEditing?: boolean;
 		editingRecord?: UserRecord;

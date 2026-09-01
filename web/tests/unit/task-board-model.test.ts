@@ -11,7 +11,7 @@ describe('flow task board model', () => {
 			task({ id: 'paused-1', status: 'paused', statusRank: 100 })
 		]);
 
-		expect(board.map((column) => column.status)).toEqual(BOARD_STATUS_VALUES);
+		expect(board.map((column) => column.status)).toEqual([...BOARD_STATUS_VALUES]);
 		expect(board.flatMap((column) => column.tasks.map((task) => task.id))).toEqual(['requested-1', 'paused-1']);
 	});
 

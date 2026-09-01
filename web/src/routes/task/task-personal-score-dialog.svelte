@@ -7,8 +7,9 @@
 	import { buildTaskPersonalScoreDetail, type TaskPersonalScorePeriod, type TaskPersonalScoreRow } from './task-personal-score-detail-model';
 	import type { TaskSummary } from './task-types';
 	import { taskText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
-	type TaskReportText = typeof taskText.ko.report;
+	type TaskReportText = PageText<typeof taskText>['report'];
 
 	type Props = {
 		summary: TaskSummary | null;

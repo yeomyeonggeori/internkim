@@ -13,8 +13,9 @@
 	import type { LoadTask } from './task-load-tracker';
 	import type { TaskSummary } from './task-types';
 	import { taskText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
-	type TaskPageText = typeof taskText.ko;
+	type TaskPageText = PageText<typeof taskText>;
 
 	type Props = {
 		summary: TaskSummary | null;

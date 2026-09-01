@@ -3,13 +3,14 @@
 	import { mailMessageTimeLabel } from './mail-message-utils';
 	import type { MailMessage } from './mail-types';
 	import type { mailText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	type Props = {
 		message?: MailMessage;
 		isPlaceholder?: boolean;
 		isActive?: boolean;
 		isInteractive?: boolean;
-		text: (typeof mailText)['ko'];
+		text: PageText<typeof mailText>;
 		selectMessage?: (message: MailMessage) => void;
 	};
 

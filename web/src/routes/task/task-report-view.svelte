@@ -4,8 +4,9 @@
 	import TaskMemberScoreCard from './report/task-member-score-card.svelte';
 	import TaskReportCard from './report/task-report-card.svelte';
 	import type { TaskReportSections } from './report/task-report-data';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
-	type TaskReportText = typeof taskText.ko.report;
+	type TaskReportText = PageText<typeof taskText>['report'];
 
 	type Props = {
 		sections: TaskReportSections;

@@ -8,8 +8,9 @@
 	import { taskDefinitionPaletteColor, unknownDefinitionColor } from './task-definition-colors';
 	import { isCentralTaskSource } from './task-source';
 	import { taskText } from './text';
+	import type { PageText } from '$lib/i18n/page-text.svelte';
 
-	type TaskDefinitionsText = typeof taskText.ko.definitions;
+	type TaskDefinitionsText = PageText<typeof taskText>['definitions'];
 	type DefinitionSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 	type Props = {
