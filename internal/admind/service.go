@@ -418,7 +418,6 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarDeleteIntentWorker(ctx)
 	service.startCalendarSyncWorker(ctx)
-	service.startSoftDeletedMattermostPostPurge(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
 	service.startBuzzMemberLinker(ctx)
@@ -429,7 +428,6 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startMemberChannelMembershipSync(ctx)
 	service.startCircleRoomMembershipSync(ctx)
 	service.ensureBuzzRelayTerminator()
-	service.ensureMattermostConfig(ctx)
 	service.warnWhenFontAssetsMissing()
 	handler := service.router()
 	server := &http.Server{
@@ -468,14 +466,6 @@ func (service *Service) startRequesterSocketListener(socketServer *http.Server) 
 			log.Printf("admind requester socket at %s stopped: %v", socketPath, serveError)
 		}
 	}()
-}
-
-func (service *Service) syncMattermostCirclesWithTimeout(ctx context.Context) {
-	syncContext, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	if errorValue := service.syncMattermostCirclesBestEffort(syncContext); errorValue != nil {
-		log.Printf("Mattermost circle policy sync failed: %v", errorValue)
-	}
 }
 
 // Everyone signs in at the zone itself, and the API address answers only by
@@ -887,8 +877,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.updateWifiPassword(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/wifi-profiles/"):
 		service.removeWifiProfile(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/maintenance/mattermost-posts/") && strings.HasSuffix(path, "/repair"):
-		service.repairMattermostPost(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/maintenance/mattermost-posts/"), "/repair"))
 	case request.Method == http.MethodGet && path == "/sites":
 		service.listSites(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/sites":
@@ -2052,17 +2040,6 @@ func policyStringList(value any) []string {
 		}
 	}
 	return result
-}
-
-func (service *Service) syncMattermostCirclesBestEffort(ctx context.Context) error {
-	if !service.hasDeviceAuth() {
-		return nil
-	}
-	token, errorValue := service.mattermostAdminToken(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	return service.syncMattermostCircleMemberships(ctx, token)
 }
 
 func (service *Service) blueclawJSONRequest(ctx context.Context, method string, path string, body any, responseValue any) error {
