@@ -12,6 +12,14 @@ import (
 const maximumSkillDocumentBytes = 15000
 const maximumSkillDocumentLines = 300
 
+func requirePluginSkills(t *testing.T, repositoryRootPath string) {
+	t.Helper()
+	pluginSkillsPath := PluginSkillsPath(repositoryRootPath)
+	if _, errorValue := os.Stat(pluginSkillsPath); errorValue != nil {
+		t.Fatalf("%s is not checked out; run `git submodule update --init --recursive`", pluginSkillsPath)
+	}
+}
+
 func TestAgentsAssetDoesNotReferenceUnavailableSearchTool(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	document, errorValue := os.ReadFile(AgentsPath(repositoryRootPath))
@@ -118,6 +126,7 @@ func skillDirectoryPath(t *testing.T, repositoryRootPath string, skillName strin
 
 func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillNames := []string{"document", "spreadsheet", "presentation", "pdf"}
 	for _, skillName := range skillNames {
 		path := filepath.Join(skillDirectoryPath(t, repositoryRootPath, skillName), "SKILL.md")
@@ -136,6 +145,7 @@ func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 
 func TestUserFacingWorkspaceDocsDoNotExposeRuntimeInternalPaths(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	documentPaths := []string{
 		AgentsPath(repositoryRootPath),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "document", "SKILL.md"),
@@ -207,6 +217,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 
 func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	documentPaths := []string{
 		AgentsPath(repositoryRootPath),
 		filepath.Join(repositoryRootPath, "assets", "blueclaw-workspace", "skills", "website", "SKILL.md"),
@@ -387,6 +398,7 @@ func TestBundledSkillRuntimeScriptsStayIdentical(t *testing.T) {
 
 func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	createScriptNames := map[string]string{"document": "create_docx.py", "spreadsheet": "create_xlsx.py"}
 	for skillName, createScriptName := range createScriptNames {
 		skillPath := skillDirectoryPath(t, repositoryRootPath, skillName)
@@ -447,6 +459,7 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 
 func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	for _, skillName := range []string{"document", "spreadsheet", "pdf", "website"} {
 		skillPath := filepath.Join(skillDirectoryPath(t, repositoryRootPath, skillName), "SKILL.md")
 		document, errorValue := os.ReadFile(skillPath)
@@ -570,6 +583,7 @@ func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
 
 func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "calculator", "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -598,6 +612,7 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 
 func TestPresentationBundlesPackageManifest(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	packageDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "package.json"))
 	if errorValue != nil {
@@ -614,6 +629,7 @@ func TestPresentationBundlesPackageManifest(t *testing.T) {
 
 func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	documentPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "SKILL.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
@@ -647,6 +663,7 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 
 func TestPresentationExporterNormalizesSlideViewer(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	scriptPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "scripts", "html_export.py")
 	testProgram := `
 import runpy
@@ -683,6 +700,7 @@ assert "<section>Keep me</section>" in stripped
 
 func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	scriptPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "scripts", "restore_source.py")
 	temporaryPath := t.TempDir()
 	deliveredPath := filepath.Join(temporaryPath, "delivered.html")
@@ -708,6 +726,7 @@ func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 
 func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	fontPath := filepath.Join(skillPath, "assets", "fonts", "paperlogy")
 	for _, fileName := range []string{
@@ -759,6 +778,7 @@ func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 
 func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
 	if errorValue != nil {
@@ -841,6 +861,7 @@ func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
 
 func TestPresentationVisualStylesDefineQualityGate(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	documentPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "assets", "visual-styles.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
@@ -870,6 +891,7 @@ func TestPresentationVisualStylesDefineQualityGate(t *testing.T) {
 
 func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	documentPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation", "assets", "composition-seeds.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
@@ -908,6 +930,7 @@ func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 
 func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	skillDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
 	if errorValue != nil {
@@ -968,6 +991,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 
 func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	htmlExportScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "html_export.py"))
 	if errorValue != nil {
@@ -1053,6 +1077,7 @@ func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
 
 func TestPresentationValidatePPTXScriptReportsDesignWarnings(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillPath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "presentation")
 	validateScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "validate_pptx.py"))
 	if errorValue != nil {
@@ -1068,6 +1093,7 @@ func TestPresentationValidatePPTXScriptReportsDesignWarnings(t *testing.T) {
 
 func TestSkillDirectoriesMergeTheRepositoryAndPluginRoots(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
 	skillDirectories, errorValue := SkillDirectories(repositoryRootPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
