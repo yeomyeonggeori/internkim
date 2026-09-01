@@ -5,12 +5,12 @@
 	import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '$lib/components/ui/field';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { cloudflareLoginURLFor, mattermostLoginURLFor, type WebAuthSession } from '$lib/web-auth-session';
+	import { cloudflareLoginURLFor, type WebAuthSession } from '$lib/web-auth-session';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import PowerIcon from '@lucide/svelte/icons/power';
 	import type { Snippet } from 'svelte';
 	import { onMount } from 'svelte';
-	import { buzzPasskeyLogin, buzzPasswordLogin, mattermostPasswordLogin } from '$lib/buzz-key-login';
+	import { buzzPasskeyLogin, buzzPasswordLogin } from '$lib/buzz-key-login';
 	import { claimCentralBuzzSecret } from '$lib/buzz-identity-central-login';
 	import { createBuzzIdentityTransport, enrollKnownBuzzIdentity } from '$lib/buzz-identity-session';
 	import { isPasskeySupported as isBuzzPasskeySupported } from '$lib/buzz-passkey';
@@ -32,7 +32,6 @@
 	let busy = $state(false);
 	let errorMessage = $state('');
 
-	const mattermostLoginURL = $derived(session?.mattermostLoginURL || mattermostLoginURLFor(returnPath));
 	const cloudflareLoginURL = $derived(session?.cloudflareLoginURL || cloudflareLoginURLFor(returnPath));
 
 	onMount(async () => {
@@ -80,18 +79,7 @@
 				return claimCentralBuzzSecret();
 			});
 		}
-		return runLogin(async () => {
-			try {
-				return await buzzPasswordLogin(normalizedEmail, password);
-			} catch (buzzError) {
-				const secretHex = await mattermostPasswordLogin(normalizedEmail, password);
-				await enrollKnownBuzzIdentity(identityTransport, secretHex, {
-					kind: 'password',
-					password
-				}).catch(() => {});
-				return secretHex;
-			}
-		});
+		return runLogin(() => buzzPasswordLogin(normalizedEmail, password));
 	}
 
 	function loginWithPasskey() {
@@ -170,11 +158,7 @@
 				<Card.Description>{text.signInDescription}</Card.Description>
 			</Card.Header>
 			<Card.Content class="space-y-3">
-				<Button href={mattermostLoginURL} class="w-full gap-2">
-					<PowerIcon class="size-4" />
-					<span>{text.continueWithMattermost}</span>
-				</Button>
-				<Button href={cloudflareLoginURL} variant="outline" class="w-full gap-2">
+				<Button href={cloudflareLoginURL} class="w-full gap-2">
 					<PowerIcon class="size-4" />
 					<span>{text.continueWithCloudflare}</span>
 				</Button>
