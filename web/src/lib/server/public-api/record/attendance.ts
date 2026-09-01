@@ -33,18 +33,38 @@ export function timeOfInstant(timezone: string, instant: string): string {
 	}).format(new Date(instant));
 }
 
+const heldColumns = 'id, member_id, kind, location, occurred_at, original_occurred_at, edit_reason';
+
+// The newest rows are the ones a hint refers to and the ones a month view
+// shows, and a company of any age has more than a page of them, so the read
+// takes them from the recent end and hands them back in reading order.
 export async function attendanceOfCompany(
 	caller: SupabaseClient,
 	from: string,
-	to: string
+	to: string,
+	mostRecent: number
 ): Promise<AttendanceRow[]> {
 	const { data, error } = await caller
 		.from('attendance')
-		.select('id, member_id, kind, location, occurred_at, original_occurred_at, edit_reason')
+		.select(heldColumns)
 		.gte('occurred_at', from)
 		.lte('occurred_at', to)
-		.order('occurred_at')
+		.order('occurred_at', { ascending: false })
+		.limit(mostRecent)
 		.returns<AttendanceRow[]>();
 	if (error) throw new Error(error.message);
-	return data ?? [];
+	return (data ?? []).slice().reverse();
+}
+
+export async function attendanceByID(
+	caller: SupabaseClient,
+	eventID: string
+): Promise<AttendanceRow | null> {
+	const { data, error } = await caller
+		.from('attendance')
+		.select(heldColumns)
+		.eq('id', eventID)
+		.maybeSingle<AttendanceRow>();
+	if (error) throw new Error(error.message);
+	return data;
 }
