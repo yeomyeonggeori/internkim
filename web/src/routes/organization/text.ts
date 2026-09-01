@@ -2,7 +2,8 @@ export const organizationDirectoryText = {
 	ko: {
 		title: '조직',
 		inviteMember: '구성원 초대',
-		inviteDescription: '이메일 주소로 초대하면 임시 비밀번호가 나옵니다.',
+		inviteDescription: '이름과 이메일로 초대하면 임시 비밀번호가 나옵니다. 이름은 메신저에 그대로 쓰입니다.',
+		inviteName: '이름',
 		inviteEmail: '이메일',
 		invite: '초대',
 		inviteHandOver: '본인에게 전달하세요. 로그인 후 패스키를 등록하면 비밀번호는 더 필요 없습니다.',
@@ -59,7 +60,8 @@ export const organizationDirectoryText = {
 	},
 	en: {
 		inviteMember: 'Invite someone',
-		inviteDescription: 'Invite by address and a temporary password comes back.',
+		inviteDescription: 'Invite by name and address; a temporary password comes back. The name is what the messenger shows.',
+		inviteName: 'Name',
 		inviteEmail: 'Email',
 		invite: 'Invite',
 		inviteHandOver: 'Hand this over. Once they sign in and set up a passkey, no password is needed.',
