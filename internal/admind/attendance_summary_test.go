@@ -174,6 +174,11 @@ func TestAttendanceSummaryIncludesRegisteredMembersWithoutEvents(t *testing.T) {
 			]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"김철수","emails":["kim@example.com"]}],"channels":[]}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[
+				{"memberID":"user-1","email":"kim@example.com","name":"김철수","role":"member"},
+				{"memberID":"user-2","email":"park@example.com","name":"박지민","role":"member"}
+			]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -219,6 +224,11 @@ func TestAttendanceSummaryUsesFleetMembersWhenDeviceAuthConfigured(t *testing.T)
 				t.Fatalf("fleet secret header = %q", request.Header.Get("X-INTERNKIM-FLEET-SECRET"))
 			}
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"fleet@example.com","name":"Fleet User","mattermostUsername":"fleet","status":"active"}]}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[
+				{"memberID":"user-1","email":"kim@example.com","name":"김철수","role":"member"},
+				{"memberID":"user-2","email":"park@example.com","name":"박지민","role":"member"}
+			]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -246,7 +256,7 @@ func TestAttendanceSummaryUsesFleetMembersWhenDeviceAuthConfigured(t *testing.T)
 	}
 }
 
-func TestAttendanceSummaryLeavesMembersEmptyWhenLocalUsersLookupFails(t *testing.T) {
+func TestAttendanceSummaryLeavesMembersEmptyWhenTheDirectoryDoesNotAnswer(t *testing.T) {
 	service, _ := newAttendanceActionTestService(t)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -258,6 +268,8 @@ func TestAttendanceSummaryLeavesMembersEmptyWhenLocalUsersLookupFails(t *testing
 			return jsonResponse(http.StatusBadGateway, `{"error":"upstream unavailable"}`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy":
 			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"김철수","emails":["kim@example.com"]}],"channels":[]}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusBadGateway, `{"error":"the directory is unreachable"}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil

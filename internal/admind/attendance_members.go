@@ -34,11 +34,7 @@ func (service *Service) attendanceUserRecordsForMembers(request *http.Request) (
 		}
 		return records, true
 	}
-	response, errorValue := service.buildLocalUsersResponse(request.Context())
-	if errorValue != nil {
-		return nil, false
-	}
-	return response.Records, true
+	return nil, false
 }
 
 func attendanceMembersFromAdminUserRecords(records []adminUserMutation) []attendanceMember {
