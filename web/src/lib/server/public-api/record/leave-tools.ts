@@ -174,6 +174,73 @@ export async function leaveRequest(
 	return answeredLeave(context, await leaveByID(context, data.id));
 }
 
+export type LeaveUpdateInput = {
+	leaveHint?: string;
+	kind?: string;
+	startsAt?: string;
+	endsAt?: string;
+	days?: number;
+	note?: string;
+};
+
+export async function leaveUpdate(
+	context: RecordContext,
+	input: LeaveUpdateInput
+): Promise<AnsweredLeave> {
+	if (!input.leaveHint) throw new Error('a correction names the leave it corrects');
+	if (input.days !== undefined && input.days <= 0) {
+		throw new Error('a leave consumes more than nothing; a half day is 0.5');
+	}
+
+	const row = leaveOfHint(context, await leaveOfCompany(context.caller), input.leaveHint);
+	const held = answeredLeave(context, row);
+	const days = input.days ?? held.days;
+	const corrected: Record<string, unknown> = {
+		days,
+		starts_at: instantWritten(context.labels.timezone, input.startsAt ?? held.startDate),
+		ends_at:
+			days > halfADay
+				? midnightAfter(context.labels.timezone, input.endsAt ?? held.endDate)
+				: instantWritten(context.labels.timezone, input.endsAt ?? held.endDate, true)
+	};
+	if (input.kind?.trim()) {
+		const kind = leaveKindOf(context.leaveKinds, input.kind);
+		corrected.kind = kind.id;
+		corrected.is_paid = kind.isPaid;
+		corrected.is_deducted = kind.isDeducted;
+	}
+	if (input.note !== undefined) corrected.note = input.note.trim() || null;
+
+	const { error } = await context.caller
+		.from('leave')
+		.update(corrected)
+		.eq('id', row.id)
+		.select('id')
+		.single<{ id: string }>();
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	return answeredLeave(context, await leaveByID(context, row.id));
+}
+
+export type LeaveDeleteInput = { leaveHint?: string };
+
+export async function leaveDelete(
+	context: RecordContext,
+	input: LeaveDeleteInput
+): Promise<AnsweredLeave> {
+	if (!input.leaveHint) throw new Error('a removal names the leave it removes');
+
+	const row = leaveOfHint(context, await leaveOfCompany(context.caller), input.leaveHint);
+	const taken = answeredLeave(context, row);
+	const { error } = await context.caller
+		.from('leave')
+		.delete()
+		.eq('id', row.id)
+		.select('id')
+		.single<{ id: string }>();
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	return taken;
+}
+
 export type LeaveDecideInput = { leaveHint?: string; decision?: string };
 
 export async function leaveDecide(

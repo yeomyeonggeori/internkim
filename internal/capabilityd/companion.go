@@ -72,6 +72,8 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "leave_list", Handler: Service.invokeRecordTool},
 	{ToolName: "leave_balance", Handler: Service.invokeRecordTool},
 	{ToolName: "leave_request", Handler: Service.invokeRecordTool},
+	{ToolName: "leave_update", Handler: Service.invokeRecordTool},
+	{ToolName: "leave_delete", Handler: Service.invokeRecordTool},
 	{ToolName: "leave_decide", Handler: Service.invokeRecordTool},
 	{ToolName: "attendance_list", Handler: Service.invokeRecordTool},
 	{ToolName: "attendance_add", Handler: Service.invokeRecordTool},
