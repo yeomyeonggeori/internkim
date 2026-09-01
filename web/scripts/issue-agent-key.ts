@@ -1,4 +1,4 @@
-//   bun run web/scripts/issue-agent-key.ts --company <uuid> --name <what to call it>
+//   bun run web/scripts/issue-agent-key.ts --company <uuid> --name <what to call it> [--replace]
 
 import { controlPlane, issueAgentKey } from '../src/lib/server/control-plane';
 
@@ -16,7 +16,9 @@ const client = controlPlane({
 	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
 });
 
-const credential = await issueAgentKey(client, companyID, name);
+const credential = await issueAgentKey(client, companyID, name, {
+	replaceStanding: process.argv.includes('--replace'),
+});
 
 // A provisioning script reads this back, so --quiet answers the key alone.
 if (process.argv.includes('--quiet')) {

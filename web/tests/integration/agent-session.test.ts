@@ -142,3 +142,28 @@ test('an agent that has connected is seen', async () => {
 
 	expect(data!.last_seen_at).not.toBeNull();
 });
+
+// A name is held by one agent per company and revoking does not give it back,
+// so a second rotation used to answer a raw duplicate key.
+test('a fleet key can be rotated more than once', async () => {
+	const first = await issueAgentKey(client, ourCompanyID, 'rotating', { replaceStanding: true });
+	const second = await issueAgentKey(client, ourCompanyID, 'rotating', { replaceStanding: true });
+	const third = await issueAgentKey(client, ourCompanyID, 'rotating', { replaceStanding: true });
+
+	expect(second.apiKey).not.toBe(first.apiKey);
+	expect(third.apiKey).not.toBe(second.apiKey);
+	expect(third.agentID).toBe(first.agentID);
+
+	const { data } = await client
+		.from('agent')
+		.select('id, revoked_at')
+		.eq('company_id', ourCompanyID)
+		.eq('name', 'rotating');
+	expect(data).toHaveLength(1);
+	expect(data![0].revoked_at).toBeNull();
+});
+
+test('two live agents cannot share a name', async () => {
+	await issueAgentKey(client, ourCompanyID, 'only-one');
+	expect(issueAgentKey(client, ourCompanyID, 'only-one')).rejects.toThrow(/duplicate key/);
+});
