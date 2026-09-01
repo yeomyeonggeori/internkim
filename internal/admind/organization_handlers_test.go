@@ -23,6 +23,10 @@ func TestOrganizationProfileHandlerPersistsMetadata(t *testing.T) {
 			return jsonResponse(http.StatusOK, `[{"user_id":"user-2","roles":"team_user"}]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+		case strings.Contains(request.URL.String(), "/api/agent/key"):
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -69,6 +73,10 @@ func TestOrganizationProfileHandlerPreservesOmittedMetadata(t *testing.T) {
 			return jsonResponse(http.StatusOK, `[{"user_id":"user-2","roles":"team_user"}]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+		case strings.Contains(request.URL.String(), "/api/agent/key"):
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -193,6 +201,10 @@ func organizationProfileValidationTestHTTPClient(t *testing.T) *http.Client {
 			return jsonResponse(http.StatusOK, `[]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+		case strings.Contains(request.URL.String(), "/api/agent/key"):
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -214,6 +226,10 @@ func TestOrganizationGroupHandlerPersistsGroups(t *testing.T) {
 			return jsonResponse(http.StatusOK, `[{"user_id":"user-2","roles":"team_user"}]`, nil), nil
 		case request.Method == http.MethodGet && request.URL.String() == "http://blueclaw.local/admin/api/policy":
 			return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), nil
+		case strings.Contains(request.URL.String(), "/api/agent/key"):
+			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e":
+			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil

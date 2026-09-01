@@ -6,13 +6,15 @@ import (
 	"testing"
 )
 
+const peoplePerMutationBatch = 200
+
 func TestOrganizationUserMutationDoesNotPersistUnknownPersonStates(t *testing.T) {
 	service := newLocalUsersTestService(t)
 	ctx := context.Background()
 	for batchIndex := 0; batchIndex < 3; batchIndex++ {
-		identities := make([]organizationPersonIdentity, 0, localUsersBatchMaximumUsers)
-		for userIndex := 0; userIndex < localUsersBatchMaximumUsers; userIndex++ {
-			suffix := strconv.Itoa(batchIndex*localUsersBatchMaximumUsers + userIndex)
+		identities := make([]organizationPersonIdentity, 0, peoplePerMutationBatch)
+		for userIndex := 0; userIndex < peoplePerMutationBatch; userIndex++ {
+			suffix := strconv.Itoa(batchIndex*peoplePerMutationBatch + userIndex)
 			identities = append(identities, organizationPersonIdentity{
 				MemberID: "new-user-" + suffix,
 				Email:    "new-user-" + suffix + "@example.com",

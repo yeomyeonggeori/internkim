@@ -32,7 +32,7 @@ func TestReconcileSiteSourcesToMemberCircle(t *testing.T) {
 	service.sites = map[string]*SiteRecord{
 		"oldest":     {SiteID: "oldest", Slug: "oldest", Status: SiteStatusPublished, SourceWorkspacePath: "/workspace/sites/oldest", WorkspacePath: "/workspace/sites/oldest"},
 		"newer":      {SiteID: "newer", Slug: "newer", Status: SiteStatusDraft, SourceWorkspacePath: "home/sites/newer/draft", WorkspacePath: "home/sites/newer"},
-		"completed":       {SiteID: "completed", Slug: "completed", Status: SiteStatusDraft, SourceWorkspacePath: "/workspace/circles/member/sites/done/draft", WorkspacePath: "/workspace/circles/member/sites/done", DraftPath: "/workspace/circles/member/sites/done/draft", AppWorkspacePath: "/workspace/circles/member/sites/done/draft/app"},
+		"completed":  {SiteID: "completed", Slug: "completed", Status: SiteStatusDraft, SourceWorkspacePath: "/workspace/circles/member/sites/done/draft", WorkspacePath: "/workspace/circles/member/sites/done", DraftPath: "/workspace/circles/member/sites/done/draft", AppWorkspacePath: "/workspace/circles/member/sites/done/draft/app"},
 		"slugged-id": {SiteID: "slugged-id", Slug: "pretty-gyul", Status: SiteStatusPublished, SourceWorkspacePath: "/workspace/circles/member/sites/slugged-id/draft", WorkspacePath: "/workspace/circles/member/sites/slugged-id"},
 		"rootlegacy": {SiteID: "rootlegacy", Slug: "root-legacy", Status: SiteStatusDraft, SourceWorkspacePath: "/workspace/circles/member/sites/rootlegacy", WorkspacePath: "/workspace/circles/member/sites/rootlegacy"},
 		"preexisting": {SiteID: "preexisting", Slug: "preexisting-alias", Status: SiteStatusDraft,

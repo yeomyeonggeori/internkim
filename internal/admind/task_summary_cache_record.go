@@ -44,7 +44,7 @@ type taskSummaryCacheEntry struct {
 
 type taskSummaryCachePayload struct {
 	Version     int         `json:"version"`
-	WeeklyTasks []Task  `json:"weeklyTasks"`
+	WeeklyTasks []Task      `json:"weeklyTasks"`
 	Metrics     taskMetrics `json:"metrics"`
 	Report      taskReport  `json:"report"`
 }

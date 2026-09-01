@@ -32,7 +32,3 @@ func (service *Service) ensureMattermostChannelMembershipExists(ctx context.Cont
 	}
 	return fmt.Errorf("Mattermost channel membership returned unexpected user %q after join failed: %w", member.UserID, cause)
 }
-
-
-
-

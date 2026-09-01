@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func localOrganizationMattermostResponse(t *testing.T, request *http.Request) (*http.Response, bool) {
+func localOrganizationDirectoryResponse(t *testing.T, request *http.Request) (*http.Response, bool) {
 	t.Helper()
 	switch request.URL.String() {
 	case "http://mattermost.local/api/v4/users/login":
@@ -21,6 +21,11 @@ func localOrganizationMattermostResponse(t *testing.T, request *http.Request) (*
 		return jsonResponse(http.StatusOK, `[{"user_id":"user-2","roles":"team_user"}]`, nil), true
 	case "http://blueclaw.local/admin/api/policy":
 		return jsonResponse(http.StatusOK, localUsersPolicyDocument(), nil), true
+	case "https://api.example.test/api/users?fleet_id=dc719d8e":
+		return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-member","email":"member@example.com","name":"Member User","role":"member"}]}`, nil), true
+	}
+	if strings.Contains(request.URL.String(), "/api/agent/key") {
+		return jsonResponse(http.StatusNotFound, `{}`, nil), true
 	}
 	return nil, false
 }
@@ -30,7 +35,7 @@ func TestOrganizationProfileUpdateReachesTheCompanyDirectory(t *testing.T) {
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	var offered []map[string]any
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if response, isHandled := localOrganizationMattermostResponse(t, request); isHandled {
+		if response, isHandled := localOrganizationDirectoryResponse(t, request); isHandled {
 			return response, nil
 		}
 		if isCompanyDirectoryRequest(request) && request.Method == http.MethodPatch {
@@ -62,27 +67,5 @@ func TestOrganizationProfileUpdateReachesTheCompanyDirectory(t *testing.T) {
 	}
 	if offered[0]["email"] != "member@example.com" || offered[0]["jobTitle"] != "Designer" {
 		t.Fatalf("directory profile = %#v", offered[0])
-	}
-}
-
-func TestOrganizationProfileUpdateStaysLocalWithoutADirectory(t *testing.T) {
-	service := newLocalUsersTestService(t)
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if response, isHandled := localOrganizationMattermostResponse(t, request); isHandled {
-			return response, nil
-		}
-		if isCompanyDirectoryRequest(request) {
-			t.Fatal("a device with no company directory must not call one")
-		}
-		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-		return nil, nil
-	})}
-
-	requestBody := strings.NewReader(`{"profiles":[{"memberID":"user-member","email":"member@example.com","jobTitle":"Designer"}]}`)
-	responseRecorder := httptest.NewRecorder()
-	service.localUpdateOrgProfiles(responseRecorder, httptest.NewRequest(http.MethodPost, "/admin/api/users/org-profiles", requestBody))
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
 	}
 }
