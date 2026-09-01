@@ -121,7 +121,7 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 	if errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
-	report.Unaccounted, errorValue = service.membersNobodyAccountsFor(ctx, database, seed, bootstrapPubkey)
+	report.Unaccounted, errorValue = service.membersNobodyAccountsFor(ctx, database, seed)
 	if errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
@@ -224,21 +224,12 @@ func roomsHoldingMembers(ctx context.Context, database *sql.DB, pubkeys []string
 // A messenger that forgot an account cannot say who it was, so asking it which
 // identities to remove misses exactly the ones it deleted hardest. This asks the
 // other way: who is in a channel that nobody the company knows accounts for.
-func (service *Service) membersNobodyAccountsFor(ctx context.Context, database *sql.DB, seed, bootstrapPubkey string) ([]string, error) {
-	emails, errorValue := service.companyPeopleEmails(ctx)
+// The audit and the sweep read one roster, so a key the sweep would take back
+// is exactly the key this reports, and a key it reports is one the sweep takes.
+func (service *Service) membersNobodyAccountsFor(ctx context.Context, database *sql.DB, seed string) ([]string, error) {
+	accounted, errorValue := service.accountedBuzzPubkeys(ctx, seed)
 	if errorValue != nil {
 		return nil, errorValue
-	}
-	accounted := map[string]bool{bootstrapPubkey: true}
-	agentPubkey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject))
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	accounted[agentPubkey] = true
-	for _, email := range emails {
-		for _, pubkey := range service.everyKeyHeldBy(ctx, seed, email) {
-			accounted[pubkey] = true
-		}
 	}
 	rows, errorValue := database.QueryContext(ctx,
 		"SELECT DISTINCT encode(pubkey, 'hex') FROM channel_members WHERE removed_at IS NULL")
