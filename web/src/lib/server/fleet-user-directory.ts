@@ -87,6 +87,28 @@ export async function withdrawFleetUser(directory: FleetDirectory, email: string
 	return fleetUserRecords(directory);
 }
 
+// Withdrawing is right for somebody who worked here: their attendance, their
+// leave and the tasks they carried are the company's record, and the row is what
+// those rows point at. Somebody added by mistake has no record to keep, so the
+// row goes. Postgres decides which of the two this is - a reference that refuses
+// the delete is a record worth keeping - rather than a list of tables kept here
+// that the schema would outgrow.
+export async function removeFleetUser(
+	directory: FleetDirectory,
+	email: string
+): Promise<{ records: FleetUserRecord[]; wasRemoved: boolean }> {
+	const held = await memberByEmail(directory, email);
+	if (!held) return { records: await fleetUserRecords(directory), wasRemoved: false };
+	const removed = await directory.client.from('member').delete().eq('id', held.id);
+	if (removed.error) {
+		if (removed.error.code !== foreignKeyViolation) throw new Error(removed.error.message);
+		return { records: await withdrawFleetUser(directory, email), wasRemoved: false };
+	}
+	return { records: await fleetUserRecords(directory), wasRemoved: true };
+}
+
+const foreignKeyViolation = '23503';
+
 async function memberByEmail(directory: FleetDirectory, email: string): Promise<MemberRow | null> {
 	const held = await directory.client
 		.from('member')

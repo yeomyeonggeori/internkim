@@ -22,6 +22,9 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	if request.Method == http.MethodGet || request.Method == http.MethodDelete {
 		targetURL += "?fleet_id=" + url.QueryEscape(fleetID)
 	}
+	if request.Method == http.MethodDelete && request.URL.Query().Get("purge") == "true" {
+		targetURL += "&purge=true"
+	}
 	if request.Method == http.MethodPost || request.Method == http.MethodDelete {
 		if errorValue := service.ensureMattermostProvisionerAccount(request.Context()); errorValue != nil {
 			log.Printf("Mattermost provisioner sync failed: %v", errorValue)
