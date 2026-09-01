@@ -40,6 +40,7 @@ type commandUsersResponse struct {
 	Revision               string              `json:"revision,omitempty"`
 	TemporaryPassword      string              `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string              `json:"temporaryPasswordEmail,omitempty"`
+	WasRemoved             bool                `json:"wasRemoved,omitempty"`
 }
 
 var usersCommandOutput io.Writer = os.Stdout
@@ -180,14 +181,27 @@ func addUserWithClient(arguments []string, client adminAPIClient, defaultRole st
 	return nil
 }
 
+// Somebody who worked here leaves their attendance, their leave and the tasks
+// they carried behind, and those records name the person they belong to, so
+// removing them withdraws them and the record still reads. --purge is for the
+// other case: an address added by mistake, which has nothing to keep. The
+// directory refuses to purge anybody a record still points at.
 func removeUserWithClient(arguments []string, client adminAPIClient) error {
 	email := userEmailFromArguments(arguments)
 	if email == "" {
-		return errors.New("usage: internkim users remove <email>")
+		return errors.New("usage: internkim users remove <email> [--purge]")
 	}
-	_, errorValue := client.request("DELETE", "/users/"+url.PathEscape(email), nil, nil)
-	if errorValue != nil {
+	path := "/users/" + url.PathEscape(email)
+	if hasCommandArgument(arguments, "--purge") {
+		path += "?purge=true"
+	}
+	response := commandUsersResponse{}
+	if _, errorValue := client.request("DELETE", path, nil, &response); errorValue != nil {
 		return errorValue
+	}
+	if hasCommandArgument(arguments, "--purge") && !response.WasRemoved {
+		fmt.Fprintf(usersCommandOutput, "Withdrew user: %s (a record still names them, so the row stays)\n", email)
+		return nil
 	}
 	fmt.Fprintf(usersCommandOutput, "Removed user: %s\n", email)
 	return nil

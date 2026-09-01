@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
-import { fleetUserRecords, withdrawFleetUser } from '$lib/server/fleet-user-directory';
+import { fleetUserRecords, removeFleetUser, withdrawFleetUser } from '$lib/server/fleet-user-directory';
 import { adminEmailsOf, askedDirectory, isAdminRequest, usersResponse } from '$lib/server/fleet-user-request';
 
 const corsHeaders = {
@@ -31,6 +31,10 @@ export const DELETE: RequestHandler = async ({ params, request, url, platform })
 		throw error(400, 'Cannot remove the last admin user');
 	}
 
+	if (url.searchParams.get('purge') === 'true') {
+		const { records: remaining, wasRemoved } = await removeFleetUser(directory, email);
+		return json({ ...(await usersResponse(remaining)), wasRemoved }, { headers: corsHeaders });
+	}
 	const remaining = await withdrawFleetUser(directory, email);
 	return json(await usersResponse(remaining), { headers: corsHeaders });
 };
