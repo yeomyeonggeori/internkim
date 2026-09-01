@@ -1,6 +1,6 @@
 import { environmentOf, type Environment } from '$lib/server/agent-request';
 import { announceClock } from '$lib/server/announce-attendance';
-import { askAnAdministrator, type AttendanceAsked } from '$lib/server/ask-an-administrator';
+import { askWhoAnswersFor, type AttendanceAsked } from '$lib/server/ask-who-answers';
 import { vapidKeysInUse } from '$lib/server/vapid-keys';
 import { callingMember, type CallingMember } from '$lib/server/member-request';
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from '$lib/server/public-api/catalog';
@@ -115,7 +115,7 @@ async function announce(
 	written: AttendanceWrite
 ): Promise<unknown> {
 	if (written.status === 'asked') {
-		return askAnAdministrator(environment, member.record, member.memberID, name, asked);
+		return askWhoAnswersFor(environment, member.record, member.memberID, name, asked);
 	}
 	if (written.backdated || written.status !== 'added') return { told: 0, reached: 0 };
 	const keys = await vapidKeysInUse(member.record, environment);
