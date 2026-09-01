@@ -707,20 +707,6 @@ func (responseWriter *bodyRecordingResponseWriter) Write(document []byte) (int, 
 	return responseWriter.ResponseWriter.Write(document)
 }
 
-func mattermostDeletedPostID(request *http.Request) (string, bool) {
-	if request.Method != http.MethodDelete {
-		return "", false
-	}
-	prefix := "/api/v4/posts/"
-	if !strings.HasPrefix(request.URL.Path, prefix) {
-		return "", false
-	}
-	postID := strings.Trim(strings.TrimPrefix(request.URL.Path, prefix), "/")
-	if postID == "" || strings.Contains(postID, "/") {
-		return "", false
-	}
-	return postID, true
-}
 
 func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
 	if !isLocalRequest(request) {
