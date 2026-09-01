@@ -502,33 +502,6 @@ func TestParseTestArgumentsRejectsRunIDWithReuse(t *testing.T) {
 	}
 }
 
-func TestWriteTestDownloadedMattermostFilesWritesSingleAttachmentToOutputPath(t *testing.T) {
-	outputFilePath := filepath.Join(t.TempDir(), "nested", "report.docx")
-	output := `{"downloadedFiles":[{"fileID":"file-1","filename":"ignored.docx","contentBase64":"ZG9jeA=="}]}`
-	downloadedFilePaths, errorValue := writeTestDownloadedMattermostFiles(output, outputFilePath, filepath.Join(t.TempDir(), "downloads"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(downloadedFilePaths) != 1 || downloadedFilePaths[0] != outputFilePath {
-		t.Fatalf("unexpected downloaded file paths: %v", downloadedFilePaths)
-	}
-	content, errorValue := os.ReadFile(outputFilePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if string(content) != "docx" {
-		t.Fatalf("unexpected output file content: %s", string(content))
-	}
-}
-
-func TestWriteTestDownloadedMattermostFilesRejectsOutputPathForMultipleAttachments(t *testing.T) {
-	output := `{"downloadedFiles":[{"fileID":"file-1","filename":"one.txt","contentBase64":"MQ=="},{"fileID":"file-2","filename":"two.txt","contentBase64":"Mg=="}]}`
-	_, errorValue := writeTestDownloadedMattermostFiles(output, filepath.Join(t.TempDir(), "result.txt"), filepath.Join(t.TempDir(), "downloads"))
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "-o can only write one Mattermost attachment") {
-		t.Fatalf("expected multiple attachment output path error, got %v", errorValue)
-	}
-}
-
 func TestWriteTestResultJSONIncludesDownloadedFilePaths(t *testing.T) {
 	resultJSONPath := filepath.Join(t.TempDir(), "result.json")
 	verificationOutput := mattermostVerificationOutput{

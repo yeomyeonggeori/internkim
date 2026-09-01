@@ -63,18 +63,6 @@ func runVerifyAPI(arguments []string) error {
 	return verifyTarget.runRemoteVerification(verifyAPIScript())
 }
 
-func isMattermostSiteVerification(expectPublicURL bool, expectedTools []string) bool {
-	if expectPublicURL {
-		return true
-	}
-	for _, toolName := range expectedTools {
-		if isSiteToolName(toolName) {
-			return true
-		}
-	}
-	return false
-}
-
 func hasExplicitVerifyTargetArgument(arguments []string) bool {
 	for _, flagName := range []string{"--host", "--node", "--board", "--cloudflare-ssh", "--sim"} {
 		if hasCommandArgument(arguments, flagName) {
@@ -151,131 +139,6 @@ type mattermostBrowserOpenE2EPreparation struct {
 	ChannelID string `json:"channelID"`
 }
 
-func runMattermostBrowserOpenE2E(target verifyTarget, prompt string, keep bool, keepBrowser bool, timeoutSeconds int, companionPath string, agentBrowserPath string) error {
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 240
-	}
-	preparationOutput, errorValue := target.sshClient.runResult(prepareMattermostBrowserOpenE2EScript())
-	if strings.TrimSpace(preparationOutput) != "" {
-		fmt.Print(preparationOutput)
-		if !strings.HasSuffix(preparationOutput, "\n") {
-			fmt.Println()
-		}
-	}
-	if errorValue != nil {
-		return fmt.Errorf("prepare Mattermost browser E2E: %w", errorValue)
-	}
-	preparation, errorValue := parseMattermostBrowserOpenE2EPreparation(preparationOutput)
-	if errorValue != nil {
-		return fmt.Errorf("parse Mattermost browser E2E preparation: %w", errorValue)
-	}
-	if !keep {
-		defer func() {
-			output, cleanupError := target.sshClient.runResult(cleanupMattermostBrowserOpenE2EScript(preparation))
-			if strings.TrimSpace(output) != "" {
-				fmt.Print(output)
-				if !strings.HasSuffix(output, "\n") {
-					fmt.Println()
-				}
-			}
-			if cleanupError != nil {
-				fmt.Fprintf(os.Stderr, "cleanup warning: %v\n", cleanupError)
-			}
-		}()
-	}
-	temporaryDirectory, errorValue := os.MkdirTemp("", "internkim-companion-browser-e2e-")
-	if errorValue != nil {
-		return errorValue
-	}
-	statePath := filepath.Join(temporaryDirectory, "state.json")
-	browserProfilePath := filepath.Join(temporaryDirectory, "browser-profile")
-	if keepBrowser {
-		fmt.Println("local browser will remain open; temporary directory: " + temporaryDirectory)
-	} else {
-		defer os.RemoveAll(temporaryDirectory)
-	}
-	if errorValue := pairCompanionForMattermostBrowserOpenE2E(companionPath, preparation, statePath); errorValue != nil {
-		return errorValue
-	}
-	closeMattermostBrowserOpenE2ESession(agentBrowserPath)
-	if !keepBrowser {
-		defer closeMattermostBrowserOpenE2ESession(agentBrowserPath)
-	}
-	companionCommand, companionLog, errorValue := startMattermostBrowserOpenE2ECompanion(companionPath, agentBrowserPath, statePath, browserProfilePath)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer stopMattermostBrowserOpenE2ECompanion(companionCommand, companionLog)
-	if errorValue := verifyMattermostBrowserOpenE2ECompanion(companionPath, agentBrowserPath, statePath); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := waitMattermostBrowserOpenE2ECompanionOnline(target, preparation, timeoutSeconds); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := target.runRemoteVerification(runMattermostBrowserOpenE2EScript(prompt, keep, timeoutSeconds, preparation)); errorValue != nil {
-		return errorValue
-	}
-	return confirmMattermostBrowserOpenE2ELocalBrowser(agentBrowserPath)
-}
-
-func parseMattermostBrowserOpenE2EPreparation(output string) (mattermostBrowserOpenE2EPreparation, error) {
-	lines := strings.Split(output, "\n")
-	for index := len(lines) - 1; index >= 0; index-- {
-		line := strings.TrimSpace(lines[index])
-		if !strings.HasPrefix(line, "{") {
-			continue
-		}
-		var preparation mattermostBrowserOpenE2EPreparation
-		if errorValue := json.Unmarshal([]byte(line), &preparation); errorValue == nil && preparation.Code != "" {
-			return preparation, nil
-		}
-	}
-	return mattermostBrowserOpenE2EPreparation{}, errors.New("preparation JSON was not found")
-}
-
-func closeMattermostBrowserOpenE2ESession(agentBrowserPath string) {
-	command := exec.Command(agentBrowserPath, "--session", "internkim", "--session-name", "internkim", "close", "--all")
-	_ = command.Run()
-}
-
-func pairCompanionForMattermostBrowserOpenE2E(companionPath string, preparation mattermostBrowserOpenE2EPreparation, statePath string) error {
-	command := exec.Command(companionPath, "pair", "--device-url", preparation.DeviceURL, "--code", preparation.Code, "--state", statePath)
-	output, errorValue := command.CombinedOutput()
-	if strings.TrimSpace(string(output)) != "" {
-		fmt.Print(string(output))
-		if !strings.HasSuffix(string(output), "\n") {
-			fmt.Println()
-		}
-	}
-	if errorValue != nil {
-		return fmt.Errorf("pair local companion: %w", errorValue)
-	}
-	return nil
-}
-
-func startMattermostBrowserOpenE2ECompanion(companionPath string, agentBrowserPath string, statePath string, browserProfilePath string) (*exec.Cmd, *bytes.Buffer, error) {
-	command := exec.Command(
-		companionPath,
-		"run",
-		"--state", statePath,
-		"--agent-browser-path", agentBrowserPath,
-		"--browser-profile", browserProfilePath,
-		"--prefer-companion-browser",
-		"--development-auto-approve-browser",
-	)
-	var logBuffer bytes.Buffer
-	command.Stdout = &logBuffer
-	command.Stderr = &logBuffer
-	if errorValue := command.Start(); errorValue != nil {
-		return nil, nil, fmt.Errorf("start local companion: %w", errorValue)
-	}
-	time.Sleep(3 * time.Second)
-	if command.ProcessState != nil && command.ProcessState.Exited() {
-		return nil, nil, fmt.Errorf("local companion exited early: %s", strings.TrimSpace(logBuffer.String()))
-	}
-	return command, &logBuffer, nil
-}
-
 func stopMattermostBrowserOpenE2ECompanion(command *exec.Cmd, logBuffer *bytes.Buffer) {
 	if command == nil || command.Process == nil {
 		return
@@ -288,61 +151,6 @@ func stopMattermostBrowserOpenE2ECompanion(command *exec.Cmd, logBuffer *bytes.B
 			fmt.Println()
 		}
 	}
-}
-
-func verifyMattermostBrowserOpenE2ECompanion(companionPath string, agentBrowserPath string, statePath string) error {
-	command := exec.Command(companionPath, "status", "--state", statePath, "--json", "--verify-auth")
-	command.Env = append(os.Environ(), "INTERNKIM_AGENT_BROWSER_PATH="+agentBrowserPath)
-	output, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		return fmt.Errorf("verify local companion status: %w: %s", errorValue, strings.TrimSpace(string(output)))
-	}
-	var statusDocument struct {
-		AuthStatus           string `json:"authStatus"`
-		BrowserRuntimeStatus string `json:"browserRuntimeStatus"`
-	}
-	if errorValue := json.Unmarshal(output, &statusDocument); errorValue != nil {
-		return fmt.Errorf("parse local companion status: %w", errorValue)
-	}
-	if statusDocument.AuthStatus != "verified" {
-		return fmt.Errorf("local companion auth status is %s", statusDocument.AuthStatus)
-	}
-	if statusDocument.BrowserRuntimeStatus != "ready" {
-		return fmt.Errorf("local companion browser runtime status is %s", statusDocument.BrowserRuntimeStatus)
-	}
-	fmt.Println("local companion: verified, browser runtime ready")
-	return nil
-}
-
-func waitMattermostBrowserOpenE2ECompanionOnline(target verifyTarget, preparation mattermostBrowserOpenE2EPreparation, timeoutSeconds int) error {
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 240
-	}
-	output, errorValue := target.sshClient.runResult(waitMattermostBrowserOpenE2ECompanionOnlineScript(preparation, timeoutSeconds))
-	if strings.TrimSpace(output) != "" {
-		fmt.Print(output)
-		if !strings.HasSuffix(output, "\n") {
-			fmt.Println()
-		}
-	}
-	if errorValue != nil {
-		return fmt.Errorf("wait for remote companion heartbeat: %w", errorValue)
-	}
-	return nil
-}
-
-func confirmMattermostBrowserOpenE2ELocalBrowser(agentBrowserPath string) error {
-	command := exec.Command(agentBrowserPath, "--session", "internkim", "--session-name", "internkim", "get", "url")
-	output, errorValue := command.CombinedOutput()
-	localURL := strings.TrimSpace(string(output))
-	if errorValue != nil {
-		return fmt.Errorf("confirm local browser URL: %w: %s", errorValue, localURL)
-	}
-	if !strings.Contains(localURL, "google.") {
-		return fmt.Errorf("local browser did not navigate to Google: %s", localURL)
-	}
-	fmt.Println("local browser URL: " + localURL)
-	return nil
 }
 
 func runVerifyBrowser(arguments []string) error {
@@ -451,23 +259,6 @@ func (target verifyTarget) runRemoteVerificationWithTimeout(script string, timeo
 	return nil
 }
 
-func (target verifyTarget) runMattermostPromptVerification(script string, timeout time.Duration, downloadDirectory string) error {
-	output, errorValue := target.sshClient.runResultWithTimeout(script, timeout)
-	if strings.TrimSpace(output) != "" {
-		fmt.Print(redactDownloadedMattermostFiles(output))
-		if !strings.HasSuffix(output, "\n") {
-			fmt.Println()
-		}
-	}
-	if errorValue != nil {
-		return fmt.Errorf("remote verification failed: %w", errorValue)
-	}
-	if strings.TrimSpace(downloadDirectory) == "" {
-		return nil
-	}
-	return writeDownloadedMattermostFiles(output, downloadDirectory)
-}
-
 type downloadedMattermostFile struct {
 	FileID        string `json:"fileID"`
 	Filename      string `json:"filename"`
@@ -504,11 +295,6 @@ func parseMattermostVerificationOutput(output string) (mattermostVerificationOut
 		return mattermostVerificationOutput{}, fmt.Errorf("parse remote verification JSON: %w", errorValue)
 	}
 	return verificationOutput, nil
-}
-
-func writeDownloadedMattermostFiles(output string, downloadDirectory string) error {
-	_, errorValue := writeDownloadedMattermostFilesWithOption(output, downloadDirectory, false)
-	return errorValue
 }
 
 func writeDownloadedMattermostFilesAllowEmpty(output string, downloadDirectory string) ([]string, error) {
@@ -575,24 +361,6 @@ func safeDownloadedMattermostFilename(downloadedFile downloadedMattermostFile) s
 	return "mattermost-attachment"
 }
 
-func redactDownloadedMattermostFiles(output string) string {
-	document, found := parseLastJSONDocument(output)
-	if !found {
-		return output
-	}
-	var payload map[string]any
-	if errorValue := json.Unmarshal(document, &payload); errorValue != nil {
-		return output
-	}
-	redactBase64Attachments(payload, "downloadedFiles")
-	redactBase64Attachments(payload, "siteScreenshots")
-	redactedDocument, errorValue := json.Marshal(payload)
-	if errorValue != nil {
-		return output
-	}
-	return replaceLastJSONDocument(output, string(redactedDocument))
-}
-
 func redactBase64Attachments(payload map[string]any, fieldName string) {
 	files, isArray := payload[fieldName].([]any)
 	if !isArray {
@@ -646,24 +414,6 @@ func replaceLastJSONDocument(output string, replacement string) string {
 	return prefix + replacement + "\n"
 }
 
-func mattermostPromptSSHTimeout(timeoutSeconds int) time.Duration {
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 240
-	}
-	return time.Duration(timeoutSeconds+180) * time.Second
-}
-
-func mattermostPromptScriptSSHTimeout(timeoutSeconds int, expectPublicURL bool) time.Duration {
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 240
-	}
-	total := 120 + timeoutSeconds + 60 + timeoutSeconds
-	if expectPublicURL {
-		total += timeoutSeconds + 135
-	}
-	return time.Duration(total+180) * time.Second
-}
-
 func runPublicBrowserVerification(target verifyTarget) error {
 	publicURL := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/env/mattermost-url 2>/dev/null"))
 	if publicURL == "" {
@@ -672,13 +422,6 @@ func runPublicBrowserVerification(target verifyTarget) error {
 	return runPlaywright("tests/e2e/public-url.spec.ts", map[string]string{
 		"INTERNKIM_PUBLIC_URL": publicURL,
 	})
-}
-
-func mattermostTunnelTargetPort() string {
-	if targetPort := strings.TrimSpace(os.Getenv("INTERNKIM_VERIFY_TUNNEL_TARGET_PORT")); targetPort != "" {
-		return targetPort
-	}
-	return "8065"
 }
 
 func reserveLocalPort() (int, error) {
@@ -2369,69 +2112,6 @@ jq -cn \
   --arg channel_id "$channel_id" \
   '{deviceURL:$device_url,code:$code,email:$email,username:$username,password:$password,userID:$user_id,channelID:$channel_id}'
 `
-}
-
-func cleanupMattermostBrowserOpenE2EScript(preparation mattermostBrowserOpenE2EPreparation) string {
-	return fmt.Sprintf(`set -euo pipefail
-
-email="$(printf '%%s' %s | base64 -d)"
-user_id="$(printf '%%s' %s | base64 -d)"
-admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
-login_headers="$(mktemp)"
-curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-browser-e2e-cleanup-login.json \
-  -H "Content-Type: application/json" \
-  -d "$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')" \
-  http://localhost:8065/api/v4/users/login >/dev/null
-admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
-if [ -n "$user_id" ]; then
-  curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-    "http://localhost:8065/api/v4/users/$user_id?permanent=true" >/dev/null 2>&1 || \
-    curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8065/api/v4/users/$user_id" >/dev/null || true
-fi
-curl --silent --show-error -X DELETE "http://127.0.0.1:8080/admin/api/people?email=$email" >/dev/null || true
-`, strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.Email))), strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.UserID))))
-}
-
-func waitMattermostBrowserOpenE2ECompanionOnlineScript(preparation mattermostBrowserOpenE2EPreparation, timeoutSeconds int) string {
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 240
-	}
-	return fmt.Sprintf(`set -euo pipefail
-
-owner_platform_user_id="$(printf '%%s' %s | base64 -d)"
-owner_email="$(printf '%%s' %s | base64 -d)"
-timeout_seconds=%d
-deadline=$((SECONDS + timeout_seconds))
-
-while [ "$SECONDS" -lt "$deadline" ]; do
-  status_document="$(curl --silent --show-error http://127.0.0.1:18080/admin/api/companion/status)"
-  if printf '%%s' "$status_document" | jq -e --arg owner_platform_user_id "$owner_platform_user_id" --arg owner_email "$owner_email" '
-    any(.companions[]?;
-      .isOnline == true
-      and (.ownerPlatformUserID == $owner_platform_user_id or (.ownerEmail | ascii_downcase) == ($owner_email | ascii_downcase))
-      and any(.capabilities[]?; .name == "browser_open")
-    )
-  ' >/dev/null; then
-    echo "remote companion: online with browser_open"
-    exit 0
-  fi
-  sleep 1
-done
-
-echo "expected remote companion heartbeat with browser_open for $owner_email" >&2
-curl --silent --show-error http://127.0.0.1:18080/admin/api/companion/status |
-  jq --arg owner_platform_user_id "$owner_platform_user_id" --arg owner_email "$owner_email" '
-    .companions
-    | map(select(.ownerPlatformUserID == $owner_platform_user_id or (.ownerEmail | ascii_downcase) == ($owner_email | ascii_downcase)))
-    | map({companionID, ownerPlatformUserID, ownerEmail, isOnline, lastSeenAt, capabilityNames: (.capabilities | map(.name))})
-  ' >&2
-exit 1
-`,
-		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.UserID))),
-		strconv.Quote(base64.StdEncoding.EncodeToString([]byte(preparation.Email))),
-		timeoutSeconds,
-	)
 }
 
 func runMattermostBrowserOpenE2EScript(prompt string, keep bool, timeoutSeconds int, preparation mattermostBrowserOpenE2EPreparation) string {

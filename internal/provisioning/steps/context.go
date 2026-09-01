@@ -79,9 +79,6 @@ type Callbacks struct {
 
 	InstallUsersSyncSSH func(context *Context) error
 	StageUsersSyncSD    func(context *Context) error
-
-	InstallMattermost func(context *Context) error
-	SetupMattermost   func(context *Context) error
 }
 
 type Context struct {
