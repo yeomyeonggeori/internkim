@@ -430,9 +430,19 @@ begin
   select count(*) into visible_leave from public.leave;
   assert visible_leave = 1, 'leave is visible to colleagues so it can show on the calendar';
 
-  update public.leave set status = 'approved';
-  get diagnostics rows_changed = row_count;
+  begin
+    update public.leave set status = 'approved';
+    get diagnostics rows_changed = row_count;
+  exception when others then
+    rows_changed := 0;
+  end;
   assert rows_changed = 0, 'a member must not be able to approve their own leave';
+  assert (select count(*) = 1 from public.leave where status = 'requested'),
+    'the leave a member could not approve is still waiting';
+
+  update public.leave set starts_at = '2026-10-01 00:00+09', ends_at = '2026-10-02 00:00+09';
+  get diagnostics rows_changed = row_count;
+  assert rows_changed = 1, 'a member corrects the days of a leave nobody has decided';
 
   begin
     insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at)

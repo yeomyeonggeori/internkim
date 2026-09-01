@@ -314,6 +314,24 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"status":"approved"`)
 			},
 		},
+		"leave_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_update","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"requested","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
+			input:   `{"leaveHint":"l2","startsAt":"2026-09-04","endsAt":"2026-09-04"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"startDate":"2026-09-04"`)
+			},
+		},
+		"leave_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_delete","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"requested","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
+			input:   `{"leaveHint":"l2"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"leaveID":"l2"`)
+			},
+		},
 		"leave_decide": {
 			kind:   provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_decide","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
@@ -427,7 +445,8 @@ func TestACarryingCaseNamesAToolThePlaneImplements(t *testing.T) {
 		"task_add": true, "task_update": true, "task_list": true, "task_delete": true,
 		"event_add": true, "event_update": true, "event_list": true, "event_delete": true,
 		"person_list":  true,
-		"leave_list":   true, "leave_balance": true, "leave_request": true, "leave_decide": true,
+		"leave_list": true, "leave_balance": true, "leave_request": true, "leave_decide": true,
+		"leave_update": true, "leave_delete": true,
 		"attendance_list": true, "attendance_add": true, "attendance_update": true, "attendance_delete": true,
 	}
 	for name, gateCase := range gateCases() {
