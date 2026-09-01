@@ -67,9 +67,10 @@ time zone. `attendance_list` covers the last thirty days unless `from` and
 `to` say otherwise. `attendance_add` with no `date` and no `time` clocks the
 moment it is called and needs no reason; naming a past moment is writing by
 hand, and that does. A member writes, corrects, and removes their own records
-and an administrator does the same for anybody, with nobody approving
-anything. A write that reaches back more than three days answers
-`backdated: true`, which means the administrators were told it happened.
+from the last three days. Reaching further back, and touching anybody else's,
+is an administrator's: asked by anybody else the call answers `asked`, the
+administrators are told what was wanted, and nothing is written until one of
+them writes it.
 A correction keeps what the record held before it, and a removal keeps who
 removed it and why.
 

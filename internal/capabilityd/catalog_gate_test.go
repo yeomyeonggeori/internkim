@@ -352,11 +352,11 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"attendance_delete": {
 			kind: provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_delete","result":{"status":"removed","eventID":"a3","backdated":true}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_delete","result":{"status":"asked","eventID":null,"backdated":true}}`)},
 			input: `{"eventHint":"이샘플 · clock_in · 2026-08-04 09:02","reason":"두 번 찍혔습니다"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"backdated":true`)
+				expectResultHolds(t, answered, `"status":"asked"`)
 			},
 		},
 	}

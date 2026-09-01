@@ -36,10 +36,10 @@ describe('attendance correction access', () => {
 		expect(editableAttendanceEventIDs(summary, [segment], currentTime)).toEqual(
 			new Set(['clock-in', 'clock-out'])
 		);
-		expect(attendanceEventsWriteOutcome(summary, ['clock-in'], currentTime)).toBe('backdated');
+		expect(attendanceEventsWriteOutcome(summary, ['clock-in'], currentTime)).toBe('asked');
 		expect(attendanceEventsWriteOutcome(summary, ['clock-out'], currentTime)).toBe('saved');
 		expect(attendanceEventsWriteOutcome(summary, ['clock-in', 'clock-out'], currentTime)).toBe(
-			'backdated'
+			'asked'
 		);
 	});
 
@@ -67,7 +67,7 @@ describe('attendance correction access', () => {
 				{ email: 'member@example.com', localDate: '2026-07-01', localTime: '09:00' },
 				currentTime
 			)
-		).toBe('backdated');
+		).toBe('asked');
 		expect(
 			attendanceAdditionWriteOutcome(
 				summary,
