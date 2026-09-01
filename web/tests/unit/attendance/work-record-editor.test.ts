@@ -171,6 +171,7 @@ function createEditorFixture() {
 		updateEvents: async (nextUpdates) => {
 			if (fixture.updateError) throw fixture.updateError;
 			fixture.updates.push(nextUpdates);
+			return { outcome: 'saved' };
 		},
 		processingFailedMessage: '처리하지 못했습니다.'
 	});

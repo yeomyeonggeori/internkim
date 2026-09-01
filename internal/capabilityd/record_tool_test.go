@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
-func leaveRequestOf(toolName string, input string) capabilities.ToolInvokeRequest {
+func recordRequestOf(toolName string, input string) capabilities.ToolInvokeRequest {
 	return capabilities.ToolInvokeRequest{
 		ToolName: toolName,
 		Input:    json.RawMessage(input),
@@ -20,7 +21,7 @@ func leaveRequestOf(toolName string, input string) capabilities.ToolInvokeReques
 	}
 }
 
-func TestLeaveCallsReachTheRecordAsTheRequester(t *testing.T) {
+func TestRecordCallsReachTheRecordAsTheRequester(t *testing.T) {
 	var reachedPath, reachedRequester, reachedBody string
 	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		body, _ := io.ReadAll(request.Body)
@@ -35,7 +36,7 @@ func TestLeaveCallsReachTheRecordAsTheRequester(t *testing.T) {
 		AdmindSocketPath: socketPath,
 	}}
 
-	answer, errorValue := service.invokeLeaveTool(context.Background(), leaveRequestOf("leave_balance", `{"year":2026}`))
+	answer, errorValue := service.invokeRecordTool(context.Background(), recordRequestOf("leave_balance", `{"year":2026}`))
 	if errorValue != nil {
 		t.Fatalf("leave_balance: %v", errorValue)
 	}
@@ -58,7 +59,7 @@ func TestLeaveCallsReachTheRecordAsTheRequester(t *testing.T) {
 
 // A hint the record could not resolve comes back with the candidates to choose
 // from, and the model needs both, so neither is summarised away.
-func TestAnUnresolvedLeaveHintReachesTheModelWithItsCandidates(t *testing.T) {
+func TestAnUnresolvedRecordHintReachesTheModelWithItsCandidates(t *testing.T) {
 	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
 		responseWriter.WriteHeader(http.StatusConflict)
@@ -69,7 +70,7 @@ func TestAnUnresolvedLeaveHintReachesTheModelWithItsCandidates(t *testing.T) {
 		AdmindSocketPath: socketPath,
 	}}
 
-	answer, errorValue := service.invokeLeaveTool(context.Background(), leaveRequestOf("leave_decide", `{"leaveHint":"연차","decision":"approved"}`))
+	answer, errorValue := service.invokeRecordTool(context.Background(), recordRequestOf("leave_decide", `{"leaveHint":"연차","decision":"approved"}`))
 	if errorValue != nil {
 		t.Fatalf("leave_decide: %v", errorValue)
 	}
@@ -87,10 +88,10 @@ func TestAnUnresolvedLeaveHintReachesTheModelWithItsCandidates(t *testing.T) {
 	}
 }
 
-func TestALeaveCallRefusesRatherThanSendARequesterNobodyHonours(t *testing.T) {
+func TestARecordCallRefusesRatherThanSendARequesterNobodyHonours(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: admindOnLoopbackThatFailsTheTest(t)}}
 
-	_, errorValue := service.invokeLeaveTool(context.Background(), leaveRequestOf("leave_list", `{}`))
+	_, errorValue := service.invokeRecordTool(context.Background(), recordRequestOf("leave_list", `{}`))
 	if errorValue == nil {
 		t.Fatal("the call went somewhere without an admind socket to go to")
 	}
@@ -99,11 +100,24 @@ func TestALeaveCallRefusesRatherThanSendARequesterNobodyHonours(t *testing.T) {
 	}
 }
 
-func TestOnlyTheFourLeaveToolsAreServedHere(t *testing.T) {
+func TestOnlyTheRecordsOwnToolsAreServedHere(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: admindOnLoopbackThatFailsTheTest(t)}}
 
-	_, errorValue := service.invokeLeaveTool(context.Background(), leaveRequestOf("leave_forget", `{}`))
+	_, errorValue := service.invokeRecordTool(context.Background(), recordRequestOf("leave_forget", `{}`))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "leave_forget") {
 		t.Fatalf("a tool this handler does not serve answered anyway: %v", errorValue)
+	}
+}
+
+func TestEveryToolTheRecordRunsIsRoutedToTheRecord(t *testing.T) {
+	recordHandler := reflect.ValueOf(capabilityToolHandler(Service.invokeRecordTool)).Pointer()
+	for toolName := range toolsTheRecordRuns {
+		route, hasRoute := capabilityToolRouteFor(toolName)
+		if !hasRoute {
+			t.Fatalf("%s is answered by the record and nothing routes to it", toolName)
+		}
+		if reflect.ValueOf(route.Handler).Pointer() != recordHandler {
+			t.Fatalf("%s is answered by the record and its route reaches somewhere else", toolName)
+		}
 	}
 }

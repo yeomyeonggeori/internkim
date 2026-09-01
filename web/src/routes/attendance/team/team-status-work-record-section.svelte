@@ -4,8 +4,11 @@
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import Clock3Icon from '@lucide/svelte/icons/clock-3';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
+	import type { AttendanceWriteResult } from '$lib/attendance/attendance-write';
 	import { getAttendanceState } from '../attendance-context.svelte';
+	import { getAttendanceApprovalState } from '../approval/attendance-approval-state.svelte';
 	import { startAttendanceMinuteClock } from '../shared/attendance-minute-clock';
 	import { absenceDisplayClass } from '../shared/color-tokens';
 	import DurationText from '../shared/duration-text.svelte';
@@ -14,6 +17,14 @@
 	import type { AttendanceText } from '../text';
 	import type { TeamStatusDayDetail } from './team-status-day-detail';
 	import TeamStatusLeaveSegmentSummary from './team-status-leave-segment-summary.svelte';
+	import AttendanceRecordAddDialog from './attendance-record-add-dialog.svelte';
+	import AttendanceRecordRemoveDialog from './attendance-record-remove-dialog.svelte';
+	import { AttendanceRecordAdditionState } from './attendance-record-addition.svelte';
+	import { AttendanceRecordRemovalState } from './attendance-record-removal.svelte';
+	import {
+		attendanceWriteConfirmation,
+		attendanceWriteIntent
+	} from './attendance-write-notice';
 	import { WorkRecordEditorState } from './work-record-editor.svelte';
 
 	type Props = {
@@ -24,13 +35,39 @@
 
 	let { text, detail, sectionCountBadgeClass }: Props = $props();
 	const attendance = getAttendanceState();
+	const attendanceApproval = getAttendanceApprovalState();
+
+	async function listingAnyRequest(
+		write: Promise<AttendanceWriteResult>
+	): Promise<AttendanceWriteResult> {
+		const result = await write;
+		if (result.outcome === 'requested') await attendanceApproval.load();
+		return result;
+	}
+
 	const workRecordEditor = new WorkRecordEditorState({
 		getSummary: () => attendance.summary,
 		hasServerClock: () => attendance.serverClock !== null,
 		getCurrentServerTime: () => attendance.currentServerTime(),
-		updateEvents: (updates) => attendance.updateEvents(updates),
+		updateEvents: (updates) => listingAnyRequest(attendance.updateEvents(updates)),
 		get processingFailedMessage() {
 			return text.processingFailed;
+		}
+	});
+	const recordAddition = new AttendanceRecordAdditionState({
+		getSummary: () => attendance.summary,
+		getCurrentServerTime: () => attendance.currentServerTime(),
+		addEvent: (request) => listingAnyRequest(attendance.addEvent(request)),
+		get processingFailedMessage() {
+			return text.records.failed;
+		}
+	});
+	const recordRemoval = new AttendanceRecordRemovalState({
+		getSummary: () => attendance.summary,
+		getCurrentServerTime: () => attendance.currentServerTime(),
+		removeEvent: (request) => listingAnyRequest(attendance.removeEvent(request)),
+		get processingFailedMessage() {
+			return text.records.failed;
 		}
 	});
 	const attendanceLocations = $derived(attendance.summary?.locations ?? []);
@@ -47,6 +84,19 @@
 	const displayedSegmentCount = $derived(
 		detail.day.timelineSegments.length || detail.day.segments.length
 	);
+	const canWriteWorkRecords = $derived(
+		(isOwnDay || attendance.summary?.isAdmin === true) && hasCentralCorrectionPolicy
+	);
+	const editingNotice = $derived(attendanceWriteIntent(workRecordEditor.writeOutcome, text.records));
+	const completionNotice = $derived(completedNoticeFor());
+
+	function completedNoticeFor(): string {
+		const outcome =
+			workRecordEditor.completedOutcome ??
+			recordAddition.completedOutcome ??
+			recordRemoval.completedOutcome;
+		return outcome ? attendanceWriteConfirmation(outcome, text.records) : '';
+	}
 
 	$effect(() => {
 		if (
@@ -87,6 +137,19 @@
 				size="medium"
 				tone={detail.day.tone === 'working' ? 'info' : 'default'}
 			/>
+		{/if}
+		{#if canWriteWorkRecords}
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon-sm"
+				aria-label={text.records.addAction}
+				disabled={workRecordEditor.isSaving}
+				onclick={() => recordAddition.open(detail.day.date, detail.email)}
+				data-testid="work-record-add-button"
+			>
+				<PlusIcon class="size-4" />
+			</Button>
 		{/if}
 		{#if canEditWorkRecords}
 			<Button
@@ -201,6 +264,10 @@
 										workRecordEditor.updateEventTime(segment.endEventID, value)}
 									onLocationChange={(value) =>
 										workRecordEditor.updateSegmentLocation(segment, value)}
+									onStartRemove={() => recordRemoval.open(segment.startEventID)}
+									onEndRemove={segment.endEventID
+										? () => recordRemoval.open(segment.endEventID ?? '')
+										: undefined}
 								/>
 							{/if}
 						</div>
@@ -227,6 +294,7 @@
 				class="min-h-16 text-sm"
 			/>
 		</label>
+		<p class="text-xs text-muted-foreground" data-testid="work-record-edit-notice">{editingNotice}</p>
 		{#if workRecordEditor.errorMessage}<p class="text-xs text-destructive">{workRecordEditor.errorMessage}</p>{/if}
 		<div class="flex justify-end gap-2">
 			<Button type="button" variant="outline" size="sm" disabled={workRecordEditor.isSaving} onclick={() => workRecordEditor.close()}>
@@ -238,3 +306,12 @@
 		</div>
 	</div>
 {/if}
+
+{#if completionNotice}
+	<p class="mt-3 text-xs text-muted-foreground" data-testid="work-record-completion-notice">
+		{completionNotice}
+	</p>
+{/if}
+
+<AttendanceRecordAddDialog {text} addition={recordAddition} />
+<AttendanceRecordRemoveDialog {text} removal={recordRemoval} />

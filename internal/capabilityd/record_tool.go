@@ -12,14 +12,25 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-// Leave lives in the record, so this carries the call to admind, which runs it
-// on the plane as the person who asked. Nothing about leave is decided here.
-func (service Service) invokeLeaveTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+// These tools live in the record, so this carries the call to admind, which
+// runs it on the plane as the person who asked. Nothing is decided here.
+var toolsTheRecordRuns = map[string]bool{
+	"leave_list":        true,
+	"leave_balance":     true,
+	"leave_request":     true,
+	"leave_decide":      true,
+	"attendance_list":   true,
+	"attendance_add":    true,
+	"attendance_update": true,
+	"attendance_delete": true,
+	"approval_list":     true,
+	"approval_decide":   true,
+}
+
+func (service Service) invokeRecordTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	toolName := strings.TrimSpace(request.ToolName)
-	switch toolName {
-	case "leave_list", "leave_balance", "leave_request", "leave_decide":
-	default:
-		return capabilities.ToolInvokeResponse{}, fmt.Errorf("leave tool is not configured: %s", toolName)
+	if !toolsTheRecordRuns[toolName] {
+		return capabilities.ToolInvokeResponse{}, fmt.Errorf("record tool is not configured: %s", toolName)
 	}
 
 	answer, status, errorValue := service.askTheRecord(ctx, toolName, request.Input, request.Context.RequesterEmail)
