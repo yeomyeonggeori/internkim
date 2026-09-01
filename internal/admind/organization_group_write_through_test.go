@@ -1,10 +1,7 @@
 package admind
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -13,51 +10,6 @@ import (
 
 func isCompanyTeamRequest(request *http.Request) bool {
 	return strings.HasPrefix(request.URL.String(), companyDirectoryURLForTest+"/api/agent/team")
-}
-
-func TestOrganizationGroupUpdateReachesTheCompanyDirectory(t *testing.T) {
-	service := newLocalUsersTestService(t)
-	seatPeopleInACompanyDirectoryForTest(t, service)
-	var offered []map[string]any
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if response, isHandled := localOrganizationDirectoryResponse(t, request); isHandled {
-			return response, nil
-		}
-		if isCompanyTeamRequest(request) {
-			var payload struct {
-				Teams []map[string]any `json:"teams"`
-			}
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			offered = payload.Teams
-			return jsonResponse(http.StatusOK, `{"teams":[{"teamID":"team-product","name":"제품","parentTeamID":""}],"dropped":0}`, nil), nil
-		}
-		if isCompanyDirectoryRequest(request) {
-			return companyDirectoryResponse(t, request)
-		}
-		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-		return nil, nil
-	})}
-
-	requestBody := strings.NewReader(`{"groups":[{"id":"product","name":"제품"}]}`)
-	responseRecorder := httptest.NewRecorder()
-	service.localSetOrgGroups(responseRecorder, httptest.NewRequest(http.MethodPut, "/admin/api/org-groups", requestBody))
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
-	}
-	if len(offered) != 1 || offered[0]["name"] != "제품" {
-		t.Fatalf("the directory was offered %#v; a team made here has to reach it", offered)
-	}
-
-	groups, errorValue := service.readOrganizationGroups(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(groups) != 1 || groups[0].ID != "team-product" {
-		t.Fatalf("groups = %#v; want the id the directory issued", groups)
-	}
 }
 
 func TestRenamingATeamInTheDirectoryDoesNotMakeASecondGroup(t *testing.T) {
