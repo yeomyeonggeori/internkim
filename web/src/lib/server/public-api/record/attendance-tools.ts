@@ -2,6 +2,7 @@ import { dayIn, dayOfInstant, dayShifted, instantOfDay } from './days';
 import { personOfHint } from './people';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import {
+	attendanceByID,
 	attendanceOfCompany,
 	timeOfInstant,
 	NoSuchAttendanceRecord,
@@ -10,7 +11,8 @@ import {
 import type { RecordContext } from './company';
 
 const defaultWindowDays = 30;
-const hintWindowDays = 400;
+const hintWindowDays = 90;
+const mostRecentRows = 1000;
 
 export type AnsweredAttendance = {
 	eventID: string;
@@ -68,7 +70,7 @@ async function rowsInWindow(
 	const window = windowOf(context, from, to);
 	const everyone = scope === 'all' && !personHint;
 	const memberID = everyone ? null : targetMember(context, personHint);
-	const rows = await attendanceOfCompany(context.caller, window.from, window.to);
+	const rows = await attendanceOfCompany(context.caller, window.from, window.to, mostRecentRows);
 	return {
 		rows: memberID ? rows.filter((row) => row.member_id === memberID) : rows,
 		memberID,
@@ -77,14 +79,17 @@ async function rowsInWindow(
 	};
 }
 
-function attendanceOfHint(context: RecordContext, rows: AttendanceRow[], hint: string): AttendanceRow {
+// An identifier is asked for by name, because scanning a window for it would
+// miss any record the window or the row ceiling left out.
+async function attendanceOfHint(context: RecordContext, hint: string): Promise<AttendanceRow> {
 	const asked = hint.trim();
 	if (!asked) throw new NoSuchAttendanceRecord(hint, []);
 
-	const byID = rows.find((row) => row.id === asked);
-	if (byID) return byID;
+	const named = await attendanceByID(context.caller, asked).catch(() => null);
+	if (named) return named;
 
-	const described = rows.filter((row) => describedAttendance(context, row).includes(asked));
+	const found = await rowsInWindow(context, undefined, 'all', reachableFrom(context), undefined);
+	const described = found.rows.filter((row) => describedAttendance(context, row).includes(asked));
 	if (described.length === 1) return described[0];
 	throw new NoSuchAttendanceRecord(
 		hint,
@@ -159,8 +164,7 @@ export async function attendanceUpdate(context: RecordContext, input: Attendance
 	if (!input.eventHint) throw new Error('a correction names the attendance record it corrects');
 	if (!input.reason?.trim()) throw new Error('a correction says why the record was wrong');
 
-	const found = await rowsInWindow(context, undefined, 'all', reachableFrom(context), undefined);
-	const row = attendanceOfHint(context, found.rows, input.eventHint);
+	const row = await attendanceOfHint(context, input.eventHint);
 	const held = answeredAttendance(context, row);
 
 	const { data, error } = await context.caller.rpc('attendance_correct', {
@@ -184,8 +188,7 @@ export async function attendanceDelete(context: RecordContext, input: Attendance
 	if (!input.eventHint) throw new Error('a removal names the attendance record it removes');
 	if (!input.reason?.trim()) throw new Error('a removal says why the record should not be there');
 
-	const found = await rowsInWindow(context, undefined, 'all', reachableFrom(context), undefined);
-	const row = attendanceOfHint(context, found.rows, input.eventHint);
+	const row = await attendanceOfHint(context, input.eventHint);
 
 	const { data, error } = await context.caller.rpc('attendance_remove', {
 		event_id: row.id,
