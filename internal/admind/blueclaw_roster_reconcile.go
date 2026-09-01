@@ -46,11 +46,34 @@ func (service *Service) reconcileBlueclawRoster(ctx context.Context) error {
 	if client == nil {
 		return nil
 	}
+	if errorValue := service.reconcileCompanyTimeZone(ctx, client); errorValue != nil {
+		return errorValue
+	}
 	members, errorValue := client.Members(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
 	return service.deliverRosterReconciledWith(ctx, rosterRecordsOfMembers(members))
+}
+
+func (service *Service) reconcileCompanyTimeZone(ctx context.Context, client *centralplane.Client) error {
+	company, found, errorValue := client.Company(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	timeZone := strings.TrimSpace(company.Timezone)
+	if !found || timeZone == "" {
+		return nil
+	}
+	settings, errorValue := service.readWorkspaceSettings()
+	if errorValue != nil {
+		return errorValue
+	}
+	if settings.TimeZone == timeZone {
+		return nil
+	}
+	settings.TimeZone = timeZone
+	return service.writeWorkspaceSettingsFile(settings)
 }
 
 func rosterRecordsOfMembers(members []centralplane.Member) []adminUserMutation {
@@ -80,6 +103,9 @@ func (service *Service) deliverRosterReconciledWith(ctx context.Context, records
 		return errorValue
 	}
 	reconcileRosterPeople(policyDocument, records, service.alwaysRetainedRosterEmails())
+	if info, errorValue := service.readCompanyInfo(); errorValue == nil {
+		policyDocument["company"] = companyPolicySnapshot(info, service.workspaceTimeZone().name)
+	}
 	reconciledRoster, errorValue := json.Marshal(policyDocument)
 	if errorValue != nil {
 		return errorValue

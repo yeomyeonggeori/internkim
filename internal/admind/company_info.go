@@ -142,24 +142,12 @@ func companyPolicySnapshot(info companyInfo, timeZone string) map[string]string 
 	}
 }
 
-func (service *Service) companyTimeZoneName(ctx context.Context) string {
-	client := service.centralPlane()
-	if client == nil {
-		return service.workspaceTimeZone().name
-	}
-	company, found, errorValue := client.Company(ctx)
-	if errorValue != nil || !found || strings.TrimSpace(company.Timezone) == "" {
-		return service.workspaceTimeZone().name
-	}
-	return strings.TrimSpace(company.Timezone)
-}
-
 func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, info companyInfo) error {
 	var policyDocument map[string]any
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
 		return errorValue
 	}
-	policyDocument["company"] = companyPolicySnapshot(info, service.companyTimeZoneName(ctx))
+	policyDocument["company"] = companyPolicySnapshot(info, service.workspaceTimeZone().name)
 	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 
