@@ -1,5 +1,7 @@
 import { environmentOf, type Environment } from '$lib/server/agent-request';
-import { announceApproval } from '$lib/server/announce-approval';
+import { announceHandWrittenAttendance } from '$lib/server/announce-hand-written-attendance';
+import { announceClock } from '$lib/server/announce-attendance';
+import { vapidKeysInUse } from '$lib/server/vapid-keys';
 import { callingMember, type CallingMember } from '$lib/server/member-request';
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from '$lib/server/public-api/catalog';
 import { fullPublicAPIPermission } from '$lib/public-api-permission';
@@ -80,27 +82,52 @@ async function runHere(
 	return json(await withTheCompanyTold(environment, member, answered.body), { status: answered.status });
 }
 
-// A write the record turned into a request is only useful once somebody who
-// can decide it hears about it, and the caller is told whether they did.
+type AttendanceWrite = { status: string; eventID: string | null; backdated: boolean };
+
 async function withTheCompanyTold(
 	environment: Environment,
 	member: CallingMember,
 	body: unknown
 ): Promise<unknown> {
-	const opened = approvalOpenedBy(body);
-	if (!opened) return body;
+	const written = attendanceWrittenIn(body);
+	if (!written) return body;
 	try {
-		return { ...(body as Record<string, unknown>), notified: await announceApproval(environment, member.record, member.memberID, opened) };
+		return { ...(body as Record<string, unknown>), notified: await announce(environment, member, written) };
 	} catch (refusal) {
 		const reason = refusal instanceof Error ? refusal.message : String(refusal);
-		return { ...(body as Record<string, unknown>), notified: { told: 0, messaged: 0, failures: [reason] } };
+		return { ...(body as Record<string, unknown>), notified: { failures: [reason] } };
 	}
 }
 
-function approvalOpenedBy(body: unknown): string | null {
-	const result = (body as { result?: { approvalID?: unknown } } | null)?.result;
-	const opened = result?.approvalID;
-	return typeof opened === 'string' && opened !== '' ? opened : null;
+async function announce(
+	environment: Environment,
+	member: CallingMember,
+	written: AttendanceWrite
+): Promise<unknown> {
+	if (written.backdated) {
+		if (!written.eventID) return { failures: ['the record did not name the row it wrote'] };
+		return announceHandWrittenAttendance(
+			environment,
+			member.record,
+			member.memberID,
+			written.eventID,
+			written.status
+		);
+	}
+	if (written.status !== 'added') return { told: 0, reached: 0 };
+	const keys = await vapidKeysInUse(member.record, environment);
+	if (!keys) return { told: 0, reached: 0 };
+	return announceClock(member.caller, member.record, member.memberID, keys, Math.floor(Date.now() / 1000));
+}
+
+function attendanceWrittenIn(body: unknown): AttendanceWrite | null {
+	const result = (body as { result?: Partial<AttendanceWrite> } | null)?.result;
+	if (!result || typeof result.status !== 'string' || typeof result.backdated !== 'boolean') return null;
+	return {
+		status: result.status,
+		eventID: typeof result.eventID === 'string' ? result.eventID : null,
+		backdated: result.backdated
+	};
 }
 
 function discoveryAnswer(path: string, member: CallingMember): Response | null {

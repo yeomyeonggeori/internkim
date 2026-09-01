@@ -8,7 +8,6 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { AttendanceWriteResult } from '$lib/attendance/attendance-write';
 	import { getAttendanceState } from '../attendance-context.svelte';
-	import { getAttendanceApprovalState } from '../approval/attendance-approval-state.svelte';
 	import { startAttendanceMinuteClock } from '../shared/attendance-minute-clock';
 	import { absenceDisplayClass } from '../shared/color-tokens';
 	import DurationText from '../shared/duration-text.svelte';
@@ -35,21 +34,12 @@
 
 	let { text, detail, sectionCountBadgeClass }: Props = $props();
 	const attendance = getAttendanceState();
-	const attendanceApproval = getAttendanceApprovalState();
-
-	async function listingAnyRequest(
-		write: Promise<AttendanceWriteResult>
-	): Promise<AttendanceWriteResult> {
-		const result = await write;
-		if (result.outcome === 'requested') await attendanceApproval.load();
-		return result;
-	}
 
 	const workRecordEditor = new WorkRecordEditorState({
 		getSummary: () => attendance.summary,
 		hasServerClock: () => attendance.serverClock !== null,
 		getCurrentServerTime: () => attendance.currentServerTime(),
-		updateEvents: (updates) => listingAnyRequest(attendance.updateEvents(updates)),
+		updateEvents: (updates) => attendance.updateEvents(updates),
 		get processingFailedMessage() {
 			return text.processingFailed;
 		}
@@ -57,7 +47,7 @@
 	const recordAddition = new AttendanceRecordAdditionState({
 		getSummary: () => attendance.summary,
 		getCurrentServerTime: () => attendance.currentServerTime(),
-		addEvent: (request) => listingAnyRequest(attendance.addEvent(request)),
+		addEvent: (request) => attendance.addEvent(request),
 		get processingFailedMessage() {
 			return text.records.failed;
 		}
@@ -65,28 +55,23 @@
 	const recordRemoval = new AttendanceRecordRemovalState({
 		getSummary: () => attendance.summary,
 		getCurrentServerTime: () => attendance.currentServerTime(),
-		removeEvent: (request) => listingAnyRequest(attendance.removeEvent(request)),
+		removeEvent: (request) => attendance.removeEvent(request),
 		get processingFailedMessage() {
 			return text.records.failed;
 		}
 	});
 	const attendanceLocations = $derived(attendance.summary?.locations ?? []);
 	const isOwnDay = $derived(detail.email === attendance.summary?.currentUserEmail);
-	const hasCentralCorrectionPolicy = $derived(
-		attendance.summary?.correctionWindowMinutes !== undefined
-	);
 	const canEditWorkRecords = $derived(
 		(isOwnDay || attendance.summary?.isAdmin === true) &&
 		detail.day.segments.length > 0 &&
 		attendanceLocations.length > 0 &&
-		(!hasCentralCorrectionPolicy || workRecordEditor.canEdit(detail.day.segments))
+		workRecordEditor.canEdit(detail.day.segments)
 	);
 	const displayedSegmentCount = $derived(
 		detail.day.timelineSegments.length || detail.day.segments.length
 	);
-	const canWriteWorkRecords = $derived(
-		(isOwnDay || attendance.summary?.isAdmin === true) && hasCentralCorrectionPolicy
-	);
+	const canWriteWorkRecords = $derived(isOwnDay || attendance.summary?.isAdmin === true);
 	const editingNotice = $derived(attendanceWriteIntent(workRecordEditor.writeOutcome, text.records));
 	const completionNotice = $derived(completedNoticeFor());
 

@@ -24,7 +24,7 @@ const segment: TeamStatusPersonDaySegment = {
 };
 
 describe('attendance correction access', () => {
-	test('keeps an own record reachable outside the window so it can become a request', () => {
+	test('keeps an own record reachable outside the three days, as one the administrators hear about', () => {
 		const summary = summaryWith(
 			{
 				id: 'clock-in',
@@ -36,10 +36,10 @@ describe('attendance correction access', () => {
 		expect(editableAttendanceEventIDs(summary, [segment], currentTime)).toEqual(
 			new Set(['clock-in', 'clock-out'])
 		);
-		expect(attendanceEventsWriteOutcome(summary, ['clock-in'], currentTime)).toBe('requested');
+		expect(attendanceEventsWriteOutcome(summary, ['clock-in'], currentTime)).toBe('backdated');
 		expect(attendanceEventsWriteOutcome(summary, ['clock-out'], currentTime)).toBe('saved');
 		expect(attendanceEventsWriteOutcome(summary, ['clock-in', 'clock-out'], currentTime)).toBe(
-			'requested'
+			'backdated'
 		);
 	});
 
@@ -52,7 +52,7 @@ describe('attendance correction access', () => {
 		expect(attendanceEventsWriteOutcome(summary, ['clock-in'], currentTime)).toBe('blocked');
 	});
 
-	test('reads a record being added through the same window', () => {
+	test('reads a record being added through the same threshold', () => {
 		const summary = summaryWith({ id: 'clock-in' });
 		expect(
 			attendanceAdditionWriteOutcome(
@@ -67,7 +67,7 @@ describe('attendance correction access', () => {
 				{ email: 'member@example.com', localDate: '2026-07-01', localTime: '09:00' },
 				currentTime
 			)
-		).toBe('requested');
+		).toBe('backdated');
 		expect(
 			attendanceAdditionWriteOutcome(
 				summary,
@@ -87,13 +87,6 @@ describe('attendance correction access', () => {
 		expect(editableAttendanceEventIDs(summary, [segment], currentTime)).toEqual(new Set(['clock-in']));
 	});
 
-	test('keeps device-mode events editable without applying the central policy', () => {
-		const summary = summaryWith({ id: 'clock-in', occurredAt: '2026-07-01T09:00:00+09:00' });
-		delete summary.correctionWindowMinutes;
-		expect(editableAttendanceEventIDs(summary, [segment], currentTime)).toEqual(
-			new Set(['clock-in', 'clock-out'])
-		);
-	});
 });
 
 function summaryWith(...overrides: Partial<AttendanceEvent>[]): AttendanceSummary {
@@ -109,7 +102,7 @@ function summaryWith(...overrides: Partial<AttendanceEvent>[]): AttendanceSummar
 		locations: [],
 		teamViewVisibleToAll: true,
 		teamViewBlocked: false,
-		correctionWindowMinutes: 60
+		backdatedAfterMinutes: 60
 	};
 }
 

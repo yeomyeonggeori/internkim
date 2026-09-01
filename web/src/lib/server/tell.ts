@@ -15,6 +15,7 @@ export type Telling = {
 	category: NotificationCategory;
 	title: string;
 	body: string;
+	openPath?: string;
 };
 
 export type Told = {
@@ -118,7 +119,7 @@ function notificationOf(telling: Telling): Notification {
 	return {
 		title: telling.title,
 		body: telling.body,
-		openPath: homePath,
+		openPath: telling.openPath ?? homePath,
 		tag: `${telling.category}-${crypto.randomUUID()}`
 	};
 }

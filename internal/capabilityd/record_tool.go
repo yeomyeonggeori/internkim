@@ -23,8 +23,6 @@ var toolsTheRecordRuns = map[string]bool{
 	"attendance_add":    true,
 	"attendance_update": true,
 	"attendance_delete": true,
-	"approval_list":     true,
-	"approval_decide":   true,
 }
 
 func (service Service) invokeRecordTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {

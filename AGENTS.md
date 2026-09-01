@@ -481,6 +481,19 @@ and delete the duplicates.
   catalog, the token lifecycle, and that an invocation is refused rather than
   answered here when no gateway is configured. Add a case there when an
   endpoint is added, and run it before deploying the web app.
+- **The web UI reaches the record through that API, never through Supabase
+  itself.** A browser `.rpc()` or `.from(...).insert()` is a second
+  implementation of something the API already answers, and the two drift: the
+  attendance approval notification was written twice, once client-side and once
+  in the route, and only one of them survived the feature being removed. Call
+  `invokeTool` in `web/src/lib/public-api-call.ts`.
+  Where the browser's behaviour is the better one, move that behaviour into the
+  API and retire the browser copy; do not weaken the screen to fit a thinner
+  tool. Most of the app has not migrated yet — attendance writes have, and
+  roughly 130 call sites across CRM, notifications, company settings, the
+  directory, task, calendar and leave have not, about a hundred of which need a
+  tool designed before the screen can move. Migrate the domain you are already
+  working in; never add a new direct-Supabase call site.
 
 ## Central Plane (Supabase)
 

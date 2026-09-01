@@ -8,7 +8,7 @@ export function attendanceWriteIntent(
 	text: AttendanceRecordText
 ): string {
 	if (outcome === 'blocked') return text.blocked;
-	if (outcome === 'requested') return text.requestsApproval;
+	if (outcome === 'backdated') return text.tellsAdministrators;
 	return text.savesImmediately;
 }
 
@@ -16,7 +16,7 @@ export function attendanceWriteConfirmation(
 	outcome: AttendanceWriteResult['outcome'],
 	text: AttendanceRecordText
 ): string {
-	return outcome === 'requested' ? text.requested : text.saved;
+	return outcome === 'backdated' ? text.savedAndTold : text.saved;
 }
 
 export function attendanceWriteSubmitLabel(
@@ -24,5 +24,5 @@ export function attendanceWriteSubmitLabel(
 	text: AttendanceRecordText,
 	immediateLabel: string
 ): string {
-	return outcome === 'requested' ? text.requestSubmit : immediateLabel;
+	return outcome === 'backdated' ? text.backdatedSubmit : immediateLabel;
 }

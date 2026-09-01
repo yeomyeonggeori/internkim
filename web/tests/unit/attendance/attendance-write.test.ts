@@ -14,10 +14,10 @@ import { attendanceText } from '../../../src/routes/attendance/text';
 
 const currentTime = new Date('2026-07-15T10:30:00+09:00');
 const threeDays = 4320;
-const member = { isAdmin: false, currentUserEmail: 'member@example.com', correctionWindowMinutes: threeDays };
+const member = { isAdmin: false, currentUserEmail: 'member@example.com', backdatedAfterMinutes: threeDays };
 
 describe('attendance write outcome', () => {
-	test('saves a member record raised inside the correction window', () => {
+	test('saves a member record raised inside the three days without telling anybody', () => {
 		expect(
 			attendanceWriteOutcome(
 				member,
@@ -27,14 +27,14 @@ describe('attendance write outcome', () => {
 		).toBe('saved');
 	});
 
-	test('asks for approval once the record is older than the window', () => {
+	test('tells the administrators once the record is older than three days', () => {
 		expect(
 			attendanceWriteOutcome(
 				member,
 				{ subjectEmail: 'member@example.com', anchorTime: new Date('2026-07-01T09:00:00+09:00') },
 				currentTime
 			)
-		).toBe('requested');
+		).toBe('backdated');
 	});
 
 	test('blocks a member from writing somebody else record', () => {
@@ -80,11 +80,11 @@ describe('attendance write outcome', () => {
 
 describe('combined attendance write outcome', () => {
 	test('one blocked record blocks the whole write', () => {
-		expect(combineAttendanceWriteOutcomes(['saved', 'requested', 'blocked'])).toBe('blocked');
+		expect(combineAttendanceWriteOutcomes(['saved', 'backdated', 'blocked'])).toBe('blocked');
 	});
 
-	test('one out-of-window record turns the whole write into a request', () => {
-		expect(combineAttendanceWriteOutcomes(['saved', 'requested'])).toBe('requested');
+	test('one backdated record makes the whole write one the administrators hear about', () => {
+		expect(combineAttendanceWriteOutcomes(['saved', 'backdated'])).toBe('backdated');
 	});
 
 	test('an empty write is blocked', () => {
@@ -93,21 +93,16 @@ describe('combined attendance write outcome', () => {
 });
 
 describe('attendance write result', () => {
-	test('reads every status the record applies straight away as saved', () => {
+	test('reads every status the record writes as saved', () => {
 		for (const status of ['added', 'corrected', 'removed']) {
 			expect(attendanceWriteResultFrom({ status })).toEqual({ outcome: 'saved' });
 		}
 	});
 
-	test('carries the approval id when the record raised a request', () => {
-		expect(attendanceWriteResultFrom({ status: 'approval_requested', approvalID: 'approval-1' })).toEqual({
-			outcome: 'requested',
-			approvalID: 'approval-1'
+	test('reads a backdated write as one the administrators were told about', () => {
+		expect(attendanceWriteResultFrom({ status: 'added', backdated: true })).toEqual({
+			outcome: 'backdated'
 		});
-	});
-
-	test('refuses a request that names no approval', () => {
-		expect(() => attendanceWriteResultFrom({ status: 'approval_requested' })).toThrow();
 	});
 
 	test('refuses an answer with no status at all', () => {
@@ -119,20 +114,20 @@ describe('attendance write result', () => {
 describe('attendance write wording', () => {
 	const text = attendanceText.ko.records;
 
-	test('tells the person whether the write saves or asks', () => {
+	test('tells the person whether the write goes quietly or reaches the administrators', () => {
 		expect(attendanceWriteIntent('saved', text)).toBe(text.savesImmediately);
-		expect(attendanceWriteIntent('requested', text)).toBe(text.requestsApproval);
+		expect(attendanceWriteIntent('backdated', text)).toBe(text.tellsAdministrators);
 		expect(attendanceWriteIntent('blocked', text)).toBe(text.blocked);
 	});
 
 	test('names the submit button after what pressing it does', () => {
 		expect(attendanceWriteSubmitLabel('saved', text, text.addSubmit)).toBe(text.addSubmit);
-		expect(attendanceWriteSubmitLabel('requested', text, text.addSubmit)).toBe(text.requestSubmit);
+		expect(attendanceWriteSubmitLabel('backdated', text, text.addSubmit)).toBe(text.backdatedSubmit);
 	});
 
 	test('reports what happened once the write came back', () => {
 		expect(attendanceWriteConfirmation('saved', text)).toBe(text.saved);
-		expect(attendanceWriteConfirmation('requested', text)).toBe(text.requested);
+		expect(attendanceWriteConfirmation('backdated', text)).toBe(text.savedAndTold);
 	});
 });
 

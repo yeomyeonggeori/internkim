@@ -1,9 +1,9 @@
-export type AttendanceWriteOutcome = 'blocked' | 'saved' | 'requested';
+export type AttendanceWriteOutcome = 'blocked' | 'saved' | 'backdated';
 
 export type AttendanceWriteAuthority = {
 	isAdmin: boolean;
 	currentUserEmail: string;
-	correctionWindowMinutes?: number;
+	backdatedAfterMinutes?: number;
 };
 
 export type AttendanceWriteSubject = {
@@ -11,26 +11,24 @@ export type AttendanceWriteSubject = {
 	anchorTime: Date;
 };
 
-export type AttendanceWriteResult =
-	| { outcome: 'saved' }
-	| { outcome: 'requested'; approvalID: string };
+export type AttendanceWriteResult = { outcome: 'saved' | 'backdated' };
 
-const savedStatuses = ['added', 'corrected', 'removed'];
+const writtenStatuses = ['added', 'corrected', 'removed'];
 
 export function attendanceWriteOutcome(
 	authority: AttendanceWriteAuthority,
 	subject: AttendanceWriteSubject,
 	currentTime: Date
 ): AttendanceWriteOutcome {
-	if (authority.correctionWindowMinutes === undefined) return 'saved';
+	if (authority.backdatedAfterMinutes === undefined) return 'saved';
 	if (authority.isAdmin) return 'saved';
 	if (subject.subjectEmail !== authority.currentUserEmail) return 'blocked';
 	if (!Number.isFinite(currentTime.getTime()) || !Number.isFinite(subject.anchorTime.getTime())) {
 		return 'blocked';
 	}
-	return isWithinCorrectionWindow(authority.correctionWindowMinutes, subject.anchorTime, currentTime)
-		? 'saved'
-		: 'requested';
+	return isBackdated(authority.backdatedAfterMinutes, subject.anchorTime, currentTime)
+		? 'backdated'
+		: 'saved';
 }
 
 export function combineAttendanceWriteOutcomes(
@@ -38,7 +36,7 @@ export function combineAttendanceWriteOutcomes(
 ): AttendanceWriteOutcome {
 	if (outcomes.length === 0) return 'blocked';
 	if (outcomes.includes('blocked')) return 'blocked';
-	return outcomes.includes('requested') ? 'requested' : 'saved';
+	return outcomes.includes('backdated') ? 'backdated' : 'saved';
 }
 
 export function attendanceWriteResultFrom(data: unknown): AttendanceWriteResult {
@@ -48,22 +46,16 @@ export function attendanceWriteResultFrom(data: unknown): AttendanceWriteResult 
 	const answered = data as Record<string, unknown>;
 	const status = answered.status;
 	if (typeof status !== 'string') throw new Error('the attendance write answered without a status');
-	if (savedStatuses.includes(status)) return { outcome: 'saved' };
-	if (status === 'approval_requested') {
-		const approvalID = answered.approvalID;
-		if (typeof approvalID !== 'string' || approvalID === '') {
-			throw new Error('the attendance write opened a request without naming it');
-		}
-		return { outcome: 'requested', approvalID };
+	if (!writtenStatuses.includes(status)) {
+		throw new Error(`the attendance write answered an unknown status ${status}`);
 	}
-	throw new Error(`the attendance write answered an unknown status ${status}`);
+	return { outcome: answered.backdated === true ? 'backdated' : 'saved' };
 }
 
-function isWithinCorrectionWindow(
-	correctionWindowMinutes: number,
+function isBackdated(
+	backdatedAfterMinutes: number,
 	anchorTime: Date,
 	currentTime: Date
 ): boolean {
-	const windowOpensAt = currentTime.getTime() - correctionWindowMinutes * 60_000;
-	return anchorTime.getTime() >= windowOpensAt;
+	return anchorTime.getTime() < currentTime.getTime() - backdatedAfterMinutes * 60_000;
 }
