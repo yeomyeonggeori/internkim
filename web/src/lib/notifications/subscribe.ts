@@ -1,9 +1,34 @@
-import { supabase, vapidPublicKey } from '$lib/supabase';
+import { isSupabaseConfigured, supabase, vapidPublicKey } from '$lib/supabase';
 import { decodeBase64URL, encodeBase64URL } from './base64url';
 
 export type Reachability = 'unsupported' | 'unconfigured' | 'blocked' | 'off' | 'on';
 
 const webPush = 'web-push';
+
+type ServerKey = { key: string; vaulted: boolean };
+
+let cachedServerKey: Promise<ServerKey> | undefined;
+
+function applicationServerKey(): Promise<ServerKey> {
+	cachedServerKey ??= resolveServerKey().then(
+		(resolved) => {
+			if (!resolved.key) cachedServerKey = undefined;
+			return resolved;
+		},
+		(failure) => {
+			cachedServerKey = undefined;
+			throw failure;
+		}
+	);
+	return cachedServerKey;
+}
+
+async function resolveServerKey(): Promise<ServerKey> {
+	if (!isSupabaseConfigured()) return { key: vapidPublicKey(), vaulted: false };
+	const { data, error } = await supabase().rpc('vapid_public_key');
+	if (!error && typeof data === 'string' && data !== '') return { key: data, vaulted: true };
+	return { key: vapidPublicKey(), vaulted: false };
+}
 
 function isSupported(): boolean {
 	return (
@@ -20,24 +45,40 @@ async function heldSubscription(): Promise<PushSubscription | null> {
 	return registration.pushManager.getSubscription();
 }
 
+export function answersTo(subscription: PushSubscription, serverKey: string): boolean {
+	const held = subscription.options?.applicationServerKey;
+	if (!held) return true;
+	return encodeBase64URL(held) === serverKey;
+}
+
+export function stale(subscription: PushSubscription | null, serverKey: ServerKey): boolean {
+	if (!subscription) return false;
+	return serverKey.vaulted && !answersTo(subscription, serverKey.key);
+}
+
 export async function reachability(): Promise<Reachability> {
 	if (!isSupported()) return 'unsupported';
-	if (!vapidPublicKey()) return 'unconfigured';
+	const serverKey = await applicationServerKey();
+	if (!serverKey.key) return 'unconfigured';
 	if (Notification.permission === 'denied') return 'blocked';
-	return (await heldSubscription()) ? 'on' : 'off';
+	const held = await heldSubscription();
+	return held && !stale(held, serverKey) ? 'on' : 'off';
 }
 
 export async function startBeingReached(): Promise<Reachability> {
 	if (!isSupported()) return 'unsupported';
-	if (!vapidPublicKey()) return 'unconfigured';
+	const serverKey = await applicationServerKey();
+	if (!serverKey.key) return 'unconfigured';
 	if ((await Notification.requestPermission()) !== 'granted') return 'blocked';
 
 	const registration = await navigator.serviceWorker.ready;
+	const held = await registration.pushManager.getSubscription();
+	if (stale(held, serverKey)) await held?.unsubscribe();
 	const subscription =
-		(await registration.pushManager.getSubscription()) ??
+		(stale(held, serverKey) ? null : held) ??
 		(await registration.pushManager.subscribe({
 			userVisibleOnly: true,
-			applicationServerKey: decodeBase64URL(vapidPublicKey())
+			applicationServerKey: decodeBase64URL(serverKey.key)
 		}));
 
 	const { error } = await supabase().rpc('push_device_claim', {
