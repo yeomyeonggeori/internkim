@@ -56,10 +56,10 @@ func TestALeaveRequestSaysWhichDaysItCovers(t *testing.T) {
 
 func TestWhoIsToldIsDecidedByTheDirectory(t *testing.T) {
 	directory := []adminUserMutation{
-		{MattermostUserID: "mm-admin", Role: adminUserRoleAdmin},
-		{MattermostUserID: "mm-ops", Role: adminUserRoleOperationsAdmin},
-		{MattermostUserID: "mm-member", Role: "member"},
-		{MattermostUserID: "", Role: adminUserRoleAdmin},
+		{Email: "admin@example.com", Role: adminUserRoleAdmin},
+		{Email: "ops@example.com", Role: adminUserRoleOperationsAdmin},
+		{Email: "member@example.com", Role: "member"},
+		{Email: "", Role: adminUserRoleAdmin},
 	}
 
 	administrators := attendanceNotifyRecipients(directory, func(record adminUserMutation) bool {
@@ -70,14 +70,25 @@ func TestWhoIsToldIsDecidedByTheDirectory(t *testing.T) {
 	}
 
 	everyoneElse := attendanceNotifyRecipients(directory, func(record adminUserMutation) bool {
-		return record.MattermostUserID != "mm-member"
+		return record.Email != "member@example.com"
 	})
 	if len(everyoneElse) != 2 {
 		t.Fatalf("everyoneElse = %+v", everyoneElse)
 	}
-	for _, externalID := range everyoneElse {
-		if externalID == "mm-member" {
+	for _, address := range everyoneElse {
+		if address == "member@example.com" {
 			t.Fatal("the person who clocked must not be told about themselves")
 		}
+	}
+}
+
+// Somebody added since the company left Mattermost has no account there, and
+// telling the company about attendance is not a thing to skip them for.
+func TestSomebodyWithNoMessengerAccountIsStillTold(t *testing.T) {
+	told := attendanceNotifyRecipients([]adminUserMutation{
+		{Email: "New1@Example.com", Role: "member"},
+	}, func(adminUserMutation) bool { return true })
+	if len(told) != 1 || told[0] != "new1@example.com" {
+		t.Fatalf("told = %+v", told)
 	}
 }

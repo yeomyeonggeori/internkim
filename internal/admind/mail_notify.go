@@ -14,7 +14,6 @@ import (
 const (
 	mailNotifyInterval = 2 * time.Minute
 	mailNotifyBatch    = 20
-	mailNotifyPlatform = "mattermost"
 	mailNotifyLongest  = 80
 )
 
@@ -39,16 +38,12 @@ func (service *Service) announceMailOnce(ctx context.Context) {
 		log.Printf("mail notify: the accounts are unreadable: %v", errorValue)
 		return
 	}
-	externalIDByEmail := mailNotifyExternalIDs(service.attendanceNotifyDirectory(ctx))
 	for _, actorEmail := range actorEmails {
-		service.announceMailFor(ctx, client, actorEmail, externalIDByEmail[strings.ToLower(actorEmail)])
+		service.announceMailFor(ctx, client, actorEmail)
 	}
 }
 
-func (service *Service) announceMailFor(ctx context.Context, client *centralplane.Client, actorEmail string, externalID string) {
-	if externalID == "" {
-		return
-	}
+func (service *Service) announceMailFor(ctx context.Context, client *centralplane.Client, actorEmail string) {
 	account, found, errorValue := service.readMailAccount(ctx, actorEmail)
 	if errorValue != nil || !found {
 		return
@@ -79,7 +74,7 @@ func (service *Service) announceMailFor(ctx context.Context, client *centralplan
 	if len(arrived) == 0 {
 		return
 	}
-	result, errorValue := client.Notify(ctx, mailNotifyNotification(arrived, externalID))
+	result, errorValue := client.Notify(ctx, mailNotifyNotification(arrived, actorEmail))
 	if errorValue != nil {
 		log.Printf("mail notify: %s was not told: %v", actorEmail, errorValue)
 		return
@@ -91,20 +86,19 @@ func (service *Service) announceMailFor(ctx context.Context, client *centralplan
 	}
 }
 
-func mailNotifyNotification(arrived []mail.MessageResponse, externalID string) centralplane.Notification {
+func mailNotifyNotification(arrived []mail.MessageResponse, actorEmail string) centralplane.Notification {
 	newest := arrived[0]
 	title := firstNonEmpty(newest.From, "메일")
 	if len(arrived) > 1 {
 		title = title + " 외 " + strconv.Itoa(len(arrived)-1) + "명"
 	}
 	return centralplane.Notification{
-		Platform:    mailNotifyPlatform,
-		ExternalIDs: []string{externalID},
-		Category:    "mail",
-		Title:       title,
-		Body:        mailNotifyExcerpt(newest.Subject),
-		OpenPath:    "/mail/",
-		Tag:         "mail-" + strconv.FormatUint(uint64(newest.UID), 10),
+		Emails:   []string{actorEmail},
+		Category: "mail",
+		Title:    title,
+		Body:     mailNotifyExcerpt(newest.Subject),
+		OpenPath: "/mail/",
+		Tag:      "mail-" + strconv.FormatUint(uint64(newest.UID), 10),
 	}
 }
 
@@ -127,18 +121,6 @@ func mailNotifyNewestUID(messages []mail.MessageResponse) uint32 {
 		}
 	}
 	return newest
-}
-
-func mailNotifyExternalIDs(records []adminUserMutation) map[string]string {
-	externalIDByEmail := map[string]string{}
-	for _, record := range records {
-		email := strings.ToLower(strings.TrimSpace(record.Email))
-		if email == "" || record.MattermostUserID == "" {
-			continue
-		}
-		externalIDByEmail[email] = record.MattermostUserID
-	}
-	return externalIDByEmail
 }
 
 func mailNotifyExcerpt(subject string) string {

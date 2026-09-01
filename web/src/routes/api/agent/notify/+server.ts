@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { askedObject } from '$lib/server/asked-object';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { membersOfCompanyByExternalID } from '$lib/server/member-credential';
+import { membersOfCompanyByEmail, membersOfCompanyByExternalID } from '$lib/server/member-credential';
 import { notificationCategories, type NotificationCategory } from '$lib/notifications/categories';
 import { notifyMember, type Delivery, type Notification } from '$lib/server/notify-member';
 import { pictureURLOfMember } from '$lib/server/member-picture-url';
@@ -14,6 +14,7 @@ import type { RequestHandler } from './$types';
 type NotifyRequest = {
 	platform?: unknown;
 	externalIDs?: unknown;
+	emails?: unknown;
 	category?: unknown;
 	title?: unknown;
 	body?: unknown;
@@ -30,11 +31,18 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!vapid) error(503, 'this deployment cannot send notifications yet');
 
 	const asked = (await askedObject(request)) as NotifyRequest;
-	const recipients = askedExternalIDs(asked.externalIDs);
-	const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
+	// A message from a messenger names people by their account there. Everything
+	// else the company tells somebody about names them by their address, because
+	// the directory is who works here and a messenger's account list is not.
+	const addressedByEmail = askedAddresses(asked.emails);
+	const recipients = addressedByEmail.length > 0 ? addressedByEmail : askedExternalIDs(asked.externalIDs);
+	const memberOf =
+		addressedByEmail.length > 0
+			? await membersOfCompanyByEmail(client, companyID)
+			: await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
 
 	const sender = typeof asked.senderExternalID === 'string' ? memberOf.get(asked.senderExternalID) : undefined;
-	const recipientMemberIDs = recipients.map((externalID) => memberOf.get(externalID)).filter((id): id is string => Boolean(id));
+	const recipientMemberIDs = recipients.map((address) => memberOf.get(address)).filter((id): id is string => Boolean(id));
 	const conversationID = typeof asked.conversationID === 'string' ? asked.conversationID : '';
 	const delivered = await tellEach(
 		client,
@@ -67,6 +75,14 @@ async function tellEach(
 		reached: deliveries.reduce((total, delivery) => total + delivery.reached, 0),
 		pruned: deliveries.reduce((total, delivery) => total + delivery.pruned, 0)
 	};
+}
+
+function askedAddresses(offered: unknown): string[] {
+	if (!Array.isArray(offered)) return [];
+	return offered
+		.filter((address): address is string => typeof address === 'string')
+		.map((address) => address.trim().toLowerCase())
+		.filter((address) => address !== '');
 }
 
 function askedPlatform(offered: unknown): string {

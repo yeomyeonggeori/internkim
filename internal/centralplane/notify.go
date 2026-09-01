@@ -12,6 +12,7 @@ import (
 type Notification struct {
 	Platform    string
 	ExternalIDs []string
+	Emails      []string
 	Category    string
 	Title       string
 	Body        string
@@ -30,6 +31,7 @@ func (client *Client) Notify(ctx context.Context, notification Notification) (No
 	payload, errorValue := json.Marshal(map[string]any{
 		"platform":    notification.Platform,
 		"externalIDs": notification.ExternalIDs,
+		"emails":      notification.Emails,
 		"category":    notification.Category,
 		"title":       notification.Title,
 		"body":        notification.Body,
