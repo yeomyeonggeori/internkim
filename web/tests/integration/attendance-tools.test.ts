@@ -177,6 +177,26 @@ describe('the attendance tools write a record and raise a request', () => {
 		expect(resultOf(await asSample('attendance_list', { from: dayShiftedBy(-10) })).count).toBe(0);
 	});
 
+	test('an exact identifier resolves even outside the window a hint is scanned in', async () => {
+		const added = await asAdmin('attendance_add', {
+			personHint: '이샘플',
+			kind: 'clock_in',
+			date: dayShiftedBy(-120),
+			time: '09:00',
+			location: '사무실',
+			reason: '넉 달 전 기록'
+		});
+		const eventID = resultOf(added).eventID as string;
+
+		const corrected = await asAdmin('attendance_update', {
+			eventHint: eventID,
+			time: '09:30',
+			reason: '넉 달 전 기록의 시각 정정'
+		});
+		expect(corrected.status).toBe(200);
+		expect(resultOf(corrected).status).toBe('corrected');
+	});
+
 	test('an administrator writes an old record for somebody else with no request', async () => {
 		const added = await asAdmin('attendance_add', {
 			personHint: '이샘플',
