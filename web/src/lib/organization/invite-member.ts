@@ -7,7 +7,7 @@ export type MemberInvitation = {
 	temporaryPassword: string;
 };
 
-export async function inviteMemberToCompany(email: string): Promise<MemberInvitation> {
+export async function inviteMemberToCompany(email: string, name: string): Promise<MemberInvitation> {
 	const { data } = await supabase().auth.getSession();
 	const accessToken = data.session?.access_token;
 	if (!accessToken) throw new Error('sign in first');
@@ -15,7 +15,7 @@ export async function inviteMemberToCompany(email: string): Promise<MemberInvita
 	const response = await fetch('/api/member/invite', {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email })
+		body: JSON.stringify({ email, name })
 	});
 	if (!response.ok) throw new Error((await response.text()).trim() || `invite returned ${response.status}`);
 	const invitation = (await response.json()) as MemberInvitation;
@@ -33,4 +33,23 @@ export async function tellTheCompanyServerTheDirectoryChanged(): Promise<void> {
 	} catch {
 		return;
 	}
+}
+
+// A member removed here is a former colleague everywhere: the company server is
+// told so it can take back their seats in the rooms and their place in the
+// community, rather than waiting for the pass that runs once a day.
+export async function removeMemberFromCompany(memberID: string, purge = false): Promise<{ wasRemoved: boolean }> {
+	const { data } = await supabase().auth.getSession();
+	const accessToken = data.session?.access_token;
+	if (!accessToken) throw new Error('sign in first');
+
+	const response = await fetch('/api/member/remove', {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ memberID, purge })
+	});
+	if (!response.ok) throw new Error((await response.text()).trim() || `remove returned ${response.status}`);
+	const removal = (await response.json()) as { wasRemoved: boolean };
+	await tellTheCompanyServerTheDirectoryChanged();
+	return removal;
 }

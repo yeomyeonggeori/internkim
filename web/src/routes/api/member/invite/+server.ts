@@ -16,15 +16,17 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const caller = await adminCallerOf(asMember({ projectURL, publishableKey }, accessToken));
 	if (!caller) error(403, 'only an admin invites people');
 
-	const body = (await request.json().catch(() => ({}))) as { email?: unknown; isAdmin?: unknown };
+	const body = (await request.json().catch(() => ({}))) as { email?: unknown; name?: unknown; isAdmin?: unknown };
 	const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+	const name = typeof body.name === 'string' ? body.name.trim() : '';
 	if (!email.includes('@')) error(400, 'an address is required');
+	if (!name) error(400, 'a name is required');
 
 	const client = controlPlane({ projectURL, serviceRoleKey });
 	const { data: existing } = await client.from('member').select('company_id').eq('email', email).maybeSingle();
 	if (existing && existing.company_id !== caller.companyID) error(409, 'that address belongs to another company');
 
-	const memberID = await addMember(client, caller.companyID, email, { isAdmin: body.isAdmin === true });
+	const memberID = await addMember(client, caller.companyID, email, { isAdmin: body.isAdmin === true, name });
 	const invitation = await inviteMember(client, memberID);
 	return json(invitation);
 };

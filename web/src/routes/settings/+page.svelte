@@ -6,9 +6,7 @@
 	import PersonalAPIKeys from './personal-access-tokens.svelte';
 	import Notifications from './notifications.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
-	import OrganizationInviteDialog from '../organization/organization-invite-dialog.svelte';
-	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
-	import { Button } from '$lib/components/ui/button';
+	import CompanyMembers from './company-members.svelte';
 	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
 	import AttendanceLeavePolicySettings from '../admin/attendance-leave-policy-settings.svelte';
 	import { adminText } from '../admin/text';
@@ -20,7 +18,6 @@
 	const text = createPageText(companySettingsText);
 	const attendanceSettingsText = createPageText(adminText);
 	let isAdmin = $state(false);
-	let isInviteOpen = $state(false);
 	let isLoading = $state(isSupabaseConfigured());
 
 	onMount(async () => {
@@ -55,13 +52,7 @@
 				<h2 class="text-xl font-semibold">{text.members}</h2>
 				<p class="text-sm text-muted-foreground">{text.membersDescription}</p>
 			</header>
-			<div>
-				<Button type="button" variant="outline" onclick={() => (isInviteOpen = true)}>
-					<UserPlusIcon />
-					{text.inviteMember}
-				</Button>
-			</div>
-			<OrganizationInviteDialog bind:isOpen={isInviteOpen} onInvited={() => {}} />
+			<CompanyMembers />
 			<AttendanceWorkSettingsSection adminBaseURL="" text={attendanceSettingsText} />
 			<AttendanceLeavePolicySettings adminBaseURL="" text={attendanceSettingsText} />
 			<header class="grid gap-1 pt-2">
