@@ -111,6 +111,8 @@ var SSHRecoveryActions = []string{
 	"buzz-orphan-inspect",
 	"buzz-stranger-members",
 	"buzz-stranger-members-remove",
+	"buzz-sweep-seats",
+	"buzz-sweep-seats-apply",
 	"buzz-profile-inspect",
 	"buzz-probe-profile-count",
 	"buzz-probe-profile-purge",
@@ -304,6 +306,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		cancelReconcile()
 	case "buzz-orphan-inspect":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "inspect imported orphan-thread roots", "sh", "-lc", buzzOrphanInspectCommand()))
+	case "buzz-sweep-seats":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "name the seats nobody accounts for", "sh", "-lc", buzzSweepSeatsCommand(false)))
+	case "buzz-sweep-seats-apply":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "take back the seats nobody accounts for", "sh", "-lc", buzzSweepSeatsCommand(true)))
 	case "buzz-stranger-members":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count members the directory does not name", "sh", "-lc", buzzStrangerMemberCommand(false)))
 	case "buzz-stranger-members-remove":
@@ -1560,6 +1566,17 @@ q "` + probes + ` ` + action + `" | sed 's/^/profile events ` + outcome + `: /'
 // A reaction whose content is a bare word is one the mirror published before it
 // learned to convert - the platform's name for the emoji instead of the emoji.
 // Already signed and published, so nothing rewrites it in place.
+func buzzSweepSeatsCommand(apply bool) string {
+	applyValue := "false"
+	if apply {
+		applyValue = "true"
+	}
+	return strings.TrimSpace(`
+body=$(curl -sS -X POST "` + blueclaw.AdmindBaseURL + `/agent/api/buzz-sweep-seats?apply=` + applyValue + `")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
+`)
+}
+
 func buzzStrangerMemberCommand(apply bool) string {
 	applyValue := "false"
 	if apply {
