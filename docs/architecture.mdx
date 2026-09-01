@@ -65,8 +65,9 @@ The tables are listed in [What lives where](/docs/what-lives-where).
 authenticate with a company's agent key, and what it hands back is a session:
 `POST /api/agent/session` turns a messenger identity into a member session,
 `POST /api/agent/host-session` signs the company's computer in as itself.
-Sibling routes under the same directory let that signed-in host deliver
-notifications (`/api/agent/notify`, delivered as web push) and read the
+Notifications are sent by the project's own edge functions, so the key that
+reads every member's devices stays inside the company's Supabase. Sibling
+routes under the same directory let that signed-in host read the
 credentials it needs per call (`/api/agent/messenger-credential`,
 `/api/agent/mail-account`). The service key never leaves these routes.
 
