@@ -4,6 +4,8 @@ import {
 	serveCallForMember,
 	servePublicAPIFile,
 	servePublicAPIRequest,
+	serveTelling,
+	tellCapability,
 	type Dispatch
 } from './forward';
 import { oversizeNotice } from './answer-size';
@@ -60,11 +62,13 @@ export async function serveRoutedCall(
 	}
 }
 
+const capabilitiesTheGatewayCarriesItself = new Set([apiRequestCapability, apiFileCapability, tellCapability]);
+
 async function servedCall(
 	call: RoutedCall,
 	dispatch: Dispatch
 ): Promise<{ status: number; body: unknown }> {
-	if (call.capability === apiRequestCapability || call.capability === apiFileCapability) {
+	if (capabilitiesTheGatewayCarriesItself.has(call.capability)) {
 		if (call.memberID) {
 			return {
 				status: 403,
@@ -72,7 +76,8 @@ async function servedCall(
 			};
 		}
 		if (call.capability === apiRequestCapability) return servePublicAPIRequest(dispatch, call.body);
-		return servePublicAPIFile(dispatch, call.body);
+		if (call.capability === apiFileCapability) return servePublicAPIFile(dispatch, call.body);
+		return serveTelling(dispatch, call.body);
 	}
 	if (!call.memberID) {
 		return { status: 400, body: { error: `${call.capability} is asked for by a member, and none was named` } };

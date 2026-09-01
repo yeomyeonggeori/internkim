@@ -8,9 +8,10 @@ reads (`pkg/capabilityprotocol/generated/capability-tools.json`, protocol
 <ToolProtocolVersion />), so they cannot drift from what is deployed. The
 descriptions are the exact English sentences the model receives.
 
-Tools whose effect column is `destructive`, plus `message_send` and
-`channel_update`, pause for [approval](/docs/tools/index#approval) before
-running.
+Tools whose effect column is `destructive`, plus `message_send`,
+`channel_update`, and the decisions that spend somebody's entitlement or
+settle somebody's request, pause for
+[approval](/docs/tools/index#approval) before running.
 
 ## Tasks [#task]
 
@@ -53,6 +54,36 @@ company's own registered kind; whether a leave is paid and whether it consumes
 the entitlement follow from that kind, so the agent names the kind and the
 record decides the rest. `leave_decide` is gated, because approving is what
 spends the entitlement.
+
+## Attendance [#attendance]
+
+<ToolCatalog namespace="attendance" />
+
+Implemented on the central plane in
+`web/src/lib/server/public-api/record/attendance-tools.ts`, against the
+record's `attendance` table and its `attendance_add`, `attendance_correct`,
+and `attendance_remove` functions, running as the calling member. Days are
+`yyyy-mm-dd`, times are 24-hour `HH:MM`, and both are read in the company's
+time zone. `attendance_list` covers the last thirty days unless `from` and
+`to` say otherwise. A member writes, corrects, and removes their own records
+from the last three days; older ones become a request for an administrator
+instead of a refusal, and the call answers `approval_requested` with an
+`approvalID`. An administrator writes anybody's record with no window.
+A correction keeps what the record held before it, and a removal keeps who
+removed it and why.
+
+## Approvals [#approval]
+
+<ToolCatalog namespace="approval" />
+
+Implemented on the central plane in
+`web/src/lib/server/public-api/record/approval-tools.ts`, over the record's
+`approval` table and its `approval_pending` and `approval_decide` functions.
+`approval_list` shows an administrator every waiting request in the company
+and everybody else only their own. `approval_decide` is an administrator's
+alone and the record refuses anybody else; approving carries out the write
+that was held, as the person who asked for it. A request that was already
+decided is not decided again.
 
 ## Messages [#message]
 
