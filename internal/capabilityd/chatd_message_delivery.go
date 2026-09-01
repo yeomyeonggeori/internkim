@@ -34,11 +34,16 @@ type chatdMessagePostResponse struct {
 	ChannelID string `json:"channelID,omitempty"`
 }
 
-func (service Service) chatdServesPlatform(platform string) bool {
-	configured := strings.TrimSpace(service.Configuration.ChatdPlatform)
-	return configured != "" &&
-		strings.TrimSpace(service.Configuration.ChatdEndpoint) != "" &&
-		strings.EqualFold(strings.TrimSpace(platform), configured)
+// A company runs one messenger and this device is configured with its name. A
+// request says which conversation it arrived from, and a request that carries
+// no conversation says nothing at all; neither is a choice of where a message
+// is delivered, so neither is asked.
+func (service Service) companyMessenger() string {
+	return strings.TrimSpace(service.Configuration.ChatdPlatform)
+}
+
+func (service Service) chatdServesTheMessenger() bool {
+	return service.companyMessenger() != "" && strings.TrimSpace(service.Configuration.ChatdEndpoint) != ""
 }
 
 func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
@@ -47,12 +52,12 @@ func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, reque
 			return service.invokeChatdDirectMessageSend(ctx, request, input)
 		}
 		failure := mattermostToolStaticFailure("unsupported_target", "platform_route",
-			"targetType=directMessage without personHint answers the requester, and on platform "+request.Context.Platform+" that is this conversation; reply with targetType=currentChannel or currentThread")
+			"targetType=directMessage without personHint answers the requester, and on "+service.companyMessenger()+" that is this conversation; reply with targetType=currentChannel or currentThread")
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
 	if input.Pin {
 		failure := mattermostToolStaticFailure("invalid_input", "platform_route",
-			"pin is not supported on platform "+request.Context.Platform+"; send without pin")
+			"pin is not supported on "+service.companyMessenger()+"; send without pin")
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
 	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
@@ -66,7 +71,7 @@ func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, reque
 	postRequest.Message = strings.TrimSpace(input.Message)
 	postRequest.Attachments = chatdMessagePostAttachments(attachmentFiles)
 	var response chatdMessagePostResponse
-	if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "message.post", postRequest, &response); errorValue != nil {
+	if errorValue := service.chatdRequest(ctx, "message.post", postRequest, &response); errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("post_create", "platform_unavailable", errorValue)), nil
 	}
 	if strings.TrimSpace(response.MessageID) == "" {
@@ -125,12 +130,7 @@ func chatdMessagePostAttachments(files []platformFile) []chatdMessagePostAttachm
 	return attachments
 }
 
-func (service Service) chatdUnroutedToolFailure(toolName string, platform string) mattermostToolFailure {
-	return mattermostToolStaticFailure("unsupported_platform", "platform_route",
-		toolName+" is not yet available for platform "+platform+"; message_send can post to the current conversation or a named channel")
-}
-
-func (service Service) chatdPlatformRequest(ctx context.Context, platform string, capabilityName string, requestBody any, responseValue any) error {
+func (service Service) chatdRequest(ctx context.Context, capabilityName string, requestBody any, responseValue any) error {
 	endpoint := strings.TrimRight(strings.TrimSpace(service.Configuration.ChatdEndpoint), "/")
 	if endpoint == "" {
 		return errors.New("chatd endpoint is not configured")
@@ -139,7 +139,7 @@ func (service Service) chatdPlatformRequest(ctx context.Context, platform string
 	if errorValue != nil {
 		return errorValue
 	}
-	requestURL := endpoint + "/v1/platform/" + url.PathEscape(strings.TrimSpace(platform)) + "/" + capabilityName
+	requestURL := endpoint + "/v1/platform/" + url.PathEscape(service.companyMessenger()) + "/" + capabilityName
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(document))
 	if errorValue != nil {
 		return errorValue
@@ -192,7 +192,7 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 			"messageID":          trimmedMessageID,
 			"requesterPubkeyHex": strings.TrimSpace(request.Context.RequesterPlatformUserID),
 		}
-		if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "message_delete", requestBody, &response); errorValue != nil {
+		if errorValue := service.chatdRequest(ctx, "message_delete", requestBody, &response); errorValue != nil {
 			failure := mattermostToolStaticFailure("message_delete_failed", "platform_delete", trimmedMessageID+": "+errorValue.Error())
 			return mattermostToolErrorResponse(request.ToolName, failure), nil
 		}
@@ -222,7 +222,7 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	if replyTargetID == "" {
 		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
 	}
-	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, request.Context.Platform, messageID)
+	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, messageID)
 	if hasFailure {
 		return mattermostToolErrorResponse(request.ToolName, failure), nil
 	}
@@ -244,7 +244,7 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 		requestBody["attachments"] = chatdMessagePostAttachments(attachmentFiles)
 	}
 	var response map[string]any
-	if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "message.edit", requestBody, &response); errorValue != nil {
+	if errorValue := service.chatdRequest(ctx, "message.edit", requestBody, &response); errorValue != nil {
 		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("message_update", "platform_unavailable", errorValue)), nil
 	}
 	return mattermostToolSuccessResponse(request.ToolName, "updated", map[string]any{
@@ -257,10 +257,10 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 // The record an edit reads must be the record message_search answered from: an
 // ID search crosses channels and applies later edits, so a post found in one
 // channel stays editable from the conversation the request came from.
-func (service Service) chatdCurrentMessageText(ctx context.Context, platform string, messageID string) (string, mattermostToolFailure, bool) {
+func (service Service) chatdCurrentMessageText(ctx context.Context, messageID string) (string, mattermostToolFailure, bool) {
 	searchRequest := chatdMessageSearchRequest{MessageIDs: []string{messageID}, Queries: []string{}}
 	var response chatdMessageSearchResponse
-	if errorValue := service.chatdPlatformRequest(ctx, platform, "message.search", searchRequest, &response); errorValue != nil {
+	if errorValue := service.chatdRequest(ctx, "message.search", searchRequest, &response); errorValue != nil {
 		return "", mattermostToolFailureForError("message_lookup", "platform_unavailable", errorValue), true
 	}
 	for _, candidate := range response.Candidates {

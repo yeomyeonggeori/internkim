@@ -43,7 +43,7 @@ func (service Service) invokeChatdDirectMessageBroadcast(ctx context.Context, re
 	}
 	messageIDs, failures := canonicalPlatformMessageBroadcastResult(results)
 	rollup := map[string]any{
-		"platform":    request.Context.Platform,
+		"platform":    service.companyMessenger(),
 		"results":     results,
 		"sentCount":   len(messageIDs),
 		"failedCount": len(failures),
@@ -71,7 +71,7 @@ func (service Service) sendChatdDirectMessageToHint(ctx context.Context, request
 	}
 	var response chatdDirectMessagePostResponse
 	postRequest := map[string]any{"counterpartPubkeyHex": pubkeyHex, "message": strings.TrimSpace(message)}
-	if errorValue := service.chatdPlatformRequest(ctx, request.Context.Platform, "dm.post", postRequest, &response); errorValue != nil {
+	if errorValue := service.chatdRequest(ctx, "dm.post", postRequest, &response); errorValue != nil {
 		return platformMessageBroadcastResult{}, platformDMFailureForError("message_send", "operation_failed", errorValue, false), true
 	}
 	if strings.TrimSpace(response.MessageID) == "" {

@@ -15,17 +15,18 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-func TestChatdServesPlatformMatchesOnlyTheConfiguredPlatform(testContext *testing.T) {
+func TestChatdServesTheMessengerTheDeviceIsConfiguredFor(testContext *testing.T) {
 	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
-	if !service.chatdServesPlatform("buzz") {
-		testContext.Fatal("configured platform should route through chatd")
-	}
-	if service.chatdServesPlatform("mattermost") {
-		testContext.Fatal("other platforms must keep their native route")
+	if !service.chatdServesTheMessenger() {
+		testContext.Fatal("a configured messenger should route through chatd")
 	}
 	unconfigured := Service{Configuration: Configuration{ChatdPlatform: "buzz"}}
-	if unconfigured.chatdServesPlatform("buzz") {
+	if unconfigured.chatdServesTheMessenger() {
 		testContext.Fatal("a missing endpoint must not route through chatd")
+	}
+	native := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090"}}
+	if native.chatdServesTheMessenger() {
+		testContext.Fatal("a device with no chatd messenger keeps its native route")
 	}
 }
 
@@ -661,5 +662,45 @@ func TestChatdMessageChangeNamesTheRequesterByKeyAlone(testContext *testing.T) {
 		if strings.Contains(sent, "requesterEmail") || strings.Contains(sent, "sample@example.com") {
 			testContext.Fatalf("expected the change to carry no email at all, got %s", sent)
 		}
+	}
+}
+
+// A caller with no conversation — the public API, a telling, a scheduled run —
+// names a person and nothing else. The messenger is the device's, so the
+// message goes where the company reads instead of falling back to Mattermost.
+func TestADirectMessageWithNoConversationStillReachesTheCompanyMessenger(testContext *testing.T) {
+	memberPubkey := strings.Repeat("3", 64)
+	admindServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/admin/api/directory/people":
+			json.NewEncoder(writer).Encode(map[string]any{"people": []map[string]any{{"memberID": "m-1", "email": "sample@example.com", "name": "이샘플"}}})
+		case "/admin/api/directory/buzz-key":
+			json.NewEncoder(writer).Encode(map[string]string{"pubkeyHex": memberPubkey})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer admindServer.Close()
+	var receivedPath string
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedPath = request.URL.Path
+		json.NewEncoder(writer).Encode(map[string]string{"channelID": "dm-uuid", "messageID": "event-10"})
+	}))
+	defer chatdServer.Close()
+
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz", AdmindBaseURL: admindServer.URL}}
+	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"이샘플","message":"안내"}`),
+		Context:  capabilities.ToolInvokeContext{TaskSource: "public_api"},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("send failed: %v", errorValue)
+	}
+	if response.Outcome == capabilities.ToolOutcomeFailed {
+		testContext.Fatalf("send answered failure: %s", response.Content)
+	}
+	if receivedPath != "/v1/platform/buzz/dm.post" {
+		testContext.Fatalf("chatd received %q, so the message left on a messenger nobody here reads", receivedPath)
 	}
 }
