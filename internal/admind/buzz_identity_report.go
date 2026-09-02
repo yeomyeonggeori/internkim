@@ -110,7 +110,11 @@ func (service *Service) buzzIdentityLedger(ctx context.Context) (buzzIdentityRep
 		return buzzIdentityReport{}, errorValue
 	}
 	versionOf := func(email string) int {
-		return service.buzzIdentityVersion(service.buzzVaultSubject(ctx, email))
+		vaultSubject, errorValue := service.buzzVaultSubject(ctx, email)
+		if errorValue != nil {
+			return 1
+		}
+		return service.buzzIdentityVersion(vaultSubject)
 	}
 	owners, errorValue := buzzKeyOwners(seed, emails, versionOf)
 	if errorValue != nil {
