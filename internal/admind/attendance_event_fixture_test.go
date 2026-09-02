@@ -3,9 +3,11 @@ package admind
 import (
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
-func (service *Service) createAttendanceEvent(userRecord mattermostUserRecord, kind string, occurredAt time.Time, teamID string, channelID string, actionPostID string, resultPostID string, eventLocation attendanceLocation) attendanceEvent {
+func (service *Service) createAttendanceEvent(userRecord mattermostadmin.UserRecord, kind string, occurredAt time.Time, teamID string, channelID string, actionPostID string, resultPostID string, eventLocation attendanceLocation) attendanceEvent {
 	location, timeZoneName := service.workspaceTimeLocation()
 	localTime := occurredAt.In(location)
 	return attendanceEvent{

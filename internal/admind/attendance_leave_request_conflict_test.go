@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestAttendanceLeaveRequestRejectsExistingLeaveOverlap(t *testing.T) {
@@ -43,7 +45,7 @@ func TestAttendanceLeaveRequestOpenClockInConflictsOnlyThroughCurrentTime(t *tes
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{
+	userRecord := mattermostadmin.UserRecord{
 		ID:       "user-1",
 		Username: "member",
 		Email:    "member@example.com",
@@ -119,7 +121,7 @@ func TestAttendanceLeaveRequestDetectsClosedOvernightWorkByInstant(t *testing.T)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{
+	userRecord := mattermostadmin.UserRecord{
 		ID:       "user-1",
 		Username: "member",
 		Email:    "member@example.com",
@@ -209,7 +211,7 @@ func TestAttendanceLeaveRequestRejectsConfirmedWorkOverlap(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	location := service.workspaceTimeZone().location
-	userRecord := mattermostUserRecord{
+	userRecord := mattermostadmin.UserRecord{
 		ID:       "user-1",
 		Username: "member",
 		Email:    "member@example.com",

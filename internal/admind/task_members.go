@@ -43,11 +43,11 @@ func (service *Service) blueclawPolicyUserRecords(ctx context.Context) []adminUs
 		if !isPerson {
 			continue
 		}
-		name := strings.TrimSpace(mattermostPolicyString(person["displayName"]))
-		jobTitle := strings.TrimSpace(mattermostPolicyString(person["jobTitle"]))
+		name := strings.TrimSpace(policyString(person["displayName"]))
+		jobTitle := strings.TrimSpace(policyString(person["jobTitle"]))
 		emailValues, _ := person["emails"].([]any)
 		for _, emailValue := range emailValues {
-			email := strings.ToLower(strings.TrimSpace(mattermostPolicyString(emailValue)))
+			email := strings.ToLower(strings.TrimSpace(policyString(emailValue)))
 			if email == "" {
 				continue
 			}

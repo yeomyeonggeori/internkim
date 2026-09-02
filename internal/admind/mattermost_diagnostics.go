@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 type mattermostPostDiagnostic struct {
@@ -22,7 +24,7 @@ func (service *Service) writeMattermostPostDiagnostic(responseWriter http.Respon
 		http.Error(responseWriter, "postID is required", http.StatusBadRequest)
 		return
 	}
-	token, errorValue := service.mattermostAdminToken(request.Context())
+	token, errorValue := service.mattermostAdmin().AdminToken(request.Context())
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
@@ -48,11 +50,11 @@ func (service *Service) writeMattermostPostDiagnostic(responseWriter http.Respon
 
 func (service *Service) mattermostPostByID(ctx context.Context, token string, postID string) (mattermostPostRecord, bool, error) {
 	var postRecord mattermostPostRecord
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/posts/"+url.PathEscape(postID), token, nil, &postRecord)
+	errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, "/api/v4/posts/"+url.PathEscape(postID), token, nil, &postRecord)
 	if errorValue == nil && postRecord.ID != "" {
 		return postRecord, true, nil
 	}
-	if errorValue != nil && !isMattermostNotFound(errorValue) {
+	if errorValue != nil && !mattermostadmin.IsNotFound(errorValue) {
 		return mattermostPostRecord{}, false, errorValue
 	}
 	return mattermostPostRecord{}, false, nil
