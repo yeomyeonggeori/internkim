@@ -32,7 +32,7 @@
                  │    ├─ Mattermost platform I/O
                  │    └─ browser capability adapter
                  ├─ graphiti-memoryd :7791
-                 └─ Firecracker guest
+                 └─ Cloud Hypervisor guest
                       └─ Blueclaw HTTP API :8080
                            ├─ managed DB
                            └─ workspace actor boundary
@@ -162,7 +162,7 @@ Required artifact task는 `file_deliver` completion evidence가 있어야 comple
 
 ## 서비스 기동
 
-Host systemd는 Blueclaw 바이너리를 직접 실행하지 않고 Firecracker supervisor를 띄웁니다.
+Host systemd는 Blueclaw 바이너리를 직접 실행하지 않고 게스트 supervisor(`blueclaw-supervisor`)를 띄웁니다.
 
 ```ini
 [Service]
