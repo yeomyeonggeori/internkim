@@ -147,10 +147,7 @@ func (service Service) messageTextsForApproval(ctx context.Context, toolContext 
 	if len(limitedMessageIDs) > messageDeletePreviewMessageLimit {
 		limitedMessageIDs = limitedMessageIDs[:messageDeletePreviewMessageLimit]
 	}
-	if service.chatdServesTheMessenger() {
-		return service.chatdMessageTexts(ctx, limitedMessageIDs)
-	}
-	return service.mattermostMessageTexts(ctx, limitedMessageIDs)
+	return service.chatdMessageTexts(ctx, limitedMessageIDs)
 }
 
 func (service Service) chatdMessageTexts(ctx context.Context, messageIDs []string) []string {
@@ -162,20 +159,6 @@ func (service Service) chatdMessageTexts(ctx context.Context, messageIDs []strin
 	messageTexts := []string{}
 	for _, candidate := range response.Candidates {
 		if text := strings.TrimSpace(candidate.Text); text != "" {
-			messageTexts = append(messageTexts, text)
-		}
-	}
-	return messageTexts
-}
-
-func (service Service) mattermostMessageTexts(ctx context.Context, messageIDs []string) []string {
-	messageTexts := []string{}
-	for _, messageID := range messageIDs {
-		post, _, hasFailure := service.mattermostToolPost(ctx, messageID)
-		if hasFailure {
-			continue
-		}
-		if text := strings.TrimSpace(post.Message); text != "" {
 			messageTexts = append(messageTexts, text)
 		}
 	}

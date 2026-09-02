@@ -26,7 +26,6 @@ func TestCapabilitySuccessResponseProjectsRegisteredResultContracts(t *testing.T
 		{toolName: "message_send", status: "sent", result: `{"messageIDs":["message-1"],"deliveryStatus":"sent"}`, objectType: "message", effect: "sent", identity: "message-1"},
 		{toolName: "message_update", status: "updated", result: `{"messageID":"message-1","deliveryStatus":"updated","messageUpdated":true}`, objectType: "message", effect: "updated", identity: "message-1"},
 		{toolName: "message_delete", status: "deleted", result: `{"messageIDs":["message-1"],"deliveryStatus":"deleted"}`, objectType: "message", effect: "deleted", identity: "message-1"},
-		{toolName: "channel_update", status: "updated", result: `{"channelID":"channel-1","updated":true}`, objectType: "channel", effect: "updated", identity: "channel-1"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.toolName, func(t *testing.T) {

@@ -25,78 +25,72 @@ import (
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/identity"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
-	"gitlab.com/eastriver/internkim/internal/mattermostinteractive"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type Configuration struct {
-	SocketPath                     string
-	VSockPort                      int
-	OpenRouterKeyPath              string
-	GoogleWorkspaceWebhookPath     string
-	MattermostBaseURL              string
-	MattermostTokenPath            string
-	MattermostInteractiveTokenPath string
-	SlackTokenPath                 string
-	SlackAppTokenPath              string
-	SignalJSONRPCURL               string
-	SignalAccount                  string
-	SignalJSONRPCURLPath           string
-	SignalAccountPath              string
-	BlueclawBaseURL                string
-	AdmindBaseURL                  string
-	AdmindSocketPath               string
-	OpenRouterBaseURL              string
-	OpenRouterModel                string
-	ForceOpenRouterModel           bool
-	OpenRouterGatewaySecretPath    string
-	OpenRouterGatewaySecretHeader  string
-	OpenRouterWebBaseURL           string
-	OpenRouterEmbeddingBaseURL     string
-	OpenRouterEmbeddingModel       string
-	OpenRouterImageModel           string
-	EmbeddingProviderOrder         []string
-	OllamaBaseURL                  string
-	OllamaModel                    string
-	LlamaCppBaseURL                string
-	LlamaCppModel                  string
-	LlamaCppEmbeddingBaseURL       string
-	LlamaCppEmbeddingModel         string
-	SocketGroupName                string
-	LiteRTModelPath                string
-	LocalLLMRunnerPath             string
-	CompanionBaseURL               string
-	PreferCompanionLLM             bool
-	LocalInferenceMode             string
-	PreferCompanionBrowser         bool
-	LocalOnly                      bool
-	LocalBackendOrder              []string
-	ProviderAttemptTimeout         time.Duration
-	AgentBrowserPath               string
-	DeviceBrowserPath              string
-	DeviceBrowserProfilePath       string
-	CompanionFileDirectory         string
-	APIURLPath                     string
-	FleetIDPath                    string
-	BlueclawWorkspacePath          string
-	FileReadPythonPath             string
-	ChatdEndpoint                  string
-	ChatdPlatform                  string
+	SocketPath                    string
+	VSockPort                     int
+	OpenRouterKeyPath             string
+	GoogleWorkspaceWebhookPath    string
+	SlackTokenPath                string
+	SlackAppTokenPath             string
+	SignalJSONRPCURL              string
+	SignalAccount                 string
+	SignalJSONRPCURLPath          string
+	SignalAccountPath             string
+	BlueclawBaseURL               string
+	AdmindBaseURL                 string
+	AdmindSocketPath              string
+	OpenRouterBaseURL             string
+	OpenRouterModel               string
+	ForceOpenRouterModel          bool
+	OpenRouterGatewaySecretPath   string
+	OpenRouterGatewaySecretHeader string
+	OpenRouterWebBaseURL          string
+	OpenRouterEmbeddingBaseURL    string
+	OpenRouterEmbeddingModel      string
+	OpenRouterImageModel          string
+	EmbeddingProviderOrder        []string
+	OllamaBaseURL                 string
+	OllamaModel                   string
+	LlamaCppBaseURL               string
+	LlamaCppModel                 string
+	LlamaCppEmbeddingBaseURL      string
+	LlamaCppEmbeddingModel        string
+	SocketGroupName               string
+	LiteRTModelPath               string
+	LocalLLMRunnerPath            string
+	CompanionBaseURL              string
+	PreferCompanionLLM            bool
+	LocalInferenceMode            string
+	PreferCompanionBrowser        bool
+	LocalOnly                     bool
+	LocalBackendOrder             []string
+	ProviderAttemptTimeout        time.Duration
+	AgentBrowserPath              string
+	DeviceBrowserPath             string
+	DeviceBrowserProfilePath      string
+	CompanionFileDirectory        string
+	APIURLPath                    string
+	FleetIDPath                   string
+	BlueclawWorkspacePath         string
+	FileReadPythonPath            string
+	ChatdEndpoint                 string
+	ChatdPlatform                 string
 }
 
 type Service struct {
-	Configuration     Configuration
-	HTTPClient        *http.Client
-	RunCommand        func(context.Context, string, []string, []byte) ([]byte, error)
-	LookupExecutable  func(string) (string, error)
-	EventLocker       *platformEventLocker
-	ProgressManager   *platformProgressManager
-	HealthState       *platformHealthState
-	MattermostLimiter *mattermostRateLimiter
+	Configuration    Configuration
+	HTTPClient       *http.Client
+	RunCommand       func(context.Context, string, []string, []byte) ([]byte, error)
+	LookupExecutable func(string) (string, error)
+	EventLocker      *platformEventLocker
+	ProgressManager  *platformProgressManager
+	HealthState      *platformHealthState
 }
 
 type userLookupRequest struct {
@@ -176,13 +170,9 @@ type platformAskChoiceOption struct {
 }
 
 type platformHealthState struct {
-	mutex                      sync.RWMutex
-	MattermostTokenConfigured  bool      `json:"mattermostTokenConfigured"`
-	MattermostBotUserResolved  bool      `json:"mattermostBotUserResolved"`
-	MattermostForwarderRunning bool      `json:"mattermostForwarderRunning"`
-	MattermostFallbackActive   bool      `json:"mattermostFallbackActive"`
-	LastSuccessfulForwardAt    time.Time `json:"lastSuccessfulForwardAt,omitempty"`
-	LastForwardError           string    `json:"lastForwardError,omitempty"`
+	mutex                   sync.RWMutex
+	LastSuccessfulForwardAt time.Time `json:"lastSuccessfulForwardAt,omitempty"`
+	LastForwardError        string    `json:"lastForwardError,omitempty"`
 }
 
 var fallbackPlatformHealthState = &platformHealthState{}
@@ -191,77 +181,49 @@ type progressRequest struct {
 	ReplyTargetID string `json:"replyTargetID"`
 }
 
-type mattermostPolledPost struct {
-	ID        string   `json:"id"`
-	UserID    string   `json:"user_id"`
-	ChannelID string   `json:"channel_id"`
-	Message   string   `json:"message"`
-	RootID    string   `json:"root_id"`
-	Type      string   `json:"type"`
-	CreateAt  int64    `json:"create_at"`
-	FileIDs   []string `json:"file_ids"`
-	Metadata  struct {
-		Mentions []string `json:"mentions"`
-	} `json:"metadata"`
-}
-
-type mattermostPostsResponse struct {
-	Order []string                        `json:"order"`
-	Posts map[string]mattermostPolledPost `json:"posts"`
-}
-
-type mattermostPollState struct {
-	LastSeenByChannel map[string]int64
-	IsInitialized     bool
-	LastPollStartedAt int64
-}
-
 func DefaultConfiguration() Configuration {
 	return Configuration{
-		SocketPath:                     "/run/internkim/capability.sock",
-		VSockPort:                      0,
-		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
-		GoogleWorkspaceWebhookPath:     "/root/.internkim/secrets/gas-webhook-url",
-		MattermostBaseURL:              "http://localhost:8065",
-		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
-		MattermostInteractiveTokenPath: "/root/.internkim/state/admin/mattermost-interactive-token",
-		SlackTokenPath:                 "/root/.internkim/secrets/slack-bot-token",
-		SlackAppTokenPath:              "/root/.internkim/secrets/slack-app-token",
-		SignalJSONRPCURLPath:           "/root/.internkim/config/signal-jsonrpc-url",
-		SignalAccountPath:              "/root/.internkim/config/signal-account",
-		BlueclawBaseURL:                "http://127.0.0.1:8080",
-		AdmindBaseURL:                  "http://127.0.0.1:18080",
-		AdmindSocketPath:               blueclaw.AdmindSocketPath,
-		OpenRouterBaseURL:              "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterModel:                blueclaw.BlueclawDefaultModelName,
-		OpenRouterGatewaySecretHeader:  "X-INTERNKIM-GATEWAY-SECRET",
-		OpenRouterWebBaseURL:           "https://openrouter.ai/api/v1/chat/completions",
-		OpenRouterEmbeddingBaseURL:     "https://openrouter.ai/api/v1/embeddings",
-		OpenRouterEmbeddingModel:       llmbackend.DefaultEmbeddingModelName,
-		OpenRouterImageModel:           "google/gemini-3.1-flash-lite-image",
-		EmbeddingProviderOrder:         llmbackend.DefaultLocalEmbeddingProviderOrder,
-		OllamaBaseURL:                  "http://127.0.0.1:11434",
-		OllamaModel:                    "gemma3:1b",
-		LlamaCppBaseURL:                locallm.LlamaCppBaseURL,
-		LlamaCppModel:                  "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
-		LlamaCppEmbeddingBaseURL:       locallm.LlamaCppEmbeddingBaseURL,
-		LlamaCppEmbeddingModel:         llmbackend.DefaultEmbeddingModelName,
-		SocketGroupName:                "blueclaw",
-		LiteRTModelPath:                locallm.ModelPath(),
-		LocalLLMRunnerPath:             "/usr/local/bin/internkim-local-llm-runner",
-		CompanionBaseURL:               "",
-		PreferCompanionLLM:             false,
-		LocalInferenceMode:             "",
-		LocalOnly:                      false,
-		ProviderAttemptTimeout:         0,
-		AgentBrowserPath:               "agent-browser",
-		DeviceBrowserPath:              browserruntime.DeviceBrowserExecutablePath,
-		DeviceBrowserProfilePath:       "",
-		CompanionFileDirectory:         "/tmp/internkim-companion-files",
-		APIURLPath:                     "/root/.internkim/env/api-url",
-		FleetIDPath:                    "/root/.internkim/env/fleet-id",
-		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
-		FileReadPythonPath:             "/opt/internkim/document-venv/bin/python",
+		SocketPath:                    "/run/internkim/capability.sock",
+		VSockPort:                     0,
+		OpenRouterKeyPath:             "/root/.internkim/secrets/openrouter-api-key",
+		GoogleWorkspaceWebhookPath:    "/root/.internkim/secrets/gas-webhook-url",
+		SlackTokenPath:                "/root/.internkim/secrets/slack-bot-token",
+		SlackAppTokenPath:             "/root/.internkim/secrets/slack-app-token",
+		SignalJSONRPCURLPath:          "/root/.internkim/config/signal-jsonrpc-url",
+		SignalAccountPath:             "/root/.internkim/config/signal-account",
+		BlueclawBaseURL:               "http://127.0.0.1:8080",
+		AdmindBaseURL:                 "http://127.0.0.1:18080",
+		AdmindSocketPath:              blueclaw.AdmindSocketPath,
+		OpenRouterBaseURL:             "https://openrouter.ai/api/v1/chat/completions",
+		OpenRouterModel:               blueclaw.BlueclawDefaultModelName,
+		OpenRouterGatewaySecretHeader: "X-INTERNKIM-GATEWAY-SECRET",
+		OpenRouterWebBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
+		OpenRouterEmbeddingBaseURL:    "https://openrouter.ai/api/v1/embeddings",
+		OpenRouterEmbeddingModel:      llmbackend.DefaultEmbeddingModelName,
+		OpenRouterImageModel:          "google/gemini-3.1-flash-lite-image",
+		EmbeddingProviderOrder:        llmbackend.DefaultLocalEmbeddingProviderOrder,
+		OllamaBaseURL:                 "http://127.0.0.1:11434",
+		OllamaModel:                   "gemma3:1b",
+		LlamaCppBaseURL:               locallm.LlamaCppBaseURL,
+		LlamaCppModel:                 "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
+		LlamaCppEmbeddingBaseURL:      locallm.LlamaCppEmbeddingBaseURL,
+		LlamaCppEmbeddingModel:        llmbackend.DefaultEmbeddingModelName,
+		SocketGroupName:               "blueclaw",
+		LiteRTModelPath:               locallm.ModelPath(),
+		LocalLLMRunnerPath:            "/usr/local/bin/internkim-local-llm-runner",
+		CompanionBaseURL:              "",
+		PreferCompanionLLM:            false,
+		LocalInferenceMode:            "",
+		LocalOnly:                     false,
+		ProviderAttemptTimeout:        0,
+		AgentBrowserPath:              "agent-browser",
+		DeviceBrowserPath:             browserruntime.DeviceBrowserExecutablePath,
+		DeviceBrowserProfilePath:      "",
+		CompanionFileDirectory:        "/tmp/internkim-companion-files",
+		APIURLPath:                    "/root/.internkim/env/api-url",
+		FleetIDPath:                   "/root/.internkim/env/fleet-id",
+		BlueclawWorkspacePath:         "/root/.blueclaw/workspace",
+		FileReadPythonPath:            "/opt/internkim/document-venv/bin/python",
 	}
 }
 
@@ -285,7 +247,6 @@ func (service Service) Run(ctx context.Context) error {
 		defer vsockListener.Close()
 	}
 
-	go service.startMattermostForwarder(ctx)
 	go service.startSlackSocketMode(ctx)
 	go service.startSignalJSONRPCReceiver(ctx)
 
@@ -325,11 +286,9 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/directory/person", service.handleDirectoryPerson)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/interaction.resolve", service.handleInteractionResolve)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.remove", service.handleReactionRemove)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/attachments.import", service.handleAttachmentsImport)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
@@ -351,44 +310,13 @@ func (service Service) handleHealth(responseWriter http.ResponseWriter, request 
 }
 
 func (service Service) platformHealth(ctx context.Context) map[string]any {
-	mattermost := service.mattermostHealth(ctx)
 	protocolIdentity := capabilityprotocol.GeneratedProtocolIdentity()
-	status := "ok"
-	if value, _ := mattermost["ok"].(bool); !value {
-		status = "unhealthy"
-	}
 	return map[string]any{
-		"status":                status,
+		"status":                "ok",
 		"protocolVersion":       protocolIdentity.ProtocolVersion,
 		"aggregateProtocolHash": protocolIdentity.AggregateProtocolHash,
-		"mattermost":            mattermost,
 		"providers":             service.providerHealth(ctx),
 		"checkedAt":             time.Now().UTC(),
-	}
-}
-
-func (service Service) mattermostHealth(ctx context.Context) map[string]any {
-	state := service.healthState().Snapshot()
-	state.MattermostTokenConfigured = readSecretValue(service.Configuration.MattermostTokenPath) != ""
-	if state.MattermostTokenConfigured {
-		var botUser struct {
-			ID    string `json:"id"`
-			IsBot bool   `json:"is_bot"`
-		}
-		if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue == nil && strings.TrimSpace(botUser.ID) != "" && botUser.IsBot {
-			state.MattermostBotUserResolved = true
-		} else {
-			state.MattermostBotUserResolved = false
-		}
-	}
-	return map[string]any{
-		"ok":                      state.MattermostTokenConfigured && state.MattermostBotUserResolved && state.MattermostForwarderRunning,
-		"botTokenConfigured":      state.MattermostTokenConfigured,
-		"botUserResolved":         state.MattermostBotUserResolved,
-		"forwarderRunning":        state.MattermostForwarderRunning,
-		"fallbackPollActive":      state.MattermostFallbackActive,
-		"lastSuccessfulForwardAt": state.LastSuccessfulForwardAt,
-		"lastForwardError":        state.LastForwardError,
 	}
 }
 
@@ -461,8 +389,6 @@ func (service Service) handleIdentityResolve(responseWriter http.ResponseWriter,
 	var response any
 	var errorValue error
 	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostLookupUserFromRequest(request.Context(), request.Body)
 	case "slack":
 		response, errorValue = service.slackLookupUserFromRequest(request.Context(), request.Body)
 	case "signal":
@@ -478,8 +404,6 @@ func (service Service) handleReplySend(responseWriter http.ResponseWriter, reque
 	var response any
 	var errorValue error
 	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostReplyFromRequest(request.Context(), request.Body)
 	case "slack":
 		response, errorValue = service.slackReplyFromRequest(request.Context(), request.Body)
 	case "signal":
@@ -491,25 +415,10 @@ func (service Service) handleReplySend(responseWriter http.ResponseWriter, reque
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
-func (service Service) handleInteractionResolve(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostInteractionResolve(request.Context(), request.Body)
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
 func (service Service) handleReactionAdd(responseWriter http.ResponseWriter, request *http.Request) {
 	var response any
 	var errorValue error
 	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostAddReactionFromRequest(request.Context(), request.Body)
 	case "slack", "signal":
 		response = map[string]string{"status": "noop"}
 	default:
@@ -523,8 +432,6 @@ func (service Service) handleReactionRemove(responseWriter http.ResponseWriter, 
 	var response any
 	var errorValue error
 	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostRemoveReactionFromRequest(request.Context(), request.Body)
 	case "slack", "signal":
 		response = map[string]string{"status": "noop"}
 	default:
@@ -538,8 +445,6 @@ func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, re
 	var response any
 	var errorValue error
 	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostHistoryFromRequest(request.Context(), request.Body)
 	case "slack":
 		response, errorValue = service.slackHistoryFromRequest(request.Context(), request.Body)
 	case "signal":
@@ -551,25 +456,10 @@ func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, re
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
-func (service Service) handleAttachmentsImport(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostImportAttachmentsFromRequest(request.Context(), request.Body)
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
 func (service Service) handleProgressStart(responseWriter http.ResponseWriter, request *http.Request) {
 	var response any
 	var errorValue error
 	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostStartProgressFromRequest(request.Context(), request.Body)
 	case "slack", "signal":
 		response = map[string]string{"status": "noop"}
 	default:
@@ -583,8 +473,6 @@ func (service Service) handleProgressStop(responseWriter http.ResponseWriter, re
 	var response any
 	var errorValue error
 	switch request.PathValue("platform") {
-	case "mattermost":
-		response, errorValue = service.mattermostStopProgressFromRequest(request.Context(), request.Body)
 	case "slack", "signal":
 		response = map[string]string{"status": "noop"}
 	default:
@@ -625,12 +513,8 @@ func (state *platformHealthState) Snapshot() platformHealthState {
 	state.mutex.RLock()
 	defer state.mutex.RUnlock()
 	return platformHealthState{
-		MattermostTokenConfigured:  state.MattermostTokenConfigured,
-		MattermostBotUserResolved:  state.MattermostBotUserResolved,
-		MattermostForwarderRunning: state.MattermostForwarderRunning,
-		MattermostFallbackActive:   state.MattermostFallbackActive,
-		LastSuccessfulForwardAt:    state.LastSuccessfulForwardAt,
-		LastForwardError:           state.LastForwardError,
+		LastSuccessfulForwardAt: state.LastSuccessfulForwardAt,
+		LastForwardError:        state.LastForwardError,
 	}
 }
 
@@ -643,295 +527,11 @@ func (state *platformHealthState) Update(update func(*platformHealthState)) {
 	update(state)
 }
 
-func (service Service) mattermostLookupUserFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.mattermostLookupUser(ctx, payload)
-}
-
-func (service Service) mattermostLookupUser(ctx context.Context, payload json.RawMessage) (any, error) {
-	var request userLookupRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	senderID := strings.TrimSpace(request.SenderID)
-	if senderID == "" {
-		return nil, errors.New("senderID is required")
-	}
-	var response struct {
-		ID        string `json:"id"`
-		Email     string `json:"email"`
-		Username  string `json:"username"`
-		Nickname  string `json:"nickname"`
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(senderID), nil, &response)
-	name := firstNonEmpty(strings.TrimSpace(response.Nickname), strings.TrimSpace(response.FirstName), response.Username, response.ID)
-	return map[string]string{
-		"platform":    "mattermost",
-		"senderID":    response.ID,
-		"userID":      response.ID,
-		"email":       response.Email,
-		"handle":      response.Username,
-		"name":        name,
-		"callingName": identity.CallingName(name),
-		"displayName": name,
-	}, errorValue
-}
-
-func (service Service) mattermostReplyFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.mattermostReply(ctx, payload)
-}
-
-func (service Service) mattermostReply(ctx context.Context, payload json.RawMessage) (any, error) {
-	var request replyRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	handle, errorValue := decodePlatformHandle(request.ReplyTargetID)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if handle.Platform != "mattermost" {
-		return nil, errors.New("reply target platform mismatch")
-	}
-	if strings.TrimSpace(request.RawEventID) == "" || strings.TrimSpace(request.OutboxID) == "" {
-		return nil, errors.New("mattermost reply requires connector outbox metadata")
-	}
-	message, errorValue := service.mattermostReplyMessageWithRecovery(ctx, handle, request)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	message = service.normalizeMattermostReplyMentions(ctx, message)
-	message = mattermostAskOptionsAppended(message, request)
-	message = service.mattermostAskMentionPrefix(ctx, handle, request) + message
-	service.stopMattermostProgress(request.ReplyTargetID)
-	defer service.stopMattermostProgress(request.ReplyTargetID)
-	fileIDs, errorValue := service.uploadMattermostAttachments(ctx, handle.ChannelID, request.Attachments)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	body := map[string]any{
-		"channel_id": handle.ChannelID,
-		"message":    strings.TrimSpace(message),
-		"props":      service.mattermostReplyProperties(request, handle),
-	}
-	if strings.TrimSpace(handle.RootID) != "" {
-		body["root_id"] = handle.RootID
-	}
-	if len(fileIDs) > 0 {
-		body["file_ids"] = fileIDs
-	}
-	var response struct {
-		ID string `json:"id"`
-	}
-	errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
-	if errorValue != nil && mattermostRootIDCanFallback(errorValue, handle) {
-		delete(body, "root_id")
-		errorValue = service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response)
-	}
-	if errorValue != nil {
-		log.Printf("mattermost reply failed: %v", errorValue)
-	}
-	return newPlatformReplyResult("mattermost", response.ID, "public", message, fileIDs), errorValue
-}
-
-func (service Service) mattermostInteractionResolve(ctx context.Context, reader io.Reader) (any, error) {
-	var request interactionResolveRequest
-	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
-		return nil, errorValue
-	}
-	dispatchID := strings.TrimSpace(request.DispatchID)
-	if dispatchID == "" {
-		return nil, errors.New("dispatchID is required")
-	}
-	body := map[string]any{"props": mattermostinteractive.ClearAttachmentsUpdate()["props"]}
-	path := "/api/v4/posts/" + url.PathEscape(dispatchID) + "/patch"
-	return map[string]bool{"resolved": true}, service.mattermostRequest(ctx, http.MethodPut, path, body, nil)
-}
-
-func (service Service) mattermostAddReactionFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	var request reactionAddRequest
-	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
-		return nil, errorValue
-	}
-	messageID := strings.TrimSpace(request.MessageID)
-	emojiName := strings.TrimSpace(request.EmojiName)
-	if messageID == "" {
-		return nil, errors.New("messageID is required")
-	}
-	if emojiName == "" {
-		return nil, errors.New("emojiName is required")
-	}
-	var botUser struct {
-		ID string `json:"id"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
-		return nil, errorValue
-	}
-	body := map[string]any{
-		"user_id":    botUser.ID,
-		"post_id":    messageID,
-		"emoji_name": emojiName,
-	}
-	errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/reactions", body, nil)
-	return map[string]string{"status": "ok"}, errorValue
-}
-
-func (service Service) mattermostRemoveReactionFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	var request reactionAddRequest
-	if errorValue := json.NewDecoder(reader).Decode(&request); errorValue != nil {
-		return nil, errorValue
-	}
-	messageID := strings.TrimSpace(request.MessageID)
-	emojiName := strings.TrimSpace(request.EmojiName)
-	if messageID == "" {
-		return nil, errors.New("messageID is required")
-	}
-	if emojiName == "" {
-		return nil, errors.New("emojiName is required")
-	}
-	var botUser struct {
-		ID string `json:"id"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
-		return nil, errorValue
-	}
-	path := "/api/v4/users/" + botUser.ID + "/posts/" + messageID + "/reactions/" + emojiName
-	errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, nil, nil)
-	return map[string]string{"status": "ok"}, errorValue
-}
-
-func (service Service) mattermostReplyProperties(request replyRequest, handle platformHandle) map[string]any {
-	properties := map[string]any{
-		"internkim_raw_event_id": request.RawEventID,
-		"internkim_outbox_id":    request.OutboxID,
-	}
-	return properties
-}
-
-func (service Service) mattermostAskMentionPrefix(ctx context.Context, handle platformHandle, request replyRequest) string {
-	if strings.EqualFold(strings.TrimSpace(handle.ChannelType), "D") {
-		return ""
-	}
-	if request.Interaction == nil || strings.TrimSpace(request.Interaction.Kind) == "" {
-		return ""
-	}
-	targetUserID := request.mattermostAskTargetUserID()
-	if targetUserID == "" {
-		return ""
-	}
-	var response struct {
-		Username string `json:"username"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+url.PathEscape(targetUserID), nil, &response); errorValue != nil {
-		return ""
-	}
-	if strings.TrimSpace(response.Username) == "" {
-		return ""
-	}
-	return "@" + response.Username + " "
-}
-
-func (request replyRequest) mattermostAskTargetUserID() string {
-	if request.Interaction == nil {
-		return ""
-	}
-	return firstNonEmpty(
-		strings.TrimSpace(request.Interaction.TargetPlatformUserID),
-	)
-}
-
-// mattermostAskMessage puts everything the person needs into the message itself. The
-// options used to live in an attachment beside the buttons, and removing the buttons would
-// have taken the choices with them.
-func mattermostAskOptionsAppended(message string, request replyRequest) string {
-	message = strings.TrimSpace(message)
-	if request.Interaction == nil {
-		return message
-	}
-	optionLines := strings.TrimSpace(mattermostChoiceAttachmentText(request.Interaction))
-	if optionLines == "" {
-		return message
-	}
-	return strings.TrimSpace(message + "\n\n" + optionLines)
-}
-
-func mattermostChoiceAttachmentText(interaction *platformAskInteraction) string {
-	if interaction == nil {
-		return ""
-	}
-	lines := []string{}
-	for index, option := range interaction.Options {
-		label := strings.TrimSpace(option.Label)
-		if label == "" {
-			continue
-		}
-		suffix := ""
-		if strings.TrimSpace(option.Key) == strings.TrimSpace(interaction.RecommendedOptionKey) {
-			suffix = " (추천)"
-		}
-		lines = append(lines, numberedChoiceLabel(index, label)+suffix)
-	}
-	return strings.Join(lines, "\n")
-}
-
+// The options go in the message itself. They used to live in an attachment
+// beside the buttons, and removing the buttons would have taken the choices
+// with them.
 func numberedChoiceLabel(index int, label string) string {
 	return strconv.Itoa(index+1) + ". " + strings.TrimSpace(label)
-}
-
-func mattermostChoiceDisplayLabel(option platformAskChoiceOption) string {
-	shortLabel := strings.TrimSpace(option.ShortLabel)
-	if shortLabel != "" {
-		return shortLabel
-	}
-	return truncateMattermostChoiceLabel(strings.TrimSpace(option.Label), 8)
-}
-
-func mattermostChoiceResolvedLabel(option platformAskChoiceOption) string {
-	return firstNonEmpty(strings.TrimSpace(option.ShortLabel), strings.TrimSpace(option.Label))
-}
-
-func truncateMattermostChoiceLabel(label string, maximumLength int) string {
-	words := strings.Fields(label)
-	if len(words) == 0 {
-		return ""
-	}
-	selectedWords := []string{}
-	for _, word := range words {
-		candidateWords := append(append([]string{}, selectedWords...), word)
-		candidate := strings.Join(candidateWords, " ")
-		if len([]rune(candidate)) > maximumLength {
-			break
-		}
-		selectedWords = append(selectedWords, word)
-	}
-	if len(selectedWords) > 0 {
-		return strings.Join(selectedWords, " ")
-	}
-	runes := []rune(words[0])
-	if len(runes) <= maximumLength {
-		return words[0]
-	}
-	return string(runes[:maximumLength])
-}
-
-func mattermostChoiceMenuOptionValue(option platformAskChoiceOption) string {
-	document, errorValue := json.Marshal(map[string]string{
-		"key":   strings.TrimSpace(option.Key),
-		"label": mattermostChoiceResolvedLabel(option),
-	})
-	if errorValue != nil {
-		return strings.TrimSpace(option.Key)
-	}
-	return string(document)
 }
 
 func trimNonEmptyPlatformAskOptions(options []platformAskChoiceOption) []platformAskChoiceOption {
@@ -963,129 +563,6 @@ func randomCapabilityHex(size int) string {
 	value := make([]byte, size)
 	_, _ = rand.Read(value)
 	return hex.EncodeToString(value)
-}
-
-func (service Service) stopMattermostProgress(replyTargetID string) {
-	service.progressManager().Stop("mattermost:" + replyTargetID)
-}
-
-func (service Service) mattermostStartProgressFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	var request progressRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	handle, errorValue := decodePlatformHandle(request.ReplyTargetID)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if handle.Platform != "mattermost" {
-		return nil, errors.New("progress target platform mismatch")
-	}
-	if errorValue := service.sendMattermostTyping(ctx, handle); errorValue != nil {
-		log.Printf("mattermost initial typing failed: %v", errorValue)
-	}
-	service.progressManager().Start("mattermost:"+request.ReplyTargetID, mattermostProgressTTL, func(progressContext context.Context) {
-		service.refreshMattermostTyping(progressContext, handle)
-	})
-	return map[string]string{"status": "started"}, nil
-}
-
-func (service Service) mattermostStopProgressFromRequest(_ context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	var request progressRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	if _, errorValue := decodePlatformHandle(request.ReplyTargetID); errorValue != nil {
-		return nil, errorValue
-	}
-	service.progressManager().Stop("mattermost:" + request.ReplyTargetID)
-	return map[string]string{"status": "stopped"}, nil
-}
-
-func (service Service) refreshMattermostTyping(ctx context.Context, handle platformHandle) {
-	ticker := time.NewTicker(mattermostTypingInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if errorValue := service.sendMattermostTyping(ctx, handle); errorValue != nil {
-				log.Printf("mattermost typing failed: %v", errorValue)
-			}
-		}
-	}
-}
-
-func (service Service) sendMattermostTyping(ctx context.Context, handle platformHandle) error {
-	var botUser struct {
-		ID string `json:"id"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
-		return errorValue
-	}
-	if strings.TrimSpace(botUser.ID) == "" || strings.TrimSpace(handle.ChannelID) == "" {
-		return nil
-	}
-
-	if strings.TrimSpace(handle.RootID) != "" {
-		if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, handle.RootID); errorValue != nil && !mattermostRootIDCanFallback(errorValue, handle) {
-			return errorValue
-		}
-	}
-	if errorValue := service.publishMattermostTyping(ctx, botUser.ID, handle.ChannelID, ""); errorValue != nil {
-		return errorValue
-	}
-	return nil
-}
-
-func mattermostRootIDCanFallback(errorValue error, handle platformHandle) bool {
-	if errorValue == nil || strings.TrimSpace(handle.RootID) == "" {
-		return false
-	}
-	message := strings.ToLower(errorValue.Error())
-	return strings.Contains(message, "invalid rootid") || strings.Contains(message, "invalid root_id") || strings.Contains(message, "root_id")
-}
-
-func (service Service) publishMattermostTyping(ctx context.Context, botUserID string, channelID string, rootID string) error {
-	body := map[string]string{"channel_id": channelID}
-	if strings.TrimSpace(rootID) != "" {
-		body["parent_id"] = rootID
-	}
-	return service.mattermostRequest(ctx, http.MethodPost, "/api/v4/users/"+url.PathEscape(botUserID)+"/typing", body, nil)
-}
-
-func (service Service) mattermostHistoryFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	var request historyFetchRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	handle, errorValue := decodePlatformHandle(request.HistoryCursor)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if handle.Platform != "mattermost" {
-		return nil, errors.New("history cursor platform mismatch")
-	}
-
-	contextValue := service.mattermostContext(ctx, handle, request.Limit)
-	return map[string]any{
-		"messages":      contextValue.Messages,
-		"hasMoreBefore": contextValue.HasMoreBefore,
-		"historyCursor": contextValue.HistoryCursor,
-	}, nil
 }
 
 func (service Service) slackLookupUserFromRequest(ctx context.Context, reader io.Reader) (any, error) {
@@ -1205,24 +682,6 @@ func (service Service) slackHistoryFromRequest(ctx context.Context, reader io.Re
 		"hasMoreBefore": contextValue.HasMoreBefore,
 		"historyCursor": contextValue.HistoryCursor,
 	}, nil
-}
-
-func (service Service) mattermostRequest(ctx context.Context, method string, path string, body any, responseValue any) error {
-	token := readSecretValue(service.Configuration.MattermostTokenPath)
-	if token == "" {
-		return errors.New("mattermost bot token is not configured")
-	}
-	if errorValue := service.mattermostLimiter().wait(ctx); errorValue != nil {
-		return errorValue
-	}
-	return service.authenticatedJSONRequest(ctx, method, strings.TrimRight(service.Configuration.MattermostBaseURL, "/")+path, token, body, responseValue)
-}
-
-func (service Service) mattermostLimiter() *mattermostRateLimiter {
-	if service.MattermostLimiter != nil {
-		return service.MattermostLimiter
-	}
-	return defaultMattermostRateLimiter
 }
 
 func (service Service) slackRequest(ctx context.Context, method string, path string, body any, responseValue any) error {
@@ -1440,8 +899,8 @@ func (locker *platformEventLocker) lockForName(name string) *sync.Mutex {
 	return lock
 }
 
-const mattermostProgressTTL = 3 * time.Minute
-const mattermostTypingInterval = 4 * time.Second
+const platformProgressTTL = 3 * time.Minute
+const platformTypingInterval = 4 * time.Second
 
 type platformProgressManager struct {
 	mutex      sync.Mutex
@@ -1459,7 +918,7 @@ func newPlatformProgressManager() *platformProgressManager {
 
 func (manager *platformProgressManager) Start(key string, maximumLifetime time.Duration, run func(context.Context)) {
 	if maximumLifetime <= 0 {
-		maximumLifetime = mattermostProgressTTL
+		maximumLifetime = platformProgressTTL
 	}
 	manager.mutex.Lock()
 	if lease, isFound := manager.leaseByKey[key]; isFound {
@@ -1503,301 +962,6 @@ func (service Service) progressManager() *platformProgressManager {
 		return service.ProgressManager
 	}
 	return fallbackPlatformProgressManager
-}
-
-func (service Service) startMattermostForwarder(ctx context.Context) {
-	token := readSecretValue(service.Configuration.MattermostTokenPath)
-	if token == "" {
-		service.healthState().Update(func(state *platformHealthState) {
-			state.MattermostTokenConfigured = false
-			state.MattermostForwarderRunning = false
-			state.LastForwardError = "mattermost bot token is not configured"
-		})
-		log.Print("mattermost forwarder disabled: token missing")
-		return
-	}
-	service.healthState().Update(func(state *platformHealthState) {
-		state.MattermostTokenConfigured = true
-	})
-	var botUser struct {
-		ID       string `json:"id"`
-		Username string `json:"username"`
-		IsBot    bool   `json:"is_bot"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
-		service.healthState().Update(func(state *platformHealthState) {
-			state.MattermostBotUserResolved = false
-			state.MattermostForwarderRunning = false
-			state.LastForwardError = errorValue.Error()
-		})
-		log.Printf("mattermost websocket forwarder disabled: bot lookup failed: %v", errorValue)
-		return
-	}
-	if strings.TrimSpace(botUser.ID) == "" || !botUser.IsBot {
-		service.healthState().Update(func(state *platformHealthState) {
-			state.MattermostBotUserResolved = false
-			state.MattermostForwarderRunning = false
-			state.LastForwardError = "mattermost token user is not a bot"
-		})
-		log.Print("mattermost websocket forwarder disabled: token user is not a bot")
-		return
-	}
-	service.healthState().Update(func(state *platformHealthState) {
-		state.MattermostBotUserResolved = true
-		state.MattermostForwarderRunning = true
-		state.LastForwardError = ""
-	})
-	log.Printf("mattermost forwarder enabled: botUserID=%s botUsername=%s baseURL=%s", botUser.ID, botUser.Username, service.Configuration.MattermostBaseURL)
-	pollState := mattermostPollState{LastSeenByChannel: map[string]int64{}}
-	var lastSeenMutex sync.Mutex
-	listener := MattermostWebSocketForwarder{
-		URL:         deriveMattermostWebSocketURL(service.Configuration.MattermostBaseURL),
-		BotToken:    token,
-		BotUserID:   botUser.ID,
-		BotUsername: botUser.Username,
-		BlueclawURL: strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/mattermost/events",
-		HTTPClient:  service.httpClient(),
-		EventBuilder: func(ctx context.Context, payload []byte) (platformInboundEvent, bool, error) {
-			event, hasEvent, errorValue := normalizeMattermostWebSocketPayload(payload, botUser.ID, botUser.Username)
-			if errorValue != nil || !hasEvent {
-				return event, hasEvent, errorValue
-			}
-			event = service.enrichMattermostEvent(ctx, event)
-			return event, true, nil
-		},
-		AfterForward: func(ctx context.Context, payload []byte) {
-			service.healthState().Update(func(state *platformHealthState) {
-				state.LastSuccessfulForwardAt = time.Now().UTC()
-				state.LastForwardError = ""
-			})
-			post, _, hasPost, errorValue := mattermostWebSocketPost(payload)
-			if errorValue != nil || !hasPost || strings.TrimSpace(post.ChannelID) == "" || post.CreateAt <= 0 {
-				return
-			}
-			lastSeenMutex.Lock()
-			if post.CreateAt > pollState.LastSeenByChannel[post.ChannelID] {
-				pollState.LastSeenByChannel[post.ChannelID] = post.CreateAt
-			}
-			lastSeenMutex.Unlock()
-		},
-		AfterForwardError: func(errorValue error) {
-			service.healthState().Update(func(state *platformHealthState) {
-				state.LastForwardError = errorValue.Error()
-			})
-		},
-		PollFallback: func(ctx context.Context) {
-			service.pollMattermostFallback(ctx, &pollState, &lastSeenMutex)
-		},
-	}
-	service.pollMattermostFallback(ctx, &pollState, &lastSeenMutex)
-	go service.runMattermostPollingFallback(ctx, &pollState, &lastSeenMutex)
-	go listener.Start(ctx)
-}
-
-func (service Service) runMattermostPollingFallback(ctx context.Context, pollState *mattermostPollState, mutex *sync.Mutex) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for ctx.Err() == nil {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			service.pollMattermostFallback(ctx, pollState, mutex)
-		}
-	}
-}
-
-func (service Service) pollMattermostFallback(ctx context.Context, pollState *mattermostPollState, mutex *sync.Mutex) {
-	service.healthState().Update(func(state *platformHealthState) {
-		state.MattermostFallbackActive = true
-	})
-	mutex.Lock()
-	defer mutex.Unlock()
-	wasInitialized := pollState.IsInitialized
-	previousChannelCount := len(pollState.LastSeenByChannel)
-	if errorValue := service.pollMattermost(ctx, pollState); errorValue != nil {
-		service.healthState().Update(func(state *platformHealthState) {
-			state.LastForwardError = errorValue.Error()
-		})
-		log.Printf("mattermost fallback poll failed: %v", errorValue)
-		return
-	}
-	if !wasInitialized {
-		log.Printf("mattermost fallback poll initialized: channels=%d", len(pollState.LastSeenByChannel))
-		return
-	}
-	if len(pollState.LastSeenByChannel) > previousChannelCount {
-		log.Printf("mattermost fallback poll discovered channels: previous=%d current=%d", previousChannelCount, len(pollState.LastSeenByChannel))
-	}
-}
-
-func (service Service) pollMattermost(ctx context.Context, state *mattermostPollState) error {
-	if state.LastSeenByChannel == nil {
-		state.LastSeenByChannel = map[string]int64{}
-	}
-	previousPollStartedAt := state.LastPollStartedAt
-	pollStartedAt := time.Now().UnixMilli()
-	var botUser struct {
-		ID       string `json:"id"`
-		Username string `json:"username"`
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
-		return errorValue
-	}
-	if strings.TrimSpace(botUser.ID) == "" {
-		return errors.New("mattermost bot user id is empty")
-	}
-
-	channels, errorValue := service.mattermostBotChannels(ctx, botUser.ID)
-	if errorValue != nil {
-		return errorValue
-	}
-
-	for _, channel := range channels {
-		if strings.TrimSpace(channel.ID) == "" {
-			continue
-		}
-		if _, isFound := state.LastSeenByChannel[channel.ID]; !isFound {
-			if state.IsInitialized {
-				nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, botUser.Username, channel.ID, channel.Type, channel.Name, mattermostNewChannelSince(previousPollStartedAt))
-				if errorValue != nil {
-					log.Printf("mattermost new channel poll failed: %s: %v", channel.ID, errorValue)
-					continue
-				}
-				state.LastSeenByChannel[channel.ID] = nextSeen
-				continue
-			}
-			state.LastSeenByChannel[channel.ID] = pollStartedAt
-			continue
-		}
-		nextSeen, errorValue := service.forwardMattermostChannelPosts(ctx, botUser.ID, botUser.Username, channel.ID, channel.Type, channel.Name, state.LastSeenByChannel[channel.ID])
-		if errorValue != nil {
-			log.Printf("mattermost channel poll failed: %s: %v", channel.ID, errorValue)
-			continue
-		}
-		if nextSeen > state.LastSeenByChannel[channel.ID] {
-			state.LastSeenByChannel[channel.ID] = nextSeen
-		}
-	}
-	state.IsInitialized = true
-	state.LastPollStartedAt = pollStartedAt
-	return nil
-}
-
-type mattermostBotChannel struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
-	Name string `json:"name"`
-}
-
-func (service Service) mattermostBotChannels(ctx context.Context, botUserID string) ([]mattermostBotChannel, error) {
-	const perPage = 200
-	channels := []mattermostBotChannel{}
-	for page := 0; page < 100; page++ {
-		pageChannels := []mattermostBotChannel{}
-		path := fmt.Sprintf("/api/v4/users/%s/channels?page=%d&per_page=%d", url.PathEscape(botUserID), page, perPage)
-		if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &pageChannels); errorValue != nil {
-			return nil, errorValue
-		}
-		channels = append(channels, pageChannels...)
-		if len(pageChannels) < perPage {
-			return channels, nil
-		}
-	}
-	return channels, nil
-}
-
-func mattermostNewChannelSince(previousPollStartedAt int64) int64 {
-	if previousPollStartedAt <= 1000 {
-		return 0
-	}
-	return previousPollStartedAt - 1000
-}
-
-func (service Service) latestMattermostChannelPostCreateAt(ctx context.Context, channelID string) (int64, error) {
-	var response mattermostPostsResponse
-	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?per_page=1"
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &response); errorValue != nil {
-		return 0, errorValue
-	}
-	return latestMattermostPostCreateAt(response), nil
-}
-
-func latestMattermostPostCreateAt(response mattermostPostsResponse) int64 {
-	latestCreateAt := int64(0)
-	for _, post := range response.Posts {
-		if post.CreateAt > latestCreateAt {
-			latestCreateAt = post.CreateAt
-		}
-	}
-	return latestCreateAt
-}
-
-func (service Service) forwardMattermostChannelPosts(ctx context.Context, botUserID string, botUsername string, channelID string, channelType string, channelName string, since int64) (int64, error) {
-	var response mattermostPostsResponse
-	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?since=" + strconv.FormatInt(since, 10)
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, nil, &response); errorValue != nil {
-		return since, errorValue
-	}
-	return service.forwardMattermostPosts(ctx, botUserID, botUsername, channelType, channelName, response, since)
-}
-
-func (service Service) forwardMattermostPosts(ctx context.Context, botUserID string, botUsername string, channelType string, channelName string, response mattermostPostsResponse, since int64) (int64, error) {
-	nextSeen := since
-	for index := len(response.Order) - 1; index >= 0; index-- {
-		post := response.Posts[response.Order[index]]
-		if strings.TrimSpace(post.ID) == "" || post.CreateAt <= since {
-			continue
-		}
-		addressing := mattermostAddressingFromMessage(post.Message, botUsername)
-		event, hasEvent, errorValue := normalizeMattermostPost(mattermostPost{
-			ID:        post.ID,
-			UserID:    post.UserID,
-			ChannelID: post.ChannelID,
-			Message:   post.Message,
-			RootID:    post.RootID,
-			Type:      post.Type,
-			CreateAt:  post.CreateAt,
-			FileIDs:   post.FileIDs,
-			Metadata:  post.Metadata,
-		}, botUserID, channelType, channelName, addressing)
-		if errorValue != nil {
-			log.Printf("mattermost post normalize failed: %s: %v", post.ID, errorValue)
-			if post.CreateAt > nextSeen {
-				nextSeen = post.CreateAt
-			}
-			continue
-		}
-		if !hasEvent {
-			if post.CreateAt > nextSeen {
-				nextSeen = post.CreateAt
-			}
-			continue
-		}
-		event = service.enrichMattermostEvent(ctx, event)
-		if errorValue := service.forwardMattermostEvent(ctx, event); errorValue != nil {
-			log.Printf("mattermost post forward failed: %s: %v", post.ID, errorValue)
-			continue
-		}
-		log.Printf("mattermost post forwarded: postID=%s channelID=%s", post.ID, post.ChannelID)
-		if post.CreateAt > nextSeen {
-			nextSeen = post.CreateAt
-		}
-	}
-	return nextSeen, nil
-}
-
-func (service Service) forwardMattermostEvent(ctx context.Context, event platformInboundEvent) error {
-	errorValue := service.forwardPlatformEvent(ctx, "mattermost", event)
-	service.healthState().Update(func(state *platformHealthState) {
-		if errorValue != nil {
-			state.LastForwardError = errorValue.Error()
-			return
-		}
-		state.LastSuccessfulForwardAt = time.Now().UTC()
-		state.LastForwardError = ""
-	})
-	return errorValue
 }
 
 const backupDeferredForwardRetryLimit = 8
@@ -1861,21 +1025,6 @@ func (service Service) forwardPlatformEventWithoutLock(ctx context.Context, plat
 	return false, nil
 }
 
-func deriveMattermostWebSocketURL(baseURL string) string {
-	parsedURL, errorValue := url.Parse(baseURL)
-	if errorValue != nil || parsedURL.Host == "" {
-		return ""
-	}
-	if parsedURL.Scheme == "https" {
-		parsedURL.Scheme = "wss"
-	} else {
-		parsedURL.Scheme = "ws"
-	}
-	parsedURL.Path = "/api/v4/websocket"
-	parsedURL.RawQuery = ""
-	return parsedURL.String()
-}
-
 func (configuration Configuration) WithDefaults() Configuration {
 	defaultConfiguration := DefaultConfiguration()
 	if configuration.SocketPath == "" {
@@ -1886,15 +1035,6 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.GoogleWorkspaceWebhookPath == "" {
 		configuration.GoogleWorkspaceWebhookPath = defaultConfiguration.GoogleWorkspaceWebhookPath
-	}
-	if configuration.MattermostBaseURL == "" {
-		configuration.MattermostBaseURL = defaultConfiguration.MattermostBaseURL
-	}
-	if configuration.MattermostTokenPath == "" {
-		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
-	}
-	if configuration.MattermostInteractiveTokenPath == "" {
-		configuration.MattermostInteractiveTokenPath = defaultConfiguration.MattermostInteractiveTokenPath
 	}
 	if configuration.SlackTokenPath == "" {
 		configuration.SlackTokenPath = defaultConfiguration.SlackTokenPath

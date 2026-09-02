@@ -64,7 +64,6 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "message_send", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_update", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_delete", Handler: Service.invokePlatformMessageTool},
-	{ToolName: "channel_update", Handler: Service.invokeMattermostTool},
 	{ToolName: "event_add", Handler: Service.invokeCalendarTool},
 	{ToolName: "event_list", Handler: Service.invokeCalendarTool},
 	{ToolName: "event_update", Handler: Service.invokeCalendarTool},

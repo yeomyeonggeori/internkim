@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilityd"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -16,9 +17,6 @@ func main() {
 	flag.StringVar(&configuration.SocketPath, "socket", defaultConfiguration.SocketPath, "capability socket path")
 	flag.IntVar(&configuration.VSockPort, "vsock-port", defaultConfiguration.VSockPort, "optional host vsock port for Firecracker guests")
 	flag.StringVar(&configuration.OpenRouterKeyPath, "openrouter-key", defaultConfiguration.OpenRouterKeyPath, "OpenRouter key path")
-	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", defaultConfiguration.MattermostBaseURL, "Mattermost base URL")
-	flag.StringVar(&configuration.MattermostTokenPath, "mattermost-token", defaultConfiguration.MattermostTokenPath, "Mattermost bot token path")
-	flag.StringVar(&configuration.MattermostInteractiveTokenPath, "mattermost-interactive-token", defaultConfiguration.MattermostInteractiveTokenPath, "Mattermost interactive action token path")
 	flag.StringVar(&configuration.SlackTokenPath, "slack-token", defaultConfiguration.SlackTokenPath, "Slack bot token path")
 	flag.StringVar(&configuration.SlackAppTokenPath, "slack-app-token", defaultConfiguration.SlackAppTokenPath, "Slack app token path")
 	flag.StringVar(&configuration.SignalJSONRPCURL, "signal-jsonrpc-url", defaultConfiguration.SignalJSONRPCURL, "Signal JSON-RPC URL")
@@ -60,6 +58,11 @@ func main() {
 	}
 	if environmentDeviceBrowserPath := os.Getenv("INTERNKIM_DEVICE_BROWSER_PATH"); environmentDeviceBrowserPath != "" {
 		configuration.DeviceBrowserPath = environmentDeviceBrowserPath
+	}
+
+	if strings.TrimSpace(configuration.ChatdPlatform) == "" {
+		fmt.Fprintln(os.Stderr, "--chatd-platform names the messenger this company runs, and every message tool reaches it through chatd; capabilityd delivers nothing without it")
+		os.Exit(1)
 	}
 
 	if errorValue := capabilityd.Run(configuration); errorValue != nil {

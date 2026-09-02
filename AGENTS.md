@@ -320,7 +320,6 @@ and delete the duplicates.
   | `./internkim dev plane` | which messenger does a message leave on, who does a requester resolve to, what will the public API take | seconds |
   | `./internkim dev simulate --scenario <name>` | does the agent loop decide correctly, against a scripted model | seconds |
   | `./internkim dev fleet run --scenario <name>` | does it work on Linux — the cloud-hypervisor guest, POSIX identity, the ext4 workspace, systemd, OTA | ~10 minutes |
-  | `./internkim test expensive` | does a real person on a real messenger get what they asked for | longer |
 
 - Anything on the company plane — a message tool, the public API, how a daemon is
   started or what it is told — goes through `./internkim dev plane` first. It runs
@@ -331,8 +330,7 @@ and delete the duplicates.
   no `admind` at all, and nothing anywhere ran that bring-up.
 - Anything on the messenger path is verified with
   `./internkim dev fleet run --scenario buzz-attachment`. Buzz is what a
-  company's messages travel over; the `mattermost-*` scenarios cover the older
-  half. The scenario invites a person, derives their key from the device seed
+  company's messages travel over. The scenario invites a person, derives their key from the device seed
   the way `buzzidentity.Secret` does, sends the agent a picture through chatd's
   person capabilities, and reads the task ledger. A message going the other way —
   the agent writing to a person — is
@@ -343,8 +341,8 @@ and delete the duplicates.
   [docs/internal/device/the-local-fleet.md](docs/internal/device/the-local-fleet.md):
   a run starts a local central plane and joins the VM to it, so the `buzz-*`
   scenarios above are plane work even though the VM they run in is device
-  machinery. OTA, the guest's ext4 workspace and the `mattermost-*` scenarios
-  are the frozen half, and the rest of that path is
+  machinery. OTA and the guest's ext4 workspace are the frozen half, and the
+  rest of that path is
   [docs/internal/device/](docs/internal/device/).
 
 ## Blueclaw Skill Size Budget

@@ -2,9 +2,9 @@
 // two messengers standing in as recorders.
 //
 // The bug this exists for was not a logic bug. host/entrypoint.sh started
-// capabilityd without --chatd-platform, so every message tool took the Mattermost
-// branch and answered "sent". No unit test can reach that, because the defect is
-// in how the processes are started. So this starts them.
+// capabilityd without --chatd-platform, so every message tool answered "sent"
+// while reaching nothing. No unit test can reach that, because the defect is in
+// how the processes are started. So this starts them.
 
 import { SQL } from 'bun';
 import { existsSync, mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs';
@@ -259,8 +259,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 							'--admind-url': admindURL,
 							'--chatd-endpoint': connector.url,
 							'--chatd-platform': capabilitydPlatform
-						},
-						{ '--mattermost-url': messenger.url }
+						}
 					)
 				],
 				{ ...logsTo(join(runDirectory, 'capabilityd.log')), env: theBoxEnvironment() }
@@ -364,7 +363,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						},
 						{
 							'-listen-socket': requesterSocketPath,
-							'-mattermost-url': messenger.url,
 							'-state-dir': join(runDirectory, 'state'),
 							'-database': join(runDirectory, 'state', 'internkim.sqlite')
 						}

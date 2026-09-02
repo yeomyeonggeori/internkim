@@ -40,18 +40,18 @@ type chatdMessageSearchResponse struct {
 func (service Service) invokeChatdPlatformMessageSearch(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSearchInput) (capabilities.ToolInvokeResponse, error) {
 	searchRequest, scope, failure, hasFailure := chatdMessageSearchRequestFromInput(request.Context, input)
 	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	var response chatdMessageSearchResponse
 	if errorValue := service.chatdRequest(ctx, "message.search", searchRequest, &response); errorValue != nil {
-		failure := mattermostToolStaticFailure("message_search_failed", "platform_search", errorValue.Error())
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		failure := platformToolStaticFailure("message_search_failed", "platform_search", errorValue.Error())
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	result := canonicalChatdMessageSearchResult(response, input, scope, request.Context.RequesterPlatformUserID)
-	return mattermostToolSuccessResponse(request.ToolName, "ok", result)
+	return platformToolSuccessResponse(request.ToolName, "ok", result)
 }
 
-func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeContext, input platformMessageSearchInput) (chatdMessageSearchRequest, string, mattermostToolFailure, bool) {
+func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeContext, input platformMessageSearchInput) (chatdMessageSearchRequest, string, platformToolFailure, bool) {
 	searchRequest := chatdMessageSearchRequest{
 		MessageIDs:         input.MessageIDs,
 		AuthoredBy:         input.AuthoredBy,
@@ -62,12 +62,12 @@ func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeConte
 	scope := normalizedChatdMessageSearchScope(input.Scope, toolContext, input)
 	switch scope {
 	case "directMessage":
-		failure := mattermostToolStaticFailure("unsupported_scope", "platform_route",
+		failure := platformToolStaticFailure("unsupported_scope", "platform_route",
 			"scope=directMessage is not yet routed; search the current conversation or a named channel")
 		return chatdMessageSearchRequest{}, scope, failure, true
 	case "channel":
 		if input.DeliveryTarget.ChannelID == "" && input.DeliveryTarget.ChannelName == "" {
-			failure := mattermostToolStaticFailure("invalid_input", "input_decode", "scope=channel needs channelID or channelName")
+			failure := platformToolStaticFailure("invalid_input", "input_decode", "scope=channel needs channelID or channelName")
 			return chatdMessageSearchRequest{}, scope, failure, true
 		}
 		searchRequest.ChannelID = input.DeliveryTarget.ChannelID
@@ -75,7 +75,7 @@ func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeConte
 	case "currentThread":
 		rootMessageID := buzzReplyTargetRoot(toolContext.ReplyTargetID)
 		if rootMessageID == "" {
-			failure := mattermostToolStaticFailure("thread_not_available", "context", "current conversation does not have a thread root")
+			failure := platformToolStaticFailure("thread_not_available", "context", "current conversation does not have a thread root")
 			return chatdMessageSearchRequest{}, scope, failure, true
 		}
 		searchRequest.ReplyTargetID = toolContext.ReplyTargetID
@@ -84,12 +84,12 @@ func chatdMessageSearchRequestFromInput(toolContext capabilities.ToolInvokeConte
 		searchRequest.ReplyTargetID = toolContext.ReplyTargetID
 		searchRequest.ChannelID = strings.TrimSpace(toolContext.ChannelID)
 		if searchRequest.ReplyTargetID == "" && searchRequest.ChannelID == "" {
-			failure := mattermostToolStaticFailure("channel_not_available", "context",
+			failure := platformToolStaticFailure("channel_not_available", "context",
 				"name a channelName or channelID to search; the current conversation is not available")
 			return chatdMessageSearchRequest{}, scope, failure, true
 		}
 	}
-	return searchRequest, scope, mattermostToolFailure{}, false
+	return searchRequest, scope, platformToolFailure{}, false
 }
 
 func normalizedChatdMessageSearchScope(scope string, toolContext capabilities.ToolInvokeContext, input platformMessageSearchInput) string {
@@ -124,7 +124,7 @@ func canonicalChatdMessageSearchResult(response chatdMessageSearchResponse, inpu
 		if isReadByID {
 			mapped.Text = candidate.Text
 		} else {
-			mapped.Preview = mattermostPostSearchPreview(candidate.Text, input.Queries)
+			mapped.Preview = platformMessageSearchPreview(candidate.Text, input.Queries)
 		}
 		if mapped.Deletable {
 			deletableMessageIDs = append(deletableMessageIDs, candidate.MessageID)
@@ -158,7 +158,7 @@ type chatdIdentitySelfResponse struct {
 func (service Service) invokeChatdPlatformMessageContext(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	var botIdentity chatdIdentitySelfResponse
 	if errorValue := service.chatdRequest(ctx, "identity.self", map[string]any{}, &botIdentity); errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("bot_lookup", "platform_unavailable", errorValue)), nil
+		return platformToolErrorResponse(request.ToolName, platformToolFailureForError("bot_lookup", "platform_unavailable", errorValue)), nil
 	}
 	toolContext := request.Context
 	result := platformMessageContextResult{
@@ -174,7 +174,7 @@ func (service Service) invokeChatdPlatformMessageContext(ctx context.Context, re
 		BotUserID:               botIdentity.PubkeyHex,
 		BotUsername:             botIdentity.Name,
 	}
-	return mattermostToolSuccessResponse(request.ToolName, "ok", result)
+	return platformToolSuccessResponse(request.ToolName, "ok", result)
 }
 
 func buzzReplyTargetChannel(replyTargetID string) string {

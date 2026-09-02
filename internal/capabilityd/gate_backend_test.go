@@ -1,18 +1,17 @@
 package capabilityd
 
 import (
-	"gitlab.com/eastriver/internkim/internal/openroutertest"
 	"context"
-	"net/url"
-	"strings"
+	"gitlab.com/eastriver/internkim/internal/openroutertest"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
-
 )
 
 // capabilityd reaches everything it does not do itself through one field of its
@@ -26,7 +25,7 @@ const (
 	admindOverTheSocket gateBackend = "admind socket"
 	admindOverHTTP      gateBackend = "admind"
 	blueclawOverHTTP    gateBackend = "blueclaw"
-	mattermostOverHTTP  gateBackend = "mattermost"
+	chatdOverHTTP       gateBackend = "chatd"
 	companionOverHTTP   gateBackend = "companion"
 	openRouterOverHTTP  gateBackend = "openrouter"
 
@@ -112,9 +111,9 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 			configuration.AdmindBaseURL = servedOnLoopback(t, standIn.handler(t))
 		case blueclawOverHTTP:
 			configuration.BlueclawBaseURL = servedOnLoopback(t, standIn.handler(t))
-		case mattermostOverHTTP:
-			configuration.MattermostBaseURL = servedOnLoopback(t, standIn.handler(t))
-			configuration.MattermostTokenPath = keyFileHolding(t, "mattermost-bot-token")
+		case chatdOverHTTP:
+			configuration.ChatdEndpoint = servedOnLoopback(t, standIn.handler(t))
+			configuration.ChatdPlatform = "buzz"
 		case companionOverHTTP:
 			configuration.CompanionBaseURL = servedOnLoopback(t, standIn.handler(t))
 		case openRouterOverHTTP:

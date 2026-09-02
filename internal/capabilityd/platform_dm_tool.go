@@ -20,18 +20,6 @@ type platformDMFailure struct {
 	Candidates   []platformDMRecipient `json:"candidates,omitempty"`
 }
 
-type platformDMMattermostUser struct {
-	ID          string `json:"id"`
-	Email       string `json:"email"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	Nickname    string `json:"nickname"`
-	DeleteAt    int64  `json:"delete_at"`
-	IsBot       bool   `json:"is_bot"`
-}
-
 type platformDMRecipient struct {
 	PersonID           string   `json:"personID"`
 	DisplayName        string   `json:"displayName"`
@@ -101,7 +89,7 @@ func (service Service) resolvePlatformDMRecipient(ctx context.Context, personHin
 
 func (service Service) fetchPlatformDMRecipientResolution(ctx context.Context, personHint string) (platformDMRecipientResolution, error) {
 	endpoint := strings.TrimRight(firstNonEmpty(service.Configuration.BlueclawBaseURL, DefaultConfiguration().BlueclawBaseURL), "/") + "/admin/api/identity/resolve-recipient"
-	requestBody, errorValue := json.Marshal(map[string]string{"platform": "mattermost", "hint": personHint})
+	requestBody, errorValue := json.Marshal(map[string]string{"platform": service.companyMessenger(), "hint": personHint})
 	if errorValue != nil {
 		return platformDMRecipientResolution{}, errorValue
 	}
@@ -135,7 +123,7 @@ func platformDMRecipientFromResolution(recipient *platformDMResolvedRecipient) p
 		Emails:             normalizedPlatformDMEmails(recipient.Emails),
 		MattermostUserID:   strings.TrimSpace(recipient.ExternalUserID),
 		MattermostUsername: strings.TrimSpace(recipient.Username),
-		Mention:            mattermostMentionForUsername(recipient.Username),
+		Mention:            platformMentionForUsername(recipient.Username),
 	}
 }
 
@@ -149,12 +137,12 @@ func platformDMRecipientsFromResolution(recipients []platformDMResolvedRecipient
 }
 
 func platformDMRecipientNotFoundFailure(personHint string) platformDMFailure {
-	message := fmt.Sprintf("recipient %q was not found among approved internkim people with active Mattermost accounts", personHint)
+	message := fmt.Sprintf("recipient %q was not found among approved internkim people with an active messenger account", personHint)
 	return platformDMStaticFailure("recipient_not_found", "recipient_resolve", message)
 }
 
 func platformDMUnavailableFailure(errorValue error) platformDMFailure {
-	failure := platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true)
+	failure := platformDMFailureForError("recipient_lookup", "directory_unavailable", errorValue, true)
 	failure.Retryable = true
 	failure.SafeRetry = true
 	return failure
@@ -189,92 +177,8 @@ func safePlatformDMError(errorValue error) string {
 	return strings.TrimSpace(errorValue.Error())
 }
 
-func mattermostMentionForUsername(username string) string {
-	trimmedUsername := strings.TrimSpace(strings.TrimPrefix(username, "@"))
-	if trimmedUsername == "" {
-		return ""
-	}
-	return "@" + trimmedUsername
-}
-
 func normalizePlatformDMMatchValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
-}
-
-func mattermostPendingPostID(botUserID string, idempotencyKey string) string {
-	trimmedKey := strings.TrimSpace(idempotencyKey)
-	trimmedBotUserID := strings.TrimSpace(botUserID)
-	if trimmedKey == "" || trimmedBotUserID == "" {
-		return ""
-	}
-	return trimmedBotUserID + ":" + trimmedKey
-}
-
-func (service Service) sendMattermostDirectMessageWithDispatch(ctx context.Context, userID string, message string, idempotencyKey string, attachments []platformFile) (string, platformDMFailure, bool) {
-	botUser, errorValue := service.resolveMattermostBotUser(ctx)
-	if errorValue != nil {
-		return "", platformDMFailureForError("mattermost_lookup", "mattermost_unavailable", errorValue, true), true
-	}
-	normalizedUserID := strings.TrimSpace(userID)
-	if normalizedUserID == "" {
-		return "", platformDMStaticFailure("recipient_not_found", "recipient_resolve", "mattermost user ID is required"), true
-	}
-	if normalizedUserID == botUser.ID {
-		return "", platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", "cannot send a direct message to the internkim bot user"), true
-	}
-	channelID, errorValue := service.createMattermostDirectChannel(ctx, botUser.ID, normalizedUserID)
-	if errorValue != nil {
-		return "", platformDMFailureForError("direct_channel_create", "direct_channel_create_failed", errorValue, true), true
-	}
-	fileIDs, errorValue := service.uploadMattermostFiles(ctx, channelID, attachments)
-	if errorValue != nil {
-		return "", platformDMFailureForError("attachment_upload", "mattermost_unavailable", errorValue, true), true
-	}
-	var response struct {
-		ID string `json:"id"`
-	}
-	body := map[string]any{"channel_id": channelID, "message": message}
-	if len(fileIDs) > 0 {
-		body["file_ids"] = fileIDs
-	}
-	if pendingPostID := mattermostPendingPostID(botUser.ID, idempotencyKey); pendingPostID != "" {
-		body["pending_post_id"] = pendingPostID
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &response); errorValue != nil {
-		return "", platformDMFailureForError("message_send", "send_failed", errorValue, false), true
-	}
-	if strings.TrimSpace(response.ID) == "" {
-		return "", platformDMStaticFailure("send_failed", "message_send", "mattermost direct message did not return a post ID"), true
-	}
-	return response.ID, platformDMFailure{}, false
-}
-
-func (service Service) resolveMattermostBotUser(ctx context.Context) (platformDMMattermostUser, error) {
-	var botUser platformDMMattermostUser
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", nil, &botUser); errorValue != nil {
-		return platformDMMattermostUser{}, errorValue
-	}
-	if strings.TrimSpace(botUser.ID) == "" {
-		return platformDMMattermostUser{}, fmt.Errorf("mattermost bot user is not available")
-	}
-	if !botUser.IsBot {
-		return platformDMMattermostUser{}, fmt.Errorf("mattermost token user is not a bot")
-	}
-	return botUser, nil
-}
-
-func (service Service) createMattermostDirectChannel(ctx context.Context, botUserID string, recipientUserID string) (string, error) {
-	var channelRecord struct {
-		ID string `json:"id"`
-	}
-	body := []string{strings.TrimSpace(recipientUserID), strings.TrimSpace(botUserID)}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels/direct", body, &channelRecord); errorValue != nil {
-		return "", errorValue
-	}
-	if strings.TrimSpace(channelRecord.ID) == "" {
-		return "", fmt.Errorf("mattermost direct channel was not created")
-	}
-	return channelRecord.ID, nil
 }
 
 func platformDMDeniedResponse(toolName string, failure platformDMFailure) capabilities.ToolInvokeResponse {
@@ -356,4 +260,12 @@ func isPlatformDMTransientError(errorValue error) bool {
 		}
 	}
 	return false
+}
+
+func platformMentionForUsername(username string) string {
+	trimmedUsername := strings.TrimSpace(strings.TrimPrefix(username, "@"))
+	if trimmedUsername == "" {
+		return ""
+	}
+	return "@" + trimmedUsername
 }

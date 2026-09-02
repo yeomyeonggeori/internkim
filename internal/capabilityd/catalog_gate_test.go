@@ -1,9 +1,9 @@
 package capabilityd
 
 import (
-	"net/http"
 	"context"
 	"encoding/json"
+	"net/http"
 	"sort"
 	"strings"
 	"testing"
@@ -45,16 +45,13 @@ func gateCases() map[string]catalogGateCase {
 	return map[string]catalogGateCase{
 		"message_context": {
 			kind:    provesBehaviour,
-			reaches: map[gateBackend]*standingIn{
-				mattermostOverHTTP: answering(`{"id":"bot-1","username":"internkim","is_bot":true}`),
-				blueclawOverHTTP:   answering(memberPolicyFor("person-1", "member@example.com")),
-			},
+			reaches: reachingTheMessenger(answering(`{"pubkeyHex":"bot-1","name":"internkim"}`)),
 			input:   `{}`,
-			arrives:   inAChannel,
+			arrives: inAChannel,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"channelName":"전사-공지"`)
-				expectResultHolds(t, answered, `"platform":"mattermost"`)
+				expectResultHolds(t, answered, `"platform":"buzz"`)
 			},
 		},
 		"browser_open": {
@@ -80,8 +77,8 @@ func gateCases() map[string]catalogGateCase {
 			reaches: map[gateBackend]*standingIn{
 				workspaceOnDisk: holdingFiles(map[string]string{"shared/reports/shot.png": "a rendered page"}),
 				openRouterOverHTTP: answeringPerCall(func(*http.Request) (int, string) {
-				return http.StatusOK, `{"id":"gate","model":"gate-model","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"{\"passed\": true, \"issues\": [], \"acceptedWarnings\": [\"여백이 조금 넓습니다\"], \"summary\": \"의도대로 보입니다.\"}"}}]}`
-			})},
+					return http.StatusOK, `{"id":"gate","model":"gate-model","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"{\"passed\": true, \"issues\": [], \"acceptedWarnings\": [\"여백이 조금 넓습니다\"], \"summary\": \"의도대로 보입니다.\"}"}}]}`
+				})},
 			input: `{"artifactKind":"deck","intent":"3분기 실적을 한 장으로","rubric":"숫자가 읽히는가","evidence":[{"role":"rendered","path":"/workspace/shared/reports/shot.png","mimeType":"image/png","label":"1쪽"}]}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -111,24 +108,6 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
 			},
 		},
-		"channel_update": {
-			kind: provesBehaviour,
-			reaches: map[gateBackend]*standingIn{
-				mattermostOverHTTP: answeringPerCall(func(request *http.Request) (int, string) {
-					if strings.Contains(request.URL.Path, "/users/me") {
-						return http.StatusOK, `{"id":"bot-1","username":"internkim","is_bot":true}`
-					}
-					return http.StatusOK, `{"id":"channel-1","display_name":"전사 공지","header":"9월 공지"}`
-				}),
-				blueclawOverHTTP: answering(adminPolicyFor("person-1", "member@example.com")),
-			},
-			input:     `{"channelID":"channel-1","header":"9월 공지"}`,
-			arrives:   inAChannel,
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, "channel-1")
-			},
-		},
 		"site_serve": {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"siteID":"s1","slug":"q3-report","status":"published","publishedURL":"https://example.test/q3-report","previewURL":"https://example.test/preview/q3-report"}`)},
@@ -148,7 +127,7 @@ func gateCases() map[string]catalogGateCase {
 			},
 		},
 		"site_unserve": {
-			kind:    provesBehaviour,
+			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{admindOverHTTP: answeringPerCall(func(request *http.Request) (int, string) {
 				// Taking a site down finds it first, so the list has to hold it.
 				if request.Method == http.MethodDelete {
@@ -176,29 +155,20 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"message_search": {
 			kind: provesBehaviour,
-			reaches: reachingTheMessenger(answeringPerCall(func(request *http.Request) (int, string) {
-				if strings.Contains(request.URL.Path, "/users/me") {
-					return http.StatusOK, `{"id":"bot-1","username":"internkim","is_bot":true}`
-				}
-				return http.StatusOK, `{"order":["post-1"],"posts":{"post-1":{"id":"post-1","message":"분기 보고 올립니다","channel_id":"channel-1","user_id":"person-1","create_at":1788000000000}}}`
-			})),
-			input:     `{"queries":["분기"]}`,
-			arrives:   inAChannel,
+			reaches: reachingTheMessenger(answering(
+				`{"channelID":"channel-1","candidates":[{"messageID":"post-1","channelID":"channel-1","text":"분기 보고 올립니다","authorPubkeyHex":"person-1","createdAt":1788000000000,"deletable":true}]}`)),
+			input:   `{"queries":["분기"]}`,
+			arrives: inAChannel,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, "post-1")
 			},
 		},
 		"message_send": {
-			kind: provesBehaviour,
-			reaches: reachingTheMessenger(answeringPerCall(func(request *http.Request) (int, string) {
-				if strings.Contains(request.URL.Path, "/users/me") {
-					return http.StatusOK, `{"id":"bot-1","username":"internkim","is_bot":true}`
-				}
-				return http.StatusOK, `{"id":"post-2","channel_id":"channel-1","message":"덱 다 됐습니다","create_at":1788000001000}`
-			})),
-			input:     `{"targetType":"currentChannel","message":"덱 다 됐습니다"}`,
-			arrives:   inAChannel,
+			kind:    provesBehaviour,
+			reaches: reachingTheMessenger(answering(`{"messageID":"post-2","channelID":"channel-1"}`)),
+			input:   `{"targetType":"currentChannel","message":"덱 다 됐습니다"}`,
+			arrives: inAChannel,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, "post-2")
@@ -207,36 +177,25 @@ func gateCases() map[string]catalogGateCase {
 		"message_update": {
 			kind: provesBehaviour,
 			reaches: reachingTheMessenger(answeringPerCall(func(request *http.Request) (int, string) {
-				switch {
-				case strings.Contains(request.URL.Path, "/users/me"):
-					return http.StatusOK, `{"id":"bot-1","username":"internkim","is_bot":true}`
-				case request.Method == http.MethodPut:
-					return http.StatusOK, `{"id":"post-1","channel_id":"channel-1","message":"9월 2일로 옮깁니다","user_id":"bot-1","create_at":1788000000000}`
-				default:
-					return http.StatusOK, `{"id":"post-1","channel_id":"channel-1","message":"9월 1일로 옮깁니다","user_id":"bot-1","create_at":1788000000000}`
+				// An edit reads the message's current text back before it
+				// applies the quoted span, so the search answers first.
+				if strings.HasSuffix(request.URL.Path, "/message.search") {
+					return http.StatusOK, `{"channelID":"channel-1","candidates":[{"messageID":"post-1","channelID":"channel-1","text":"9월 1일로 옮깁니다","editable":true}]}`
 				}
+				return http.StatusOK, `{"messageID":"post-1"}`
 			})),
-			input:     `{"messageID":"post-1","oldText":"9월 1일","newText":"9월 2일"}`,
-			arrives:   inAChannel,
+			input:   `{"messageID":"post-1","oldText":"9월 1일","newText":"9월 2일"}`,
+			arrives: inAChannel,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, "post-1")
 			},
 		},
 		"message_delete": {
-			kind: provesBehaviour,
-			reaches: reachingTheMessenger(answeringPerCall(func(request *http.Request) (int, string) {
-				switch {
-				case strings.Contains(request.URL.Path, "/users/me"):
-					return http.StatusOK, `{"id":"bot-1","username":"internkim","is_bot":true}`
-				case request.Method == http.MethodDelete:
-					return http.StatusOK, `{"status":"OK"}`
-				default:
-					return http.StatusOK, `{"id":"post-1","channel_id":"channel-1","message":"지울 것","user_id":"bot-1","create_at":1788000000000}`
-				}
-			})),
-			input:     `{"messageIDs":["post-1"]}`,
-			arrives:   inAChannel,
+			kind:    provesBehaviour,
+			reaches: reachingTheMessenger(answering(`{"deleted":true}`)),
+			input:   `{"messageIDs":["post-1"]}`,
+			arrives: inAChannel,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, "post-1")
@@ -252,9 +211,9 @@ func gateCases() map[string]catalogGateCase {
 			},
 		},
 		"leave_list": {
-			kind:   provesCarrying,
+			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_list","result":{"count":1,"scope":"person","personID":"p1","personName":"이샘플","statusFilter":"approved","registeredKinds":["연차"],"leave":[{"leaveID":"l1","person":"이샘플","kind":"연차","days":2,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-01","endDate":"2026-09-02","note":null}]}}`)},
-			input:  `{"status":"approved"}`,
+			input:   `{"status":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"count":1`)
@@ -297,18 +256,18 @@ func gateCases() map[string]catalogGateCase {
 			},
 		},
 		"leave_balance": {
-			kind:   provesCarrying,
+			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_balance","result":{"personID":"p1","personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`)},
-			input:  `{"year":2026}`,
+			input:   `{"year":2026}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"remainingDays":13`)
 			},
 		},
 		"leave_request": {
-			kind:   provesCarrying,
+			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_request","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
-			input:  `{"kind":"연차","startsAt":"2026-09-04","endsAt":"2026-09-04","days":1}`,
+			input:   `{"kind":"연차","startsAt":"2026-09-04","endsAt":"2026-09-04","days":1}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"status":"approved"`)
@@ -333,45 +292,45 @@ func gateCases() map[string]catalogGateCase {
 			},
 		},
 		"leave_decide": {
-			kind:   provesCarrying,
+			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_decide","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
-			input:  `{"leaveHint":"이샘플 · 연차 · 2026-09-04","decision":"approved"}`,
+			input:   `{"leaveHint":"이샘플 · 연차 · 2026-09-04","decision":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"status":"approved"`)
 			},
 		},
 		"attendance_list": {
-			kind: provesCarrying,
+			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_list","result":{"scope":"person","personID":"p1","personName":"이샘플","from":"2026-08-02","to":"2026-09-01","count":1,"attendance":[{"eventID":"a1","person":"이샘플","kind":"clock_in","date":"2026-09-01","time":"09:02","location":"본사","wasCorrected":false,"reason":null}]}}`)},
-			input: `{"scope":"self"}`,
+			input:   `{"scope":"self"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"time":"09:02"`)
 			},
 		},
 		"attendance_add": {
-			kind: provesCarrying,
+			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_add","result":{"status":"added","eventID":"a2","backdated":false}}`)},
-			input: `{"kind":"clock_in","date":"2026-09-01","time":"09:02","reason":"출근 기록을 잊었습니다"}`,
+			input:   `{"kind":"clock_in","date":"2026-09-01","time":"09:02","reason":"출근 기록을 잊었습니다"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"status":"added"`)
 			},
 		},
 		"attendance_update": {
-			kind: provesCarrying,
+			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_update","result":{"status":"corrected","eventID":null,"backdated":false}}`)},
-			input: `{"eventHint":"이샘플 · clock_in · 2026-09-01 09:02","time":"08:52","reason":"10분 일찍 왔습니다"}`,
+			input:   `{"eventHint":"이샘플 · clock_in · 2026-09-01 09:02","time":"08:52","reason":"10분 일찍 왔습니다"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"status":"corrected"`)
 			},
 		},
 		"attendance_delete": {
-			kind: provesCarrying,
+			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_delete","result":{"status":"asked","eventID":null,"backdated":true}}`)},
-			input: `{"eventHint":"이샘플 · clock_in · 2026-08-04 09:02","reason":"두 번 찍혔습니다"}`,
+			input:   `{"eventHint":"이샘플 · clock_in · 2026-08-04 09:02","reason":"두 번 찍혔습니다"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"status":"asked"`)
@@ -549,17 +508,17 @@ func runningTheBrowser() *standingIn {
 	})
 }
 
-// Mattermost answers the bot lookup and then whatever the tool asks of it, and
-// blueclaw answers who the requester is. Every message tool needs both.
-func reachingTheMessenger(mattermost *standingIn) map[gateBackend]*standingIn {
+// chatd carries whatever the tool asks of the company's messenger, and blueclaw
+// answers who the requester is. Every message tool needs both.
+func reachingTheMessenger(chatd *standingIn) map[gateBackend]*standingIn {
 	return map[gateBackend]*standingIn{
-		mattermostOverHTTP: mattermost,
-		blueclawOverHTTP:   answering(memberPolicyFor("person-1", "member@example.com")),
+		chatdOverHTTP:    chatd,
+		blueclawOverHTTP: answering(memberPolicyFor("person-1", "member@example.com")),
 	}
 }
 
 func inAChannel(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
-	arriving.Context.Platform = "mattermost"
+	arriving.Context.Platform = "buzz"
 	arriving.Context.ConversationID = "channel-1"
 	arriving.Context.ConversationType = "channel"
 	arriving.Context.ChannelID = "channel-1"
@@ -568,16 +527,10 @@ func inAChannel(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvoke
 	return arriving
 }
 
-// The message tools ask blueclaw who the requester is before they answer, so a
-// case for one of them says the requester works here.
-func adminPolicyFor(personID string, email string) string {
-	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["` + mattermostToolMemberCircle + `"],"isAdmin":true}]}`
-}
-
 func memberPolicyFor(personID string, email string) string {
 	// The circle the message tools require is the code's to name, so the case
 	// asks for it rather than spelling it — internkim#507 renames it.
-	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["` + mattermostToolMemberCircle + `"]}]}`
+	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["member"]}]}`
 }
 
 // The task, calendar and person tools all read the same Flow state and write

@@ -342,21 +342,6 @@ func TestChatdMessageUpdateAddsAFileWithoutChangingTheText(testContext *testing.
 	}
 }
 
-func TestMattermostMessageUpdateRefusesAttachmentsLoudly(testContext *testing.T) {
-	service := Service{}
-	response, errorValue := service.invokePlatformMessageUpdate(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "message_update",
-		Input:    json.RawMessage(`{"messageID":"post-1","attachments":["/workspace/원본.png"]}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "mattermost"},
-	})
-	if errorValue != nil {
-		testContext.Fatal(errorValue)
-	}
-	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "cannot be added") {
-		testContext.Fatalf("attachments on a Mattermost update must refuse loudly, answered %q", response.Content)
-	}
-}
-
 func TestChatdMessageSendRefusesDirectMessagesLoudly(testContext *testing.T) {
 	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
 	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{

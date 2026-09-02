@@ -50,34 +50,33 @@ func TestToolInvokeRequestRoundTrip(t *testing.T) {
 
 func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 	expectedReplacements := map[string]string{
-		"calendar.event.add":        "event_add",
-		"calendar.event.delete":     "event_delete",
-		"calendar.event.list":       "event_list",
-		"calendar.event.update":     "event_update",
-		"flow.task.add":             "task_add",
-		"flow.task.delete":          "task_delete",
-		"flow.task.list":            "task_list",
-		"flow.task.update":          "task_update",
-		"mattermost_channel_update": "channel_update",
-		"platform.message.context":  "message_context",
-		"platform.message.delete":   "message_delete",
-		"platform.message.search":   "message_search",
-		"platform.message.send":     "message_send",
-		"platform.message.update":   "message_update",
-		"calendar_add":              "event_add",
-		"calendar_delete":           "event_delete",
-		"calendar_list":             "event_list",
-		"calendar_update":           "event_update",
-		"site.app.create":           "site_serve",
-		"site.app.delete":           "site_unserve",
-		"site.app.preview":          "site_serve",
-		"site.app.publish":          "site_serve",
-		"site.app.status":           "site_list",
-		"site.create":               "site_serve",
-		"site.delete":               "site_unserve",
-		"site.preview":              "site_serve",
-		"site.publish":              "site_serve",
-		"site.status":               "site_list",
+		"calendar.event.add":       "event_add",
+		"calendar.event.delete":    "event_delete",
+		"calendar.event.list":      "event_list",
+		"calendar.event.update":    "event_update",
+		"flow.task.add":            "task_add",
+		"flow.task.delete":         "task_delete",
+		"flow.task.list":           "task_list",
+		"flow.task.update":         "task_update",
+		"platform.message.context": "message_context",
+		"platform.message.delete":  "message_delete",
+		"platform.message.search":  "message_search",
+		"platform.message.send":    "message_send",
+		"platform.message.update":  "message_update",
+		"calendar_add":             "event_add",
+		"calendar_delete":          "event_delete",
+		"calendar_list":            "event_list",
+		"calendar_update":          "event_update",
+		"site.app.create":          "site_serve",
+		"site.app.delete":          "site_unserve",
+		"site.app.preview":         "site_serve",
+		"site.app.publish":         "site_serve",
+		"site.app.status":          "site_list",
+		"site.create":              "site_serve",
+		"site.delete":              "site_unserve",
+		"site.preview":             "site_serve",
+		"site.publish":             "site_serve",
+		"site.status":              "site_list",
 	}
 	replacements := LegacyToolNameReplacements()
 	if !reflect.DeepEqual(replacements, expectedReplacements) {
@@ -167,19 +166,6 @@ func TestCalendarDescriptorIncludesEventDeleteInput(t *testing.T) {
 	assertSchemaRequires(t, schema, "eventHint")
 	if descriptorForTool(t, CalendarDescriptors(), "event_delete").Version != "2" {
 		t.Fatal("event_delete descriptor must use the canonical-result v2 contract")
-	}
-}
-
-func TestMattermostToolsAreDefaultCapabilities(t *testing.T) {
-	for _, toolName := range []string{"message_context", "message_search", "message_send", "message_update", "message_delete", "channel_update"} {
-		if !containsString(defaultToolNames(), toolName) {
-			t.Fatalf("expected default tools to include %q, got %+v", toolName, defaultToolNames())
-		}
-	}
-	for _, toolName := range []string{"platform.dm.send", "platform.dm.inspect", "mattermost_context_inspect", "mattermost_post_search", "mattermost_channel_posts_list", "mattermost_channel_post", "mattermost_post_update", "mattermost_post_delete"} {
-		if containsString(defaultToolNames(), toolName) {
-			t.Fatalf("expected default tools to omit old message tool %q, got %+v", toolName, defaultToolNames())
-		}
 	}
 }
 
@@ -398,26 +384,6 @@ func TestPlatformMessageDescriptorsMatchMessageInputs(t *testing.T) {
 	}
 }
 
-func TestMattermostDescriptorsMatchSkillInputs(t *testing.T) {
-	descriptors := MattermostDescriptors()
-	channelUpdateSchema := descriptorSchema(t, descriptors, "channel_update")
-
-	assertSchemaHasProperties(t, channelUpdateSchema, "channelID", "channelName", "header", "displayName", "inviteeHints")
-	assertDescriptorApproval(t, descriptors, "channel_update", true)
-	if descriptorForTool(t, descriptors, "channel_update").PolicyResource != "tool:channel_update" {
-		t.Fatalf("unexpected channel update policy resource")
-	}
-	assertDescriptorCompletionEvidence(t, descriptors, "channel_update", "success", "update_channel", "channel")
-	descriptor := descriptorForTool(t, descriptors, "channel_update")
-	if descriptor.Version != "2" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || len(descriptor.ResultContract.Effects) != 1 {
-		t.Fatalf("channel_update must use its visible generated v2 descriptor: %+v", descriptor)
-	}
-	effect := descriptor.ResultContract.Effects[0]
-	if effect.ObjectType != "channel" || effect.Effect != "updated" || effect.ResultField != "channelID" || effect.EffectIdentity != capabilityprotocol.ResourceEffectIdentityID {
-		t.Fatalf("channel_update effect = %+v", effect)
-	}
-}
-
 func TestWebDescriptorsAreReadOnlyDefaultTools(t *testing.T) {
 	searchSchema := descriptorSchema(t, WebDescriptors(), "web_search")
 	fetchSchema := descriptorSchema(t, WebDescriptors(), "web_fetch")
@@ -561,7 +527,6 @@ func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 		"message_send",
 		"message_update",
 		"message_delete",
-		"channel_update",
 	} {
 		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
 		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || descriptor.ResultContract == nil {
@@ -645,7 +610,6 @@ func TestArtifactReviewDescriptorUsesImageEvidenceInputs(t *testing.T) {
 func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "message_send", true)
 	assertDescriptorApproval(t, PlatformMessageDescriptors(), "message_delete", true)
-	assertDescriptorApproval(t, MattermostDescriptors(), "channel_update", true)
 	assertDescriptorApproval(t, CalendarDescriptors(), "event_add", false)
 	assertDescriptorApproval(t, MailDescriptors(), "mail_connection_start", true)
 	assertDescriptorApproval(t, MailDescriptors(), "mail_message_send", true)
@@ -798,7 +762,6 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		WebDescriptors(),
 		FileDescriptors(),
 		PlatformMessageDescriptors(),
-		MattermostDescriptors(),
 		TaskToolDescriptors(),
 		CalendarDescriptors(),
 		MailDescriptors(),

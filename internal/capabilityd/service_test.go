@@ -25,28 +25,6 @@ func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
 	}
 }
 
-func TestMattermostHealthRejectsHumanTokenUser(t *testing.T) {
-	tokenPath := filepath.Join(t.TempDir(), "mattermost-token")
-	if errorValue := os.WriteFile(tokenPath, []byte("human-token"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service := Service{
-		Configuration: Configuration{MattermostBaseURL: "https://mattermost.test", MattermostTokenPath: tokenPath},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return testJSONResponse(http.StatusOK, map[string]any{"id": "human-1", "username": "internkim", "is_bot": false}), nil
-		})},
-	}
-	service.healthState().Update(func(state *platformHealthState) {
-		state.MattermostForwarderRunning = true
-		state.MattermostBotUserResolved = true
-	})
-
-	health := service.mattermostHealth(context.Background())
-	if health["ok"] != false || health["botUserResolved"] != false {
-		t.Fatalf("expected human token user to be unhealthy, got %+v", health)
-	}
-}
-
 func TestDefaultLlamaCppModelMatchesActualDeployedModel(t *testing.T) {
 	configuration := DefaultConfiguration()
 
