@@ -98,6 +98,7 @@ Wants=network-online.target time-sync.target internkim-admind.service
 [Service]
 User=root
 RuntimeDirectory=internkim
+RuntimeDirectoryPreserve=yes
 ExecStart=%s --vsock-port %d --companion-url http://127.0.0.1:18080/_internkim/companion
 Restart=on-failure
 RestartSec=2
@@ -129,6 +130,8 @@ Wants=network-online.target time-sync.target
 
 [Service]
 User=root
+RuntimeDirectory=internkim
+RuntimeDirectoryPreserve=yes
 ExecStart=%s -buzz-relay-url %s -buzz-database-url-path %s -buzz-admin-command %s -buzz-key-seed-path %s -buzz-relay-key-path %s -buzz-account-links %s -chatd-endpoint %s -chatd-platform buzz
 Restart=on-failure
 RestartSec=2
