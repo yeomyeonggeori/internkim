@@ -239,6 +239,14 @@ or repeats an existing one. The runtime decides which facts exist, who may
 read them, and what the label is. Neither side does the other's job, and no
 similarity threshold ever merges two facts on its own.
 
+Memory holds little. The conversation history and the task ledger already
+keep what was said and what was done, so the instruction tells the model that
+an empty list is the normal answer and that a fact survives only when it is
+about a person or their work, would change how the assistant acts next time
+without being repeated, and is stated by the source. What the assistant did
+in a task is never a fact; a file rename leaves nothing behind, and the live
+check asserts that.
+
 ### 4.1 Extraction from finished work
 
 `TaskRunService.RegisterTaskRunTransitionObserver` fires on every transition.
