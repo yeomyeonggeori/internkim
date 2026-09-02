@@ -23,7 +23,7 @@ function eventWith(fields: Partial<CalendarEventPayload> = {}): CalendarEventPay
 
 describe('central calendar event writes', () => {
 	test('sends event fields and the complete participant set through one RPC', () => {
-		expect(supabaseCalendarEventRPCArguments(eventWith())).toEqual({
+		expect(supabaseCalendarEventRPCArguments(eventWith(), 'event-1')).toEqual({
 			target_task_id: 'event-1',
 			target_title: '팀 회의',
 			target_note: '주간 진행 공유',
@@ -37,13 +37,23 @@ describe('central calendar event writes', () => {
 		});
 	});
 
-	test('uses null for create IDs and optional text fields', () => {
+	test('a create sends no task ID even though the draft carries a local one', () => {
 		const argumentsForCreate = supabaseCalendarEventRPCArguments(
-			eventWith({ eventID: '', description: '', location: '' })
+			eventWith({ eventID: 'quick-1788331680143-umwpd4', description: '', location: '' }),
+			null
 		);
 
 		expect(argumentsForCreate.target_task_id).toBeNull();
 		expect(argumentsForCreate.target_note).toBeNull();
 		expect(argumentsForCreate.target_location).toBeNull();
+	});
+
+	test('an update names the persisted event, not whatever ID the payload carries', () => {
+		const argumentsForUpdate = supabaseCalendarEventRPCArguments(
+			eventWith({ eventID: 'quick-1788331680143-umwpd4' }),
+			'2f1c6b1e-0000-4000-8000-000000000001'
+		);
+
+		expect(argumentsForUpdate.target_task_id).toBe('2f1c6b1e-0000-4000-8000-000000000001');
 	});
 });

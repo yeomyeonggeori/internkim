@@ -40,7 +40,7 @@
 		calendarViewerParticipants,
 		fetchCalendarParticipants
 	} from './calendar-participants';
-	import { fetchWebSessionEmail } from '$lib/web-session';
+	import { signedInEmail } from '$lib/signed-in-email';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 	import './calendar-page.css';
 
@@ -199,7 +199,7 @@
 	async function loadParticipantCandidates(): Promise<void> {
 		try {
 			const candidates = await fetchCalendarParticipants(text.error);
-			const viewerEmail = await fetchWebSessionEmail();
+			const viewerEmail = await signedInEmail();
 			state.participantCandidates = calendarParticipantsWithViewerFirst(candidates, viewerEmail);
 			state.viewerParticipants = calendarViewerParticipants(candidates, viewerEmail);
 		} catch {
