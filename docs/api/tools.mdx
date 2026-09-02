@@ -55,11 +55,16 @@ admind invokes the tool; the test
 <Callout title="No approval pause" type="warn">
 In a messenger conversation the agent stops and asks before a delete or a
 send. Every non-read invocation arriving this way is marked an already-approved
-continuation, so the same tools act immediately here. The scope on the token
-is the consent: a `destructive` token deletes without a question.
+continuation, so the same tools act immediately here. The permission on the
+token is the consent: a `delete` token deletes without a question.
 </Callout>
 
 ## The response [#the-response]
+
+A tool that runs on the record — task, calendar, people, leave and attendance —
+answers `{ "tool": ..., "result": ... }` and nothing else, because the plane
+ran it itself. A tool carried to the company's computer answers the fuller
+shape below.
 
 ```json
 {
@@ -93,8 +98,9 @@ the tool's result contract. Each entry names an `objectType`, an `effect`
 or a `url`. Some entries add `visibility`, `durability`, `filename`,
 `contentType`, or a `summary`.
 
-Verify through `effects`, not through `result`. An empty `effects` list means
-nothing changed, whatever the result text says.
+Where a call carries `effects`, verify through it instead of the result text:
+an empty list means nothing changed. A record tool carries none, and its
+`result` is the whole answer.
 
 ## Idempotency [#idempotency]
 
@@ -153,6 +159,6 @@ so nothing reaches the company's computer.
 | Invoke handler | `invokePublicTool` in `internal/admind/public_tool_gateway.go`, reached through the company's relay |
 | Descriptor fetch from `capabilityd` | `fetchCapabilityRegistry` over the unix socket; device and companion descriptors are merged in `exposableCapabilityDescriptors` |
 | The actor override | `invokePublicTool` sets `Actor`, `Context`, `PrivacyClass`, `RequiresUserPresence` after decoding your body |
-| The approval-continuation flag | `publicToolInvokeContext`, keyed on `publicToolScopeForDescriptor` |
+| The approval-continuation flag | `publicToolInvokeContext`, keyed on `publicToolPermissionForDescriptor` |
 | Request and response types | `ToolInvokeRequest`, `ToolInvokeResponse`, `ResourceEffect` in `pkg/capabilityprotocol/protocol.go` |
 | Input and output schemas | `pkg/capabilityprotocol/generated/capability-tools.json` |

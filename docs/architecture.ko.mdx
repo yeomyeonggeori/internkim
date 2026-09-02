@@ -100,7 +100,7 @@ WebSocket을 열고, Worker는 그 토큰을 프로젝트의 JWKS로 검증해 �
 | 커넥터 (`chatd`) | `127.0.0.1:18090` | 메신저 어댑터: Buzz, Mattermost | `.dependency/blueclaw/chatd/` |
 | 에이전트 (`blueclaw`) | `127.0.0.1:8080` | 루프, 태스크 원장, 승인, 워크스페이스 | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | 타입 있는 능력 경계: 캘린더, 업무, 메일, 사이트 | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
-| `blueclaw-llmd` | `/run/internkim/llmd/llmd.sock` | capabilityd의 헬스에 포함됨; 더는 모델 경로가 아님 | `.dependency/blueclaw/llmd/` |
+| `internkim-admind` | `127.0.0.1:18080` | 워크스페이스 화면과 공개 API가 실행하는 모든 도구 | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | 호출이 실어 온 계정으로 메일에 답함 | `cmd/internkim-maild/` |
 | 에이전트의 저장소 | `DATABASE_URL` | 대화, 실행, 기억, 폴리시를 담는 Postgres | — |
 
@@ -131,9 +131,7 @@ WebSocket을 열고, Worker는 그 토큰을 프로젝트의 JWKS로 검증해 �
   일은 없습니다.
 - **워크스페이스 화면**(`person.memory.*`, `person.files.*`,
   `person.tasks.*`)과 공개 API 자신의 호출(`person.api.request`,
-  `person.api.file`)은 `admind`가 돌고 있는 곳에서는 그 unix 소켓으로
-  전달됩니다. 호스트 번들은 오늘 admind를 띄우지 않습니다. 그래서 번들 위의
-  회사는 카탈로그와 토큰은 답해도 API로 도구를 실행하지는 못합니다.
+  `person.api.file`)은 번들이 띄우는 `admind`의 unix 소켓으로 전달됩니다.
 - **링크 미리보기**(`asset.link`)는 릴레이가 직접 만들고, 미리보기 이미지는
   답이 작게 유지되도록 Supabase Storage에 넣습니다.
 
@@ -150,9 +148,8 @@ WebSocket을 열고, Worker는 그 토큰을 프로젝트의 JWKS로 검증해 �
 입력했든 에이전트는 똑같이 움직입니다.
 
 별도로, 메신저 서버는 자신이 받아들인 모든 메시지를 릴레이의
-`127.0.0.1:18091`에 보고합니다. Mattermost에서는 번들된
-`mattermost-plugin/internkim-ephemeral/` 플러그인이 그 일을 합니다. 릴레이는
-수신자가 누구인지 해석해 컨트롤 플레인에 알림을 부탁하고, 그 알림은 그
+`127.0.0.1:18091`에 보고합니다. 그 포트는 이 컴퓨터 바깥에서 닿을 수
+없습니다. 릴레이는 수신자가 누구인지 해석해 컨트롤 플레인에 알림을 부탁하고, 그 알림은 그
 멤버들이 기기를 등록해 둔 곳으로 웹 푸시로 도착합니다.
 
 ## 메신저의 누군가가 기록의 누군가가 되는 방법 [#how-someone-in-the-messenger-becomes-someone-in-the-record]

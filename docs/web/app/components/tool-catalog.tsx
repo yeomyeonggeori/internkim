@@ -12,9 +12,14 @@ const koreanSideEffectLabels: Record<string, string> = {
   destructive: '삭제',
 };
 
-const columnHeadings: Record<CatalogLanguage, [string, string, string]> = {
-  en: ['Tool', 'Effect', 'What the model reads'],
-  ko: ['도구', '영향', '에이전트가 읽는 설명'],
+const columnHeadings: Record<CatalogLanguage, [string, string, string, string]> = {
+  en: ['Tool', 'Effect', 'Approval', 'What the model reads'],
+  ko: ['도구', '영향', '승인', '에이전트가 읽는 설명'],
+};
+
+const approvalLabels: Record<CatalogLanguage, string> = {
+  en: 'asks first',
+  ko: '먼저 묻습니다',
 };
 
 function sideEffectLabel(sideEffectClass: string, language: CatalogLanguage): string {
@@ -42,7 +47,8 @@ export function ToolCatalog({
   const tools = namespace
     ? catalog.tools.filter((tool) => tool.namespace === namespace)
     : catalog.tools;
-  const [toolHeading, effectHeading, descriptionHeading] = columnHeadings[language];
+  const [toolHeading, effectHeading, approvalHeading, descriptionHeading] = columnHeadings[language];
+  const approvalLabel = approvalLabels[language];
 
   return (
     <div className="overflow-x-auto">
@@ -51,6 +57,7 @@ export function ToolCatalog({
           <tr>
             <th>{toolHeading}</th>
             <th>{effectHeading}</th>
+            <th>{approvalHeading}</th>
             <th>{descriptionHeading}</th>
           </tr>
         </thead>
@@ -61,6 +68,7 @@ export function ToolCatalog({
                 <code>{tool.name}</code>
               </td>
               <td>{language === 'en' ? <code>{tool.sideEffectClass}</code> : sideEffectLabel(tool.sideEffectClass, language)}</td>
+              <td>{tool.requiresApproval ? approvalLabel : ''}</td>
               <td>{tool.summary}</td>
             </tr>
           ))}

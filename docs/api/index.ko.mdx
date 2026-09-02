@@ -11,9 +11,10 @@ description: 토큰은 사람의 것이고, 모든 호출은 그 사람으로 �
 많은 일을 할 수 있는 경우는 없습니다.
 
 요청을 받는 것은 웹 앱입니다. 부르는 사람을 확인한 뒤, 자기가 아는 것을 답합니다.
-도구 카탈로그, 그 사람이 가진 토큰, 나중 호출을 위해 맡아 둔 파일이 그것입니다.
-혼자 답할 수 없는 것은 실행 하나뿐입니다. 도구는 회사 컴퓨터에서 도니까, 그 호출만
-그쪽으로 옮겨지고 답이 돌아옵니다.
+도구 카탈로그, 그 사람이 가진 토큰, 나중 호출을 위해 맡아 둔 파일, 그리고 기록
+자체를 읽고 쓰는 도구가 그것입니다. 남는 것은 회사 컴퓨터가 있어야 합니다.
+메신저, 워크스페이스, 브라우저가 그렇고, 그 호출만 그쪽으로 옮겨지고 답이
+돌아옵니다.
 
 <Cards>
   <Card title="도구 호출" href="/ko/docs/api/tools" description="목록을 읽고, 하나를 부르고, 무엇이 바뀌었는지 확인합니다" />
@@ -76,29 +77,23 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 발급 키는 세션을 들고 있으면 안 되는 곳을 위한 것입니다. 스스로 권한 등급을
 정하고, 로그아웃해도 살아남습니다.
 
-## 범위 [#scopes]
+## 권한 [#permissions]
 
-`read`는 요청 여부와 상관없이 항상 붙습니다. 요청한 범위는 소문자로 정규화되고
-중복이 제거되며, 모르는 이름은 조용히 버려집니다.
-
-권한 판정은 범위 이름이 아니라 등급을 비교합니다. 토큰의 등급은 가진 범위 중
-가장 높은 등급이고, 도구가 요구하는 등급은 그 도구의 `sideEffectClass`에서
+토큰은 권한 하나를 가지고, 권한은 셋뿐입니다. 각 권한은 아래 것을 모두
+포함하고, 도구가 무엇을 요구하는지는 이름이 아니라 `sideEffectClass`에서
 나옵니다.
 
-| 등급 | 범위 | 열리는 것 |
-|---|---|---|
-| 1 | `read` | `sideEffectClass`가 `read`인 도구 |
-| 2 | `write`, `external_write`, `external_send`, `publish`, `connect`, `companion`, `agent.run` | 워크스페이스 쓰기, 외부 수정과 발송, 게시, 연결, 브라우저 조작, 그리고 [에이전트 엔드포인트](/ko/docs/api/agent) |
-| 3 | `destructive`, `admin` | 삭제를 포함한 전부 |
+| 권한 | 열리는 것 |
+|---|---|
+| `read` | `sideEffectClass`가 `read`인 도구 |
+| `write` | 그것과, 쓰기에 해당하는 모든 등급: 워크스페이스 쓰기, 외부 수정과 발송, 게시, 연결, 브라우저 조작, 그리고 [에이전트 엔드포인트](/ko/docs/api/agent) |
+| `delete` | 삭제를 포함한 전부 |
 
-알아 둘 결과가 셋 있습니다.
-
-- 2등급 범위 하나면 2등급 도구 전부가 열립니다. `connect`만 받은 토큰도
-  `message_send`를 부를 수 있습니다.
-- `admin`은 `destructive`보다 더 주는 것이 없습니다.
-- 아무도 모르는 `sideEffectClass`를 가진 도구는 3등급을 요구합니다. 도구를
-  나열하는 앱에서 한 번, 도구를 실행하는 장비에서 다시 한 번. 모르는 것은 양쪽
-  모두에서 닫히는 쪽으로 처리됩니다.
+쓰기에 해당하는 등급의 목록은
+`web/src/lib/server/public-api/catalog.ts`에 있고, 거기 없는
+`sideEffectClass`를 가진 도구는 `delete`를 요구합니다. 도구를 나열하는 앱에서
+한 번, 도구를 실행하는 장비에서 다시 한 번. 모르는 등급은 양쪽 모두에서 닫히는
+쪽으로 처리됩니다.
 
 ## 오류 [#errors]
 
@@ -110,12 +105,12 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 | `401` | `sign in first` | `Authorization: Bearer` 헤더가 없을 때 |
 | `401` | `that key belongs to nobody` | 토큰이 모르는 것이거나 폐기됐을 때 |
 | `409` | `a token cannot revoke itself...` | 인증에 쓴 그 토큰을 `DELETE /v1/token`으로 지우려 할 때 |
-| `403` | `token owner is not active member` | 주인이 퇴사했거나 비활성화됐을 때 |
-| `403` | `tool is not available for this token` | 토큰 등급이 도구가 요구하는 등급에 못 미칠 때 |
-| `403` | `write scope required` | 1등급 토큰으로 에이전트 엔드포인트를 부를 때 |
-| `404` | | 모르는 경로, 모르는 도구, 또는 토큰이 볼 수 없는 도구 |
+| `403` | `refused` | 주인이 퇴사했거나 비활성화됐을 때 |
+| `403` | `this token may only <permission>, and <tool> <permission>s` | 토큰 권한이 도구가 요구하는 것에 못 미칠 때 |
+| `403` | `write permission required` | 읽기 전용 토큰으로 에이전트 엔드포인트를 부를 때 |
+| `404` | `no tool here goes by <tool>` | 모르는 경로이거나, 여기서 아무도 답하지 않는 도구 |
 | `500` | | 토큰 레코드를 저장하지 못했을 때 |
-| `502` | | 회사가 부르는 쪽이 쓸 수 없는 것을 답했을 때 |
+| `502` | `the gateway answered <status>, and no status a caller can use` | 게이트웨이가 부르는 쪽이 쓸 수 없는 것을 답했을 때 |
 | `503` | `the company gateway is not configured` | 회사에 닿는 길을 아무도 모르는 채로 실행을 부를 때 |
 
 ## 파일 맡기기 [#keeping-a-file]
@@ -136,7 +131,7 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 `docs.intern.kim/api`가 한국어와 영어 인터랙티브 레퍼런스를
 `docs.intern.kim/openapi/<language>.json`의 OpenAPI 문서로부터 렌더링해 서빙합니다.
 어느 회사 호스트에서든 `/api-docs`와 `/openapi/<language>.json`은 그리로 넘겨집니다.
-그 문서의 기본 도구 26개는 에이전트가 실제로 쓰는 카탈로그에서 그대로 읽어 옵니다.
+그 문서의 기본 도구는 에이전트가 실제로 쓰는 카탈로그에서 그대로 읽어 옵니다.
 
 ## 구현 위치 [#where-it-is-implemented]
 
@@ -155,4 +150,4 @@ API는 웹 앱의 일부입니다. 앱을 직접 호스팅하는 회사는 API�
 | 와이어 타입 | `pkg/capabilityprotocol/protocol.go` |
 | 도구 카탈로그 | `pkg/capabilityprotocol/generated/capability-tools.json` |
 | 테스트로 적힌 계약 | `web/tests/integration/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
-| OpenAPI 문서와 `/api-docs` 셸 | `docs/web/app/lib/openapi.ts`, `web/src/routes/api-docs/` |
+| OpenAPI 문서와 `/api-docs` 리다이렉트 | `docs/web/app/lib/openapi.ts`, `web/src/lib/server/api-reference-redirect.ts` |

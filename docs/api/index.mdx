@@ -11,10 +11,10 @@ same API on the same code. A token belongs to a person and every call runs as
 that person, so a token can never do more than its owner can.
 
 The web app answers the request. It resolves the caller, then answers what it
-knows: the tool catalog, the tokens a person holds, and a file kept for a later
-call. An invocation is the one thing it cannot answer alone, because the tool
-runs on the company's computer, so it is carried there and the answer comes
-back.
+knows: the tool catalog, the tokens a person holds, a file kept for a later
+call, and every tool that reads or writes the record itself. What is left needs
+the company's computer — the messenger, the workspace, the browser — so those
+calls are carried there and the answer comes back.
 
 <Cards>
   <Card title="Invoking tools" href="/docs/api/tools" description="List the tools, call one, read what actually changed" />
@@ -81,29 +81,22 @@ it, and a script that already holds a session can too. Issued keys exist for
 everything that should not hold a session: they name their own permission rung
 and survive sign-out.
 
-## Scopes [#scopes]
+## Permissions [#permissions]
 
-`read` is always added to a token's scopes, whether requested or not. Requested
-scopes are lowercased, deduplicated, and anything unknown is silently dropped.
+A token holds one permission, and there are three of them. Each reaches
+everything below it, and what a tool needs comes from its `sideEffectClass`,
+never from its name.
 
-Authorization compares ranks, not scope names. A token's rank is the highest
-rank among its scopes; a tool's required rank comes from its
-`sideEffectClass`.
+| Permission | Opens |
+|---|---|
+| `read` | tools whose `sideEffectClass` is `read` |
+| `write` | those, plus every writing class: workspace writes, external edits and sends, publishing, connections, browser actions, and the [agent endpoints](/docs/api/agent) |
+| `delete` | everything, including deletes |
 
-| Rank | Scopes | Opens |
-|---|---|---|
-| 1 | `read` | tools whose `sideEffectClass` is `read` |
-| 2 | `write`, `external_write`, `external_send`, `publish`, `connect`, `companion`, `agent.run` | workspace writes, external edits and sends, publishing, connections, browser actions, and the [agent endpoints](/docs/api/agent) |
-| 3 | `destructive`, `admin` | everything, including deletes |
-
-Three consequences worth knowing:
-
-- Any rank-2 scope opens every rank-2 tool. A token issued with only
-  `connect` can call `message_send`.
-- `admin` grants nothing beyond what `destructive` grants.
-- A descriptor with a `sideEffectClass` nothing recognizes requires rank 3,
-  in the app that lists the tools and again on the machine that runs one.
-  Unknown classes fail closed at both ends.
+The writing set is the list in `web/src/lib/server/public-api/catalog.ts`, and
+a descriptor carrying a `sideEffectClass` that is not in it needs `delete` — in
+the app that lists the tools and again on the machine that runs one. An
+unrecognized class fails closed at both ends.
 
 ## Errors [#errors]
 
@@ -115,12 +108,12 @@ Success bodies are JSON. Error bodies are plain text.
 | `401` | `sign in first` | no `Authorization: Bearer` header |
 | `401` | `that key belongs to nobody` | the token is unknown or revoked |
 | `409` | `a token cannot revoke itself...` | `DELETE /v1/token` naming the token that authenticated the call |
-| `403` | `token owner is not active member` | the owner left or was deactivated |
-| `403` | `tool is not available for this token` | the token's rank is below what the tool requires |
-| `403` | `write scope required` | an agent endpoint with a rank-1 token |
-| `404` | | unknown path, unknown tool, or a tool the token cannot see |
+| `403` | `refused` | the owner left or was deactivated |
+| `403` | `this token may only <permission>, and <tool> <permission>s` | the token's permission is below what the tool requires |
+| `403` | `write permission required` | an agent endpoint with a read-only token |
+| `404` | `no tool here goes by <tool>` | unknown path, or a tool nothing here answers |
 | `500` | | the token record could not be written |
-| `502` | | the company answered with nothing a caller can use |
+| `502` | `the gateway answered <status>, and no status a caller can use` | the company answered with nothing a caller can use |
 | `503` | `the company gateway is not configured` | an invocation where nothing knows how to reach the company |
 
 ## Keeping a file [#keeping-a-file]
@@ -142,7 +135,7 @@ whichever token replaced it.
 `docs.intern.kim/api` serves an interactive reference, in Korean or English,
 rendered from an OpenAPI document at `docs.intern.kim/openapi/<language>.json`.
 `/api-docs` and `/openapi/<language>.json` on any company host redirect there.
-The twenty-six base tools in that document are read from the same catalog the
+The base tools in that document are read from the same catalog the
 agent runs on.
 
 ## Where it is implemented [#where-it-is-implemented]
@@ -162,4 +155,4 @@ The API is part of the web app, so a company that hosts the app hosts the API.
 | Wire types | `pkg/capabilityprotocol/protocol.go` |
 | Tool catalog | `pkg/capabilityprotocol/generated/capability-tools.json` |
 | The contract, stated as tests | `web/tests/integration/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
-| OpenAPI document and `/api-docs` shell | `docs/web/app/lib/openapi.ts`, `web/src/routes/api-docs/` |
+| OpenAPI document and the `/api-docs` redirect | `docs/web/app/lib/openapi.ts`, `web/src/lib/server/api-reference-redirect.ts` |
