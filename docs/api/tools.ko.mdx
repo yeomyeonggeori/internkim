@@ -63,20 +63,39 @@ read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙�
 기록 위에서 도는 도구(업무, 캘린더, 사람, 연차, 근태)는
 `{ "tool": ..., "result": ... }`를 답합니다. 평면이 직접 실행했기 때문입니다.
 근태 쓰기는 여기에 `notified`가 하나 더 붙어, 누구에게 알렸는지 또는 어느
-관리자에게 물었는지를 말합니다. 회사 컴퓨터로 실려 간 도구는 아래의 더 넓은
-모양으로 답합니다.
+관리자에게 물었는지를 말합니다. `task_add`가 그중 하나입니다.
+
+```json
+{
+  "tool": "task_add",
+  "result": {
+    "taskID": "...",
+    "title": "분기 보고서 초안",
+    "status": "planned",
+    "size": "M",
+    "business": null,
+    "type": null,
+    "startDate": "",
+    "endDate": "",
+    "participants": ["..."]
+  }
+}
+```
+
+회사 컴퓨터로 실려 간 도구는 아래의 더 넓은 모양으로 답합니다.
+`message_send`가 그중 하나입니다.
 
 ```json
 {
   "provider": "internkim",
   "selectedBackend": "device",
-  "toolName": "task_add",
+  "toolName": "message_send",
   "outcome": "succeeded",
-  "status": "created",
+  "status": "sent",
   "effects": [
-    { "objectType": "task", "effect": "created", "id": "..." }
+    { "objectType": "message", "effect": "sent", "id": "..." }
   ],
-  "result": { "taskID": "...", "title": "분기 보고서 초안" }
+  "result": { "messageIDs": ["..."], "deliveryStatus": "sent" }
 }
 ```
 
@@ -136,9 +155,10 @@ curl https://api.intern.kim/v1/tools/task_update/invoke \
   --data '{"input":{"taskHint":"분기 보고서 초안","status":"in_progress"}}'
 ```
 
-첫 응답의 `effects`에는 `{"objectType":"task","effect":"created","id":...}`가,
-두 번째에는 같은 task가 `"effect":"updated"`로 담깁니다. 지우려면
-`delete` 토큰이 필요합니다.
+첫 응답의 `result`에는 새 `taskID`와 `"status":"planned"`가, 두 번째에는
+같은 `taskID`가 `"status":"in_progress"`로 담깁니다. 기록 도구에는 `effects`가
+없으니, `result`로 다시 읽은 task 자체가 확인입니다. 지우려면 `delete` 토큰이
+필요합니다.
 
 ```bash
 curl https://api.intern.kim/v1/tools/task_delete/invoke \

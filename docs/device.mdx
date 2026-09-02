@@ -10,7 +10,7 @@ the direction is the host and central plane the rest of this documentation
 describes.
 
 The appliance we ship runs on a Jetson Orin Nano Super, which is where its
-model sizes and its Firecracker guest come from. Nothing here needs that
+model sizes and its Cloud Hypervisor guest come from. Nothing here needs that
 particular board — [the host](/docs/running-the-host) is the same software on
 whatever computer a company already leaves on.
 
@@ -23,14 +23,14 @@ operator on the same network ── the appliance
                                  ├── internkim-capabilityd
                                  ├── graphiti-memoryd :7791
                                  ├── llama-server (generation and embedding)
-                                 └── Firecracker blueclaw guest :8080
+                                 └── Cloud Hypervisor blueclaw guest :8080
 ```
 
 | Component | Job | Code |
 |---|---|---|
 | `internkim-admind` | the device admin API: admin UI reverse proxy, companion broker, backup and restore, OTA apply | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-capabilityd` | holds the OpenRouter key, the local model, messenger and companion credentials; exposes only a capability API; runs the optional Slack and Signal sidecars | `internal/capabilityd/` |
-| the blueclaw guest | the agent, isolated in a Firecracker VM under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json` | `.dependency/blueclaw/` |
+| the blueclaw guest | the agent, isolated in a Cloud Hypervisor VM under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json` | `.dependency/blueclaw/` |
 | `graphiti-memoryd` | the memory sidecar: episode ingestion and hybrid graph search | — |
 | the local model | a resident `llama-server`: gemma-4-E2B QAT with MTP drafting for generation, BGE-M3 Q8 on CPU for embedding | — |
 | the messenger | a Buzz relay on the box, with its media store and its `chatd` adapter | `internal/provisioning/steps/step_buzz_*.go` |

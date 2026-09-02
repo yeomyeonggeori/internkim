@@ -9,7 +9,7 @@ description: 중앙 평면 이전의 회사별 어플라이언스. 지금도 출
 이 문서의 나머지가 설명하는 호스트와 중앙 평면입니다.
 
 우리가 출하하는 어플라이언스는 Jetson Orin Nano Super 위에서 돕니다. 아래의
-모델 크기와 Firecracker 게스트가 거기서 나옵니다. 여기 있는 것 중 그 보드를
+모델 크기와 Cloud Hypervisor 게스트가 거기서 나옵니다. 여기 있는 것 중 그 보드를
 요구하는 것은 없습니다. [호스트](/ko/docs/running-the-host)는 회사가 이미 켜
 두는 아무 컴퓨터에서나 도는 같은 소프트웨어입니다.
 
@@ -22,14 +22,14 @@ description: 중앙 평면 이전의 회사별 어플라이언스. 지금도 출
                            ├── internkim-capabilityd
                            ├── graphiti-memoryd :7791
                            ├── llama-server (생성과 임베딩)
-                           └── Firecracker blueclaw 게스트 :8080
+                           └── Cloud Hypervisor blueclaw 게스트 :8080
 ```
 
 | 구성 요소 | 하는 일 | 코드 |
 |---|---|---|
 | `internkim-admind` | 디바이스 관리 API: 관리 UI 리버스 프록시, 컴패니언 브로커, 백업과 복원, OTA 적용 | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-capabilityd` | OpenRouter 키, 로컬 모델, 메신저·컴패니언 자격증명을 쥐고 능력 API만 노출; 선택적 Slack·Signal 사이드카를 굴림 | `internal/capabilityd/` |
-| blueclaw 게스트 | `blueclaw-supervisor` 아래 Firecracker VM에 격리된 에이전트, `/workspace/.blueclaw/config/*.json`을 읽음 | `.dependency/blueclaw/` |
+| blueclaw 게스트 | `blueclaw-supervisor` 아래 Cloud Hypervisor VM에 격리된 에이전트, `/workspace/.blueclaw/config/*.json`을 읽음 | `.dependency/blueclaw/` |
 | `graphiti-memoryd` | 기억 사이드카: 에피소드 수집과 하이브리드 그래프 검색 | — |
 | 로컬 모델 | 상주 `llama-server`: 생성은 MTP 드래프팅을 붙인 gemma-4-E2B QAT, 임베딩은 CPU 위 BGE-M3 Q8 | — |
 | 메신저 | 그 컴퓨터 위의 Buzz 릴레이, 미디어 저장소와 `chatd` 어댑터까지 | `internal/provisioning/steps/step_buzz_*.go` |
