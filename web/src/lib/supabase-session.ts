@@ -114,15 +114,6 @@ export async function signInWithSupabase(
 	throw new Error(error.message);
 }
 
-const freshSignInWindowMilliseconds = 10 * 60 * 1000;
-
-export async function hasSignedInJustNow(client: SupabaseClient = supabase()): Promise<boolean> {
-	const { data } = await client.auth.getUser();
-	const lastSignedInAt = data.user?.last_sign_in_at;
-	if (!lastSignedInAt) return false;
-	return Date.now() - new Date(lastSignedInAt).getTime() < freshSignInWindowMilliseconds;
-}
-
 export async function changeOwnPassword(
 	currentPassword: string,
 	newPassword: string,
