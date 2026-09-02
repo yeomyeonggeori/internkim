@@ -47,24 +47,12 @@ test('the agent on the plane can see every skill it can run, and no other', asyn
 			`internkim-api is in the prompt on a plane with no INTERNKIM_TOKEN, so the agent ` +
 				`will select it and every call will end at "INTERNKIM_TOKEN is not set"`
 		).not.toContain('internkim-api');
-		expect(
-			names,
-			`create-gws-file needs the Google tools, and DefaultToolDescriptors - the set ` +
-				`stamped into runtime.json - does not carry them, so the agent would select a ` +
-				`skill whose every call names a tool it was never given`
-		).not.toContain('create-gws-file');
 		expect(inventory.unavailableSkills.map((skill) => skill.name).sort()).toEqual([
-			'create-gws-file',
 			'internkim-api'
 		]);
 		const unavailableByName = new Map(inventory.unavailableSkills.map((skill) => [skill.name, skill]));
 		expect(unavailableByName.get('internkim-api')?.missingEnvironmentVariables).toEqual([
 			'INTERNKIM_TOKEN'
-		]);
-		expect(unavailableByName.get('create-gws-file')?.missingToolNames).toEqual([
-			'google_docs_create',
-			'google_sheets_create',
-			'google_gmail_send'
 		]);
 		expect(
 			[...names, ...inventory.unavailableSkills.map((skill) => skill.name)].sort(),

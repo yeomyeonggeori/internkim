@@ -347,7 +347,6 @@ const (
 	implementedOnThePlaneToo    = "implemented twice, once in Go here and once on the plane; step 4 of internkim#1254 deletes the Go handler, and the case written then is as thin as leave's"
 	overTheCompanyRecordSurface = "answered over admind's company record surface, which no stand-in here speaks yet"
 	overIMAPAndSMTP             = "answered over IMAP and SMTP, which no stand-in here speaks yet"
-	overGoogleWorkspace         = "answered over Google Workspace OAuth, which no stand-in here speaks yet"
 	throughAPairedCompanion     = "drives a browser session the companion holds, and this gate stands in for a command rather than for a paired companion"
 	throughTheModelRouter       = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
 	reachesLivePublicURLs       = "fetches live public URLs"
@@ -384,12 +383,6 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"mail_message_read":         overIMAPAndSMTP,
 	"mail_message_search":       overIMAPAndSMTP,
 	"mail_message_send":         overIMAPAndSMTP,
-	"google_calendar_event":     overGoogleWorkspace,
-	"google_docs_create":        overGoogleWorkspace,
-	"google_drive_import_pptx":  overGoogleWorkspace,
-	"google_event_list":         overGoogleWorkspace,
-	"google_gmail_send":         overGoogleWorkspace,
-	"google_sheets_create":      overGoogleWorkspace,
 	"browser_fill":              throughAPairedCompanion,
 	"browser_handoff":           throughAPairedCompanion,
 	"browser_press":             throughAPairedCompanion,
