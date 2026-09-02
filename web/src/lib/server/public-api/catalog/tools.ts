@@ -201,7 +201,6 @@ const taskParticipantSchema = z.strictObject({
   personID: z.string().optional(),
   displayName: z.string().optional(),
   email: z.string().optional(),
-  mattermostUsername: z.string().optional(),
   mention: z.string().optional(),
 });
 
@@ -220,10 +219,6 @@ export const taskResultSchema = z.strictObject({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   weekCode: z.string().optional(),
-  flag: z.number().int().optional(),
-  requestReason: z.string().optional(),
-  decisionReason: z.string().optional(),
-  mattermostPostID: z.string().optional(),
 });
 
 export const taskAddInputSchema = z.strictObject({
@@ -330,7 +325,6 @@ const personResultSchema = z.strictObject({
   personID: z.string(),
   name: z.string(),
   email: z.string(),
-  mattermostUsername: z.string().optional(),
   mention: z.string().optional(),
 });
 
@@ -887,7 +881,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:person_list',
-    description: 'Everyone who works here, with their exact name, email, @handle, and mention. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.',
+    description: 'Everyone who works here, with their exact name, email and mention. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.',
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: personListInputSchema,

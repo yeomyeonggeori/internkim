@@ -6,11 +6,10 @@ import (
 )
 
 type personPresentationForTool struct {
-	PersonID           string `json:"personID,omitempty"`
-	DisplayName        string `json:"displayName,omitempty"`
-	Email              string `json:"email,omitempty"`
-	MattermostUsername string `json:"mattermostUsername,omitempty"`
-	NotifyMention  string `json:"mention,omitempty"`
+	PersonID      string `json:"personID,omitempty"`
+	DisplayName   string `json:"displayName,omitempty"`
+	Email         string `json:"email,omitempty"`
+	NotifyMention string `json:"mention,omitempty"`
 }
 
 func enrichTaskResultDocument(result json.RawMessage, members []taskMemberForTool) json.RawMessage {
@@ -81,11 +80,10 @@ func taskMemberByID(members []taskMemberForTool) map[string]taskMemberForTool {
 
 func personPresentationFromTaskMember(member taskMemberForTool) personPresentationForTool {
 	return personPresentationForTool{
-		PersonID:           strings.TrimSpace(member.ID),
-		DisplayName:        strings.TrimSpace(member.Name),
-		Email:              strings.ToLower(strings.TrimSpace(member.Email)),
-		MattermostUsername: strings.TrimSpace(member.MattermostUsername),
-		NotifyMention:  notifyMention(member.Name),
+		PersonID:      strings.TrimSpace(member.ID),
+		DisplayName:   strings.TrimSpace(member.Name),
+		Email:         strings.ToLower(strings.TrimSpace(member.Email)),
+		NotifyMention: notifyMention(member.Name),
 	}
 }
 
