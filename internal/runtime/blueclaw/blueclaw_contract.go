@@ -116,6 +116,7 @@ const (
 	BuzzAdminBinaryPath                   = "/usr/local/bin/buzz-admin"
 	BuzzRelayDatabaseName                 = "buzz"
 	BuzzRelayDatabaseUser                 = "buzz"
+	BuzzRelayDatabasePackages             = "postgresql postgresql-contrib"
 	BuzzRelayDatabasePasswordPath         = "/root/.internkim/secrets/buzz-db-pass"
 	BuzzRelayKeyEnvironmentFilePath       = "/root/.internkim/secrets/buzz-relay-env"
 	BuzzRelayDatabaseEnvironmentFilePath  = "/root/.internkim/secrets/buzz-relay-db"
@@ -157,6 +158,7 @@ const (
 	// the network beyond it cannot route to.
 	ChatdListenHostname        = "172.31.0.1"
 	ChatdEndpoint              = "http://172.31.0.1:18090"
+	ChatdHealthPath            = "/healthz"
 	ChatdBotUserName           = "internkim"
 	RelayName                  = "internkim-relay"
 	RelayServiceName           = "internkim-relay"
