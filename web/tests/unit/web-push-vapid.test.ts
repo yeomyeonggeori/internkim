@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { audienceOf, signVapidToken, vapidAuthorization } from '../../src/lib/server/web-push-vapid';
+import { audienceOf, signVapidToken, vapidAuthorization } from '../../../supabase/functions/_shared/web-push-vapid.ts';
 import { decodeBase64URL } from '../../src/lib/notifications/base64url';
 
 const keys = {

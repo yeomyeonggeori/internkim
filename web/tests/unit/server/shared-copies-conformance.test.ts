@@ -3,14 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 
 const copies = [
-	['announce-the-day.ts', 'src/lib/server/announce-the-day.ts'],
-	['day-digest-timing.ts', 'src/lib/notifications/day-digest-timing.ts'],
-	['notify-member.ts', 'src/lib/server/notify-member.ts'],
-	['push-to-member-devices.ts', 'src/lib/server/push-to-member-devices.ts'],
 	['base64url.ts', 'src/lib/notifications/base64url.ts'],
-	['web-push.ts', 'src/lib/server/web-push.ts'],
-	['web-push-encrypt.ts', 'src/lib/server/web-push-encrypt.ts'],
-	['web-push-vapid.ts', 'src/lib/server/web-push-vapid.ts'],
 	['who-answers.ts', 'src/lib/server/who-answers.ts']
 ] as const;
 
