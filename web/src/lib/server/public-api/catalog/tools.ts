@@ -20,7 +20,6 @@ import { mailToolDefinitions } from './mail';
 import { modelToolDefinitions } from './model';
 
 const dateDescription = 'Date in YYYY-MM-DD format.';
-// A task and a calendar event are one row, so both are placed in time the same way.
 const momentDescription = 'ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.';
 const resourceIDSchema = z.string()
   .min(1)

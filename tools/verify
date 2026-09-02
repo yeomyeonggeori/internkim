@@ -132,6 +132,10 @@ GROUPS = [
         ],
         [
             BUN_INSTALL,
+            # The catalog is written against blueclaw's protocol source, reached by
+            # path, so its dependencies have to be installed for anything here to
+            # resolve zod.
+            ["bun", "install", "--frozen-lockfile", "--cwd", "../.dependency/blueclaw/protocol"],
             ["bun", "run", "check"],
             ["bun", "test", "tests/unit"],
             ["bun", "run", "test:integration"],

@@ -52,9 +52,6 @@ export type ContractedCapabilityToolDefinition = CapabilityToolCommonDefinition 
   result: CapabilityResultDefinition;
 };
 
-// A capability that answers in the invoke envelope every tool shares, read by
-// the runtime that asked for it. It states no result contract and is never
-// shown to the model.
 export type UncontractedCapabilityToolDefinition = CapabilityToolCommonDefinition & {
   modelVisibility: CapabilityModelVisibility.Hidden;
   inputSchema: z.ZodType;
@@ -71,8 +68,6 @@ export type CapabilityToolCatalog = {
   tools: Array<z.infer<typeof capabilityDescriptorSchema>>;
 };
 
-// The envelope every tool answers in, and the output schema of every capability
-// that states no contract of its own.
 export const toolInvokeOutputSchema = z.strictObject({
   content: z.string().optional(),
   effects: z.array(z.strictObject({

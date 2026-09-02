@@ -12588,7 +12588,7 @@
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "attention.triage",
+      "canonicalName": "attention_triage",
       "description": "Classify whether a pending companion job needs remote attention.",
       "estimatedLatency": "low",
       "idempotency": {
@@ -12644,10 +12644,10 @@
         "type": "object"
       },
       "inputSchemaStrict": true,
-      "modelName": "attention.triage",
+      "modelName": "attention_triage",
       "modelVisibility": "hidden",
       "modelVisible": false,
-      "name": "attention.triage",
+      "name": "attention_triage",
       "namespace": "attention",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -12748,7 +12748,7 @@
         "type": "object"
       },
       "outputSchemaStrict": true,
-      "policyResource": "tool:attention.triage",
+      "policyResource": "tool:attention_triage",
       "privacyClass": "model_input",
       "requiresUserPresence": false,
       "sideEffect": "computation",
@@ -12762,7 +12762,7 @@
         "state": "ok"
       },
       "canonicalName": "embedding_create",
-      "description": "Create embeddings with the companion's local embedding model.",
+      "description": "Create embeddings with whichever embedding model the runtime routes to.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -12922,7 +12922,7 @@
         "state": "ok"
       },
       "canonicalName": "llm_structured",
-      "description": "Generate schema-constrained output with the companion's local language model.",
+      "description": "Generate schema-constrained output with whichever language model the runtime routes to.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -13136,7 +13136,7 @@
         "state": "ok"
       },
       "canonicalName": "llm_text",
-      "description": "Generate text with the companion's local language model.",
+      "description": "Generate text with whichever language model the runtime routes to.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,

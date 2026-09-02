@@ -1,6 +1,5 @@
 package capabilityprotocol
 
-// A grant covers a family of tools, and each tool names the family it belongs to.
 const (
 	BrowserApprovalScope   = "browser"
 	FileApprovalScope      = "file"

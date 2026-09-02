@@ -9,7 +9,7 @@ import (
 )
 
 // Captured from this package at internkim@a22c8b61a, the commit before the
-// catalog moved. Deletable once these descriptors have been through a release.
+// catalog moved.
 const descriptorSetSnapshotPath = "testdata/descriptor-sets-before-the-catalog-move.json"
 
 type descriptorSetSnapshot struct {
@@ -85,18 +85,8 @@ func sortedCopy(names []string) []string {
 	return sorted
 }
 
-// The three model capabilities were written twice, in internal/capabilities and
-// in pkg/capabilityprotocol, with different latencies and different wording. The
-// catalog carries one of them: pkg/capabilityprotocol's, which is what the
-// companion and the router already read. Every set now publishes that one.
-var settledTwins = map[string]bool{"llm_text": true, "llm_structured": true, "embedding_create": true}
-
 func expectSameDescriptor(t *testing.T, expected Descriptor, actual Descriptor) {
 	t.Helper()
-	if settledTwins[actual.Name] {
-		expected.EstimatedLatency = actual.EstimatedLatency
-		expected.Description = actual.Description
-	}
 	expectSameField(t, "canonicalName", expected.CanonicalName, actual.CanonicalName)
 	expectSameField(t, "namespace", expected.Namespace, actual.Namespace)
 	expectSameField(t, "answeredBy", expected.AnsweredBy, actual.AnsweredBy)
@@ -171,11 +161,6 @@ func decodeSnapshotSchema(t *testing.T, document json.RawMessage) any {
 
 const safeIntegerBound = float64(1<<53 - 1)
 
-// Two keywords the catalog's authoring adds that cannot change which inputs are
-// accepted, so neither is a translation difference. $schema names the dialect.
-// Zod writes an integer's safe range where the Go builder left the range open,
-// and no call carries a number outside it: past this bound a JSON number has
-// already lost precision.
 func isAuthoringKeyword(key string, expectedParent map[string]any, actualValue any) bool {
 	if key == "$schema" {
 		return true
@@ -221,8 +206,6 @@ func schemaDifferences(path string, expected any, actual any) []string {
 	return differences
 }
 
-// JSON Schema's required is a set, so the two sides carrying its members in a
-// different order is not a difference in what either accepts.
 func requiredDifference(path string, expected any, actual any) []string {
 	expectedNames, actualNames := sortedStrings(expected), sortedStrings(actual)
 	if reflect.DeepEqual(expectedNames, actualNames) {

@@ -4,7 +4,7 @@
       "llm_text",
       "llm_structured",
       "embedding_create",
-      "attention.triage"
+      "attention_triage"
     ],
     "CompanionToolDescriptors": [
       "browser_open",
@@ -236,7 +236,7 @@
         "state": "ok"
       },
       "canonicalName": "embedding_create",
-      "description": "Create embeddings with the companion's local embedding model.",
+      "description": "Create embeddings with whichever embedding model the runtime routes to.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -392,7 +392,7 @@
         "state": "ok"
       },
       "canonicalName": "llm_structured",
-      "description": "Generate schema-constrained output with the companion's local language model.",
+      "description": "Generate schema-constrained output with whichever language model the runtime routes to.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -604,7 +604,7 @@
         "state": "ok"
       },
       "canonicalName": "llm_text",
-      "description": "Generate text with the companion's local language model.",
+      "description": "Generate text with whichever language model the runtime routes to.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -3732,8 +3732,8 @@
         "state": "ok"
       },
       "canonicalName": "embedding_create",
-      "description": "Generate vector embeddings for text using the device embedding model. Internal capability used for semantic search and memory retrieval; not directly called by the agent loop.",
-      "estimatedLatency": "medium",
+      "description": "Create embeddings with whichever embedding model the runtime routes to.",
+      "estimatedLatency": "low",
       "idempotency": {
         "required": false,
         "scope": "operation",
@@ -3888,8 +3888,8 @@
         "state": "ok"
       },
       "canonicalName": "llm_structured",
-      "description": "Generate structured JSON output using the device LLM. Internal capability used by Blueclaw's LLM backend for structured extraction; not directly called by the agent loop.",
-      "estimatedLatency": "medium",
+      "description": "Generate schema-constrained output with whichever language model the runtime routes to.",
+      "estimatedLatency": "low",
       "idempotency": {
         "required": false,
         "scope": "operation",
@@ -4100,8 +4100,8 @@
         "state": "ok"
       },
       "canonicalName": "llm_text",
-      "description": "Generate free-form text using the device LLM. Internal capability used by Blueclaw's LLM backend; not directly called by the agent loop.",
-      "estimatedLatency": "medium",
+      "description": "Generate text with whichever language model the runtime routes to.",
+      "estimatedLatency": "low",
       "idempotency": {
         "required": false,
         "scope": "operation",
@@ -6301,12 +6301,12 @@
       "version": "1",
       "worksOffline": false
     },
-    "attention.triage": {
+    "attention_triage": {
       "answeredBy": "local",
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "attention.triage",
+      "canonicalName": "attention_triage",
       "description": "Classify whether a pending companion job needs remote attention.",
       "estimatedLatency": "low",
       "idempotency": {
@@ -6359,10 +6359,10 @@
         "type": "object"
       },
       "inputSchemaStrict": true,
-      "modelName": "attention.triage",
+      "modelName": "attention_triage",
       "modelVisibility": "hidden",
       "modelVisible": false,
-      "name": "attention.triage",
+      "name": "attention_triage",
       "namespace": "attention",
       "outputSchema": {
         "additionalProperties": false,
@@ -6462,7 +6462,7 @@
         "type": "object"
       },
       "outputSchemaStrict": true,
-      "policyResource": "tool:attention.triage",
+      "policyResource": "tool:attention_triage",
       "privacyClass": "model_input",
       "requiresUserPresence": false,
       "sideEffect": "computation",

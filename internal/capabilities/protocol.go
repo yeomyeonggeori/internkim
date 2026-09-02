@@ -268,8 +268,6 @@ func CapabilityUnavailableUserReason(toolName string, code string) string {
 	}
 }
 
-// Which family a tool belongs to is written on its descriptor. Reading it off the
-// front of the name means every rename quietly reclassifies the tool.
 var toolNamespaces = buildToolNamespaces()
 
 func buildToolNamespaces() map[string]string {

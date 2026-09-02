@@ -1,4 +1,5 @@
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
+import { statesAResultContract } from '../../../../web/src/lib/server/public-api/catalog/contract';
 import { publicAPIPermissions } from '../../../../web/src/lib/public-api-permission';
 import { defaultZone } from '../../../../web/src/lib/server/fleet-domain';
 
@@ -256,7 +257,7 @@ export function apiBaseURL(zone = defaultZone): string {
 
 export function baseTools(): CatalogTool[] {
 	return (catalog.tools as CatalogTool[])
-		.filter((tool) => tool.resultContract !== undefined)
+		.filter(statesAResultContract)
 		.sort((left, right) => (left.name < right.name ? -1 : 1));
 }
 

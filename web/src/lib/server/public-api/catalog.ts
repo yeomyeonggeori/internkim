@@ -1,5 +1,6 @@
 import catalogDocument from '../../../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
+import { statesAResultContract } from './catalog/contract';
 
 export type ToolDescriptor = { name: string; sideEffectClass: string };
 
@@ -9,9 +10,7 @@ type ToolCatalog = { protocolVersion: string; tools: CatalogEntry[] };
 
 const catalog: ToolCatalog = catalogDocument;
 
-const reachableTools: ToolDescriptor[] = catalog.tools.filter(
-	(tool) => tool.resultContract !== undefined
-);
+const reachableTools: ToolDescriptor[] = catalog.tools.filter(statesAResultContract);
 
 const permissionRanks: Record<PublicAPIPermission, number> = { read: 1, write: 2, delete: 3 };
 
