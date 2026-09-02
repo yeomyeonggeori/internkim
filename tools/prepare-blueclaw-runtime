@@ -698,7 +698,7 @@ ensure_rootfs_base() {
     echo "missing builtin skills requirements.txt at $builtin_skills_requirements_path" >&2
     exit 1
   fi
-  local site_scaffold_package_json_path="$repository_root/internal/admind/site_scaffold/react-vite-ts/package.json"
+  local site_scaffold_package_json_path="$repository_root/.dependency/internkim-plugin/skills/website/assets/scaffold/app/package.json"
   if [ ! -s "$site_scaffold_package_json_path" ]; then
     echo "missing site scaffold package.json at $site_scaffold_package_json_path" >&2
     exit 1
