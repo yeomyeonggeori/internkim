@@ -93,7 +93,7 @@ flowchart LR
   TS["protocol/src/capability_tools.ts<br/>(blueclaw, 단일 정본)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
   JSON -->|임베드, 해시 검증| Go["pkg/capabilityprotocol"]
   Go -->|admind가 runtime.json에 스탬프| Blueclaw["blueclaw<br/>capability_tool_provider"]
-  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(Firecracker에서는 vsock)"]
+  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(게스트에서는 vsock)"]
   Socket --> Capabilityd["internkim-capabilityd<br/>조작을 실행"]
 ```
 
