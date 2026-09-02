@@ -109,9 +109,8 @@ func (service *Service) retireGhostRooms(ctx context.Context, apply bool) (buzzG
 	return report, nil
 }
 
-// The bootstrap key made the channels during the import, and the bot's old
-// email-derived key is a leftover of the same era; a room either of them sits
-// in is the import's own bookkeeping. The agent key is different: a person's
+// The bootstrap key made the channels during the import, so a room it sits in
+// is the import's own bookkeeping. The agent key is different: a person's
 // direct room with the agent is a real conversation, so it only marks a ghost
 // when nobody else is in the room.
 type buzzServiceKeySet struct {
@@ -132,18 +131,16 @@ func buzzServiceKeys(ctx context.Context, service *Service, seed string) (buzzSe
 		return keys, errorValue
 	}
 	keys.agent[agentPubkey] = true
-	if botEmail := service.mattermostBotBuzzEmail(ctx); botEmail != "" {
-		pubkey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, botEmail))
-		if errorValue == nil {
-			keys.bookkeeping[pubkey] = true
-		}
-	}
 	emails, errorValue := service.companyPeopleEmails(ctx)
 	if errorValue != nil {
 		return keys, errorValue
 	}
 	for _, email := range emails {
-		version := service.buzzIdentityVersion(service.buzzVaultSubject(ctx, email))
+		vaultSubject, errorValue := service.buzzVaultSubject(ctx, email)
+		if errorValue != nil {
+			return keys, errorValue
+		}
+		version := service.buzzIdentityVersion(vaultSubject)
 		for held := 1; held <= version; held++ {
 			pubkey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, versionedSubject(email, held)))
 			if errorValue != nil {

@@ -3,8 +3,8 @@ package admind
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 
@@ -13,24 +13,6 @@ import (
 )
 
 var errBuzzKeySeedMissing = errors.New("buzz key seed is not configured")
-
-// mattermostBotBuzzEmail returns the Mattermost bot account's own email so that
-// the agent's mirrored posts resolve to the agent identity chatd signs its own
-// traffic with, instead of a per-email person key.
-func (service *Service) mattermostBotBuzzEmail(ctx context.Context) string {
-	service.botBuzzEmailOnce.Do(func() {
-		token, errorValue := service.mattermostBotToken()
-		if errorValue != nil {
-			return
-		}
-		var userRecord mattermostUserRecord
-		if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/me", token, nil, &userRecord); errorValue != nil {
-			return
-		}
-		service.botBuzzEmailValue = strings.ToLower(strings.TrimSpace(userRecord.Email))
-	})
-	return service.botBuzzEmailValue
-}
 
 func (service *Service) buzzKeySeed() string {
 	service.buzzKeySeedOnce.Do(func() {
@@ -57,13 +39,14 @@ func (service *Service) personBuzzSecret(ctx context.Context, email string) (str
 	if seed == "" {
 		return "", errBuzzKeySeedMissing
 	}
-	return service.currentBuzzSecret(ctx, seed, email, service.buzzVaultSubject(ctx, email)), nil
+	vaultSubject, errorValue := service.buzzVaultSubject(ctx, email)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return service.currentBuzzSecret(seed, email, vaultSubject), nil
 }
 
-func (service *Service) currentBuzzSecret(ctx context.Context, seed string, email string, vaultSubject string) string {
-	if botEmail := service.mattermostBotBuzzEmail(ctx); botEmail != "" && strings.EqualFold(strings.TrimSpace(email), botEmail) {
-		return buzzidentity.Secret(seed, buzzidentity.AgentSubject)
-	}
+func (service *Service) currentBuzzSecret(seed string, email string, vaultSubject string) string {
 	secretHex := buzzidentity.Secret(seed, versionedSubject(email, service.buzzIdentityVersion(vaultSubject)))
 	service.pinBuzzIdentitySecret(vaultSubject, secretHex)
 	return secretHex
@@ -79,13 +62,13 @@ func (service *Service) pinBuzzIdentitySecret(vaultSubject string, secretHex str
 }
 
 // buzzVaultSubject keys the vault by personID when the person is known to the
-// policy, falling back to the normalized email before the person is provisioned.
-func (service *Service) buzzVaultSubject(ctx context.Context, email string) string {
+// record, falling back to the normalized email before the person is provisioned.
+func (service *Service) buzzVaultSubject(ctx context.Context, email string) (string, error) {
 	personID, errorValue := service.localBlueclawPersonIDByEmail(ctx, email)
 	if errorValue != nil {
-		return normalizedVaultSubject(email)
+		return "", fmt.Errorf("the record did not say who %s is: %w", normalizedVaultSubject(email), errorValue)
 	}
-	return vaultSubjectForPerson(personID, email)
+	return vaultSubjectForPerson(personID, email), nil
 }
 
 func vaultSubjectForPerson(personID string, email string) string {

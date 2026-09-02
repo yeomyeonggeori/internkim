@@ -60,8 +60,12 @@ func (service *Service) handleBuzzClientVault(responseWriter http.ResponseWriter
 		http.Error(responseWriter, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	subject := strings.TrimSpace(service.buzzVaultSubject(request.Context(), actorEmail))
-	if !isSafeVaultSubject(subject) {
+	subject, errorValue := service.buzzVaultSubject(request.Context(), actorEmail)
+	if errorValue != nil {
+		http.Error(responseWriter, "identity_record_unreachable", http.StatusBadGateway)
+		return
+	}
+	if !isSafeVaultSubject(strings.TrimSpace(subject)) {
 		http.Error(responseWriter, "invalid identity", http.StatusBadRequest)
 		return
 	}

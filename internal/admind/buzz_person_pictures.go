@@ -67,7 +67,11 @@ func (service *Service) personPicturesFromRelay(ctx context.Context) ([]personPi
 
 	pictures := []personPicture{}
 	for _, email := range emails {
-		version := service.buzzIdentityVersion(service.buzzVaultSubject(ctx, email))
+		vaultSubject, errorValue := service.buzzVaultSubject(ctx, email)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		version := service.buzzIdentityVersion(vaultSubject)
 		pubkey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, versionedSubject(email, version)))
 		if errorValue != nil {
 			return nil, errorValue

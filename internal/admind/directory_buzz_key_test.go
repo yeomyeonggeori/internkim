@@ -24,6 +24,9 @@ func buzzKeyTestService(t *testing.T, memberEmail string) *Service {
 		BuzzKeySeedPath: seedPath,
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isBlueclawPolicyGet(request) {
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		}
 		if !isCompanyDirectoryRequest(request) {
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		}

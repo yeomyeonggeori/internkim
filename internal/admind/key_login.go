@@ -47,7 +47,11 @@ func (service *Service) handleAuthVault(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, "email is required", http.StatusBadRequest)
 		return
 	}
-	subject := service.buzzVaultSubject(request.Context(), email)
+	subject, errorValue := service.buzzVaultSubject(request.Context(), email)
+	if errorValue != nil {
+		http.Error(responseWriter, "identity_record_unreachable", http.StatusBadGateway)
+		return
+	}
 	if !isSafeVaultSubject(subject) {
 		http.Error(responseWriter, "not found", http.StatusNotFound)
 		return
@@ -125,7 +129,11 @@ func (service *Service) handleKeyLogin(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, "buzz key seed is not configured", http.StatusNotImplemented)
 		return
 	}
-	subject := service.buzzVaultSubject(request.Context(), email)
+	subject, errorValue := service.buzzVaultSubject(request.Context(), email)
+	if errorValue != nil {
+		http.Error(responseWriter, "identity_record_unreachable", http.StatusBadGateway)
+		return
+	}
 	if _, found, _ := service.readBuzzClientVault(subject); !found {
 		http.Error(responseWriter, "no identity for this email", http.StatusUnauthorized)
 		return
