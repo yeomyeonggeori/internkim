@@ -3,7 +3,8 @@
 # host/buzz/docker-compose.yml — because a company that already runs one does
 # not want a second.
 #
-#   write host/.env with the six values host/README.md's Configuration section names
+#   write host/.env with SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY; every other
+#   setting host/README.md's Configuration section names has a default here
 #   docker compose -f host/docker-compose.yml up
 name: internkim-host
 

@@ -195,8 +195,14 @@ CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
 ```
 
 `runtime.template.json` is rendered with `DATABASE_URL` and `MESSENGER_PLATFORM`
-to `/etc/blueclaw/runtime.json`. `MESSENGER_PLATFORM` names which of the two the
-company runs, and the relay refuses to start rather than guess.
+to `/run/internkim/runtime.json`, unless a `runtime.json` is mounted at
+`/etc/blueclaw`, which is read instead. The roster goes the other way: admind
+rewrites `/run/internkim/policy.json` whenever the company changes, so a
+`policy.json` mounted there seeds that file rather than being it. The seed is
+`/secrets/buzz-key-seed`, beside the agent key, and without it a message the
+agent sends under a person's own name cannot be signed. `MESSENGER_PLATFORM`
+names which of the two messengers the company runs, and the relay refuses to
+start rather than guess.
 
 ## Acceptance
 

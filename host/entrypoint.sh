@@ -14,12 +14,16 @@ arrivalsPort="${ARRIVALS_PORT:-18091}"
 maildPort="${MAILD_PORT:-18092}"
 admindPort="${ADMIND_PORT:-18080}"
 agentKeyPath="/secrets/agent-key"
+buzzKeySeedPath="/secrets/buzz-key-seed"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime pg_isready nc cp"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
 done
+if [ "${1:-}" = "--check-programs" ]; then
+  exit 0
+fi
 
 : "${SUPABASE_URL:?set SUPABASE_URL}"
 : "${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY}"
@@ -28,6 +32,8 @@ done
 : "${MESSENGER_PLATFORM:?set MESSENGER_PLATFORM}"
 : "${DATABASE_URL:?set DATABASE_URL}"
 [ -r "${agentKeyPath}" ] || { echo "[host] no agent key at ${agentKeyPath}" >&2; exit 1; }
+[ -r "${buzzKeySeedPath}" ] \
+  || echo "[host] no buzz identity seed at ${buzzKeySeedPath}; the agent answers, and a message it sends under a person's own name cannot be signed" >&2
 
 capabilitydPid=""
 admindPid=""
@@ -83,12 +89,17 @@ if [ ! -r "${runtimeConfigurationPath}" ]; then
   echo "[host] wrote ${runtimeConfigurationPath} from the template and capabilityd's contract"
 fi
 
-policyPath="/etc/blueclaw/policy.json"
-if [ ! -r "${policyPath}" ]; then
-  policyPath="/run/internkim/policy.json"
+mountedPolicyPath="/etc/blueclaw/policy.json"
+policyPath="/run/internkim/policy.json"
+if [ -r "${mountedPolicyPath}" ]; then
+  cp "${mountedPolicyPath}" "${policyPath}"
+  echo "[host] seeded ${policyPath} from ${mountedPolicyPath}"
+else
   printf '{"people":[],"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n' > "${policyPath}"
   echo "[host] no policy mounted; started with nobody in it"
 fi
+[ -w "${policyPath}" ] \
+  || { echo "[host] ${policyPath} is not writable; admind rewrites the roster there whenever the company changes" >&2; exit 1; }
 
 echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done
@@ -139,6 +150,7 @@ internkim-admind \
   -chatd-platform "${MESSENGER_PLATFORM}" \
   -blueclaw-url "http://${blueclawAddress}" \
   -blueclaw-policy "${policyPath}" \
+  -buzz-key-seed-path "${buzzKeySeedPath}" \
   -central-plane-app-url "${INTERNKIM_APP_URL}" \
   -central-plane-agent-key "${agentKeyPath}" \
   -central-plane-project-url "${SUPABASE_URL}" \

@@ -22,7 +22,7 @@ import {
 	aMessengerNobodyRuns,
 	type ARecordingMessenger
 } from './a-messenger-nobody-runs';
-import { theArgumentsThatStart } from './the-entrypoint';
+import { theArgumentsThatStart } from '../support/the-entrypoint';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
@@ -240,17 +240,19 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'internkim-capabilityd'),
-					...theArgumentsThatStart('internkim-capabilityd', {
-						'--socket': capabilitySocketPath,
-						'--openrouter-key': openRouterKeyPath,
-						'--local-inference-mode': 'remote',
-						'--blueclaw-url': blueclawURL,
-						'--admind-url': admindURL,
-						'--chatd-endpoint': connector.url,
-						'--chatd-platform': capabilitydPlatform
-					}),
-					'--mattermost-url',
-					messenger.url
+					...theArgumentsThatStart(
+						'internkim-capabilityd',
+						{
+							'--socket': capabilitySocketPath,
+							'--openrouter-key': openRouterKeyPath,
+							'--local-inference-mode': 'remote',
+							'--blueclaw-url': blueclawURL,
+							'--admind-url': admindURL,
+							'--chatd-endpoint': connector.url,
+							'--chatd-platform': capabilitydPlatform
+						},
+						{ '--mattermost-url': messenger.url }
+					)
 				],
 				logsTo(join(runDirectory, 'capabilityd.log'))
 			)
@@ -329,28 +331,28 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'internkim-admind'),
-					...theArgumentsThatStart('internkim-admind', {
-						'-listen': `127.0.0.1:${admindPort}`,
-						'-capability-socket': capabilitySocketPath,
-						'-chatd-endpoint': connector.url,
-						'-chatd-platform': admindPlatform,
-						'-blueclaw-url': blueclawURL,
-						'-blueclaw-policy': policyPath,
-						'-central-plane-app-url': environmentValue('INTERNKIM_APP_URL'),
-						'-central-plane-agent-key': agentKeyPath,
-						'-central-plane-project-url': projectURL,
-						'-central-plane-publishable-key': environmentValue('SUPABASE_PUBLISHABLE_KEY')
-					}),
-					'-listen-socket',
-					requesterSocketPath,
-					'-mattermost-url',
-					messenger.url,
-					'-state-dir',
-					join(runDirectory, 'state'),
-					'-database',
-					join(runDirectory, 'state', 'internkim.sqlite'),
-					'-buzz-key-seed-path',
-					join(runDirectory, 'secrets', 'buzz-key-seed')
+					...theArgumentsThatStart(
+						'internkim-admind',
+						{
+							'-listen': `127.0.0.1:${admindPort}`,
+							'-capability-socket': capabilitySocketPath,
+							'-chatd-endpoint': connector.url,
+							'-chatd-platform': admindPlatform,
+							'-blueclaw-url': blueclawURL,
+							'-blueclaw-policy': policyPath,
+							'-buzz-key-seed-path': join(runDirectory, 'secrets', 'buzz-key-seed'),
+							'-central-plane-app-url': environmentValue('INTERNKIM_APP_URL'),
+							'-central-plane-agent-key': agentKeyPath,
+							'-central-plane-project-url': projectURL,
+							'-central-plane-publishable-key': environmentValue('SUPABASE_PUBLISHABLE_KEY')
+						},
+						{
+							'-listen-socket': requesterSocketPath,
+							'-mattermost-url': messenger.url,
+							'-state-dir': join(runDirectory, 'state'),
+							'-database': join(runDirectory, 'state', 'internkim.sqlite')
+						}
+					)
 				],
 				logsTo(join(runDirectory, 'admind.log'))
 			)

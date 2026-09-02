@@ -28,10 +28,13 @@ it is up nothing watches it again, and only the agent's own exit brings the
 bundle down. The calendar, task, mail and site tools disappear without it.
 </Step>
 <Step>
-**The agent**: `blueclaw -runtime /etc/blueclaw/runtime.json -policy
-/etc/blueclaw/policy.json`, answering on `127.0.0.1:8080`.
+**The agent**: `blueclaw -runtime /run/internkim/runtime.json -policy
+/run/internkim/policy.json`, answering on `127.0.0.1:8080`.
 `tools/render-company-runtime` fills `runtime.template.json` from this box's
-own addresses and merges capabilityd's `--print-capabilities` block into it.
+own addresses and merges capabilityd's `--print-capabilities` block into it. A
+`runtime.json` mounted at `/etc/blueclaw` is read instead; a `policy.json`
+mounted there seeds the roster rather than being it, because admind rewrites
+that file whenever the company changes.
 </Step>
 <Step>
 **`internkim-admind`** on `127.0.0.1:18080`, which the relay routes every
@@ -89,7 +92,8 @@ green process table is the symptom.
 
 Without `admind` a person's memory, files, tasks and buzz claim answer `500`,
 and a direct message cannot go out under the name of the person who asked for
-it, because the seed that signs as them lives on this box.
+it, because the seed that signs as them lives on this box, at
+`/secrets/buzz-key-seed`.
 
 A company that chats on Buzz also runs the Buzz stack itself; `host/buzz/`
 carries a compose file that brings up Postgres, Redis, MinIO and the relay

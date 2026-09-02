@@ -43,4 +43,6 @@ RUN printf '#!/bin/sh\nexec bun run /opt/chatd/src/main.ts "$@"\n' > /usr/local/
 	&& chmod 0755 /usr/local/bin/chatd /usr/local/bin/internkim-relay /usr/local/bin/entrypoint.sh \
 	&& mkdir -p /run/internkim /workspace /etc/blueclaw
 
+RUN /usr/local/bin/entrypoint.sh --check-programs
+
 CMD ["/usr/local/bin/entrypoint.sh"]
