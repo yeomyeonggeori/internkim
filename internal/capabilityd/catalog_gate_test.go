@@ -380,38 +380,78 @@ func gateCases() map[string]catalogGateCase {
 	}
 }
 
-// The tools this gate does not cover yet. It exists so that a tool added
-// tomorrow cannot quietly join them: a catalog tool in neither this list nor
-// gateCases fails the gate. It shrinks to empty as cases land — internkim#1144.
-// The task, calendar and person tools are implemented twice: once in Go here,
-// once on the plane. Step 4 of the SQLite retirement replaces the Go handler
-// bodies with a call to /api/v1, at which point their cases are as thin as
-// leave's. A case written now would encode the contract of code scheduled for
-// deletion and make deleting it harder, so they wait for that step rather than
-// for somebody's attention.
-var toolsWithNoGateCaseYet = []string{
-	"event_add",
-	"event_delete",
-	"event_list",
-	"event_update",
-	"person_list",
-	"task_add",
-	"task_delete",
-	"task_list",
-	"task_update",
+// Why each tool this gate does not cover yet is uncovered. It exists so that a
+// tool added tomorrow cannot quietly join them: a catalog tool in neither this
+// map nor gateCases fails the gate. It shrinks to empty as cases land —
+// internkim#1144.
+const (
+	implementedOnThePlaneToo    = "implemented twice, once in Go here and once on the plane; step 4 of internkim#1254 deletes the Go handler, and the case written then is as thin as leave's"
+	overTheCompanyRecordSurface = "answered over admind's company record surface, which no stand-in here speaks yet"
+	overIMAPAndSMTP             = "answered over IMAP and SMTP, which no stand-in here speaks yet"
+	overGoogleWorkspace         = "answered over Google Workspace OAuth, which no stand-in here speaks yet"
+	throughAPairedCompanion     = "drives a browser session the companion holds, and this gate stands in for a command rather than for a paired companion"
+	throughTheModelRouter       = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
+	reachesLivePublicURLs       = "fetches live public URLs"
+	callsAnImageModel           = "calls an image model"
+)
+
+var toolsWithNoGateCaseYet = map[string]string{
+	"event_add":                 implementedOnThePlaneToo,
+	"event_delete":              implementedOnThePlaneToo,
+	"event_list":                implementedOnThePlaneToo,
+	"event_update":              implementedOnThePlaneToo,
+	"person_list":               implementedOnThePlaneToo,
+	"task_add":                  implementedOnThePlaneToo,
+	"task_delete":               implementedOnThePlaneToo,
+	"task_list":                 implementedOnThePlaneToo,
+	"task_update":               implementedOnThePlaneToo,
+	"company_document_list":     overTheCompanyRecordSurface,
+	"company_document_register": overTheCompanyRecordSurface,
+	"company_document_search":   overTheCompanyRecordSurface,
+	"company_document_update":   overTheCompanyRecordSurface,
+	"company_info_get":          overTheCompanyRecordSurface,
+	"company_info_set":          overTheCompanyRecordSurface,
+	"company_metric_list":       overTheCompanyRecordSurface,
+	"company_metric_record":     overTheCompanyRecordSurface,
+	"company_record_add":        overTheCompanyRecordSurface,
+	"company_record_delete":     overTheCompanyRecordSurface,
+	"company_record_list":       overTheCompanyRecordSurface,
+	"company_record_update":     overTheCompanyRecordSurface,
+	"mail_connection_start":     overIMAPAndSMTP,
+	"mail_connection_status":    overIMAPAndSMTP,
+	"mail_message_list":         overIMAPAndSMTP,
+	"mail_message_mark":         overIMAPAndSMTP,
+	"mail_message_move":         overIMAPAndSMTP,
+	"mail_message_read":         overIMAPAndSMTP,
+	"mail_message_search":       overIMAPAndSMTP,
+	"mail_message_send":         overIMAPAndSMTP,
+	"google_calendar_event":     overGoogleWorkspace,
+	"google_docs_create":        overGoogleWorkspace,
+	"google_drive_import_pptx":  overGoogleWorkspace,
+	"google_event_list":         overGoogleWorkspace,
+	"google_gmail_send":         overGoogleWorkspace,
+	"google_sheets_create":      overGoogleWorkspace,
+	"browser_fill":              throughAPairedCompanion,
+	"browser_handoff":           throughAPairedCompanion,
+	"browser_press":             throughAPairedCompanion,
+	"browser_select":            throughAPairedCompanion,
+	"browser_wait":              throughAPairedCompanion,
+	"attention_triage":          throughTheModelRouter,
+	"embedding_create":          throughTheModelRouter,
+	"llm_structured":            throughTheModelRouter,
+	"llm_text":                  throughTheModelRouter,
+	"web_fetch":                 reachesLivePublicURLs,
+	"image_generate":            callsAnImageModel,
 }
 
 func TestNoCatalogToolEscapesTheGateUnnoticed(t *testing.T) {
 	covered := gateCases()
-	uncovered := map[string]bool{}
-	for _, name := range toolsWithNoGateCaseYet {
-		uncovered[name] = true
-	}
 
 	var unaccounted []string
 	for _, descriptor := range capabilityprotocol.GeneratedToolDescriptorSet() {
 		_, hasCase := covered[descriptor.Name]
-		if !hasCase && !uncovered[descriptor.Name] {
+		_, isUncovered := toolsWithNoGateCaseYet[descriptor.Name]
+		if !hasCase && !isUncovered {
 			unaccounted = append(unaccounted, descriptor.Name)
 		}
 	}
@@ -427,12 +467,15 @@ func TestTheUncoveredListHoldsNothingThatIsCovered(t *testing.T) {
 	for _, descriptor := range capabilityprotocol.GeneratedToolDescriptorSet() {
 		known[descriptor.Name] = true
 	}
-	for _, name := range toolsWithNoGateCaseYet {
+	for name, reason := range toolsWithNoGateCaseYet {
 		if _, hasCase := covered[name]; hasCase {
 			t.Errorf("%s has a gate case and is still listed as uncovered", name)
 		}
 		if !known[name] {
 			t.Errorf("%s is listed as uncovered but the catalog does not offer it", name)
+		}
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("%s is listed as uncovered and says no reason why", name)
 		}
 	}
 }
