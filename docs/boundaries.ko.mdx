@@ -37,7 +37,7 @@ description: 무엇이 일어나도 되는지를 두 가지가 정하고, 각각
 헬퍼는 `root:root 4755` setuid 다리이고, 실행할 수 있다는 것이 곧 권한은
 아닙니다. 자신을 부른 real UID가 `root`나 `blueclaw`인지 확인한 뒤, 무엇을
 하기 전에 요청자의 UID, GID, 보조 그룹으로 내려갑니다. 디바이스에서는
-Firecracker 게스트의 rootfs 안에 들어 있습니다.
+Cloud Hypervisor 게스트의 rootfs 안에 들어 있습니다.
 
 | 워크스페이스 경로 | 권한 모델 | 담는 것 |
 |---|---|---|

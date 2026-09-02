@@ -64,20 +64,39 @@ token is the consent: a `delete` token deletes without a question.
 A tool that runs on the record — task, calendar, people, leave and attendance —
 answers `{ "tool": ..., "result": ... }`, because the plane ran it itself. An
 attendance write adds a third field, `notified`, saying who was told about it
-or which administrators were asked. A tool carried to the company's computer
-answers the fuller shape below.
+or which administrators were asked. `task_add` is one of these:
+
+```json
+{
+  "tool": "task_add",
+  "result": {
+    "taskID": "...",
+    "title": "draft the quarterly report",
+    "status": "planned",
+    "size": "M",
+    "business": null,
+    "type": null,
+    "startDate": "",
+    "endDate": "",
+    "participants": ["..."]
+  }
+}
+```
+
+A tool carried to the company's computer answers the fuller shape below —
+`message_send` is one of these:
 
 ```json
 {
   "provider": "internkim",
   "selectedBackend": "device",
-  "toolName": "task_add",
+  "toolName": "message_send",
   "outcome": "succeeded",
-  "status": "created",
+  "status": "sent",
   "effects": [
-    { "objectType": "task", "effect": "created", "id": "..." }
+    { "objectType": "message", "effect": "sent", "id": "..." }
   ],
-  "result": { "taskID": "...", "title": "draft the quarterly report" }
+  "result": { "messageIDs": ["..."], "deliveryStatus": "sent" }
 }
 ```
 
@@ -138,9 +157,11 @@ curl https://api.intern.kim/v1/tools/task_update/invoke \
   --data '{"input":{"taskHint":"draft the quarterly report","status":"in_progress"}}'
 ```
 
-The first response's `effects` carries
-`{"objectType":"task","effect":"created","id":...}`; the second carries the
-same task with `"effect":"updated"`. Deleting it takes a `delete` token:
+The first response's `result` carries the new `taskID` and
+`"status":"planned"`; the second answers the same `taskID` with
+`"status":"in_progress"` — a record tool carries no `effects`, so the task
+itself, read back through `result`, is the confirmation. Deleting it takes a
+`delete` token:
 
 ```bash
 curl https://api.intern.kim/v1/tools/task_delete/invoke \
