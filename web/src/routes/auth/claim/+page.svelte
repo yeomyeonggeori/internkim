@@ -11,6 +11,8 @@
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
 	import { askToClaim, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
+	import { claimCodeLength } from './claim-code';
+	import { hasThePasswordStepExpired } from './password-step';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { onMount } from 'svelte';
 
@@ -18,16 +20,19 @@
 	const fieldID = $props.id();
 
 	let servesCompanies = $state(true);
-	let step = $state<'address' | 'sent' | 'issued' | 'password' | 'passkey'>('address');
+	let step = $state<'address' | 'signedIn' | 'sent' | 'issued' | 'password' | 'passkey'>('address');
 	let email = $state('');
 	let code = $state('');
 	let password = $state('');
 	let issuedPassword = $state('');
 	let busy = $state(false);
 	let errorMessage = $state('');
+	let passwordStepOpenedAt = 0;
+	let hasChosenAnAddress = false;
 
 	const describedStep: Record<typeof step, string> = $derived({
 		address: text.claimAddressDescription,
+		signedIn: text.claimSignedInDescription,
 		sent: text.claimSentDescription.replace('{email}', email),
 		issued: text.claimIssuedDescription,
 		password: text.claimPasswordDescription,
@@ -55,6 +60,8 @@
 
 	const askToClaimTheAddress = () =>
 		run(async () => {
+			code = '';
+			hasChosenAnAddress = true;
 			const outcome = await askToClaim(email);
 			if (outcome.kind === 'sent') {
 				step = 'sent';
@@ -78,14 +85,31 @@
 			await goto(homePath);
 		});
 
+	function openThePasswordStep() {
+		passwordStepOpenedAt = Date.now();
+		code = '';
+		password = '';
+		step = 'password';
+	}
+
+	function startOver() {
+		errorMessage = '';
+		code = '';
+		step = 'address';
+	}
+
 	const proveTheAddress = () =>
 		run(async () => {
 			await verifyClaimCode(email, code);
-			step = 'password';
+			openThePasswordStep();
 		});
 
 	const keepThePassword = () =>
 		run(async () => {
+			if (hasThePasswordStepExpired(passwordStepOpenedAt, Date.now())) {
+				step = 'signedIn';
+				throw new Error(text.claimExpired);
+			}
 			await setSupabasePassword(password);
 			if (isPasskeySupported()) {
 				step = 'passkey';
@@ -109,9 +133,9 @@
 		servesCompanies = isSupabaseConfigured();
 		if (!servesCompanies) return;
 		const { data } = await supabase().auth.getSession();
-		if (!data.session) return;
+		if (!data.session || hasChosenAnAddress) return;
 		email = data.session.user.email ?? '';
-		step = 'password';
+		step = 'signedIn';
 	});
 </script>
 
@@ -138,6 +162,13 @@
 						<Button type="submit" class="w-full" disabled={busy || !email.includes('@')}>{text.claimSendLink}</Button>
 					</FieldGroup>
 				</form>
+			{:else if step === 'signedIn'}
+				<FieldGroup>
+					<FieldDescription>{text.claimSignedInHint}</FieldDescription>
+					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
+					<Button type="button" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimSendCode}</Button>
+					<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
+				</FieldGroup>
 			{:else if step === 'sent'}
 				<form onsubmit={(event) => { event.preventDefault(); proveTheAddress(); }}>
 					<FieldGroup>
@@ -145,20 +176,20 @@
 							<FieldLabel for="claim-code-{fieldID}">{text.claimCodeLabel}</FieldLabel>
 							<InputOTP.Root
 								id="claim-code-{fieldID}"
-								maxlength={6}
+								maxlength={claimCodeLength}
 								bind:value={code}
 								disabled={busy}
 								onComplete={proveTheAddress}
 							>
 								{#snippet children({ cells })}
 									<InputOTP.Group>
-										{#each cells.slice(0, 3) as cell (cell)}
+										{#each cells.slice(0, Math.ceil(claimCodeLength / 2)) as cell (cell)}
 											<InputOTP.Slot {cell} />
 										{/each}
 									</InputOTP.Group>
 									<InputOTP.Separator />
 									<InputOTP.Group>
-										{#each cells.slice(3, 6) as cell (cell)}
+										{#each cells.slice(Math.ceil(claimCodeLength / 2)) as cell (cell)}
 											<InputOTP.Slot {cell} />
 										{/each}
 									</InputOTP.Group>
@@ -167,8 +198,9 @@
 							<FieldDescription>{text.claimCodeHint}</FieldDescription>
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-						<Button type="submit" class="w-full" disabled={busy || code.trim().length < 6}>{text.claimVerify}</Button>
+						<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
 						<Button variant="ghost" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
+						<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
 					</FieldGroup>
 				</form>
 			{:else if step === 'issued'}

@@ -23,7 +23,7 @@ verify_enabled = true
 [auth.email]
 enable_confirmations = true
 max_frequency = "1m0s"
-otp_length = 8
+otp_length = 6
 
 [auth.email.template.magic_link]
 subject = "Set up your internkim sign-in"
