@@ -94,6 +94,7 @@ type Configuration struct {
 	RepositoryRoot                 string
 	CompanionFileDirectory         string
 	SitesRoot                      string
+	SiteScaffoldPath               string
 	FontsDirectory                 string
 	SiteSecretDirectory            string
 	SiteSystemdDirectory           string
@@ -346,6 +347,7 @@ func DefaultConfiguration() Configuration {
 		RepositoryRoot:                 "/",
 		CompanionFileDirectory:         "/tmp/internkim-companion-files",
 		SitesRoot:                      "/root/.internkim/sites",
+		SiteScaffoldPath:               filepath.Join(blueclaw.BlueclawDeliverySkillsPath, "website", "assets", "scaffold", "app"),
 		FontsDirectory:                 "/opt/internkim/fonts",
 		SiteSecretDirectory:            "/root/.internkim/secrets/sites",
 		SiteSystemdDirectory:           "/etc/systemd/system",
@@ -2572,6 +2574,9 @@ func (configuration Configuration) withDefaults() Configuration {
 	}
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
+	}
+	if configuration.SiteScaffoldPath == "" {
+		configuration.SiteScaffoldPath = defaultConfiguration.SiteScaffoldPath
 	}
 	if configuration.SitesRoot == "" {
 		configuration.SitesRoot = defaultConfiguration.SitesRoot

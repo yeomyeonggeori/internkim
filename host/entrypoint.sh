@@ -153,6 +153,7 @@ internkim-admind \
   -blueclaw-url "http://${blueclawAddress}" \
   -blueclaw-policy "${policyPath}" \
   -buzz-key-seed-path "${buzzKeySeedPath}" \
+  -site-scaffold "${bundledSkillsPath}/website/assets/scaffold/app" \
   -central-plane-app-url "${INTERNKIM_APP_URL}" \
   -central-plane-agent-key "${agentKeyPath}" \
   -central-plane-project-url "${SUPABASE_URL}" \

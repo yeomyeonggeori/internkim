@@ -2,15 +2,14 @@ package admind
 
 import (
 	"embed"
+	"fmt"
 	"html"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 )
-
-//go:embed site_scaffold/react-vite-ts
-var siteScaffoldFS embed.FS
 
 //go:embed site_pb_hooks/passkey-lib.js site_pb_hooks/passkey.pb.js
 var sitePBHooksFS embed.FS
@@ -18,30 +17,41 @@ var sitePBHooksFS embed.FS
 //go:embed site_scaffold_dist/react-vite-ts
 var siteScaffoldDistFS embed.FS
 
-const siteScaffoldRoot = "site_scaffold/react-vite-ts"
 const siteScaffoldDistRoot = "site_scaffold_dist/react-vite-ts/dist"
 
-func siteAppScaffoldTemplateFiles(site *SiteRecord) []siteTemplateFile {
+var siteScaffoldDirectoriesLeftBehind = map[string]bool{"node_modules": true, "dist": true}
+
+func (service *Service) siteAppScaffoldTemplateFiles(site *SiteRecord) ([]siteTemplateFile, error) {
+	scaffoldPath := service.Configuration.SiteScaffoldPath
+	scaffold := os.DirFS(scaffoldPath)
 	files := []siteTemplateFile{}
-	_ = fs.WalkDir(siteScaffoldFS, siteScaffoldRoot, func(path string, directoryEntry fs.DirEntry, walkError error) error {
-		if walkError != nil || directoryEntry.IsDir() {
+	walkError := fs.WalkDir(scaffold, ".", func(path string, directoryEntry fs.DirEntry, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		if directoryEntry.IsDir() {
+			if siteScaffoldDirectoriesLeftBehind[directoryEntry.Name()] {
+				return fs.SkipDir
+			}
 			return nil
 		}
-		document, readError := siteScaffoldFS.ReadFile(path)
+		document, readError := fs.ReadFile(scaffold, path)
 		if readError != nil {
-			return nil
-		}
-		relativePath, relativeError := filepath.Rel(siteScaffoldRoot, path)
-		if relativeError != nil {
-			return nil
+			return readError
 		}
 		files = append(files, siteTemplateFile{
-			Path:     filepath.ToSlash(filepath.Join("app", relativePath)),
+			Path:     filepath.ToSlash(filepath.Join("app", path)),
 			Document: siteScaffoldContent(site, string(document)),
 		})
 		return nil
 	})
-	return files
+	if walkError != nil {
+		return nil, fmt.Errorf("site scaffold at %s: %w", scaffoldPath, walkError)
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("site scaffold at %s holds no files", scaffoldPath)
+	}
+	return files, nil
 }
 
 // siteScaffoldCanonicalDistFiles returns the embedded prebuilt dist as

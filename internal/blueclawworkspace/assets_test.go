@@ -350,7 +350,7 @@ func TestWebsiteSkillBundlesManagedScaffoldAndScripts(t *testing.T) {
 
 func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	packagePath := filepath.Join(repositoryRootPath, "assets", "blueclaw-site-scaffold", "react-vite-ts", "package.json")
+	packagePath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app", "package.json")
 	document, errorValue := os.ReadFile(packagePath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
