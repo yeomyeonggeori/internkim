@@ -15,7 +15,7 @@ class AppBadgeCounts {
 		const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 		const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 		try {
-			const events = await fetchCalendarEvents(startOfToday, endOfToday, '');
+			const events = await fetchCalendarEvents(startOfToday, endOfToday);
 			this.participatingEvents = participatingEventCount(events, viewerEmail, now);
 		} catch {
 			this.participatingEvents = 0;

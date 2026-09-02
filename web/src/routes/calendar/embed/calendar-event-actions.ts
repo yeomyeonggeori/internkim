@@ -36,8 +36,6 @@ export type CalendarEventActionsContext = {
 	refreshCalendar: () => Promise<void>;
 	invalidatePendingEventLoad: () => void;
 	text: {
-		calendarDeleteVersionConflictError: string;
-		calendarEventVersionConflictError: string;
 		deleteError: string;
 		deleteUndoAction: string;
 		deleteUndoMessage: string;

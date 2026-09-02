@@ -1,9 +1,26 @@
+import { companySettings } from '$lib/company/company-settings';
+import { invokeTool } from '$lib/public-api-call';
 import { supabase } from '$lib/supabase';
-import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
 import type { Locale } from '../i18n/locale.svelte';
-import { calendarEventByID, calendarMembers, companyCalendarEntries } from './company-calendar';
+import { companyCalendarEntries } from './company-calendar';
+
+type AnsweredAttendee = { personID?: string; name: string; email?: string };
+
+type AnsweredEvent = {
+	eventID: string;
+	title: string;
+	note: string;
+	location: string;
+	startsAt: string;
+	endsAt: string;
+	isWholeDay: boolean;
+	participants: AnsweredAttendee[];
+	updatedAt: string;
+};
+
+type AnsweredPeople = { people: { personID: string; name: string; email: string }[] };
 
 export async function supabaseCalendarEvents(
 	startDate: Date,
@@ -13,79 +30,65 @@ export async function supabaseCalendarEvents(
 	return companyCalendarEntries(supabase(), startDate, endDate, await companyTimeZone(), locale);
 }
 
+export function calendarEventWritten(payload: CalendarEventPayload): Record<string, unknown> {
+	return {
+		title: payload.title,
+		note: payload.description,
+		location: payload.location,
+		startsAt: payload.startISO,
+		endsAt: payload.endISO,
+		isWholeDay: payload.isAllDay,
+		participantPersonHints: payload.participants.map((participant) => participant.personID)
+	};
+}
+
 export async function saveSupabaseCalendarEvent(
 	payload: CalendarEventPayload,
 	targetEventID: string | null
 ): Promise<CalendarEvent> {
-	const saved = await supabase().rpc('task_save', supabaseCalendarEventRPCArguments(payload, targetEventID));
-	if (saved.error) throw new Error(saved.error.message);
-	if (typeof saved.data !== 'string') throw new Error('calendar event save returned no event ID');
-	return readEvent(saved.data);
-}
-
-export type SupabaseCalendarEventRPCArguments = {
-	target_task_id: string | null;
-	target_title: string;
-	target_note: string | null;
-	target_location: { name: string } | null;
-	target_starts_at: string;
-	target_ends_at: string;
-	target_is_whole_day: boolean;
-	target_is_event: true;
-	target_size: string;
-	target_participant_ids: string[];
-};
-
-export function supabaseCalendarEventRPCArguments(
-	payload: CalendarEventPayload,
-	targetEventID: string | null
-): SupabaseCalendarEventRPCArguments {
-	return {
-		target_task_id: targetEventID,
-		target_title: payload.title,
-		target_note: payload.description || null,
-		target_location: payload.location ? { name: payload.location } : null,
-		target_starts_at: payload.startISO,
-		target_ends_at: payload.endISO,
-		target_is_whole_day: payload.isAllDay,
-		target_is_event: true,
-		target_size: sizeOfEvent(payload.startISO, payload.endISO, payload.isAllDay),
-		target_participant_ids: payload.participants.map((participant) => participant.personID)
-	};
+	const written = calendarEventWritten(payload);
+	const saved = targetEventID
+		? await invokeTool<AnsweredEvent>('event_update', { eventHint: targetEventID, ...written })
+		: await invokeTool<AnsweredEvent>('event_add', written);
+	return calendarEventFromAnswer(saved, await companyTimeZone());
 }
 
 export async function deleteSupabaseCalendarEvent(eventID: string): Promise<void> {
-	const { error } = await supabase()
-		.from('task')
-		.delete()
-		.eq('id', eventID)
-		.select('id')
-		.single<{ id: string }>();
-	if (error) throw new Error(error.message);
+	await invokeTool('event_delete', { eventHint: eventID });
 }
 
 export async function supabaseCalendarParticipants(): Promise<CalendarParticipant[]> {
-	const members = await calendarMembers(supabase());
-	return [...members.values()].map((member) => ({
-		personID: member.id,
-		name: member.name || (member.email ?? '').split('@')[0],
-		email: member.email ?? undefined
+	const answered = await invokeTool<AnsweredPeople>('person_list', {});
+	return answered.people.map((person) => ({
+		personID: person.personID,
+		name: person.name || person.email.split('@')[0],
+		email: person.email || undefined
 	}));
 }
 
-async function readEvent(eventID: string): Promise<CalendarEvent> {
-	const client = supabase();
-	return calendarEventByID(client, eventID, await calendarMembers(client), await companyTimeZone());
-}
-
-function sizeOfEvent(startISO: string, endISO: string, isAllDay: boolean): string {
-	const hours = (new Date(endISO).getTime() - new Date(startISO).getTime()) / 3600000;
-	if (!isAllDay) return sizeOfHours(hours);
-	return sizeOfWholeDays(Math.max(1, Math.round(hours / 24)));
+export function calendarEventFromAnswer(answered: AnsweredEvent, timeZone: string): CalendarEvent {
+	return {
+		id: answered.eventID,
+		uid: answered.eventID,
+		title: answered.title,
+		description: answered.note,
+		location: answered.location,
+		startISO: answered.startsAt,
+		endISO: answered.endsAt,
+		timeZone,
+		isAllDay: answered.isWholeDay,
+		color: '',
+		participants: answered.participants.map((attendee) => ({
+			personID: attendee.personID ?? '',
+			name: attendee.name,
+			email: attendee.email
+		})),
+		createdByEmail: '',
+		createdByName: '',
+		updatedAt: answered.updatedAt
+	};
 }
 
 async function companyTimeZone(): Promise<string> {
-	const company = await supabase().from('company').select('timezone').limit(1).single<{ timezone: string }>();
-	if (company.error) throw new Error(company.error.message);
-	return company.data.timezone;
+	return (await companySettings()).timeZone;
 }

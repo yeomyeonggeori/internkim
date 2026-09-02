@@ -1,3 +1,4 @@
+import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
 import { instantWritten, weekWindow } from './days';
 import { peopleOfHints } from './people';
 import type { RecordContext } from './company';
@@ -33,6 +34,14 @@ export type AnsweredEvent = {
 	participants: AnsweredAttendee[];
 	updatedAt: string;
 };
+
+const millisecondsPerHour = 60 * 60 * 1000;
+
+export function sizeOfEvent(startsAt: string, endsAt: string, isWholeDay: boolean): string {
+	const hours = (new Date(endsAt).getTime() - new Date(startsAt).getTime()) / millisecondsPerHour;
+	if (!isWholeDay) return sizeOfHours(hours);
+	return sizeOfWholeDays(Math.max(1, Math.round(hours / 24)));
+}
 
 function locationNameOf(location: unknown): string {
 	if (typeof location === 'string') return location;
@@ -99,14 +108,16 @@ function eventWriteArguments(
 		written.notifyMinutesBefore !== undefined
 			? written.notifyMinutesBefore
 			: row?.notify_minutes_before ?? null;
+	const isWholeDay = written.isWholeDay ?? row?.is_whole_day ?? false;
 	return {
 		target_task_id: row?.id ?? null,
+		target_size: sizeOfEvent(startsAt, endsAt, isWholeDay),
 		target_title: written.title ?? row?.title ?? '',
 		target_note: written.note !== undefined ? written.note || null : row?.note ?? null,
 		target_location: location ? { name: location } : null,
 		target_starts_at: startsAt,
 		target_ends_at: endsAt,
-		target_is_whole_day: written.isWholeDay ?? row?.is_whole_day ?? false,
+		target_is_whole_day: isWholeDay,
 		target_is_event: true,
 		target_notify_minutes_before: notify !== null && notify > 0 ? notify : null,
 		target_participant_ids: attendeesOf(context, written, row),
