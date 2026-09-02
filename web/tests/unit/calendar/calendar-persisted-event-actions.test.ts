@@ -184,3 +184,52 @@ test('creates and cancels a delete intent with keepalive and the same operation 
 		}
 	]);
 });
+
+test('addresses later writes and deletes of a created event by the ID the server gave it', async () => {
+	const originalFetch = globalThis.fetch;
+	const requests: Array<{ url: string; method: string | undefined; eventID?: string }> = [];
+	const localDraft = dayTaskEventFromCalendarEvent(calendarServerEvent('quick-1788331680143-umwpd4', 'Created draft'));
+	const serverEvent = calendarServerEvent('2f1c6b1e-0000-4000-8000-000000000001', 'Created draft');
+	globalThis.fetch = Object.assign(
+		async (input: RequestInfo | URL, init?: RequestInit) => {
+			const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { eventID?: string }) : {};
+			requests.push({ url: input.toString(), method: init?.method, eventID: body.eventID });
+			if (init?.method === 'DELETE') return new Response(null, { status: 204 });
+			return new Response(JSON.stringify(serverEvent), {
+				status: init?.method === 'POST' ? 201 : 200,
+				headers: { 'Content-Type': 'application/json' }
+			});
+		},
+		{ preconnect: originalFetch.preconnect }
+	);
+	const actions = createCalendarPersistedEventActions(
+		{
+			getCalendarEvents: () => [localDraft],
+			updateCalendarEvent: async () => {},
+			setVisibleEvents: () => {},
+			text: {
+				deleteError: 'Could not delete the event.',
+				saveError: 'Could not save the event.'
+			}
+		},
+		new CalendarProgrammaticUpdateState()
+	);
+
+	try {
+		await actions.writeEvent('/calendar/api/events', 'POST', localDraft);
+		await actions.writeEvent(`/calendar/api/events/${localDraft.id}`, 'PUT', localDraft);
+		await actions.deleteEvent(localDraft.id, serverEvent.updatedAt);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+
+	expect(requests).toEqual([
+		{ url: '/calendar/api/events', method: 'POST', eventID: 'quick-1788331680143-umwpd4' },
+		{
+			url: '/calendar/api/events/2f1c6b1e-0000-4000-8000-000000000001',
+			method: 'PUT',
+			eventID: '2f1c6b1e-0000-4000-8000-000000000001'
+		},
+		{ url: '/calendar/api/events/2f1c6b1e-0000-4000-8000-000000000001', method: 'DELETE', eventID: undefined }
+	]);
+});
