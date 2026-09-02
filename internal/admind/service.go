@@ -129,6 +129,9 @@ type Service struct {
 
 	mutex                              sync.Mutex
 	centralPlaneOnce                   sync.Once
+	siteScaffoldOnce                   sync.Once
+	siteScaffoldDocuments              []siteScaffoldDocument
+	siteScaffoldError                  error
 	centralPlaneClient                 *centralplane.Client
 	mattermostAdminSessionMutex        sync.Mutex
 	mattermostAdminSession             mattermostAdminSession

@@ -19,37 +19,71 @@ var siteScaffoldDistFS embed.FS
 
 const siteScaffoldDistRoot = "site_scaffold_dist/react-vite-ts/dist"
 
+type siteScaffoldDocument struct {
+	Path    string
+	Content string
+}
+
 var siteScaffoldDirectoriesLeftBehind = map[string]bool{"node_modules": true, "dist": true}
 
-func (service *Service) siteAppScaffoldTemplateFiles(site *SiteRecord) ([]siteTemplateFile, error) {
-	scaffoldPath := service.Configuration.SiteScaffoldPath
+func isSiteScaffoldEntryLeftBehind(entry fs.DirEntry) bool {
+	name := entry.Name()
+	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+		return true
+	}
+	return entry.IsDir() && siteScaffoldDirectoriesLeftBehind[name]
+}
+
+func readSiteScaffoldDocuments(scaffoldPath string) ([]siteScaffoldDocument, error) {
 	scaffold := os.DirFS(scaffoldPath)
-	files := []siteTemplateFile{}
-	walkError := fs.WalkDir(scaffold, ".", func(path string, directoryEntry fs.DirEntry, walkError error) error {
+	documents := []siteScaffoldDocument{}
+	walkError := fs.WalkDir(scaffold, ".", func(path string, entry fs.DirEntry, walkError error) error {
 		if walkError != nil {
 			return walkError
 		}
-		if directoryEntry.IsDir() {
-			if siteScaffoldDirectoriesLeftBehind[directoryEntry.Name()] {
+		if path != "." && isSiteScaffoldEntryLeftBehind(entry) {
+			if entry.IsDir() {
 				return fs.SkipDir
 			}
 			return nil
 		}
-		document, readError := fs.ReadFile(scaffold, path)
+		if entry.IsDir() {
+			return nil
+		}
+		content, readError := fs.ReadFile(scaffold, path)
 		if readError != nil {
 			return readError
 		}
-		files = append(files, siteTemplateFile{
-			Path:     filepath.ToSlash(filepath.Join("app", path)),
-			Document: siteScaffoldContent(site, string(document)),
-		})
+		documents = append(documents, siteScaffoldDocument{Path: path, Content: string(content)})
 		return nil
 	})
 	if walkError != nil {
 		return nil, fmt.Errorf("site scaffold at %s: %w", scaffoldPath, walkError)
 	}
-	if len(files) == 0 {
+	if len(documents) == 0 {
 		return nil, fmt.Errorf("site scaffold at %s holds no files", scaffoldPath)
+	}
+	return documents, nil
+}
+
+func (service *Service) siteScaffoldDocumentsOnce() ([]siteScaffoldDocument, error) {
+	service.siteScaffoldOnce.Do(func() {
+		service.siteScaffoldDocuments, service.siteScaffoldError = readSiteScaffoldDocuments(service.Configuration.SiteScaffoldPath)
+	})
+	return service.siteScaffoldDocuments, service.siteScaffoldError
+}
+
+func (service *Service) siteAppScaffoldTemplateFiles(site *SiteRecord) ([]siteTemplateFile, error) {
+	documents, scaffoldError := service.siteScaffoldDocumentsOnce()
+	if scaffoldError != nil {
+		return nil, scaffoldError
+	}
+	files := make([]siteTemplateFile, 0, len(documents))
+	for _, document := range documents {
+		files = append(files, siteTemplateFile{
+			Path:     filepath.ToSlash(filepath.Join("app", document.Path)),
+			Document: siteScaffoldContent(site, document.Content),
+		})
 	}
 	return files, nil
 }
