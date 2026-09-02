@@ -3683,30 +3683,35 @@ func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
 	return command.Run()
 }
 
-func runSSHCommandWithRetry(commandName string, arguments []string, timeout time.Duration) (string, error) {
-	var output []byte
-	var errorValue error
-	errorValue = retryOperation(retryOptions{
+func retryWhileSSHFailureIsTransient(attempt func() (string, error)) (string, error) {
+	output := ""
+	errorValue := retryOperation(retryOptions{
 		AttemptCount: 8,
 		DelayForAttempt: func(attemptIndex int) time.Duration {
 			return time.Duration(attemptIndex+1) * time.Second
 		},
 		ShouldRetry: func(errorValue error) bool {
-			return errorValue != nil && isRetryableSSHFailure(string(output))
+			return errorValue != nil && isRetryableSSHFailure(output)
 		},
 		SleepAfterFinalAttempt: true,
-	}, func(attemptIndex int) error {
-		commandContext, cancel := context.WithTimeout(context.Background(), timeout)
-		command := exec.CommandContext(commandContext, commandName, arguments...)
-		output, errorValue = command.CombinedOutput()
-		if commandContext.Err() == context.DeadlineExceeded {
-			errorValue = fmt.Errorf("ssh command timed out after %s: %w", timeout, commandContext.Err())
-			output = append(output, []byte("\nssh command timed out")...)
-		}
-		cancel()
-		return errorValue
+	}, func(int) error {
+		attemptOutput, attemptError := attempt()
+		output = attemptOutput
+		return attemptError
 	})
-	return string(output), errorValue
+	return output, errorValue
+}
+
+func runSSHCommandWithRetry(commandName string, arguments []string, timeout time.Duration) (string, error) {
+	return retryWhileSSHFailureIsTransient(func() (string, error) {
+		commandContext, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		output, errorValue := exec.CommandContext(commandContext, commandName, arguments...).CombinedOutput()
+		if commandContext.Err() == context.DeadlineExceeded {
+			return string(output) + "\nssh command timed out", fmt.Errorf("ssh command timed out after %s: %w", timeout, commandContext.Err())
+		}
+		return string(output), errorValue
+	})
 }
 
 func runSSHCommandWithContext(contextValue context.Context, commandName string, arguments []string) (string, error) {
@@ -3822,18 +3827,23 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 }
 
 func (s *sshClient) runRsyncSparse(localPath string, remotePath string, target string) error {
-	sshCommand := s.rsyncSSHCommand("ssh")
-	command := exec.Command("rsync", rsyncSparseArguments(sshCommand, localPath, target)...)
-	if s.pass != "" {
-		command.Env = append(os.Environ(), "SSHPASS="+s.pass)
-		sshpassCommand := s.rsyncSSHCommand(quoteShellValue(s.sshpassBin) + " -e ssh")
-		command.Args = append([]string{"rsync"}, rsyncSparseArguments(sshpassCommand, localPath, target)...)
-	}
-	output, errorValue := runCommandWithLiveOutput(command)
+	output, errorValue := retryWhileSSHFailureIsTransient(func() (string, error) {
+		return runCommandWithLiveOutput(s.rsyncSparseCommand(localPath, target))
+	})
 	if errorValue != nil {
 		return fmt.Errorf("rsync sparse %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), errorValue)
 	}
 	return nil
+}
+
+func (s *sshClient) rsyncSparseCommand(localPath string, target string) *exec.Cmd {
+	if s.pass == "" {
+		return exec.Command("rsync", rsyncSparseArguments(s.rsyncSSHCommand("ssh"), localPath, target)...)
+	}
+	sshCommand := s.rsyncSSHCommand(quoteShellValue(s.sshpassBin) + " -e ssh")
+	command := exec.Command("rsync", rsyncSparseArguments(sshCommand, localPath, target)...)
+	command.Env = append(os.Environ(), "SSHPASS="+s.pass)
+	return command
 }
 
 func moveUploadedPathCommand(sourcePath string, targetPath string) string {
@@ -3851,6 +3861,9 @@ func rsyncSparseArguments(sshCommand string, localPath string, target string) []
 
 func (s *sshClient) rsyncSSHCommand(commandName string) string {
 	command := commandName + " -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o LogLevel=ERROR -p " + s.port
+	if s.pass != "" {
+		command += " -o PreferredAuthentications=password -o PubkeyAuthentication=no"
+	}
 	return command
 }
 
