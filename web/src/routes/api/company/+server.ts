@@ -4,6 +4,7 @@ import { asMember, claimMemberFor, controlPlane, foundCompany } from '$lib/serve
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { memberAccessTokenOf } from '$lib/server/member-request';
+import { setUpNotificationsFor } from '$lib/server/notifications-at-founding';
 
 export const GET: RequestHandler = async ({ platform, url }) => {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
@@ -70,5 +71,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		invited
 	);
 
-	return json({ ...founded, slug });
+	const notifications = await setUpNotificationsFor(environment, accessToken, email);
+
+	return json({ ...founded, slug, notifications });
 };
