@@ -8,6 +8,7 @@ COPY .dependency/blueclaw/go.mod .dependency/blueclaw/go.sum ./.dependency/bluec
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /out/internkim-capabilityd ./cmd/internkim-capabilityd \
+	&& CGO_ENABLED=0 go build -o /out/internkim-admind ./cmd/internkim-admind \
 	&& CGO_ENABLED=0 go build -o /out/internkim-maild ./cmd/internkim-maild
 WORKDIR /src/.dependency/blueclaw
 RUN CGO_ENABLED=0 go build -o /out/blueclaw ./cmd/blueclaw
@@ -27,11 +28,13 @@ RUN curl -fsSL https://bun.sh/install | bash && ln -s /root/.bun/bin/bun /usr/lo
 
 COPY --from=go-build /out/blueclaw /usr/local/bin/blueclaw
 COPY --from=go-build /out/internkim-capabilityd /usr/local/bin/internkim-capabilityd
+COPY --from=go-build /out/internkim-admind /usr/local/bin/internkim-admind
 COPY --from=go-build /out/internkim-maild /usr/local/bin/internkim-maild
 COPY --from=bun-build /src/chatd /opt/chatd
 COPY --from=bun-build /src/relay /opt/relay
 COPY .dependency/blueclaw/migrations /opt/blueclaw/migrations
 COPY host/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY tools/render-company-runtime /usr/local/bin/render-company-runtime
 COPY host/runtime.template.json /opt/internkim/runtime.template.json
 
 # entrypoint.sh calls these by name; a wrapper keeps the script free of paths.

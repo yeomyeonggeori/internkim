@@ -3,7 +3,7 @@
 # host/buzz/docker-compose.yml — because a company that already runs one does
 # not want a second.
 #
-#   cp .env.sample .env      # then fill in what the agent needs
+#   write host/.env with the six values host/README.md's Configuration section names
 #   docker compose -f host/docker-compose.yml up
 name: internkim-host
 

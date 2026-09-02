@@ -22,6 +22,7 @@ import {
 	aMessengerNobodyRuns,
 	type ARecordingMessenger
 } from './a-messenger-nobody-runs';
+import { theArgumentsThatStart } from './the-entrypoint';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
@@ -223,9 +224,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		});
 		// No model is called here — a wiring scenario asks nobody to think — but the
 		// processes read the path at startup, so it has to be a file.
-		writeFileSync(join(runDirectory, 'secrets', 'openrouter-key'), 'no-model-is-called-here\n', {
-			mode: 0o600
-		});
+		const openRouterKeyPath = join(runDirectory, 'secrets', 'openrouter-key');
+		writeFileSync(openRouterKeyPath, 'no-model-is-called-here\n', { mode: 0o600 });
 
 		const admindPort = await aFreePort();
 		const blueclawPort = await aFreePort();
@@ -240,20 +240,17 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'internkim-capabilityd'),
-					'--socket',
-					capabilitySocketPath,
-					'--blueclaw-url',
-					blueclawURL,
-					'--admind-url',
-					admindURL,
-					'--chatd-endpoint',
-					connector.url,
-					'--chatd-platform',
-					capabilitydPlatform,
+					...theArgumentsThatStart('internkim-capabilityd', {
+						'--socket': capabilitySocketPath,
+						'--openrouter-key': openRouterKeyPath,
+						'--local-inference-mode': 'remote',
+						'--blueclaw-url': blueclawURL,
+						'--admind-url': admindURL,
+						'--chatd-endpoint': connector.url,
+						'--chatd-platform': capabilitydPlatform
+					}),
 					'--mattermost-url',
-					messenger.url,
-					'--local-inference-mode',
-					'remote'
+					messenger.url
 				],
 				logsTo(join(runDirectory, 'capabilityd.log'))
 			)
@@ -301,7 +298,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					BLUECLAW_BASE_URL: blueclawURL,
 					CAPABILITY_SOCKET_PATH: capabilitySocketPath,
 					CHATD_ENDPOINT: connector.url,
-					OPENROUTER_KEY_PATH: join(runDirectory, 'secrets', 'openrouter-key'),
 					WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
 					MIGRATION_DIRECTORY_PATH: join(repositoryRoot, '.dependency', 'blueclaw', 'migrations'),
 					LOG_DIRECTORY_PATH: join(runDirectory, 'logs')
@@ -316,10 +312,10 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'blueclaw'),
-					'-runtime',
-					runtimeConfigurationPath,
-					'-policy',
-					policyPath
+					...theArgumentsThatStart('blueclaw', {
+						'-runtime': runtimeConfigurationPath,
+						'-policy': policyPath
+					})
 				],
 				logsTo(join(runDirectory, 'blueclaw.log'))
 			)
@@ -333,36 +329,28 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'internkim-admind'),
-					'-listen',
-					`127.0.0.1:${admindPort}`,
-					'-blueclaw-url',
-					blueclawURL,
-					'-blueclaw-policy',
-					policyPath,
+					...theArgumentsThatStart('internkim-admind', {
+						'-listen': `127.0.0.1:${admindPort}`,
+						'-capability-socket': capabilitySocketPath,
+						'-chatd-endpoint': connector.url,
+						'-chatd-platform': admindPlatform,
+						'-blueclaw-url': blueclawURL,
+						'-blueclaw-policy': policyPath,
+						'-central-plane-app-url': environmentValue('INTERNKIM_APP_URL'),
+						'-central-plane-agent-key': agentKeyPath,
+						'-central-plane-project-url': projectURL,
+						'-central-plane-publishable-key': environmentValue('SUPABASE_PUBLISHABLE_KEY')
+					}),
 					'-listen-socket',
 					requesterSocketPath,
-					'-chatd-endpoint',
-					connector.url,
-					'-chatd-platform',
-					admindPlatform,
 					'-mattermost-url',
 					messenger.url,
-					'-capability-socket',
-					capabilitySocketPath,
 					'-state-dir',
 					join(runDirectory, 'state'),
 					'-database',
 					join(runDirectory, 'state', 'internkim.sqlite'),
 					'-buzz-key-seed-path',
-					join(runDirectory, 'secrets', 'buzz-key-seed'),
-					'-central-plane-app-url',
-					environmentValue('INTERNKIM_APP_URL'),
-					'-central-plane-agent-key',
-					agentKeyPath,
-					'-central-plane-project-url',
-					projectURL,
-					'-central-plane-publishable-key',
-					environmentValue('SUPABASE_PUBLISHABLE_KEY')
+					join(runDirectory, 'secrets', 'buzz-key-seed')
 				],
 				logsTo(join(runDirectory, 'admind.log'))
 			)

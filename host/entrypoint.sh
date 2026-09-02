@@ -1,10 +1,10 @@
 #!/bin/sh
-# Brings up the company agent on an ordinary Linux box: capabilityd, blueclaw and
-# chatd, in that order because each waits for the one before it. The messenger
-# the relay starts first and depends on none of them — it talks only to Supabase, the
-# central plane and the tenant's messenger, so the screen stays alive even when the
-# agent does not. Nothing listens off loopback: the box reaches out and is never
-# reached back.
+# Brings up the company agent on an ordinary Linux box: capabilityd, blueclaw,
+# admind and chatd, in that order because each waits for the one before it. The
+# messenger the relay starts first and depends on none of them — it talks only to
+# Supabase, the central plane and the tenant's messenger, so the screen stays alive
+# even when the agent does not. Nothing listens off loopback: the box reaches out
+# and is never reached back.
 set -e
 
 capabilitySocketPath="/run/internkim/capability.sock"
@@ -14,6 +14,12 @@ arrivalsPort="${ARRIVALS_PORT:-18091}"
 maildPort="${MAILD_PORT:-18092}"
 admindPort="${ADMIND_PORT:-18080}"
 agentKeyPath="/secrets/agent-key"
+
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime"
+for programThisScriptRuns in ${programsThisScriptRuns}; do
+  command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
+    || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
+done
 
 : "${SUPABASE_URL:?set SUPABASE_URL}"
 : "${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY}"
@@ -132,6 +138,7 @@ internkim-admind \
   -chatd-endpoint "http://127.0.0.1:${chatdPort}" \
   -chatd-platform "${MESSENGER_PLATFORM}" \
   -blueclaw-url "http://${blueclawAddress}" \
+  -blueclaw-policy "${policyPath}" \
   -central-plane-app-url "${INTERNKIM_APP_URL}" \
   -central-plane-agent-key "${agentKeyPath}" \
   -central-plane-project-url "${SUPABASE_URL}" \
