@@ -1,17 +1,9 @@
+import type { CalendarHoliday, CalendarHolidayLocale } from '$lib/calendar/holiday';
+import { supabaseCalendarHolidays } from '$lib/calendar/supabase-calendar-holidays';
 import { isSupabaseConfigured } from '$lib/supabase';
 import { responseErrorMessage } from './calendar-event-persistence';
 
-export type CalendarHoliday = {
-	id: string;
-	title: string;
-	date: string;
-	source: 'holiday_api' | 'company';
-	countryCode?: string;
-	readOnly: true;
-	color: string;
-};
-
-export type CalendarHolidayLocale = 'ko' | 'en';
+export type { CalendarHoliday, CalendarHolidayLocale };
 
 type CalendarHolidaysResponse = {
 	holidays: CalendarHoliday[];
@@ -34,12 +26,12 @@ export async function fetchCalendarHolidays(
 	locale: CalendarHolidayLocale,
 	errorFallback: string
 ): Promise<CalendarHolidayLoadResult> {
+	if (isSupabaseConfigured()) return supabaseCalendarHolidays(startDate, endDate, locale);
 	const query = new URLSearchParams({
 		startISO: startDate.toISOString(),
 		endISO: endDate.toISOString(),
 		locale
 	});
-	if (isSupabaseConfigured()) return { holidays: [], degraded: false };
 	const response = await fetch(`/calendar/api/holidays?${query}`, { credentials: 'include' });
 	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
 	const document = (await response.json()) as CalendarHolidaysResponse;
