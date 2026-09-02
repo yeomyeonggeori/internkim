@@ -17,23 +17,22 @@ import (
 )
 
 type devVirtualSessionArguments struct {
-	ScenarioName             string
-	ScenarioFilePath         string
-	ArtifactDirectoryPath    string
-	SkillDirectoryPath       string
-	LanguageModelEndpoint    string
-	LanguageModelSocket      string
-	LanguageModelProvider    string
-	LanguageModelAuthKeyPath string
-	LanguageModelName        string
-	ExecutionMode            string
-	Seed                     string
-	Temperature              string
-	MaximumModelTier         string
-	RequiredExecutables      []string
-	IsLiveLanguageModel      bool
-	HasStrictAssertions      bool
-	ShouldSkipPreflight      bool
+	ScenarioName          string
+	ScenarioFilePath      string
+	ArtifactDirectoryPath string
+	SkillDirectoryPath    string
+	LanguageModelEndpoint string
+	LanguageModelSocket   string
+	LanguageModelProvider string
+	LanguageModelName     string
+	ExecutionMode         string
+	Seed                  string
+	Temperature           string
+	MaximumModelTier      string
+	RequiredExecutables   []string
+	IsLiveLanguageModel   bool
+	HasStrictAssertions   bool
+	ShouldSkipPreflight   bool
 }
 
 type devCommandInvocation struct {
@@ -414,7 +413,6 @@ func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArgum
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM capability unix socket path")
 	languageModelProvider := flagSet.String("llm-provider", "", "Live LLM provider: openrouter or capability")
-	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "Live LLM auth key path")
 	languageModelName := flagSet.String("llm-model", "", "Live LLM model override")
 	executionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode")
 	liveLanguageModel := flagSet.Bool("live-llm", false, "Allow live LLM calls")
@@ -430,23 +428,22 @@ func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArgum
 	}
 
 	return devVirtualSessionArguments{
-		ScenarioName:             strings.TrimSpace(*scenarioName),
-		ScenarioFilePath:         strings.TrimSpace(*scenarioFilePath),
-		ArtifactDirectoryPath:    strings.TrimSpace(*artifactDirectoryPath),
-		SkillDirectoryPath:       strings.TrimSpace(*skillDirectoryPath),
-		LanguageModelEndpoint:    strings.TrimSpace(*languageModelEndpoint),
-		LanguageModelSocket:      strings.TrimSpace(*languageModelSocket),
-		LanguageModelProvider:    strings.TrimSpace(*languageModelProvider),
-		LanguageModelAuthKeyPath: strings.TrimSpace(*languageModelAuthKeyPath),
-		LanguageModelName:        strings.TrimSpace(*languageModelName),
-		ExecutionMode:            strings.TrimSpace(*executionMode),
-		Seed:                     strconv.FormatInt(*seedValue, 10),
-		Temperature:              optionalFloatArgument(flagSet, "temperature", *temperatureValue),
-		MaximumModelTier:         strings.TrimSpace(*maximumModelTier),
-		RequiredExecutables:      devRequiredExecutables(strings.TrimSpace(*scenarioName), requiredExecutables.Values()),
-		IsLiveLanguageModel:      *liveLanguageModel,
-		HasStrictAssertions:      *strictAssertions,
-		ShouldSkipPreflight:      *skipPreflight,
+		ScenarioName:          strings.TrimSpace(*scenarioName),
+		ScenarioFilePath:      strings.TrimSpace(*scenarioFilePath),
+		ArtifactDirectoryPath: strings.TrimSpace(*artifactDirectoryPath),
+		SkillDirectoryPath:    strings.TrimSpace(*skillDirectoryPath),
+		LanguageModelEndpoint: strings.TrimSpace(*languageModelEndpoint),
+		LanguageModelSocket:   strings.TrimSpace(*languageModelSocket),
+		LanguageModelProvider: strings.TrimSpace(*languageModelProvider),
+		LanguageModelName:     strings.TrimSpace(*languageModelName),
+		ExecutionMode:         strings.TrimSpace(*executionMode),
+		Seed:                  strconv.FormatInt(*seedValue, 10),
+		Temperature:           optionalFloatArgument(flagSet, "temperature", *temperatureValue),
+		MaximumModelTier:      strings.TrimSpace(*maximumModelTier),
+		RequiredExecutables:   devRequiredExecutables(strings.TrimSpace(*scenarioName), requiredExecutables.Values()),
+		IsLiveLanguageModel:   *liveLanguageModel,
+		HasStrictAssertions:   *strictAssertions,
+		ShouldSkipPreflight:   *skipPreflight,
 	}, nil
 }
 
@@ -497,7 +494,6 @@ func devVirtualSessionCommandArguments(sessionArguments devVirtualSessionArgumen
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-endpoint", sessionArguments.LanguageModelEndpoint)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-unix-socket", sessionArguments.LanguageModelSocket)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-provider", sessionArguments.LanguageModelProvider)
-	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-auth-key-path", sessionArguments.LanguageModelAuthKeyPath)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-model", sessionArguments.LanguageModelName)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--llm-execution-mode", sessionArguments.ExecutionMode)
 	commandArguments = appendOptionalDevFlag(commandArguments, "--maximum-model-tier", sessionArguments.MaximumModelTier)

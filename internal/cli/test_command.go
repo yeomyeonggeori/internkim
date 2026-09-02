@@ -52,7 +52,6 @@ type testCommandConfiguration struct {
 	LanguageModelProvider      string
 	LanguageModelEndpoint      string
 	LanguageModelSocket        string
-	LanguageModelAuthKeyPath   string
 	LanguageModelExecutionMode string
 }
 
@@ -100,7 +99,6 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	languageModelProvider := flagSet.String("llm-provider", languageModelProviderDefault, "Live LLM provider: openrouter or capability")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM endpoint; defaults to BLUECLAW_E2E_LLM_ENDPOINT")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM Unix socket; defaults to BLUECLAW_E2E_LLM_UNIX_SOCKET")
-	languageModelAuthKeyPath := flagSet.String("llm-auth-key-path", "", "Live LLM auth key path; defaults to BLUECLAW_E2E_LLM_AUTH_KEY_PATH")
 	languageModelExecutionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode; defaults to BLUECLAW_E2E_LLM_EXECUTION_MODE")
 	expectedTools := repeatedStringFlag{}
 	scenarioNames := repeatedStringFlag{}
@@ -130,7 +128,6 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		"llm-provider":       true,
 		"llm-endpoint":       true,
 		"llm-unix-socket":    true,
-		"llm-auth-key-path":  true,
 		"llm-execution-mode": true,
 	})
 	if errorValue := flagSet.Parse(flagArguments); errorValue != nil {
@@ -196,7 +193,6 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		LanguageModelProvider:      normalizedLanguageModelProvider,
 		LanguageModelEndpoint:      strings.TrimSpace(*languageModelEndpoint),
 		LanguageModelSocket:        strings.TrimSpace(*languageModelSocket),
-		LanguageModelAuthKeyPath:   strings.TrimSpace(*languageModelAuthKeyPath),
 		LanguageModelExecutionMode: strings.TrimSpace(*languageModelExecutionMode),
 	}, nil
 }
