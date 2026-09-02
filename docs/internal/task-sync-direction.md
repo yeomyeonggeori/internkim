@@ -96,7 +96,8 @@ is a product decision nobody has made yet. It bounds how often the mirror runs.
 
 The seam is `internal/admind/calendar_event_persistence.go` for events, where
 every create, update and delete passes. Hooking the four HTTP handlers instead
-would miss the CalDAV and Google sync paths.
+would miss the CalDAV path. (Superseded 2026-09-03 by #1347: there is no Google
+sync path; CalDAV is the inbound server only.)
 
 `host/relay/calendar-event-as-task.ts` already holds the reading both sides
 share: which person a participant is, and what instants, reminder, location and

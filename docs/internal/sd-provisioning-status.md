@@ -164,6 +164,8 @@ Armbian 이미지에서 ext4 rootfs를 추출 → Apple Container 안에서 loop
 
 ## 아키텍처
 
+> Superseded 2026-09-03 by #1347: Google Workspace was removed entirely. No Google code, tool, skill, route, secret or provisioning step remains, so what follows describes a path that is gone.
+
 ```
 macOS (./internkim setup [--reset] [--from N])
   ├─ [1] SD 카드 감지
