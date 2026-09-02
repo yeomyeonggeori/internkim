@@ -87,7 +87,7 @@ func TestATaskIsWrittenAsThePersonItBelongsTo(t *testing.T) {
 		ActorPlatform:    "mattermost",
 		ActorExternalID:  "owner-account",
 		Title:            "Write the report",
-		Status:           "todo",
+		Status:           "planned",
 		ParticipantMails: []string{"colleague@example.test"},
 	})
 
