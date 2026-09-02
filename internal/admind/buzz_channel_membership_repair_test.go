@@ -1,6 +1,10 @@
 package admind
 
-import "testing"
+import (
+	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
+)
 
 func TestACircleRoomNamesTheCircleThatDecidesWhoBelongs(t *testing.T) {
 	for _, testCase := range []struct {
@@ -19,7 +23,7 @@ func TestACircleRoomNamesTheCircleThatDecidesWhoBelongs(t *testing.T) {
 }
 
 func TestAPrivateRoomMirrorCarriesTheRoomsOwnName(t *testing.T) {
-	shape := describeMattermostChannel(mattermostChannelRecord{
+	shape := describeMattermostChannel(mattermostadmin.ChannelRecord{
 		Name:        "circle-c-level",
 		DisplayName: "C-Level",
 		Type:        "P",
@@ -34,7 +38,7 @@ func TestAPrivateRoomMirrorCarriesTheRoomsOwnName(t *testing.T) {
 }
 
 func TestAPrivateRoomThatIsNoCirclesIsLeftAlone(t *testing.T) {
-	shape := describeMattermostChannel(mattermostChannelRecord{
+	shape := describeMattermostChannel(mattermostadmin.ChannelRecord{
 		Name:        "smart-shop-onboarding",
 		DisplayName: "스마트상점 온보딩",
 		Type:        "P",
@@ -46,7 +50,7 @@ func TestAPrivateRoomThatIsNoCirclesIsLeftAlone(t *testing.T) {
 }
 
 func TestAnArchivedRoomIsSeenAsArchived(t *testing.T) {
-	shape := describeMattermostChannel(mattermostChannelRecord{
+	shape := describeMattermostChannel(mattermostadmin.ChannelRecord{
 		Name:     "autoke-qa",
 		Type:     "P",
 		DeleteAt: 1756000000000,

@@ -51,12 +51,12 @@ func (service *Service) handleBuzzMMPending(responseWriter http.ResponseWriter, 
 		return
 	}
 	since, _ := strconv.ParseInt(request.URL.Query().Get("since"), 10, 64)
-	token, errorValue := service.mattermostAdminToken(request.Context())
+	token, errorValue := service.mattermostAdmin().AdminToken(request.Context())
 	if errorValue != nil {
 		http.Error(responseWriter, "mattermost_unavailable", http.StatusBadGateway)
 		return
 	}
-	userRecord, found, errorValue := service.findMattermostUserByEmail(request.Context(), token, actorEmail)
+	userRecord, found, errorValue := service.mattermostAdmin().FindUserByEmail(request.Context(), token, actorEmail)
 	if errorValue != nil || !found {
 		service.writeJSON(responseWriter, buzzMMPendingResponse{Items: []buzzMMPendingItem{}, Cursor: since})
 		return
@@ -105,7 +105,7 @@ func (service *Service) handleBuzzMMPending(responseWriter http.ResponseWriter, 
 func (service *Service) fetchMattermostChannelPostsSince(ctx context.Context, token string, channelID string, since int64) ([]buzzMirrorPost, error) {
 	path := "/api/v4/channels/" + url.PathEscape(channelID) + "/posts?since=" + strconv.FormatInt(since, 10)
 	var page buzzMirrorPostsPage
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &page); errorValue != nil {
+	if errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, path, token, nil, &page); errorValue != nil {
 		return nil, errorValue
 	}
 	posts := make([]buzzMirrorPost, 0, len(page.Order))

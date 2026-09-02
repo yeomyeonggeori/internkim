@@ -12,6 +12,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
 	"gitlab.com/eastriver/internkim/internal/buzzimport"
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
 )
 
@@ -66,11 +67,11 @@ func (service *Service) addBridgeChannelMembers(
 	buzzChannelID string,
 	externalChannelID string,
 ) error {
-	token, errorValue := service.mattermostAdminToken(ctx)
+	token, errorValue := service.mattermostAdmin().AdminToken(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	emails, errorValue := service.mattermostChannelMemberEmails(ctx, token, externalChannelID)
+	emails, errorValue := service.mattermostAdmin().ChannelMemberEmails(ctx, token, externalChannelID)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -115,13 +116,13 @@ func (service *Service) describeBridgeRelayChannel(ctx context.Context, platform
 	if platform != "mattermost" {
 		return bridgeRelayChannelShape{}, errBridgeChannelKindUnknown
 	}
-	token, errorValue := service.mattermostAdminToken(ctx)
+	token, errorValue := service.mattermostAdmin().AdminToken(ctx)
 	if errorValue != nil {
 		return bridgeRelayChannelShape{}, errorValue
 	}
-	var channelRecord mattermostChannelRecord
+	var channelRecord mattermostadmin.ChannelRecord
 	path := "/api/v4/channels/" + url.PathEscape(externalChannelID)
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &channelRecord); errorValue != nil {
+	if errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, path, token, nil, &channelRecord); errorValue != nil {
 		return bridgeRelayChannelShape{}, errorValue
 	}
 	return describeMattermostChannel(channelRecord, externalChannelID), nil
@@ -129,7 +130,7 @@ func (service *Service) describeBridgeRelayChannel(ctx context.Context, platform
 
 // Mirroring a room must never widen who can read it, so only a Mattermost
 // channel anyone on the team can already join becomes an open one.
-func describeMattermostChannel(channelRecord mattermostChannelRecord, externalChannelID string) bridgeRelayChannelShape {
+func describeMattermostChannel(channelRecord mattermostadmin.ChannelRecord, externalChannelID string) bridgeRelayChannelShape {
 	channelType := "stream"
 	if buzzimport.IsConversationChannelType(channelRecord.Type) {
 		channelType = "dm"
@@ -150,7 +151,7 @@ func describeMattermostChannel(channelRecord mattermostChannelRecord, externalCh
 
 // Mattermost leaves a conversation's display name empty and names the row after
 // the user ids it joins.
-func mattermostChannelMirrorName(channelRecord mattermostChannelRecord, externalChannelID string) string {
+func mattermostChannelMirrorName(channelRecord mattermostadmin.ChannelRecord, externalChannelID string) string {
 	if displayName := strings.TrimSpace(channelRecord.DisplayName); displayName != "" {
 		return displayName
 	}

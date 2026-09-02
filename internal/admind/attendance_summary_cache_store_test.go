@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestAttendanceSummaryCacheStoresTeamScope(t *testing.T) {
@@ -48,7 +50,7 @@ func TestAttendanceSummaryCacheDoesNotReuseEntriesFromPreviousService(t *testing
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	insertAttendanceSummaryTestEvent(t, service, database, userRecord, attendanceKindClockIn, time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC))
 	if errorValue := database.Close(); errorValue != nil {
 		t.Fatal(errorValue)

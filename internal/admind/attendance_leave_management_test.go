@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestAttendanceLeaveManagementRequiresAdministrator(t *testing.T) {
@@ -359,7 +361,7 @@ func TestAttendanceLeaveManagementCorrectsPastPartialLeaveTime(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	location := service.workspaceTimeZone().location
-	userRecord := mattermostUserRecord{
+	userRecord := mattermostadmin.UserRecord{
 		ID:       "user-1",
 		Username: "member",
 		Email:    "member@example.com",
