@@ -50,11 +50,9 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 		StartDate:      inferredTask.StartDate,
 		EndDate:        preferExplicitTaskValue(payload.EndDate, inferredTask.EndDate),
 		WeekCode:       payload.WeekCode,
-		RequestReason:  inferredTask.RequestReason,
 	}
 	if shouldForceQuickTaskRequest(owner, requesterEmail) {
 		writeRequest.Status = taskStatusRequested
-		writeRequest.RequestReason = firstNonEmpty(writeRequest.RequestReason, prompt)
 	}
 	body, _ := json.Marshal(writeRequest)
 	clonedRequest := request.Clone(request.Context())

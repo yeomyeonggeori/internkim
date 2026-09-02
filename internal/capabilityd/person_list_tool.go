@@ -9,11 +9,10 @@ import (
 )
 
 type personForTool struct {
-	PersonID           string `json:"personID"`
-	Name               string `json:"name"`
-	Email              string `json:"email"`
-	MattermostUsername string `json:"mattermostUsername,omitempty"`
-	Mention            string `json:"mention,omitempty"`
+	PersonID string `json:"personID"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Mention  string `json:"mention,omitempty"`
 }
 
 func (service Service) invokePersonList(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
@@ -33,11 +32,10 @@ func peopleForTool(members []taskMemberForTool, responseLanguage string) []perso
 	people := make([]personForTool, 0, len(members))
 	for _, member := range members {
 		people = append(people, personForTool{
-			PersonID:           member.ID,
-			Name:               personname.Render(member.Name, responseLanguage),
-			Email:              member.Email,
-			MattermostUsername: member.MattermostUsername,
-			Mention:            notifyMention(member.Name),
+			PersonID: member.ID,
+			Name:     personname.Render(member.Name, responseLanguage),
+			Email:    member.Email,
+			Mention:  notifyMention(member.Name),
 		})
 	}
 	return people
