@@ -2,6 +2,7 @@ import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model'
 import { calendarColors } from './calendar-config';
 import { calendarEventPayloadFromDayTaskEvent } from './calendar-event-mapping';
 import {
+	calendarEventPath,
 	cancelCalendarEventDeleteIntent,
 	createCalendarEventDeleteIntent,
 	deletePersistedCalendarEvent,
@@ -74,7 +75,7 @@ export function createCalendarPersistedEventActions(
 				? { mutationClientID, mutationSequence }
 				: {})
 		};
-		const requestPath = eventID === event.id ? path : `/calendar/api/events/${encodeURIComponent(eventID)}`;
+		const requestPath = eventID === event.id ? path : calendarEventPath(eventID);
 		const saved = await writeCalendarEvent(requestPath, method, payload, context.text.saveError);
 		if (method === 'POST' && saved.id && saved.id !== event.id) persistedEventIDs.set(event.id, saved.id);
 		return saved;
