@@ -23,9 +23,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   Per-worktree build outputs stay excluded: `blueclaw-payload`, `buzz-relay`,
   and `role-memory-arm64` carry a release SHA, so each worktree builds its own
   through the matching `make prepare-*` target. Missing paths are
-  reported as skipped, and re-running is idempotent (`kept`). Use `--copy`
-  before the path only when symlinks are not appropriate; it copies the shared
-  artifacts too.
+  reported as skipped, and re-running is idempotent (`kept`). **A local fleet run
+  needs `--copy`**: the guest mounts the worktree at `/mnt/shared/workspace` and
+  nothing else, so a linked artifact points at a host path it cannot follow, and
+  provisioning dies minutes in on a missing file. `dev fleet run` refuses up front
+  when it finds one, naming which.
 - Do not revert user or generated changes unless explicitly asked.
 - Before commit, push, or deploy, check the current branch, upstream status,
   and working tree state.

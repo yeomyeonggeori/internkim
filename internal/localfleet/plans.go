@@ -87,6 +87,32 @@ func (service Service) upPlans(skipWeb bool) []CommandPlan {
 	return service.upPlansWithSkippedSetupSteps(skipWeb, nil)
 }
 
+// The guest sees one thing: this worktree, mounted at /mnt/shared/workspace. So a
+// shared artifact that sync-worktree-local-state linked rather than copied points
+// at a host path the guest has no idea about, and the run dies ten minutes in with
+// a missing file. Say it in a second instead.
+func (service Service) checkSharedArtifactsCommand() string {
+	linkedArtifacts := []string{
+		".dependency/blueclaw-runtime",
+		".dependency/container-kernel",
+		".dependency/local-fleet-embedding",
+		".dependency/buzz-relay",
+	}
+	checks := make([]string, 0, len(linkedArtifacts))
+	for _, artifact := range linkedArtifacts {
+		checks = append(checks, "if [ -L "+quoteShell(artifact)+" ]; then linked=\"$linked "+artifact+"\"; fi")
+	}
+	return strings.Join([]string{
+		"cd " + quoteShell(service.options.RepositoryRootPath),
+		"linked=''",
+		strings.Join(checks, "; "),
+		"if [ -n \"$linked\" ]; then " +
+			"echo \"the guest mounts this worktree and nothing else, so it cannot follow a link out of it:$linked\" >&2; " +
+			"echo 'run tools/sync-worktree-local-state --copy <main worktree path> and try again' >&2; " +
+			"exit 1; fi",
+	}, " && ")
+}
+
 func (service Service) preparedFleetPlans() []CommandPlan {
 	return []CommandPlan{
 		service.startCentralPlanePlan(),
@@ -99,6 +125,7 @@ func (service Service) preparedFleetPlans() []CommandPlan {
 
 func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
 	plans := []CommandPlan{
+		service.shellPlan("check the guest can see the shared artifacts", service.checkSharedArtifactsCommand()),
 		service.prepareContainerKernelPlan(),
 		service.prepareLocalEmbeddingPlan(),
 		service.startCentralPlanePlan(),
