@@ -17,6 +17,7 @@ import {
 } from '$lib/server/public-api/files';
 import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
 import { answererOfTool, permissionForTool } from '$lib/server/public-api/catalog';
+import { refusalOfToolInput } from '$lib/server/public-api/tool-input';
 import { reachesPermission } from '$lib/public-api-permission';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -43,7 +44,7 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 		if (refusal) return refusal;
 		if (recordRunsTheTool(invoked)) return runHere(request, environment, member, invoked);
 	}
-	return carryToTheCompany(request, url, environment, member, path);
+	return carryToTheCompany(request, url, environment, member, path, invoked);
 };
 
 function refusalToCarry(name: string): Response | null {
@@ -54,6 +55,14 @@ function refusalToCarry(name: string): Response | null {
 		},
 		{ status: 400 }
 	);
+}
+
+function refuseInputTheToolDoesNotTake(name: string, input: unknown): void {
+	if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
+		error(400, 'input is the object the tool reads');
+	}
+	const refusal = refusalOfToolInput(name, input);
+	if (refusal) error(400, refusal);
 }
 
 function invokedToolName(method: string, path: string): string | null {
@@ -81,9 +90,7 @@ async function runHere(
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
 	const input = payload.input;
-	if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
-		error(400, 'input is the object the tool reads');
-	}
+	refuseInputTheToolDoesNotTake(name, input);
 
 	const answered = await runToolOverTheRecord(
 		member.caller,
@@ -161,10 +168,12 @@ async function carryToTheCompany(
 	url: URL,
 	environment: Environment,
 	member: CallingMember,
-	path: string
+	path: string,
+	invoked: string | null
 ): Promise<Response> {
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
+	if (invoked) refuseInputTheToolDoesNotTake(invoked, payload.input);
 
 	const answer = await callCompany(environment, member.companyID, apiRequestCapability, {
 		method: request.method,

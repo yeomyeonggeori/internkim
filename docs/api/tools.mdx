@@ -52,6 +52,15 @@ you send for `actor` or `context` is overwritten from the token before
 admind invokes the tool; the test
 `TestPublicToolGatewayOverridesActorFromBearerToken` pins this down.
 
+`input` is read against that tool's own `inputSchema` before anything runs,
+whether the record answers the call or it is carried to the company's computer.
+A value outside an enum, a field the schema does not carry, or a required field
+left out is refused `400` naming the field:
+
+```json
+{ "message": "input.size: Invalid option: expected one of \"XS\"|\"S\"|\"M\"|\"L\"|\"XL\"|\"XXL\"" }
+```
+
 <Callout title="No approval pause" type="warn">
 In a messenger conversation the agent stops and asks before a delete or a
 send. Every non-read invocation arriving this way is marked an already-approved

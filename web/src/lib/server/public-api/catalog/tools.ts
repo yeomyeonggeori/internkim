@@ -1811,3 +1811,7 @@ export type WebSearchResult = z.infer<typeof webSearchResultSchema>;
 export function buildCapabilityToolCatalog(protocolVersion: string): CapabilityToolCatalog {
   return buildCapabilityCatalog(protocolVersion, capabilityToolDefinitions);
 }
+
+export function capabilityToolInputSchema(name: string): z.ZodType | undefined {
+  return capabilityToolDefinitions.find((definition) => definition.name === name)?.inputSchema;
+}
