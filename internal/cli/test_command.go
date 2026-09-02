@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,7 +31,6 @@ type testCommandConfiguration struct {
 	Prompt                     string
 	DownloadDirectoryPath      string
 	OutputFilePath             string
-	ResultJSONPath             string
 	RunID                      string
 	TimeoutSeconds             int
 	GenerationSeed             *int64
@@ -42,7 +40,6 @@ type testCommandConfiguration struct {
 	ShouldReuseFleet           bool
 	ShouldSkipProvisioning     bool
 	ShouldKeepArtifacts        bool
-	ShouldOpenFiles            bool
 	ShouldUseRealModels        bool
 	ShouldAutoConfirm          bool
 	ShouldRetryOnce            bool
@@ -79,13 +76,11 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared Local Fleet instead of creating a disposable one")
 	skipProvisioning := flagSet.Bool("skip-provisioning", false, "Run against an already prepared Local Fleet")
 	keepArtifacts := flagSet.Bool("keep", false, "Keep the Local Fleet VM and evidence after the test")
-	noOpen := flagSet.Bool("no-open", false, "Download files without opening them")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	autoConfirm := flagSet.Bool("auto-confirm", false, "Automatically approve Mattermost confirmation prompts during the test")
 	retryOnce := flagSet.Bool("retry-once", false, "Rerun a scenario once against the kept Local Fleet if it fails with a non-infra scenario failure")
 	fastMode := flagSet.Bool("fast", false, "Skip Playwright browser verification for the expensive suite and click approvals over the Mattermost REST API; defer per-scenario cleanup to one combined cleanup at the end")
 	outputFilePath := flagSet.String("o", "", "Local output file path for one Mattermost attachment")
-	resultJSONPath := flagSet.String("result-json", "", "Write the parsed Mattermost test result JSON to this local path")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
 	timeoutSeconds := flagSet.Int("timeout", 0, "Maximum seconds to observe scenario work; 0 disables the deadline")
 	generationSeed := flagSet.Int64("seed", 0, "Generation seed to apply before the Mattermost prompt")
@@ -108,7 +103,6 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		"reuse":             true,
 		"skip-provisioning": true,
 		"keep":              true,
-		"no-open":           true,
 		"real":              true,
 		"auto-confirm":      true,
 		"retry-once":        true,
@@ -117,7 +111,6 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		"help":              true,
 	}, map[string]bool{
 		"o":                  true,
-		"result-json":        true,
 		"run-id":             true,
 		"timeout":            true,
 		"seed":               true,
@@ -173,7 +166,6 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		Prompt:                     prompt,
 		DownloadDirectoryPath:      defaultDownloadDirectoryPath,
 		OutputFilePath:             strings.TrimSpace(*outputFilePath),
-		ResultJSONPath:             strings.TrimSpace(*resultJSONPath),
 		RunID:                      strings.TrimSpace(*runID),
 		TimeoutSeconds:             *timeoutSeconds,
 		GenerationSeed:             optionalInt64(providedFlags["seed"], *generationSeed),
@@ -183,7 +175,6 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		ShouldReuseFleet:           *reuseFleet,
 		ShouldSkipProvisioning:     *skipProvisioning,
 		ShouldKeepArtifacts:        *keepArtifacts,
-		ShouldOpenFiles:            !*noOpen,
 		ShouldUseRealModels:        *useRealModels,
 		ShouldAutoConfirm:          *autoConfirm,
 		ShouldRetryOnce:            *retryOnce,
@@ -707,96 +698,4 @@ func newLocalFleetTestTarget(repositoryRootPath string, executablePath string, c
 			configurationPath: configurationPath,
 		},
 	}
-}
-
-func printTestResult(verificationOutput mattermostVerificationOutput, downloadedFilePaths []string) {
-	fmt.Println()
-	fmt.Println("김인턴 응답:")
-	if strings.TrimSpace(verificationOutput.BotMessage) == "" {
-		fmt.Println("(빈 Mattermost 메시지)")
-	} else {
-		fmt.Println(strings.TrimSpace(verificationOutput.BotMessage))
-	}
-	if strings.TrimSpace(verificationOutput.TaskRunID) != "" {
-		status := "unknown"
-		if verificationOutput.TaskStatus != nil && strings.TrimSpace(*verificationOutput.TaskStatus) != "" {
-			status = strings.TrimSpace(*verificationOutput.TaskStatus)
-		}
-		fmt.Println()
-		fmt.Println("Task: " + verificationOutput.TaskRunID + " (" + status + ")")
-	}
-	if len(downloadedFilePaths) == 0 {
-		fmt.Println()
-		fmt.Println("첨부 파일: 없음")
-		return
-	}
-	fmt.Println()
-	fmt.Println("첨부 파일:")
-	for _, downloadedFilePath := range downloadedFilePaths {
-		fmt.Println("- " + downloadedFilePath)
-	}
-}
-
-func openDownloadedTestFiles(downloadedFilePaths []string, shouldOpenFiles bool) error {
-	if !shouldOpenFiles || len(downloadedFilePaths) == 0 {
-		return nil
-	}
-	if runtime.GOOS != "darwin" {
-		fmt.Println("open skipped: this host is not macOS")
-		return nil
-	}
-	for _, downloadedFilePath := range downloadedFilePaths {
-		if errorValue := exec.Command("open", downloadedFilePath).Run(); errorValue != nil {
-			return fmt.Errorf("open %s: %w", downloadedFilePath, errorValue)
-		}
-		fmt.Println("opened: " + downloadedFilePath)
-	}
-	return nil
-}
-
-func writeTestResultJSONBestEffort(target verifyTarget, configuration testCommandConfiguration, output string) {
-	if strings.TrimSpace(configuration.ResultJSONPath) == "" {
-		return
-	}
-	verificationOutput, errorValue := parseMattermostVerificationOutput(output)
-	if errorValue != nil {
-		return
-	}
-	downloadedFilePaths, _ := writeDownloadedMattermostFilesAllowEmpty(output, configuration.DownloadDirectoryPath)
-	taskDetail, taskDetailError := fetchTestTaskDetailJSON(target, verificationOutput.TaskRunID)
-	if errorValue := writeTestResultJSON(configuration.ResultJSONPath, verificationOutput, downloadedFilePaths, taskDetail, taskDetailError); errorValue != nil {
-		fmt.Println("warning: failed to write best-effort test result JSON: " + errorValue.Error())
-	}
-}
-
-func writeTestResultJSON(resultJSONPath string, verificationOutput mattermostVerificationOutput, downloadedFilePaths []string, taskDetail json.RawMessage, taskDetailError string) error {
-	normalizedPath := strings.TrimSpace(resultJSONPath)
-	if normalizedPath == "" {
-		return nil
-	}
-	parentPath := filepath.Dir(normalizedPath)
-	if parentPath != "." {
-		if errorValue := os.MkdirAll(parentPath, 0o755); errorValue != nil {
-			return fmt.Errorf("create test result parent directory: %w", errorValue)
-		}
-	}
-	document := struct {
-		mattermostVerificationOutput
-		DownloadedFilePaths []string        `json:"downloadedFilePaths"`
-		TaskDetail          json.RawMessage `json:"taskDetail,omitempty"`
-		TaskDetailError     string          `json:"taskDetailError,omitempty"`
-	}{
-		mattermostVerificationOutput: verificationOutput,
-		DownloadedFilePaths:          downloadedFilePaths,
-		TaskDetail:                   taskDetail,
-		TaskDetailError:              taskDetailError,
-	}
-	content, errorValue := json.MarshalIndent(document, "", "  ")
-	if errorValue != nil {
-		return fmt.Errorf("marshal test result JSON: %w", errorValue)
-	}
-	if errorValue := os.WriteFile(normalizedPath, append(content, '\n'), 0o644); errorValue != nil {
-		return fmt.Errorf("write test result JSON: %w", errorValue)
-	}
-	return nil
 }

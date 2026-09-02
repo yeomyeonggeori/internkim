@@ -29,8 +29,7 @@
 		{ id: 'apply-release', label: 'Apply release', icon: CloudUploadIcon, variant: 'default' },
 		{ id: 'pilot-standard', label: 'Pilot standard', icon: ActivityIcon, variant: 'default' },
 		{ id: 'restart-cloudflared-node-ssh', label: 'Restart tunnel', icon: RotateCwIcon, variant: 'outline' },
-		{ id: 'restart-ssh', label: 'Restart SSH', icon: RotateCwIcon, variant: 'outline' },
-		{ id: 'mattermost-smoke', label: 'Mattermost smoke', icon: ShieldIcon, variant: 'outline' }
+		{ id: 'restart-ssh', label: 'Restart SSH', icon: RotateCwIcon, variant: 'outline' }
 	] as const;
 
 	const modelPresets = ['google/gemini-3.5-flash', 'google/gemini-3.1-flash-lite', 'openai/gpt-5.4-nano', 'x-ai/grok-4.3'];

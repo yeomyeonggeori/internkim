@@ -34,9 +34,7 @@ var StepServices = Step{
 			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			localLLMServiceUnitsAreReady(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
-			capabilitydHealthIsReady(context) &&
 			trimmedRun(context, blueclaw.GraphitiMemorydHealthCheckCommand()) == "ok" &&
-			mattermostServiceIsReady(context) &&
 			runtimeCheck == "ok" &&
 			rootfsBaseCheck == "ok"
 	},
@@ -104,15 +102,6 @@ chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
   grep -q '/swapfile' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi`)
 
-		if deviceURL := context.Callbacks.LoadState("device_url"); deviceURL != "" && shouldReconcileMattermostSiteURL(context) {
-			connection.Run(mattermostSiteURLReconcileCommand(deviceURL))
-			fmt.Printf("  %s: %s\n", context.T("Mattermost URL 설정", "Mattermost URL"), deviceURL)
-			if trimmedRun(context, `curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -o '"status":"OK"'`) != "" {
-				fmt.Println("  " + context.T("Mattermost 응답 확인", "Mattermost responded"))
-			} else {
-				fmt.Println("  WARN: " + context.T("Mattermost 로컬 응답 확인 실패", "Mattermost local ping failed"))
-			}
-		}
 		return nil
 	},
 }
@@ -128,40 +117,6 @@ command -v iptables >/dev/null
 command -v sysctl >/dev/null
 command -v jq >/dev/null
 command -v git >/dev/null`
-}
-
-func shouldReconcileMattermostSiteURL(context *Context) bool {
-	return context != nil && context.PlannedSteps["mattermost"]
-}
-
-func capabilitydHealthIsReady(context *Context) bool {
-	if !isPlannedStep(context, "mattermost") {
-		return true
-	}
-	return trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
-}
-
-func mattermostServiceIsReady(context *Context) bool {
-	if !isPlannedStep(context, "mattermost") {
-		return true
-	}
-	return trimmedRun(context, "systemctl is-active mattermost") == "active"
-}
-
-func mattermostSiteURLReconcileCommand(deviceURL string) string {
-	quotedDeviceURL := shellQuote(deviceURL)
-	return `set -e
-configuration_path=/opt/mattermost/config/config.json
-if [ -f "$configuration_path" ]; then
-  current_url="$(jq -r '.ServiceSettings.SiteURL // .SiteURL // ""' "$configuration_path" 2>/dev/null || true)"
-  if [ "$current_url" != ` + quotedDeviceURL + ` ]; then
-    temporary_path="$(mktemp)"
-    jq --arg siteURL ` + quotedDeviceURL + ` '.ServiceSettings = ((.ServiceSettings // {}) + {"SiteURL": $siteURL})' "$configuration_path" > "$temporary_path"
-    cat "$temporary_path" > "$configuration_path"
-    rm -f "$temporary_path"
-    systemctl restart mattermost 2>/dev/null || true
-  fi
-fi`
 }
 
 func localLLMServiceUnitsAreSatisfied(context *Context) bool {
@@ -274,9 +229,6 @@ func blueclawServicesAreHealthy(context *Context) bool {
 	if report["blueclawHealth"] != "ok" {
 		return false
 	}
-	if isPlannedStep(context, "mattermost") && report["capabilitydHealth"] != "ok" {
-		return false
-	}
 	if context.BoardType == BoardSimulation {
 		return true
 	}
@@ -315,9 +267,6 @@ func blueclawServiceHealthReportCommand(context *Context) string {
 		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null"},
 		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
 		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
-	}
-	if isPlannedStep(context, "mattermost") {
-		checks = append(checks, serviceHealthCheck{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand()})
 	}
 	if shouldManageLocalLLMServices(context) {
 		checks = append(checks,
