@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { outcomeOfStatus, sendWebPush } from '../../src/lib/server/web-push';
+import { outcomeOfStatus, sendWebPush } from '../../../supabase/functions/_shared/web-push.ts';
 import { encodeBase64URL } from '../../src/lib/notifications/base64url';
 
 const keys = {

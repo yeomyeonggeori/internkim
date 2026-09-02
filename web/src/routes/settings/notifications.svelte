@@ -2,11 +2,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
-	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import {
 		readNotificationSettings,
-		readTimeOfDay,
 		type NotificationCategory,
 		type NotificationSettings
 	} from '$lib/notifications/categories';
@@ -89,12 +87,6 @@
 		await keep({ ...settings, categories: { ...settings.categories, [category]: wanted } });
 	}
 
-	async function chooseCalendarAt(said: string) {
-		const at = readTimeOfDay(said);
-		if (!at || at === settings.calendarAt) return;
-		await keep({ ...settings, calendarAt: at });
-	}
-
 	async function keep(wanted: NotificationSettings) {
 		const previous = settings;
 		settings = wanted;
@@ -136,16 +128,6 @@
 					<div class="flex items-center justify-between gap-4">
 						<Label for="{fieldID}-{category}" class="text-sm font-normal">{categoryLabels[category]}</Label>
 						<div class="flex items-center gap-2">
-							{#if category === 'calendar'}
-								<Input
-									type="time"
-									class="h-8 w-28"
-									value={settings.calendarAt}
-									disabled={reach !== 'on' || !settings.categories.calendar}
-									aria-label={text.notifyCalendarAt}
-									onchange={(event) => chooseCalendarAt(event.currentTarget.value)}
-								/>
-							{/if}
 							<Switch
 								id="{fieldID}-{category}"
 								checked={settings.categories[category]}
