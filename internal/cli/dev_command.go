@@ -45,6 +45,14 @@ type devCommandInvocation struct {
 // Declared by blueclaw, which is a separate module this one cannot import.
 const blueclawScenarioSkillRootsVariable = "BLUECLAW_SCENARIO_SKILL_ROOTS"
 
+// Declared by blueclaw, which is a separate module this one cannot import.
+const blueclawScenarioCapabilityCatalogVariable = "BLUECLAW_SCENARIO_CAPABILITY_CATALOG"
+
+func scenarioCapabilityCatalogVariable(repositoryRootPath string) string {
+	catalogPath := filepath.Join(repositoryRootPath, "pkg", "capabilityprotocol", "generated", "capability-tools.json")
+	return blueclawScenarioCapabilityCatalogVariable + "=" + catalogPath
+}
+
 func scenarioSkillRootsVariable(repositoryRootPath string) (string, error) {
 	skillRootPaths, errorValue := blueclawworkspace.SkillRootPaths(repositoryRootPath)
 	if errorValue != nil {
@@ -492,7 +500,7 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 	return devCommandInvocation{
 		WorkingDirectoryPath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw"),
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
-		EnvironmentVariables: []string{skillRootsVariable},
+		EnvironmentVariables: []string{skillRootsVariable, scenarioCapabilityCatalogVariable(repositoryRootPath)},
 	}, nil
 }
 

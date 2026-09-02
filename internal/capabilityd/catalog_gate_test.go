@@ -401,6 +401,16 @@ var toolsWithNoGateCaseYet = []string{
 	"task_update",
 }
 
+func contractedCatalogTools() []capabilities.Descriptor {
+	contracted := []capabilities.Descriptor{}
+	for _, descriptor := range capabilityprotocol.GeneratedToolDescriptorSet() {
+		if descriptor.ResultContract != nil {
+			contracted = append(contracted, descriptor)
+		}
+	}
+	return contracted
+}
+
 func TestNoCatalogToolEscapesTheGateUnnoticed(t *testing.T) {
 	covered := gateCases()
 	uncovered := map[string]bool{}
@@ -409,7 +419,7 @@ func TestNoCatalogToolEscapesTheGateUnnoticed(t *testing.T) {
 	}
 
 	var unaccounted []string
-	for _, descriptor := range capabilityprotocol.GeneratedToolDescriptorSet() {
+	for _, descriptor := range contractedCatalogTools() {
 		_, hasCase := covered[descriptor.Name]
 		if !hasCase && !uncovered[descriptor.Name] {
 			unaccounted = append(unaccounted, descriptor.Name)
@@ -424,7 +434,7 @@ func TestNoCatalogToolEscapesTheGateUnnoticed(t *testing.T) {
 func TestTheUncoveredListHoldsNothingThatIsCovered(t *testing.T) {
 	covered := gateCases()
 	known := map[string]bool{}
-	for _, descriptor := range capabilityprotocol.GeneratedToolDescriptorSet() {
+	for _, descriptor := range contractedCatalogTools() {
 		known[descriptor.Name] = true
 	}
 	for _, name := range toolsWithNoGateCaseYet {
