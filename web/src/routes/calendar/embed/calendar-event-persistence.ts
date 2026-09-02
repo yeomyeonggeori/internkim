@@ -108,7 +108,7 @@ export async function writeCalendarEvent(
 	payload: CalendarEventPayload,
 	errorFallback: string
 ): Promise<CalendarEvent> {
-	if (isSupabaseConfigured()) return saveSupabaseCalendarEvent(payload);
+	if (isSupabaseConfigured()) return saveSupabaseCalendarEvent(payload, method === 'POST' ? null : payload.eventID);
 	const response = await fetch(path, {
 		method,
 		credentials: 'include',
@@ -119,13 +119,17 @@ export async function writeCalendarEvent(
 	return (await response.json()) as CalendarEvent;
 }
 
+export function calendarEventPath(eventID: string): string {
+	return `/calendar/api/events/${encodeURIComponent(eventID)}`;
+}
+
 export async function deletePersistedCalendarEvent(
 	eventID: string,
 	expectedUpdatedAt: string | undefined,
 	errorFallback: string
 ): Promise<void> {
 	if (isSupabaseConfigured()) return deleteSupabaseCalendarEvent(eventID);
-	const response = await fetch(`/calendar/api/events/${encodeURIComponent(eventID)}`, {
+	const response = await fetch(calendarEventPath(eventID), {
 		method: 'DELETE',
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
@@ -241,5 +245,5 @@ function responseBodyErrorMessage(message: string, fallback: string): string {
 }
 
 function calendarDeleteIntentPath(eventID: string, operationID: string): string {
-	return `/calendar/api/events/${encodeURIComponent(eventID)}/delete-intents/${encodeURIComponent(operationID)}`;
+	return `${calendarEventPath(eventID)}/delete-intents/${encodeURIComponent(operationID)}`;
 }
