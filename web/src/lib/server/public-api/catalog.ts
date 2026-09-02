@@ -1,36 +1,47 @@
 import catalogDocument from '../../../../../pkg/capabilityprotocol/generated/capability-tools.json';
+import descriptorSchema from '../../../../../pkg/capabilityprotocol/generated/json-schema/capability-descriptor.schema.json';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
 import { statesAResultContract } from './catalog/contract';
 
 export type ToolDescriptor = { name: string; sideEffectClass: string };
 
-type CatalogEntry = ToolDescriptor & { resultContract?: unknown };
+type CatalogEntry = ToolDescriptor & { answeredBy: string; resultContract?: unknown };
 
 type ToolCatalog = { protocolVersion: string; tools: CatalogEntry[] };
 
 const catalog: ToolCatalog = catalogDocument;
 
+const sideEffectClassVocabulary: string[] = descriptorSchema.properties.sideEffectClass.enum;
+
 const reachableTools: ToolDescriptor[] = catalog.tools.filter(statesAResultContract);
 
 const permissionRanks: Record<PublicAPIPermission, number> = { read: 1, write: 2, delete: 3 };
 
-const writingSideEffectClasses = new Set([
-	'workspace_write',
-	'workspace_calendar',
-	'workspace_task',
-	'external_write',
-	'external_send',
-	'external_publish',
-	'site_publish',
-	'connect',
-	'browser',
-	'browser_write',
-	'handoff',
-	'local_file'
-]);
+const readingSideEffectClasses = new Set(['read', 'computation']);
+const deletingSideEffectClasses = new Set(['destructive']);
+
+const writingSideEffectClasses = new Set(
+	sideEffectClassVocabulary.filter(
+		(sideEffectClass) =>
+			!readingSideEffectClasses.has(sideEffectClass) &&
+			!deletingSideEffectClasses.has(sideEffectClass)
+	)
+);
+
+export type Answerer = 'record' | 'company' | 'local';
+
+export function answererOfTool(name: string): Answerer | undefined {
+	const descriptor = catalog.tools.find((candidate) => candidate.name === name);
+	if (!descriptor) return undefined;
+	return descriptor.answeredBy as Answerer;
+}
+
+export function toolNamesAnsweredBy(answerer: Answerer): string[] {
+	return catalog.tools.filter((tool) => tool.answeredBy === answerer).map((tool) => tool.name);
+}
 
 export function permissionForTool(descriptor: ToolDescriptor): PublicAPIPermission {
-	if (descriptor.sideEffectClass === 'read') return 'read';
+	if (readingSideEffectClasses.has(descriptor.sideEffectClass)) return 'read';
 	if (writingSideEffectClasses.has(descriptor.sideEffectClass)) return 'write';
 	return 'delete';
 }

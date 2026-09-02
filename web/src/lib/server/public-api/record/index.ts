@@ -9,12 +9,11 @@ import { NothingMatchesTheHint, RecordRefusedTheWrite } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
 import { leaveBalance, leaveDecide, leaveDelete, leaveList, leaveRequest, leaveUpdate } from './leave-tools';
 import { personList, taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
+import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
 
 type ToolInput = Record<string, unknown>;
 type ToolRun = (context: RecordContext, input: ToolInput) => Promise<unknown> | unknown;
 
-// A tool runs where its records live. These write nothing but rows in the
-// record, so nothing about them needs the company's own computer.
 const toolsOverTheRecord: Record<string, ToolRun> = {
 	task_add: (context, input) => taskAdd(context, input),
 	task_update: (context, input) => taskUpdate(context, input),
@@ -38,11 +37,19 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 };
 
 export function recordRunsTheTool(name: string): boolean {
-	return Object.hasOwn(toolsOverTheRecord, name);
+	return answererOfTool(name) === 'record';
+}
+
+export function recordToolsWithoutAnImplementation(): string[] {
+	return toolsTheRecordAnswers().filter((name) => !Object.hasOwn(toolsOverTheRecord, name));
 }
 
 export function toolsTheRecordRuns(): string[] {
 	return Object.keys(toolsOverTheRecord);
+}
+
+export function toolsTheRecordAnswers(): string[] {
+	return toolNamesAnsweredBy('record');
 }
 
 export type ToolAnswer = { status: number; body: unknown };
