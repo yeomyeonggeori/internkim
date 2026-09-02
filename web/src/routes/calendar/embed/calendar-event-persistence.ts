@@ -108,7 +108,7 @@ export async function writeCalendarEvent(
 	payload: CalendarEventPayload,
 	errorFallback: string
 ): Promise<CalendarEvent> {
-	if (isSupabaseConfigured()) return saveSupabaseCalendarEvent(payload);
+	if (isSupabaseConfigured()) return saveSupabaseCalendarEvent(payload, method === 'POST' ? null : payload.eventID);
 	const response = await fetch(path, {
 		method,
 		credentials: 'include',
