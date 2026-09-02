@@ -1602,13 +1602,13 @@ printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }
 
-func calendarRecordCoverageCommand(pair bool) string {
-	pairValue := "false"
-	if pair {
-		pairValue = "true"
+func calendarRecordCoverageCommand(carry bool) string {
+	carryValue := "false"
+	if carry {
+		carryValue = "true"
 	}
 	return strings.TrimSpace(`
-body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/calendar-record-coverage?pair=` + pairValue + `")
+body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/calendar-record-coverage?carry=` + carryValue + `")
 printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }

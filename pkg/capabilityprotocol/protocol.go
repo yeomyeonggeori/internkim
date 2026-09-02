@@ -28,8 +28,6 @@ const (
 	ToolOutcomeFailed    ToolOutcome = "failed"
 	ToolOutcomeDenied    ToolOutcome = "denied"
 
-	ToolConflictResolutionAllowDuplicate ToolConflictResolution = "allow_duplicate"
-
 	AnsweredByRecord  = "record"
 	AnsweredByCompany = "company"
 	AnsweredByLocal   = "local"
@@ -40,7 +38,6 @@ const (
 )
 
 type ToolOutcome string
-type ToolConflictResolution string
 type ResourceEffectIdentity string
 
 type ProtocolIdentity struct {
@@ -223,7 +220,6 @@ type ToolInvokeContext struct {
 	// name first and read family name first in Korean, so a tool that hands a
 	// name back has to know which of the two the reader is owed.
 	ResponseLanguage   string                 `json:"responseLanguage,omitempty"`
-	ConflictResolution ToolConflictResolution `json:"conflictResolution,omitempty"`
 }
 
 type ActorContext struct {
