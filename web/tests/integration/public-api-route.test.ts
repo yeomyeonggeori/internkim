@@ -145,6 +145,19 @@ describe("a token whose owner has left", () => {
 	});
 });
 
+describe('a tool a runtime beside the agent answers', () => {
+	test('is refused rather than carried', async () => {
+		const answered = await reach('/tools/browser_open/invoke', holdersToken, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ input: { url: 'https://example.test/' } })
+		});
+
+		expect(answered.status).toBe(400);
+		expect((answered.body as { error: string }).error).toContain('browser_open');
+	});
+});
+
 describe('the catalog', () => {
 	test('is answered here, and a reading token sees fewer tools than a deleting one', async () => {
 		const held = await reach('/tools', holdersToken);

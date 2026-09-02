@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 const publicAPITokenStoreFilename = "api-tokens.json"
@@ -500,17 +501,15 @@ func publicAPIPermissionRank(permission string) int {
 
 func publicToolPermissionForDescriptor(descriptor capabilities.Descriptor) string {
 	switch descriptor.SideEffectClass {
-	case "read":
+	case capabilityprotocol.SideEffectRead, capabilityprotocol.SideEffectComputation:
 		return ""
-	case "destructive":
-		return publicAPIPermissionDelete
-	case "workspace_write", "workspace_calendar", "workspace_task",
-		"external_write", "external_send", "external_publish", "site_publish",
-		"connect", "browser", "browser_write", "handoff", "local_file", "approval":
-		return publicAPIPermissionWrite
-	default:
+	case capabilityprotocol.SideEffectDestructive:
 		return publicAPIPermissionDelete
 	}
+	if capabilityprotocol.IsSideEffectClass(descriptor.SideEffectClass) {
+		return publicAPIPermissionWrite
+	}
+	return publicAPIPermissionDelete
 }
 
 func publicAPIActorContext(record publicAPITokenRecord, isAdmin bool, source string) capabilities.ActorContext {
