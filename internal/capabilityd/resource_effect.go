@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
@@ -48,5 +49,5 @@ func capabilitySuccessResponseFrom(toolName string, status string, result json.R
 
 func capabilityToolHasResultContract(toolName string) bool {
 	descriptor, isRegistered := capabilityToolDescriptorFor(toolName)
-	return isRegistered && descriptor.ResultContract != nil
+	return isRegistered && capabilityprotocol.StatesAResultContract(descriptor)
 }

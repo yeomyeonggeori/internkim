@@ -17,7 +17,7 @@ const (
 	LLMBackendCompanionLocal = "companion_local"
 	LLMBackendRemote         = "remote"
 
-	AttentionTriageToolName = "attention.triage"
+	AttentionTriageToolName = "attention_triage"
 
 	CapabilityAvailable    = "ok"
 	CapabilityNotConnected = "not_connected"

@@ -40,12 +40,14 @@ package-companion-beta: build-companion
 generate-protocol:
 	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
 	cd .dependency/blueclaw/protocol && bun run generate
-	cd .dependency/blueclaw/protocol && bun run generate --target ../../../pkg/capabilityprotocol/generated
+	cd web && bun install --frozen-lockfile
+	cd web && bun run generate:protocol
 
 verify-generated-protocol:
 	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
 	cd .dependency/blueclaw/protocol && bun run generate:check
-	cd .dependency/blueclaw/protocol && bun run generate:check --target ../../../pkg/capabilityprotocol/generated
+	cd web && bun install --frozen-lockfile
+	cd web && bun run generate:protocol --check
 
 check:
 	tools/verify --all

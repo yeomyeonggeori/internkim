@@ -31,6 +31,10 @@ Blueclaw should be releasable as an open-source agent runtime without carrying i
 
 ## Capability Protocol
 
+Blueclaw's `protocol/` package defines the shape of a descriptor and defines no tool. internkim authors the catalog in `web/src/lib/server/public-api/catalog/` and generates `pkg/capabilityprotocol/generated/` from it, hashing the catalog into a manifest through the protocol package's `buildProtocolManifest`. Blueclaw's own `protocol/generated/` covers the envelope schemas alone, which is why the two manifests differ and neither is compared to the other: the identity check reads what internkim stamps into `runtime.json` and what capabilityd reports, both from internkim's generated directory.
+
+The alternative was to keep generating both directories from one place, which keeps a single manifest but leaves blueclaw's tree holding a generated catalog its own tooling could neither produce nor verify.
+
 The public protocol lives in `pkg/capabilityprotocol`. It contains only shared schema and standard capability descriptors:
 
 - `Descriptor`
@@ -44,7 +48,7 @@ The public protocol lives in `pkg/capabilityprotocol`. It contains only shared s
 - backend names
 - availability codes
 
-internkim-specific capability catalogs stay in `internal/capabilities`.
+internkim-specific capability catalogs are authored in the web app beside the routes that answer them, and `internal/capabilities` assembles the generated descriptors into the sets each process offers.
 
 ## Companion Boundary
 

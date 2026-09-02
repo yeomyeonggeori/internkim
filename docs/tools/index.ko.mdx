@@ -90,7 +90,7 @@ description: 에이전트가 부를 수 있는 것들, 각 호출의 대가, 그
 
 ```mermaid
 flowchart LR
-  TS["protocol/src/capability_tools.ts<br/>(blueclaw, 단일 정본)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
+  TS["web/src/lib/server/public-api/catalog/<br/>(단일 정본)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
   JSON -->|임베드, 해시 검증| Go["pkg/capabilityprotocol"]
   Go -->|admind가 runtime.json에 스탬프| Blueclaw["blueclaw<br/>capability_tool_provider"]
   Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(게스트에서는 vsock)"]
@@ -99,7 +99,8 @@ flowchart LR
 
 | 층 | 위치 | 담당 |
 |---|---|---|
-| 디스크립터 소스 | `.dependency/blueclaw/protocol/src/capability_tools.ts` | 모든 능력 도구의 모든 필드 |
+| 디스크립터 소스 | `web/src/lib/server/public-api/catalog/` | 모든 능력 도구의 모든 필드 |
+| 디스크립터 형태 | `.dependency/blueclaw/protocol/src/capability.ts` | 디스크립터가 말할 수 있는 것. 어떤 도구가 있는지는 모른다 |
 | 생성된 카탈로그 | `pkg/capabilityprotocol/generated/capability-tools.json` | Go 코드가 읽는 임베드·해시 검증 사본 |
 | 디스크립터 묶음 | `internal/capabilities/protocol.go` | 어떤 제공자가 어떤 디스크립터를 등록하는지 |
 | 설정 스탬프 | `internal/admind/blueclaw_updates.go` | blueclaw `runtime.json`에 `capabilities.toolDescriptors`를 씀 |

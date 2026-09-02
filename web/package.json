@@ -14,6 +14,7 @@
 		"test": "if test -d tests/unit; then bun test tests/unit; else echo 'No unit tests'; fi",
 		"test:unit": "if test -d tests/unit; then bun test tests/unit; else echo 'No unit tests'; fi",
 		"test:e2e": "bunx playwright test",
+		"generate:protocol": "bun run scripts/generate-capability-protocol.ts",
 		"test:integration": "./scripts/test-integration.sh",
 		"test:e2e:attendance": "PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5174} bunx playwright test tests/e2e/attendance-responsive.spec.ts tests/e2e/attendance-team-status.spec.ts tests/e2e/attendance-personal-tools.spec.ts tests/e2e/attendance-time-zone.spec.ts tests/e2e/attendance-leave-*.spec.ts --workers=1",
 		"test:e2e:admin": "PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5191} bunx playwright test tests/e2e/admin-leave-policy.spec.ts tests/e2e/admin-role-tabs.spec.ts tests/e2e/admin-organization-groups.spec.ts tests/e2e/admin-organization-ordering.spec.ts tests/e2e/admin-organization-profile-editing.spec.ts tests/e2e/admin-organization-route-fallback.spec.ts --workers=1",
@@ -56,7 +57,8 @@
 		"tailwindcss": "^4.2.2",
 		"typescript": "^5.9.3",
 		"vite": "^7.3.1",
-		"wrangler": "^4.63.0"
+		"wrangler": "^4.63.0",
+		"zod": "4.4.3"
 	},
 	"dependencies": {
 		"@humanspeak/svelte-markdown": "^1.6.0",

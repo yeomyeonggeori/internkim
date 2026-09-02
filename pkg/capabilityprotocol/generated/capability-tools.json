@@ -5790,6 +5790,169 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "web_fetch",
+      "description": "Fetch and return the text content of one or more public URLs. Use after web_search when you need the full page content, not just a snippet. Do not fetch localhost or private network addresses — those are blocked.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "allowedDomains": {
+            "description": "If set, only URLs from these domains are fetched; others are skipped with an error. Useful for safety when the URL list is dynamic.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "blockedDomains": {
+            "description": "Domains to refuse fetching even if present in urls, e.g. [\"malicious.example\"]. Supplements the built-in block list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxContentTokens": {
+            "description": "Soft cap on tokens returned per URL. Defaults to 50000; maximum is 100000. Reduce when fetching many URLs.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "urls": {
+            "description": "List of fully-qualified public URLs to fetch, e.g. [\"https://example.com/article\"]. Maximum 10 URLs per call. Localhost and private IPs are blocked.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "urls"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "web_fetch",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "web_fetch",
+      "namespace": "web",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:web_fetch",
+      "privacyClass": "public_web",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "site_serve",
       "completionEvidence": {
         "action": "serve_site",
@@ -6611,7 +6774,166 @@
       "worksOffline": false
     },
     {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "image_generate",
+      "description": "Generate a new image from a text prompt and save it to a workspace path. Provide an absolute /workspace output path ending in .png. Optionally set aspectRatio. Returns the saved image as an attachment. Use image_read instead if you need to read an existing image file.",
+      "estimatedLatency": "high",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "aspectRatio": {
+            "description": "Output aspect ratio. Defaults to 1:1 if omitted.",
+            "enum": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "description": "Absolute workspace path to save the generated PNG, e.g. /workspace/shared/logo.png. Must be under /workspace and end in .png.",
+            "type": "string"
+          },
+          "prompt": {
+            "description": "Detailed description of the image to generate. Write it like describing a scene to an artist, not a keyword list.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "image_generate",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "image_generate",
+      "namespace": "image",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:image_generate",
+      "privacyClass": "workspace_document",
+      "requiresUserPresence": false,
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
       "answeredBy": "local",
+      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -6702,6 +7024,7 @@
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_open",
       "privacyClass": "user_browser",
+      "requiresRequesterDevice": true,
       "requiresUserPresence": true,
       "resultContract": {
         "effects": [],
@@ -6754,6 +7077,7 @@
     },
     {
       "answeredBy": "local",
+      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -6820,6 +7144,7 @@
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_snapshot",
       "privacyClass": "user_browser",
+      "requiresRequesterDevice": true,
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -6871,6 +7196,7 @@
     },
     {
       "answeredBy": "local",
+      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -6954,6 +7280,8 @@
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_screenshot",
       "privacyClass": "user_browser",
+      "requiresCompanionBrowser": true,
+      "requiresRequesterDevice": true,
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -7016,6 +7344,7 @@
     },
     {
       "answeredBy": "local",
+      "approvalScope": "browser",
       "availability": {
         "state": "ok"
       },
@@ -7112,6 +7441,7 @@
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_click",
       "privacyClass": "user_browser",
+      "requiresRequesterDevice": true,
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -7150,6 +7480,738 @@
       "sideEffect": "external_write",
       "sideEffectClass": "external_write",
       "version": "2",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "approvalScope": "browser",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "browser_fill",
+      "description": "Fill text into a target in the user's local browser.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "browser_fill",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "browser_fill",
+      "namespace": "browser",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:browser_fill",
+      "privacyClass": "user_browser",
+      "requiresRequesterDevice": true,
+      "requiresUserPresence": false,
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "approvalScope": "browser",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "browser_handoff",
+      "description": "Hand browser control to the user for an interactive step.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "browser_handoff",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "browser_handoff",
+      "namespace": "browser",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:browser_handoff",
+      "privacyClass": "user_browser",
+      "requiresCompanionBrowser": true,
+      "requiresRequesterDevice": true,
+      "requiresUserPresence": true,
+      "sideEffect": "connect",
+      "sideEffectClass": "connect",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "approvalScope": "browser",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "browser_press",
+      "description": "Press a key in the user's local browser.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "browser_press",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "browser_press",
+      "namespace": "browser",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:browser_press",
+      "privacyClass": "user_browser",
+      "requiresRequesterDevice": true,
+      "requiresUserPresence": false,
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "approvalScope": "browser",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "browser_select",
+      "description": "Select a value in the user's local browser.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "browser_select",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "browser_select",
+      "namespace": "browser",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:browser_select",
+      "privacyClass": "user_browser",
+      "requiresRequesterDevice": true,
+      "requiresUserPresence": false,
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "approvalScope": "browser",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "browser_wait",
+      "description": "Wait for a browser target or a bounded interval.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "milliseconds": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "browser_wait",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "browser_wait",
+      "namespace": "browser",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:browser_wait",
+      "privacyClass": "user_browser",
+      "requiresRequesterDevice": true,
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
       "worksOffline": false
     },
     {
@@ -7464,6 +8526,4805 @@
       "sideEffectClass": "read",
       "version": "2",
       "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_document_list",
+      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, and summaries. Filter by type, counterpart, or keyword. Use to answer 'what quotes did we send to X'.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "counterpart": {
+            "description": "Counterpart name to filter by, e.g. 'ABC물산'.",
+            "type": "string"
+          },
+          "query": {
+            "description": "Keyword filter matched against title, summary, and counterpart.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Document type slug to filter by, e.g. 'quote'. Leave empty for all types.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_document_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_document_list",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_document_list",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_document_register",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "counterpart": {
+            "description": "Counterpart company or person name, e.g. 'ABC물산'.",
+            "type": "string"
+          },
+          "documentType": {
+            "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
+            "type": "string"
+          },
+          "filePath": {
+            "description": "Workspace path of the file if it already exists. For issued documents you can also set it later with company_document_update after saving.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "'issued' for documents the company creates (default, gets a document number), 'received' for documents from counterparts, 'internal' for internal-only files.",
+            "type": "string"
+          },
+          "language": {
+            "description": "Document language, e.g. 'ko' or 'en'.",
+            "type": "string"
+          },
+          "summary": {
+            "description": "2-3 sentence summary of the document's key terms: parties, amounts, dates, obligations. Written so later questions can be answered without opening the file.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Document title including the counterpart, e.g. 'ABC물산 김인턴 도입 컨설팅 견적서'.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentType",
+          "summary",
+          "title"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_document_register",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_document_register",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_document_register",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_document_search",
+      "description": "Semantically search registered company documents by a natural-language question ('ABC와 맺은 계약 조건'). Returns best-matching documents with summaries — answer from the summary first and open the file only when detail is needed.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "Maximum documents to return. Defaults to 5.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "query": {
+            "description": "Natural-language question or topic, e.g. 'ABC물산이랑 맺은 용역 계약 대금 조건'.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_document_search",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_document_search",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_document_search",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_document_update",
+      "description": "Update a registered document's file path, title, counterpart, or summary by id from a prior list/search result. Use when a file was moved or renamed so the ledger keeps tracking it.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "counterpart": {
+            "description": "Corrected counterpart. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "filePath": {
+            "description": "New workspace path after the file was saved, moved, or renamed.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Document id from a prior company_document_list or search result.",
+            "type": "string"
+          },
+          "summary": {
+            "description": "Replacement summary. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Corrected title. Omit to keep unchanged.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_document_update",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_document_update",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_document_update",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_info_get",
+      "description": "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as 사업자등록번호). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "description": "Document language to resolve the profile for, e.g. 'ko' or 'en'. Defaults to 'ko'. The response's missingFields lists core fields still empty for this language.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_info_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_info_get",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_info_get",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_info_set",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report a change ('회사 주소 바뀌었어'). Put country-specific identifiers (사업자등록번호, 법인등록번호, 업태, 종목, EIN …) into legalAttributes as a label-to-value JSON object string.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "description": "Registered head-office address.",
+            "type": "string"
+          },
+          "bankAccount": {
+            "description": "One-line bank account: bank, account number, holder. Use the 'en' slot for international wire details (SWIFT/IBAN).",
+            "type": "string"
+          },
+          "brandName": {
+            "description": "Service or brand name when it differs from the legal name.",
+            "type": "string"
+          },
+          "capital": {
+            "description": "Paid-in capital, e.g. '5억 원'.",
+            "type": "string"
+          },
+          "description": {
+            "description": "One-line company description for proposals and IR material.",
+            "type": "string"
+          },
+          "email": {
+            "description": "Main company email address.",
+            "type": "string"
+          },
+          "employeeCount": {
+            "description": "Official employee headcount. Independent of platform member count.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fax": {
+            "description": "Fax number.",
+            "type": "string"
+          },
+          "fiscalYearEnd": {
+            "description": "Fiscal year end month, e.g. '12월'.",
+            "type": "string"
+          },
+          "foundedDate": {
+            "description": "Founding date in YYYY-MM-DD format.",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "description": "Jurisdiction of incorporation for contract preambles, e.g. '대한민국' or 'the State of Delaware'.",
+            "type": "string"
+          },
+          "language": {
+            "description": "Language slot the localized values belong to, e.g. 'ko' or 'en'.",
+            "type": "string"
+          },
+          "legalAttributes": {
+            "description": "JSON object string of country-specific label-to-value pairs, e.g. {\"사업자등록번호\": \"123-45-67890\", \"업태\": \"서비스\"}. Labels print on documents as-is.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Legal company name, e.g. '주식회사 여명거리'.",
+            "type": "string"
+          },
+          "officeAddress": {
+            "description": "Working office address when it differs from the registered address.",
+            "type": "string"
+          },
+          "phone": {
+            "description": "Main company phone number.",
+            "type": "string"
+          },
+          "representative": {
+            "description": "Representative's name; use the romanized name for the 'en' slot.",
+            "type": "string"
+          },
+          "representativeTitle": {
+            "description": "Representative's title. Defaults to 대표이사 (ko) / CEO (en).",
+            "type": "string"
+          },
+          "slogan": {
+            "description": "Company slogan for letterheads and introductions.",
+            "type": "string"
+          },
+          "website": {
+            "description": "Company website URL.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "language"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_info_set",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_info_set",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_info_set",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_metric_list",
+      "description": "List recorded company metrics sorted by period. Filter by metric key and year range. Use for IR decks, business plans, and grant applications that need revenue/headcount/usage time series.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "fromYear": {
+            "description": "Earliest year to include.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "metric": {
+            "description": "Metric key to filter by, e.g. 'annualRevenue'. Leave empty for all metrics.",
+            "type": "string"
+          },
+          "toYear": {
+            "description": "Latest year to include.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_metric_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_metric_list",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_metric_list",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_metric_record",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Monetary values use an allowed currency plus a stable USD equivalent; non-monetary values use unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "description": "ISO currency of a monetary value. Use currency instead of unit for money.",
+            "enum": [
+              "USD",
+              "KRW",
+              "EUR",
+              "JPY",
+              "GBP",
+              "CNY",
+              "HKD",
+              "SGD",
+              "AUD",
+              "CAD",
+              "CHF",
+              "INR"
+            ],
+            "type": "string"
+          },
+          "metric": {
+            "description": "Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods.",
+            "type": "string"
+          },
+          "month": {
+            "description": "Month 1-12 for a monthly value. Leave out for annual or quarterly values; never combine with quarter.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "note": {
+            "description": "Source or context note, e.g. '재무제표 기준'.",
+            "type": "string"
+          },
+          "quarter": {
+            "description": "Quarter 1-4 for a quarterly value. Leave out for annual or monthly values; never combine with month.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "unit": {
+            "description": "Unit for a non-monetary value, e.g. '명', '건', 'sites'. Do not combine with currency.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Numeric value, e.g. 1200000000 for 12억 원. Use the raw number, not a formatted string.",
+            "type": "number"
+          },
+          "valueUSD": {
+            "description": "Stable USD equivalent for a non-USD monetary value. Required when currency is not USD; omitted for non-monetary values.",
+            "type": "number"
+          },
+          "year": {
+            "description": "Four-digit year the value belongs to, e.g. 2025.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metric",
+          "value",
+          "year"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_metric_record",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_metric_record",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_metric_record",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_record_add",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Add one company history/asset record: milestones (연혁), funding rounds, products, patents, certifications, awards, client references, government grants. Set category, date, title; put structured details (amount, investors, round …) into attributes as a label-to-value JSON object string.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "description": "JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"20억 원\", \"investors\": \"ABC벤처스\"}.",
+            "type": "string"
+          },
+          "category": {
+            "description": "Record category: 'history' (연혁), 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.",
+            "type": "string"
+          },
+          "date": {
+            "description": "Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline.",
+            "type": "string"
+          },
+          "detail": {
+            "description": "One-to-three sentence description.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Short title, e.g. '시드 투자 유치' or '김인턴 정식 출시'.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "title"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_record_add",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_record_add",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_record_add",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_record_delete",
+      "description": "Delete a company record by id from a prior company_record_list result. Use only when the user asks to remove a wrong entry.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Record id from a prior company_record_list result. Never invent an id.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_record_delete",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_record_delete",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_record_delete",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_record_list",
+      "description": "List company history/asset records, newest first. Filter by category (history, funding, product, certification, ip, award, reference, grant …) or keyword query. Use to build 연혁 sections, funding tables, and product overviews.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "description": "Category to filter by, e.g. 'funding' or 'history'. Leave empty for all.",
+            "type": "string"
+          },
+          "query": {
+            "description": "Keyword filter matched against title, detail, and attributes.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_record_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_record_list",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_record_list",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_record_update",
+      "description": "Update fields on an existing company record identified by id from a prior company_record_list result. Only provided fields change.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "description": "JSON object string replacing the stored attributes. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "category": {
+            "description": "New category. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "date": {
+            "description": "New date. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "detail": {
+            "description": "New detail text. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Record id from a prior company_record_list result.",
+            "type": "string"
+          },
+          "title": {
+            "description": "New title. Omit to keep unchanged.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_record_update",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_record_update",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_record_update",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "mail_connection_start",
+      "description": "Start the email account connection flow and return setup instructions for the requester. Requires the user to be present (RequiresUserPresence=true). Only call this when mail_connection_status reports mail is not connected.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "mail_connection_start",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "mail_connection_start",
+      "namespace": "mail",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:mail_connection_start",
+      "privacyClass": "workspace_mail",
+      "requiresApproval": true,
+      "requiresUserPresence": true,
+      "sideEffect": "connect",
+      "sideEffectClass": "connect",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "mail_connection_status",
+      "description": "Check whether the requester's email account is connected. Call this before any mail read or write operation when you are unsure if mail is set up.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "mail_connection_status",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "mail_connection_status",
+      "namespace": "mail",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:mail_connection_status",
+      "privacyClass": "workspace_mail",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "mail_message_list",
+      "description": "List emails in a mailbox folder with optional pagination. Use this to browse recent messages; use mail_message_search when you need to find by keyword or subject.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous list response. Omit on the first call.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of messages to return. Defaults to 20.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "mailbox": {
+            "description": "IMAP mailbox folder to list, e.g. 'INBOX', 'Sent', 'Archive'. Defaults to INBOX when omitted.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "mail_message_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "mail_message_list",
+      "namespace": "mail",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:mail_message_list",
+      "privacyClass": "workspace_mail",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "mail_message_mark",
+      "description": "Set the read (seen) or starred (flagged) status of an email. The UID and mailbox must come from a prior list or search result. Omit a flag field to leave it unchanged.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "flagged": {
+            "description": "Set to true to star/flag the message, false to remove the flag. Omit to leave the flagged state unchanged.",
+            "type": "boolean"
+          },
+          "mailbox": {
+            "description": "IMAP mailbox folder of the message, e.g. 'INBOX'. Must come from a prior list or search result.",
+            "type": "string"
+          },
+          "seen": {
+            "description": "Set to true to mark as read, false to mark as unread. Omit to leave the read state unchanged.",
+            "type": "boolean"
+          },
+          "uid": {
+            "description": "IMAP UID of the message to mark. Must come from a prior list or search result — never invent a UID.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mailbox",
+          "uid"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "mail_message_mark",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "mail_message_mark",
+      "namespace": "mail",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:mail_message_mark",
+      "privacyClass": "workspace_mail",
+      "requiresUserPresence": false,
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "mail_message_move",
+      "description": "Move an email to a different mailbox folder (e.g. Archive, Trash). The UID and mailbox must come from a prior list or search result. Use this to archive or sort messages.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "mailbox": {
+            "description": "Current IMAP mailbox folder of the message, e.g. 'INBOX'. Must come from a prior list or search result.",
+            "type": "string"
+          },
+          "targetMailbox": {
+            "description": "Destination IMAP folder, e.g. 'Archive', 'Trash', 'Work/Projects'. The folder must already exist.",
+            "type": "string"
+          },
+          "uid": {
+            "description": "IMAP UID of the message to move. Must come from a prior list or search result — never invent a UID.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mailbox",
+          "targetMailbox",
+          "uid"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "mail_message_move",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "mail_message_move",
+      "namespace": "mail",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:mail_message_move",
+      "privacyClass": "workspace_mail",
+      "requiresUserPresence": false,
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "mail_message_read",
+      "description": "Fetch the full content of a single email by its mailbox name and UID. The UID must come from a prior mail_message_list or mail_message_search result — never invent a UID.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "mailbox": {
+            "description": "IMAP mailbox folder the message is in, e.g. 'INBOX'. Must come from a prior list or search result.",
+            "type": "string"
+          },
+          "uid": {
+            "description": "IMAP UID of the message to read. Must come from a prior mail_message_list or mail_message_search result — never invent a UID.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mailbox",
+          "uid"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "mail_message_read",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "mail_message_read",
+      "namespace": "mail",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:mail_message_read",
+      "privacyClass": "workspace_mail",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "mail_message_search",
+      "description": "Search emails by keyword, sender, or subject. Returns matching messages with their UIDs for use with mail.message.read. Do not put pagination cursors in the query field.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "description": "Pagination cursor from a previous search response. Omit on the first call.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of matching messages to return. Defaults to 20.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "mailbox": {
+            "description": "IMAP mailbox folder to search, e.g. 'INBOX'. Defaults to all folders when omitted.",
+            "type": "string"
+          },
+          "query": {
+            "description": "Search terms matched against subject, sender, and body, e.g. 'invoice Q2 2026'. Required.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "mail_message_search",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "mail_message_search",
+      "namespace": "mail",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:mail_message_search",
+      "privacyClass": "workspace_mail",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "mail_message_send",
+      "completionEvidence": {
+        "action": "send_email",
+        "mode": "success",
+        "targetKind": "email"
+      },
+      "description": "Send an email from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": true
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "bcc": {
+            "description": "BCC recipient email addresses. Recipients cannot see each other.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "body": {
+            "description": "Email body text. Plain text or HTML.",
+            "type": "string"
+          },
+          "cc": {
+            "description": "CC recipient email addresses.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "description": "Email subject line.",
+            "type": "string"
+          },
+          "to": {
+            "description": "Primary recipient email addresses, e.g. [\"alice@example.com\"]. At least one required.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "body",
+          "subject",
+          "to"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "mail_message_send",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "mail_message_send",
+      "namespace": "mail",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:mail_message_send",
+      "privacyClass": "workspace_mail",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "sideEffect": "external_send",
+      "sideEffectClass": "external_send",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "google_calendar_event",
+      "completionEvidence": {
+        "action": "write_calendar",
+        "mode": "success",
+        "targetKind": "calendar"
+      },
+      "description": "Create a new Google Calendar event. Provide title, start, and end as ISO 8601 timestamps. Add attendees as email addresses. Returns a link to the created event.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attendees": {
+            "description": "Attendee email addresses to invite, e.g. [\"alice@example.com\", \"bob@example.com\"].",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "description": "Event notes or agenda visible to all attendees.",
+            "type": "string"
+          },
+          "end": {
+            "description": "Event end time as ISO 8601 with timezone, e.g. 2026-06-23T15:00:00+09:00. Must be after start.",
+            "type": "string"
+          },
+          "location": {
+            "description": "Physical or virtual location, e.g. 'Room 3B' or 'https://meet.google.com/xyz'.",
+            "type": "string"
+          },
+          "start": {
+            "description": "Event start time as ISO 8601 with timezone, e.g. 2026-06-23T14:00:00+09:00. Resolve relative times before calling.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Event title shown in Google Calendar, e.g. 'Design Review'.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "end",
+          "start",
+          "title"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "google_calendar_event",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "google_calendar_event",
+      "namespace": "google",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:google_calendar_event",
+      "privacyClass": "workspace_google",
+      "requiresUserPresence": false,
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "google_docs_create",
+      "description": "Create a new Google Doc in the requester's Google Drive. Provide a title and optionally the initial body text (plain text or Markdown). Returns a link to the created document.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "Initial document body as plain text or Markdown. Omit to create an empty document.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Title of the new Google Doc, e.g. 'Q3 OKR Review'.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "google_docs_create",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "google_docs_create",
+      "namespace": "google",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:google_docs_create",
+      "privacyClass": "workspace_google",
+      "requiresUserPresence": false,
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "google_drive_import_pptx",
+      "description": "Import a PPTX file from the workspace into Google Drive as a native Google Slides presentation. Provide the workspace path to the .pptx file. Returns a link to the created presentation.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "description": "Absolute workspace path to the .pptx file to import, e.g. /workspace/shared/presentation.pptx.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Title for the Google Slides presentation. Defaults to the filename without extension.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "google_drive_import_pptx",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "google_drive_import_pptx",
+      "namespace": "google",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:google_drive_import_pptx",
+      "privacyClass": "workspace_google",
+      "requiresUserPresence": false,
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "google_event_list",
+      "description": "List events from the requester's Google Calendar within an optional time window. Use start and end (ISO 8601) to bound the window; use query to filter by event title keyword.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "description": "End of the listing window as ISO 8601 with timezone. Pair with start to bound the window.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of events to return. Defaults to 20.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "query": {
+            "description": "Free-text filter matched against event titles. Do not put dates here — use start/end instead.",
+            "type": "string"
+          },
+          "start": {
+            "description": "Start of the listing window as ISO 8601 with timezone, e.g. 2026-06-23T00:00:00+09:00. Omit to default to the current time.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "google_event_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "google_event_list",
+      "namespace": "google",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:google_event_list",
+      "privacyClass": "workspace_google",
+      "requiresUserPresence": false,
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "google_gmail_send",
+      "completionEvidence": {
+        "action": "send_email",
+        "mode": "success",
+        "targetKind": "email"
+      },
+      "description": "Send an email via the requester's connected Gmail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": true
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "bcc": {
+            "description": "BCC recipient email addresses. Recipients cannot see each other.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "body": {
+            "description": "Email body text. Plain text or HTML.",
+            "type": "string"
+          },
+          "cc": {
+            "description": "CC recipient email addresses.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "description": "Email subject line.",
+            "type": "string"
+          },
+          "to": {
+            "description": "Primary recipient email addresses, e.g. [\"alice@example.com\"]. At least one required.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "body",
+          "subject",
+          "to"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "google_gmail_send",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "google_gmail_send",
+      "namespace": "google",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:google_gmail_send",
+      "privacyClass": "workspace_google",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "sideEffect": "external_send",
+      "sideEffectClass": "external_send",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "google_sheets_create",
+      "description": "Create a new Google Spreadsheet in the requester's Google Drive. Optionally provide sheet names and initial cell values. Returns a link to the created spreadsheet.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "sheets": {
+            "description": "Names of sheets (tabs) to create, e.g. [\"January\", \"February\"]. Omit to create a single default sheet.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "description": "Title of the new Google Spreadsheet, e.g. 'Budget Tracker 2026'.",
+            "type": "string"
+          },
+          "values": {
+            "description": "Initial cell values as a 2D array of strings (rows × columns), e.g. [[\"Name\",\"Amount\"],[\"Alice\",\"500\"]]. Written to the first sheet.",
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "google_sheets_create",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "google_sheets_create",
+      "namespace": "google",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:google_sheets_create",
+      "privacyClass": "workspace_google",
+      "requiresUserPresence": false,
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "attention_triage",
+      "description": "Classify whether a pending companion job needs remote attention.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "denialCode": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "jobID": {
+            "type": "string"
+          },
+          "lastAttentionAt": {
+            "type": "string"
+          },
+          "privacyClass": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "watchAttemptCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "jobID",
+          "status",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attention_triage",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "attention_triage",
+      "namespace": "attention",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attention_triage",
+      "privacyClass": "model_input",
+      "requiresUserPresence": false,
+      "sideEffect": "computation",
+      "sideEffectClass": "computation",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "local",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "embedding_create",
+      "description": "Create embeddings with whichever embedding model the runtime routes to.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "executionMode": {
+            "type": "string"
+          },
+          "input": {},
+          "inputType": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "outputDimensions": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "input"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "embedding_create",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "embedding_create",
+      "namespace": "embedding",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:embedding_create",
+      "privacyClass": "model_input",
+      "requiresUserPresence": false,
+      "sideEffect": "computation",
+      "sideEffectClass": "computation",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "local",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "llm_structured",
+      "description": "Generate schema-constrained output with whichever language model the runtime routes to.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "accelerator": {
+            "type": "string"
+          },
+          "enableResponseHealing": {
+            "type": "boolean"
+          },
+          "executionMode": {
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "parts": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "dataBase64": {
+                        "type": "string"
+                      },
+                      "mimeType": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "role": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "requireParameters": {
+            "type": "boolean"
+          },
+          "structuredOutputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "document": {},
+              "isStrictlyEnforced": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "document",
+              "name"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "messages",
+          "structuredOutputSchema"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "llm_structured",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "llm_structured",
+      "namespace": "llm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:llm_structured",
+      "privacyClass": "model_input",
+      "requiresUserPresence": false,
+      "sideEffect": "computation",
+      "sideEffectClass": "computation",
+      "version": "1",
+      "worksOffline": true
+    },
+    {
+      "answeredBy": "local",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "llm_text",
+      "description": "Generate text with whichever language model the runtime routes to.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "accelerator": {
+            "type": "string"
+          },
+          "enableResponseHealing": {
+            "type": "boolean"
+          },
+          "executionMode": {
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "parts": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "dataBase64": {
+                        "type": "string"
+                      },
+                      "mimeType": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "role": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "requireParameters": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "messages"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "llm_text",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "llm_text",
+      "namespace": "llm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentType": {
+                  "type": "string"
+                },
+                "durability": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "objectType": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect",
+                "objectType"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "failureStage": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "denied"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "result": {},
+          "retryable": {
+            "type": "boolean"
+          },
+          "safeRetry": {
+            "type": "boolean"
+          },
+          "selectedBackend": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "toolName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "result",
+          "selectedBackend",
+          "toolName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:llm_text",
+      "privacyClass": "model_input",
+      "requiresUserPresence": false,
+      "sideEffect": "computation",
+      "sideEffectClass": "computation",
+      "version": "1",
+      "worksOffline": true
     }
   ]
 }

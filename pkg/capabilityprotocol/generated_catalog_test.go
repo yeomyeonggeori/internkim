@@ -15,8 +15,13 @@ func TestGeneratedCatalogLoadsCanonicalToolDescriptors(t *testing.T) {
 	if catalog.protocolVersion == "" || len(catalog.aggregateHash) != 64 {
 		t.Fatalf("generated protocol identity is incomplete: %+v", catalog)
 	}
-	if len(catalog.tools) != 36 {
-		t.Fatalf("expected thirty-six generated tool descriptors, got %d", len(catalog.tools))
+	if len(catalog.tools) == 0 {
+		t.Fatal("the generated catalog offers no tool")
+	}
+	for _, descriptor := range catalog.tools {
+		if _, isAnswerer := answerers[descriptor.AnsweredBy]; !isAnswerer {
+			t.Errorf("%s answeredBy is %q", descriptor.Name, descriptor.AnsweredBy)
+		}
 	}
 	if errorValue := ValidateDescriptorSet(catalog.tools); errorValue != nil {
 		t.Fatal(errorValue)

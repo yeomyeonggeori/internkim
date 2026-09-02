@@ -75,11 +75,26 @@ GROUPS = [
             "internal/capabilities/*",
             "pkg/capabilityprotocol/*",
         ],
-        [["tools/blueclaw-scenario-test"]],
+        [
+            ["tools/blueclaw-scenario-test"],
+            # The suites that skip without a catalog, run with the one this
+            # repository generates so they are not quietly off everywhere.
+            [
+                "tools/blueclaw-scenario-test",
+                "./internal/e2e/",
+                "./internal/agentruntime/",
+                "./cmd/blueclaw-lab/",
+            ],
+        ],
     ),
     Group(
         "generated-protocol",
-        [".dependency/blueclaw*", "pkg/capabilityprotocol/*"],
+        [
+            ".dependency/blueclaw*",
+            "pkg/capabilityprotocol/*",
+            "web/src/lib/server/public-api/catalog/*",
+            "web/scripts/generate-capability-protocol.ts",
+        ],
         [["make", "verify-generated-protocol"]],
     ),
     Group(
@@ -89,6 +104,7 @@ GROUPS = [
             "go.mod",
             "go.sum",
             "pkg/capabilityprotocol/generated/*",
+            "web/src/lib/server/public-api/catalog/*",
             "supabase/functions/_shared/*",
             ".dependency/*",
         ],
@@ -108,6 +124,7 @@ GROUPS = [
         "web",
         [
             "web/*",
+            ".dependency/blueclaw/protocol/*",
             "pkg/capabilityprotocol/generated/*",
             "docs/web/app/lib/openapi.ts",
             "supabase/functions/_shared/*",
@@ -115,6 +132,10 @@ GROUPS = [
         ],
         [
             BUN_INSTALL,
+            # The catalog is written against blueclaw's protocol source, reached by
+            # path, so its dependencies have to be installed for anything here to
+            # resolve zod.
+            ["bun", "install", "--frozen-lockfile", "--cwd", "../.dependency/blueclaw/protocol"],
             ["bun", "run", "check"],
             ["bun", "test", "tests/unit"],
             ["bun", "run", "test:integration"],

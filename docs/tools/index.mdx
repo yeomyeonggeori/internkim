@@ -92,7 +92,7 @@ reaches; `?live=true` asks the company's computer what it can run right now.
 
 ```mermaid
 flowchart LR
-  TS["protocol/src/capability_tools.ts<br/>(blueclaw, source of truth)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
+  TS["web/src/lib/server/public-api/catalog/<br/>(source of truth)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
   JSON -->|embedded, hash-checked| Go["pkg/capabilityprotocol"]
   Go -->|admind stamps runtime.json| Blueclaw["blueclaw<br/>capability_tool_provider"]
   Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(vsock in the guest)"]
@@ -101,7 +101,8 @@ flowchart LR
 
 | Layer | Where | What it owns |
 |---|---|---|
-| descriptor source | `.dependency/blueclaw/protocol/src/capability_tools.ts` | every field of every capability tool |
+| descriptor source | `web/src/lib/server/public-api/catalog/` | every field of every capability tool |
+| descriptor shape | `.dependency/blueclaw/protocol/src/capability.ts` | what a descriptor may say, and nothing about which tools exist |
 | generated catalog | `pkg/capabilityprotocol/generated/capability-tools.json` | the embedded, hash-validated copy Go code reads |
 | descriptor grouping | `internal/capabilities/protocol.go` | which descriptors each provider registers |
 | config stamping | `internal/admind/blueclaw_updates.go` | writes `capabilities.toolDescriptors` into blueclaw's `runtime.json` |
