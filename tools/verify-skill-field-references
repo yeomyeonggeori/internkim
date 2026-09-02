@@ -25,9 +25,10 @@ BLUECLAW_RUNTIME = REPOSITORY_ROOT / ".dependency" / "blueclaw" / "internal" / "
 SCHEMA_KEYS = ("inputSchema", "inputIntentSchema", "outputSchema")
 MINIMUM_DESCRIBED_TOOLS = 40
 
-CAMEL_CASE_IDENTIFIER = re.compile(r"^[a-z][A-Za-z0-9]*$")
+IDENTIFIER_SHAPE = re.compile(r"^[a-z][A-Za-z0-9]*$")
 BACKTICKED = re.compile(r"`([^`\n]+)`")
 WORD = re.compile(r"[A-Za-z0-9_]+")
+JSON_CODE_FENCE = re.compile(r"```json[ \t]*\n(.*?)\n[ \t]*```", re.S)
 TOOL_REFERENCES = re.compile(r'^\s*(?:kim\.intern\.)?tool-references:\s*"?([^"]*)"?\s*$')
 GO_SCHEMA_FUNCTION = re.compile(r"func ([A-Za-z0-9_]+)\(\) json\.RawMessage \{(.*?)\n\}", re.S)
 GO_SCHEMA_FIELD = re.compile(r'jsonschema\.(?:Field|Required)\("([A-Za-z0-9_]+)"')
@@ -40,7 +41,15 @@ GO_TOOL_SCHEMA = re.compile(r"^\s*[A-Za-z]*Schema:\s+([A-Za-z0-9_]+),\s*$")
 
 
 def is_field_name(token: str) -> bool:
-    return bool(CAMEL_CASE_IDENTIFIER.match(token)) and token != token.lower()
+    return bool(IDENTIFIER_SHAPE.match(token)) and token != token.lower()
+
+
+def is_lowercase_field_of_some_tool(token: str, global_field_names: set[str]) -> bool:
+    return (
+        bool(IDENTIFIER_SHAPE.match(token))
+        and token == token.lower()
+        and token in global_field_names
+    )
 
 
 def field_names_in(text: str) -> set[str]:
@@ -145,12 +154,37 @@ def bundled_words(skill_document: pathlib.Path) -> set[str]:
     return words
 
 
-def named_fields(skill_document: pathlib.Path) -> set[str]:
-    return {
+def json_object_keys(node, found: set[str]) -> None:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if IDENTIFIER_SHAPE.match(key):
+                found.add(key)
+            json_object_keys(value, found)
+        return
+    if isinstance(node, list):
+        for item in node:
+            json_object_keys(item, found)
+
+
+def json_fenced_field_names(skill_document: pathlib.Path) -> set[str]:
+    found: set[str] = set()
+    for block in JSON_CODE_FENCE.findall(skill_document.read_text()):
+        try:
+            document = json.loads(block)
+        except json.JSONDecodeError:
+            continue
+        json_object_keys(document, found)
+    return found
+
+
+def named_fields(skill_document: pathlib.Path, global_field_names: set[str]) -> set[str]:
+    text = skill_document.read_text()
+    backticked_fields = {
         token
-        for token in BACKTICKED.findall(skill_document.read_text())
-        if is_field_name(token)
+        for token in BACKTICKED.findall(text)
+        if is_field_name(token) or is_lowercase_field_of_some_tool(token, global_field_names)
     }
+    return backticked_fields | json_fenced_field_names(skill_document)
 
 
 def main() -> int:
@@ -163,6 +197,8 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    global_field_names: set[str] = set().union(*vocabulary.values())
 
     unknown: list[str] = []
     unchecked: list[str] = []
@@ -178,7 +214,7 @@ def main() -> int:
             checked += 1
             carried = set().union(*(vocabulary[name] for name in references))
             carried |= bundled_words(skill_document)
-            for field in sorted(named_fields(skill_document) - carried):
+            for field in sorted(named_fields(skill_document, global_field_names) - carried):
                 unknown.append(f"{skill} names {field}, which {' '.join(references)} do not carry")
     if checked == 0:
         print("no skill was checked, so this check is reading the wrong place", file=sys.stderr)
