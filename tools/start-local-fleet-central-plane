@@ -9,15 +9,17 @@ repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
 
 stateRoot=""
 appPort="5183"
+agentName="local-fleet"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --state-root) stateRoot="$2"; shift 2 ;;
     --app-port) appPort="$2"; shift 2 ;;
+    --agent-name) agentName="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 if [ -z "$stateRoot" ]; then
-  echo "usage: $0 --state-root <directory> [--app-port <port>]" >&2
+  echo "usage: $0 --state-root <directory> [--app-port <port>] [--agent-name <name>]" >&2
   exit 2
 fi
 
@@ -94,7 +96,7 @@ done
 agentKey="$(
   cd "$repositoryRoot/web"
   SUPABASE_URL="$API_URL" SUPABASE_SECRET_KEY="$SECRET_KEY" \
-    bun run scripts/issue-agent-key.ts --company "$fixtureCompanyID" --name local-fleet --replace --quiet
+    bun run scripts/issue-agent-key.ts --company "$fixtureCompanyID" --name "$agentName" --replace --quiet
 )"
 if [ -z "$agentKey" ]; then
   echo "the record issued no agent key" >&2
