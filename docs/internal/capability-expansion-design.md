@@ -1,5 +1,7 @@
 # 기능 확장을 위한 설계 변경안
 
+> Superseded 2026-09-03 by #1347: Google Workspace was removed entirely. No Google code, tool, skill, route, secret or provisioning step remains, so what follows describes a path that is gone.
+
 ## 목적
 
 아래 기능들을 internkim이 안정적으로 처리하려면 개별 skill만 늘리는 방식으로는 부족하다.
