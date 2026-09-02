@@ -1,11 +1,16 @@
 import catalogDocument from '../../../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
+import { statesAResultContract } from './catalog/contract';
 
 export type ToolDescriptor = { name: string; sideEffectClass: string };
 
-type ToolCatalog = { protocolVersion: string; tools: ToolDescriptor[] };
+type CatalogEntry = ToolDescriptor & { resultContract?: unknown };
+
+type ToolCatalog = { protocolVersion: string; tools: CatalogEntry[] };
 
 const catalog: ToolCatalog = catalogDocument;
+
+const reachableTools: ToolDescriptor[] = catalog.tools.filter(statesAResultContract);
 
 const permissionRanks: Record<PublicAPIPermission, number> = { read: 1, write: 2, delete: 3 };
 
@@ -31,13 +36,13 @@ export function permissionForTool(descriptor: ToolDescriptor): PublicAPIPermissi
 }
 
 export function toolsReachableBy(permission: PublicAPIPermission): ToolDescriptor[] {
-	return catalog.tools.filter(
+	return reachableTools.filter(
 		(descriptor) => permissionRanks[permissionForTool(descriptor)] <= permissionRanks[permission]
 	);
 }
 
 export function toolReachableBy(name: string, permission: PublicAPIPermission): ToolDescriptor | undefined {
-	const descriptor = catalog.tools.find((candidate) => candidate.name === name);
+	const descriptor = reachableTools.find((candidate) => candidate.name === name);
 	if (!descriptor) return undefined;
 	if (permissionRanks[permissionForTool(descriptor)] > permissionRanks[permission]) return undefined;
 	return descriptor;

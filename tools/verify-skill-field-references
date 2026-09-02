@@ -4,6 +4,10 @@
 The model-facing schemas are strict, so a call carrying a field the descriptor
 dropped is rejected before dispatch and costs a recovery turn on every task.
 A skill's prose is the only place naming those fields that nothing validated.
+
+Every answer arrives in the invoke envelope, so its fields are carried by every
+tool and are read from the envelope's own schema rather than from any one of
+them.
 """
 
 import json
@@ -19,6 +23,14 @@ from skill_paths import skill_root_paths  # noqa: E402
 GENERATED_CATALOG = (
     REPOSITORY_ROOT / "pkg" / "capabilityprotocol" / "generated" / "capability-tools.json"
 )
+INVOKE_RESPONSE_SCHEMA = (
+    REPOSITORY_ROOT
+    / "pkg"
+    / "capabilityprotocol"
+    / "generated"
+    / "json-schema"
+    / "tool-invoke-response.schema.json"
+)
 CAPABILITY_DESCRIPTORS = REPOSITORY_ROOT / "internal" / "capabilities" / "protocol.go"
 BLUECLAW_RUNTIME = REPOSITORY_ROOT / ".dependency" / "blueclaw" / "internal" / "agentruntime"
 
@@ -30,12 +42,13 @@ BACKTICKED = re.compile(r"`([^`\n]+)`")
 WORD = re.compile(r"[A-Za-z0-9_]+")
 JSON_CODE_FENCE = re.compile(r"```json[ \t]*\n(.*?)\n[ \t]*```", re.S)
 TOOL_REFERENCES = re.compile(r'^\s*(?:kim\.intern\.)?tool-references:\s*"?([^"]*)"?\s*$')
+FRONTMATTER_KEY = re.compile(r"^\s*([A-Za-z0-9_.-]+):")
 GO_SCHEMA_FUNCTION = re.compile(r"func ([A-Za-z0-9_]+)\(\) json\.RawMessage \{(.*?)\n\}", re.S)
 GO_SCHEMA_FIELD = re.compile(r'jsonschema\.(?:Field|Required)\("([A-Za-z0-9_]+)"')
 GO_DESCRIPTOR = re.compile(
     r'\{Name: "([a-z0-9_]+)".*?Description: "(.*?[^\\])".*?InputSchema: ([A-Za-z0-9_]+)\(\)'
 )
-GO_RAW_SCHEMA = re.compile(r"var ([A-Za-z0-9_]+) = json\.RawMessage\(`(.*?)`\)", re.S)
+GO_RAW_SCHEMA = re.compile(r"(?:^|\n)\s*(?:var\s+)?([A-Za-z0-9_]+)\s*=\s*json\.RawMessage\(`(.*?)`\)", re.S)
 GO_TOOL_NAME = re.compile(r'^\s*Name:\s+"([a-z0-9_.]+)",\s*$')
 GO_TOOL_SCHEMA = re.compile(r"^\s*[A-Za-z]*Schema:\s+([A-Za-z0-9_]+),\s*$")
 
@@ -126,11 +139,20 @@ def runtime_vocabulary() -> dict[str, set[str]]:
     return vocabulary
 
 
+def envelope_field_names() -> set[str]:
+    found: set[str] = set()
+    schema_property_names(json.loads(INVOKE_RESPONSE_SCHEMA.read_text()), found)
+    return found
+
+
 def tool_vocabulary() -> dict[str, set[str]]:
     vocabulary = catalog_vocabulary()
     for source in (descriptor_vocabulary(), runtime_vocabulary()):
         for tool, found in source.items():
             vocabulary.setdefault(tool, set()).update(found)
+    envelope = envelope_field_names()
+    for found in vocabulary.values():
+        found |= envelope
     return vocabulary
 
 
@@ -143,6 +165,22 @@ def declared_references(skill_document: pathlib.Path) -> list[str]:
         if match:
             references.extend(match.group(1).split())
     return references
+
+
+# A skill's own frontmatter keys are its document's, not any tool's, and prose
+# explaining them is not prose about a tool's input.
+def frontmatter_key_names(skill_document: pathlib.Path) -> set[str]:
+    keys: set[str] = set()
+    lines = skill_document.read_text().splitlines()
+    if not lines or lines[0].strip() != "---":
+        return keys
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        declared = FRONTMATTER_KEY.match(line)
+        if declared:
+            keys.add(declared.group(1).split(".")[-1])
+    return keys
 
 
 def bundled_words(skill_document: pathlib.Path) -> set[str]:
@@ -214,6 +252,7 @@ def main() -> int:
             checked += 1
             carried = set().union(*(vocabulary[name] for name in references))
             carried |= bundled_words(skill_document)
+            carried |= frontmatter_key_names(skill_document)
             for field in sorted(named_fields(skill_document, global_field_names) - carried):
                 unknown.append(f"{skill} names {field}, which {' '.join(references)} do not carry")
     if checked == 0:

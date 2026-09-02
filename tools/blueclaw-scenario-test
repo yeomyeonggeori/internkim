@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Run blueclaw's scenario tests against the skills this repository ships.
+"""Run blueclaw's scenario tests against the skills and tools this repository ships.
 
-Blueclaw's scenarios read their skill roots from BLUECLAW_SCENARIO_SKILL_ROOTS
-and skip when nothing sets it.
+Blueclaw's scenarios read their skill roots and their capability catalog from
+the environment, and skip when nothing sets either.
 """
 
 import os
@@ -18,13 +18,13 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
 from skill_paths import skill_root_paths  # noqa: E402
 
 
-def scenario_skill_roots_variable() -> str:
+def declared_variable(constant_name: str, source_name: str) -> str:
     declaration = re.search(
-        r'ScenarioSkillRootsVariable = "([A-Z_]+)"',
-        (SUBMODULE_PATH / "internal" / "e2e" / "scenarios.go").read_text(),
+        constant_name + r' = "([A-Z_]+)"',
+        (SUBMODULE_PATH / "internal" / "e2e" / source_name).read_text(),
     )
     if declaration is None:
-        raise SystemExit("blueclaw declares no ScenarioSkillRootsVariable, so its scenarios would skip")
+        raise SystemExit(f"blueclaw declares no {constant_name}, so its scenarios would skip")
     return declaration.group(1)
 
 
@@ -36,8 +36,13 @@ def main() -> int:
     if not skill_roots:
         print("no skill root exists to offer blueclaw's scenarios", file=sys.stderr)
         return 1
+    catalog_path = REPOSITORY_ROOT / "pkg" / "capabilityprotocol" / "generated" / "capability-tools.json"
+    if not catalog_path.is_file():
+        print(f"no capability catalog at {catalog_path}: make generate-protocol", file=sys.stderr)
+        return 1
     environment = dict(os.environ)
-    environment[scenario_skill_roots_variable()] = os.pathsep.join(skill_roots)
+    environment[declared_variable("ScenarioSkillRootsVariable", "scenarios.go")] = os.pathsep.join(skill_roots)
+    environment[declared_variable("ScenarioCapabilityCatalogVariable", "virtual_session.go")] = str(catalog_path)
     arguments = sys.argv[1:] or ["-tags", "appliance", "./internal/e2e/"]
     return subprocess.run(["go", "test", *arguments], cwd=SUBMODULE_PATH, env=environment).returncode
 
