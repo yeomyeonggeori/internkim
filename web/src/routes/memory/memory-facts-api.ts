@@ -4,14 +4,11 @@ import { isSupabaseConfigured } from '$lib/supabase';
 export const memoryFactKinds = ['identity', 'preference', 'fact', 'episode', 'temporary'] as const;
 export type MemoryFactKind = (typeof memoryFactKinds)[number];
 
-export const memoryFactScopeTypes = ['private', 'circle', 'workspace'] as const;
-export type MemoryFactScopeType = (typeof memoryFactScopeTypes)[number];
-
 export type MemoryFact = {
 	factID: string;
 	episodeID: string;
-	scopeType: MemoryFactScopeType;
-	scopeID?: string;
+	ownerPersonID: string;
+	circleIDs: string[];
 	kind: MemoryFactKind;
 	content: string;
 	validFrom: string;
@@ -88,17 +85,15 @@ function normalizeMemoryFact(document: unknown): MemoryFact | undefined {
 	const factID = readString(record.factID);
 	const content = readString(record.content);
 	const validFrom = readTimestamp(record.validFrom);
-	const scopeType = readMemberOf(record.scopeType, memoryFactScopeTypes);
 	const kind = readMemberOf(record.kind, memoryFactKinds);
-	if (!factID || !content || !validFrom || !scopeType || !kind) return undefined;
-	const scopeID = readString(record.scopeID);
+	if (!factID || !content || !validFrom || !kind) return undefined;
 	const validUntil = readTimestamp(record.validUntil);
 	const lastRecalledAt = readTimestamp(record.lastRecalledAt);
 	return {
 		factID,
 		episodeID: readString(record.episodeID) ?? '',
-		scopeType,
-		...(scopeID ? { scopeID } : {}),
+		ownerPersonID: readString(record.ownerPersonID) ?? '',
+		circleIDs: readStringArray(record.circleIDs),
 		kind,
 		content,
 		validFrom,

@@ -1,21 +1,22 @@
 import type { MemoryFact } from './memory-facts-api';
 
 export const allFilterValue = 'all';
+export const ownOnlyFilterValue = 'own';
 
 export type MemoryFactFilters = {
 	searchText: string;
 	kind: string;
-	scope: string;
+	circle: string;
 };
 
 export function emptyMemoryFactFilters(): MemoryFactFilters {
-	return { searchText: '', kind: allFilterValue, scope: allFilterValue };
+	return { searchText: '', kind: allFilterValue, circle: allFilterValue };
 }
 
 export function filterMemoryFacts(facts: MemoryFact[], filters: MemoryFactFilters): MemoryFact[] {
 	const searchText = filters.searchText.trim().toLowerCase();
 	return facts.filter(
-		(fact) => matchesKind(fact, filters.kind) && matchesScope(fact, filters.scope) && matchesSearchText(fact, searchText)
+		(fact) => matchesKind(fact, filters.kind) && matchesCircle(fact, filters.circle) && matchesSearchText(fact, searchText)
 	);
 }
 
@@ -27,8 +28,12 @@ export function memoryFactKindsOf(facts: MemoryFact[]): string[] {
 	return [...new Set(facts.map((fact) => fact.kind))].sort();
 }
 
-export function memoryFactScopesOf(facts: MemoryFact[]): string[] {
-	return [...new Set(facts.map((fact) => fact.scopeType))].sort();
+export function memoryFactCirclesOf(facts: MemoryFact[]): string[] {
+	return [...new Set(facts.flatMap((fact) => fact.circleIDs))].sort();
+}
+
+export function isOwnOnlyFact(fact: MemoryFact): boolean {
+	return fact.circleIDs.length === 0;
 }
 
 export function isExpiringFact(fact: MemoryFact): boolean {
@@ -39,11 +44,13 @@ function matchesKind(fact: MemoryFact, kind: string): boolean {
 	return kind === allFilterValue || fact.kind === kind;
 }
 
-function matchesScope(fact: MemoryFact, scope: string): boolean {
-	return scope === allFilterValue || fact.scopeType === scope;
+function matchesCircle(fact: MemoryFact, circle: string): boolean {
+	if (circle === allFilterValue) return true;
+	if (circle === ownOnlyFilterValue) return isOwnOnlyFact(fact);
+	return fact.circleIDs.includes(circle);
 }
 
 function matchesSearchText(fact: MemoryFact, searchText: string): boolean {
 	if (!searchText) return true;
-	return fact.content.toLowerCase().includes(searchText) || (fact.scopeID ?? '').toLowerCase().includes(searchText);
+	return fact.content.toLowerCase().includes(searchText) || fact.circleIDs.some((circleID) => circleID.toLowerCase().includes(searchText));
 }

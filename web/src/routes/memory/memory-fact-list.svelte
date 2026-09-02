@@ -20,8 +20,10 @@
 		emptyMemoryFactFilters,
 		filterMemoryFacts,
 		isExpiringFact,
+		isOwnOnlyFact,
+		memoryFactCirclesOf,
 		memoryFactKindsOf,
-		memoryFactScopesOf,
+		ownOnlyFilterValue,
 		sortMemoryFactsByRecency
 	} from './memory-fact-list-model';
 	import type { MemoryText } from './text';
@@ -38,16 +40,17 @@
 	const profileLines = $derived([...(memoryFacts?.profile.identityLines ?? []), ...(memoryFacts?.profile.currentLines ?? [])]);
 	const visibleFacts = $derived(sortMemoryFactsByRecency(filterMemoryFacts(facts, filters)));
 	const hasActiveFilters = $derived(
-		filters.searchText.trim() !== '' || filters.kind !== allFilterValue || filters.scope !== allFilterValue
+		filters.searchText.trim() !== '' || filters.kind !== allFilterValue || filters.circle !== allFilterValue
 	);
 
 	const kindOptions = $derived([
 		{ value: allFilterValue, label: text.factFilterKindAll },
 		...memoryFactKindsOf(facts).map((kind) => ({ value: kind, label: kindLabel(kind) }))
 	]);
-	const scopeOptions = $derived([
-		{ value: allFilterValue, label: text.factFilterScopeAll },
-		...memoryFactScopesOf(facts).map((scope) => ({ value: scope, label: scopeLabel(scope) }))
+	const circleOptions = $derived([
+		{ value: allFilterValue, label: text.factFilterCircleAll },
+		{ value: ownOnlyFilterValue, label: text.myMemory },
+		...memoryFactCirclesOf(facts).map((circleID) => ({ value: circleID, label: circleID }))
 	]);
 
 	onMount(loadMemoryFacts);
@@ -78,17 +81,9 @@
 		return kind;
 	}
 
-	function scopeLabel(scope: string): string {
-		if (scope === 'private') return text.factScopePersonal;
-		if (scope === 'circle') return text.factScopeCircle;
-		if (scope === 'workspace') return text.factScopeWorkspace;
-		return scope;
-	}
-
-	function scopeDisplayName(fact: MemoryFact): string {
-		if (fact.scopeType === 'private') return text.myMemory;
-		if (fact.scopeType === 'circle') return fact.scopeID ?? text.factScopeCircle;
-		return text.factScopeWorkspace;
+	function sharingText(fact: MemoryFact): string {
+		if (isOwnOnlyFact(fact)) return text.myMemory;
+		return fact.circleIDs.join(', ');
 	}
 
 	function validityText(fact: MemoryFact): string {
@@ -159,7 +154,7 @@
 				<Input bind:value={filters.searchText} placeholder={text.factFilterPlaceholder} autocomplete="off" class="pl-8" />
 			</div>
 			<FilterCombobox bind:value={filters.kind} options={kindOptions} label={text.factFilterKindAll} clearValue="all" class="w-36" />
-			<FilterCombobox bind:value={filters.scope} options={scopeOptions} label={text.factFilterScopeAll} clearValue="all" class="w-36" />
+			<FilterCombobox bind:value={filters.circle} options={circleOptions} label={text.factFilterCircleAll} clearValue="all" class="w-36" />
 			{#if hasActiveFilters}
 				<Button type="button" variant="ghost" size="sm" onclick={resetFilters}>
 					<RotateCcwIcon class="size-4" />
@@ -188,7 +183,7 @@
 						<Item.Content>
 							<Item.Title class="text-muted-foreground gap-2 font-normal">
 								<Badge variant="outline">{kindLabel(fact.kind)}</Badge>
-								<span class="truncate text-xs">{scopeDisplayName(fact)}</span>
+								<span class="truncate text-xs">{sharingText(fact)}</span>
 								<span class="text-xs tabular-nums">{validityText(fact)}</span>
 								{#if reinforcementText(fact)}
 									<span class="text-xs tabular-nums">{reinforcementText(fact)}</span>

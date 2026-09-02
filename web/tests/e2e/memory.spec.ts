@@ -6,7 +6,8 @@ const memoryFactsFixture = {
 	facts: Array.from({ length: 12 }, (_, index) => ({
 		factID: `fact-${index}`,
 		episodeID: `episode-${index}`,
-		scopeType: 'workspace',
+		ownerPersonID: 'person-1',
+		circleIDs: ['member'],
 		kind: 'fact',
 		content: `Memory fact ${index}`,
 		validFrom: `2026-06-${String(index + 1).padStart(2, '0')}T09:00:00Z`,

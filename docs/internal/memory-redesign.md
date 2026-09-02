@@ -83,8 +83,7 @@ create table memory_episode (
 create table memory_fact (
   fact_id             text primary key,
   episode_id          text not null references memory_episode (episode_id),
-  scope_type          text not null check (scope_type in ('private', 'circle', 'workspace')),
-  owner_person_id     text not null default '',
+  owner_person_id     text not null check (owner_person_id <> ''),
   subject_person_id   text not null default '',
   kind                text not null check (kind in ('identity', 'preference', 'fact', 'episode', 'temporary')),
   content             text not null check (char_length(content) <= 240),
@@ -108,7 +107,7 @@ create table memory_fact_circle (
 );
 
 create index memory_fact_content_idx   on memory_fact using gin (content gin_trgm_ops);
-create index memory_fact_live_idx      on memory_fact (scope_type, owner_person_id)
+create index memory_fact_owner_idx     on memory_fact (owner_person_id)
   where superseded_by is null and forgotten_at is null;
 
 -- only where the vector extension is installed
@@ -156,11 +155,16 @@ move to trixie, and it is scheduled with the rollout, not before it.
 
 ### Scopes
 
-| `scope_type` | carries | Readable by | Written by |
-|---|---|---|---|
-| `private` | `owner_person_id` | that person | extraction, `memory_remember` |
-| `circle` | one or more rows in `memory_fact_circle` | members of any named circle, and members of any circle that contains one | extraction, `memory_remember` |
-| `workspace` | nothing | anyone whose rank and classes pass the label | extraction, `memory_remember` |
+Every fact has an owner, the person whose task or request produced it, and
+zero or more circles in `memory_fact_circle`:
+
+| circles | Readable by |
+|---|---|
+| none | the owner, and nobody else |
+| one or more | the owner, plus members of any named circle (or of a circle that contains one) whose rank and classes pass the label |
+
+There is no company-wide scope. Sharing with everyone is sharing with the
+`member` circle everyone belongs to.
 
 Circles nest. `memberCircles` on a circle in `policy.json` lists the circles
 that belong to it; the projection turns that into a containment map, and a
@@ -181,13 +185,12 @@ never chosen by the model. The reader filter is the existing triple gate, now in
 SQL:
 
 ```sql
-where (scope_type = 'private'   and owner_person_id = $person_id)
-   or (scope_type = 'circle'    and exists (
-        select 1 from memory_fact_circle c
-        where c.fact_id = f.fact_id and c.circle_id = any($readable_circle_ids)))
-   or (scope_type = 'workspace')
-  and security_level_rank <= $reader_rank
-  and required_classes <@ $granted_classes
+where (owner_person_id = $person_id
+    or (exists (
+          select 1 from memory_fact_circle c
+          where c.fact_id = f.fact_id and c.circle_id = any($readable_circle_ids))
+        and security_level_rank <= $reader_rank
+        and required_classes <@ $granted_classes))
   and superseded_by is null
   and forgotten_at is null
   and (valid_until is null or valid_until > now())
@@ -220,10 +223,9 @@ should hold afterwards, each related to what was already there.
 2. Call the low-tier model with the schema in §4.3, the episode, the
    candidates, the requester's name, the active circle, and today's date.
 3. Validate: `relatedFactID` must be a candidate ID when the relation is
-   `supersedes` or `reinforces` and empty when it is `new`; `circle` scope
-   keeps the named circles the requester is a member of, defaults to the
-   active circle when none is named, and narrows to `private` when none
-   survives;
+   `supersedes` or `reinforces` and empty when it is `new`; `circleIDs`
+   keeps the named circles the requester is a member of, and a fact left
+   with none is the owner's alone;
    `validUntil` is required for `temporary` and forbidden otherwise; a
    private fact carries no security label because its scope is already one
    person. A violation fails the ingest with a ledger event, never a silent
@@ -281,11 +283,10 @@ Provider-portable by the runtime policy: string enums only, `required` kept,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["content", "kind", "scope", "circleIDs", "subjectPersonHint", "relation", "relatedFactID", "validUntil"],
+        "required": ["content", "kind", "circleIDs", "subjectPersonHint", "relation", "relatedFactID", "validUntil"],
         "properties": {
           "content":           { "type": "string", "maxLength": 240 },
           "kind":              { "type": "string", "enum": ["identity", "preference", "fact", "episode", "temporary"] },
-          "scope":             { "type": "string", "enum": ["private", "circle", "workspace"] },
           "circleIDs":         { "type": "array", "items": { "type": "string" } },
           "subjectPersonHint": { "type": "string" },
           "relation":          { "type": "string", "enum": ["new", "supersedes", "reinforces"] },

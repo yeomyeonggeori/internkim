@@ -154,8 +154,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 		{
 			factID: 'dev-fact-1',
 			episodeID: 'dev-episode-1',
-			scopeType: 'private',
-			scopeID: 'dev-person',
+			ownerPersonID: 'dev-person',
+			circleIDs: [],
 			kind: 'identity',
 			content: '이샘플은 플랫폼 팀 소속이다.',
 			validFrom: '2026-06-17T12:00:00+09:00',
@@ -164,8 +164,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 		{
 			factID: 'dev-fact-2',
 			episodeID: 'dev-episode-2',
-			scopeType: 'private',
-			scopeID: 'dev-person',
+			ownerPersonID: 'dev-person',
+			circleIDs: [],
 			kind: 'preference',
 			content: '이샘플은 릴리스 노트를 짧은 한국어 문장으로 받는 것을 선호한다.',
 			validFrom: '2026-07-01T09:30:00+09:00',
@@ -174,8 +174,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 		{
 			factID: 'dev-fact-3',
 			episodeID: 'dev-episode-3',
-			scopeType: 'circle',
-			scopeID: 'member',
+			ownerPersonID: 'dev-person',
+			circleIDs: ['member'],
 			kind: 'fact',
 			content: '급여 자료는 HR 서클에서만 다룬다.',
 			validFrom: '2026-07-05T14:10:00+09:00',
@@ -184,7 +184,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 		{
 			factID: 'dev-fact-4',
 			episodeID: 'dev-episode-4',
-			scopeType: 'workspace',
+			ownerPersonID: 'dev-colleague',
+			circleIDs: ['member'],
 			kind: 'fact',
 			content: '분기 런치 리뷰는 매주 금요일에 진행된다.',
 			validFrom: '2026-06-20T10:00:00+09:00',
@@ -193,8 +194,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 		{
 			factID: 'dev-fact-5',
 			episodeID: 'dev-episode-5',
-			scopeType: 'private',
-			scopeID: 'dev-person',
+			ownerPersonID: 'dev-person',
+			circleIDs: [],
 			kind: 'temporary',
 			content: '이샘플은 2026-09-11까지 휴가 중이다.',
 			validFrom: '2026-09-01T09:00:00+09:00',
@@ -210,7 +211,7 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 			currentLines: ['이샘플은 2026-09-11까지 휴가 중이다.'],
 			builtAt: '2026-09-01T09:05:00+09:00'
 		},
-		facts: facts.filter((fact) => !state.forgottenFactIDs.includes(fact.factID)).map((fact) => ({ ...fact }))
+		facts: facts.filter((fact) => !state.forgottenFactIDs.includes(fact.factID)).map((fact) => ({ ...fact, circleIDs: [...fact.circleIDs] }))
 	};
 }
 

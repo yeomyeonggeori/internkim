@@ -5,8 +5,10 @@ import {
 	emptyMemoryFactFilters,
 	filterMemoryFacts,
 	isExpiringFact,
+	isOwnOnlyFact,
+	memoryFactCirclesOf,
 	memoryFactKindsOf,
-	memoryFactScopesOf,
+	ownOnlyFilterValue,
 	sortMemoryFactsByRecency
 } from '../../../src/routes/memory/memory-fact-list-model';
 
@@ -14,8 +16,8 @@ const facts: MemoryFact[] = [
 	{
 		factID: 'fact-1',
 		episodeID: 'episode-1',
-		scopeType: 'private',
-		scopeID: 'person-1',
+		ownerPersonID: 'person-1',
+		circleIDs: [],
 		kind: 'preference',
 		content: 'The user prefers terse release notes.',
 		validFrom: '2026-07-01T09:00:00Z',
@@ -24,8 +26,8 @@ const facts: MemoryFact[] = [
 	{
 		factID: 'fact-2',
 		episodeID: 'episode-2',
-		scopeType: 'private',
-		scopeID: 'person-1',
+		ownerPersonID: 'person-1',
+		circleIDs: [],
 		kind: 'temporary',
 		content: 'The user is away until Friday.',
 		validFrom: '2026-07-03T09:00:00Z',
@@ -35,8 +37,8 @@ const facts: MemoryFact[] = [
 	{
 		factID: 'fact-3',
 		episodeID: 'episode-3',
-		scopeType: 'circle',
-		scopeID: 'hr',
+		ownerPersonID: 'person-2',
+		circleIDs: ['hr'],
 		kind: 'fact',
 		content: 'Compensation data belongs to HR.',
 		validFrom: '2026-07-05T09:00:00Z',
@@ -45,7 +47,8 @@ const facts: MemoryFact[] = [
 	{
 		factID: 'fact-4',
 		episodeID: 'episode-4',
-		scopeType: 'workspace',
+		ownerPersonID: 'person-3',
+		circleIDs: ['member'],
 		kind: 'episode',
 		content: 'Quarterly launch review happened on Friday.',
 		validFrom: '2026-06-20T09:00:00Z',
@@ -59,27 +62,32 @@ describe('filterMemoryFacts', () => {
 	});
 
 	test('filters by kind', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: '', kind: 'temporary', scope: allFilterValue });
+		const filtered = filterMemoryFacts(facts, { searchText: '', kind: 'temporary', circle: allFilterValue });
 		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-2']);
 	});
 
-	test('filters by scope', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: '', kind: allFilterValue, scope: 'private' });
+	test('filters to facts kept for the owner alone', () => {
+		const filtered = filterMemoryFacts(facts, { searchText: '', kind: allFilterValue, circle: ownOnlyFilterValue });
 		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-1', 'fact-2']);
 	});
 
+	test('filters by a circle', () => {
+		const filtered = filterMemoryFacts(facts, { searchText: '', kind: allFilterValue, circle: 'hr' });
+		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-3']);
+	});
+
 	test('search text matches content case-insensitively', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: 'COMPENSATION', kind: allFilterValue, scope: allFilterValue });
+		const filtered = filterMemoryFacts(facts, { searchText: 'COMPENSATION', kind: allFilterValue, circle: allFilterValue });
 		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-3']);
 	});
 
 	test('search text matches the circle', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: 'hr', kind: allFilterValue, scope: allFilterValue });
+		const filtered = filterMemoryFacts(facts, { searchText: 'hr', kind: allFilterValue, circle: allFilterValue });
 		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-3']);
 	});
 
 	test('combines filters', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: 'user', kind: 'preference', scope: 'private' });
+		const filtered = filterMemoryFacts(facts, { searchText: 'user', kind: 'preference', circle: ownOnlyFilterValue });
 		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-1']);
 	});
 });
@@ -101,8 +109,15 @@ describe('filter options', () => {
 		expect(memoryFactKindsOf(facts)).toEqual(['episode', 'fact', 'preference', 'temporary']);
 	});
 
-	test('memoryFactScopesOf returns distinct sorted scopes', () => {
-		expect(memoryFactScopesOf(facts)).toEqual(['circle', 'private', 'workspace']);
+	test('memoryFactCirclesOf returns distinct sorted circles', () => {
+		expect(memoryFactCirclesOf(facts)).toEqual(['hr', 'member']);
+	});
+});
+
+describe('isOwnOnlyFact', () => {
+	test('is true only without circles', () => {
+		expect(isOwnOnlyFact(facts[0])).toBe(true);
+		expect(isOwnOnlyFact(facts[2])).toBe(false);
 	});
 });
 

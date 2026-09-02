@@ -11,8 +11,8 @@ describe('memory facts api normalizer', () => {
 				{
 					factID: 'fact-1',
 					episodeID: 'episode-1',
-					scopeType: 'private',
-					scopeID: 'person-1',
+					ownerPersonID: 'person-1',
+					circleIDs: ['member', 7],
 					kind: 'preference',
 					content: '이샘플 prefers bullets',
 					validFrom: '2026-09-02T10:00:00Z',
@@ -21,7 +21,7 @@ describe('memory facts api normalizer', () => {
 					lastRecalledAt: '0001-01-01T00:00:00Z'
 				},
 				{ factID: 'fact-2', content: 'missing kind and scope', validFrom: '2026-09-02T10:00:00Z' },
-				{ factID: 'fact-3', kind: 'rumour', scopeType: 'private', content: 'unknown kind', validFrom: '2026-09-02T10:00:00Z' },
+				{ factID: 'fact-3', kind: 'rumour', ownerPersonID: 'person-1', content: 'unknown kind', validFrom: '2026-09-02T10:00:00Z' },
 				'not a fact'
 			]
 		});
@@ -34,8 +34,8 @@ describe('memory facts api normalizer', () => {
 		expect(response.facts[0]).toEqual({
 			factID: 'fact-1',
 			episodeID: 'episode-1',
-			scopeType: 'private',
-			scopeID: 'person-1',
+			ownerPersonID: 'person-1',
+			circleIDs: ['member'],
 			kind: 'preference',
 			content: '이샘플 prefers bullets',
 			validFrom: '2026-09-02T10:00:00Z',
