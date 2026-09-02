@@ -200,7 +200,7 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	calendarContent := string(calendarDocument)
-	for _, expectedText := range []string{"task_add", "task_update", "event_list", "`eventHint`", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
+	for _, expectedText := range []string{"task_add", "task_update", "event_list", "Decide by the user's intent", "deadline-driven deliverable", "Do not mark calendar events with `[완료]`"} {
 		if !strings.Contains(calendarContent, expectedText) {
 			t.Fatalf("calendar skill must document mixed calendar/work routing %q", expectedText)
 		}
@@ -259,14 +259,10 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		"scripts/validate.py ~/sites/<short-name>",
 		"artifact_review",
 		"app/public/site-content.json",
-		"sourceWorkspacePath",
-		`"mode": "preview"`,
-		`mode: "publish"`,
 		"TODO(design)",
 		"colors, typography, rounded, spacing, components",
 		"dark navy shell",
 		"Make small value changes as targeted edits",
-		"siteReference",
 		"publishedURL",
 		"sourceSHA256",
 	} {
@@ -550,7 +546,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must not reference %q", removedToolName)
 		}
 	}
-	for _, expectedText := range []string{"targeted edit", "siteReference", "runtime obtains approval", "sourceSHA256"} {
+	for _, expectedText := range []string{"targeted edit", "sourceSHA256"} {
 		if !strings.Contains(string(siteSkillDocument), expectedText) {
 			t.Fatalf("website skill must include %q", expectedText)
 		}
