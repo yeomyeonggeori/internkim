@@ -37,9 +37,12 @@ Web push is signed, so the plane carries a VAPID pair. Changing it invalidates
 every subscription that exists, and everyone has to turn notifications on
 again, so it is set once.
 
-An administrator sets it by posting to `setup-vapid`, which generates the pair
-and writes `vapid_public_key`, `vapid_private_key` and `vapid_subject` into the
-vault:
+Founding a company sets it. `POST /api/company` posts to `setup-vapid` with the
+founder's own token, the subject being the founder's address, and reports the
+outcome as `notifications` in its answer. The call below is the same thing by
+hand, for a deployment that was founded before this existed or whose founding
+answered `failed`. It generates the pair and writes `vapid_public_key`,
+`vapid_private_key` and `vapid_subject` into the vault:
 
 ```
 curl -X POST https://<project>.supabase.co/functions/v1/setup-vapid \
@@ -94,7 +97,8 @@ such request: it fires at an hour each member chose. `pg_cron` looks every
 minute and `pg_net` posts to `announce-day`, reading the address and the key it
 carries from the vault.
 
-An administrator sets both by posting to `setup-digest-key`:
+Founding a company sets both, through the same `POST /api/company` call that
+sets the VAPID pair. By hand, an administrator posts to `setup-digest-key`:
 
 ```
 curl -X POST https://<project>.supabase.co/functions/v1/setup-digest-key \
