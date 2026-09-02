@@ -15,16 +15,41 @@ func SkillsPath(scriptDir string) string {
 	return filepath.Join(AssetsPath(scriptDir), "skills")
 }
 
-func PluginPath(scriptDir string) string {
-	return filepath.Join(scriptDir, ".dependency", "internkim-plugin")
+func dependencyPath(scriptDir string) string {
+	return filepath.Join(scriptDir, ".dependency")
 }
 
-func PluginSkillsPath(scriptDir string) string {
-	return filepath.Join(PluginPath(scriptDir), "skills")
+func PluginPaths(scriptDir string) []string {
+	entries, errorValue := os.ReadDir(dependencyPath(scriptDir))
+	if errorValue != nil {
+		return nil
+	}
+	pluginPaths := []string{}
+	for _, entry := range entries {
+		pluginPath := filepath.Join(dependencyPath(scriptDir), entry.Name())
+		if isExistingFile(filepath.Join(pluginPath, "plugin.json")) {
+			pluginPaths = append(pluginPaths, pluginPath)
+		}
+	}
+	sort.Strings(pluginPaths)
+	return pluginPaths
+}
+
+func PluginSkillPaths(scriptDir string) []string {
+	skillPaths := []string{}
+	for _, pluginPath := range PluginPaths(scriptDir) {
+		skillPaths = append(skillPaths, filepath.Join(pluginPath, "skills"))
+	}
+	return skillPaths
 }
 
 func SkillRootPaths(scriptDir string) []string {
-	return []string{SkillsPath(scriptDir), PluginSkillsPath(scriptDir)}
+	return append([]string{SkillsPath(scriptDir)}, PluginSkillPaths(scriptDir)...)
+}
+
+func isExistingFile(path string) bool {
+	information, errorValue := os.Stat(path)
+	return errorValue == nil && information.Mode().IsRegular()
 }
 
 type SkillDirectory struct {

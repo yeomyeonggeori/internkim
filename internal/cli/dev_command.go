@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/localfleet"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -38,6 +39,15 @@ type devVirtualSessionArguments struct {
 type devCommandInvocation struct {
 	WorkingDirectoryPath string
 	Arguments            []string
+	EnvironmentVariables []string
+}
+
+// Declared by blueclaw, which is a separate module this one cannot import.
+const blueclawScenarioSkillRootsVariable = "BLUECLAW_SCENARIO_SKILL_ROOTS"
+
+func scenarioSkillRootsVariable(repositoryRootPath string) string {
+	skillRootPaths := blueclawworkspace.SkillRootPaths(repositoryRootPath)
+	return blueclawScenarioSkillRootsVariable + "=" + strings.Join(skillRootPaths, string(os.PathListSeparator))
 }
 
 var runDevLocalVirtualSession = runLocalDevVirtualSession
@@ -457,6 +467,7 @@ func runLocalDevVirtualSession(sessionArguments devVirtualSessionArguments) erro
 	}
 	command := exec.Command("go", invocation.Arguments...)
 	command.Dir = invocation.WorkingDirectoryPath
+	command.Env = append(os.Environ(), invocation.EnvironmentVariables...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
@@ -474,6 +485,7 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 	return devCommandInvocation{
 		WorkingDirectoryPath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw"),
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
+		EnvironmentVariables: []string{scenarioSkillRootsVariable(repositoryRootPath)},
 	}, nil
 }
 

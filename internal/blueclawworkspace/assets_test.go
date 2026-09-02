@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -14,9 +15,8 @@ const maximumSkillDocumentLines = 300
 
 func requirePluginSkills(t *testing.T, repositoryRootPath string) {
 	t.Helper()
-	pluginSkillsPath := PluginSkillsPath(repositoryRootPath)
-	if _, errorValue := os.Stat(pluginSkillsPath); errorValue != nil {
-		t.Fatalf("%s is not checked out; run `git submodule update --init --recursive`", pluginSkillsPath)
+	if len(PluginSkillPaths(repositoryRootPath)) == 0 {
+		t.Fatalf("no plugin is checked out under %s; run `git submodule update --init --recursive`", dependencyPath(repositoryRootPath))
 	}
 }
 
@@ -1102,10 +1102,10 @@ func TestSkillDirectoriesMergeTheRepositoryAndPluginRoots(t *testing.T) {
 	for _, skillDirectory := range skillDirectories {
 		rootByName[skillDirectory.Name] = filepath.Dir(skillDirectory.Path)
 	}
-	pluginSkillsPath := PluginSkillsPath(repositoryRootPath)
+	pluginSkillPaths := PluginSkillPaths(repositoryRootPath)
 	for _, skillName := range []string{"pdf", "presentation", "spreadsheet", "calculator", "weather"} {
-		if rootByName[skillName] != pluginSkillsPath {
-			t.Fatalf("%s must come from the plugin, got %q", skillName, rootByName[skillName])
+		if !slices.Contains(pluginSkillPaths, rootByName[skillName]) {
+			t.Fatalf("%s must come from a plugin, got %q", skillName, rootByName[skillName])
 		}
 	}
 	repositorySkillsPath := SkillsPath(repositoryRootPath)
@@ -1118,6 +1118,7 @@ func TestSkillDirectoriesMergeTheRepositoryAndPluginRoots(t *testing.T) {
 
 func TestSkillDirectoriesRejectTheSameSkillFromTwoRoots(t *testing.T) {
 	repositoryRootPath := t.TempDir()
+	writeTestPlugin(t, repositoryRootPath, "a-plugin")
 	for _, rootPath := range SkillRootPaths(repositoryRootPath) {
 		if errorValue := os.MkdirAll(filepath.Join(rootPath, "twice"), 0o755); errorValue != nil {
 			t.Fatal(errorValue)
