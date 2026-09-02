@@ -55,7 +55,6 @@ func (service *Service) taskAndPayloadFromRequest(request *http.Request, members
 	callerEmail := strings.ToLower(strings.TrimSpace(service.taskActorEmail(request)))
 	if taskID == "" && callerEmail != "" && !service.isTaskAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
 		status = taskStatusRequested
-		payload.RequestReason = firstNonEmpty(strings.TrimSpace(payload.RequestReason), "타인 업무 추가 요청")
 	}
 	if !isAllowedTaskStatus(status) {
 		return Task{}, payload, taskValidationError("status is not allowed")
