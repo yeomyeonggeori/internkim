@@ -10,7 +10,6 @@ work_directory="${INTERNKIM_BLUECLAW_RUNTIME_WORK_DIR:-$scratch_directory/work}"
 stage_directory="$work_directory/stage"
 rootfs_directory="$work_directory/rootfs"
 rootfs_image_path="$stage_directory/rootfs.ext4"
-firecracker_version="${FIRECRACKER_VERSION:-1.12.1}"
 cloud_hypervisor_version="${CLOUD_HYPERVISOR_VERSION:-53.0}"
 virtiofsd_version="${VIRTIOFSD_VERSION:-1.10.0-1ubuntu0.1}"
 linux_kernel_version="${BLUECLAW_LINUX_KERNEL_VERSION:-6.1.129}"
@@ -372,37 +371,6 @@ else
 fi
 mkdir -p "$artifact_directory" "$stage_directory"
 
-prepare_firecracker() {
-  local archive_path="$cache_directory/firecracker-v$firecracker_version-aarch64.tgz"
-  local extract_directory="$work_directory/firecracker-v$firecracker_version"
-  local download_url="https://github.com/firecracker-microvm/firecracker/releases/download/v$firecracker_version/firecracker-v$firecracker_version-aarch64.tgz"
-
-  if [ -x "$artifact_directory/firecracker" ] && [ -x "$artifact_directory/jailer" ]; then
-    install -m 0755 "$artifact_directory/firecracker" "$stage_directory/firecracker"
-    install -m 0755 "$artifact_directory/jailer" "$stage_directory/jailer"
-    return
-  fi
-
-  if [ ! -s "$archive_path" ]; then
-    curl --fail --location --retry 3 --output "$archive_path.tmp" "$download_url"
-    mv "$archive_path.tmp" "$archive_path"
-  fi
-
-  rm -rf "$extract_directory"
-  mkdir -p "$extract_directory"
-  tar -xzf "$archive_path" -C "$extract_directory"
-  local firecracker_binary
-  local jailer_binary
-  firecracker_binary="$(find "$extract_directory" -type f -name 'firecracker-*aarch64' | head -1)"
-  jailer_binary="$(find "$extract_directory" -type f -name 'jailer-*aarch64' | head -1)"
-  if [ ! -s "$firecracker_binary" ] || [ ! -s "$jailer_binary" ]; then
-    echo "Firecracker archive did not contain firecracker and jailer binaries" >&2
-    exit 1
-  fi
-  install -m 0755 "$firecracker_binary" "$stage_directory/firecracker"
-  install -m 0755 "$jailer_binary" "$stage_directory/jailer"
-}
-
 prepare_cloud_hypervisor() {
   local binary_path="$cache_directory/cloud-hypervisor-v$cloud_hypervisor_version-aarch64"
   local download_url="https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v$cloud_hypervisor_version/cloud-hypervisor-static-aarch64"
@@ -554,7 +522,7 @@ assert_guest_kernel_supports_both_vmms() {
   done
   if [ "${#missing_symbols[@]}" -gt 0 ]; then
     echo "guest kernel configuration resolved without ${missing_symbols[*]}" >&2
-    echo "Firecracker reaches virtio over MMIO and Cloud Hypervisor over PCI, so the guest kernel carries both" >&2
+    echo "Cloud Hypervisor reaches virtio over PCI, and the guest kernel must carry it" >&2
     exit 1
   fi
 }
@@ -909,7 +877,7 @@ PY
 }
 
 write_manifest_document() {
-  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$firecracker_version" "$guest_init_sha" "$prepare_script_sha" "$base_source_sha" "$(guest_kernel_configuration_sha)" <<'PY'
+  python3 - "$stage_directory" "$artifact_directory/manifest.json" "$cloud_hypervisor_version" "$guest_init_sha" "$prepare_script_sha" "$base_source_sha" "$(guest_kernel_configuration_sha)" <<'PY'
 import hashlib
 import json
 import os
@@ -918,8 +886,6 @@ import sys
 stage_directory, manifest_path, version, guest_init_sha256, prepare_script_sha256, base_source_sha256, guest_kernel_configuration_sha256 = sys.argv[1:8]
 files = []
 for name, mode in [
-    ("firecracker", "0755"),
-    ("jailer", "0755"),
     ("cloud-hypervisor", "0755"),
     ("virtiofsd", "0755"),
     ("vmlinux.bin", "0644"),
@@ -953,12 +919,11 @@ PY
 }
 
 publish_artifacts() {
-  for file_name in firecracker jailer cloud-hypervisor virtiofsd vmlinux.bin rootfs.ext4 manifest.json; do
+  for file_name in cloud-hypervisor virtiofsd vmlinux.bin rootfs.ext4 manifest.json; do
     mv "$stage_directory/$file_name" "$artifact_directory/$file_name"
   done
 }
 
-prepare_firecracker
 prepare_cloud_hypervisor
 prepare_virtiofsd
 prepare_kernel

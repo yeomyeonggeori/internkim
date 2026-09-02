@@ -579,13 +579,6 @@ func buildTestConfiguration() Configuration {
 			SSHUsername:         "admin",
 			SSHPassword:         "admin",
 		},
-		Firecracker: FirecrackerConfiguration{
-			BinaryPath:         "/usr/local/bin/firecracker",
-			KernelImagePath:    "/opt/blueclaw/vmlinux",
-			RootfsImagePath:    "/opt/blueclaw/rootfs.ext4",
-			WorkspaceImagePath: "/opt/blueclaw/workspace.ext4",
-			VSockCID:           52,
-		},
 	})
 }
 

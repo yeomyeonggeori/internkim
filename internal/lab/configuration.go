@@ -9,7 +9,6 @@ import (
 type Configuration struct {
 	Host           HostConfiguration           `json:"host"`
 	VirtualMachine VirtualMachineConfiguration `json:"vm"`
-	Firecracker    FirecrackerConfiguration    `json:"firecracker"`
 }
 
 type HostConfiguration struct {
@@ -42,14 +41,6 @@ type ContainerConfiguration struct {
 
 type MattermostConfiguration struct {
 	ListenAddress string `json:"listenAddress"`
-}
-
-type FirecrackerConfiguration struct {
-	BinaryPath         string `json:"binaryPath"`
-	KernelImagePath    string `json:"kernelImagePath"`
-	RootfsImagePath    string `json:"rootfsImagePath"`
-	WorkspaceImagePath string `json:"workspaceImagePath"`
-	VSockCID           uint32 `json:"vsockCID"`
 }
 
 func LoadConfiguration(path string) (Configuration, error) {
@@ -103,9 +94,6 @@ func applyDefaultConfiguration(configuration Configuration) Configuration {
 		if errorValue == nil {
 			configuration.VirtualMachine.SharedWorkspacePath = workingDirectoryPath
 		}
-	}
-	if configuration.Firecracker.BinaryPath == "" {
-		configuration.Firecracker.BinaryPath = "/usr/local/bin/firecracker"
 	}
 
 	return configuration
