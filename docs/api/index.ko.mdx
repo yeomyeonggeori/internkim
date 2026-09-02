@@ -97,21 +97,44 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 
 ## 오류 [#errors]
 
-성공 본문은 JSON이고, 오류 본문은 평문입니다.
+성공 본문은 JSON이고, 오류 본문은 평문입니다. 앱이 JSON으로 답하는 예외가
+둘 있습니다. 카탈로그 자신의 `{"error":"not found"}`, 그리고 힌트 거절인데
+후자는 다음 호출이 하나를 정확히 지목할 수 있도록 `hint`와 `candidates`를
+싣습니다.
+
+답하는 기계가 둘이고, 둘은 문구를 공유하지 않습니다. 앱이 스스로 해결하는
+것은 앱이 답합니다.
 
 | 상태 | 본문 | 언제 |
 |---|---|---|
-| `400` | 디코드 오류, `message is required`, `conversationID is required` | 본문이 올바른 JSON이 아니거나 필수 필드가 빠졌을 때 |
-| `401` | `sign in first` | `Authorization: Bearer` 헤더가 없을 때 |
-| `401` | `that key belongs to nobody` | 토큰이 모르는 것이거나 폐기됐을 때 |
-| `409` | `a token cannot revoke itself...` | 인증에 쓴 그 토큰을 `DELETE /v1/token`으로 지우려 할 때 |
-| `403` | `refused` | 주인이 퇴사했거나 비활성화됐을 때 |
+| `400` | 디코드 오류, `this call carried a body that is not a json object`, `input is the object the tool reads` | 본문이 올바른 JSON이 아니거나 필수 필드가 빠졌을 때 |
+| `401` | `sign in first` | `Authorization: Bearer` 헤더가 없거나, 토큰이 가리키는 계정이 없을 때 |
+| `401` | `that key belongs to nobody` | `ik_` 토큰이 모르는 것이거나 폐기됐을 때 |
+| `403` | `refused` | 로그인한 계정이 어느 회사의 멤버도 아닐 때 |
 | `403` | `this token may only <permission>, and <tool> <permission>s` | 토큰 권한이 도구가 요구하는 것에 못 미칠 때 |
 | `403` | `write permission required` | 읽기 전용 토큰으로 에이전트 엔드포인트를 부를 때 |
-| `404` | `no tool here goes by <tool>` | 모르는 경로이거나, 여기서 아무도 답하지 않는 도구 |
-| `500` | | 토큰 레코드를 저장하지 못했을 때 |
+| `404` | `{"error":"not found"}` | 이 토큰이 볼 수 없는 도구를 `GET /v1/tools/<name>`으로 물을 때 |
+| `409` | `a token cannot revoke itself...` | 인증에 쓴 그 토큰을 `DELETE /v1/token`으로 지우려 할 때 |
+| `409` | `hint`와 `candidates`가 실린 힌트 거절 | 힌트가 아무것도 못 맞혔거나 여럿을 맞혔을 때 |
+| `500` | `the control plane is not configured` | 앱에 Supabase 설정이 없을 때 |
 | `502` | `the gateway answered <status>, and no status a caller can use` | 게이트웨이가 부르는 쪽이 쓸 수 없는 것을 답했을 때 |
 | `503` | `the company gateway is not configured` | 회사에 닿는 길을 아무도 모르는 채로 실행을 부를 때 |
+
+회사로 실려 간 호출은 `admind`가 자기 문구로 답합니다.
+
+| 상태 | 본문 | 언제 |
+|---|---|---|
+| `401` | `bearer token required`, `invalid bearer token` | 회사 컴퓨터가 그 호출을 알아보지 못했을 때 |
+| `403` | `token owner is not active member` | 주인이 퇴사했거나 비활성화됐을 때 |
+| `403` | `asserted requester is not active member` | 지목된 요청자가 멤버가 아닐 때 |
+| `403` | `tool is not available for this token` | 모르는 도구이거나, 토큰 권한을 넘는 도구일 때 |
+| `502` | 해석에 실패한 내용 | 디스크립터나 액터를 읽지 못했을 때 |
+
+<Callout title="퇴사한 주인의 토큰은 500을 답합니다" type="warn">
+주인이 `departed`나 `withdrawn`인 토큰은 해석되는 자리에서 거절되어야 하는데,
+지금은 `sessionForMember`가 throw하고 부르는 쪽은 그 메시지가 실린 `500`을
+받습니다. 위의 회사 컴퓨터 `403`이 오늘 이것을 제대로 답하는 유일한 곳입니다.
+</Callout>
 
 ## 파일 맡기기 [#keeping-a-file]
 

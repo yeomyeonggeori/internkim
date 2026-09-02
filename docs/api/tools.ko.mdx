@@ -32,7 +32,7 @@ curl https://api.intern.kim/v1/tools/task_add \
 |---|---|
 | `inputSchema` | `input`이 만족해야 하는 JSON Schema |
 | `outputSchema` | 성공 시 `result`의 모양 |
-| `sideEffectClass` | 호출에 필요한 범위 등급 |
+| `sideEffectClass` | 호출에 필요한 권한 |
 | `idempotency` | 이 도구에서 `idempotencyKey`가 의미가 있는지 |
 | `resultContract.effects` | 성공한 호출이 약속하는 `effects` 항목 |
 | `availability` | 지금 실행 가능한지, 아니라면 왜인지 |
@@ -61,8 +61,10 @@ read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙�
 ## 응답 [#the-response]
 
 기록 위에서 도는 도구(업무, 캘린더, 사람, 연차, 근태)는
-`{ "tool": ..., "result": ... }`만 답합니다. 평면이 직접 실행했기 때문입니다.
-회사 컴퓨터로 실려 간 도구는 아래의 더 넓은 모양으로 답합니다.
+`{ "tool": ..., "result": ... }`를 답합니다. 평면이 직접 실행했기 때문입니다.
+근태 쓰기는 여기에 `notified`가 하나 더 붙어, 누구에게 알렸는지 또는 어느
+관리자에게 물었는지를 말합니다. 회사 컴퓨터로 실려 간 도구는 아래의 더 넓은
+모양으로 답합니다.
 
 ```json
 {
@@ -136,7 +138,7 @@ curl https://api.intern.kim/v1/tools/task_update/invoke \
 
 첫 응답의 `effects`에는 `{"objectType":"task","effect":"created","id":...}`가,
 두 번째에는 같은 task가 `"effect":"updated"`로 담깁니다. 지우려면
-`destructive` 토큰이 필요합니다.
+`delete` 토큰이 필요합니다.
 
 ```bash
 curl https://api.intern.kim/v1/tools/task_delete/invoke \

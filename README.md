@@ -69,7 +69,7 @@ operator on the same network ── Jetson Orin Nano Super
 the user's own computer
   └── internkim-companion
         ├── long-polls the admind companion broker
-        ├── user_confirm / user_input / file_pick
+        ├── user_confirm / user_input / picking a local file
         └── a headed browser through the bundled agent-browser
 ```
 
@@ -564,17 +564,16 @@ port and long-polls the device broker.
 ./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fexample&code=ABCD-1234'
 ```
 
-The executor handles `user_confirm`, `user_input`, approval grants, `file_pick`,
-the `browser_*` family, and mock `llm_text` and `llm_structured` for
-development. A companion LLM job carrying a requester identity can be claimed
+The executor handles approval grants, the `browser_*` family, and mock
+`llm_text` and `llm_structured` for development. A companion LLM job carrying a requester identity can be claimed
 only by that same owner's companion. The Tauri shell raises the confirmation,
 input, approval and file-picker windows, and lists what a task is currently
 allowed to do so it can be revoked. `--allow-stdin-prompts` is a CLI fallback
 for debugging without the shell.
 
-`file_pick` keeps local paths on the user's machine. The companion uploads the
-chosen file through the signed broker to `/tmp/internkim-companion-files/` on
-the device, and the response carries only that device-local path and a TTL.
+A file the user picks never leaves their machine as a path. The companion
+uploads it through the signed broker to `/tmp/internkim-companion-files/` on
+the device, and the answer carries only that device-local path and a TTL.
 Admind deletes the file when the TTL passes.
 
 Browser capabilities route to the companion first, running headed with a
@@ -604,8 +603,8 @@ submits to notarytool when `APPLE_ID`, `APPLE_TEAM_ID` and
 `APPLE_APP_SPECIFIC_PASSWORD` are all present.
 
 capabilityd never calls a companion URL. It creates a job on the local admind
-broker, and routes `browser.*`, `user.*`, `file_pick` and companion LLM
-capabilities only while that companion is online and advertising them. Blueclaw
+broker, and routes `browser.*`, `user.*` and companion LLM capabilities only
+while that companion is online and advertising them. Blueclaw
 sees no provider implementation, browser binary, model path or user cookie.
 
 ## The API
@@ -655,9 +654,8 @@ Mattermost and blueclaw go over loopback and stay exempt.
 
 ## Repository layout
 
-`cmd/` holds the binaries and `internal/` the packages behind them, one directory
-per daemon and named after it, so `ls cmd internal` answers what exists today.
-The rest:
+`cmd/` holds the binaries, one directory each, and `internal/` the packages
+behind them; `ls cmd internal` answers what exists today. The rest:
 
 | | |
 |---|---|

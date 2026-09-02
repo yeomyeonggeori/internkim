@@ -101,9 +101,10 @@ MESSENGER_PLATFORM
 ```
 
 `ADMIND_SOCKET_PATH` names the socket that carries the workspace screens and
-every tool run through the public API; it defaults to
+the tools the central plane cannot run itself; it defaults to
 `/run/internkim/admind.sock`, and the bundle starts the `admind` that answers
-there.
+there. The task, calendar, people, leave and attendance tools never arrive:
+the web app runs those against the record.
 
 `INTERNKIM_APP_URL` is where everyone signs in, `https://<zone>` unless
 the company serves the app itself; the agent key is what decides which company
@@ -156,8 +157,9 @@ INTERNKIM_RELAY_ENV=<relay.env> INTERNKIM_RELAY_AGENT_KEY=<agent key> \
 ```
 
 The unit carries `ConditionPathExists`, so a device with no settings leaves it
-stopped. A component the device has never installed takes two deploys; the
-deployment notes in AGENTS.md say why.
+stopped. A component the device has never installed takes two deploys;
+[docs/internal/device/deploying-a-device.md](../docs/internal/device/deploying-a-device.md)
+says why.
 
 ## What it holds
 

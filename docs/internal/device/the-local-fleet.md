@@ -1,8 +1,14 @@
 # The local fleet
 
-The device path is frozen; see [README.md](./README.md). The local fleet is the
-Linux gate for it: a disposable Apple Container VM running the same Blueclaw
-guest a device runs, so a change that only breaks on Linux breaks here first.
+The Linux gate for both paths. A run starts a local central plane and joins the
+VM to it before anything else, so the plane's own wiring is under test here too;
+the `buzz-*` scenarios are the messenger gate `AGENTS.md` keeps, and they run
+nowhere else. What is frozen is the device half of what the VM exercises: OTA,
+the guest's ext4 workspace, the `mattermost-*` scenarios. See
+[README.md](./README.md) for what the freeze means.
+
+The VM is a disposable Apple Container running the same Blueclaw guest a device
+runs, so a change that only breaks on Linux breaks here first.
 
 - After local simulation passes, verify executable and Linux permission behavior
   with `./internkim dev fleet run --without-mattermost --scenario <name>`.
@@ -53,8 +59,8 @@ guest a device runs, so a change that only breaks on Linux breaks here first.
   `./internkim dev fleet verify-regression --base main --scenario <name>` so the
   same scenario fails on the base revision and passes on the current checkout.
 - Run real Mattermost smoke only after the virtual-session and Mattermost-free
-  Linux gates pass; keep platform cleanup requirements from Runtime Test Hygiene.
-  Disposable local fleet runs stop and remove their VM by default while keeping
+  Linux gates pass, and clean up after it the way `AGENTS.md`'s Runtime Test
+  Hygiene says. Disposable local fleet runs stop and remove their VM by default while keeping
   gitignored evidence under `.local/local-fleet/runs/<runID>` and
   `.artifacts/local-fleet/<runID>`; use `./internkim dev fleet reset` after
   `--reuse` runs.
@@ -65,8 +71,8 @@ guest a device runs, so a change that only breaks on Linux breaks here first.
   `dev fleet reset` or `dev fleet down`. `--without-mattermost` still runs inside
   the Linux VM and uses the checkout's Linux toolchain without starting Kim
   services or Mattermost ingress.
-- The scenarios are registered in `internal/localfleet/service.go`; read the map
-  there rather than a list somebody kept by hand. Keep runtime-invariant
+- The scenarios are registered in `internal/localfleet/service.go`. Read that
+  map; a list kept anywhere else goes stale. Keep runtime-invariant
   scenarios deterministic with a scripted model and use `--live-llm` for model
   judgment. Create Mattermost users, channels, posts, and Blueclaw state through
   a lease, and clean the lease unless you are debugging. Production, pilot,

@@ -100,21 +100,44 @@ unrecognized class fails closed at both ends.
 
 ## Errors [#errors]
 
-Success bodies are JSON. Error bodies are plain text.
+Success bodies are JSON. Error bodies are plain text, with two exceptions the
+app answers as JSON: the catalog's own `{"error":"not found"}`, and a hint
+refusal, which carries `hint` and `candidates` so the next call can name one.
+
+Two machines answer, and they do not share their wording. The app answers
+everything it resolves itself:
 
 | Status | Body | When |
 |---|---|---|
-| `400` | decode error, `message is required`, `conversationID is required` | the body is not valid JSON, or a required field is missing |
-| `401` | `sign in first` | no `Authorization: Bearer` header |
-| `401` | `that key belongs to nobody` | the token is unknown or revoked |
-| `409` | `a token cannot revoke itself...` | `DELETE /v1/token` naming the token that authenticated the call |
-| `403` | `refused` | the owner left or was deactivated |
+| `400` | decode error, `this call carried a body that is not a json object`, `input is the object the tool reads` | the body is not valid JSON, or a required field is missing |
+| `401` | `sign in first` | no `Authorization: Bearer` header, or the token names no account |
+| `401` | `that key belongs to nobody` | the `ik_` token is unknown or revoked |
+| `403` | `refused` | the account signed in is a member of no company |
 | `403` | `this token may only <permission>, and <tool> <permission>s` | the token's permission is below what the tool requires |
 | `403` | `write permission required` | an agent endpoint with a read-only token |
-| `404` | `no tool here goes by <tool>` | unknown path, or a tool nothing here answers |
-| `500` | | the token record could not be written |
+| `404` | `{"error":"not found"}` | `GET /v1/tools/<name>` for a tool this token cannot see |
+| `409` | `a token cannot revoke itself...` | `DELETE /v1/token` naming the token that authenticated the call |
+| `409` | the hint refusal, with `hint` and `candidates` | a hint that matched nothing, or more than one thing |
+| `500` | `the control plane is not configured` | the app is missing its Supabase settings |
 | `502` | `the gateway answered <status>, and no status a caller can use` | the company answered with nothing a caller can use |
 | `503` | `the company gateway is not configured` | an invocation where nothing knows how to reach the company |
+
+A call carried to the company is answered by `admind`, in its own words:
+
+| Status | Body | When |
+|---|---|---|
+| `401` | `bearer token required`, `invalid bearer token` | the company machine did not recognize the call |
+| `403` | `token owner is not active member` | the owner left or was deactivated |
+| `403` | `asserted requester is not active member` | the named requester is not a member |
+| `403` | `tool is not available for this token` | an unknown tool, or one above the token's permission |
+| `502` | whatever failed to resolve | the descriptor or the actor could not be read |
+
+<Callout title="A departed owner's token answers 500" type="warn">
+A token whose owner is `departed` or `withdrawn` should be refused where it is
+resolved, and instead `sessionForMember` throws and the caller gets a `500`
+with the thrown message. The company machine's `403` above is the only place
+this is answered properly today.
+</Callout>
 
 ## Keeping a file [#keeping-a-file]
 

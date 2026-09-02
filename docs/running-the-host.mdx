@@ -22,9 +22,10 @@ restarts it five seconds after any exit.
 **Wait for Postgres** at `DATABASE_URL` — the agent's own store.
 </Step>
 <Step>
-**`internkim-capabilityd`** on `/run/internkim/capability.sock`. The
-entrypoint waits for that socket and exits if the daemon dies, because the
-calendar, task, mail and site tools disappear without it.
+**`internkim-capabilityd`** on `/run/internkim/capability.sock`. The entrypoint
+waits for that socket and gives up if the daemon dies before it appears; once
+it is up nothing watches it again, and only the agent's own exit brings the
+bundle down. The calendar, task, mail and site tools disappear without it.
 </Step>
 <Step>
 **The agent**: `blueclaw -runtime /etc/blueclaw/runtime.json -policy

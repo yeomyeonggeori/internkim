@@ -11,8 +11,11 @@
   `user_confirm` and `user_input` outside grant reuse.
 - Persist broker jobs under `/root/.internkim/state/companion-jobs.json`; restart
   recovery must not silently drop pending user-local work.
-- `file_pick` must hide user-local paths from internkim and Blueclaw. Upload
-  selected files through the signed broker into `/tmp/internkim-companion-files`.
+- Picking a local file must hide user-local paths from internkim and Blueclaw.
+  Upload selected files through the signed broker into
+  `/tmp/internkim-companion-files`. The broker upload exists in
+  `internal/admind/companion_files.go`; no tool routes to it, and under the
+  freeze none is designed.
 - Browser capabilities must go through a typed browser runtime adapter; do not
   scatter raw `agent-browser`, Playwright, Chrome, or Obscura calls.
 - Companion browser support must use the bundled sidecar prepared by

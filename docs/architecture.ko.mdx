@@ -100,7 +100,7 @@ WebSocket을 열고, Worker는 그 토큰을 프로젝트의 JWKS로 검증해 �
 | 커넥터 (`chatd`) | `127.0.0.1:18090` | 메신저 어댑터: Buzz, Mattermost | `.dependency/blueclaw/chatd/` |
 | 에이전트 (`blueclaw`) | `127.0.0.1:8080` | 루프, 태스크 원장, 승인, 워크스페이스 | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | 타입 있는 능력 경계: 캘린더, 업무, 메일, 사이트 | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
-| `internkim-admind` | `127.0.0.1:18080` | 워크스페이스 화면과 공개 API가 실행하는 모든 도구 | `cmd/internkim-admind/`, `internal/admind/` |
+| `internkim-admind` | `127.0.0.1:18080` | 워크스페이스 화면과, 평면이 스스로 못 도는 도구들 | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | 호출이 실어 온 계정으로 메일에 답함 | `cmd/internkim-maild/` |
 | 에이전트의 저장소 | `DATABASE_URL` | 대화, 실행, 기억, 폴리시를 담는 Postgres | — |
 

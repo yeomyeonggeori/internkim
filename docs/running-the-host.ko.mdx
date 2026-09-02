@@ -21,9 +21,10 @@ description: 켜 둔 컴퓨터 한 대, 그 기동 순서, 그리고 받는 설�
 **Postgres 대기** — `DATABASE_URL`, 에이전트 자신의 저장소.
 </Step>
 <Step>
-**`internkim-capabilityd`**, `/run/internkim/capability.sock`. entrypoint는
-그 소켓을 기다리고 데몬이 죽으면 함께 끝납니다. 없으면 캘린더, 업무, 메일,
-사이트 도구가 사라지기 때문입니다.
+**`internkim-capabilityd`**, `/run/internkim/capability.sock`. entrypoint는 그
+소켓을 기다리고, 소켓이 생기기 전에 데몬이 죽으면 포기합니다. 한번 뜬 뒤로는
+아무도 다시 보지 않고, 번들을 내리는 것은 에이전트 자신의 종료뿐입니다. 없으면
+캘린더, 업무, 메일, 사이트 도구가 사라집니다.
 </Step>
 <Step>
 **에이전트**: `blueclaw -runtime /etc/blueclaw/runtime.json -policy

@@ -302,7 +302,10 @@ and delete the duplicates.
 ## Agent Development Flow
 
 - For Blueclaw agent-loop, prompt, skill, policy, schedule/runtime, or tool
-  behavior changes, start with `./internkim dev simulate --scenario <name>`.
+  behavior changes, start with `./internkim dev simulate --scenario <name>`. The
+  scenarios are registered in `BuiltinScenario`
+  (`.dependency/blueclaw/internal/e2e/virtual_session.go`). Read that switch; a
+  list kept anywhere else goes stale.
 - Use scripted virtual sessions only for deterministic runtime invariants such
   as state transitions, approval, cancellation, effects, and evidence.
 - Verify model judgment and AI SDK behavior through the live LLM path. Preserve
@@ -335,8 +338,13 @@ and delete the duplicates.
   `./internkim dev fleet run --scenario buzz-direct-message`: it asks through the
   public API the way the `internkim-api` skill does, then reads the recipient's
   own Buzz inbox for it.
-- Linux, the guest, the fleet VM and OTA belong to the frozen device path;
-  its gates and rules are [docs/internal/device/](docs/internal/device/).
+- The fleet VM is the Linux gate for both paths, and how to drive it is
+  [docs/internal/device/the-local-fleet.md](docs/internal/device/the-local-fleet.md):
+  a run starts a local central plane and joins the VM to it, so the `buzz-*`
+  scenarios above are plane work even though the VM they run in is device
+  machinery. OTA, the guest's ext4 workspace and the `mattermost-*` scenarios
+  are the frozen half, and the rest of that path is
+  [docs/internal/device/](docs/internal/device/).
 
 ## Blueclaw Skill Size Budget
 

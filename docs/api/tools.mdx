@@ -33,7 +33,7 @@ descriptor fields worth reading before a call:
 |---|---|
 | `inputSchema` | the JSON Schema your `input` must satisfy |
 | `outputSchema` | the shape of `result` on success |
-| `sideEffectClass` | which scope rank the call requires |
+| `sideEffectClass` | which permission the call requires |
 | `idempotency` | whether `idempotencyKey` means anything for this tool |
 | `resultContract.effects` | which `effects` entries a successful call promises |
 | `availability` | whether the tool can run right now, and why not |
@@ -62,9 +62,10 @@ token is the consent: a `delete` token deletes without a question.
 ## The response [#the-response]
 
 A tool that runs on the record — task, calendar, people, leave and attendance —
-answers `{ "tool": ..., "result": ... }` and nothing else, because the plane
-ran it itself. A tool carried to the company's computer answers the fuller
-shape below.
+answers `{ "tool": ..., "result": ... }`, because the plane ran it itself. An
+attendance write adds a third field, `notified`, saying who was told about it
+or which administrators were asked. A tool carried to the company's computer
+answers the fuller shape below.
 
 ```json
 {
@@ -139,7 +140,7 @@ curl https://api.intern.kim/v1/tools/task_update/invoke \
 
 The first response's `effects` carries
 `{"objectType":"task","effect":"created","id":...}`; the second carries the
-same task with `"effect":"updated"`. Deleting it takes a `destructive` token:
+same task with `"effect":"updated"`. Deleting it takes a `delete` token:
 
 ```bash
 curl https://api.intern.kim/v1/tools/task_delete/invoke \

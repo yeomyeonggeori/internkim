@@ -319,17 +319,6 @@ assets/blueclaw-workspace/skills/
 
 ## 다음 문서 작업
 
-다음 단계에서는 이 문서를 기준으로 아래 세부 문서를 추가하면 된다.
-
-- `docs/schema/artifact.md`
-- `docs/schema/reminder-preference.md`
-- `docs/schema/scheduled-job.md`
-- `docs/schema/attendance-event.md`
-- `docs/schema/meeting.md`
-- `docs/schema/email-thread.md`
-- `docs/schema/contract-project.md`
-- `docs/capabilities/portable-artifacts.md`
-- `docs/capabilities/calendar-sync.md`
-- `docs/capabilities/google-workspace-optional.md`
-- `docs/capabilities/approval-policy.md`
-- `docs/capabilities/artifact-ingestion.md`
+여기서 제안한 테이블과 능력은 아직 문서가 없다. 스키마를 실제로 추가하게 되면
+정본은 `supabase/migrations`이고 설명은 [`core-schema.md`](./core-schema.md)에
+붙인다. 별도 문서 디렉터리를 다시 만들지 않는다.
