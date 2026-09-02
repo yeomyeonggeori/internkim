@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'bun:test';
 import { centralTaskStatusOptions } from '../../../src/lib/task/central-task';
 import { centralTaskStatuses } from '../../../../supabase/functions/_shared/central-task-status.ts';
@@ -11,9 +12,20 @@ const task = {
 	task_participant: [{ member_id: 'member-two' }, { member_id: 'member-one' }, { member_id: 'member-three' }]
 };
 
+function statusesTheDatabaseIsPinnedTo(): string[] {
+	const pinned = readFileSync('../supabase/tests/task_status_is_declared_once.test.sql', 'utf8');
+	const declaration = pinned.match(/array\[([^\]]+)\]/);
+	if (!declaration) throw new Error('the pgTAP test no longer pins the task status enum to an array literal');
+	return declaration[1].split(',').map((value) => value.trim().replace(/^'|'$/g, ''));
+}
+
 describe('the shared task status copy stays interchangeable with the web one', () => {
 	test('both name the same statuses', () => {
 		expect([...centralTaskStatuses].map(String).sort()).toEqual([...centralTaskStatusOptions].sort());
+	});
+
+	test('the database enum names the same statuses', () => {
+		expect(statusesTheDatabaseIsPinnedTo()).toEqual([...centralTaskStatuses].map(String).sort());
 	});
 });
 

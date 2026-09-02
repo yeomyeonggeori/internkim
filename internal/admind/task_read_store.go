@@ -26,7 +26,7 @@ func (service *Service) readTasks(ctx context.Context, weekCode string, members 
 SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE week_code = ?
-ORDER BY status = '요청' DESC, owner_name, updated_at DESC`, weekCode)
+ORDER BY status = ? DESC, owner_name, updated_at DESC`, weekCode, taskStatusRequested)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -57,7 +57,7 @@ func (service *Service) readAllTasks(ctx context.Context, members []taskMember) 
 	rows, errorValue := database.QueryContext(ctx, `
 SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
-ORDER BY status = '요청' DESC, week_code DESC, owner_name, updated_at DESC`)
+ORDER BY status = ? DESC, week_code DESC, owner_name, updated_at DESC`, taskStatusRequested)
 	if errorValue != nil {
 		return nil, errorValue
 	}

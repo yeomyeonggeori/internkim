@@ -9,11 +9,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type taskAddInput struct {
@@ -483,12 +485,35 @@ func taskAddSizes() []string {
 	return []string{"XS", "S", "M", "L", "XL", "XXL"}
 }
 
+var (
+	catalogTaskAddStatuses    = mustReadToolStatusEnum("task_add")
+	catalogTaskUpdateStatuses = mustReadToolStatusEnum("task_update")
+)
+
 func taskAddStatuses() []string {
-	return []string{"planned", "in_progress", "completed", "paused", "rejected", "stopped"}
+	return slices.Clone(catalogTaskAddStatuses)
 }
 
 func taskUpdateStatuses() []string {
-	return append(taskAddStatuses(), "requested")
+	return slices.Clone(catalogTaskUpdateStatuses)
+}
+
+func mustReadToolStatusEnum(toolName string) []string {
+	var schema struct {
+		Properties struct {
+			Status struct {
+				Enum []string `json:"enum"`
+			} `json:"status"`
+		} `json:"properties"`
+	}
+	descriptor := capabilityprotocol.MustGeneratedToolDescriptors(toolName)[0]
+	if errorValue := json.Unmarshal(descriptor.InputSchema, &schema); errorValue != nil {
+		panic(fmt.Errorf("the %s input schema cannot be read: %w", toolName, errorValue))
+	}
+	if len(schema.Properties.Status.Enum) == 0 {
+		panic(fmt.Errorf("the %s input schema names no statuses", toolName))
+	}
+	return schema.Properties.Status.Enum
 }
 
 func decodeTaskListInput(document json.RawMessage) (taskListInput, error) {
