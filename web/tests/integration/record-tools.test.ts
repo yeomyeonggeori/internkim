@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { addMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { asMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -71,34 +72,20 @@ function resultOf(answer: { status: number; body: unknown }): Record<string, unk
 }
 
 describe('which tools run over the record', () => {
-	test('are exactly the ones whose rows live there', () => {
-		expect([...toolsTheRecordRuns()].sort()).toEqual([
-			'attendance_add',
-			'attendance_delete',
-			'attendance_list',
-			'attendance_update',
-			'event_add',
-			'event_delete',
-			'event_list',
-			'event_update',
-			'leave_balance',
-			'leave_decide',
-			'leave_delete',
-			'leave_list',
-			'leave_request',
-			'leave_update',
-			'person_list',
-			'task_add',
-			'task_delete',
-			'task_list',
-			'task_update'
-		]);
+	test('are exactly the ones whose descriptor says the record answers them', () => {
+		const answeredByTheRecord = catalog.tools
+			.filter((tool) => tool.answeredBy === 'record')
+			.map((tool) => tool.name)
+			.sort();
+
+		expect(answeredByTheRecord).toHaveLength(19);
+		expect([...toolsTheRecordRuns()].sort()).toEqual(answeredByTheRecord);
 	});
 
 	test('leave the tools the company machine runs to it', () => {
-		expect(recordRunsTheTool('message_send')).toBe(false);
-		expect(recordRunsTheTool('site_serve')).toBe(false);
-		expect(recordRunsTheTool('browser_open')).toBe(false);
+		for (const tool of catalog.tools) {
+			expect(recordRunsTheTool(tool.name)).toBe(tool.answeredBy === 'record');
+		}
 	});
 });
 
