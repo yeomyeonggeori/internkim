@@ -640,10 +640,8 @@ func printDevUsage() {
 	fmt.Println("  internkim dev plane -t \"leaves on the messenger\"")
 	fmt.Println("  internkim dev fleet run")
 	fmt.Println("  internkim dev fleet run --scenario buzz-direct-message")
-	fmt.Println("  internkim dev fleet run --keep --scenario mattermost-manual")
-	fmt.Println("  internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance")
+	fmt.Println("  internkim dev fleet run --scenario buzz-attachment")
 	fmt.Println("  internkim dev fleet run --reuse --recipe predeploy-gate")
-	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
 	fmt.Println("  internkim dev fleet verify-regression --base main --scenario regression-proof")
 }
 
@@ -652,10 +650,8 @@ func printDevFleetUsage() {
 	fmt.Println("  internkim dev fleet reprovision [--config path]")
 	fmt.Println("  internkim dev fleet run")
 	fmt.Println("  internkim dev fleet run --scenario buzz-direct-message")
-	fmt.Println("  internkim dev fleet run --keep --scenario mattermost-manual")
-	fmt.Println("  internkim dev fleet run --without-mattermost --scenario dm_send_confirm_acceptance")
+	fmt.Println("  internkim dev fleet run --scenario buzz-attachment")
 	fmt.Println("  internkim dev fleet run --reuse --recipe predeploy-gate")
-	fmt.Println("  internkim dev fleet run --scenario mattermost-bot-invited")
 }
 
 type repeatedDevStringFlag struct {

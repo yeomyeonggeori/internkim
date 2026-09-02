@@ -48,7 +48,7 @@ test('a direct message leaves on the messenger this company runs', async () => {
 	const wentToTheWrongMessenger = postsDelivered(plane.messenger);
 	expect(
 		wentToTheWrongMessenger,
-		`the message went to mattermost at ${plane.messenger.url}, not to ${plane.messengerPlatform}. ` +
+		`the message went to the messenger nobody runs at ${plane.messenger.url}, not to ${plane.messengerPlatform}. ` +
 			`capabilityd decides this with --chatd-platform and --chatd-endpoint`
 	).toHaveLength(0);
 

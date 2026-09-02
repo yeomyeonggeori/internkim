@@ -109,7 +109,7 @@ WantedBy=multi-user.target
 }
 
 func capabilitydStartCommand(localInferenceMode string) string {
-	command := fmt.Sprintf("%s --mattermost-url %s --mattermost-token %s --chatd-endpoint %s --chatd-platform buzz", CapabilitydBinaryPath, BlueclawMattermostLocalURL, BlueclawMattermostTokenPath, ChatdEndpoint)
+	command := fmt.Sprintf("%s --chatd-endpoint %s --chatd-platform buzz", CapabilitydBinaryPath, ChatdEndpoint)
 	if modelName := strings.TrimSpace(os.Getenv(BlueclawTestModelEnvironment)); modelName != "" {
 		command += " --openrouter-model " + modelName
 	}

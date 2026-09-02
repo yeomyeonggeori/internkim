@@ -1314,8 +1314,6 @@ func TestTaskDeleteReturnsTypedNotFoundWithoutExactEvidence(t *testing.T) {
 	}
 }
 
-
-
 func taskListTwoOwnerStateService(t *testing.T) Service {
 	return Service{
 		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},

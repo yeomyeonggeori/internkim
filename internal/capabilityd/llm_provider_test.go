@@ -315,7 +315,6 @@ func TestLocalProviderUsesExplicitOllamaProvider(t *testing.T) {
 			AgentBrowserPath:           "agent-browser",
 			CompanionFileDirectory:     t.TempDir(),
 			SocketPath:                 filepath.Join(t.TempDir(), "capability.sock"),
-			MattermostTokenPath:        "missing",
 			SlackTokenPath:             "missing",
 			SlackAppTokenPath:          "missing",
 			SignalJSONRPCURLPath:       "missing",

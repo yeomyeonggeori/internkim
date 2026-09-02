@@ -51,52 +51,52 @@ func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, reque
 		if strings.TrimSpace(input.DeliveryTarget.PersonHint) != "" || len(input.DeliveryTarget.PersonHints) > 0 {
 			return service.invokeChatdDirectMessageSend(ctx, request, input)
 		}
-		failure := mattermostToolStaticFailure("unsupported_target", "platform_route",
+		failure := platformToolStaticFailure("unsupported_target", "platform_route",
 			"targetType=directMessage without personHint answers the requester, and on "+service.companyMessenger()+" that is this conversation; reply with targetType=currentChannel or currentThread")
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	if input.Pin {
-		failure := mattermostToolStaticFailure("invalid_input", "platform_route",
+		failure := platformToolStaticFailure("invalid_input", "platform_route",
 			"pin is not supported on "+service.companyMessenger()+"; send without pin")
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
 	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	postRequest, failure, hasFailure := chatdMessagePostTarget(request.Context, input.DeliveryTarget)
 	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	postRequest.Message = strings.TrimSpace(input.Message)
 	postRequest.Attachments = chatdMessagePostAttachments(attachmentFiles)
 	var response chatdMessagePostResponse
 	if errorValue := service.chatdRequest(ctx, "message.post", postRequest, &response); errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("post_create", "platform_unavailable", errorValue)), nil
+		return platformToolErrorResponse(request.ToolName, platformToolFailureForError("post_create", "platform_unavailable", errorValue)), nil
 	}
 	if strings.TrimSpace(response.MessageID) == "" {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("post_create_failed", "post_create", "chatd did not return a message ID")), nil
+		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("post_create_failed", "post_create", "chatd did not return a message ID")), nil
 	}
-	return mattermostToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
+	return platformToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
 		MessageIDs:     []string{response.MessageID},
 		DeliveryStatus: "sent",
 	})
 }
 
-func chatdMessagePostTarget(toolContext capabilities.ToolInvokeContext, target platformMessageDeliveryTarget) (chatdMessagePostRequest, mattermostToolFailure, bool) {
+func chatdMessagePostTarget(toolContext capabilities.ToolInvokeContext, target platformMessageDeliveryTarget) (chatdMessagePostRequest, platformToolFailure, bool) {
 	switch target.Type {
 	case "currentThread":
 		replyTargetID := strings.TrimSpace(toolContext.ReplyTargetID)
 		if replyTargetID == "" {
-			return chatdMessagePostRequest{}, mattermostToolStaticFailure("thread_not_available", "context", "current platform thread is not available"), true
+			return chatdMessagePostRequest{}, platformToolStaticFailure("thread_not_available", "context", "current platform thread is not available"), true
 		}
-		return chatdMessagePostRequest{ThreadID: replyTargetID}, mattermostToolFailure{}, false
+		return chatdMessagePostRequest{ThreadID: replyTargetID}, platformToolFailure{}, false
 	case "currentChannel":
 		channelID := strings.TrimSpace(toolContext.ChannelID)
 		if channelID == "" {
-			return chatdMessagePostRequest{}, mattermostToolStaticFailure("channel_not_available", "context", "current platform channel is not available"), true
+			return chatdMessagePostRequest{}, platformToolStaticFailure("channel_not_available", "context", "current platform channel is not available"), true
 		}
-		return chatdMessagePostRequest{ChannelID: channelID}, mattermostToolFailure{}, false
+		return chatdMessagePostRequest{ChannelID: channelID}, platformToolFailure{}, false
 	case "channel":
 		channelID := strings.TrimSpace(target.ChannelID)
 		// The id a model passes is whatever id it last saw, and in a direct
@@ -105,15 +105,15 @@ func chatdMessagePostTarget(toolContext capabilities.ToolInvokeContext, target p
 		// channel's name is what keeps the copy out of the DM.
 		if channelID != "" && channelID == strings.TrimSpace(toolContext.ChannelID) &&
 			strings.EqualFold(strings.TrimSpace(toolContext.ConversationType), "direct") {
-			return chatdMessagePostRequest{}, mattermostToolStaticFailure("invalid_target", "input_decode",
+			return chatdMessagePostRequest{}, platformToolStaticFailure("invalid_target", "input_decode",
 				"channelID "+channelID+" is this direct conversation, not a channel; name the channel with channelName, or use targetType=currentChannel to reply here"), true
 		}
 		return chatdMessagePostRequest{
 			ChannelID:   channelID,
 			ChannelName: strings.TrimSpace(target.ChannelName),
-		}, mattermostToolFailure{}, false
+		}, platformToolFailure{}, false
 	default:
-		return chatdMessagePostRequest{}, mattermostToolStaticFailure("invalid_target", "input_decode", "delivery target cannot be used for channel posting"), true
+		return chatdMessagePostRequest{}, platformToolStaticFailure("invalid_target", "input_decode", "delivery target cannot be used for channel posting"), true
 	}
 }
 
@@ -176,9 +176,9 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 		replyTargetID = strings.TrimSpace(request.Context.ConversationID)
 	}
 	if replyTargetID == "" {
-		failure := mattermostToolStaticFailure("invalid_input", "platform_route",
+		failure := platformToolStaticFailure("invalid_input", "platform_route",
 			"a message is deleted in the conversation it belongs to, and this call names none")
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	deleted := []string{}
 	for _, messageID := range messageIDs {
@@ -193,30 +193,30 @@ func (service Service) invokeChatdPlatformMessageDelete(ctx context.Context, req
 			"requesterPubkeyHex": strings.TrimSpace(request.Context.RequesterPlatformUserID),
 		}
 		if errorValue := service.chatdRequest(ctx, "message_delete", requestBody, &response); errorValue != nil {
-			failure := mattermostToolStaticFailure("message_delete_failed", "platform_delete", trimmedMessageID+": "+errorValue.Error())
-			return mattermostToolErrorResponse(request.ToolName, failure), nil
+			failure := platformToolStaticFailure("message_delete_failed", "platform_delete", trimmedMessageID+": "+errorValue.Error())
+			return platformToolErrorResponse(request.ToolName, failure), nil
 		}
 		deleted = append(deleted, trimmedMessageID)
 	}
-	return mattermostToolSuccessResponse(request.ToolName, "deleted", platformMessageDeleteResult{
+	return platformToolSuccessResponse(request.ToolName, "deleted", platformMessageDeleteResult{
 		MessageIDs:     deleted,
 		DeliveryStatus: "deleted",
 	})
 }
 
-// An edit names a quoted span of the message it changes, the same contract the
-// Mattermost path holds. The current text comes from the platform's own record
-// of that exact message, the span is applied to it, and the whole result is
-// sent, because that is the only edit the platform itself has.
+// An edit names a quoted span of the message it changes. The current text comes
+// from the platform's own record of that exact message, the span is applied to
+// it, and the whole result is sent, because that is the only edit the platform
+// itself has.
 func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageUpdateInput) (capabilities.ToolInvokeResponse, error) {
 	messageID := strings.TrimSpace(input.MessageID)
 	if input.OldText == nil && len(input.Attachments) == 0 {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode",
+		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("invalid_input", "input_decode",
 			"pass oldText with the exact current span and newText with its replacement, or attachments to add files without changing the text")), nil
 	}
 	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
 	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	replyTargetID := strings.TrimSpace(request.Context.ReplyTargetID)
 	if replyTargetID == "" {
@@ -224,13 +224,13 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	}
 	currentText, failure, hasFailure := service.chatdCurrentMessageText(ctx, messageID)
 	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
 	editedText := currentText
 	if input.OldText != nil {
 		matchCount := strings.Count(currentText, *input.OldText)
 		if matchCount != 1 {
-			return mattermostToolErrorResponse(request.ToolName, platformMessageEditMatchFailure(matchCount, currentText)), nil
+			return platformToolErrorResponse(request.ToolName, platformMessageEditMatchFailure(matchCount, currentText)), nil
 		}
 		editedText = strings.Replace(currentText, *input.OldText, *input.NewText, 1)
 	}
@@ -245,9 +245,9 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 	}
 	var response map[string]any
 	if errorValue := service.chatdRequest(ctx, "message.edit", requestBody, &response); errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("message_update", "platform_unavailable", errorValue)), nil
+		return platformToolErrorResponse(request.ToolName, platformToolFailureForError("message_update", "platform_unavailable", errorValue)), nil
 	}
-	return mattermostToolSuccessResponse(request.ToolName, "updated", map[string]any{
+	return platformToolSuccessResponse(request.ToolName, "updated", map[string]any{
 		"messageID":      messageID,
 		"deliveryStatus": "updated",
 		"messageUpdated": true,
@@ -257,17 +257,17 @@ func (service Service) invokeChatdPlatformMessageUpdate(ctx context.Context, req
 // The record an edit reads must be the record message_search answered from: an
 // ID search crosses channels and applies later edits, so a post found in one
 // channel stays editable from the conversation the request came from.
-func (service Service) chatdCurrentMessageText(ctx context.Context, messageID string) (string, mattermostToolFailure, bool) {
+func (service Service) chatdCurrentMessageText(ctx context.Context, messageID string) (string, platformToolFailure, bool) {
 	searchRequest := chatdMessageSearchRequest{MessageIDs: []string{messageID}, Queries: []string{}}
 	var response chatdMessageSearchResponse
 	if errorValue := service.chatdRequest(ctx, "message.search", searchRequest, &response); errorValue != nil {
-		return "", mattermostToolFailureForError("message_lookup", "platform_unavailable", errorValue), true
+		return "", platformToolFailureForError("message_lookup", "platform_unavailable", errorValue), true
 	}
 	for _, candidate := range response.Candidates {
 		if strings.TrimSpace(candidate.MessageID) == messageID {
-			return candidate.Text, mattermostToolFailure{}, false
+			return candidate.Text, platformToolFailure{}, false
 		}
 	}
-	return "", mattermostToolStaticFailure("not_found", "message_lookup",
+	return "", platformToolStaticFailure("not_found", "message_lookup",
 		"message "+messageID+" does not exist on this platform or was deleted"), true
 }

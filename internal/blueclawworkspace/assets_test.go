@@ -154,7 +154,6 @@ func TestUserFacingWorkspaceDocsDoNotExposeRuntimeInternalPaths(t *testing.T) {
 		skillPathInTest(t, repositoryRootPath, "document", "SKILL.md"),
 		skillPathInTest(t, repositoryRootPath, "spreadsheet", "SKILL.md"),
 		skillPathInTest(t, repositoryRootPath, "presentation", "SKILL.md"),
-		skillPathInTest(t, repositoryRootPath, "skill-management", "SKILL.md"),
 	}
 	for _, documentPath := range documentPaths {
 		document, errorValue := os.ReadFile(documentPath)
@@ -1099,7 +1098,7 @@ func TestEverySkillComesFromAPlugin(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	for _, skillName := range []string{"pdf", "presentation", "calculator", "paperwork", "website", "mattermost"} {
+	for _, skillName := range []string{"pdf", "presentation", "calculator", "paperwork", "website", "messages"} {
 		if !containsSkillNamed(skillDirectories, skillName) {
 			t.Fatalf("%s is in no plugin under %v", skillName, pluginSkillPaths)
 		}

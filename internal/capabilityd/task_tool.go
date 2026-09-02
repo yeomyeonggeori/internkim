@@ -42,13 +42,13 @@ type taskCreatePayload struct {
 }
 
 type taskListInput struct {
-	Query                 string            `json:"query"`
-	ParticipantPersonHint string            `json:"participantPersonHint"`
+	Query                 string        `json:"query"`
+	ParticipantPersonHint string        `json:"participantPersonHint"`
 	Scope                 taskListScope `json:"scope"`
-	WeekFrom              int               `json:"weekFrom"`
-	WeekTo                int               `json:"weekTo"`
-	Status                string            `json:"status"`
-	Limit                 int               `json:"limit"`
+	WeekFrom              int           `json:"weekFrom"`
+	WeekTo                int           `json:"weekTo"`
+	Status                string        `json:"status"`
+	Limit                 int           `json:"limit"`
 }
 
 type taskListScope string
@@ -77,8 +77,8 @@ type taskDeleteInput struct {
 type taskSummaryForTool struct {
 	Week        taskWeekForTool        `json:"week"`
 	Members     []taskMemberForTool    `json:"members"`
-	Tasks       []taskForTool      `json:"tasks"`
-	WeeklyTasks []taskForTool      `json:"weeklyTasks"`
+	Tasks       []taskForTool          `json:"tasks"`
+	WeeklyTasks []taskForTool          `json:"weeklyTasks"`
 	Definitions taskDefinitionsForTool `json:"definitions"`
 }
 
@@ -349,7 +349,7 @@ func identifierSetPatchMatches(expected *[]string, actual []string) bool {
 
 func taskDuplicateID(result json.RawMessage) string {
 	var document struct {
-		Status        string          `json:"status"`
+		Status        string      `json:"status"`
 		DuplicateTask taskForTool `json:"duplicateTask"`
 	}
 	if json.Unmarshal(result, &document) != nil || document.Status != "skipped_duplicate" {
@@ -362,7 +362,7 @@ type taskAddFailure struct {
 	ErrorCode     string                      `json:"errorCode"`
 	FailureStage  string                      `json:"failureStage"`
 	Message       string                      `json:"message"`
-	Candidates    []taskAddCandidate      `json:"candidates,omitempty"`
+	Candidates    []taskAddCandidate          `json:"candidates,omitempty"`
 	RecoveryHints []capabilities.RecoveryHint `json:"recoveryHints,omitempty"`
 	Retryable     bool                        `json:"retryable"`
 	SafeRetry     bool                        `json:"safeRetry"`
@@ -377,12 +377,12 @@ type taskAddCandidate struct {
 }
 
 type taskUpdateFailure struct {
-	ErrorCode    string                  `json:"errorCode"`
-	FailureStage string                  `json:"failureStage"`
-	Message      string                  `json:"message"`
+	ErrorCode    string              `json:"errorCode"`
+	FailureStage string              `json:"failureStage"`
+	Message      string              `json:"message"`
 	Candidates   []taskHintCandidate `json:"candidates,omitempty"`
-	Retryable    bool                    `json:"retryable"`
-	SafeRetry    bool                    `json:"safeRetry"`
+	Retryable    bool                `json:"retryable"`
+	SafeRetry    bool                `json:"safeRetry"`
 }
 
 type taskWriteRefusalFailure struct {
@@ -646,7 +646,7 @@ func (service Service) fetchTaskAllTasks(ctx context.Context, requesterEmail str
 	var state struct {
 		CurrentWeek taskWeekForTool        `json:"currentWeek"`
 		Members     []taskMemberForTool    `json:"members"`
-		Tasks       []taskForTool      `json:"tasks"`
+		Tasks       []taskForTool          `json:"tasks"`
 		Definitions taskDefinitionsForTool `json:"definitions"`
 	}
 	if errorValue := json.Unmarshal(body, &state); errorValue != nil {
@@ -878,8 +878,6 @@ func weekCodeForTaskDate(date time.Time) string {
 	year, week := date.ISOWeek()
 	return fmt.Sprintf("%02dW%02d", year%100, week)
 }
-
-
 
 func filterTasks(tasks []taskForTool, filter taskFilter) []taskForTool {
 	filteredTasks := []taskForTool{}

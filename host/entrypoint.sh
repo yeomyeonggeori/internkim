@@ -106,9 +106,8 @@ echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done
 
 # capabilityd chooses the messenger a message leaves on from these two flags and
-# nothing else: without them chatdServesTheMessenger() is false and every message
-# tool takes the Mattermost branch to a Mattermost this box does not run — and
-# answers "sent".
+# nothing else, and refuses to start without --chatd-platform: a daemon that does
+# not know the company's messenger has nowhere to deliver.
 echo "[host] starting capabilityd"
 internkim-capabilityd \
   --socket "${capabilitySocketPath}" \

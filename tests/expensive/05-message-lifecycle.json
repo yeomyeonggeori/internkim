@@ -2,7 +2,7 @@
  "name": "message-lifecycle",
  "requiresModelProvenance": true,
  "expectedLLMProvider": "openrouter",
- "skillNames": ["mattermost"],
+ "skillNames": ["messages"],
  "allowedTools": [
   "conversation_history",
   "memory_search",

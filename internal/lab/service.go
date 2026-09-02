@@ -419,13 +419,6 @@ func (service Service) setupTarget(ctx context.Context, executablePath string, b
 	})
 }
 
-func (service Service) ScenarioMattermost(ctx context.Context) error {
-	return service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "scenario-mattermost.sh"), []string{
-		service.configuration.VirtualMachine.Mattermost.ListenAddress,
-		service.configuration.VirtualMachine.MountDirectoryPath,
-	})
-}
-
 func (service Service) ScenarioGoogle(ctx context.Context) error {
 	return service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "scenario-google.sh"), []string{
 		service.configuration.VirtualMachine.MountDirectoryPath,
@@ -456,9 +449,6 @@ func (service Service) scenarioEndToEndTarget(ctx context.Context, executablePat
 	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "scenario-e2e.sh"), []string{
 		service.configuration.VirtualMachine.MountDirectoryPath,
 	}); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := service.ScenarioMattermost(ctx); errorValue != nil {
 		return errorValue
 	}
 	if !service.shouldSkipSimulationStep("google", setupArguments) {

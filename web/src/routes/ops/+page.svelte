@@ -347,7 +347,6 @@
 						<Button variant="outline" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'up' })}><ServerIcon /> Up</Button>
 						<Button variant="outline" size="sm" class="justify-start" onclick={refreshLocalFleetStatus}><SearchCheckIcon /> Status</Button>
 						<Button variant="default" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'runRecipe', recipe: 'predeploy-gate' })}><ActivityIcon /> Predeploy gate</Button>
-						<Button variant="outline" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'runScenario', scenario: 'mattermost-bot-invited' })}><ShieldIcon /> Mattermost smoke</Button>
 						<Button variant="secondary" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'verifyRegression', base: 'main', scenario: 'regression-proof' })}><FlaskConicalIcon /> Verify regression</Button>
 						<Button variant="outline" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'reset' })}><RotateCwIcon /> Reset</Button>
 						<Button variant="outline" size="sm" class="justify-start" onclick={() => runLocalFleetAction({ action: 'down' })}><RotateCwIcon /> Down</Button>
