@@ -140,6 +140,11 @@ func NewDescriptor(definition DescriptorDefinition) Descriptor {
 	return descriptor
 }
 
+func IsSideEffectClass(sideEffectClass string) bool {
+	_, isKnown := sideEffectClasses[sideEffectClass]
+	return isKnown
+}
+
 func StatesAResultContract(descriptor Descriptor) bool {
 	return descriptor.ResultContract != nil
 }

@@ -8,7 +8,8 @@ mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
 }));
 
-const { runToolOverTheRecord, recordRunsTheTool, toolsTheRecordRuns } = await import('../../src/lib/server/public-api/record');
+const { runToolOverTheRecord, recordRunsTheTool, toolsTheRecordRuns, recordToolsWithoutAnImplementation } =
+	await import('../../src/lib/server/public-api/record');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -80,6 +81,10 @@ describe('which tools run over the record', () => {
 
 		expect(answeredByTheRecord).toHaveLength(19);
 		expect([...toolsTheRecordRuns()].sort()).toEqual(answeredByTheRecord);
+	});
+
+	test('all have somewhere to run', () => {
+		expect(recordToolsWithoutAnImplementation()).toEqual([]);
 	});
 
 	test('leave the tools the company machine runs to it', () => {
