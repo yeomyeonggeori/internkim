@@ -75,8 +75,12 @@ GROUPS = [
     ),
     Group(
         "schema",
-        ["supabase/*"],
-        [["supabase", "db", "reset"], ["supabase", "test", "db"]],
+        ["supabase/*", "tools/verify-migration-versions"],
+        [
+            ["tools/verify-migration-versions"],
+            ["supabase", "db", "reset"],
+            ["supabase", "test", "db"],
+        ],
     ),
     Group(
         "docs-site",
