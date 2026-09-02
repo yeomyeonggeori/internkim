@@ -77,18 +77,37 @@ read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙�
 {
   "tool": "task_add",
   "result": {
-    "taskID": "...",
-    "title": "분기 보고서 초안",
-    "status": "planned",
+    "taskID": "b2c0…",
+    "content": "분기 보고서 초안",
+    "ownerID": "8f31…",
+    "ownerName": "이샘플",
+    "participantIDs": ["8f31…"],
+    "participantNames": ["이샘플"],
+    "participantPresentations": [
+      {
+        "personID": "8f31…",
+        "displayName": "이샘플",
+        "email": "sample@example.com",
+        "mention": "@이샘플"
+      }
+    ],
+    "business": "영업",
+    "type": "",
     "size": "M",
-    "business": null,
-    "type": null,
+    "status": "planned",
     "startDate": "",
     "endDate": "",
-    "participants": ["..."]
+    "weekCode": ""
   }
 }
 ```
+
+여기 있는 필드는 전부 그 도구의 `outputSchema`이고, 디스크립터가 그것을 싣고
+있으며 기록의 답은 거기에 묶여 있습니다. 다른 필드는 실릴 수 없고, 기록의 답은
+나가기 전에 그 스키마로 검사됩니다. 업무의 제목은 `content`이고, 업무에 딸린
+사람은 세 갈래로 옵니다. 다룰 때 쓰는 `participantIDs`, 찍을 때 쓰는
+`participantNames`, 부를 때 쓰는 `participantPresentations`입니다.
+
 
 회사 컴퓨터로 실려 간 도구는 아래의 더 넓은 모양으로 답합니다.
 `message_send`가 그중 하나입니다.
