@@ -324,20 +324,24 @@ func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
 	}
 	store := service.buzzStore()
 	store.mutex.Lock()
-	changed := false
+	var newlyLinked []string
 	for pubkey, email := range derivedLinks {
 		if store.state.Links[pubkey] == email {
 			continue
 		}
 		store.state.Links[pubkey] = email
-		changed = true
+		newlyLinked = append(newlyLinked, pubkey)
 	}
-	if changed {
+	if len(newlyLinked) > 0 {
 		store.save()
 	}
 	store.mutex.Unlock()
-	if changed {
-		service.writeBuzzAccountLinksFile()
+	if len(newlyLinked) == 0 {
+		return
+	}
+	service.writeBuzzAccountLinksFile()
+	for _, pubkey := range newlyLinked {
+		service.grantRelayMembership(ctx, pubkey)
 	}
 }
 

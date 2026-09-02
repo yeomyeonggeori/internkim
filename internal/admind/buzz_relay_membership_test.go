@@ -2,6 +2,8 @@ package admind
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +26,32 @@ func serviceRecordingRelayMembershipGrants(t *testing.T) (*Service, string) {
 	service.Configuration.BuzzRelayURL = "ws://127.0.0.1:3000"
 	service.Configuration.BuzzDatabaseURL = "postgres://buzz@127.0.0.1:1/buzz?sslmode=disable"
 	return service, grantsPath
+}
+
+func TestAPersonTheDeviceCanNameOnBuzzIsLetOntoTheRelay(t *testing.T) {
+	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isBlueclawPolicyGet(request) {
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"p-1","emails":["sample@example.com"]}]}`, nil), nil
+		}
+		return nil, errors.New("the company directory is not answering")
+	})}
+	service.Configuration.BuzzAccountLinksPath = filepath.Join(t.TempDir(), "buzz-account-links.json")
+
+	service.linkDeterministicBuzzPeople(context.Background())
+
+	granted, errorValue := os.ReadFile(grantsPath)
+	if errorValue != nil {
+		t.Fatalf("a person the device just learned to name on buzz was not let onto the relay: %v", errorValue)
+	}
+	secretHex := service.buzzSecretForEmail(context.Background(), "sample@example.com")
+	pubkey, errorValue := buzzPublicKey(secretHex)
+	if errorValue != nil {
+		t.Fatalf("person pubkey: %v", errorValue)
+	}
+	if !strings.Contains(string(granted), pubkey) {
+		t.Fatalf("the key the account links file now carries must be a relay member, got %s", strings.TrimSpace(string(granted)))
+	}
 }
 
 func TestRelayMembershipIsGrantedBeforeAnyRoomExists(t *testing.T) {
