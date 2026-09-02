@@ -4,15 +4,6 @@ import { join } from 'node:path';
 
 const calendarRoot = join(import.meta.dir, '..', '..', '..', 'src', 'routes', 'calendar');
 
-const retiredCalendarEndpoints = [
-	'/calendar/api/remote-sync',
-	'/calendar/api/account-status',
-	'/calendar/api/google-calendars',
-	'/calendar/api/google-oauth-client',
-	'/calendar/api/conflicts',
-	'/calendar/oauth/google'
-];
-
 function calendarSourceFiles(directory: string): string[] {
 	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
 		const path = join(directory, entry.name);
@@ -21,26 +12,27 @@ function calendarSourceFiles(directory: string): string[] {
 	});
 }
 
-describe('the calendar route asks only for what admind still answers', () => {
-	test('no calendar source names an endpoint the plane retired with Google Workspace', () => {
+describe('the calendar screens read the company record and nothing else', () => {
+	test('no calendar source names a device endpoint', () => {
 		const offenders: string[] = [];
 		for (const path of calendarSourceFiles(calendarRoot)) {
 			const source = readFileSync(path, 'utf8');
-			for (const endpoint of retiredCalendarEndpoints) {
-				if (source.includes(endpoint)) offenders.push(`${path} names ${endpoint}`);
-			}
+			if (source.includes('/calendar/api')) offenders.push(path);
+			if (source.includes('/calendar/dav')) offenders.push(path);
 		}
 
 		expect(
 			offenders,
-			`admind answers none of these, so a screen that calls one shows a permanent error and no other test sees it`
+			'the calendar is kept by the company, so a screen reaching a device answers for one company only'
 		).toEqual([]);
 	});
 
-	test('the subscription sheet is still fed by the endpoints that survive', () => {
-		const source = readFileSync(join(calendarRoot, 'calendar-layout-api.ts'), 'utf8');
+	test('no calendar source branches on whether the company record is configured', () => {
+		const offenders: string[] = [];
+		for (const path of calendarSourceFiles(calendarRoot)) {
+			if (readFileSync(path, 'utf8').includes('isSupabaseConfigured')) offenders.push(path);
+		}
 
-		expect(source).toContain('/calendar/api/sync');
-		expect(source).toContain('/calendar/api/ics-token');
+		expect(offenders, 'there is one calendar store, so there is nothing to branch on').toEqual([]);
 	});
 });

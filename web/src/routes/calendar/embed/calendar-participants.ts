@@ -1,5 +1,5 @@
 import { supabaseCalendarParticipants } from '$lib/calendar/supabase-calendar';
-import { isSupabaseConfigured } from '$lib/supabase';
+
 export type CalendarParticipantInput = {
 	personID: string;
 	name: string;
@@ -10,12 +10,8 @@ export type CalendarParticipant = CalendarParticipantInput & {
 	image?: string;
 };
 
-export async function fetchCalendarParticipants(errorFallback: string): Promise<CalendarParticipant[]> {
-	if (isSupabaseConfigured()) return supabaseCalendarParticipants();
-	const response = await fetch('/calendar/api/participants', { credentials: 'include' });
-	if (!response.ok) throw new Error(await responseErrorMessage(response, errorFallback));
-	const document = await response.json();
-	return calendarParticipantsFromUnknown(objectProperty(document, 'participants'));
+export async function fetchCalendarParticipants(): Promise<CalendarParticipant[]> {
+	return supabaseCalendarParticipants();
 }
 
 export function calendarParticipantsFromUnknown(value: unknown): CalendarParticipant[] {
@@ -147,10 +143,4 @@ function stringProperty(value: unknown, propertyName: string): string {
 function objectProperty(value: unknown, propertyName: string): unknown {
 	if (!value || typeof value !== 'object') return undefined;
 	return Reflect.get(value, propertyName);
-}
-
-async function responseErrorMessage(response: Response, fallback: string): Promise<string> {
-	const message = (await response.text()).trim();
-	if (!message || message.startsWith('<!doctype html>') || message.startsWith('<html')) return fallback;
-	return message;
 }

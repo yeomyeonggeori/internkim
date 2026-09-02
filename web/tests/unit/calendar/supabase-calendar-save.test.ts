@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { supabaseCalendarEventRPCArguments } from '../../../src/lib/calendar/supabase-calendar';
+import { calendarEventWritten } from '../../../src/lib/calendar/supabase-calendar';
+import { sizeOfEvent } from '../../../src/lib/server/public-api/record/event-tools';
 import type { CalendarEventPayload } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 
 function eventWith(fields: Partial<CalendarEventPayload> = {}): CalendarEventPayload {
@@ -21,39 +22,38 @@ function eventWith(fields: Partial<CalendarEventPayload> = {}): CalendarEventPay
 	};
 }
 
-describe('central calendar event writes', () => {
-	test('sends event fields and the complete participant set through one RPC', () => {
-		expect(supabaseCalendarEventRPCArguments(eventWith(), 'event-1')).toEqual({
-			target_task_id: 'event-1',
-			target_title: '팀 회의',
-			target_note: '주간 진행 공유',
-			target_location: { name: '회의실 A' },
-			target_starts_at: '2026-08-20T10:00:00.000Z',
-			target_ends_at: '2026-08-20T11:00:00.000Z',
-			target_is_whole_day: false,
-			target_is_event: true,
-			target_size: 'XS',
-			target_participant_ids: ['member-1', 'member-2']
+describe('what the calendar sends the record', () => {
+	test('names every attendee by the exact person ID the screen already holds', () => {
+		expect(calendarEventWritten(eventWith())).toEqual({
+			title: '팀 회의',
+			note: '주간 진행 공유',
+			location: '회의실 A',
+			startsAt: '2026-08-20T10:00:00.000Z',
+			endsAt: '2026-08-20T11:00:00.000Z',
+			isWholeDay: false,
+			participantPersonHints: ['member-1', 'member-2']
 		});
 	});
 
-	test('a create sends no task ID even though the draft carries a local one', () => {
-		const argumentsForCreate = supabaseCalendarEventRPCArguments(
-			eventWith({ eventID: 'quick-1788331680143-umwpd4', description: '', location: '' }),
-			null
-		);
-
-		expect(argumentsForCreate.target_task_id).toBeNull();
-		expect(argumentsForCreate.target_note).toBeNull();
-		expect(argumentsForCreate.target_location).toBeNull();
+	test('sends the whole attendee set, so clearing one removes it', () => {
+		expect(calendarEventWritten(eventWith({ participants: [] })).participantPersonHints).toEqual([]);
 	});
 
-	test('an update names the persisted event, not whatever ID the payload carries', () => {
-		const argumentsForUpdate = supabaseCalendarEventRPCArguments(
-			eventWith({ eventID: 'quick-1788331680143-umwpd4' }),
-			'2f1c6b1e-0000-4000-8000-000000000001'
-		);
+	test('carries an empty note and location rather than dropping them', () => {
+		const written = calendarEventWritten(eventWith({ description: '', location: '' }));
+		expect(written.note).toBe('');
+		expect(written.location).toBe('');
+	});
+});
 
-		expect(argumentsForUpdate.target_task_id).toBe('2f1c6b1e-0000-4000-8000-000000000001');
+describe('the size an event takes', () => {
+	test('follows its length in hours', () => {
+		expect(sizeOfEvent('2026-08-20T10:00:00Z', '2026-08-20T11:00:00Z', false)).toBe('XS');
+		expect(sizeOfEvent('2026-08-20T10:00:00Z', '2026-08-20T14:00:00Z', false)).toBe('M');
+	});
+
+	test('counts whole days when the event takes them', () => {
+		expect(sizeOfEvent('2026-08-20T00:00:00Z', '2026-08-21T00:00:00Z', true)).toBe('M');
+		expect(sizeOfEvent('2026-08-20T00:00:00Z', '2026-08-23T00:00:00Z', true)).toBe('XL');
 	});
 });

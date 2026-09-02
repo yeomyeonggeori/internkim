@@ -11,11 +11,6 @@ import {
 	showCalendarDeleteUndoToast
 } from './calendar-delete-undo';
 import type { CalendarEvent } from './calendar-event-persistence';
-import {
-	CalendarPersistenceError,
-	calendarEventVersionConflictErrorCode,
-	isCalendarPersistenceErrorCode
-} from './calendar-event-persistence';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
 import type { CalendarEventActionsContext } from './calendar-event-actions';
 import { CalendarEventPersistenceOrder } from './calendar-event-persistence-order';
@@ -45,7 +40,6 @@ type CalendarEventPersistenceDependencies = {
 	dismissDeleteUndoToast: typeof dismissCalendarDeleteUndoToast;
 	notifyError: (message: string) => void;
 	showDeleteUndoToast: typeof showCalendarDeleteUndoToast;
-	waitForDeleteIntentCancellationRetry: (delay: number) => Promise<void>;
 };
 
 export function createCalendarEventPersistenceActions(
@@ -82,8 +76,7 @@ export function createCalendarEventPersistenceActions(
 		finishPersistence: finishEventPersistence,
 		showPersistenceError: showEventPersistenceError,
 		dismissUndoToast: dismissDeleteUndoToast,
-		showUndoToast: showDeleteUndoToast,
-		waitForCancellationRetry: dependencies.waitForDeleteIntentCancellationRetry
+		showUndoToast: showDeleteUndoToast
 	});
 
 	async function saveUpdatedEvent(event: DayTaskEvent, previousEvent?: DayTaskEvent): Promise<void> {
@@ -100,12 +93,12 @@ export function createCalendarEventPersistenceActions(
 	}
 
 	async function deleteEvent(eventID: string): Promise<void> {
-		const revision = persistenceOrder.beginAction(eventID);
+		persistenceOrder.beginAction(eventID);
 		if (options.context.getSelectedAuditEventID() === eventID) {
 			options.context.setSelectedAuditEventID(null);
 		}
 		if (draftPersistence.deleteEvent(eventID)) return;
-		await deletePersistence.deleteEvent(eventID, revision);
+		await deletePersistence.deleteEvent(eventID);
 	}
 
 	async function persistUpdatedEvent(
@@ -118,23 +111,17 @@ export function createCalendarEventPersistenceActions(
 		const visibleUpdatedAt = typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined;
 		try {
 			savedEvent = await persistedEvents.writeEvent(
-				`/calendar/api/events/${encodeURIComponent(event.id)}`,
-				'PUT',
+				false,
 				event,
 				persistenceOrder.persistedUpdatedAt(event.id, visibleUpdatedAt),
 				persistenceOrder.clientID,
 				revision
 			);
-		} catch (error) {
+		} catch {
 			try {
 				if (persistenceOrder.isLatestAction(event.id, revision)) {
-					showEventPersistenceError(error, options.context.text.saveError);
-					if (isCalendarEventVersionConflict(error)) {
-						persistenceOrder.clearPersistedUpdatedAt(event.id);
-						await options.context.refreshCalendar();
-					} else {
-						await rollbackUpdatedEvent(previousEvent);
-					}
+					showEventPersistenceError(options.context.text.saveError);
+					await rollbackUpdatedEvent(previousEvent);
 				}
 			} finally {
 				finishEventPersistence();
@@ -152,9 +139,9 @@ export function createCalendarEventPersistenceActions(
 				persistenceOrder.clearPersistedUpdatedAt(event.id, savedEvent.updatedAt);
 			}
 			markEventPersisted();
-		} catch (error) {
+		} catch {
 			if (!persistenceOrder.isLatestAction(event.id, revision)) return;
-			showEventPersistenceError(error, options.context.text.saveError);
+			showEventPersistenceError(options.context.text.saveError);
 			await options.context.refreshCalendar();
 			if (persistenceOrder.isLatestAction(event.id, revision)) {
 				persistenceOrder.clearPersistedUpdatedAt(event.id, savedEvent.updatedAt);
@@ -197,27 +184,8 @@ export function createCalendarEventPersistenceActions(
 		options.context.notifyEventsChanged();
 	}
 
-	function showEventPersistenceError(
-		error: unknown,
-		fallback: string,
-		versionConflictMessage = options.context.text.calendarEventVersionConflictError
-	): void {
-		notifyError(eventPersistenceErrorMessage(error, fallback, versionConflictMessage));
-	}
-
-	function eventPersistenceErrorMessage(
-		error: unknown,
-		fallback: string,
-		versionConflictMessage: string
-	): string {
-		if (isCalendarPersistenceErrorCode(error, calendarEventVersionConflictErrorCode)) {
-			return versionConflictMessage;
-		}
-		return error instanceof CalendarPersistenceError ? error.message : fallback;
-	}
-
-	function isCalendarEventVersionConflict(error: unknown): boolean {
-		return isCalendarPersistenceErrorCode(error, calendarEventVersionConflictErrorCode);
+	function showEventPersistenceError(message: string): void {
+		notifyError(message);
 	}
 
 	return {

@@ -1,206 +1,35 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 
 import { dayTaskEventFromCalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-mapping';
-import { createCalendarPersistedEventActions } from '../../../src/routes/calendar/embed/calendar-persisted-event-actions';
 import { CalendarProgrammaticUpdateState } from '../../../src/routes/calendar/embed/calendar-programmatic-updates';
 import { calendarServerEvent } from './calendar-event-persistence-scenario';
 
-test('includes the current server version only in PUT payloads', async () => {
-	const originalFetch = globalThis.fetch;
-	const requestBodies: string[] = [];
-	const serverEvent = {
-		...calendarServerEvent('versioned-write', 'Versioned event'),
-		updatedAt: '2026-07-17T03:04:05Z'
-	};
-	const event = dayTaskEventFromCalendarEvent(serverEvent);
-	globalThis.fetch = Object.assign(
-		async (_input: RequestInfo | URL, init?: RequestInit) => {
-			if (typeof init?.body !== 'string') throw new Error('calendar write request body is missing');
-			requestBodies.push(init.body);
-			return new Response(JSON.stringify(serverEvent), {
-				status: 200,
-				headers: { 'Content-Type': 'application/json' }
-			});
-		},
-		{ preconnect: originalFetch.preconnect }
-	);
-	const actions = createCalendarPersistedEventActions(
-		{
-			getCalendarEvents: () => [event],
-			updateCalendarEvent: async () => {},
-			setVisibleEvents: () => {},
-			text: {
-				deleteError: 'Could not delete the event.',
-				saveError: 'Could not save the event.'
-			}
-		},
-		new CalendarProgrammaticUpdateState()
-	);
+const written: Array<{ targetEventID: string | null; eventID: string }> = [];
+const deleted: string[] = [];
+const serverEvent = calendarServerEvent('2f1c6b1e-0000-4000-8000-000000000001', 'Created draft');
 
-	try {
-		await actions.writeEvent(
-			'/calendar/api/events/versioned-write',
-			'PUT',
-			event,
-			undefined,
-			'page-client',
-			7
-		);
-		await actions.writeEvent(
-			'/calendar/api/events/versioned-write',
-			'PUT',
-			event,
-			'2026-07-17T04:05:06Z'
-		);
-		await actions.writeEvent('/calendar/api/events', 'POST', event);
-	} finally {
-		globalThis.fetch = originalFetch;
+mock.module('$lib/calendar/supabase-calendar', () => ({
+	supabaseCalendarEvents: async () => [],
+	supabaseCalendarParticipants: async () => [],
+	saveSupabaseCalendarEvent: async (
+		payload: { eventID: string },
+		targetEventID: string | null
+	) => {
+		written.push({ targetEventID, eventID: payload.eventID });
+		return serverEvent;
+	},
+	deleteSupabaseCalendarEvent: async (eventID: string) => {
+		deleted.push(eventID);
 	}
+}));
 
-	expect(JSON.parse(requestBodies[0] ?? '')).toMatchObject({
-		expectedUpdatedAt: '2026-07-17T03:04:05Z',
-		mutationClientID: 'page-client',
-		mutationSequence: 7
-	});
-	expect(JSON.parse(requestBodies[1] ?? '')).toMatchObject({
-		expectedUpdatedAt: '2026-07-17T04:05:06Z'
-	});
-	const postDocument: unknown = JSON.parse(requestBodies[2] ?? '');
-	if (!postDocument || typeof postDocument !== 'object') {
-		throw new Error('calendar POST request body is not an object');
-	}
-	expect('expectedUpdatedAt' in postDocument).toBe(false);
-	expect('mutationClientID' in postDocument).toBe(false);
-	expect('mutationSequence' in postDocument).toBe(false);
-});
+const { createCalendarPersistedEventActions } = await import(
+	'../../../src/routes/calendar/embed/calendar-persisted-event-actions'
+);
 
-test('includes the expected persisted version in direct DELETE payloads', async () => {
-	const originalFetch = globalThis.fetch;
-	const requests: Array<{ method: string | undefined; body: BodyInit | null | undefined; keepalive: boolean | undefined }> = [];
-	globalThis.fetch = Object.assign(
-		async (_input: RequestInfo | URL, init?: RequestInit) => {
-			requests.push({ method: init?.method, body: init?.body, keepalive: init?.keepalive });
-			return new Response(null, { status: 204 });
-		},
-		{ preconnect: originalFetch.preconnect }
-	);
-	const event = dayTaskEventFromCalendarEvent(calendarServerEvent('delete-version', 'Delete version'));
-	const actions = createCalendarPersistedEventActions(
-		{
-			getCalendarEvents: () => [event],
-			updateCalendarEvent: async () => {},
-			setVisibleEvents: () => {},
-			text: {
-				deleteError: 'Could not delete the event.',
-				saveError: 'Could not save the event.'
-			}
-		},
-		new CalendarProgrammaticUpdateState()
-	);
-
-	try {
-		await actions.deleteEvent('delete-version', '2026-07-17T05:00:00Z');
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
-
-	expect(requests).toEqual([
-		{
-			method: 'DELETE',
-			body: JSON.stringify({ expectedUpdatedAt: '2026-07-17T05:00:00Z' }),
-			keepalive: undefined
-		}
-	]);
-});
-
-test('creates and cancels a delete intent with keepalive and the same operation ID', async () => {
-	const originalFetch = globalThis.fetch;
-	const operationID = 'delete-operation';
-	const executeAt = '2026-07-17T05:00:05Z';
-	const requests: Array<{
-		url: string;
-		method: string | undefined;
-		body: BodyInit | null | undefined;
-		keepalive: boolean | undefined;
-	}> = [];
-	globalThis.fetch = Object.assign(
-		async (input: RequestInfo | URL, init?: RequestInit) => {
-			requests.push({ url: input.toString(), method: init?.method, body: init?.body, keepalive: init?.keepalive });
-			if (init?.method === 'PUT') {
-				return new Response(JSON.stringify({ operationID, executeAt }), {
-					status: 202,
-					headers: { 'Content-Type': 'application/json' }
-				});
-			}
-			return new Response(null, { status: 204 });
-		},
-		{ preconnect: originalFetch.preconnect }
-	);
-	const event = dayTaskEventFromCalendarEvent(calendarServerEvent('delete-intent-event', 'Delete intent'));
-	const actions = createCalendarPersistedEventActions(
-		{
-			getCalendarEvents: () => [event],
-			updateCalendarEvent: async () => {},
-			setVisibleEvents: () => {},
-			text: {
-				deleteError: 'Could not delete the event.',
-				saveError: 'Could not save the event.'
-			}
-		},
-		new CalendarProgrammaticUpdateState()
-	);
-	let response: { operationID: string; executeAt: string };
-
-	try {
-		response = await actions.createDeleteIntent(
-			'delete-intent-event',
-			operationID,
-			'page-client',
-			8,
-			'2026-07-17T05:00:00Z'
-		);
-		await actions.cancelDeleteIntent('delete-intent-event', operationID, 'page-client', 9);
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
-
-	expect(response).toEqual({ operationID, executeAt });
-	expect(requests).toEqual([
-		{
-			url: '/calendar/api/events/delete-intent-event/delete-intents/delete-operation',
-			method: 'PUT',
-			body: JSON.stringify({
-				clientID: 'page-client',
-				sequence: 8,
-				expectedUpdatedAt: '2026-07-17T05:00:00Z'
-			}),
-			keepalive: true
-		},
-		{
-			url: '/calendar/api/events/delete-intent-event/delete-intents/delete-operation',
-			method: 'DELETE',
-			body: JSON.stringify({ clientID: 'page-client', sequence: 9 }),
-			keepalive: true
-		}
-	]);
-});
-
-test('addresses later writes and deletes of a created event by the ID the server gave it', async () => {
-	const originalFetch = globalThis.fetch;
-	const requests: Array<{ url: string; method: string | undefined; eventID?: string }> = [];
-	const localDraft = dayTaskEventFromCalendarEvent(calendarServerEvent('quick-1788331680143-umwpd4', 'Created draft'));
-	const serverEvent = calendarServerEvent('2f1c6b1e-0000-4000-8000-000000000001', 'Created draft');
-	globalThis.fetch = Object.assign(
-		async (input: RequestInfo | URL, init?: RequestInit) => {
-			const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as { eventID?: string }) : {};
-			requests.push({ url: input.toString(), method: init?.method, eventID: body.eventID });
-			if (init?.method === 'DELETE') return new Response(null, { status: 204 });
-			return new Response(JSON.stringify(serverEvent), {
-				status: init?.method === 'POST' ? 201 : 200,
-				headers: { 'Content-Type': 'application/json' }
-			});
-		},
-		{ preconnect: originalFetch.preconnect }
+test('addresses later writes and deletes of a created event by the ID the record gave it', async () => {
+	const localDraft = dayTaskEventFromCalendarEvent(
+		calendarServerEvent('quick-1788331680143-umwpd4', 'Created draft')
 	);
 	const actions = createCalendarPersistedEventActions(
 		{
@@ -215,21 +44,13 @@ test('addresses later writes and deletes of a created event by the ID the server
 		new CalendarProgrammaticUpdateState()
 	);
 
-	try {
-		await actions.writeEvent('/calendar/api/events', 'POST', localDraft);
-		await actions.writeEvent(`/calendar/api/events/${localDraft.id}`, 'PUT', localDraft);
-		await actions.deleteEvent(localDraft.id, serverEvent.updatedAt);
-	} finally {
-		globalThis.fetch = originalFetch;
-	}
+	await actions.writeEvent(true, localDraft);
+	await actions.writeEvent(false, localDraft);
+	await actions.deleteEvent(localDraft.id);
 
-	expect(requests).toEqual([
-		{ url: '/calendar/api/events', method: 'POST', eventID: 'quick-1788331680143-umwpd4' },
-		{
-			url: '/calendar/api/events/2f1c6b1e-0000-4000-8000-000000000001',
-			method: 'PUT',
-			eventID: '2f1c6b1e-0000-4000-8000-000000000001'
-		},
-		{ url: '/calendar/api/events/2f1c6b1e-0000-4000-8000-000000000001', method: 'DELETE', eventID: undefined }
+	expect(written).toEqual([
+		{ targetEventID: null, eventID: 'quick-1788331680143-umwpd4' },
+		{ targetEventID: '2f1c6b1e-0000-4000-8000-000000000001', eventID: '2f1c6b1e-0000-4000-8000-000000000001' }
 	]);
+	expect(deleted).toEqual(['2f1c6b1e-0000-4000-8000-000000000001']);
 });

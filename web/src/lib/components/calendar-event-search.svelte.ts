@@ -14,7 +14,7 @@ class CalendarEventSearch {
 		const startDate = new Date(now.getFullYear(), now.getMonth() - monthsBefore, 1);
 		const endDate = new Date(now.getFullYear(), now.getMonth() + monthsAfter + 1, 0);
 		try {
-			const calendarEvents = await fetchCalendarEvents(startDate, endDate, '');
+			const calendarEvents = await fetchCalendarEvents(startDate, endDate);
 			this.events = calendarEvents.map(dayTaskEventFromCalendarEvent);
 		} catch {
 			this.events = [];

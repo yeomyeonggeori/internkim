@@ -194,7 +194,7 @@
 
 	async function loadParticipantCandidates(): Promise<void> {
 		try {
-			const candidates = await fetchCalendarParticipants(text.error);
+			const candidates = await fetchCalendarParticipants();
 			const viewerEmail = await signedInEmail();
 			state.participantCandidates = calendarParticipantsWithViewerFirst(candidates, viewerEmail);
 			state.viewerParticipants = calendarViewerParticipants(candidates, viewerEmail);

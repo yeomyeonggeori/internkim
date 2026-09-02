@@ -51,7 +51,7 @@
 		layoutState.isRotatingSync = true;
 		layoutState.syncError = '';
 		try {
-			layoutState.syncInformation = await rotateCalendarSubscriptionURL(text.saveError);
+			layoutState.syncInformation = await rotateCalendarSubscriptionURL();
 		} catch {
 			layoutState.syncError = text.saveError;
 		} finally {

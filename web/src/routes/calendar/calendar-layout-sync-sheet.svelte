@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { CopyButton } from '$lib/components/ui/copy-button';
-	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
 	import type { CalendarSyncResponse } from './calendar-layout-types';
@@ -14,9 +13,6 @@
 		| 'syncDescription'
 		| 'subscriptionReady'
 		| 'subscriptionShownOnce'
-		| 'caldav'
-		| 'username'
-		| 'password'
 		| 'ics'
 		| 'rotate'
 	>;
@@ -38,7 +34,7 @@
 	} = $props();
 
 	function hasSubscription(): boolean {
-		return Boolean(syncInformation?.caldavURL || syncInformation?.icsURL || syncInformation?.isRegistered);
+		return Boolean(syncInformation?.icsURL || syncInformation?.isRegistered);
 	}
 </script>
 
@@ -56,50 +52,6 @@
 
 			{#if hasSubscription()}
 				<p class="text-xs font-medium text-muted-foreground">{text.subscriptionReady}</p>
-			{/if}
-
-			{#if syncInformation?.caldavURL}
-				<div class="space-y-3">
-					<p class="text-xs font-medium uppercase text-muted-foreground">{text.caldav}</p>
-					<div class="flex min-w-0 items-start gap-2">
-						<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
-							{syncInformation.caldavURL}
-						</code>
-						<CopyButton text={syncInformation.caldavURL} variant="outline" size="icon" class="shrink-0" />
-					</div>
-					<div class="space-y-1">
-						<p class="text-[11px] font-medium text-muted-foreground">{text.username}</p>
-						<div class="flex min-w-0 items-start gap-2">
-							<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
-								{syncInformation.caldavUsername ?? ''}
-							</code>
-							<CopyButton
-								text={syncInformation.caldavUsername ?? ''}
-								variant="outline"
-								size="icon"
-								class="shrink-0"
-								disabled={!syncInformation.caldavUsername}
-							/>
-						</div>
-					</div>
-					<div class="space-y-1">
-						<p class="text-[11px] font-medium text-muted-foreground">{text.password}</p>
-						<div class="flex min-w-0 items-start gap-2">
-							<code class="block min-w-0 flex-1 rounded-md bg-muted px-2 py-1.5 font-mono text-xs break-all">
-								{syncInformation.caldavPassword ?? ''}
-							</code>
-							<CopyButton
-								text={syncInformation.caldavPassword ?? ''}
-								variant="outline"
-								size="icon"
-								class="shrink-0"
-								disabled={!syncInformation.caldavPassword}
-							/>
-						</div>
-					</div>
-				</div>
-
-				<Separator />
 			{/if}
 
 			{#if syncInformation?.icsURL}
