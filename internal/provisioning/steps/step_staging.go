@@ -4,7 +4,7 @@ import "errors"
 
 var StepStaging = Step{
 	Name: "staging",
-	Deps: []string{"binaries", "openrouter", "google"},
+	Deps: []string{"binaries", "openrouter"},
 	Title: func(context *Context) string {
 		return context.T("부팅 스테이지 준비...", "Preparing boot staging payload...")
 	},

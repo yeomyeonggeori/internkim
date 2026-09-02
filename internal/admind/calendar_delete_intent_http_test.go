@@ -292,7 +292,7 @@ func TestParseCalendarDeleteIntentPathRejectsNonEventPrefix(t *testing.T) {
 func seedCalendarDeleteIntentEvent(t *testing.T, service *Service, eventID string) calendarEvent {
 	t.Helper()
 	event := newLocalTestCalendarEvent(eventID, "Delete intent")
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	return readRequiredCalendarEvent(t, service, event.ID)

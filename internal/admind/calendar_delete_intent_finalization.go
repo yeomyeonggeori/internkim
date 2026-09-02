@@ -83,15 +83,11 @@ func (service *Service) finalizeCalendarDeleteIntent(ctx context.Context, operat
 		}
 		return transaction.Commit()
 	}
-	outboxRow, shouldSignalSync, errorValue := prepareCalendarOutboxForDeleteWithRunner(ctx, transaction, event)
-	if errorValue != nil {
-		return errorValue
-	}
 	requestedAt := parseCalendarConflictTime(intent.RequestedAt)
 	if requestedAt.IsZero() {
 		return fmt.Errorf("calendar delete intent %q requested_at is invalid", intent.OperationID)
 	}
-	if _, errorValue := service.persistCalendarDeleteIntentEventDeletionWithTransaction(ctx, transaction, event, requestedAt, outboxRow, shouldSignalSync); errorValue != nil {
+	if _, errorValue := service.persistCalendarDeleteIntentEventDeletionWithTransaction(ctx, transaction, event, requestedAt); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := resolveCalendarDeleteIntent(ctx, transaction, intent.OperationID, calendarDeleteIntentStatusExecuted, now); errorValue != nil {
@@ -99,11 +95,6 @@ func (service *Service) finalizeCalendarDeleteIntent(ctx context.Context, operat
 	}
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
-	}
-	service.runCalendarStoreSideEffectUnlocked(func() {
-	})
-	if shouldSignalSync {
-		service.signalCalendarSyncWakeUp()
 	}
 	return nil
 }

@@ -116,15 +116,3 @@ func SoulPath(scriptDir string) string {
 func BotProfilePath(scriptDir string) string {
 	return filepath.Join(AssetsPath(scriptDir), "BOT_PROFILE.yaml")
 }
-
-func GasSourcePath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "gas", "Code.gs")
-}
-
-func ReadGasBridgeCode(scriptDir string) (string, error) {
-	data, error := os.ReadFile(GasSourcePath(scriptDir))
-	if error != nil {
-		return "", error
-	}
-	return string(data), nil
-}

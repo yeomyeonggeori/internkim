@@ -368,14 +368,6 @@ chmod 755 /root/.internkim
 chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chown root:root /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 chmod 600 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
-if [ -f /root/.internkim/secrets/google-sa.json ]; then
-  chown root:root /root/.internkim/secrets/google-sa.json
-  chmod 600 /root/.internkim/secrets/google-sa.json
-fi
-if [ -f /root/.internkim/secrets/gas-webhook-url ]; then
-  chown root:root /root/.internkim/secrets/gas-webhook-url
-  chmod 600 /root/.internkim/secrets/gas-webhook-url
-fi
 if [ -f /root/.internkim/secrets/slack-bot-token ]; then
   chown root:root /root/.internkim/secrets/slack-bot-token
   chmod 600 /root/.internkim/secrets/slack-bot-token

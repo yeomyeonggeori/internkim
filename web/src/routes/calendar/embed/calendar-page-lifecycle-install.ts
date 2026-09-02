@@ -11,7 +11,6 @@ import { createCalendarPageLifecycleOptions } from './calendar-page-lifecycle-op
 import type { CalendarPageMessageActions } from './calendar-page-messages';
 import type { CalendarPageNavigation } from './calendar-page-navigation';
 import type { CalendarPageRangePreviewActions } from './calendar-page-range-preview';
-import type { CalendarPageRenderSyncActions } from './calendar-page-render-sync';
 import type { CalendarSelectedMonthDateActions } from './calendar-month-selection';
 import type { MonthRangeSelection } from './calendar-month-range-action';
 import type { TimelineRangeSelection } from './calendar-timeline-range-action';
@@ -34,7 +33,6 @@ type CalendarPageLifecycleInstallContext = {
 	initialCalendarView: () => ViewType;
 	pageMessages: CalendarPageMessageActions;
 	pageNavigation: CalendarPageNavigation;
-	renderSync: CalendarPageRenderSyncActions;
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	setToolbarView: (view: ViewType) => void;

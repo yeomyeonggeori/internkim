@@ -72,7 +72,6 @@
 	});
 	const {
 		eventStore,
-		conflictActions,
 		draftEvents,
 		draftPopoverActions,
 		eventActions,
@@ -82,7 +81,6 @@
 		pageMessages,
 		pageNavigation,
 		rangePreview,
-		renderSync,
 		selectedMonthDate
 	} = controller;
 
@@ -124,7 +122,6 @@
 		getMonthRangeSelection: () => state.monthRangeSelection,
 		getTimelineRangeSelection: () => state.timelineRangeSelection,
 		rangePreview,
-		renderSync,
 		text
 	});
 
@@ -153,7 +150,6 @@
 			initialCalendarView,
 			pageMessages,
 			pageNavigation,
-			renderSync,
 			selectedMonthDate,
 			setSelectedAuditEventID: (eventID) => {
 				state.selectedAuditEventID = eventID;
@@ -229,9 +225,6 @@
 	clearActiveMobileEditorEvent={(eventID) => {
 		if (state.activeMobileEditorEventID === eventID) state.activeMobileEditorEventID = null;
 	}}
-	conflicts={state.calendarConflicts}
-	dismissConflict={conflictActions.dismissCalendarConflict}
-	refreshConflicts={conflictActions.dismissAllConflictsAndRefresh}
 	loadErrorMessage={state.loadErrorMessage}
 	{currentMonthTitle}
 	toolbarDate={state.toolbarDate}

@@ -505,8 +505,8 @@ func TestScenarioEndToEndRunsSetupAndScenarios(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected end-to-end scenario to succeed: %v", errorValue)
 	}
-	if len(commandRunner.runCommands) != 8 {
-		t.Fatalf("expected provision, setup, and three default scenario commands, got %d", len(commandRunner.runCommands))
+	if len(commandRunner.runCommands) != 7 {
+		t.Fatalf("expected provision, setup, and two default scenario commands, got %d", len(commandRunner.runCommands))
 	}
 }
 

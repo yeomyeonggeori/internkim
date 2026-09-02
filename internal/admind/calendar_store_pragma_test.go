@@ -56,7 +56,7 @@ func TestCalendarConcurrentWritesDoNotReturnSQLITEBusy(t *testing.T) {
 				ReminderLeadHours: 24,
 				CreatedByEmail:    "admin@example.com",
 			}
-			if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+			if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
 				errorChannel <- errorValue
 			}
 		}(index)

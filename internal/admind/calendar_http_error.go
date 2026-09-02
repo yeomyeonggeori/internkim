@@ -12,6 +12,10 @@ const (
 	calendarInternalErrorCode               = "calendar_internal_error"
 )
 
+type calendarMutationErrorResponse struct {
+	Code string `json:"code"`
+}
+
 func writeCalendarErrorCode(responseWriter http.ResponseWriter, statusCode int, errorCode string) {
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(statusCode)

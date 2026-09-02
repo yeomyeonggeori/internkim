@@ -29,7 +29,7 @@ func TestCalendarEventWindowCacheInvalidatesOverlappingCreate(t *testing.T) {
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
 		CreatedByEmail:    "member@example.com",
 	}
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourceLocal); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	database, errorValue := service.openCalendarDatabase(context.Background())
@@ -73,7 +73,7 @@ func TestCalendarEventWindowCacheInvalidatesOldAndNewRangesOnMove(t *testing.T) 
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
 		CreatedByEmail:    "member@example.com",
 	}
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourceLocal); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := service.readCalendarEventWindow(context.Background(), firstStart, firstEnd); errorValue != nil {
@@ -84,7 +84,7 @@ func TestCalendarEventWindowCacheInvalidatesOldAndNewRangesOnMove(t *testing.T) 
 	}
 	event.StartISO = secondStart.Add(time.Hour).Format(time.RFC3339)
 	event.EndISO = secondStart.Add(2 * time.Hour).Format(time.RFC3339)
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourceLocal); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	database, errorValue := service.openCalendarDatabase(context.Background())
@@ -116,13 +116,13 @@ func TestCalendarEventWindowCacheInvalidatesDeletedEventRange(t *testing.T) {
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
 		CreatedByEmail:    "member@example.com",
 	}
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourceLocal); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := service.softDeleteCalendarEventWithSource(context.Background(), event.ID, calendarSourceLocal); errorValue != nil {
+	if errorValue := service.softDeleteCalendarEvent(context.Background(), event.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	database, errorValue := service.openCalendarDatabase(context.Background())

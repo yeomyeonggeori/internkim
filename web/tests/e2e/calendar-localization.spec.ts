@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { routeCalendarBackgroundAPI, routeCalendarParticipants } from './calendar-embed-test-utils';
+import { routeCalendarParticipants } from './calendar-embed-test-utils';
 
 test.describe('calendar localization', () => {
 	test('updates embedded calendar labels when language changes', async ({ page }) => {
@@ -31,12 +31,6 @@ test.describe('calendar localization', () => {
 				}
 			});
 		});
-		await routeCalendarBackgroundAPI(page, {
-			connected: false,
-			needsReauth: false,
-			googleOAuthConfigured: false,
-			canManageGoogleOAuth: false
-		});
 		await routeCalendarParticipants(page, []);
 
 		await page.goto('/calendar/');
@@ -49,8 +43,6 @@ test.describe('calendar localization', () => {
 		await expect(calendarFrame.getByRole('button', { name: 'Settings' })).toBeVisible();
 		await calendarFrame.getByRole('button', { name: 'Settings' }).click();
 		await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
-		await expect(page.getByText('Connected Google Calendar', { exact: true })).toHaveCount(0);
-		await expect(page.getByRole('link', { name: 'Connect' })).toBeHidden();
 		await expect(page.getByText('Subscription URL ready')).toBeVisible();
 		await page.keyboard.press('Escape');
 		await expect(page.getByRole('heading', { name: 'Settings' })).toBeHidden();

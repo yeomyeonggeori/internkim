@@ -48,7 +48,7 @@ func TestCalendarCreateReturnsPersistedEventVersion(t *testing.T) {
 func TestCalendarGetEventReturnsPersistedVersion(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := newLocalTestCalendarEvent("single-event-version", "Single event")
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events/"+event.ID, nil)
@@ -86,7 +86,7 @@ func TestCalendarGetEventReturnsNotFound(t *testing.T) {
 func TestCalendarGetEventTreatsEscapedActorImageSuffixAsEventID(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := newLocalTestCalendarEvent("event/actor-image", "Escaped actor image suffix")
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events/event%2Factor-image", nil)
@@ -111,7 +111,7 @@ func TestCalendarUpdateRejectsStaleEventVersion(t *testing.T) {
 	service := newCalendarTestService(t)
 	contextValue := context.Background()
 	event := newLocalTestCalendarEvent("stale-web-update", "Original title")
-	if errorValue := service.writeCalendarEventWithSource(contextValue, event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(contextValue, event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	originalEvent := readRequiredCalendarEvent(t, service, event.ID)
@@ -141,11 +141,11 @@ func TestCalendarStaleUpdateCannotRestoreDeletedEvent(t *testing.T) {
 	service := newCalendarTestService(t)
 	contextValue := context.Background()
 	event := newLocalTestCalendarEvent("deleted-before-web-update", "Original title")
-	if errorValue := service.writeCalendarEventWithSource(contextValue, event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(contextValue, event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	originalEvent := readRequiredCalendarEvent(t, service, event.ID)
-	if errorValue := service.softDeleteCalendarEventWithSource(contextValue, event.ID, calendarSourcePull); errorValue != nil {
+	if errorValue := service.softDeleteCalendarEvent(contextValue, event.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	originalEvent.Title = "Stale title"
@@ -167,7 +167,7 @@ func TestCalendarDeleteRejectsStaleEventVersion(t *testing.T) {
 	service := newCalendarTestService(t)
 	contextValue := context.Background()
 	event := newLocalTestCalendarEvent("stale-web-delete", "Original title")
-	if errorValue := service.writeCalendarEventWithSource(contextValue, event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(contextValue, event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	originalEvent := readRequiredCalendarEvent(t, service, event.ID)
@@ -194,7 +194,7 @@ func TestCalendarDeleteRejectsStaleEventVersion(t *testing.T) {
 func TestCalendarUpdateAcceptsLegacyPayloadWithoutExpectedVersion(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := newLocalTestCalendarEvent("legacy-web-update", "Original title")
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	storedEvent := readRequiredCalendarEvent(t, service, event.ID)
@@ -212,7 +212,7 @@ func TestCalendarUpdateAcceptsLegacyPayloadWithoutExpectedVersion(t *testing.T) 
 func TestCalendarDeleteAcceptsLegacyRequestWithoutBody(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := newLocalTestCalendarEvent("legacy-web-delete", "Original title")
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	request := httptest.NewRequest(http.MethodDelete, "/calendar/api/events/"+event.ID, nil)

@@ -6,20 +6,6 @@ import {
 	createCalendarEventDeleteIntent
 } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 
-test('decodes the target unavailable response into the closed error code', async () => {
-	const errorValue = await calendarPersistenceErrorFromResponse(
-		new Response(JSON.stringify({ code: 'calendar_target_unavailable' }), {
-			status: 409,
-			headers: { 'Content-Type': 'application/json' }
-		}),
-		'Could not save the event.'
-	);
-
-	expect(errorValue instanceof CalendarPersistenceError).toBe(true);
-	expect(errorValue.code).toBe('calendar_target_unavailable');
-	expect(errorValue.message).toBe('Could not save the event.');
-});
-
 test('decodes an event version conflict into the closed error code', async () => {
 	const errorValue = await calendarPersistenceErrorFromResponse(
 		new Response(JSON.stringify({ code: 'calendar_event_version_conflict' }), {

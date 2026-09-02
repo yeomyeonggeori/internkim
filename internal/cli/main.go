@@ -339,7 +339,7 @@ func runSetup() {
 	// available by explicitly passing --board rpi/orangepi5 without live flags.
 	if hasFlag("--only") || hasFlag("--skip") || hasFlag("--from") ||
 		containsArg("--force") || containsArg("--force-all") || containsArg("--plan") ||
-		containsArg("--ssh") || containsArg("--sd") || containsArg("--live") || containsArg("--with-google") ||
+		containsArg("--ssh") || containsArg("--sd") || containsArg("--live") ||
 		containsArg("--wait-lock") ||
 		argString("--host", "") != "" || argString("--slack-bot-token", "") != "" ||
 		argString("--slack-app-token", "") != "" || argString("--signal-jsonrpc-url", "") != "" ||
@@ -887,11 +887,7 @@ func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {
 		}
 		ssh.run("chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills")
 	}
-	ssh.run(`for skill in calendar mail create-gws-file; do
-  filePath="/root/.blueclaw/workspace/skills/$skill/scripts/gas-call"
-  [ -f "$filePath" ] && chmod +x "$filePath"
-done
-chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
+	ssh.run(`chown -R blueclaw:blueclaw /root/.blueclaw/workspace/skills 2>/dev/null || true`)
 	fmt.Println("ok")
 
 	fmt.Print("Deploying workspace tools... ")
@@ -1782,7 +1778,7 @@ func setupControlArguments(arguments []string) []string {
 			if argument != "--sim" && index+1 < len(arguments) {
 				index++
 			}
-		case "--password", "--admin-email", "--openrouter-api-key", "--litert-model-path", "--gas-webhook-url", "--google-access-token", "--slack-bot-token", "--slack-app-token", "--signal-jsonrpc-url", "--signal-account", "--relay-domain":
+		case "--password", "--admin-email", "--openrouter-api-key", "--litert-model-path", "--slack-bot-token", "--slack-app-token", "--signal-jsonrpc-url", "--signal-account", "--relay-domain":
 			if index+1 < len(arguments) {
 				if argument != "--password" {
 					filteredArguments = append(filteredArguments, argument)
@@ -1798,7 +1794,7 @@ func setupControlArguments(arguments []string) []string {
 				index++
 				filteredArguments = append(filteredArguments, arguments[index])
 			}
-		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--with-google", "--wait-lock":
+		case "--force", "--force-all", "--plan", "--list-steps", "--en", "--non-interactive", "--verify", "--verify-browser", "--wait-lock":
 			filteredArguments = append(filteredArguments, argument)
 		default:
 			if strings.HasPrefix(argument, "--only=") ||
@@ -1807,8 +1803,6 @@ func setupControlArguments(arguments []string) []string {
 				strings.HasPrefix(argument, "--admin-email=") ||
 				strings.HasPrefix(argument, "--openrouter-api-key=") ||
 				strings.HasPrefix(argument, "--litert-model-path=") ||
-				strings.HasPrefix(argument, "--gas-webhook-url=") ||
-				strings.HasPrefix(argument, "--google-access-token=") ||
 				strings.HasPrefix(argument, "--slack-bot-token=") ||
 				strings.HasPrefix(argument, "--slack-app-token=") ||
 				strings.HasPrefix(argument, "--signal-jsonrpc-url=") ||
@@ -1903,8 +1897,6 @@ func runLabArgumentsForTarget(arguments []string, boardType string) error {
 			return service.SetupSimulation(ctx, executablePath, nil)
 		}
 		return service.Setup(ctx, executablePath, nil)
-	case "scenario-google":
-		return service.ScenarioGoogle(ctx)
 	case "scenario-cloudflare":
 		return service.ScenarioCloudflare(ctx)
 	case "scenario-e2e":
@@ -2500,7 +2492,7 @@ func runSetupSD(m *msg) {
 	reset := hardReset || containsArg("--reset")
 	fromStep := argInt("--from", 0)
 	shouldRun := func(n int) bool { return fromStep == 0 || n >= fromStep }
-	totalSteps := 9
+	totalSteps := 8
 
 	// Board selection
 	boardType := "rpi" // default
@@ -2599,24 +2591,21 @@ func runSetupSD(m *msg) {
 	step(2, totalSteps, m.t("Wi-Fi 설정...", "Wi-Fi setup..."))
 	runStageStep(2, "wifi")
 
-	step(3, totalSteps, m.t("Google Workspace 자격증명...", "Google Workspace credentials..."))
-	runStageStep(3, "google")
+	step(3, totalSteps, m.t("OpenRouter API 키 설정...", "OpenRouter API key..."))
+	runStageStep(3, "openrouter")
 
-	step(4, totalSteps, m.t("OpenRouter API 키 설정...", "OpenRouter API key..."))
-	runStageStep(4, "openrouter")
+	step(4, totalSteps, m.t("기기 등록 + 터널 설정...", "Registering device + tunnel..."))
+	runStageStep(4, "tunnel")
 
-	step(5, totalSteps, m.t("기기 등록 + 터널 설정...", "Registering device + tunnel..."))
-	runStageStep(5, "tunnel")
-
-	step(6, totalSteps, m.t("부팅 스테이지 준비...", "Preparing boot staging payload..."))
-	runStageStep(6, "staging")
+	step(5, totalSteps, m.t("부팅 스테이지 준비...", "Preparing boot staging payload..."))
+	runStageStep(5, "staging")
 
 	if err := flowState.ensureWiFiCredentials(); err != nil {
 		fatal(err.Error())
 	}
 
-	// 7. Flash image (skip if same image already on SD)
-	step(7, totalSteps, m.t("이미지 굽기...", "Flashing image..."))
+	// The image is not reflashed when the SD card already carries it.
+	step(6, totalSteps, m.t("이미지 굽기...", "Flashing image..."))
 
 	// Pre-download Mattermost tar.gz to cache
 	mmCachePath := filepath.Join(cacheDir, "mattermost.tar.gz")
@@ -2756,10 +2745,9 @@ func runSetupSD(m *msg) {
 		exec.Command("sync").Run()
 	}
 
-	// 8. Mount boot partition and stage provisioning data
-	// macOS cannot mount ext4 root partition, so we put everything on the
+	// macOS cannot mount the ext4 root partition, so everything goes on the
 	// FAT32 boot partition. The first-boot script moves files into place.
-	step(8, totalSteps, m.t("파일 주입 중...", "Injecting files..."))
+	step(7, totalSteps, m.t("파일 주입 중...", "Injecting files..."))
 	exec.Command("diskutil", "mountDisk", disk).Run()
 	time.Sleep(2 * time.Second)
 
@@ -2784,7 +2772,7 @@ func runSetupSD(m *msg) {
 	}
 	fmt.Printf("  %s\n", m.t("스테이지 디렉터리 복사 완료", "Stage directory copied"))
 
-	// 8f. sysconf.txt — Debian raspi standard first-boot config
+	// sysconf.txt is Debian raspi's own first-boot configuration file.
 	sysconf := "hostname=internkim\n"
 	if flowState.publicKey != "" {
 		sysconf += fmt.Sprintf("root_authorized_key=%s\n", flowState.publicKey)
@@ -2813,8 +2801,7 @@ func runSetupSD(m *msg) {
 		}
 	}
 
-	// 9. Unmount and done
-	step(9, totalSteps, m.t("완료!", "Done!"))
+	step(8, totalSteps, m.t("완료!", "Done!"))
 	exec.Command("diskutil", "unmountDisk", disk).Run()
 
 	fmt.Println()
@@ -2827,7 +2814,7 @@ func runSetupSD(m *msg) {
 		"  1. Insert SD card into Raspberry Pi 5\n  2. Connect power\n  3. First boot auto-setup (takes ~5-10 min)",
 	))
 	deviceURL := loadState(stateDir, "device_url")
-	adminEmail := loadState(stateDir, "google_email")
+	adminEmail := remoteSetupAdminEmail(stateDir)
 	adminPassBytes, _ := os.ReadFile(filepath.Join(stageDir, "secrets", "mm-admin-pass"))
 	adminPass := strings.TrimSpace(string(adminPassBytes))
 	if deviceURL != "" {
@@ -3262,7 +3249,7 @@ if ! timedatectl show --property=NTPSynchronized --value | grep -q '^yes$'; then
     sleep 1
   done
 fi
-# Ensure /etc/hosts maps the hostname (sudo uses this; missing entry trips gws)
+# Ensure /etc/hosts maps the hostname (sudo reads it)
 HN=$(hostname)
 if [ -n "$HN" ] && ! grep -qw "$HN" /etc/hosts; then
   echo "127.0.1.1 $HN" >> /etc/hosts
@@ -3742,29 +3729,6 @@ func generateFirstbootScript(deviceURL, adminEmail string, isLocalLlamaProvision
 	return buildFirstbootScript(deviceURL, adminEmail, isLocalLlamaProvisioned)
 }
 
-func gasWebhookURLPath() string {
-	return filepath.Join(internkimHomeDir(), "gas-webhook-url")
-}
-
-func loadGasWebhookURL() (string, error) {
-	data, err := os.ReadFile(gasWebhookURLPath())
-	if err != nil {
-		return "", err
-	}
-	webhookURL := strings.TrimSpace(string(data))
-	if webhookURL == "" {
-		return "", fmt.Errorf("empty webhook URL at %s", gasWebhookURLPath())
-	}
-	return webhookURL, nil
-}
-
-func provisionGasWebhook(_ string) (string, error) {
-	if webhookURL, err := loadGasWebhookURL(); err == nil {
-		return webhookURL, nil
-	}
-	return "", fmt.Errorf("Google Workspace webhook URL is missing; pass --gas-webhook-url, set INTERNKIM_GAS_WEBHOOK_URL, or install it through Companion")
-}
-
 // --- UI helpers ---
 
 type msg struct{ lang string }
@@ -4055,6 +4019,7 @@ func saveDefaultFleetNode(stateDir string, response *registerResponse) {
 func remoteSetupAdminEmail(stateDir string) string {
 	for _, value := range []string{
 		strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL")),
+		loadState(stateDir, "admin_email"),
 		loadState(stateDir, "claimed_admin_email"),
 		loadState(stateDir, "google_email"),
 	} {
@@ -4428,7 +4393,7 @@ func prepareSetupSelector(boardType string, shouldForce bool) setup.Selector {
 		ForceAll: containsArg("--force-all"),
 		DryRun:   containsArg("--plan"),
 	}
-	return applySetupBoardDefaults(boardType, containsArg("--with-google"), selector)
+	return applySetupBoardDefaults(boardType, selector)
 }
 
 func setupRegistryForBoard(boardType string) setup.Registry {
@@ -4449,12 +4414,9 @@ func setupCanRunWithoutSSH(arguments []string) bool {
 	return onlySteps[0] == "blueclaw-payload-direct"
 }
 
-func applySetupBoardDefaults(boardType string, withGoogle bool, selector setup.Selector) setup.Selector {
-	if boardType == setup.BoardJetsonOrinNano && !withGoogle && !containsName(selector.Only, "google") {
-		selector.Skip = appendMissingName(selector.Skip, "google")
-	}
+func applySetupBoardDefaults(boardType string, selector setup.Selector) setup.Selector {
 	if boardType == setup.BoardCloudShared {
-		for _, name := range []string{"wifi", "local-llm", "google"} {
+		for _, name := range []string{"wifi", "local-llm"} {
 			if !containsName(selector.Only, name) {
 				selector.Skip = appendMissingName(selector.Skip, name)
 			}
@@ -4465,15 +4427,13 @@ func applySetupBoardDefaults(boardType string, withGoogle bool, selector setup.S
 
 func collectSetupParameterValues() setupParameterValues {
 	return setupParameterValues{
-		AdminEmail:        strings.TrimSpace(argString("--admin-email", "")),
-		OpenRouterAPIKey:  strings.TrimSpace(argString("--openrouter-api-key", "")),
-		LiteRTModelPath:   strings.TrimSpace(argString("--litert-model-path", "")),
-		GasWebhookURL:     strings.TrimSpace(argString("--gas-webhook-url", "")),
-		GoogleAccessToken: strings.TrimSpace(argString("--google-access-token", "")),
-		SlackBotToken:     strings.TrimSpace(argString("--slack-bot-token", "")),
-		SlackAppToken:     strings.TrimSpace(argString("--slack-app-token", "")),
-		SignalJSONRPCURL:  strings.TrimSpace(argString("--signal-jsonrpc-url", "")),
-		SignalAccount:     strings.TrimSpace(argString("--signal-account", "")),
+		AdminEmail:       strings.TrimSpace(argString("--admin-email", "")),
+		OpenRouterAPIKey: strings.TrimSpace(argString("--openrouter-api-key", "")),
+		LiteRTModelPath:  strings.TrimSpace(argString("--litert-model-path", "")),
+		SlackBotToken:    strings.TrimSpace(argString("--slack-bot-token", "")),
+		SlackAppToken:    strings.TrimSpace(argString("--slack-app-token", "")),
+		SignalJSONRPCURL: strings.TrimSpace(argString("--signal-jsonrpc-url", "")),
+		SignalAccount:    strings.TrimSpace(argString("--signal-account", "")),
 	}
 }
 

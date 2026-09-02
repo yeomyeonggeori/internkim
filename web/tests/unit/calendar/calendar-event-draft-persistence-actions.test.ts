@@ -5,8 +5,8 @@ import {
 	calendarTestEvent,
 	createEventActionsForScenario,
 	createPersistenceScenario,
-	targetUnavailableError,
-	targetUnavailableMessage,
+	unknownPersistenceError,
+	persistenceFailureMessage,
 	type CalendarEvent
 } from './calendar-event-persistence-scenario';
 
@@ -19,7 +19,7 @@ test('invalidates a pending load before adding a quick draft event', () => {
 	expect(scenario.pendingLoadInvalidationCount()).toBe(1);
 });
 
-test('keeps the latest draft after create reports target unavailable', async () => {
+test('keeps the latest draft after create fails', async () => {
 	const originalDraft = calendarTestEvent('draft-event', '');
 	const titledDraft = calendarTestEvent('draft-event', 'Draft title');
 	const scenario = createPersistenceScenario([titledDraft]);
@@ -29,7 +29,7 @@ test('keeps the latest draft after create reports target unavailable', async () 
 
 	expect(scenario.draftEvents.isDraftEvent(titledDraft.id)).toBe(true);
 	expect(scenario.draftEvents.createdEvents().map((event) => event.title)).toEqual(['Draft title']);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
 });
 
 test('serializes a pending draft create and persists the latest edit', async () => {
@@ -171,7 +171,7 @@ test('deletes the server event when a newer draft update fails after local delet
 	resolveCreate(calendarServerEvent(firstDraft.id, firstDraft.title));
 	await updateStarted;
 	await scenario.actions.deleteEvent(latestDraft.id);
-	rejectUpdate(targetUnavailableError());
+	rejectUpdate(unknownPersistenceError());
 	await savePromise;
 
 	expect(scenario.events()).toEqual([]);
@@ -197,7 +197,7 @@ test('forgets a pending draft deleted before its failed create request completes
 
 	const savePromise = scenario.actions.saveUpdatedEvent(titledDraft);
 	await scenario.actions.deleteEvent(titledDraft.id);
-	rejectWrite(targetUnavailableError());
+	rejectWrite(unknownPersistenceError());
 	await savePromise;
 
 	expect(scenario.events()).toEqual([]);
