@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Run the Agent Skills reference validator over every vendored plugin's skills.
+
+This repository's own loader reads the fields it wants and ignores the rest, so
+it never notices a skill a conforming client would refuse.
+"""
+
+import pathlib
+import shutil
+import subprocess
+import sys
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
+from skill_paths import skill_root_paths  # noqa: E402
+
+VALIDATOR = "skills-ref@0.1.5"
+
+
+def main() -> int:
+    runner = shutil.which("bunx")
+    if runner is None:
+        print("bunx is not on PATH, so the reference validator cannot run", file=sys.stderr)
+        return 1
+
+    probe = subprocess.run([runner, VALIDATOR, "--help"], capture_output=True, text=True)
+    if probe.returncode != 0:
+        print(
+            f"{VALIDATOR} could not run, so no skill was checked:\n{probe.stdout.strip()}{probe.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return 1
+
+    rejected: list[str] = []
+    checked = 0
+    for skill_root in skill_root_paths(REPOSITORY_ROOT):
+        for skill_directory in sorted(path for path in skill_root.glob("*") if path.is_dir()):
+            checked += 1
+            finished = subprocess.run(
+                [runner, VALIDATOR, "validate", str(skill_directory)],
+                capture_output=True,
+                text=True,
+            )
+            if finished.returncode != 0:
+                rejected.append(f"{skill_directory.name}: {finished.stdout.strip()}{finished.stderr.strip()}")
+    if checked == 0:
+        print("no skill was checked, so this check is reading the wrong place", file=sys.stderr)
+        return 1
+    if rejected:
+        print("a conforming client would refuse to load these skills:", file=sys.stderr)
+        for entry in rejected:
+            print(f"  {entry}", file=sys.stderr)
+        return 1
+    print(f"ok {checked} skills pass {VALIDATOR}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

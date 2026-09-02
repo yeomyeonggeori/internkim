@@ -62,9 +62,13 @@ func deliverySourcesFor(request InstallRequest, monitorPath string) (DeliverySou
 	if errorValue != nil {
 		return DeliverySources{}, errorValue
 	}
+	skillRootPaths, errorValue := blueclawworkspace.SkillRootPaths(request.RepositoryRootPath)
+	if errorValue != nil {
+		return DeliverySources{}, errorValue
+	}
 	return DeliverySources{
 		PayloadRuntimePath:       filepath.Join(blueclaw.PayloadWorkspacePath(request.PayloadDirectoryPath), ".blueclaw", "runtime", "current"),
-		SkillPaths:               blueclawworkspace.SkillRootPaths(request.RepositoryRootPath),
+		SkillPaths:               skillRootPaths,
 		RuntimeConfigurationJSON: runtimeConfigurationJSON,
 		PolicyJSON:               policyJSON,
 	}, nil

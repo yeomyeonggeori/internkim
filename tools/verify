@@ -47,6 +47,11 @@ GROUPS = [
         [["tools/verify-blueclaw-pointer"]],
     ),
     Group(
+        "skill-tool-references",
+        [".dependency/*", ".dependency/blueclaw*", "internal/capabilities/*", "pkg/capabilityprotocol/*"],
+        [["tools/verify-skill-tool-references"], ["tools/verify-skill-conformance"]],
+    ),
+    Group(
         "blueclaw",
         [".dependency/blueclaw*"],
         [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
@@ -65,7 +70,7 @@ GROUPS = [
             "go.sum",
             "pkg/capabilityprotocol/generated/*",
             "supabase/functions/_shared/*",
-            "assets/blueclaw-workspace/skills/*",
+            ".dependency/*",
         ],
         [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
     ),

@@ -16,7 +16,7 @@ const (
 
 type Asset struct {
 	Name        string
-	SourcePaths func(repositoryRoot string) []string
+	SourcePaths func(repositoryRoot string) ([]string, error)
 	DevicePath  string
 	DeviceKind  DeviceKind
 }
@@ -61,9 +61,9 @@ func Find(name string) (Asset, bool) {
 	return Asset{}, false
 }
 
-func singleSourcePath(sourcePath func(repositoryRoot string) string) func(repositoryRoot string) []string {
-	return func(repositoryRoot string) []string {
-		return []string{sourcePath(repositoryRoot)}
+func singleSourcePath(sourcePath func(repositoryRoot string) string) func(repositoryRoot string) ([]string, error) {
+	return func(repositoryRoot string) ([]string, error) {
+		return []string{sourcePath(repositoryRoot)}, nil
 	}
 }
 

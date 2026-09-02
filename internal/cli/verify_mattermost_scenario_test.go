@@ -249,11 +249,11 @@ func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
 		!containsMattermostScenarioString(deleteStep.ExpectedEvents, "approval.executed") {
 		t.Fatalf("unexpected delete approval flow: %#v", deleteStep)
 	}
-	skillDocument, errorValue := os.ReadFile("../../assets/blueclaw-workspace/skills/document/SKILL.md")
+	skillDocument, errorValue := os.ReadFile("../../.dependency/internkim-plugin/skills/document/SKILL.md")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.Contains(string(skillDocument), "tool-references: read") {
+	if !strings.Contains(string(skillDocument), `kim.intern.tool-references: "read"`) {
 		t.Fatal("document skill does not reference read")
 	}
 }

@@ -1,5 +1,6 @@
 .dependency/*
 !.dependency/blueclaw
+!.dependency/internkim-plugin
 .dependency/blueclaw/.claude
 .dependency/blueclaw/lab
 .dependency/blueclaw/tests
