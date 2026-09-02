@@ -98,11 +98,11 @@ describe('the task an event becomes', () => {
 
 	test('carries the device identity, and a provider identity beside it', () => {
 		const mirrored = eventAsTask(
-			eventWith({ remoteSource: 'google', remoteHref: 'https://example.test/e.ics' })
+			eventWith({ remoteSource: 'caldav', remoteHref: 'https://example.test/e.ics' })
 		).calendar.mirrors;
 		expect(mirrored).toEqual([
 			{ source: 'internkim-device', externalID: 'event-1@internkim' },
-			{ source: 'google', externalID: 'event-1@internkim', href: 'https://example.test/e.ics' }
+			{ source: 'caldav', externalID: 'event-1@internkim', href: 'https://example.test/e.ics' }
 		]);
 	});
 

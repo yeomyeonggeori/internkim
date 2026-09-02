@@ -35,8 +35,7 @@
                  └─ Firecracker guest
                       └─ Blueclaw HTTP API :8080
                            ├─ managed DB
-                           ├─ workspace actor boundary
-                           └─ gws / gws-bot helper 경로
+                           └─ workspace actor boundary
 
 Optional external channels
   ├─ Slack workspace
@@ -55,7 +54,7 @@ Optional external channels
 
 관리자 UI와 SSH는 Cloudflare Access 뒤의 운영 진입점이고, Flow, 일정, 근태 웹앱은 사용자 web session 경계로 보호합니다. 사용자 web session은 Mattermost session, Mattermost OAuth, Cloudflare Access email 중 하나로 신원을 확인한 뒤 internkim people/policy에서 active member인지 다시 판정합니다. Admin API는 일반 web session만으로 열리지 않고 admin 권한 경계를 따릅니다.
 
-Mattermost API, Blueclaw API, 내부 업무 API 호출은 사용자 브라우저 인증에 의존하지 않습니다. admind와 capabilityd는 필요한 서버-서버 호출을 로컬 루프백 또는 내부 서비스 경계로 수행합니다. Blueclaw는 로컬 루프백에서만 응답합니다. Slack과 Signal은 선택적 connector surface이며, credential/config 파일이 있으면 `internkim-capabilityd`가 외부 이벤트를 받아 Blueclaw 작업으로 정규화합니다. Google, Mattermost, Cloudflare 설정은 host-side setup이 관리하고, Blueclaw는 이미 배치된 파일과 capability endpoint를 사용합니다.
+Mattermost API, Blueclaw API, 내부 업무 API 호출은 사용자 브라우저 인증에 의존하지 않습니다. admind와 capabilityd는 필요한 서버-서버 호출을 로컬 루프백 또는 내부 서비스 경계로 수행합니다. Blueclaw는 로컬 루프백에서만 응답합니다. Slack과 Signal은 선택적 connector surface이며, credential/config 파일이 있으면 `internkim-capabilityd`가 외부 이벤트를 받아 Blueclaw 작업으로 정규화합니다. Mattermost와 Cloudflare 설정은 host-side setup이 관리하고, Blueclaw는 이미 배치된 파일과 capability endpoint를 사용합니다.
 
 ## 디렉토리 구조
 
@@ -201,6 +200,8 @@ flowchart LR
 R2 release channel과 direct upload release는 같은 manifest/apply engine을 공유합니다. R2는 fleet-wide stable channel 배포에 쓰고, direct upload는 개발 머신에서 특정 기기에 바로 적용할 때 씁니다. SSH setup은 초기 설치와 Admin HTTPS 장애 복구 경로입니다. Directory upload는 legacy setup에서만 사용하며 `scp -r` 대신 tar-over-ssh를 사용합니다. Password sudo와 tar stream stdin이 충돌하지 않도록 `/tmp/internkim-upload-<pid>-<name>`에 unprivileged extract 후, 별도 sudo command로 최종 위치에 copy합니다. SSH command에는 timeout과 retry가 적용됩니다.
 
 ## Google Workspace 연동
+
+> Superseded 2026-09-03 by #1347: Google Workspace was removed entirely. No Google code, tool, skill, route, secret or provisioning step remains, so what follows describes a path that is gone.
 
 Google 생성 플로우는 현재 예전 방식으로 유지되어 있습니다.
 
