@@ -3,14 +3,11 @@ package setup
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
-
-var mattermostPublicURLPattern = regexp.MustCompile(`^https://[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.intern\.kim$`)
 
 var StepHealth = Step{
 	Name: "health",
@@ -27,7 +24,6 @@ var StepHealth = Step{
 		}
 
 		var failedChecks []string
-		checkMattermostHealth(context, &failedChecks)
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
 		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
 		checkBlueclawGuestRuntime(context, &failedChecks)
@@ -50,22 +46,6 @@ var StepHealth = Step{
 		fmt.Println("  " + context.T("최종 상태 정상", "Final health checks passed"))
 		return nil
 	},
-}
-
-func checkMattermostHealth(context *Context, failedChecks *[]string) {
-	if !isPlannedStep(context, "mattermost") {
-		fmt.Println("  mattermost: skipped")
-		fmt.Println("  capabilityd composite health: skipped")
-		fmt.Println("  mattermost ping: skipped")
-		fmt.Println("  mattermost url: skipped")
-		fmt.Println("  mattermost profile lookup: skipped")
-		return
-	}
-	checkService(context, "mattermost", failedChecks)
-	checkCapabilityHealth(context, failedChecks)
-	checkMattermostPing(context, failedChecks)
-	checkMattermostURL(context, failedChecks)
-	checkMattermostProfileLookup(context, failedChecks)
 }
 
 func checkFirstAdminBootstrap(context *Context, failedChecks *[]string) {
@@ -154,19 +134,6 @@ fi`))
 	}
 	*failedChecks = append(*failedChecks, "secret-isolation")
 	fmt.Printf("  secret isolation: %s\n", check)
-}
-
-func checkCapabilityHealth(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock http://internkim/health 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("status", ""))' 2>/dev/null || true`))
-	if check == "ok" {
-		fmt.Println("  capabilityd: ok")
-		return
-	}
-	*failedChecks = append(*failedChecks, "capabilityd")
-	if check == "" {
-		check = "failed"
-	}
-	fmt.Printf("  capabilityd: %s\n", check)
 }
 
 func checkBlueclawUsersPolicy(context *Context, failedChecks *[]string) {
@@ -259,28 +226,6 @@ PY`))
 		check = "failed"
 	}
 	fmt.Printf("  blueclaw backup manifest: %s\n", check)
-}
-
-func checkMattermostProfileLookup(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token 2>/dev/null)"
-bot_user_id="$(curl -fsS -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("id", ""))' 2>/dev/null || true)"
-if [ -z "$bot_user_id" ]; then
-  echo missing
-  exit 0
-fi
-body="$(SENDER_ID="$bot_user_id" python3 - <<'PY'
-import json
-import os
-print(json.dumps({"senderID": os.environ["SENDER_ID"]}))
-PY
-)"
-curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$body" http://internkim/v1/platform/mattermost/identity.resolve 2>/dev/null | python3 -c 'import json, sys; raise SystemExit(0 if json.load(sys.stdin).get("email") is not None else 1)' 2>/dev/null && echo ok || echo failed`))
-	if check == "ok" {
-		fmt.Println("  mattermost profile lookup: ok")
-		return
-	}
-	*failedChecks = append(*failedChecks, "mattermost-profile-lookup")
-	fmt.Printf("  mattermost profile lookup: %s\n", check)
 }
 
 func checkLLMCapability(context *Context, failedChecks *[]string) {
@@ -529,24 +474,4 @@ PY`))
 
 func blueclawServiceIsActive(context *Context) bool {
 	return strings.TrimSpace(context.SSH.Run("systemctl is-active "+blueclaw.BlueclawServiceName+" 2>/dev/null || true")) == "active"
-}
-
-func checkMattermostPing(context *Context, failedChecks *[]string) {
-	ping := strings.TrimSpace(context.SSH.Run(`curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -o '"status":"OK"' || true`))
-	if ping != "" {
-		fmt.Println("  mattermost ping: ok")
-		return
-	}
-	*failedChecks = append(*failedChecks, "mattermost-ping")
-	fmt.Println("  mattermost ping: failed")
-}
-
-func checkMattermostURL(context *Context, failedChecks *[]string) {
-	mattermostURL := strings.TrimSpace(context.SSH.Run("cat /root/.internkim/env/mattermost-url 2>/dev/null"))
-	if mattermostPublicURLPattern.MatchString(mattermostURL) {
-		fmt.Printf("  mattermost url: %s\n", mattermostURL)
-		return
-	}
-	*failedChecks = append(*failedChecks, "mattermost-url")
-	fmt.Printf("  mattermost url: invalid (%s)\n", mattermostURL)
 }

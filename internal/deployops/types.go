@@ -135,5 +135,4 @@ const (
 	JobActionPilotStandard   = "pilot-standard"
 	JobActionRestartSSH      = "restart-ssh"
 	JobActionRestartSSHRoute = "restart-cloudflared-node-ssh"
-	JobActionMattermostSmoke = "mattermost-smoke"
 )

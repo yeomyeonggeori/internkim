@@ -145,10 +145,6 @@ func postsBeforeMessage(posts []mattermostHistoryPost, messageID string) []matte
 	return filteredPosts
 }
 
-func (service Service) mattermostSpeaker(ctx context.Context, userID string) string {
-	return service.mattermostSender(ctx, userID).Name
-}
-
 func (service Service) mattermostSender(ctx context.Context, userID string) platformContextSender {
 	if strings.TrimSpace(userID) == "" {
 		return platformContextSender{Platform: "mattermost", Name: "unknown"}
