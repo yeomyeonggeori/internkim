@@ -76,13 +76,26 @@ func calendarEventsOfCompanyEvents(events []centralplane.Event, timeZoneName str
 			EndISO:            event.EndsAt,
 			TimeZone:          timeZoneName,
 			IsAllDay:          event.IsWholeDay,
-			ReminderLeadHours: event.NotifyMinutesBefore / 60,
+			ReminderLeadHours: calendarReminderLeadHours(event.NotifyMinutesBefore),
 			UpdatedAt:         event.UpdatedAt,
 			People:            event.ParticipantMails,
 			Participants:      calendarParticipantsOfEmails(event.ParticipantMails),
+			CreatedByEmail:    event.RequesterEmail,
+			CreatedByName:     firstNonEmpty(event.RequesterName, event.RequesterEmail),
 		})
 	}
 	return converted
+}
+
+// The company records a reminder in minutes and this API answers in hours.
+func calendarReminderLeadHours(minutes int) int {
+	if minutes <= 0 {
+		return 0
+	}
+	if roundedHours := (minutes + 30) / 60; roundedHours > 0 {
+		return roundedHours
+	}
+	return 1
 }
 
 func calendarParticipantsOfEmails(emails []string) []calendarParticipant {

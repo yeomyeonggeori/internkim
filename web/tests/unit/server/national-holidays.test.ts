@@ -157,3 +157,47 @@ describe('nagerDateProvider().holidayDates', () => {
 		expect(fetchCallCount).toBe(2);
 	});
 });
+
+describe('nagerDateProvider().holidays', () => {
+	test('carries both names, so a calendar can title the day', async () => {
+		const provider = nagerDateProvider({
+			fetch: createMockFetch(async () =>
+				Response.json([
+					{ date: '2026-01-01', localName: '새해', name: "New Year's Day", countryCode: 'KR' }
+				])
+			),
+			now: () => epochInMilliseconds
+		});
+
+		expect(await provider.holidays('KR', 2026)).toEqual([
+			{ date: '2026-01-01', localName: '새해', name: "New Year's Day" }
+		]);
+	});
+
+	test('keeps two holidays that fall on one day', async () => {
+		const provider = nagerDateProvider({
+			fetch: createMockFetch(async () =>
+				Response.json([
+					{ date: '2026-03-01', localName: '삼일절', name: 'Independence Movement Day', countryCode: 'KR' },
+					{ date: '2026-03-01', localName: '대체공휴일', name: 'Substitute Holiday', countryCode: 'KR' }
+				])
+			),
+			now: () => epochInMilliseconds
+		});
+
+		const holidays = await provider.holidays('KR', 2026);
+		expect(holidays.map((one) => one.name)).toEqual(['Independence Movement Day', 'Substitute Holiday']);
+		expect(await provider.holidayDates('KR', 2026)).toEqual(['2026-03-01']);
+	});
+
+	test('refuses an entry with no name at all', async () => {
+		const provider = nagerDateProvider({
+			fetch: createMockFetch(async () =>
+				Response.json([{ date: '2026-01-01', localName: '  ', name: '', countryCode: 'KR' }])
+			),
+			now: () => epochInMilliseconds
+		});
+
+		expect(provider.holidays('KR', 2026)).rejects.toThrow('has no name');
+	});
+});

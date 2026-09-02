@@ -1,4 +1,11 @@
+export type NationalHoliday = {
+	date: string;
+	name: string;
+	localName: string;
+};
+
 export type NationalHolidayProvider = {
+	holidays(countryCode: string, year: number): Promise<NationalHoliday[]>;
 	holidayDates(countryCode: string, year: number): Promise<string[]>;
 };
 
@@ -9,7 +16,7 @@ const requestTimeoutInMilliseconds = 5000;
 const publicHolidayType = 'Public';
 
 type YearCache = {
-	dates: string[];
+	holidays: NationalHoliday[];
 	fetchedAtInMilliseconds: number;
 };
 
@@ -34,17 +41,29 @@ function isPublicHoliday(entry: Record<string, unknown>): boolean {
 	return entry.types.includes(publicHolidayType);
 }
 
+function namedAs(value: unknown): string {
+	return typeof value === 'string' ? value.trim() : '';
+}
+
+function orderedHolidays(holidays: NationalHoliday[]): NationalHoliday[] {
+	return [...holidays].sort((left, right) => {
+		if (left.date !== right.date) return left.date < right.date ? -1 : 1;
+		if (left.name !== right.name) return left.name < right.name ? -1 : 1;
+		return left.localName < right.localName ? -1 : left.localName > right.localName ? 1 : 0;
+	});
+}
+
 function parsedHolidayPayload(
 	payload: unknown,
 	countryCode: string,
 	attemptedPath: string
-): string[] {
+): NationalHoliday[] {
 	if (!Array.isArray(payload)) {
 		throw new Error(
 			`${providerName} returned a malformed holiday list from ${attemptedPath}: expected a JSON array`
 		);
 	}
-	const dates = new Set<string>();
+	const found = new Map<string, NationalHoliday>();
 	for (const entry of payload) {
 		if (typeof entry !== 'object' || entry === null) {
 			throw new Error(
@@ -65,10 +84,17 @@ function parsedHolidayPayload(
 				`${providerName} returned holidays for ${String(holiday.countryCode)} from ${attemptedPath}, not ${countryCode}`
 			);
 		}
+		const name = namedAs(holiday.name);
+		const localName = namedAs(holiday.localName);
+		if (!name && !localName) {
+			throw new Error(
+				`${providerName} returned a malformed holiday list from ${attemptedPath}: the holiday on ${holiday.date} has no name`
+			);
+		}
 		if (!isPublicHoliday(holiday)) continue;
-		dates.add(holiday.date);
+		found.set(`${holiday.date}|${name}|${localName}`, { date: holiday.date, name, localName });
 	}
-	return [...dates].sort();
+	return orderedHolidays([...found.values()]);
 }
 
 async function fetchedOnce(fetchImplementation: typeof fetch, url: URL): Promise<Response> {
@@ -96,11 +122,11 @@ async function fetchJSON(fetchImplementation: typeof fetch, url: URL): Promise<u
 	return response.json();
 }
 
-async function fetchedHolidayDates(
+async function fetchedHolidays(
 	fetchImplementation: typeof fetch,
 	countryCode: string,
 	year: number
-): Promise<string[]> {
+): Promise<NationalHoliday[]> {
 	const holidaysURL = new URL(
 		`${nagerBaseURL}/PublicHolidays/${year}/${encodeURIComponent(countryCode)}`
 	);
@@ -108,25 +134,25 @@ async function fetchedHolidayDates(
 	return parsedHolidayPayload(payload, countryCode, pathOf(holidaysURL));
 }
 
-async function cachedHolidayDates(
+async function cachedHolidays(
 	caches: Map<string, YearCache>,
 	fetchImplementation: typeof fetch,
 	countryCode: string,
 	year: number,
 	nowInMilliseconds: number
-): Promise<string[]> {
+): Promise<NationalHoliday[]> {
 	const yearKey = yearKeyOf(countryCode, year);
 	const cache = caches.get(yearKey);
 	if (cache && nowInMilliseconds - cache.fetchedAtInMilliseconds < cacheLifetimeInMilliseconds) {
-		return cache.dates;
+		return cache.holidays;
 	}
 
 	try {
-		const dates = await fetchedHolidayDates(fetchImplementation, countryCode, year);
-		caches.set(yearKey, { dates, fetchedAtInMilliseconds: nowInMilliseconds });
-		return dates;
+		const holidays = await fetchedHolidays(fetchImplementation, countryCode, year);
+		caches.set(yearKey, { holidays, fetchedAtInMilliseconds: nowInMilliseconds });
+		return holidays;
 	} catch (cause) {
-		if (cache) return cache.dates;
+		if (cache) return cache.holidays;
 		throw cause;
 	}
 }
@@ -158,8 +184,12 @@ export function nagerDateProvider(options?: {
 	const fetchImplementation = options?.fetch ?? fetch;
 	const now = options?.now ?? Date.now;
 	const caches = new Map<string, YearCache>();
+	const holidays = (countryCode: string, year: number) =>
+		cachedHolidays(caches, fetchImplementation, countryCodeOf(countryCode), year, now());
 	return {
-		holidayDates: (countryCode, year) =>
-			cachedHolidayDates(caches, fetchImplementation, countryCodeOf(countryCode), year, now())
+		holidays,
+		holidayDates: async (countryCode, year) => [
+			...new Set((await holidays(countryCode, year)).map((holiday) => holiday.date))
+		]
 	};
 }

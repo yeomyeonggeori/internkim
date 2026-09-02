@@ -101,3 +101,57 @@ func TestAnOpenCalendarWindowAsksForNoBound(t *testing.T) {
 		t.Fatalf("bound = %q", bound)
 	}
 }
+
+func TestAReminderShorterThanAnHourStaysAReminder(t *testing.T) {
+	for _, testCase := range []struct {
+		minutes int
+		hours   int
+	}{
+		{minutes: 0, hours: 0},
+		{minutes: 1, hours: 1},
+		{minutes: 30, hours: 1},
+		{minutes: 60, hours: 1},
+		{minutes: 90, hours: 2},
+		{minutes: 1440, hours: 24},
+	} {
+		if hours := calendarReminderLeadHours(testCase.minutes); hours != testCase.hours {
+			t.Fatalf("%d minutes before became %d hours before, wanted %d", testCase.minutes, hours, testCase.hours)
+		}
+	}
+}
+
+func TestACompanyEventSaysWhoAskedForIt(t *testing.T) {
+	events := calendarEventsOfCompanyEvents([]centralplane.Event{{
+		CentralID:           "task-2",
+		Title:               "주간 회의",
+		StartsAt:            "2026-08-24T01:00:00+00:00",
+		EndsAt:              "2026-08-24T02:00:00+00:00",
+		NotifyMinutesBefore: 30,
+		RequesterEmail:      "isaempeul@example.com",
+		RequesterName:       "이샘플",
+	}}, "Asia/Seoul")
+
+	if len(events) != 1 {
+		t.Fatalf("events = %+v", events)
+	}
+	event := events[0]
+	if event.CreatedByEmail != "isaempeul@example.com" || event.CreatedByName != "이샘플" {
+		t.Fatalf("the person who asked for the event is who it was created by, got %+v", event)
+	}
+	if event.ReminderLeadHours != 1 {
+		t.Fatalf("a half-hour reminder came back as %d hours", event.ReminderLeadHours)
+	}
+}
+
+func TestACompanyEventWithNoRequesterNamesNobody(t *testing.T) {
+	events := calendarEventsOfCompanyEvents([]centralplane.Event{{
+		CentralID: "task-3",
+		Title:     "전사 공지",
+		StartsAt:  "2026-08-24T01:00:00+00:00",
+		EndsAt:    "2026-08-24T02:00:00+00:00",
+	}}, "Asia/Seoul")
+
+	if len(events) != 1 || events[0].CreatedByEmail != "" || events[0].CreatedByName != "" {
+		t.Fatalf("an event nobody asked for names nobody, got %+v", events)
+	}
+}
