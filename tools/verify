@@ -83,6 +83,7 @@ GROUPS = [
                 "tools/blueclaw-scenario-test",
                 "./internal/e2e/",
                 "./internal/agentruntime/",
+                "./internal/capability/",
                 "./cmd/blueclaw-lab/",
             ],
         ],
