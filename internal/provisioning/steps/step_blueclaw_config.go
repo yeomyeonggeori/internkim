@@ -32,7 +32,7 @@ var StepBlueclawConfiguration = Step{
 		if errorValue != nil {
 			return errorValue
 		}
-		policyConfiguration, errorValue := blueclaw.BlueclawPolicyDocument(loadGoogleEmail(context))
+		policyConfiguration, errorValue := blueclaw.BlueclawPolicyDocument(loadAdminEmail(context))
 		if errorValue != nil {
 			return errorValue
 		}
@@ -77,7 +77,7 @@ func blueclawConfigurationFilesMatchGenerated(context *Context) bool {
 	if errorValue != nil {
 		return false
 	}
-	policyConfiguration, errorValue := blueclaw.BlueclawPolicyDocument(loadGoogleEmail(context))
+	policyConfiguration, errorValue := blueclaw.BlueclawPolicyDocument(loadAdminEmail(context))
 	if errorValue != nil {
 		return false
 	}
@@ -141,9 +141,12 @@ func loadDeviceURL(context *Context) string {
 	return context.Callbacks.LoadState("device_url")
 }
 
-func loadGoogleEmail(context *Context) string {
+func loadAdminEmail(context *Context) string {
 	if context.Callbacks.LoadState == nil {
 		return ""
+	}
+	if adminEmail := context.Callbacks.LoadState("admin_email"); adminEmail != "" {
+		return adminEmail
 	}
 	return context.Callbacks.LoadState("google_email")
 }

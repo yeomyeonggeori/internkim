@@ -121,7 +121,7 @@ func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,google,slack,web") {
+	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,slack,web") {
 		t.Fatalf("expected test up plan to skip web:\n%s", joinedPlans)
 	}
 	if !strings.Contains(joinedPlans, "INTERNKIM_BLUECLAW_USE_LOCAL=1") {
@@ -157,7 +157,7 @@ func TestReusableUpPlanEnsuresRuntimeBaseBeforeForcedSetup(t *testing.T) {
 		t.Fatalf("expected runtime base ensure to honor its satisfied check:\n%s", runtimeBasePlan)
 	}
 	forcedSetupPlan := strings.Join(plans[forcedSetupPlanIndex].Arguments, " ")
-	if !strings.Contains(forcedSetupPlan, "--skip wifi,local-llm,google,slack,web,blueclaw-runtime-base") {
+	if !strings.Contains(forcedSetupPlan, "--skip wifi,local-llm,slack,web,blueclaw-runtime-base") {
 		t.Fatalf("expected forced reusable setup to skip the ensured runtime base:\n%s", forcedSetupPlan)
 	}
 }

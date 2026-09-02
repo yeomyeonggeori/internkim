@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS calendar_properties (
 	if errorValue := ensureCalendarHolidaySchema(ctx, database); errorValue != nil {
 		return errorValue
 	}
-	return ensureCalendarSyncSchema(ctx, database)
+	return ensureCalendarEventLogicalClocksTable(ctx, database)
 }
 
 func ensureCalendarChannelOutboxTable(ctx context.Context, database *sql.DB) error {
@@ -210,48 +210,6 @@ func (service *Service) readCalendarEvents(ctx context.Context, startTime time.T
 	}
 	defer database.Close()
 	events, errorValue := readCalendarEventRows(ctx, database, startTime, endTime)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return loadCalendarEventListParticipants(ctx, database, events)
-}
-
-func (service *Service) readRemoteCalendarEventsByProvider(ctx context.Context, source string) ([]calendarEvent, error) {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
-FROM calendar_events
-WHERE deleted_at = '' AND remote_source = ?
-ORDER BY uid`, strings.TrimSpace(source))
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	events, errorValue := scanCalendarEventRows(rows)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return loadCalendarEventListParticipants(ctx, database, events)
-}
-
-func (service *Service) readSoftDeletedCalendarEvents(ctx context.Context) ([]calendarEvent, error) {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT id, uid, title, description, location, start_at, end_at, time_zone, is_all_day, color, raw_ics, reminder_lead_hours, created_by_email, created_by_name, updated_by_email, updated_by_name, updated_by_at, mattermost_post_id, updated_at, remote_source, remote_etag, remote_href
-FROM calendar_events
-WHERE deleted_at != ''
-ORDER BY uid`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	events, errorValue := scanCalendarEventRows(rows)
 	if errorValue != nil {
 		return nil, errorValue
 	}

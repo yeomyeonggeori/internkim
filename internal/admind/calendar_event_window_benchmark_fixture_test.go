@@ -48,7 +48,6 @@ func newCalendarEventWindowBenchmarkServiceWithHistory(testContext testing.TB, h
 		ClaimedAdminEmailPath: writeBenchmarkFile("claimed-admin-email", "admin@example.com"),
 		FleetIDPath:           writeBenchmarkFile("fleet-id", "device-1"),
 		FleetSecretPath:       writeBenchmarkFile("fleet-secret", "secret-1"),
-		CalendarSyncDisabled:  true,
 	})
 	service.HTTPClient = &http.Client{Transport: calendarEventWindowBenchmarkTransport(testContext)}
 	seedCalendarEventWindowBenchmarkFixture(testContext, service)
@@ -117,7 +116,7 @@ func seedCalendarEventWindowBenchmarkEvents(testContext testing.TB, service *Ser
 			UpdatedByEmail:    "member@example.com",
 			UpdatedByName:     "Member",
 		}
-		if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 			testContext.Fatal(errorValue)
 		}
 	}

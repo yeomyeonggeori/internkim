@@ -49,11 +49,7 @@ RETURNING logical_time_unix_nano`, eventUID, candidateUnixNano).Scan(&logicalTim
 func readLatestLegacyCalendarConflictTime(ctx context.Context, transaction *sql.Tx, eventUID string) (time.Time, error) {
 	rows, errorValue := transaction.QueryContext(ctx, `
 SELECT updated_at FROM calendar_events WHERE uid = ?
-UNION ALL SELECT deleted_at FROM calendar_events WHERE uid = ?
-UNION ALL SELECT created_at FROM calendar_outbox WHERE event_uid = ?
-UNION ALL SELECT last_seen_at FROM calendar_remote_event_sync_state WHERE event_uid = ?
-UNION ALL SELECT missing_detected_at FROM calendar_remote_event_sync_state WHERE event_uid = ?
-UNION ALL SELECT changed_at FROM calendar_event_field_clocks WHERE event_uid = ?`, eventUID, eventUID, eventUID, eventUID, eventUID, eventUID)
+UNION ALL SELECT deleted_at FROM calendar_events WHERE uid = ?`, eventUID, eventUID)
 	if errorValue != nil {
 		return time.Time{}, errorValue
 	}

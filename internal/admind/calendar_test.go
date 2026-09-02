@@ -91,20 +91,6 @@ func TestCalendarEventLifecycleAndICS(t *testing.T) {
 	if token != syncDocument.CalDAVPassword {
 		t.Fatalf("ics token and caldav password differ")
 	}
-	remoteSyncRequest := httptest.NewRequest(http.MethodPost, "/calendar/api/remote-sync", nil)
-	remoteSyncRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
-	remoteSyncResponse := httptest.NewRecorder()
-	service.router().ServeHTTP(remoteSyncResponse, remoteSyncRequest)
-	if remoteSyncResponse.Code != http.StatusOK {
-		t.Fatalf("remote sync status = %d body = %s", remoteSyncResponse.Code, remoteSyncResponse.Body.String())
-	}
-	var remoteSyncDocument calendarRemoteSyncResponse
-	if errorValue := json.Unmarshal(remoteSyncResponse.Body.Bytes(), &remoteSyncDocument); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if remoteSyncDocument.PullCacheTTLSeconds != int(calendarPullCacheTTL.Seconds()) {
-		t.Fatalf("remote sync response missing pull cache ttl: %#v", remoteSyncDocument)
-	}
 	icsRequest := httptest.NewRequest(http.MethodGet, "/calendar/ics/"+token+".ics", nil)
 	icsResponse := httptest.NewRecorder()
 	service.router().ServeHTTP(icsResponse, icsRequest)
@@ -299,14 +285,12 @@ func newCalendarTestService(t *testing.T) *Service {
 		t.Fatal(errorValue)
 	}
 	service := NewService(Configuration{
-		StateDirectory:           filepath.Join(rootPath, "state", "admin"),
-		CompanionJobPath:         filepath.Join(rootPath, "state", "companion-jobs.json"),
-		CalendarDatabasePath:     filepath.Join(rootPath, "state", "calendar.sqlite"),
-		CalendarSecretsDirectory: filepath.Join(rootPath, "secrets", "google-oauth"),
-		TaskDatabasePath:         filepath.Join(rootPath, "state", "flow.sqlite"),
-		AdminEmailPath:           writeTestFile(t, "admin@example.com"),
-		AdminUIPath:              adminUIPath,
-		CalendarSyncDisabled:     true,
+		StateDirectory:       filepath.Join(rootPath, "state", "admin"),
+		CompanionJobPath:     filepath.Join(rootPath, "state", "companion-jobs.json"),
+		CalendarDatabasePath: filepath.Join(rootPath, "state", "calendar.sqlite"),
+		TaskDatabasePath:     filepath.Join(rootPath, "state", "flow.sqlite"),
+		AdminEmailPath:       writeTestFile(t, "admin@example.com"),
+		AdminUIPath:          adminUIPath,
 	})
 	return service
 }

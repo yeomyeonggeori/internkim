@@ -31,9 +31,6 @@ func TestCalendarConflictClockUsesEveryLegacyLocalEvidenceFloor(t *testing.T) {
 	}{
 		{name: "event updated", seed: seedLegacyCalendarEventUpdatedTime},
 		{name: "event deleted", seed: seedLegacyCalendarEventDeletedTime},
-		{name: "outbox created", seed: seedLegacyCalendarOutboxCreatedTime},
-		{name: "remote last seen", seed: seedLegacyCalendarRemoteLastSeenTime},
-		{name: "remote missing detected", seed: seedLegacyCalendarRemoteMissingTime},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -45,25 +42,6 @@ func TestCalendarConflictClockUsesEveryLegacyLocalEvidenceFloor(t *testing.T) {
 				t.Fatalf("logical time=%s legacy time=%s", allocated, legacyTime)
 			}
 		})
-	}
-}
-
-func TestCalendarConflictClockIgnoresRemoteModifiedAtAsFloor(t *testing.T) {
-	service := newCalendarTestService(t)
-	contextValue := context.Background()
-	candidate := time.Date(2036, 7, 16, 5, 0, 0, 0, time.UTC)
-	remoteModifiedAt := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-	if errorValue := service.upsertCalendarRemoteEventState(contextValue, calendarRemoteEventState{
-		AccountID:        "account-remote-skew",
-		CalendarURL:      "/calendars/remote-skew/",
-		EventUID:         "remote-skew@internkim",
-		RemoteModifiedAt: remoteModifiedAt.Format(time.RFC3339Nano),
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	allocated := allocateCommittedCalendarConflictTime(t, service, "remote-skew@internkim", candidate)
-	if allocated != candidate {
-		t.Fatalf("logical time=%s candidate=%s remote modified=%s", allocated, candidate, remoteModifiedAt)
 	}
 }
 
@@ -211,7 +189,7 @@ func seedLegacyCalendarEventUpdatedTime(t *testing.T, service *Service, eventUID
 	t.Helper()
 	event := newLocalTestCalendarEvent("legacy-event-updated", "Legacy")
 	event.UID = eventUID
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	updateCalendarEventConflictTimes(t, service, event.ID, legacyTime, time.Time{})
@@ -221,49 +199,10 @@ func seedLegacyCalendarEventDeletedTime(t *testing.T, service *Service, eventUID
 	t.Helper()
 	event := newLocalTestCalendarEvent("legacy-event-deleted", "Legacy")
 	event.UID = eventUID
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	updateCalendarEventConflictTimes(t, service, event.ID, legacyTime.Add(-time.Hour), legacyTime)
-}
-
-func seedLegacyCalendarOutboxCreatedTime(t *testing.T, service *Service, eventUID string, legacyTime time.Time) {
-	t.Helper()
-	database, errorValue := service.openCalendarDatabase(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	defer database.Close()
-	_, errorValue = database.ExecContext(context.Background(), `
-INSERT INTO calendar_outbox(account_id, event_id, event_uid, operation, created_at)
-VALUES(?, ?, ?, ?, ?)`, "legacy-account", "legacy-event", eventUID, calendarOutboxOperationPut, legacyTime.Format(time.RFC3339Nano))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-}
-
-func seedLegacyCalendarRemoteLastSeenTime(t *testing.T, service *Service, eventUID string, legacyTime time.Time) {
-	t.Helper()
-	if errorValue := service.upsertCalendarRemoteEventState(context.Background(), calendarRemoteEventState{
-		AccountID:   "legacy-account",
-		CalendarURL: "/calendars/legacy/",
-		EventUID:    eventUID,
-		LastSeenAt:  legacyTime.Format(time.RFC3339Nano),
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-}
-
-func seedLegacyCalendarRemoteMissingTime(t *testing.T, service *Service, eventUID string, legacyTime time.Time) {
-	t.Helper()
-	if errorValue := service.upsertCalendarRemoteEventState(context.Background(), calendarRemoteEventState{
-		AccountID:         "legacy-account",
-		CalendarURL:       "/calendars/legacy/",
-		EventUID:          eventUID,
-		MissingDetectedAt: legacyTime.Format(time.RFC3339Nano),
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
 }
 
 func updateCalendarEventConflictTimes(t *testing.T, service *Service, eventID string, updatedAt time.Time, deletedAt time.Time) {
