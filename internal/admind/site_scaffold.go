@@ -2,15 +2,14 @@ package admind
 
 import (
 	"embed"
+	"fmt"
 	"html"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 )
-
-//go:embed site_scaffold/react-vite-ts
-var siteScaffoldFS embed.FS
 
 //go:embed site_pb_hooks/passkey-lib.js site_pb_hooks/passkey.pb.js
 var sitePBHooksFS embed.FS
@@ -18,30 +17,75 @@ var sitePBHooksFS embed.FS
 //go:embed site_scaffold_dist/react-vite-ts
 var siteScaffoldDistFS embed.FS
 
-const siteScaffoldRoot = "site_scaffold/react-vite-ts"
 const siteScaffoldDistRoot = "site_scaffold_dist/react-vite-ts/dist"
 
-func siteAppScaffoldTemplateFiles(site *SiteRecord) []siteTemplateFile {
-	files := []siteTemplateFile{}
-	_ = fs.WalkDir(siteScaffoldFS, siteScaffoldRoot, func(path string, directoryEntry fs.DirEntry, walkError error) error {
-		if walkError != nil || directoryEntry.IsDir() {
+type siteScaffoldDocument struct {
+	Path    string
+	Content string
+}
+
+var siteScaffoldDirectoriesLeftBehind = map[string]bool{"node_modules": true, "dist": true}
+
+func isSiteScaffoldEntryLeftBehind(entry fs.DirEntry) bool {
+	name := entry.Name()
+	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+		return true
+	}
+	return entry.IsDir() && siteScaffoldDirectoriesLeftBehind[name]
+}
+
+func readSiteScaffoldDocuments(scaffoldPath string) ([]siteScaffoldDocument, error) {
+	scaffold := os.DirFS(scaffoldPath)
+	documents := []siteScaffoldDocument{}
+	walkError := fs.WalkDir(scaffold, ".", func(path string, entry fs.DirEntry, walkError error) error {
+		if walkError != nil {
+			return walkError
+		}
+		if path != "." && isSiteScaffoldEntryLeftBehind(entry) {
+			if entry.IsDir() {
+				return fs.SkipDir
+			}
 			return nil
 		}
-		document, readError := siteScaffoldFS.ReadFile(path)
+		if entry.IsDir() {
+			return nil
+		}
+		content, readError := fs.ReadFile(scaffold, path)
 		if readError != nil {
-			return nil
+			return readError
 		}
-		relativePath, relativeError := filepath.Rel(siteScaffoldRoot, path)
-		if relativeError != nil {
-			return nil
-		}
-		files = append(files, siteTemplateFile{
-			Path:     filepath.ToSlash(filepath.Join("app", relativePath)),
-			Document: siteScaffoldContent(site, string(document)),
-		})
+		documents = append(documents, siteScaffoldDocument{Path: path, Content: string(content)})
 		return nil
 	})
-	return files
+	if walkError != nil {
+		return nil, fmt.Errorf("site scaffold at %s: %w", scaffoldPath, walkError)
+	}
+	if len(documents) == 0 {
+		return nil, fmt.Errorf("site scaffold at %s holds no files", scaffoldPath)
+	}
+	return documents, nil
+}
+
+func (service *Service) siteScaffoldDocumentsOnce() ([]siteScaffoldDocument, error) {
+	service.siteScaffoldOnce.Do(func() {
+		service.siteScaffoldDocuments, service.siteScaffoldError = readSiteScaffoldDocuments(service.Configuration.SiteScaffoldPath)
+	})
+	return service.siteScaffoldDocuments, service.siteScaffoldError
+}
+
+func (service *Service) siteAppScaffoldTemplateFiles(site *SiteRecord) ([]siteTemplateFile, error) {
+	documents, scaffoldError := service.siteScaffoldDocumentsOnce()
+	if scaffoldError != nil {
+		return nil, scaffoldError
+	}
+	files := make([]siteTemplateFile, 0, len(documents))
+	for _, document := range documents {
+		files = append(files, siteTemplateFile{
+			Path:     filepath.ToSlash(filepath.Join("app", document.Path)),
+			Document: siteScaffoldContent(site, document.Content),
+		})
+	}
+	return files, nil
 }
 
 // siteScaffoldCanonicalDistFiles returns the embedded prebuilt dist as

@@ -2452,7 +2452,10 @@ func materializeDirectory(sourceRoot string, targetRoot string) error {
 }
 
 func (service *Service) writeSiteWorkspaceTemplate(site *SiteRecord, content *siteContent) error {
-	files := service.siteScaffoldFiles(site, content)
+	files, scaffoldError := service.siteScaffoldFiles(site, content)
+	if scaffoldError != nil {
+		return scaffoldError
+	}
 	for _, file := range files {
 		path := filepath.Join(site.HostSourcePath, file.Path)
 		if isRegularFile(path) && !file.Overwrite {
@@ -3457,10 +3460,13 @@ const siteScaffoldAppManifestPath = ".internkim/scaffold-app-manifest.json"
 const siteApplicationContentPath = "app/public/site-content.json"
 const siteApplicationContentDistPath = "site-content.json"
 
-func (service *Service) siteScaffoldFiles(site *SiteRecord, content *siteContent) []siteTemplateFile {
+func (service *Service) siteScaffoldFiles(site *SiteRecord, content *siteContent) ([]siteTemplateFile, error) {
 	renderedContent := siteContentOrDefault(content, site)
 	contentDocument := siteContentJSONDocument(renderedContent)
-	appSourceFiles := siteAppScaffoldTemplateFiles(site)
+	appSourceFiles, scaffoldError := service.siteAppScaffoldTemplateFiles(site)
+	if scaffoldError != nil {
+		return nil, scaffoldError
+	}
 	files := []siteTemplateFile{
 		{Path: ".internkim/site.json", Document: service.siteWorkspaceMetadata(site)},
 		{Path: ".internkim/idea.md", Document: siteIdeaMarkdown(site)},
@@ -3470,7 +3476,7 @@ func (service *Service) siteScaffoldFiles(site *SiteRecord, content *siteContent
 	}
 	files = append(files, appSourceFiles...)
 	files = append(files, siteScaffoldDistFilesWithRenderedContent(site, contentDocument)...)
-	return dedupeSiteTemplateFilesByPath(files)
+	return dedupeSiteTemplateFilesByPath(files), nil
 }
 
 // siteScaffoldDistFilesWithRenderedContent mirrors the embedded canonical dist
@@ -3707,19 +3713,27 @@ func fileSHA256Hex(path string) (string, error) {
 	return sha256Hex(string(document)), nil
 }
 
-func (service *Service) siteScaffoldSourceFiles(site *SiteRecord, content *siteContent) []siteSourceFile {
-	templateFiles := service.siteScaffoldFiles(site, content)
+func (service *Service) siteScaffoldSourceFiles(site *SiteRecord, content *siteContent) ([]siteSourceFile, error) {
+	templateFiles, scaffoldError := service.siteScaffoldFiles(site, content)
+	if scaffoldError != nil {
+		return nil, scaffoldError
+	}
 	sourceFiles := make([]siteSourceFile, 0, len(templateFiles))
 	for _, file := range templateFiles {
 		sourceFiles = append(sourceFiles, siteSourceFile{Path: file.Path, Content: file.Document})
 	}
-	return sourceFiles
+	return sourceFiles, nil
 }
 
 func (service *Service) writeSiteCreateRecord(responseWriter http.ResponseWriter, site *SiteRecord, content *siteContent) {
+	sourceFiles, scaffoldError := service.siteScaffoldSourceFiles(site, content)
+	if scaffoldError != nil {
+		http.Error(responseWriter, scaffoldError.Error(), http.StatusInternalServerError)
+		return
+	}
 	service.writeJSON(responseWriter, siteCreateAPIResponse{
 		SiteRecord:  siteAPIResponse(site),
-		SourceFiles: service.siteScaffoldSourceFiles(site, content),
+		SourceFiles: sourceFiles,
 	})
 }
 

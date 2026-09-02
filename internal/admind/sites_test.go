@@ -548,7 +548,7 @@ func TestSiteRollbackCanTargetPublishedRevision(t *testing.T) {
 }
 
 func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
-	packageJSON := readRepositoryFile(t, "assets", "blueclaw-site-scaffold", "react-vite-ts", "package.json")
+	packageJSON := readRepositoryFile(t, ".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app", "package.json")
 	for _, expectedText := range []string{`"react"`, `"vite"`, `"@vitejs/plugin-react"`, `"bun scripts/build.ts"`} {
 		if !strings.Contains(packageJSON, expectedText) {
 			t.Fatalf("site package manifest must contain %q", expectedText)
@@ -560,7 +560,7 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	if strings.Contains(packageJSON, `": "^`) {
 		t.Fatalf("site package manifest must pin exact dependency versions")
 	}
-	buildScript := readRepositoryFile(t, "assets", "blueclaw-site-scaffold", "react-vite-ts", "scripts", "build.ts")
+	buildScript := readRepositoryFile(t, ".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app", "scripts", "build.ts")
 	for _, expectedText := range []string{`arguments: ["install", "--prefer-offline"]`, `existsSync("node_modules/vite/bin/vite.js")`, `arguments: ["--bun", "./node_modules/vite/bin/vite.js", "build", "--logLevel", "info"]`, `collectDesignQualityIssues`, `category: "designDocument"`, `await buildVite();`} {
 		if !strings.Contains(buildScript, expectedText) {
 			t.Fatalf("site build script must contain %q", expectedText)
@@ -602,7 +602,7 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 		t.Fatalf("site build script must write build-quality.json after vite build")
 	}
 
-	indexCSS := readRepositoryFile(t, "assets", "blueclaw-site-scaffold", "react-vite-ts", "src", "index.css")
+	indexCSS := readRepositoryFile(t, ".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app", "src", "index.css")
 	for _, expectedText := range []string{`--background: #ffffff`, `--foreground: #111111`, `--primary: #111111`, `--border: #e5e7eb`} {
 		if !strings.Contains(indexCSS, expectedText) {
 			t.Fatalf("site scaffold must default to black-on-white token %q", expectedText)
@@ -615,15 +615,11 @@ func TestSiteReactScaffoldIncludesManagedBuildContract(t *testing.T) {
 	}
 }
 
-func TestSiteScaffoldMirrorsCanonicalAssets(t *testing.T) {
-	assertDirectoriesMatch(t,
-		repositoryPath("assets", "blueclaw-site-scaffold", "react-vite-ts"),
-		repositoryPath("internal", "admind", "site_scaffold", "react-vite-ts"),
-	)
+func TestSiteScaffoldIsNotDuplicatedInAdmind(t *testing.T) {
 	siteSource := readRepositoryFile(t, "internal", "admind", "sites.go")
 	for _, forbiddenText := range []string{"func sitePackageJSON", "func siteBuildTS", "func siteAppTSX", "func siteIndexCSS"} {
 		if strings.Contains(siteSource, forbiddenText) {
-			t.Fatalf("admind must materialize the canonical scaffold instead of keeping duplicate %q", forbiddenText)
+			t.Fatalf("admind must materialize the website skill's scaffold instead of keeping duplicate %q", forbiddenText)
 		}
 	}
 }
@@ -639,7 +635,7 @@ func TestSiteScaffoldDistMatchesScaffoldSource(t *testing.T) {
 	if manifest.ScaffoldSourceSHA256 == "" {
 		t.Fatal("expected scaffoldSourceSHA256 in site_scaffold_dist manifest.json")
 	}
-	recomputedSHA256 := scaffoldSourceSHA256ForTest(t, repositoryPath("internal", "admind", "site_scaffold", "react-vite-ts"))
+	recomputedSHA256 := scaffoldSourceSHA256ForTest(t, repositoryPath(".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app"))
 	if recomputedSHA256 != manifest.ScaffoldSourceSHA256 {
 		t.Fatalf("site_scaffold_dist manifest is stale; re-run tools/build-site-scaffold-dist (recomputed=%s manifest=%s)", recomputedSHA256, manifest.ScaffoldSourceSHA256)
 	}
@@ -1903,6 +1899,7 @@ func newTestSiteService(t *testing.T) (*Service, *[]string) {
 		TaskDatabasePath:      filepath.Join(rootPath, "state", "admin", "flow.sqlite"),
 		MattermostBaseURL:     "http://mattermost.local",
 		BlueclawWorkspacePath: filepath.Join(rootPath, "blueclaw"),
+		SiteScaffoldPath:      repositoryPath(".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app"),
 	})
 	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
 		commandLog = append(commandLog, strings.TrimSpace(name+" "+strings.Join(arguments, " ")))

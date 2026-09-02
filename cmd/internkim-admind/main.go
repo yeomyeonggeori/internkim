@@ -72,6 +72,7 @@ func main() {
 	flag.StringVar(&configuration.ReleaseSigningKeyPath, "release-signing-key", configuration.ReleaseSigningKeyPath, "release manifest signing key path")
 	flag.StringVar(&configuration.AdminUIPath, "admin-ui-path", configuration.AdminUIPath, "admin UI static directory")
 	flag.StringVar(&configuration.SitesRoot, "sites-root", configuration.SitesRoot, "dynamic sites root directory")
+	flag.StringVar(&configuration.SiteScaffoldPath, "site-scaffold", configuration.SiteScaffoldPath, "the website skill's scaffold app, which a new site is copied from")
 	flag.StringVar(&configuration.SiteSecretDirectory, "site-secret-dir", configuration.SiteSecretDirectory, "dynamic site secret directory")
 	flag.StringVar(&configuration.SiteSystemdDirectory, "site-systemd-dir", configuration.SiteSystemdDirectory, "dynamic site systemd directory")
 	flag.StringVar(&configuration.BotProfileImagePath, "bot-profile-image", configuration.BotProfileImagePath, "bot profile image path")
