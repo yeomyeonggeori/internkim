@@ -3,6 +3,7 @@ package setup
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -37,7 +38,9 @@ var StepBuzzRelay = Step{
 
 		connection := context.SSH
 		connection.Run("DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server >/dev/null 2>&1; systemctl enable --now redis-server 2>/dev/null")
-		connection.Run("systemctl start postgresql 2>/dev/null; sleep 1")
+		if errorValue := startRelayDatabase(connection); errorValue != nil {
+			return errorValue
+		}
 		connection.Run(buzzDatabaseProvisionCommand(ownerPubkey))
 		connection.Run(buzzRelayUnitInstallCommand(blueclaw.RelayPublicURL(context.RelayDomain)))
 
@@ -47,6 +50,24 @@ var StepBuzzRelay = Step{
 	RunSD: func(context *Context) error {
 		return nil
 	},
+}
+
+func startRelayDatabase(connection BoardConnection) error {
+	output := connection.Run(relayDatabaseInstallCommand())
+	state := strings.TrimSpace(connection.Run("systemctl is-active postgresql"))
+	if state == "active" {
+		return nil
+	}
+	return fmt.Errorf("postgresql is %s after installing %s, so the buzz relay bound to it cannot start: %s",
+		state, blueclaw.BuzzRelayDatabasePackages, strings.TrimSpace(output))
+}
+
+func relayDatabaseInstallCommand() string {
+	return `if systemctl is-active --quiet postgresql; then exit 0; fi
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y -qq ` + blueclaw.BuzzRelayDatabasePackages + ` 2>&1 | tail -5
+systemctl enable --now postgresql 2>&1 | tail -5
+sleep 1`
 }
 
 func buzzDatabaseProvisionCommand(ownerPubkey string) string {

@@ -81,7 +81,7 @@ systemctl daemon-reload
 systemctl enable ` + blueclaw.ChatdServiceName + `
 systemctl restart ` + blueclaw.ChatdServiceName + `
 for attempt in $(seq 1 30); do
-  curl -fsS --max-time 3 ` + blueclaw.ChatdEndpoint + `/health >/dev/null 2>&1 && break
+  curl -fsS --max-time 3 ` + blueclaw.ChatdEndpoint + blueclaw.ChatdHealthPath + ` >/dev/null 2>&1 && break
   sleep 1
 done`
 }
