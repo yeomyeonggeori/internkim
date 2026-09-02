@@ -92,7 +92,7 @@ func TestEmbeddingInputsRemainUnchangedForOtherModels(t *testing.T) {
 }
 
 func TestQwen3EmbeddingQueriesCarryTheRetrievalInstruction(t *testing.T) {
-	preparedInputs := prepareEmbeddingInputs([]string{"who runs payroll"}, EmbeddingRequest{InputType: "query"}, "qwen/qwen3-embedding-4b", false)
+	preparedInputs := prepareEmbeddingInputs([]string{"who runs payroll"}, EmbeddingRequest{InputType: "query"}, "qwen/qwen3-embedding-8b", false)
 
 	expected := "Instruct: Given a question about a person or their work, retrieve the memory facts that answer it\nQuery: who runs payroll"
 	if len(preparedInputs) != 1 || preparedInputs[0] != expected {
@@ -111,7 +111,7 @@ func TestQwen3EmbeddingDocumentsAreSentAsIs(t *testing.T) {
 
 func TestQwen3EmbeddingKeepsAnInstructionTheCallerAlreadyWrote(t *testing.T) {
 	input := "Instruct: Retrieve passages\nQuery: who runs payroll"
-	preparedInputs := prepareEmbeddingInputs([]string{input}, EmbeddingRequest{InputType: "query"}, "qwen/qwen3-embedding-4b", false)
+	preparedInputs := prepareEmbeddingInputs([]string{input}, EmbeddingRequest{InputType: "query"}, "qwen/qwen3-embedding-8b", false)
 
 	if len(preparedInputs) != 1 || preparedInputs[0] != input {
 		t.Fatalf("expected the caller's instruction kept, got %+v", preparedInputs)

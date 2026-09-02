@@ -441,7 +441,7 @@ blueclaw never names a provider. Two small additions to the Go client:
 `inputType` (`query` versus `document`) and a batch form, both already spoken by
 the sidecar it replaces.
 
-The default model is `qwen/qwen3-embedding-4b` through OpenRouter, in remote
+The default model is `qwen/qwen3-embedding-8b` through OpenRouter, in remote
 execution mode. Memory embeds little: one query per launch, one per
 `memory_search`, and one transcript plus at most twelve facts per finished
 task. At OpenRouter's listed price that is well under a cent per thousand tasks,
@@ -483,12 +483,16 @@ hand-marked Korean questions at 1,024 dimensions
 | `perplexity/pplx-embed-v1-0.6b` | 0.950 | 0.950 | 0.960 | 12 s |
 
 The set is too small to separate the top three on quality, so the choice fell
-to what a self-hosting company can run: Qwen3 embedding models are supported
-by llama.cpp with GGUF files the vendor publishes, while pplx-embed's
-bidirectional variant of Qwen3 has no accepted conversion. The 4b model is
-the largest that fits beside the generation model on a host with a real GPU;
-the 8b buys nothing measurable and answers slower. The set grows as real
-facts accumulate and the table is rerun before any change of default.
+to what a self-hosting company can run and to how many providers serve it.
+Qwen3 embedding models are supported by llama.cpp with GGUF files the vendor
+publishes, while pplx-embed's bidirectional variant of Qwen3 has no accepted
+conversion. Between the two Qwen sizes, OpenRouter serves the 4b through one
+provider and the 8b through three at the same price; a burst of fifty calls
+against the 4b answered 429 with nowhere to fail over to, which decided it.
+The capability daemon retries a throttled embedding call with backoff and
+honours `Retry-After`, and the store's job queue waits out anything longer.
+The set grows as real facts accumulate and the table is rerun before any
+change of default.
 
 ---
 
