@@ -1,0 +1,127 @@
+{
+	"src/lib/attendance/supabase-active-leave.ts": {
+		"from('leave')": 1,
+		"rpc('leave_return_early')": 1
+	},
+	"src/lib/attendance/supabase-attendance.ts": {
+		"from('company')": 3,
+		"from('member')": 2,
+		"from('attendance')": 2,
+		"from('leave')": 1,
+		"rpc('attendance_server_time')": 1,
+		"rpc('attendance_backdated_after_minutes')": 1
+	},
+	"src/lib/attendance/supabase-company-holidays.ts": {
+		"rpc('company_holidays_save')": 1
+	},
+	"src/lib/attendance/supabase-leave-management.ts": {
+		"rpc('member_leave_days_set')": 1,
+		"from('leave')": 4,
+		"from('company')": 1,
+		"rpc('leave_management_source')": 1
+	},
+	"src/lib/attendance/supabase-leave-policy-settings.ts": {
+		"rpc('attendance_leave_policy_save')": 1
+	},
+	"src/lib/attendance/supabase-leave.ts": {
+		"rpc('leave_in_full')": 1,
+		"from('leave')": 3,
+		"from('member')": 3,
+		"from('company')": 1,
+		"rpc('member_today')": 1,
+		"rpc('member_leave_remaining')": 1
+	},
+	"src/lib/attendance/supabase-work-policy-settings.ts": {
+		"rpc('attendance_work_policy_save')": 1
+	},
+	"src/lib/attendance/supabase-work-policy.ts": {
+		"rpc('attendance_work_policies')": 1
+	},
+	"src/lib/attendance/supabase-work-status.ts": {
+		"from('company')": 1,
+		"from('member')": 1,
+		"from('attendance')": 1,
+		"from('leave')": 1
+	},
+	"src/lib/calendar/company-calendar.ts": {
+		"from('member')": 1,
+		"from('task')": 2
+	},
+	"src/lib/calendar/supabase-calendar-leave.ts": {
+		"from('leave')": 1
+	},
+	"src/lib/calendar/supabase-calendar.ts": {
+		"rpc('task_save')": 1,
+		"from('task')": 1,
+		"from('company')": 1
+	},
+	"src/lib/company/base-currency.ts": {
+		"from('company')": 2
+	},
+	"src/lib/company/company-settings.ts": {
+		"from('company')": 1
+	},
+	"src/lib/company/profile-image.ts": {
+		"from('company')": 3,
+		"from(assetBucket)": 3
+	},
+	"src/lib/host-bridge.ts": {
+		"from('member')": 1
+	},
+	"src/lib/messenger/messenger-directory.ts": {
+		"from('member')": 2,
+		"from('contact')": 1
+	},
+	"src/lib/notifications/muted-conversations.ts": {
+		"from('notification')": 1,
+		"rpc('conversation_mute')": 1,
+		"rpc('conversation_unmute')": 1
+	},
+	"src/lib/notifications/settings.ts": {
+		"rpc('my_notification_settings')": 1,
+		"rpc('notification_settings_set')": 1
+	},
+	"src/lib/notifications/subscribe.ts": {
+		"rpc('vapid_public_key')": 1,
+		"rpc('push_device_claim')": 1,
+		"rpc('push_device_release')": 1
+	},
+	"src/lib/organization/supabase-directory.ts": {
+		"from('member')": 1,
+		"from('team')": 1,
+		"rpc('member_profiles_save')": 1,
+		"rpc('team_save')": 1,
+		"rpc('member_profile_save_own')": 1
+	},
+	"src/lib/stores/attachment-source.svelte.ts": {
+		"from(assetBucket)": 1
+	},
+	"src/lib/supabase-session.ts": {
+		"from('member')": 1
+	},
+	"src/lib/task/supabase-task-relationships.ts": {
+		"rpc('task_parent_set')": 1,
+		"rpc('task_children_link')": 1
+	},
+	"src/lib/task/supabase-task.ts": {
+		"from('task')": 5,
+		"from('company')": 1,
+		"from('member')": 1,
+		"rpc('task_save')": 2,
+		"rpc('task_vocabulary_save')": 1
+	},
+	"src/lib/task/task-live-refresh.ts": {
+		"rpc('my_company_topic')": 1
+	},
+	"src/routes/crm/crm-supabase.ts": {
+		"from('company')": 1,
+		"from('organization')": 3,
+		"from('contact')": 3,
+		"from('opportunity')": 4,
+		"from('task')": 2,
+		"rpc('crm_task_save')": 2,
+		"rpc('crm_vocabulary_save')": 1,
+		"from('member')": 1,
+		"from(table)": 1
+	}
+}
