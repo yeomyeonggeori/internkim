@@ -264,8 +264,8 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		t.Fatalf("expected descriptor-only capability configuration, got %+v", capabilityConfiguration)
 	}
 	terminal := runtimeConfiguration["terminal"].(map[string]any)
-	if terminal["mode"] != "firecrackerGuest" {
-		t.Fatalf("expected firecracker guest terminal mode, got %q", terminal["mode"])
+	if terminal["mode"] != "virtualMachineGuest" {
+		t.Fatalf("expected virtual machine guest terminal mode, got %q", terminal["mode"])
 	}
 	if terminal["posixHelperPath"] != BlueclawPOSIXHelperPath {
 		t.Fatalf("expected POSIX helper path, got %q", terminal["posixHelperPath"])
@@ -289,11 +289,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if terminal["outputMaxBytes"] != float64(32768) || terminal["sessionMaxCount"] != float64(4) {
 		t.Fatalf("expected terminal caps, got %+v", terminal)
 	}
-	firecracker := runtimeConfiguration["firecracker"].(map[string]any)
-	if firecracker["vcpuCount"] != float64(BlueclawFirecrackerDefaultVirtualCPUCount) || firecracker["memoryMiB"] != float64(BlueclawFirecrackerDefaultMemoryMiB) {
-		t.Fatalf("expected bounded Firecracker resources, got %+v", firecracker)
+	guest := runtimeConfiguration["guest"].(map[string]any)
+	if guest["vcpuCount"] != float64(BlueclawGuestDefaultVirtualCPUCount) || guest["memoryMiB"] != float64(BlueclawGuestDefaultMemoryMiB) {
+		t.Fatalf("expected bounded guest resources, got %+v", guest)
 	}
-	outboundNetwork := firecracker["outboundNetwork"].(map[string]any)
+	outboundNetwork := guest["outboundNetwork"].(map[string]any)
 	if outboundNetwork["enabled"] != true {
 		t.Fatalf("expected outbound network enabled, got %+v", outboundNetwork)
 	}
@@ -563,13 +563,13 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 		GraphitiEndpoint:         "http://127.0.0.1:18791",
 		MattermostBaseURL:        "http://127.0.0.1:18065",
 		HostWorkspacePath:        "/srv/internkim/tenants/pilot-01/blueclaw/workspace",
-		RootFilesystemImagePath:  "/srv/internkim/tenants/pilot-01/blueclaw/firecracker/rootfs.ext4",
-		WorkspaceImagePath:       "/srv/internkim/tenants/pilot-01/blueclaw/firecracker/workspace.ext4",
+		RootFilesystemImagePath:  "/srv/internkim/tenants/pilot-01/blueclaw/guest/rootfs.ext4",
+		WorkspaceImagePath:       "/srv/internkim/tenants/pilot-01/blueclaw/guest/workspace.ext4",
 		HostHTTPListenAddress:    "127.0.0.1:18100",
 		HealthPortOrService:      "18102",
 		GuestHTTPPortOrService:   "18101",
 		LogDirectoryPath:         "/srv/internkim/tenants/pilot-01/blueclaw/logs/supervisor",
-		RuntimeDirectoryPath:     "/srv/internkim/tenants/pilot-01/blueclaw/firecracker/runtime",
+		RuntimeDirectoryPath:     "/srv/internkim/tenants/pilot-01/blueclaw/guest/runtime",
 		OutboundHostDeviceName:   "bctap101",
 		OutboundGuestMACAddress:  "AA:FC:00:00:01:01",
 		OutboundNetworkCIDR:      "172.31.101.0/30",
@@ -589,7 +589,7 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 
 	assertNestedValue(t, runtimeConfiguration, []string{"baseURL"}, "http://127.0.0.1:18100")
 	assertNestedValue(t, runtimeConfiguration, []string{"capabilities", "vsockPort"}, float64(17100))
-	guestListenerProxies := runtimeConfiguration["firecracker"].(map[string]any)["guestListenerProxies"].([]any)
+	guestListenerProxies := runtimeConfiguration["guest"].(map[string]any)["guestListenerProxies"].([]any)
 	if len(guestListenerProxies) != 1 {
 		t.Fatalf("expected tenant capability vsock listener proxy, got %+v", guestListenerProxies)
 	}
@@ -600,10 +600,10 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 	assertNestedValue(t, runtimeConfiguration, []string{"languageModel", "capability", "model"}, "x-ai/grok-4.3")
 	assertNestedValue(t, runtimeConfiguration, []string{"memory", "graphitiEndpoint"}, "http://127.0.0.1:18791")
 	assertNestedValue(t, runtimeConfiguration, []string{"connectors", "mattermost", "baseURL"}, "http://127.0.0.1:18065")
-	assertNestedValue(t, runtimeConfiguration, []string{"firecracker", "hostWorkspacePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/workspace")
-	assertNestedValue(t, runtimeConfiguration, []string{"firecracker", "workspaceImagePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/firecracker/workspace.ext4")
-	assertNestedValue(t, runtimeConfiguration, []string{"firecracker", "hostHTTPListenAddress"}, "127.0.0.1:18100")
-	assertNestedValue(t, runtimeConfiguration, []string{"firecracker", "outboundNetwork", "hostDeviceName"}, "bctap101")
+	assertNestedValue(t, runtimeConfiguration, []string{"guest", "hostWorkspacePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/workspace")
+	assertNestedValue(t, runtimeConfiguration, []string{"guest", "workspaceImagePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/guest/workspace.ext4")
+	assertNestedValue(t, runtimeConfiguration, []string{"guest", "hostHTTPListenAddress"}, "127.0.0.1:18100")
+	assertNestedValue(t, runtimeConfiguration, []string{"guest", "outboundNetwork", "hostDeviceName"}, "bctap101")
 	assertNestedValue(t, runtimeConfiguration, []string{"bridge", "listenAddress"}, "127.0.0.1:17781")
 }
 
@@ -802,7 +802,7 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 		t.Fatal("expected Blueclaw service to avoid OpenRouter key environment files")
 	}
 	if !strings.Contains(serviceDocument, BlueclawSupervisorBinaryPath) {
-		t.Fatal("expected Blueclaw service to run the Firecracker supervisor")
+		t.Fatal("expected Blueclaw service to run the guest supervisor")
 	}
 	if strings.Contains(serviceDocument, "ExecStart="+BlueclawBinaryPath+" ") {
 		t.Fatal("expected Blueclaw service not to run the host blueclaw binary directly")
@@ -917,18 +917,18 @@ func TestAMacGetsTheMonitorItHasAndNoHostTap(t *testing.T) {
 		if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		firecracker := runtimeConfiguration["firecracker"].(map[string]any)
+		guest := runtimeConfiguration["guest"].(map[string]any)
 
-		if firecracker["virtualMachineMonitor"] != testCase.expectedMonitor {
-			t.Fatalf("expected %q, got %+v", testCase.expectedMonitor, firecracker["virtualMachineMonitor"])
+		if guest["virtualMachineMonitor"] != testCase.expectedMonitor {
+			t.Fatalf("expected %q, got %+v", testCase.expectedMonitor, guest["virtualMachineMonitor"])
 		}
-		if firecracker["vfkitPath"] != BlueclawVfkitPath {
-			t.Fatalf("a document naming vfkit without its path cannot start one: %+v", firecracker)
+		if guest["vfkitPath"] != BlueclawVfkitPath {
+			t.Fatalf("a document naming vfkit without its path cannot start one: %+v", guest)
 		}
-		if firecracker["deliveryReadOnlyEnforcement"] != testCase.expectedEnforcement {
-			t.Fatalf("expected %q, got %+v", testCase.expectedEnforcement, firecracker["deliveryReadOnlyEnforcement"])
+		if guest["deliveryReadOnlyEnforcement"] != testCase.expectedEnforcement {
+			t.Fatalf("expected %q, got %+v", testCase.expectedEnforcement, guest["deliveryReadOnlyEnforcement"])
 		}
-		outboundNetwork := firecracker["outboundNetwork"].(map[string]any)
+		outboundNetwork := guest["outboundNetwork"].(map[string]any)
 		if outboundNetwork["enabled"] != testCase.expectedOutboundNetworking {
 			t.Fatalf("a Mac has no tap device to build, so %q must not ask for one: %+v", testCase.monitor, outboundNetwork)
 		}
@@ -950,15 +950,15 @@ func TestAHostThatIsNotADeviceNamesItsOwnPaths(t *testing.T) {
 	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	firecracker := runtimeConfiguration["firecracker"].(map[string]any)
+	guest := runtimeConfiguration["guest"].(map[string]any)
 
 	for field, expected := range map[string]string{
 		"kernelImagePath":       "/Users/someone/.internkim/blueclaw/vmlinux.bin",
 		"vfkitPath":             "/opt/homebrew/bin/vfkit",
 		"deliveryDirectoryPath": "/Users/someone/.internkim/blueclaw/delivery",
 	} {
-		if firecracker[field] != expected {
-			t.Fatalf("a Mac has none of the device paths, so %s must be the one given: %+v", field, firecracker[field])
+		if guest[field] != expected {
+			t.Fatalf("a Mac has none of the device paths, so %s must be the one given: %+v", field, guest[field])
 		}
 	}
 }
@@ -972,15 +972,15 @@ func TestADeviceKeepsEveryPathItAlwaysHad(t *testing.T) {
 	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	firecracker := runtimeConfiguration["firecracker"].(map[string]any)
+	guest := runtimeConfiguration["guest"].(map[string]any)
 
 	for field, expected := range map[string]string{
 		"kernelImagePath":       BlueclawKernelImagePath,
 		"vfkitPath":             BlueclawVfkitPath,
 		"deliveryDirectoryPath": BlueclawDeliveryReadOnlyPath,
 	} {
-		if firecracker[field] != expected {
-			t.Fatalf("a device that names no paths keeps its own %s, got %+v", field, firecracker[field])
+		if guest[field] != expected {
+			t.Fatalf("a device that names no paths keeps its own %s, got %+v", field, guest[field])
 		}
 	}
 }
@@ -1004,7 +1004,7 @@ func TestAHostWithNoCapabilityDaemonAsksForNoProxyToIt(t *testing.T) {
 		if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		proxies := runtimeConfiguration["firecracker"].(map[string]any)["guestListenerProxies"].([]any)
+		proxies := runtimeConfiguration["guest"].(map[string]any)["guestListenerProxies"].([]any)
 
 		if len(proxies) != testCase.expectedProxyCount {
 			t.Fatalf("a proxy to a socket nobody serves reports a failure every boot for work nobody asked for, got %d", len(proxies))

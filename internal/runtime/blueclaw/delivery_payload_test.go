@@ -29,9 +29,6 @@ func TestDeliveryRefreshMakesThePayloadRunnableByTheGuest(t *testing.T) {
 }
 
 func TestMigrationsFollowThePayload(t *testing.T) {
-	if migrationPath := guestMigrationDirectoryPath(FirecrackerMonitorName); migrationPath != BlueclawGuestMigrationPath {
-		t.Fatalf("Firecracker offers no share, so the migrations stay in the image, got %q", migrationPath)
-	}
 	for _, virtualMachineMonitor := range []string{CloudHypervisorMonitorName, VfkitMonitorName} {
 		migrationPath := guestMigrationDirectoryPath(virtualMachineMonitor)
 		if !strings.HasPrefix(migrationPath, BlueclawGuestDeliveryRuntimePath) {
@@ -46,9 +43,6 @@ func TestOnlyAHostThatCanBindReadOnlyIsGivenTheReadOnlyPath(t *testing.T) {
 	}
 	if deliveryPath := deliveryDirectoryPathForMonitor(VfkitMonitorName); deliveryPath != BlueclawDeliveryPath {
 		t.Fatalf("macOS has no bind mount, so delivery-ro never exists there and naming it would serve nothing, got %q", deliveryPath)
-	}
-	if deliveryPath := deliveryDirectoryPathForMonitor(FirecrackerMonitorName); deliveryPath != "" {
-		t.Fatalf("Firecracker has no virtio-fs at all, got %q", deliveryPath)
 	}
 }
 

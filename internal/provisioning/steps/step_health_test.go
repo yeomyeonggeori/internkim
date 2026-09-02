@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestBlueclawFirecrackerHealthSkipsRootfsMountCheckWhenServiceIsActive(t *testing.T) {
-	connection := &blueclawFirecrackerHealthBoardConnection{blueclawServiceStatus: "active", rootfsContractOutput: "rootfs-passwd-missing-blueclaw-user"}
+func TestBlueclawGuestHealthSkipsRootfsMountCheckWhenServiceIsActive(t *testing.T) {
+	connection := &blueclawGuestHealthBoardConnection{blueclawServiceStatus: "active", rootfsContractOutput: "rootfs-passwd-missing-blueclaw-user"}
 	context := &Context{SSH: connection}
 	failedChecks := []string{}
 
@@ -20,14 +20,14 @@ func TestBlueclawFirecrackerHealthSkipsRootfsMountCheckWhenServiceIsActive(t *te
 	}
 }
 
-func TestBlueclawFirecrackerHealthRunsRootfsMountCheckWhenServiceIsInactive(t *testing.T) {
-	connection := &blueclawFirecrackerHealthBoardConnection{blueclawServiceStatus: "inactive", rootfsContractOutput: "rootfs-passwd-missing-blueclaw-user"}
+func TestBlueclawGuestHealthRunsRootfsMountCheckWhenServiceIsInactive(t *testing.T) {
+	connection := &blueclawGuestHealthBoardConnection{blueclawServiceStatus: "inactive", rootfsContractOutput: "rootfs-passwd-missing-blueclaw-user"}
 	context := &Context{SSH: connection}
 	failedChecks := []string{}
 
 	checkBlueclawGuestRuntime(context, &failedChecks)
 
-	if len(failedChecks) != 1 || failedChecks[0] != "blueclaw-firecracker-runtime" {
+	if len(failedChecks) != 1 || failedChecks[0] != "blueclaw-guest-runtime" {
 		t.Fatalf("expected inactive service health to fail rootfs drift, got failed checks %+v", failedChecks)
 	}
 	if !connection.hasCommand("rootfs_path=") {
@@ -100,13 +100,13 @@ func (connection *blueclawUsersPolicyHealthBoardConnection) SCP(localPath string
 	return nil
 }
 
-type blueclawFirecrackerHealthBoardConnection struct {
+type blueclawGuestHealthBoardConnection struct {
 	blueclawServiceStatus string
 	rootfsContractOutput  string
 	commands              []string
 }
 
-func (connection *blueclawFirecrackerHealthBoardConnection) Run(command string) string {
+func (connection *blueclawGuestHealthBoardConnection) Run(command string) string {
 	connection.commands = append(connection.commands, command)
 	switch {
 	case strings.Contains(command, "rootfs_path="):
@@ -124,11 +124,11 @@ func (connection *blueclawFirecrackerHealthBoardConnection) Run(command string) 
 	}
 }
 
-func (connection *blueclawFirecrackerHealthBoardConnection) SCP(localPath string, remotePath string) error {
+func (connection *blueclawGuestHealthBoardConnection) SCP(localPath string, remotePath string) error {
 	return nil
 }
 
-func (connection *blueclawFirecrackerHealthBoardConnection) hasCommand(fragment string) bool {
+func (connection *blueclawGuestHealthBoardConnection) hasCommand(fragment string) bool {
 	for _, command := range connection.commands {
 		if strings.Contains(command, fragment) {
 			return true

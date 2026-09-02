@@ -14,8 +14,8 @@ const (
 	BlueclawCapabilityTimeoutSecond                     = 0
 	BlueclawPinnedMemoryHardLimitCharacterCount         = 6000
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
-	BlueclawFirecrackerDefaultVirtualCPUCount           = 2
-	BlueclawFirecrackerDefaultMemoryMiB                 = 4096
+	BlueclawGuestDefaultVirtualCPUCount                 = 2
+	BlueclawGuestDefaultMemoryMiB                       = 4096
 	BlueclawTestEscalationModelName                     = "z-ai/glm-5.3-flash"
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
 	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
@@ -149,14 +149,14 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 
 func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (string, error) {
 	languageModelExecutionMode := "auto"
-	terminalMode := "firecrackerGuest"
+	terminalMode := "virtualMachineGuest"
 	capabilityTransport := "vsock"
 	if options.DirectExecution {
 		languageModelExecutionMode = "remote"
 		terminalMode = "native"
 		capabilityTransport = ""
 	}
-	virtualCPUCount := BlueclawFirecrackerDefaultVirtualCPUCount
+	virtualCPUCount := BlueclawGuestDefaultVirtualCPUCount
 	if options.VirtualCPUCount > 0 {
 		virtualCPUCount = options.VirtualCPUCount
 	}
@@ -284,10 +284,8 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			},
 		},
 		"languageModel": languageModelConfiguration,
-		"firecracker": map[string]any{
+		"guest": map[string]any{
 			"virtualMachineMonitor":       virtualMachineMonitor,
-			"firecrackerPath":             BlueclawFirecrackerPath,
-			"jailerPath":                  BlueclawJailerPath,
 			"cloudHypervisorPath":         BlueclawCloudHypervisorPath,
 			"virtiofsdPath":               BlueclawVirtiofsdPath,
 			"vfkitPath":                   vfkitPath,
@@ -299,7 +297,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"workspaceMinimumBytes":       options.WorkspaceMinimumBytes,
 			"hostWorkspacePath":           hostWorkspacePath,
 			"vcpuCount":                   virtualCPUCount,
-			"memoryMiB":                   BlueclawFirecrackerDefaultMemoryMiB,
+			"memoryMiB":                   BlueclawGuestDefaultMemoryMiB,
 			"vsockCID":                    52,
 			"healthPortOrService":         healthPortOrService,
 			"guestHTTPPortOrService":      guestHTTPPortOrService,
@@ -598,8 +596,6 @@ func defaultResourceAccessPolicies() []map[string]any {
 	}...)
 }
 
-// Firecracker emulates no virtio-fs, so naming a delivery directory under it would ask
-// for a device the VMM cannot offer and the guest would never see.
 // The proxy exists to carry the guest's capability calls to capabilityd's socket. A host
 // running no capabilityd has no socket, and a proxy to one reports a failure every boot for
 // work nobody asked for.
@@ -616,20 +612,14 @@ func guestListenerProxiesFor(hostRunsNoCapabilityDaemon bool, capabilityVSockPor
 }
 
 func deliveryReadOnlyEnforcementForMonitor(virtualMachineMonitor string) string {
-	switch virtualMachineMonitor {
-	case FirecrackerMonitorName:
-		return "noShare"
-	case VfkitMonitorName:
+	if virtualMachineMonitor == VfkitMonitorName {
 		return "immutableFlags"
 	}
 	return "hostBindMount"
 }
 
 func deliveryDirectoryPathForMonitor(virtualMachineMonitor string) string {
-	switch virtualMachineMonitor {
-	case FirecrackerMonitorName:
-		return ""
-	case VfkitMonitorName:
+	if virtualMachineMonitor == VfkitMonitorName {
 		return BlueclawDeliveryPath
 	}
 	return BlueclawDeliveryReadOnlyPath

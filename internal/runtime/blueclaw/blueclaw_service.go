@@ -29,10 +29,8 @@ WantedBy=multi-user.target
 `, BlueclawRuntimeLogLevel, BlueclawSupervisorBinaryPath, BlueclawRuntimeConfigPath, blueclawFilesystemConfinement())
 }
 
-// The jailer stages the kernel and both images into its chroot by hard link, and the
-// bind mounts ProtectSystem= introduces put source and destination on different
-// devices, so confinement and Firecracker cannot both hold. Cloud Hypervisor opens
-// the same paths where they already are.
+// Cloud Hypervisor opens the kernel and the images where they are installed, so the
+// unit can confine the filesystem around it.
 //
 // The instance directory is the supervisor's to fill, but ProtectSystem=strict
 // refuses to start a unit whose ReadWritePaths names a directory that is not
@@ -51,8 +49,7 @@ ReadWritePaths=` + strings.Join(blueclawWritablePaths(), " ") + `
 }
 
 // Cloud Hypervisor opens the guest rootfs where it is installed, and the guest boots
-// it writable. The jailer reached the same inode through a hard link, so the image was
-// always mutated in place; only the path that opens it is new.
+// it writable, so the install path must stay writable.
 func blueclawWritablePaths() []string {
 	return []string{
 		BlueclawRuntimeInstallPath,
