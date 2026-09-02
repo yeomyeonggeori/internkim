@@ -6,7 +6,9 @@ import {
 	controlPlane,
 	isPersonalAccessToken,
 	sessionForPersonalAccessToken,
+	TokenOwnerHasLeft,
 	type ControlPlaneCredentials,
+	type PersonalAccessTokenSession,
 } from './control-plane';
 import type { Environment } from './agent-request';
 
@@ -38,9 +40,21 @@ export async function memberAccessTokenOf(
 		return { accessToken: presented, permission: fullPublicAPIPermission, tokenName: '' };
 	}
 
-	const session = await sessionForPersonalAccessToken(credentials, presented);
+	const session = await sessionOfTokenOrRefusal(credentials, presented);
 	if (!session) error(401, 'that key belongs to nobody');
 	return { accessToken: session.accessToken, permission: session.permission, tokenName: session.tokenName };
+}
+
+async function sessionOfTokenOrRefusal(
+	credentials: ControlPlaneCredentials,
+	presented: string,
+): Promise<PersonalAccessTokenSession | null> {
+	try {
+		return await sessionForPersonalAccessToken(credentials, presented);
+	} catch (refusal) {
+		if (refusal instanceof TokenOwnerHasLeft) error(403, refusal.message);
+		throw refusal;
+	}
 }
 
 export async function callingMember(request: Request, environment: Environment): Promise<CallingMember> {

@@ -111,6 +111,7 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 | `401` | `sign in first` | `Authorization: Bearer` 헤더가 없거나, 토큰이 가리키는 계정이 없을 때 |
 | `401` | `that key belongs to nobody` | `ik_` 토큰이 모르는 것이거나 폐기됐을 때 |
 | `403` | `refused` | 로그인한 계정이 어느 회사의 멤버도 아닐 때 |
+| `403` | `token owner is not active member` | `ik_` 토큰의 주인이 퇴사했거나 비활성화됐을 때 |
 | `403` | `this token may only <permission>, and <tool> <permission>s` | 토큰 권한이 도구가 요구하는 것에 못 미칠 때 |
 | `403` | `write permission required` | 읽기 전용 토큰으로 에이전트 엔드포인트를 부를 때 |
 | `404` | `{"error":"not found"}` | 이 토큰이 볼 수 없는 도구를 `GET /v1/tools/<name>`으로 물을 때 |
@@ -129,12 +130,6 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 | `403` | `asserted requester is not active member` | 지목된 요청자가 멤버가 아닐 때 |
 | `403` | `tool is not available for this token` | 모르는 도구이거나, 토큰 권한을 넘는 도구일 때 |
 | `502` | 해석에 실패한 내용 | 디스크립터나 액터를 읽지 못했을 때 |
-
-<Callout title="퇴사한 주인의 토큰은 500을 답합니다" type="warn">
-주인이 `departed`나 `withdrawn`인 토큰은 해석되는 자리에서 거절되어야 하는데,
-지금은 `sessionForMember`가 throw하고 부르는 쪽은 그 메시지가 실린 `500`을
-받습니다. 위의 회사 컴퓨터 `403`이 오늘 이것을 제대로 답하는 유일한 곳입니다.
-</Callout>
 
 ## 파일 맡기기 [#keeping-a-file]
 
