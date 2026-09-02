@@ -27,7 +27,7 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 			t.Fatalf("expected runtime contract check to contain %q", expectedFragment)
 		}
 	}
-	for _, staleFragment := range []string{"runtime-profile-missing-tools", "runtime-profile-google-tool", "mandatory_profile_tools"} {
+	for _, staleFragment := range []string{"runtime-profile-missing-tools", "mandatory_profile_tools"} {
 		if strings.Contains(command, staleFragment) {
 			t.Fatalf("expected runtime contract check to omit stale profile validation %q", staleFragment)
 		}

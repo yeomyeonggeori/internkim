@@ -129,6 +129,5 @@ syncLocalState "secrets"
 syncLocalState "docs/private"
 syncRootMatches "*.token.enc"
 syncRootMatches "*.key"
-syncRootMatches "client_secret_*.apps.googleusercontent.com.json"
 syncSharedDependencyArtifacts
 checkOutSubmodules

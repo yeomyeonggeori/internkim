@@ -1,5 +1,7 @@
 # Blueclaw OSS Boundary
 
+> Superseded 2026-09-03 by #1347: Google Workspace was removed entirely. No Google code, tool, skill, route, secret or provisioning step remains, so what follows describes a path that is gone.
+
 ## Goal
 
 Blueclaw should be releasable as an open-source agent runtime without carrying internkim appliance code, product integrations, or user-local secrets. The boundary is capability-based: Blueclaw decides what capability it needs, while internkim decides where and how that capability runs.
