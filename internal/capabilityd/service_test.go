@@ -82,34 +82,6 @@ func TestProviderHTTPClientHasNoDefaultTimeout(t *testing.T) {
 	}
 }
 
-func TestMattermostAskMenuOptionsUseShortLabelsAndEncodedSelection(t *testing.T) {
-	options := mattermostAskMenuOptions([]platformAskChoiceOption{{
-		Key:        "A",
-		Label:      "최대한 가독성 있게",
-		ShortLabel: "가독성",
-	}, {
-		Key:   "B",
-		Label: "verylongsinglewordlabel",
-	}})
-
-	if len(options) != 2 {
-		t.Fatalf("expected two menu options, got %+v", options)
-	}
-	if options[0].Text != "가독성" {
-		t.Fatalf("expected short menu label, got %+v", options[0])
-	}
-	var selectedChoice map[string]string
-	if errorValue := json.Unmarshal([]byte(options[0].Value), &selectedChoice); errorValue != nil {
-		t.Fatalf("expected encoded menu value: %v", errorValue)
-	}
-	if selectedChoice["key"] != "A" || selectedChoice["label"] != "가독성" {
-		t.Fatalf("expected encoded key and label, got %+v", selectedChoice)
-	}
-	if options[1].Text != "verylong" {
-		t.Fatalf("expected truncated fallback menu label, got %+v", options[1])
-	}
-}
-
 func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
 	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
 	configuration := DefaultConfiguration()

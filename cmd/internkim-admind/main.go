@@ -44,7 +44,6 @@ func main() {
 	flag.StringVar(&configuration.TaskPublicURL, "flow-public-url", configuration.TaskPublicURL, "public Flow web URL for channel open links (defaults to the Mattermost flow base URL)")
 	flag.StringVar(&configuration.MattermostAdminPasswordPath, "mattermost-admin-password", configuration.MattermostAdminPasswordPath, "Mattermost admin password path")
 	flag.StringVar(&configuration.MattermostInteractiveTokenPath, "mattermost-interactive-token", configuration.MattermostInteractiveTokenPath, "Mattermost interactive action token path")
-	flag.StringVar(&configuration.MattermostInteractiveBaseURL, "mattermost-interactive-base-url", configuration.MattermostInteractiveBaseURL, "public base URL for Mattermost interactive actions")
 	flag.StringVar(&configuration.BlueclawBaseURL, "blueclaw-url", configuration.BlueclawBaseURL, "Blueclaw upstream URL")
 	flag.StringVar(&configuration.APIBaseURL, "api-url", configuration.APIBaseURL, "internkim Pages API URL")
 	flag.StringVar(&configuration.StateDirectory, "state-dir", configuration.StateDirectory, "admin job state directory")

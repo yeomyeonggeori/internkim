@@ -41,7 +41,6 @@ type Configuration struct {
 	MattermostBaseURL              string
 	MattermostTokenPath            string
 	MattermostInteractiveTokenPath string
-	MattermostInteractiveBaseURL   string
 	SlackTokenPath                 string
 	SlackAppTokenPath              string
 	SignalJSONRPCURL               string
@@ -924,14 +923,6 @@ func truncateMattermostChoiceLabel(label string, maximumLength int) string {
 	return string(runes[:maximumLength])
 }
 
-func mattermostAskMenuOptions(options []platformAskChoiceOption) []mattermostinteractive.Option {
-	menuOptions := []mattermostinteractive.Option{}
-	for _, option := range options {
-		menuOptions = append(menuOptions, mattermostinteractive.Option{Text: mattermostChoiceDisplayLabel(option), Value: mattermostChoiceMenuOptionValue(option)})
-	}
-	return menuOptions
-}
-
 func mattermostChoiceMenuOptionValue(option platformAskChoiceOption) string {
 	document, errorValue := json.Marshal(map[string]string{
 		"key":   strings.TrimSpace(option.Key),
@@ -966,16 +957,6 @@ func trimNonEmptyPlatformStrings(values []string) []string {
 		}
 	}
 	return trimmedValues
-}
-
-func (service Service) ensureMattermostInteractiveActionToken() string {
-	path := strings.TrimSpace(service.Configuration.MattermostInteractiveTokenPath)
-	token, errorValue := mattermostinteractive.LoadOrCreateToken(path, 32)
-	if errorValue != nil {
-		log.Printf("mattermost interactive token unavailable: %v", errorValue)
-		return ""
-	}
-	return token
 }
 
 func randomCapabilityHex(size int) string {

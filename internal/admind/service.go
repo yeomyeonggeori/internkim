@@ -74,7 +74,6 @@ type Configuration struct {
 	MattermostAdminPasswordPath    string
 	MattermostTokenPath            string
 	MattermostInteractiveTokenPath string
-	MattermostInteractiveBaseURL   string
 	MattermostOAuthClientPath      string
 	OpenRouterKeyPath              string
 	OpenRouterModelsURL            string
