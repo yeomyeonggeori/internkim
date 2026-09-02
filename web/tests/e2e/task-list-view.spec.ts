@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { isUnknownRecord, openTaskBoard, requestedTaskID, visibleBoundingBox } from './task-helpers';
 
-const normalStatusLabels = ['planned', 'in_progress', 'completed', 'paused', 'cancelled'];
-const requestedStatusLabels = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'cancelled'];
+const normalStatusLabels = ['planned', 'in_progress', 'completed', 'paused', 'stopped'];
+const requestedStatusLabels = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'stopped'];
 
 test.describe('flow task list view', () => {
 	test.beforeEach(async ({ request }) => {

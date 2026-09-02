@@ -1,3 +1,4 @@
+import { centralTaskStatusOptions } from '$lib/task/central-task';
 import { buildBusinessSelectOptions, buildTypeSelectOptions } from './task-workspace-model';
 import { taskStatus } from './task-status';
 import { isCentralTaskSource } from './task-source';
@@ -17,21 +18,13 @@ export function definitionsFromSummary(summary: TaskSummary | null): TaskDefinit
 	return summary?.definitions ?? emptyDefinitions;
 }
 
+const requestLifecycleStatuses: string[] = [taskStatus.requested, taskStatus.rejected];
+
 export function statusOptionsFromSummary(summary: TaskSummary | null, task?: Task | null): string[] {
 	if (!summary) return [];
 	if (!isCentralTaskSource(summary.source)) return summary.statusOptions;
-	if (hasTaskRequestProvenance(task)) {
-		return [
-			taskStatus.requested,
-			taskStatus.planned,
-			taskStatus.inProgress,
-			taskStatus.completed,
-			taskStatus.paused,
-			taskStatus.rejected,
-			taskStatus.stopped
-		];
-	}
-	return [taskStatus.planned, taskStatus.inProgress, taskStatus.completed, taskStatus.paused, taskStatus.stopped];
+	if (hasTaskRequestProvenance(task)) return [...centralTaskStatusOptions];
+	return centralTaskStatusOptions.filter((status) => !requestLifecycleStatuses.includes(status));
 }
 
 export function hasTaskRequestProvenance(task?: Task | null): boolean {

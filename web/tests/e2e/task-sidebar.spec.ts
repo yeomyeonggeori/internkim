@@ -8,7 +8,7 @@ import {
 	useMemberTaskSession
 } from './task-helpers';
 
-const requestedStatusLabels = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'cancelled'];
+const requestedStatusLabels = ['requested', 'planned', 'in_progress', 'completed', 'paused', 'rejected', 'stopped'];
 
 test.describe('flow task sidebar', () => {
 	test.beforeEach(async ({ request }) => {

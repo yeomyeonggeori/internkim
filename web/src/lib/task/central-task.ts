@@ -1,14 +1,7 @@
 import type { Task } from '../../routes/task/task-types';
-import { taskStatus } from '../../routes/task/task-status';
+import { taskStatus, type TaskStatus } from '../../routes/task/task-status';
 
-export type CentralTaskStatus =
-	| 'requested'
-	| 'planned'
-	| 'in_progress'
-	| 'paused'
-	| 'stopped'
-	| 'rejected'
-	| 'completed';
+export type CentralTaskStatus = TaskStatus;
 
 type CentralRequesterIdentity = {
 	name: string | null;
