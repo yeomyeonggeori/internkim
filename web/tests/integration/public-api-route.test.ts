@@ -25,6 +25,7 @@ let companyID = '';
 let memberID = '';
 let holdersToken = '';
 let readersToken = '';
+let departedToken = '';
 let sessionToken = '';
 
 beforeAll(async () => {
@@ -44,6 +45,11 @@ beforeAll(async () => {
 
 	holdersToken = await issuePersonalAccessToken(client, memberID, 'holder', 'delete');
 	readersToken = await issuePersonalAccessToken(client, memberID, 'reader', 'read');
+
+	const departedID = await addMember(client, companyID, `${slug}-departed@example.test`);
+	departedToken = await issuePersonalAccessToken(client, departedID, 'departed', 'delete');
+	await client.from('member').update({ status: 'departed' }).eq('id', departedID);
+
 	sessionToken = (await sessionForMember({ projectURL, serviceRoleKey }, memberID)).accessToken;
 }, networkHookTimeout);
 
@@ -124,6 +130,18 @@ describe('a call that names nobody', () => {
 	test('is refused without a bearer, and with one nobody holds', async () => {
 		expect((await reach('/tools', null)).status).toBe(401);
 		expect((await reach('/tools', 'ik_nobody')).status).toBe(401);
+	});
+});
+
+describe("a token whose owner has left", () => {
+	test('is refused in the words the company machine refuses it with', async () => {
+		const answered = await reach('/tools/person_list/invoke', departedToken, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ input: {} })
+		});
+		expect(answered.status).toBe(403);
+		expect((answered.body as { message: string }).message).toBe('token owner is not active member');
 	});
 });
 
