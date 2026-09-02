@@ -12,21 +12,9 @@ machine belongs on the host.
 ## The record
 
 Every table here is something a company would still need after replacing every
-computer it owns. The schema is `supabase/migrations`, one migration per
-change, explained in `docs/internal/core-schema.md`.
-
-| | |
-|---|---|
-| `company` · `member` · `team` | who this is and who works here |
-| `credential` | a member's identity or secret on an external system |
-| `contact` | the messenger address book: who an external ID is, member or not |
-| `agent` | the key a host proves itself with |
-| `attendance` · `leave` | when people worked and when they were away |
-| `task` · `task_participant` | work and calendar events, with participants |
-| `organization` · `opportunity` | the institutions dealt with and the deals |
-| `circle` · `circle_member` | named groups made by hand, for sharing |
-| `push_device` · `notification` | somewhere a member can be reached, and what reached them |
-| `abandoned_asset` | an uploaded file whose record never landed |
+computer it owns. `supabase/migrations` is the schema itself, one migration
+per change, and `docs/internal/core-schema.md` explains what each table is
+for. Read the table list from the migrations rather than here, which drifts.
 
 Calendar events are tasks with a span and `is_event`, which is why there is
 no separate table for them. There is no table for a message, which is why no

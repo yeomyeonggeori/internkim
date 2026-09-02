@@ -95,7 +95,7 @@ flowchart LR
   TS["protocol/src/capability_tools.ts<br/>(blueclaw, source of truth)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
   JSON -->|embedded, hash-checked| Go["pkg/capabilityprotocol"]
   Go -->|admind stamps runtime.json| Blueclaw["blueclaw<br/>capability_tool_provider"]
-  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(vsock in Firecracker)"]
+  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(vsock in the guest)"]
   Socket --> Capabilityd["internkim-capabilityd<br/>executes the operation"]
 ```
 

@@ -12,21 +12,10 @@ description: 그 컴퓨터가 오늘 밤 불타 없어져도, 내일 여전히 �
 ## 기록 [#the-record]
 
 여기 있는 테이블은 하나하나가 회사의 모든 컴퓨터를 바꾼 뒤에도 여전히 필요할
-것들입니다. 스키마는 `supabase/migrations`이고, 변경 하나에 마이그레이션
-하나이며, `docs/internal/core-schema.md`가 설명합니다.
-
-| | |
-|---|---|
-| `company` · `member` · `team` | 이 회사가 누구이고 누가 일하는지 |
-| `credential` | 멤버가 외부 시스템에 가진 신원이나 비밀 |
-| `contact` | 메신저 주소록: 외부 ID가 누구인지, 멤버든 아니든 |
-| `agent` | 호스트가 자신을 증명하는 키 |
-| `attendance` · `leave` | 언제 일했고 언제 자리를 비웠는지 |
-| `task` · `task_participant` | 업무와 캘린더 이벤트, 참여자와 함께 |
-| `organization` · `opportunity` | 상대하는 기관과 그 건들 |
-| `circle` · `circle_member` | 공유를 위해 손으로 만든 이름 있는 그룹 |
-| `push_device` · `notification` | 멤버에게 알림이 닿을 수 있는 곳과, 무엇이 닿았는지 |
-| `abandoned_asset` | 올라왔지만 기록이 끝내 만들어지지 않은 파일 |
+것들입니다. `supabase/migrations`가 스키마 그 자체이고, 변경 하나에
+마이그레이션 하나이며, `docs/internal/core-schema.md`가 테이블마다 무엇을
+위한 것인지 설명합니다. 테이블 목록은 여기가 아니라 마이그레이션에서
+읽으세요. 여기는 낡습니다.
 
 캘린더 이벤트는 기간과 `is_event`를 가진 task라서 별도 테이블이 없습니다.
 메시지 테이블이 없어서 어떤 대화도 기록에 닿을 수 없습니다.

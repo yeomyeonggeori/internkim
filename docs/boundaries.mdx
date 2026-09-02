@@ -40,7 +40,7 @@ read, write and process execution goes down through
 setuid bridge, and being able to execute it is not authorization: it checks
 that its real UID is `root` or `blueclaw`, then drops to the requester's UID,
 GID and supplementary groups before doing anything. On a device it sits
-inside the Firecracker guest's rootfs.
+inside the Cloud Hypervisor guest's rootfs.
 
 | Workspace path | Permission model | Holds |
 |---|---|---|
