@@ -167,37 +167,54 @@ func (service Service) RunScenario(contextValue context.Context, logger Logger, 
 	if normalizedScenario == "" {
 		return errors.New("scenario is required")
 	}
+	buildPlans := service.scenarioPlanBuilders()
 	if withoutMattermost {
+		if _, isOurs := buildPlans[normalizedScenario]; isOurs {
+			return fmt.Errorf(
+				"%s is a local fleet scenario and --without-mattermost runs a blueclaw virtual session; run it without the flag",
+				normalizedScenario,
+			)
+		}
 		return service.runPlans(contextValue, logger, service.withoutMattermostScenarioPlans(normalizedScenario))
 	}
-	switch normalizedScenario {
-	case "dm-recipient-resolve":
-		return service.runPlans(contextValue, logger, service.dmRecipientResolveScenarioPlans())
-	case "mattermost-bot-invited":
-		return service.runPlans(contextValue, logger, service.mattermostScenarioPlans())
-	case "mattermost-direct-message-send":
-		return service.runPlans(contextValue, logger, service.mattermostDirectMessageScenarioPlans(keepArtifacts))
-	case "mattermost-manual":
-		if !keepArtifacts {
-			return errors.New("mattermost-manual requires --keep so the browser test session remains available")
-		}
-		return service.runPlans(contextValue, logger, service.mattermostManualScenarioPlans())
-	case "mattermost-ask-ephemeral":
-		return service.runPlans(contextValue, logger, service.mattermostAskEphemeralScenarioPlans())
-	case "mattermost-docx-attachment":
-		return service.runPlans(contextValue, logger, service.mattermostDocxAttachmentScenarioPlans(keepArtifacts))
-	case "buzz-attachment":
-		return service.runPlans(contextValue, logger, service.buzzAttachmentScenarioPlans())
-	case "buzz-direct-message":
-		return service.runPlans(contextValue, logger, service.buzzDirectMessageScenarioPlans())
-	case "restart-policy-survival":
-		return service.runPlans(contextValue, logger, service.restartPolicySurvivalScenarioPlans())
-	case "workspace-persistence":
-		return service.runPlans(contextValue, logger, service.workspacePersistenceScenarioPlans())
-	case "web-backed-ui", "regression-proof":
-		return service.runPlans(contextValue, logger, service.webBackedScenarioPlans(normalizedScenario))
-	default:
+	build, isOurs := buildPlans[normalizedScenario]
+	if !isOurs {
 		return fmt.Errorf("unsupported local fleet scenario: %s", normalizedScenario)
+	}
+	plans, errorValue := build(keepArtifacts)
+	if errorValue != nil {
+		return errorValue
+	}
+	return service.runPlans(contextValue, logger, plans)
+}
+
+type scenarioPlanBuilder func(keepArtifacts bool) ([]CommandPlan, error)
+
+func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
+	always := func(build func() []CommandPlan) scenarioPlanBuilder {
+		return func(bool) ([]CommandPlan, error) { return build(), nil }
+	}
+	withKeep := func(build func(bool) []CommandPlan) scenarioPlanBuilder {
+		return func(keepArtifacts bool) ([]CommandPlan, error) { return build(keepArtifacts), nil }
+	}
+	return map[string]scenarioPlanBuilder{
+		"dm-recipient-resolve":           always(service.dmRecipientResolveScenarioPlans),
+		"mattermost-bot-invited":         always(service.mattermostScenarioPlans),
+		"mattermost-direct-message-send": withKeep(service.mattermostDirectMessageScenarioPlans),
+		"mattermost-manual": func(keepArtifacts bool) ([]CommandPlan, error) {
+			if !keepArtifacts {
+				return nil, errors.New("mattermost-manual requires --keep so the browser test session remains available")
+			}
+			return service.mattermostManualScenarioPlans(), nil
+		},
+		"mattermost-ask-ephemeral":   always(service.mattermostAskEphemeralScenarioPlans),
+		"mattermost-docx-attachment": withKeep(service.mattermostDocxAttachmentScenarioPlans),
+		"buzz-attachment":            always(service.buzzAttachmentScenarioPlans),
+		"buzz-direct-message":        always(service.buzzDirectMessageScenarioPlans),
+		"restart-policy-survival":    always(service.restartPolicySurvivalScenarioPlans),
+		"workspace-persistence":      always(service.workspacePersistenceScenarioPlans),
+		"web-backed-ui":              always(func() []CommandPlan { return service.webBackedScenarioPlans("web-backed-ui") }),
+		"regression-proof":           always(func() []CommandPlan { return service.webBackedScenarioPlans("regression-proof") }),
 	}
 }
 
