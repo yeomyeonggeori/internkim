@@ -173,7 +173,11 @@ async function memberWaitingForAddress(client: SupabaseClient, email: string): P
 }
 
 function hasNotArrivedYet(status: string): boolean {
-	return status !== 'active' && status !== 'departed' && status !== 'withdrawn';
+	return status !== 'active' && !hasLeftTheCompany(status);
+}
+
+function hasLeftTheCompany(status: string): boolean {
+	return status === 'departed' || status === 'withdrawn';
 }
 
 async function markArrived(client: SupabaseClient, memberID: string, accountID: string, email: string): Promise<void> {
@@ -305,7 +309,7 @@ export async function sessionForMember(
 		.single();
 	if (memberError) throw new Error(`member ${memberID}: ${memberError.message}`);
 	if (!member.email) throw new Error(`member ${memberID} has no address to sign in as`);
-	if (member.status === 'departed' || member.status === 'withdrawn') {
+	if (hasLeftTheCompany(member.status)) {
 		throw new Error(`member ${memberID} has left and cannot be acted for`);
 	}
 
@@ -435,6 +439,19 @@ export function isPersonalAccessToken(presented: string): boolean {
 	return presented.startsWith(personalAccessTokenPrefix);
 }
 
+export class TokenOwnerHasLeft extends Error {
+	constructor() {
+		super('token owner is not active member');
+	}
+}
+
+type PersonalAccessTokenRow = {
+	member_id: string;
+	permission: unknown;
+	name: string | null;
+	member: { status: string } | null;
+};
+
 // The caller of a personal access token is the member it belongs to, so this issues that
 // member's own session and never the company's. The row that names the member
 // names the rung too, so nobody downstream asks for it a second time.
@@ -445,12 +462,13 @@ export async function sessionForPersonalAccessToken(
 	const client = controlPlane(credentials);
 	const { data, error } = await client
 		.from('credential')
-		.select('member_id, permission, name')
+		.select('member_id, permission, name, member(status)')
 		.eq('kind', personalAccessTokenKind)
 		.eq('external_id', await hashOf(apiKey))
-		.maybeSingle();
+		.maybeSingle<PersonalAccessTokenRow>();
 	if (error) throw new Error(`personal access token: ${error.message}`);
 	if (!data) return null;
+	if (hasLeftTheCompany(data.member?.status ?? '')) throw new TokenOwnerHasLeft();
 	const session = await sessionForMember(credentials, data.member_id);
 	return {
 		...session,
