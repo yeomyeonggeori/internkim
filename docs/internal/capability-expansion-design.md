@@ -144,7 +144,7 @@ Companion의 approval grant는 task-scoped로 유지하고, `user_confirm`과 `u
 
 ### 6. 업무 DB를 product schema로 확장
 
-이미 `docs/schema/task.md`, `docs/schema/member.md`, `task_assignee`, `task_event` 문서가 있다. 여기에 출퇴근, 회의, 알림, 파일, 이메일 테이블을 추가한다.
+정본 스키마는 `supabase/migrations`이고 [`core-schema.md`](./core-schema.md)가 설명한다. 여기에 출퇴근, 회의, 알림, 파일, 이메일 테이블을 추가한다.
 
 추가 schema:
 

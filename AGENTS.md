@@ -5,10 +5,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 ## Core Rules
 
-- The product is moving off per-device hardware onto a central plane the
-  customer signs into, with the agent running on a computer they bring. Device
-  paths still ship and must keep working; when a section speaks of Jetson,
-  OTA, or the guest VM it is describing that older half, not the direction.
+- This document describes the central plane: a company the customer signs into,
+  with the agent running on a computer they bring. On 2026-09-02 the device path
+  was frozen: Jetson, OTA, the cloud-hypervisor guest, vsock. It keeps working
+  and keeps getting bug fixes, and no new design is implemented against it. Its
+  rules moved to [docs/internal/device/](docs/internal/device/), which a section
+  here links to where the two paths still meet. Mattermost is not part of the
+  freeze: it is being removed.
 - Prefer existing codebase patterns over new abstractions.
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
@@ -305,11 +308,6 @@ and delete the duplicates.
 - Verify model judgment and AI SDK behavior through the live LLM path. Preserve
   request, response, routing, tool, timing, and artifact evidence instead of
   replaying recorded model output as acceptance.
-- After local simulation passes, verify executable and Linux permission behavior
-  with `./internkim dev fleet run --without-mattermost --scenario <name>`.
-- Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
-  agent execution that touches `shell`, `bun`, `uv`, Python dependency wrappers,
-  POSIX users/groups, or workspace permissions.
 - Each gate answers one question, and naming which keeps the slow one from
   becoming a ritual nobody runs:
 
@@ -317,7 +315,7 @@ and delete the duplicates.
   | --- | --- | --- |
   | `./internkim dev plane` | which messenger does a message leave on, who does a requester resolve to, what will the public API take | seconds |
   | `./internkim dev simulate --scenario <name>` | does the agent loop decide correctly, against a scripted model | seconds |
-  | `./internkim dev fleet run --scenario <name>` | does it work on Linux — Firecracker, POSIX identity, the ext4 workspace, systemd, OTA | ~10 minutes |
+  | `./internkim dev fleet run --scenario <name>` | does it work on Linux — the cloud-hypervisor guest, POSIX identity, the ext4 workspace, systemd, OTA | ~10 minutes |
   | `./internkim test expensive` | does a real person on a real messenger get what they asked for | longer |
 
 - Anything on the company plane — a message tool, the public API, how a daemon is
@@ -337,121 +335,8 @@ and delete the duplicates.
   `./internkim dev fleet run --scenario buzz-direct-message`: it asks through the
   public API the way the `internkim-api` skill does, then reads the recipient's
   own Buzz inbox for it.
-- The guest's `/workspace` is `/var/lib/blueclaw/workspace.ext4`, attached to
-  the VM. `/root/.blueclaw/workspace` on the host is a different tree, not a
-  mount of that image. A host daemon that writes there and answers with a
-  `/workspace` path has told the agent about a file that is not there; hand the
-  bytes to blueclaw and let it write them as the person instead.
-- The disposable local fleet is an Apple Container VM (`internkim-e2e-<runID>`) with
-  its config at `.local/local-fleet/runs/<runID>/config.json`; Blueclaw runs as a
-  cloud-hypervisor guest inside it, so skill/Blueclaw/runtime changes only reach it
-  through a reprovision. Push working-tree changes onto the running VM with
-  `./internkim dev fleet reprovision`; it reprovisions in place with the required
-  `GO_MOD_CACHE` override and resets the policy people and guest Postgres.
-- Reprovision (and OTA) deploy Blueclaw by release SHA (`.dependency/blueclaw` HEAD):
-  the guest runs `.blueclaw/runtime/releases/<sha>/bin/blueclaw` and the deploy is
-  idempotent on that SHA. An UNCOMMITTED Blueclaw Go change builds a new binary but
-  stamps the same HEAD SHA, so the deploy sees "already deployed" and SKIPS it — the
-  guest keeps the old binary even though the working tree and host payload have the fix.
-  COMMIT Blueclaw Go changes (new SHA) before reprovision, then verify by grepping the
-  guest binary: `lab vm-ssh --config <cfg> 'sudo grep -c "<changed string>"
-  /root/.blueclaw/workspace/.blueclaw/runtime/current/bin/blueclaw'`. Skills are python
-  on the virtiofs share (`/root/.blueclaw/workspace/skills`) and hot-push live (write +
-  restart Blueclaw, no reprovision); only the Go binary needs the commit+reprovision.
-  `./internkim test` does NOT build from the working tree (it uses the committed/artifact
-  payload), so it never carries uncommitted changes.
-- Never run `./internkim lab` with no subcommand: it creates and starts a separate
-  scratch `internkim-lab` container. Reach the fleet only through
-  `./internkim lab vm-ssh --config <cfg>` and `./internkim lab vm-ip --config <cfg>`.
-  Do not `container stop`/`container delete` the active fleet container. Confirm the
-  fleet with `container ls` (`internkim-e2e-<runID>` present); if it is gone it was
-  destroyed, and a fresh one comes up via `./internkim test cheap --keep`.
-- Do not redeploy agent, Blueclaw, runtime, skill, or terminal-execution changes
-  until the relevant Local Fleet run produces the intended result. If Local Fleet verification
-  fails, fix the behavior or explicitly report the unresolved failure instead of
-  proceeding to deployment.
-- Do not replace this gate with another executor unless the task explicitly asks
-  for a different executor model. Nothing here runs on Docker: the fleet VM is an
-  Apple Container and the guest is cloud-hypervisor.
-- For web, admind, capabilityd, Mattermost connector, or cross-service behavior
-  changes, verify the current checkout through the local fleet with
-  `./internkim dev fleet run` or a narrower
-  `./internkim dev fleet run --scenario <name>`.
-- When claiming a user-visible fix, prefer
-  `./internkim dev fleet verify-regression --base main --scenario <name>` so the
-  same scenario fails on the base revision and passes on the current checkout.
-- Run real Mattermost smoke only after the virtual-session and Mattermost-free
-  Linux gates pass; keep platform cleanup requirements from Runtime Test Hygiene.
-  Disposable local fleet runs stop and remove their VM by default while keeping
-  gitignored evidence under `.local/local-fleet/runs/<runID>` and
-  `.artifacts/local-fleet/<runID>`; use `./internkim dev fleet reset` after
-  `--reuse` runs.
-
-## Expensive Acceptance Gates (real Mattermost)
-
-- Run one scenario per invocation and keep the VM for autopsy:
-  `./internkim test expensive --maximum-model-tier low --scenario <name>
-  --auto-confirm --keep --retry-once`. Rerun on the same fleet without
-  reprovisioning: add `--skip-provisioning --run-id <existing runID>`.
-- Never run two expensive scenarios concurrently against one fleet: each
-  run tears down and recreates the shared SSH tunnel recorded in the run
-  directory, killing the other run's connection mid-flight. Chain
-  scenarios sequentially with `tools/run-expensive-chain --run-id <runID>
-  [scenario ...]`; do not hand-roll the chain with ad-hoc shell. The tool
-  is single-instance (PID file, no string matching against process lists)
-  and writes each run to its own
-  `.local/local-fleet/runs/<runID>/chain-<stamp>.log` with a
-  `chain-current.log` symlink, so a dead run's lingering append descriptor
-  can never contaminate a new run's log and a log watcher never replays a
-  previous run's verdicts.
-- Reusing the kept fleet is the default; each fresh provision costs ~10
-  minutes and several GB of host disk. Scenario or harness-only changes
-  rerun with `--skip-provisioning --run-id`; Go changes push in place with
-  `./internkim dev fleet reprovision --config
-  .local/local-fleet/runs/<runID>/config.json` after committing. Create a
-  fresh VM only when the current one is suspect (guest postgres fsync
-  death, broken provisioning). Retire a fleet by powering it off (`lab
-  vm-ssh ... 'sudo poweroff'`); the next run's reaper removes stopped
-  fleets and reclaims their disk. Prune old run evidence with
-  `tools/prune-expensive-artifacts <keepCount>` (archives to a verified
-  sibling tarball before deleting; never hand-roll this with ad-hoc
-  shell).
-- Preflight before every run: `df -h /` must show 15Gi+ free (Mattermost
-  install fails opaquely below that), and `container ls -a` must show no
-  leftover `internkim-e2e-expensive-*` container (stop+rm leftovers first;
-  never touch VMs from other sessions).
-- Launch the runner so its lifetime is tracked by your harness. Never pipe the
-  runner through `tail`/`head` (they buffer everything and the output file
-  stays empty for the whole run) and never orphan it with bare `nohup` from a
-  tool call.
-- The ONLY pass/fail signal is a line-anchored
-  `^(✓|✗) expensive scenario <name>`. Inner playwright test names also contain
-  the words "expensive scenario", so an unanchored grep produces false DONE
-  verdicts.
-- Artifacts: `.artifacts/expensive/<runID>/<scenario>/diagnostics/result.json`
-  (per-step status), `diagnostics/events/step-XX.json` (full task event
-  ledger), `evidence/step-XX/*.png` (acceptance screenshots),
-  `attempt-2/` (retry artifacts). Guest admin API for live autopsy:
-  `./internkim lab vm-ssh --config .local/local-fleet/runs/<runID>/config.json
-  -- "curl -s 127.0.0.1:8080/admin/api/task"` and
-  `/admin/api/task/detail?taskRunID=<id>`.
-- Failure triage order, always: (1) read the step's event ledger, (2) classify
-  the failing layer — product (agent/runtime), harness (stale scenario
-  expectation), or infra (lines prefixed `infra failure`/`infra-suspect`,
-  provisioning, VM postgres/disk) — (3) fix that layer at the root, (4) rerun
-  only to verify the fix. Never rerun an unexplained failure, and if the
-  failure reason is missing from the log, fix that reporting gap first.
-- Scenario JSON expectation rules: `expectedTaskStatus`, approval lifecycle
-  events (`approval.pending_call`, `approval.executed`,
-  `confirmation.requested`), and user-visible side-effect results stay
-  required; implementation-detail expectations (exact tool output content,
-  internal event bodies) get `"advisory": true`. Never pin an exact model
-  (the tier ceiling plus the capability transport is the contract; the runtime
-  may ladder within the ceiling). Never require a `*.list` call before a
-  hint-based mutation (`taskHint` tools resolve server-side without listing).
-- A gate binary/payload pairs with the Blueclaw HEAD it was built from: after
-  any `.dependency/blueclaw` commit, rebuild `make prepare-blueclaw-payload`
-  before launching, or the run ships the old agent.
+- Linux, the guest, the fleet VM and OTA belong to the frozen device path;
+  its gates and rules are [docs/internal/device/](docs/internal/device/).
 
 ## Blueclaw Skill Size Budget
 
@@ -484,9 +369,9 @@ and delete the duplicates.
   `VITE_DEV_USER_EMAIL`) are for device-backed screens that have no Supabase
   path yet; with those, verify `/auth/session` returns `authenticated: true`
   before giving the URL.
-- Unit tests must not see the central plane. `web/.env.test` blanks it so the
-  device paths stay under test; without it a local `web/.env` leaks in and the
-  suites silently exercise the wrong branch.
+- Unit tests must not reach the central plane. The app receives it at runtime
+  from `hooks.server.ts`, never from a `VITE_*` value, so a suite that needs a
+  plane builds one in the test instead of reading the environment.
 
 - The public API is the web app. `web/src/routes/api/v1/` answers it, so a
   company that hosts the app hosts the API; there is no separate worker to
@@ -587,19 +472,6 @@ and delete the duplicates.
   Pages projects is therefore a detach and then an attach; `--detach` leaves the
   record alone so the address keeps resolving until the attach repoints it.
 
-## Bringing Device Data Across
-
-- Pull a device's data over **HTTP**, not SSH: sign into its own web app and
-  read the endpoints it already serves (`/task/api/state`,
-  `/attendance/api/summary`, `/calendar/api/events`), then feed the JSON to
-  `web/scripts/import-flow-state.ts` and `import-attendance-events.ts`. Short
-  requests survive a flapping uplink; an SSH session does not.
-- Import history as it happened. When the record refuses a row the past
-  violated, report it rather than reshaping it into something the device never
-  recorded, and keep the export so the decision stays reversible.
-- Work whose every named person belongs to no member of the company is somebody
-  else's; skip it instead of adopting it. Never filter by a person's name.
-
 ## Web UI Components
 
 - When the user asks to use a shadcn-svelte component, install it with the
@@ -632,14 +504,7 @@ and delete the duplicates.
   at each call site — for example `command-item` lacking the muted-icon rule
   that `command-link-item` has.
 
-## Deployment Hygiene
-
-- The fleet domain lives in exactly one place: `fleetdomain.defaultZone`.
-  Everything that needs it — the origin allowlist, the release registry,
-  device hosts, Flow action URLs — derives it rather than spelling it out.
-  Configuration wins over that default: a device takes it from the `api-url`
-  file setup writes, and self-hosting replaces it with `INTERNKIM_DOMAIN` or
-  `-api-url`.
+## Deploying
 
 - When told to deploy, make it the default to: (1) check each relevant
   component's currently-deployed version first, (2) rebuild the changes fresh
@@ -658,125 +523,10 @@ and delete the duplicates.
   actually-running binary's revision after deploy (e.g. grep a string unique to
   the change in the deployed binary, or check the release ID's embedded git SHA
   against `git rev-parse HEAD`) rather than trusting a green exit code alone.
-- **`setup` installs what the CLI binary carries.** The scripts and systemd
-  units it writes (`internkim-users-sync`, its service and timer) are Go string
-  literals compiled into `./internkim`, so a binary built before the change
-  installs the old text and reports the step done. A green `setup` is evidence
-  the install ran, exactly as much as a green deploy exit is, and says nothing
-  about which revision landed. Run `make build` first, then check the installed
-  artifact for a string only the new version has. A users-sync fix went out
-  green and changed nothing on the device; the tell was the journal's failure
-  line still reading `curl: (22) The requested URL returned error: 500` where
-  the new script writes `users-sync: <label> answered 500`.
-- Never split a contract change across components. When op names, the kernel
-  verb, descriptors, or the approval/reply protocol change, deploy `capabilityd`
-  and `blueclawPayload` (and `admind`) in the same release — a half-deploy
-  (e.g. neutral `capabilityd` against a legacy `blueclaw`) makes the agent call
-  names the other side does not know and the task stalls.
-- **A running process holds the configuration it started with.** Shipping the
-  component that writes a config and the component that removes what the config
-  names is not enough: whatever was already running keeps the old file until it
-  restarts. Send the reader too: removing a bridge alongside the `admind` that
-  stops naming it, without the `blueclaw` that reads it, cost forty minutes of a
-  healthy-looking device turning no message into a task
-  ([postmortem 0002](docs/internal/postmortem/0002-a-running-process-kept-a-config-that-was-gone.md)).
-- **`systemctl is-active` is not "doing its job".** `blueclaw` answers HTTP and
-  reports active while refusing all work. When a deploy touches what it reads,
-  check `internkim task list` for a run newer than the deploy. The service table
-  says healthy either way.
-- A component the device has never installed takes **two deploys**. The release
-  is applied by the `admind` already running, so the first deploy installs the
-  new `admind` and silently skips the component it does not yet know — reporting
-  `completed/completed` while installing nothing. Sending `admind,<component>`
-  together does not help, for the same reason. Deploy `admind`, then the
-  component. The second run reaches a `running/installing` status the first
-  never shows, which is how to tell them apart.
-- **A change to how a release installs can lock the device out of its own fix.**
-  The release is applied by the `admind` already running, so when new code
-  changes what an install verifies, the old `admind` keeps verifying the old
-  thing — and once a release carries a component it cannot accept, *every*
-  release fails, including the one carrying the `admind` that would fix it.
-  `--components admind` alone does not help: a release describes the whole
-  device, so it inherits the component that fails. The door out is the SSH
-  path, which does not go through the release engine at all:
-
-  ```
-  make build
-  ./internkim setup --only admind --force
-  ```
-
-  `--force` is required because the step is satisfied by "the file exists and
-  the service is active", which is true of a device running months-old code.
-  Verify with `systemctl show internkim-admind -p ExecMainStartTimestamp`; a
-  timestamp older than the deploy means the old process is still the one
-  applying releases. Then deploy normally.
-
-  When you move where something is written, grep for what reads it: a check left
-  reading a copy nothing writes cost a working day
-  ([postmortem 0001](docs/internal/postmortem/0001-a-release-check-read-a-copy-nothing-writes.md)).
-- The Jetson Blueclaw component is `blueclawPayload`, not `blueclaw`. An invalid
-  component name is silently dropped, so confirm the deploy log's `Components:`
-  line lists everything you intended.
-- The agent reaches a model through `capabilityd`. The guest's `runtime.json`
-  names `capabilityLLM` as its only provider, and `capabilityd` picks between
-  the device's llama.cpp, the companion, and OpenRouter by execution mode.
-  `llmd` was removed: no device installs or starts it, and every release apply
-  stops and deletes whatever an earlier one left. The only `llmd` in this
-  repository is the code that removes it. `.dependency/blueclaw/llmd/` stays,
-  because blueclaw's own README documents a standalone `llmd` deployment for
-  running blueclaw without an appliance; that is upstream's, and not how a
-  device is configured.
-- After changing Go setup, provisioning, runtime, or service code, run
-  `make build` before deployment.
-- Prefer `./internkim deploy --components <components>` for normal device
-  deployment. It uses the OTA release apply engine over Admin HTTPS.
-- Use the smallest deploy component set that matches the change.
-- `deploy` is fleet-aware: with a populated `.local/ops/targets.json` (gitignored)
-  it deploys to **every** target by default; `--fleet <id>` (comma-separated or
-  repeated) restricts to specific targets. With no registry it falls back to the
-  single `--host`/`--node` target, so existing single-device usage is unchanged.
-- Every registry target is a device: the OTA bundle is built once and uploaded
-  to each. A target naming any other `kind` is refused by name rather than
-  deployed to, so a registry still holding a retired one says so.
-- The device local LLM and embedding both run on **llama.cpp** (LiteRT is no longer the
-  generation backend). Generation: gemma-4-E2B QAT (`-UD-Q4_K_XL`) + MTP drafter
-  (`--spec-type draft-mtp`, `--chat-template gemma` — gemma-4 returns EMPTY chat output
-  without it). Embedding: BGE-M3 Q8 on CPU (`-ngl 0`, frees GPU for
-  generation). gemma-4-E4B does not fit the 8GB Jetson alongside the guest VM; use E2B.
-  Build the `llama-server` bundle in a local `linux/arm64` container and deploy only that
-  artifact. `litert_lm_main` is a legacy fallback path, not the default generation backend;
-  Bazel/CUDA builds OOM the 8GB Jetson.
-- Stop if the plan unexpectedly includes `binaries`, on-device model-runtime *builds*,
-  CUDA, or Jetson model runtime work that is not part of an intended local-LLM change.
-- Everything in this section is the **device** path. A company on the central
-  plane is deployed by `web/scripts/deploy-pages.ts`; see SaaS Web Deployment.
-- For Admin/Flow web UI-only changes on a device, rebuild the board UI first:
-  run `cd web && bun install` when dependencies may have changed, then
-  `cd web && bun run build:board`, then `./internkim deploy --components web`
-  from the repository root. The OTA web deploy packages the pre-built
-  `build/board-ui` directory and does not rebuild it for you.
-- For a small `internkim-admind` change, use `make build` and
-  `./internkim deploy --components admind`.
-- For a small `internkim-capabilityd` change, use `make build` and
-  `./internkim deploy --components capabilityd`.
-- For Blueclaw-only agent-loop, prompt, skill, policy, or schedule/runtime
-  logic, deploy only the Blueclaw payload or related component.
-- `deploy --components blueclawPayload` ships the **pre-built artifact** at
-  `.dependency/blueclaw-payload/`; it does not rebuild it. For any `cmd/blueclaw`
-  change (agent, connectors, llm, task, security) run `make prepare-blueclaw-payload`
-  first, or the deploy ships a stale binary. The deploy now fails loudly when the
-  artifact revision does not match the `.dependency/blueclaw` HEAD, telling you to
-  rebuild; do not bypass that guard.
-- For uncommitted `.dependency/blueclaw` changes, use
-  `INTERNKIM_BLUECLAW_USE_LOCAL=1`. If those changes must enter the guest VM
-  payload, run `make prepare-blueclaw-payload` before deploy.
-- Use `./internkim setup ...` only for first-time bootstrap, Admin HTTPS
-  recovery, or explicit SSH provisioning/debug paths. Run `--plan` before any
-  non-trivial real-device setup.
-- Avoid `--force-all` unless recovering a broken setup or explicitly asked.
-- Do not include `--host`, `--user`, or `--password` when the saved/default target
-  works.
-- Use targeted checks before full verify suites.
+- Everything about deploying a device — OTA releases, `setup`, the two-deploy
+  rule, the local LLM — is [docs/internal/device/deploying-a-device.md](docs/internal/device/deploying-a-device.md).
+  A company on the central plane is deployed by `web/scripts/deploy-pages.ts`;
+  see SaaS Web Deployment.
 
 ## Blueclaw Terminal Permission Boundary
 
@@ -873,31 +623,6 @@ and delete the duplicates.
   undelivered because a late validation call ran out of budget.
 - Full suppression is only for intentionally ignored control/runtime cases such
   as duplicate delivery, cancelled task output, or self/bot messages.
-
-## Companion Runtime Boundary
-
-- Treat `internkim-companion` as the user's local trusted runtime.
-- Keep browser cookies, local files, local model paths, and desktop credentials
-  on the user's computer.
-- Route browser handoff, user confirmation, local file picking, and future local
-  model inference through companion capabilities.
-- Store only companion signing key references in local state JSON; use OS secure
-  storage for keys, with explicit development fallback only.
-- Approval grants are task-scoped runtime-memory permissions. Keep
-  `user_confirm` and `user_input` outside grant reuse.
-- Persist broker jobs under `/root/.internkim/state/companion-jobs.json`; restart
-  recovery must not silently drop pending user-local work.
-- `file_pick` must hide user-local paths from internkim and Blueclaw. Upload
-  selected files through the signed broker into `/tmp/internkim-companion-files`.
-- Browser capabilities must go through a typed browser runtime adapter; do not
-  scatter raw `agent-browser`, Playwright, Chrome, or Obscura calls.
-- Companion browser support must use the bundled sidecar prepared by
-  `make build-companion` or `make deps-companion-browser`.
-- Browser observe/screenshot responses must not expose cookies, CDP URLs, local
-  profile paths, or local screenshot paths.
-- Keep Blueclaw provider-neutral. Blueclaw requests capabilities; internkim
-  chooses device, companion, or remote execution.
-- Local-only mode must not fall back to OpenRouter or another remote provider.
 
 ## Browser Automation
 

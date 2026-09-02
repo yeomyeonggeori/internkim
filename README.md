@@ -630,8 +630,8 @@ curl https://<host>/api/v1/tools/task_add/invoke \
 
 `POST /api/v1/token` issues one, `GET /api/v1/tokens` lists them and
 `DELETE /api/v1/token?name=` revokes one. A session makes the first; after that a
-token makes its own successors, never above its own rung. The twenty-six base
-tools in the reference are read from
+token makes its own successors, never above its own rung. The base tools in the
+reference are read from
 `pkg/capabilityprotocol/generated/capability-tools.json`, the same catalog the
 agent runs on, and `GET /api/v1/tools` answers them without asking the company
 machine. Tools that come and go with circumstance, such as the companion's, are
@@ -655,44 +655,22 @@ Mattermost and blueclaw go over loopback and stay exempt.
 
 ## Repository layout
 
-```
-internkim/
-├── cmd/
-│   ├── internkim/                 the operator CLI
-│   ├── internkim-admind/          device admin API and companion broker
-│   ├── internkim-capabilityd/     LLM, platform and browser capability daemon
-│   ├── internkim-companion/       the user's trusted runtime
-│   ├── internkim-llm-gateway/     OpenRouter-compatible tenant gateway
-│   └── internkim-local-llm-runner/  LiteRT runner, legacy fallback
-├── internal/
-│   ├── admind/                    admin proxy, backup/restore, broker
-│   ├── browser/                   agent-browser runtime adapter
-│   ├── capabilities/              the typed capability protocol
-│   ├── capabilityd/               LLM, platform and browser providers
-│   ├── cli/                       setup, deploy, lab, reset, verify
-│   ├── companion/                 pairing, jobs, local executor
-│   ├── lab/                       container lab and its scenarios
-│   ├── llmgateway/                routing, tokens, quota, providers
-│   ├── localfleet/                fleet scenarios, recipes, regression gate
-│   ├── provisioning/steps/        the setup flow, step by step
-│   ├── releaseset/                release manifest and component checks
-│   └── runtime/blueclaw/          the blueclaw runtime contract
-├── host/
-│   ├── relay/                     the company computer's link to the plane
-│   └── entrypoint.sh              boot order for the host bundle
-├── supabase/
-│   ├── migrations/                the schema of record
-│   ├── seed.dev.sql               local fixtures, the only ones
-│   └── tests/                     pgTAP
-├── web/                           SvelteKit: the company app and device UI
-├── companion/                     the Tauri desktop shell
-├── assets/blueclaw-workspace/     AGENTS.md, skills, helpers, Apps Script
-├── workers/                       connection-gateway, llm-gateway, release-registry
-├── docs/internal/                 design documents and runbooks
-├── lab/                           low-level VM lab config and scripts
-├── tools/                         development helpers
-└── .dependency/blueclaw/          the blueclaw submodule
-```
+`cmd/` holds the binaries and `internal/` the packages behind them, one directory
+per daemon and named after it, so `ls cmd internal` answers what exists today.
+The rest:
+
+| | |
+|---|---|
+| `web/` | the SvelteKit app, which is also the public API (`src/routes/api/v1/`) |
+| `supabase/` | `migrations/` is the schema of record, `seed.dev.sql` the only local fixtures, `tests/` the pgTAP suite |
+| `host/` | `entrypoint.sh` is the boot order for the company computer's bundle, `relay/` its link to the plane |
+| `assets/blueclaw-workspace/` | the agent's own AGENTS.md, skills and helpers |
+| `companion/` | the Tauri desktop shell |
+| `workers/` | the Cloudflare workers |
+| `docs/` | the pages the docs site publishes; `docs/internal/` is what a contributor reads |
+| `lab/` | VM lab configuration and scripts |
+| `tools/` | development helpers, `tools/verify` among them |
+| `.dependency/blueclaw/` | the agent submodule |
 
 ## Cost
 
