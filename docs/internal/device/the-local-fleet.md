@@ -4,7 +4,7 @@ The Linux gate for both paths. A run starts a local central plane and joins the
 VM to it before anything else, so the plane's own wiring is under test here too;
 the `buzz-*` scenarios are the messenger gate `AGENTS.md` keeps, and they run
 nowhere else. What is frozen is the device half of what the VM exercises: OTA,
-the guest's ext4 workspace, the `mattermost-*` scenarios. See
+the guest's ext4 workspace. See
 [README.md](./README.md) for what the freeze means.
 
 The VM is a disposable Apple Container running the same Blueclaw guest a device

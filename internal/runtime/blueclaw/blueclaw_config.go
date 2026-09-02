@@ -585,7 +585,6 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:message_send", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:message_update", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:message_delete", "actions": []string{"execute"}, "circles": []string{"member"}},
-		{"resource": "tool:channel_update", "actions": []string{"execute"}, "circles": []string{"admin"}},
 		{"resource": "tool:mail_message_list", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:mail_message_search", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:mail_message_read", "actions": []string{"execute"}, "circles": []string{"member"}},

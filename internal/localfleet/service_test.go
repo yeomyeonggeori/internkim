@@ -115,30 +115,6 @@ func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) 
 	}
 }
 
-func TestMattermostAskEphemeralScenarioUsesContainerSmoke(t *testing.T) {
-	service, errorValue := NewService(Options{
-		RepositoryRootPath: "/repo",
-		ExecutablePath:     "/repo/internkim",
-		VirtualMachineName: "internkim-e2e-ask",
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.mattermostAskEphemeralScenarioPlans()
-	joinedPlans := joinedPlanArguments(plans)
-	if !strings.Contains(joinedPlans, "/repo/lab/scripts/run-smoke-mattermost-ask-ephemeral-container.sh internkim-e2e-ask") {
-		t.Fatalf("expected ask ephemeral smoke in plans:\n%s", joinedPlans)
-	}
-	if !strings.Contains(joinedPlans, "--wait-lock") {
-		t.Fatalf("expected local fleet setup to wait for the shared setup lock:\n%s", joinedPlans)
-	}
-	for _, skippedStep := range []string{"web", "blueclaw-runtime-base", "skills", "blueclaw-config", "blueclaw-payload", "blueclaw-payload-direct", "openrouter", "staging", "services", "users-sync", "health"} {
-		if !strings.Contains(joinedPlans, skippedStep) {
-			t.Fatalf("expected ask scenario to skip %q:\n%s", skippedStep, joinedPlans)
-		}
-	}
-}
-
 func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
 	if errorValue != nil {
@@ -326,28 +302,6 @@ func TestPreparedFleetPlansOnlyRestoreConnectivity(t *testing.T) {
 		if strings.Contains(joinedPlans, forbiddenText) {
 			t.Fatalf("prepared Fleet plans contain %q:\n%s", forbiddenText, joinedPlans)
 		}
-	}
-}
-
-func TestMattermostManualScenarioPreparesBrowserSession(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	joinedPlans := joinedPlanArguments(service.mattermostManualScenarioPlans())
-	if !strings.Contains(joinedPlans, "/mnt/shared/workspace/lab/scripts/prepare-mattermost-manual-test.sh") {
-		t.Fatalf("expected manual Mattermost preparation script in plans:\n%s", joinedPlans)
-	}
-}
-
-func TestMattermostManualScenarioRequiresKeep(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	errorValue = service.RunScenario(context.Background(), &recordingLogger{}, "mattermost-manual", false, false)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "requires --keep") {
-		t.Fatalf("expected manual Mattermost keep requirement, got %v", errorValue)
 	}
 }
 

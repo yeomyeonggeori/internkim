@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -128,77 +126,13 @@ type platformMessageDeleteResult struct {
 	Failures       []platformMessageFailureResult `json:"failures,omitempty"`
 }
 
-func canonicalPlatformMessageSearchResult(result mattermostPostSearchResult, requesterUserID string) platformMessageSearchResult {
-	candidates := make([]platformMessageSearchCandidateResult, 0, len(result.Candidates))
-	for _, candidate := range result.Candidates {
-		candidates = append(candidates, platformMessageSearchCandidateResult{
-			MessageID:       candidate.PostID,
-			ChannelID:       firstNonEmpty(candidate.ChannelID, result.Channel["id"]),
-			RootMessageID:   candidate.RootID,
-			UserID:          candidate.UserID,
-			AuthoredBy:      canonicalPlatformMessageCandidateAuthor(candidate, requesterUserID),
-			CreatedAt:       candidate.CreateAt,
-			Text:            candidate.Text,
-			Preview:         candidate.Preview,
-			Deletable:       candidate.Deletable,
-			ProtectedReason: candidate.ProtectedReason,
-		})
-	}
-	return platformMessageSearchResult{
-		Scope:      result.Scope,
-		Queries:    result.Queries,
-		AuthoredBy: canonicalPlatformMessageSearchAuthor(result.AuthoredBy),
-		MessageIDs: deletableMattermostCandidateIDs(result.Candidates),
-		Candidates: candidates,
-		NextCursor: result.NextCursor,
-		HasMore:    result.HasMore,
-	}
-}
-
-func canonicalPlatformMessageSearchAuthor(author string) string {
-	author = platformMessageAuthorLabel(author)
-	if author == "" {
-		return "anyone"
-	}
-	return author
-}
-
-func canonicalPlatformMessageCandidateAuthor(candidate mattermostPostSearchCandidate, requesterUserID string) string {
-	if candidate.AuthoredBy == "internkim" {
-		return "assistant"
-	}
-	if strings.TrimSpace(candidate.UserID) == strings.TrimSpace(requesterUserID) {
-		return "requester"
-	}
-	return "anyone"
-}
-
-func canonicalPlatformMessageDeleteResult(result mattermostPostDeleteResult) platformMessageDeleteResult {
-	failures := make([]platformMessageFailureResult, 0, len(result.FailedPosts))
-	for _, failure := range result.FailedPosts {
-		failures = append(failures, platformMessageFailureResult{
-			MessageID: failure.PostID,
-			ErrorCode: failure.ErrorCode,
-			Message:   failure.Message,
-		})
-	}
-	return platformMessageDeleteResult{
-		MessageIDs:     result.DeletedPostIDs,
-		DeliveryStatus: "deleted",
-		Failures:       failures,
-	}
-}
-
 func (service Service) invokePlatformMessageTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch request.ToolName {
 	case "message_context":
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
 		}
-		if service.chatdServesTheMessenger() {
-			return service.invokeChatdPlatformMessageContext(ctx, request)
-		}
-		return service.invokeMattermostContextInspect(ctx, request)
+		return service.invokeChatdPlatformMessageContext(ctx, request)
 	case "message_search":
 		if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
 			return response, nil
@@ -222,9 +156,9 @@ func (service Service) invokePlatformMessageTool(ctx context.Context, request ca
 }
 
 func (service Service) authorizePlatformMessageTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, bool) {
-	if !service.mattermostRequesterHasCircle(ctx, request.Context, mattermostToolMemberCircle) {
+	if !service.requesterIsACompanyMember(ctx, request.Context) {
 		message := request.ToolName + " requires member access"
-		return mattermostToolDeniedResponse(request.ToolName, mattermostToolStaticFailure(capabilities.CapabilityNotAllowed, "authorization", message)), true
+		return platformToolDeniedResponse(request.ToolName, platformToolStaticFailure(capabilities.CapabilityNotAllowed, "authorization", message)), true
 	}
 	return capabilities.ToolInvokeResponse{}, false
 }
@@ -232,82 +166,29 @@ func (service Service) authorizePlatformMessageTool(ctx context.Context, request
 func (service Service) invokePlatformMessageSearch(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodePlatformMessageSearchInput(request.Input)
 	if errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
+		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
-	if service.chatdServesTheMessenger() {
-		return service.invokeChatdPlatformMessageSearch(ctx, request, input)
-	}
-	mattermostInput := mattermostPostSearchInput{
-		Scope:       platformMessageSearchScope(input),
-		PostIDs:     input.MessageIDs,
-		ChannelID:   input.DeliveryTarget.ChannelID,
-		ChannelName: input.DeliveryTarget.ChannelName,
-		PersonHint:  input.DeliveryTarget.PersonHint,
-		AuthoredBy:  platformMessageSearchAuthor(input.AuthoredBy),
-		Queries:     input.Queries,
-		Limit:       input.Limit,
-		Cursor:      input.Cursor,
-	}
-	return service.invokeMattermostPostSearch(ctx, capabilities.ToolInvokeRequest{
-		ToolName: request.ToolName,
-		Input:    mustMarshalPlatformMessageInput(mattermostInput),
-		Context:  request.Context,
-	})
+	return service.invokeChatdPlatformMessageSearch(ctx, request, input)
 }
 
 func (service Service) invokePlatformMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodePlatformMessageSendInput(request.Input)
 	if errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
+		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
-	if service.chatdServesTheMessenger() {
-		return service.invokeChatdPlatformMessageSend(ctx, request, input)
-	}
-	if input.DeliveryTarget.Type == "directMessage" {
-		attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
-		if hasFailure {
-			return mattermostToolErrorResponse(request.ToolName, failure), nil
-		}
-		if len(input.DeliveryTarget.PersonHints) > 0 {
-			return service.invokePlatformMessageDirectBroadcast(ctx, request, input, attachmentFiles)
-		}
-		return service.invokePlatformMessageDirectSend(ctx, request, input, attachmentFiles)
-	}
-	if response, isDenied := service.authorizePlatformMessageTool(ctx, request); isDenied {
-		return response, nil
-	}
-	attachmentFiles, failure, hasFailure := service.resolvePlatformMessageAttachments(request, input.Attachments)
-	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
-	}
-	channelID, rootID, failure, hasFailure := service.resolvePlatformMessageSendTarget(ctx, request.Context, input.DeliveryTarget)
-	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
-	}
-	fileIDs, errorValue := service.uploadMattermostFiles(ctx, channelID, attachmentFiles)
-	if errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolFailureForError("attachment_upload", "mattermost_unavailable", errorValue)), nil
-	}
-	result, failure, hasFailure := service.createPlatformMessagePost(ctx, channelID, rootID, input.Message, input.Pin, request.IdempotencyKey, fileIDs)
-	if hasFailure {
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
-	}
-	return mattermostToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
-		MessageIDs:     []string{result},
-		DeliveryStatus: "sent",
-	})
+	return service.invokeChatdPlatformMessageSend(ctx, request, input)
 }
 
 // The files were read by the person sending them, where their identity exists,
 // and arrive as content. A message that names a file nobody carried is refused
 // rather than served by opening the workspace as root.
-func (service Service) resolvePlatformMessageAttachments(request capabilities.ToolInvokeRequest, paths []string) ([]platformFile, mattermostToolFailure, bool) {
+func (service Service) resolvePlatformMessageAttachments(request capabilities.ToolInvokeRequest, paths []string) ([]platformFile, platformToolFailure, bool) {
 	if len(paths) == 0 {
-		return nil, mattermostToolFailure{}, false
+		return nil, platformToolFailure{}, false
 	}
 	carriedFiles := request.Transport.WorkspaceFiles
 	if len(carriedFiles) != len(paths) {
-		return nil, mattermostToolStaticFailure("attachment_not_carried", "attachment_resolve",
+		return nil, platformToolStaticFailure("attachment_not_carried", "attachment_resolve",
 			"these files were named but not carried; the caller reads them as the person who asked and sends their content"), true
 	}
 	attachmentFiles := []platformFile{}
@@ -318,41 +199,11 @@ func (service Service) resolvePlatformMessageAttachments(request capabilities.To
 			ContentBase64: carried.ContentBase64,
 		})
 		if errorValue != nil {
-			return nil, mattermostToolStaticFailure("attachment_unavailable", "attachment_resolve", carried.WorkspacePath+": "+errorValue.Error()), true
+			return nil, platformToolStaticFailure("attachment_unavailable", "attachment_resolve", carried.WorkspacePath+": "+errorValue.Error()), true
 		}
 		attachmentFiles = append(attachmentFiles, attachmentFile)
 	}
-	return attachmentFiles, mattermostToolFailure{}, false
-}
-
-func (service Service) invokePlatformMessageDirectSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput, attachments []platformFile) (capabilities.ToolInvokeResponse, error) {
-	recipientMattermostUserID, failure, hasFailure := service.resolvePlatformDirectSendRecipient(ctx, request, input.DeliveryTarget.PersonHint)
-	if hasFailure {
-		return platformDMErrorResponse(request.ToolName, failure), nil
-	}
-	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipientMattermostUserID, input.Message, request.IdempotencyKey, attachments)
-	if hasFailure {
-		return platformDMErrorResponse(request.ToolName, failure), nil
-	}
-	return mattermostToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
-		MessageIDs:     []string{dispatchID},
-		DeliveryStatus: "sent",
-	})
-}
-
-func (service Service) resolvePlatformDirectSendRecipient(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string) (string, platformDMFailure, bool) {
-	if personHint != "" {
-		recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint, request.Context.ResponseLanguage)
-		if hasFailure {
-			return "", failure, true
-		}
-		return recipient.MattermostUserID, platformDMFailure{}, false
-	}
-	requesterMattermostUserID := strings.TrimSpace(request.Context.RequesterPlatformUserID)
-	if requesterMattermostUserID == "" {
-		return "", platformDMStaticFailure("invalid_input", "recipient_resolve", "targetType=directMessage without personHint sends to the requester, but this context has no requester platform user; pass personHint"), true
-	}
-	return requesterMattermostUserID, platformDMFailure{}, false
+	return attachmentFiles, platformToolFailure{}, false
 }
 
 type platformMessageBroadcastResult struct {
@@ -364,30 +215,6 @@ type platformMessageBroadcastResult struct {
 	Status             string `json:"status"`
 	ErrorCode          string `json:"errorCode,omitempty"`
 	Message            string `json:"message,omitempty"`
-}
-
-func (service Service) invokePlatformMessageDirectBroadcast(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput, attachments []platformFile) (capabilities.ToolInvokeResponse, error) {
-	results := make([]platformMessageBroadcastResult, 0, len(input.DeliveryTarget.PersonHints))
-	for _, personHint := range input.DeliveryTarget.PersonHints {
-		results = append(results, service.broadcastDirectMessageToHint(ctx, request, personHint, input.Message, attachments))
-	}
-	messageIDs, failures := canonicalPlatformMessageBroadcastResult(results)
-	rollup := map[string]any{
-		"platform":    "mattermost",
-		"results":     results,
-		"sentCount":   len(messageIDs),
-		"failedCount": len(failures),
-	}
-	if len(messageIDs) == 0 {
-		response := platformDMErrorResponse(request.ToolName, platformDMStaticFailure("broadcast_all_failed", "message_send", "every recipient delivery failed; see results"))
-		response.Result, _ = json.Marshal(rollup)
-		return response, nil
-	}
-	return mattermostToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
-		MessageIDs:     messageIDs,
-		DeliveryStatus: "sent",
-		Failures:       failures,
-	})
 }
 
 func canonicalPlatformMessageBroadcastResult(results []platformMessageBroadcastResult) ([]string, []platformMessageFailureResult) {
@@ -412,109 +239,24 @@ func canonicalPlatformMessageBroadcastResult(results []platformMessageBroadcastR
 	return messageIDs, failures
 }
 
-func (service Service) broadcastDirectMessageToHint(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string, message string, attachments []platformFile) platformMessageBroadcastResult {
-	recipient, failure, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint, request.Context.ResponseLanguage)
-	if hasFailure {
-		return platformMessageBroadcastResult{PersonHint: personHint, Status: "failed", ErrorCode: failure.ErrorCode, Message: failure.Message}
-	}
-	idempotencyKey := platformMessageBroadcastIdempotencyKey(request.IdempotencyKey, recipient.MattermostUserID)
-	dispatchID, failure, hasFailure := service.sendMattermostDirectMessageWithDispatch(ctx, recipient.MattermostUserID, message, idempotencyKey, attachments)
-	if hasFailure {
-		return platformMessageBroadcastResult{PersonHint: personHint, PersonID: recipient.PersonID, DisplayName: recipient.DisplayName, Status: "failed", ErrorCode: failure.ErrorCode, Message: failure.Message}
-	}
-	return platformMessageBroadcastResult{
-		PersonHint:         personHint,
-		PersonID:           recipient.PersonID,
-		DisplayName:        recipient.DisplayName,
-		MattermostUsername: recipient.MattermostUsername,
-		DispatchID:         dispatchID,
-		Status:             "sent",
-	}
-}
-
-func platformMessageBroadcastIdempotencyKey(baseKey string, recipientUserID string) string {
-	trimmedBaseKey := strings.TrimSpace(baseKey)
-	if trimmedBaseKey == "" {
-		return ""
-	}
-	return trimmedBaseKey + ":" + strings.TrimSpace(recipientUserID)
-}
-
 func (service Service) invokePlatformMessageUpdate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodePlatformMessageUpdateInput(request.Input)
 	if errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
+		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
-	if service.chatdServesTheMessenger() {
-		return service.invokeChatdPlatformMessageUpdate(ctx, request, input)
-	}
-	if len(input.Attachments) > 0 {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode",
-			"attachments cannot be added to a Mattermost message after it was sent; send a new message with the files instead")), nil
-	}
-	mattermostInput := mattermostPostUpdateInput{
-		PostID:   input.MessageID,
-		IsPinned: input.IsPinned,
-	}
-	if input.OldText != nil {
-		editedMessage, failureResponse, hasFailure := service.resolvePlatformMessageEdit(ctx, request.ToolName, input)
-		if hasFailure {
-			return failureResponse, nil
-		}
-		mattermostInput.Message = &editedMessage
-	}
-	return service.invokeMattermostPostUpdate(ctx, capabilities.ToolInvokeRequest{
-		ToolName: request.ToolName,
-		Input:    mustMarshalPlatformMessageInput(mattermostInput),
-		Context:  request.Context,
-	})
-}
-
-func (service Service) resolvePlatformMessageEdit(ctx context.Context, toolName string, input platformMessageUpdateInput) (string, capabilities.ToolInvokeResponse, bool) {
-	post, failure, hasFailure := service.mattermostToolPost(ctx, input.MessageID)
-	if hasFailure {
-		return "", mattermostToolErrorResponse(toolName, failure), true
-	}
-	if failure, isBlocked := service.validateMattermostPostEdit(ctx, post); isBlocked {
-		return "", mattermostToolDeniedResponse(toolName, failure), true
-	}
-	matchCount := strings.Count(post.Message, *input.OldText)
-	if matchCount != 1 {
-		return "", mattermostToolErrorResponse(toolName, platformMessageEditMatchFailure(matchCount, post.Message)), true
-	}
-	return strings.Replace(post.Message, *input.OldText, *input.NewText, 1), capabilities.ToolInvokeResponse{}, false
-}
-
-func platformMessageEditMatchFailure(matchCount int, currentMessage string) mattermostToolFailure {
-	reason := "oldText was not found in that message"
-	if matchCount > 1 {
-		reason = fmt.Sprintf("oldText appears %d times in that message; quote a longer span that occurs once", matchCount)
-	}
-	return mattermostToolStaticFailure("invalid_input", "message_edit_match", reason+". The message currently reads:\n"+currentMessage)
+	return service.invokeChatdPlatformMessageUpdate(ctx, request, input)
 }
 
 func (service Service) invokePlatformMessageDelete(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	input, errorValue := decodePlatformMessageDeleteInput(request.Input)
 	if errorValue != nil {
-		return mattermostToolErrorResponse(request.ToolName, mattermostToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
+		return platformToolErrorResponse(request.ToolName, platformToolStaticFailure("invalid_input", "input_decode", errorValue.Error())), nil
 	}
 	if len(input.MessageIDs) == 0 {
-		failure := mattermostToolStaticFailure("invalid_input", "input_decode", "messageIDs is required; use message_search first to find message IDs")
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
+		failure := platformToolStaticFailure("invalid_input", "input_decode", "messageIDs is required; use message_search first to find message IDs")
+		return platformToolErrorResponse(request.ToolName, failure), nil
 	}
-	if service.chatdServesTheMessenger() {
-		return service.invokeChatdPlatformMessageDelete(ctx, request, input.MessageIDs)
-	}
-	if len(input.MessageIDs) > mattermostPostSearchPageLimit {
-		failure := mattermostToolStaticFailure("too_many_message_ids", "input_decode", "message_delete accepts at most 25 messageIDs per call; delete one search page at a time")
-		return mattermostToolErrorResponse(request.ToolName, failure), nil
-	}
-	mattermostInput := mattermostPostDeleteInput{PostIDs: input.MessageIDs}
-	return service.invokeMattermostPostDelete(ctx, capabilities.ToolInvokeRequest{
-		ToolName: request.ToolName,
-		Input:    mustMarshalPlatformMessageInput(mattermostInput),
-		Context:  request.Context,
-	})
+	return service.invokeChatdPlatformMessageDelete(ctx, request, input.MessageIDs)
 }
 
 func decodePlatformMessageSearchInput(document json.RawMessage) (platformMessageSearchInput, error) {
@@ -527,7 +269,7 @@ func decodePlatformMessageSearchInput(document json.RawMessage) (platformMessage
 	input.Scope = strings.TrimSpace(input.Scope)
 	input.AuthoredBy = strings.TrimSpace(input.AuthoredBy)
 	input.Queries = normalizePlatformMessageSearchQueries(input.Queries)
-	input.MessageIDs = uniqueTrimmedMattermostPostIDs(input.MessageIDs)
+	input.MessageIDs = uniqueTrimmedPlatformMessageIDs(input.MessageIDs)
 	input.Cursor = strings.TrimSpace(input.Cursor)
 	input.DeliveryTarget = normalizePlatformMessageDeliveryTarget(platformMessageDeliveryTarget{
 		ChannelID:   input.ChannelID,
@@ -630,7 +372,7 @@ func decodePlatformMessageDeleteInput(document json.RawMessage) (platformMessage
 	if errorValue := json.Unmarshal(document, &input); errorValue != nil {
 		return platformMessageDeleteInput{}, errorValue
 	}
-	input.MessageIDs = uniqueTrimmedMattermostPostIDs(input.MessageIDs)
+	input.MessageIDs = uniqueTrimmedPlatformMessageIDs(input.MessageIDs)
 	if len(input.MessageIDs) == 0 {
 		return platformMessageDeleteInput{}, fmt.Errorf("messageIDs is required")
 	}
@@ -648,16 +390,6 @@ func rejectUnexpectedPlatformMessageDeleteFields(document json.RawMessage) error
 		}
 	}
 	return nil
-}
-
-func deletableMattermostCandidateIDs(candidates []mattermostPostSearchCandidate) []string {
-	postIDs := []string{}
-	for _, candidate := range candidates {
-		if candidate.Deletable {
-			postIDs = append(postIDs, candidate.PostID)
-		}
-	}
-	return postIDs
 }
 
 func normalizePlatformMessageDeliveryTarget(target platformMessageDeliveryTarget) platformMessageDeliveryTarget {
@@ -718,119 +450,6 @@ func isValidPlatformMessageAuthor(author string) bool {
 	default:
 		return false
 	}
-}
-
-func platformMessageSearchScope(input platformMessageSearchInput) string {
-	return input.Scope
-}
-
-func platformMessageSearchAuthor(author string) string {
-	switch strings.TrimSpace(author) {
-	case "assistant":
-		return "internkim"
-	case "requester":
-		return "requester"
-	default:
-		return strings.TrimSpace(author)
-	}
-}
-
-func (service Service) resolvePlatformMessageSendTarget(ctx context.Context, toolContext capabilities.ToolInvokeContext, target platformMessageDeliveryTarget) (string, string, mattermostToolFailure, bool) {
-	switch target.Type {
-	case "currentThread":
-		handle, failure, hasFailure := requiredMattermostHandleFromContext(toolContext)
-		if hasFailure {
-			return "", "", failure, true
-		}
-		channelID := firstNonEmpty(handle.ChannelID, toolContext.ChannelID)
-		if strings.TrimSpace(channelID) == "" || strings.TrimSpace(handle.RootID) == "" {
-			failure := mattermostToolStaticFailure("thread_not_available", "context", "current platform thread is not available")
-			return "", "", failure, true
-		}
-		return channelID, handle.RootID, mattermostToolFailure{}, false
-	case "currentChannel":
-		channelID := strings.TrimSpace(toolContext.ChannelID)
-		if channelID == "" {
-			failure := mattermostToolStaticFailure("channel_not_available", "context", "current platform channel is not available")
-			return "", "", failure, true
-		}
-		return channelID, "", mattermostToolFailure{}, false
-	case "channel":
-		channel, failure, hasFailure := service.resolveMattermostToolChannel(ctx, target.ChannelID, target.ChannelName)
-		if hasFailure {
-			return "", "", failure, true
-		}
-		if failure, hasFailure := service.authorizeAndJoinPlatformMessageChannel(ctx, toolContext, channel); hasFailure {
-			return "", "", failure, true
-		}
-		return channel.ID, "", mattermostToolFailure{}, false
-	default:
-		failure := mattermostToolStaticFailure("invalid_target", "input_decode", "delivery target cannot be used for channel posting")
-		return "", "", failure, true
-	}
-}
-
-func (service Service) authorizeAndJoinPlatformMessageChannel(ctx context.Context, toolContext capabilities.ToolInvokeContext, channel mattermostToolChannel) (mattermostToolFailure, bool) {
-	isMember, errorValue := service.requesterMayAccessChannel(ctx, toolContext, channel.ID)
-	if errorValue != nil {
-		if !isHTTPStatusForbidden(errorValue) {
-			return mattermostToolFailureForError("membership_lookup", "mattermost_unavailable", errorValue), true
-		}
-		if failure, hasFailure := service.joinPlatformMessageChannel(ctx, channel.ID); hasFailure {
-			return failure, true
-		}
-		isMember, errorValue = service.requesterMayAccessChannel(ctx, toolContext, channel.ID)
-		if errorValue != nil {
-			return mattermostToolFailureForError("membership_lookup", "mattermost_unavailable", errorValue), true
-		}
-	}
-	if !isMember {
-		return channelAccessDeniedFailure(firstNonEmpty(channel.DisplayName, channel.Name, channel.ID)), true
-	}
-	return service.joinPlatformMessageChannel(ctx, channel.ID)
-}
-
-func (service Service) joinPlatformMessageChannel(ctx context.Context, channelID string) (mattermostToolFailure, bool) {
-	if errorValue := service.ensureMattermostBotChannelMembership(ctx, channelID); errorValue != nil {
-		return mattermostToolFailureForError("channel_join", "bot_channel_join_failed", errorValue), true
-	}
-	return mattermostToolFailure{}, false
-}
-
-func (service Service) createPlatformMessagePost(ctx context.Context, channelID string, rootID string, message string, pin bool, idempotencyKey string, fileIDs []string) (string, mattermostToolFailure, bool) {
-	var postResponse struct {
-		ID string `json:"id"`
-	}
-	body := map[string]any{
-		"channel_id": strings.TrimSpace(channelID),
-		"message":    strings.TrimSpace(message),
-		"props":      map[string]any{"internkim_platform_message_post": true},
-	}
-	if len(fileIDs) > 0 {
-		body["file_ids"] = fileIDs
-	}
-	if strings.TrimSpace(rootID) != "" {
-		body["root_id"] = strings.TrimSpace(rootID)
-	}
-	if strings.TrimSpace(idempotencyKey) != "" {
-		if botUser, errorValue := service.resolveMattermostBotUser(ctx); errorValue == nil {
-			if pendingPostID := mattermostPendingPostID(botUser.ID, idempotencyKey); pendingPostID != "" {
-				body["pending_post_id"] = pendingPostID
-			}
-		}
-	}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts", body, &postResponse); errorValue != nil {
-		return "", mattermostToolFailureForError("post_create", "mattermost_unavailable", errorValue), true
-	}
-	if strings.TrimSpace(postResponse.ID) == "" {
-		return "", mattermostToolStaticFailure("post_create_failed", "post_create", "mattermost did not return a post ID"), true
-	}
-	if pin {
-		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/posts/"+url.PathEscape(postResponse.ID)+"/pin", nil, nil); errorValue != nil {
-			return "", mattermostToolFailureForError("post_pin", "mattermost_unavailable", errorValue), true
-		}
-	}
-	return postResponse.ID, mattermostToolFailure{}, false
 }
 
 func mustMarshalPlatformMessageInput(value any) json.RawMessage {

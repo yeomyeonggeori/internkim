@@ -6,7 +6,6 @@ import {
   ArtifactToolName,
   BrowserToolName,
   CalendarToolName,
-  ChannelToolName,
   DocumentToolName,
   ImageToolName,
   MessageAuthor,
@@ -37,8 +36,6 @@ import {
   calendarListInputSchema,
   calendarUpdateInputSchema,
   calendarUpdateInputIntentSchema,
-  channelUpdateInputSchema,
-  channelUpdateResultSchema,
   documentReadInputSchema,
   documentReadResultSchema,
   imageReadInputSchema,
@@ -97,7 +94,6 @@ describe('canonical capability tools', () => {
       'browser_select',
       'browser_snapshot',
       'browser_wait',
-      'channel_update',
       'company_document_list',
       'company_document_register',
       'company_document_search',
@@ -233,7 +229,6 @@ describe('canonical capability tools', () => {
       MessageToolName.Send,
       MessageToolName.Update,
       MessageToolName.Delete,
-      ChannelToolName.Update,
       SiteToolName.Serve,
       SiteToolName.Unserve,
       BrowserToolName.Open,
@@ -444,7 +439,7 @@ describe('canonical capability tools', () => {
     expect(calendarDeleteInputIntentSchema.safeParse({ eventHint: 'event-1' }).success).toBe(false);
   });
 
-  test('validates shallow message and channel inputs', () => {
+  test('validates shallow message inputs', () => {
     expect(messageContextInputSchema.safeParse({}).success).toBe(true);
     expect(messageSearchInputSchema.safeParse({
       scope: MessageSearchScope.CurrentChannel,
@@ -465,11 +460,6 @@ describe('canonical capability tools', () => {
     expect(messageDeleteInputSchema.safeParse({
       messageIDs: ['message-1', 'message-2'],
     }).success).toBe(true);
-    expect(channelUpdateInputSchema.safeParse({
-      channelID: 'channel-1',
-      header: 'customer support quarterly settlement share',
-      inviteeHints: ['@support-lead'],
-    }).success).toBe(true);
 
     expect(messageContextInputSchema.safeParse({ scope: 'currentChannel' }).success).toBe(false);
     expect(messageSearchInputSchema.safeParse({ query: 'quarterly settlement' }).success).toBe(false);
@@ -486,11 +476,9 @@ describe('canonical capability tools', () => {
     expect(messageUpdateInputSchema.safeParse({ messageID: 'message-1' }).success).toBe(false);
     expect(messageDeleteInputSchema.safeParse({ messageIDs: [] }).success).toBe(false);
     expect(messageDeleteInputSchema.safeParse({ messageIDs: ['message-1', 'message-1'] }).success).toBe(false);
-    expect(channelUpdateInputSchema.safeParse({ channelID: 'channel-1' }).success).toBe(false);
-    expect(channelUpdateInputSchema.safeParse({ header: 'new header' }).success).toBe(false);
   });
 
-  test('requires canonical message and channel result identities', () => {
+  test('requires canonical message result identities', () => {
     const contextResult = {
       platform: 'mattermost',
       conversationID: 'conversation-1',
@@ -535,35 +523,27 @@ describe('canonical capability tools', () => {
       messageIDs: ['message-2'],
       deliveryStatus: MessageDeliveryStatus.Deleted,
     };
-    const channelResult = {
-      channelID: 'channel-1',
-      updated: true,
-      invitedUserIDs: ['user-2'],
-    };
 
     expect(messageContextResultSchema.safeParse(contextResult).success).toBe(true);
     expect(messageSearchResultSchema.safeParse(searchResult).success).toBe(true);
     expect(messageSendResultSchema.safeParse(sendResult).success).toBe(true);
     expect(messageUpdateResultSchema.safeParse(updateResult).success).toBe(true);
     expect(messageDeleteResultSchema.safeParse(deleteResult).success).toBe(true);
-    expect(channelUpdateResultSchema.safeParse(channelResult).success).toBe(true);
 
     expect(messageContextResultSchema.safeParse({ ...contextResult, extra: true }).success).toBe(false);
     expect(messageSearchResultSchema.safeParse({ ...searchResult, candidates: [{ messageID: 'message-1' }] }).success).toBe(false);
     expect(messageSendResultSchema.safeParse({ ...sendResult, messageIDs: [] }).success).toBe(false);
     expect(messageUpdateResultSchema.safeParse({ ...updateResult, messageID: '' }).success).toBe(false);
     expect(messageDeleteResultSchema.safeParse({ ...deleteResult, messageIDs: ['message-2', 'message-2'] }).success).toBe(false);
-    expect(channelUpdateResultSchema.safeParse({ ...channelResult, channelID: ' channel-1 ' }).success).toBe(false);
   });
 
-  test('publishes exact message and channel effects and approvals', () => {
+  test('publishes exact message effects and approvals', () => {
     const catalog = buildCapabilityToolCatalog(protocolVersion);
     const contextTool = catalog.tools.find(tool => tool.name === MessageToolName.Context);
     const searchTool = catalog.tools.find(tool => tool.name === MessageToolName.Search);
     const sendTool = catalog.tools.find(tool => tool.name === MessageToolName.Send);
     const updateTool = catalog.tools.find(tool => tool.name === MessageToolName.Update);
     const deleteTool = catalog.tools.find(tool => tool.name === MessageToolName.Delete);
-    const channelTool = catalog.tools.find(tool => tool.name === ChannelToolName.Update);
 
     expect(contextTool?.resultContract?.effects).toEqual([]);
     expect(searchTool?.resultContract?.effects).toEqual([]);
@@ -576,15 +556,11 @@ describe('canonical capability tools', () => {
     expect(deleteTool?.resultContract?.effects).toEqual([
       { objectType: 'message', effect: 'deleted', resultField: 'messageIDs', effectIdentity: ResourceEffectIdentity.ID },
     ]);
-    expect(channelTool?.resultContract?.effects).toEqual([
-      { objectType: 'channel', effect: 'updated', resultField: 'channelID', effectIdentity: ResourceEffectIdentity.ID },
-    ]);
     expect(contextTool?.requiresApproval).toBeUndefined();
     expect(searchTool?.requiresApproval).toBeUndefined();
     expect(sendTool?.requiresApproval).toBe(true);
     expect(updateTool?.requiresApproval).toBe(false);
     expect(deleteTool?.requiresApproval).toBe(true);
-    expect(channelTool?.requiresApproval).toBe(true);
     expect(sendTool?.idempotency).toEqual({ supported: true, required: false, scope: 'operation' });
     expect(updateTool?.idempotency).toEqual({ supported: false, required: false, scope: 'operation' });
     expect(sendTool?.completionEvidence).toEqual({

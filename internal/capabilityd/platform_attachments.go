@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"io"
 	"mime"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -122,81 +120,6 @@ func (service Service) materializeInlinePlatformFile(configuration Configuration
 		SizeBytes:   int64(len(document)),
 		Title:       firstNonEmpty(attachment.Title, strings.TrimSuffix(filename, filepath.Ext(filename))),
 	}, nil
-}
-
-func (service Service) uploadMattermostAttachments(ctx context.Context, channelID string, attachments []platformFileSpec) ([]string, error) {
-	files, errorValue := service.validatePlatformFiles(attachments)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.uploadMattermostFiles(ctx, channelID, files)
-}
-
-func (service Service) uploadMattermostFiles(ctx context.Context, channelID string, files []platformFile) ([]string, error) {
-	fileIDs := []string{}
-	for _, file := range files {
-		fileID, errorValue := service.uploadMattermostFile(ctx, channelID, file)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		fileIDs = append(fileIDs, fileID)
-	}
-	return fileIDs, nil
-}
-
-func (service Service) uploadMattermostFile(ctx context.Context, channelID string, file platformFile) (string, error) {
-	configuration := service.Configuration.WithDefaults()
-	token := readSecretValue(configuration.MattermostTokenPath)
-	if token == "" {
-		return "", errors.New("mattermost bot token is not configured")
-	}
-	document, errorValue := os.ReadFile(file.DevicePath)
-	if errorValue != nil {
-		return "", errors.New("attachment file is unavailable")
-	}
-	var requestBody bytes.Buffer
-	multipartWriter := multipart.NewWriter(&requestBody)
-	if errorValue := multipartWriter.WriteField("channel_id", channelID); errorValue != nil {
-		return "", errorValue
-	}
-	fileWriter, errorValue := multipartWriter.CreateFormFile("files", file.Filename)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	if _, errorValue := fileWriter.Write(document); errorValue != nil {
-		return "", errorValue
-	}
-	if errorValue := multipartWriter.Close(); errorValue != nil {
-		return "", errorValue
-	}
-	requestURL := strings.TrimRight(configuration.MattermostBaseURL, "/") + "/api/v4/files"
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, &requestBody)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	request.Header.Set("Authorization", "Bearer "+token)
-	request.Header.Set("Content-Type", multipartWriter.FormDataContentType())
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	defer response.Body.Close()
-	responseDocument, _ := io.ReadAll(response.Body)
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", errors.New(string(responseDocument))
-	}
-	var uploadResponse struct {
-		FileInfos []struct {
-			ID string `json:"id"`
-		} `json:"file_infos"`
-	}
-	if errorValue := json.Unmarshal(responseDocument, &uploadResponse); errorValue != nil {
-		return "", errorValue
-	}
-	if len(uploadResponse.FileInfos) == 0 || strings.TrimSpace(uploadResponse.FileInfos[0].ID) == "" {
-		return "", errors.New("mattermost file upload returned no file id")
-	}
-	return uploadResponse.FileInfos[0].ID, nil
 }
 
 func (service Service) postSlackReplyWithAttachments(ctx context.Context, handle platformHandle, request replyRequest) (string, error) {

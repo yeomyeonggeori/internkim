@@ -1,36 +1,30 @@
 # Expensive Tests
 
-Expensive tests make paid model calls. Each JSON file is one ordered scenario.
-Its steps share one virtual session, stop at the first failure, and pass only
-when every step satisfies its strict assertions.
+Each JSON file is one ordered scenario. Its steps share one session, stop at the
+first failure, and pass only when every step satisfies its strict assertions.
+
+**Nothing runs these today.** They were driven through a real Mattermost, and
+that driver went with Mattermost. They are kept as the specification a Buzz
+driver has to satisfy, and `internkim test expensive` refuses and says so.
+
+Four of them still speak the old dialect and need rewriting before a Buzz driver
+can run them: `05-message-lifecycle` names a town-square channel in its prompt,
+and `06`, `07` and `08` assert `conversationType: "O"`, which is Mattermost's
+name for a public channel.
+
+Approval is the other gap. The scenarios that mutate wait on an approval button
+in a messenger, and the Buzz path has no such surface — blueclaw's
+`/admin/api/run/approve` bypasses the messenger entirely — so a driver has to
+decide what "the user approved" means before these can assert on it.
+
+The Linux acceptance gate in the meantime is the fleet:
 
 ```bash
-./internkim test expensive --auto-confirm
-./internkim test expensive --scenario task-lifecycle --auto-confirm
-./internkim test expensive --run-id <prepared-run> --skip-provisioning --scenario task-lifecycle --auto-confirm
-./internkim test expensive --scenario document-lifecycle
-./internkim test expensive --scenario message-lifecycle --auto-confirm
-./internkim test expensive --maximum-model-tier high
-./internkim test expensive --real
-./internkim test full
+./internkim dev fleet run --scenario buzz-attachment
+./internkim dev fleet run --scenario buzz-direct-message
 ```
 
-The default ceiling is `xlow`; image input may use `low`. With a ceiling,
-coding work uses the ceiling tier. Without a ceiling, `--real` uses the normal
-configured coding model and production tier routing. Generation options use the
-provider defaults unless `--seed` or `--temperature` is supplied explicitly.
-Calendar and document lifecycle scenarios use short, observable capability and
-file-tool flows designed for the default `xlow` ceiling.
-
-`cheap` runs only non-paid checks. `expensive` does not include `cheap`.
-`full` runs `cheap` first and then every expensive scenario.
-
-Task, calendar, website, document, file, and message lifecycle scenarios use
-`--auto-confirm` to click real Mattermost approval buttons and wait for the
-approved task to finish.
-
-Each retained scenario directory keeps real Mattermost screenshots, browser-
-downloaded files, and website screenshots under `evidence/`. Internal result,
-event, timing, and Playwright trace data stays under `diagnostics/`. The
-machine-readable `manifest.json` indexes user-visible evidence separately from
-diagnostic paths.
+Retained scenario directories keep screenshots, downloaded files and website
+screenshots under `evidence/`. Result, event, timing and Playwright trace data
+stays under `diagnostics/`. The machine-readable `manifest.json` indexes
+user-visible evidence separately from diagnostic paths.

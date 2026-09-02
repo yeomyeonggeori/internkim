@@ -81,7 +81,6 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, FileDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
-	descriptors = append(descriptors, MattermostDescriptors()...)
 	descriptors = append(descriptors, TaskToolDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, LeaveDescriptors()...)
@@ -125,10 +124,6 @@ func PlatformMessageDescriptors() []Descriptor {
 		"message_update",
 		"message_delete",
 	))
-}
-
-func MattermostDescriptors() []Descriptor {
-	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors("channel_update"))
 }
 
 func TaskToolDescriptors() []Descriptor {
@@ -215,7 +210,6 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, WebDescriptors()...)
 	descriptors = append(descriptors, FileDescriptors()...)
 	descriptors = append(descriptors, PlatformMessageDescriptors()...)
-	descriptors = append(descriptors, MattermostDescriptors()...)
 	descriptors = append(descriptors, TaskToolDescriptors()...)
 	descriptors = append(descriptors, CalendarDescriptors()...)
 	descriptors = append(descriptors, LeaveDescriptors()...)
