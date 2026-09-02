@@ -2204,6 +2204,9 @@ func (service *Service) writeClaimedAdminRole(ctx context.Context, email string)
 }
 
 func (service *Service) currentUserRecords(ctx context.Context) ([]adminUserMutation, error) {
+	if service.deviceBelongsToACompany() {
+		return service.companyMemberRecords(ctx)
+	}
 	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
 	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
 	if fleetID == "" || fleetSecret == "" {
