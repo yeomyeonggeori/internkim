@@ -72,7 +72,7 @@ function answeredEvent(context: RecordContext, row: TaskRow): AnsweredEvent {
 function attendeesOf(context: RecordContext, written: EventWritten, row: TaskRow | null): string[] {
 	if (written.everyoneAttends) return context.people.map((person) => person.personID);
 	if (written.participantPersonHints !== undefined) {
-		const named = peopleOfHints(context.people, written.participantPersonHints).map(
+		const named = peopleOfHints(context.people, written.participantPersonHints, 'participant').map(
 			(person) => person.personID
 		);
 		return named.length > 0 ? named : [context.requesterID];
@@ -114,8 +114,13 @@ function eventWriteArguments(
 	};
 }
 
+async function eventOfHint(context: RecordContext, hint: string): Promise<TaskRow> {
+	const events = await tasksOfCompany(context.caller, true);
+	return taskOfHint(events, hint, 'event', context.requesterID);
+}
+
 async function eventByID(context: RecordContext, eventID: string): Promise<TaskRow> {
-	return taskOfHint(await tasksOfCompany(context.caller, true), eventID);
+	return taskOfHint(await tasksOfCompany(context.caller, true), eventID, 'event');
 }
 
 export async function eventAdd(context: RecordContext, input: EventWritten): Promise<AnsweredEvent> {
@@ -129,7 +134,7 @@ export async function eventUpdate(
 	input: EventWritten & { eventHint?: string }
 ): Promise<AnsweredEvent> {
 	if (!input.eventHint) throw new Error('an update names the event it changes');
-	const row = taskOfHint(await tasksOfCompany(context.caller, true), input.eventHint);
+	const row = await eventOfHint(context, input.eventHint);
 	const saved = await saveTask(context.caller, eventWriteArguments(context, input, row));
 	return answeredEvent(context, await eventByID(context, saved));
 }
@@ -139,7 +144,7 @@ export async function eventDelete(
 	input: { eventHint?: string }
 ): Promise<{ eventID: string; deleted: true }> {
 	if (!input.eventHint) throw new Error('a deletion names the event it removes');
-	const row = taskOfHint(await tasksOfCompany(context.caller, true), input.eventHint);
+	const row = await eventOfHint(context, input.eventHint);
 	await deleteTask(context.caller, row.id);
 	return { eventID: row.id, deleted: true };
 }

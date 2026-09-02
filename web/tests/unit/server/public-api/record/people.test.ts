@@ -1,11 +1,22 @@
 import { describe, expect, test } from 'bun:test';
-import { HintUnresolved, personOfHint, peopleOfHints } from '$lib/server/public-api/record/people';
+import { personOfHint, peopleOfHints } from '$lib/server/public-api/record/people';
+import { HintRefused } from '$lib/server/public-api/record/hint-resolution';
 
 const people = [
 	{ personID: 'm1', name: '이샘플', email: 'sample@example.com' },
 	{ personID: 'm2', name: '박예시', email: 'yesi@example.com' },
 	{ personID: 'm3', name: '박예시연', email: 'yesiyeon@example.com' }
 ];
+
+function refusalOf(hint: string): HintRefused {
+	try {
+		personOfHint(people, hint);
+	} catch (thrown) {
+		if (thrown instanceof HintRefused) return thrown;
+		throw thrown;
+	}
+	throw new Error(`${hint} was expected to be refused`);
+}
 
 describe('naming a person', () => {
 	test('takes an id or an address exactly, whatever the case', () => {
@@ -22,22 +33,55 @@ describe('naming a person', () => {
 		expect(personOfHint(people, '예시연').personID).toBe('m3');
 	});
 
+	test('takes an @handle derived from the address', () => {
+		expect(personOfHint(people, '@yesi').personID).toBe('m2');
+	});
+
 	test('refuses a part two people answer to, and says who they are', () => {
+		const refusal = refusalOf('박');
+		expect(refusal.outcome).toBe('ambiguous');
+		expect(refusal.errorCode).toBe('interaction_required');
+		expect(refusal.candidates.map((one) => one.label)).toEqual(['박예시', '박예시연']);
+		expect(refusal.candidates[0]).toEqual({
+			id: 'm2',
+			label: '박예시',
+			email: 'yesi@example.com',
+			mention: '@박예시'
+		});
+	});
+
+	test('offers the nearest when a name is a character off, and resolves nothing', () => {
+		const refusal = refusalOf('박예시연연');
+		expect(refusal.outcome).toBe('approximate');
+		expect(refusal.errorCode).toBe('interaction_required');
+		expect(refusal.candidates.map((one) => one.label)).toContain('박예시연');
+	});
+
+	test('offers the nearest for an address whose local part is a character off', () => {
+		const refusal = refusalOf('sampl@example.com');
+		expect(refusal.outcome).toBe('approximate');
+		expect(refusal.candidates.map((one) => one.label)).toContain('이샘플');
+	});
+
+	test('refuses a name nothing comes close to, with no candidates', () => {
+		const refusal = refusalOf('최견본');
+		expect(refusal.outcome).toBe('not_found');
+		expect(refusal.errorCode).toBe('person_not_found');
+		expect(refusal.candidates).toEqual([]);
+		expect(refusalOf('  ').outcome).toBe('not_found');
+	});
+
+	test('names the role the hint was given in', () => {
+		expect(() => personOfHint(people, '최견본', 'participant')).toThrow(HintRefused);
 		const refusal = (() => {
 			try {
-				personOfHint(people, '박');
+				personOfHint(people, '최견본', 'participant');
 			} catch (thrown) {
-				return thrown as HintUnresolved;
+				return thrown as HintRefused;
 			}
 			throw new Error('the hint was expected to be refused');
 		})();
-		expect(refusal).toBeInstanceOf(HintUnresolved);
-		expect(refusal.candidates).toEqual(['박예시', '박예시연']);
-	});
-
-	test('refuses a name nobody answers to', () => {
-		expect(() => personOfHint(people, '최견본')).toThrow(HintUnresolved);
-		expect(() => personOfHint(people, '  ')).toThrow(HintUnresolved);
+		expect(refusal.errorCode).toBe('task_participant_not_found');
 	});
 });
 
@@ -50,6 +94,6 @@ describe('naming several people', () => {
 	});
 
 	test('refuses the whole list when one name is refused', () => {
-		expect(() => peopleOfHints(people, ['m1', '없는사람'])).toThrow(HintUnresolved);
+		expect(() => peopleOfHints(people, ['m1', '없는사람'])).toThrow(HintRefused);
 	});
 });

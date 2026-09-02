@@ -159,12 +159,42 @@ read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙�
 
 수정·삭제 도구에는 별도의 ID 파라미터가 없습니다. `task_update`와
 `task_delete`는 `taskHint`를 받습니다. 정확한 task ID이거나, `task_list` 결과에
-보이는 그대로의 정확한 현재 제목입니다. 바꾸려는 새 제목이 아닙니다. 서버는
-힌트를 결정론적으로 해석하고, 정확히 하나로 좁혀지지 않으면 호출을 실패시키며
-재시도에 쓸 후보 목록을 돌려줍니다. 짐작하지 않습니다.
+보이는 그대로의 정확한 현재 제목입니다. 바꾸려는 새 제목이 아닙니다. 사람 참조도
+같은 방식입니다. `participantPersonHints`는 이름, `@handle`, 이메일을 받습니다.
 
-사람 참조도 같은 방식입니다. `participantPersonHints`는 이름, `@handle`,
-이메일을 받습니다.
+서버는 사다리를 하나 오르고, 무언가로 확정되는 것은 첫 두 칸뿐입니다.
+
+1. 정확한 식별자나 정확한 제목은 확정됩니다.
+2. 하나만 품고 있는 제목은 확정됩니다. 대소문자와 띄어쓰기는 무시합니다.
+3. 여럿이 품고 있는 제목은 모호하고, 질문으로 돌아옵니다.
+4. 아무것도 안 맞으면 가까운 것들을 찾아 질문으로 돌려줍니다.
+
+식별자는 절대 근사하지 않습니다. 한 글자 다른 ID는 오타가 아니라 지어낸
+것입니다. 가까움은 그 값이 실제로 틀리는 방식으로 잽니다. 이름과 핸들은 한두
+글자, 주소는 로컬 파트나 도메인, 제목은 얼마나 많이 겹치는지로 재기 때문에,
+철자를 틀리면 아무것도 없다가 아니라 가장 가까운 이름들이 돌아옵니다.
+
+세 번째와 네 번째 칸은 `409`로 답하고 아무것도 확정하지 않습니다.
+
+```json
+{
+  "error": "박 matches more than one person",
+  "errorCode": "interaction_required",
+  "failureStage": "target_resolution",
+  "retryable": true,
+  "safeRetry": true,
+  "hint": "박",
+  "candidates": [
+    { "id": "8f31…", "label": "박예시", "email": "yesi@example.com", "mention": "@박예시" }
+  ]
+}
+```
+
+누구를 말한 것인지 사람에게 물어야 하면 `errorCode`는 `interaction_required`이고,
+아무것도 가깝지 않으면 `task_not_found`, `calendar_event_not_found`,
+`person_not_found`, `task_participant_not_found` 중 하나입니다. 후보는 재시도에서
+하나를 정확히 지목할 수 있도록 신원을 싣고, 최대 여덟 개까지 옵니다. 거절은 무엇을
+말하라고 지시하지 않습니다. 문구는 부르는 쪽의 몫입니다.
 
 ## 처음부터 끝까지 [#end-to-end]
 

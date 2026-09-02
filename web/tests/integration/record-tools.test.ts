@@ -162,15 +162,42 @@ describe('a task written through the record', () => {
 		expect((refused.body as { registered: string[] }).registered).toEqual(['영업', '개발']);
 	});
 
-	test('refuses a hint several tasks answer to, and names them', async () => {
+	test('refuses a hint several tasks answer to, and names them with their ids', async () => {
 		await run('task_add', { title: '주차 안내 하나' });
 		await run('task_add', { title: '주차 안내 둘' });
 		const refused = await run('task_update', { taskHint: '주차 안내', status: 'completed' });
+		const refusal = refused.body as {
+			errorCode: string;
+			failureStage: string;
+			retryable: boolean;
+			safeRetry: boolean;
+			candidates: { id: string; label: string }[];
+		};
 		expect(refused.status).toBe(409);
-		expect([...(refused.body as { candidates: string[] }).candidates].sort()).toEqual([
-			'주차 안내 둘',
-			'주차 안내 하나'
-		]);
+		expect(refusal.errorCode).toBe('interaction_required');
+		expect(refusal.failureStage).toBe('target_resolution');
+		expect(refusal.retryable).toBe(true);
+		expect(refusal.safeRetry).toBe(true);
+		expect(refusal.candidates.map((one) => one.label).sort()).toEqual(['주차 안내 둘', '주차 안내 하나']);
+		expect(refusal.candidates.every((one) => one.id !== '')).toBe(true);
+	});
+
+	test('offers the nearest people when a name is a character off, and resolves nobody', async () => {
+		const refused = await run('task_add', { title: '가까운 이름', participantPersonHints: ['박예시연'] });
+		const refusal = refused.body as {
+			errorCode: string;
+			candidates: { id: string; label: string; email: string; mention: string }[];
+		};
+		expect(refused.status).toBe(409);
+		expect(refusal.errorCode).toBe('interaction_required');
+		expect(refusal.candidates.map((one) => one.label)).toContain('박예시');
+		expect(refusal.candidates.find((one) => one.label === '박예시')?.mention).toBe('@박예시');
+	});
+
+	test('refuses a name nothing comes close to as a participant, not as a person', async () => {
+		const refused = await run('task_add', { title: '없는 사람', participantPersonHints: ['최견본'] });
+		expect(refused.status).toBe(409);
+		expect((refused.body as { errorCode: string }).errorCode).toBe('task_participant_not_found');
 	});
 
 	test('refuses a rule of the record as something to fix, not as a permission', async () => {
