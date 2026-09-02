@@ -89,7 +89,11 @@ func (service Service) askTheRecord(
 // model needs, so they are carried rather than summarised.
 func recordToolFailure(toolName string, status int, answer json.RawMessage) capabilities.ToolInvokeResponse {
 	var refusal struct {
-		Error string `json:"error"`
+		Error        string `json:"error"`
+		ErrorCode    string `json:"errorCode"`
+		FailureStage string `json:"failureStage"`
+		Retryable    *bool  `json:"retryable"`
+		SafeRetry    bool   `json:"safeRetry"`
 	}
 	json.Unmarshal(answer, &refusal)
 	message := strings.TrimSpace(refusal.Error)
@@ -105,11 +109,19 @@ func recordToolFailure(toolName string, status int, answer json.RawMessage) capa
 		Content:         message,
 		IsError:         true,
 		Message:         message,
-		ErrorCode:       recordToolErrorCode(status),
-		FailureStage:    recordToolFailureStage(status),
-		Retryable:       status == http.StatusConflict,
+		ErrorCode:       firstNonEmpty(refusal.ErrorCode, recordToolErrorCode(status)),
+		FailureStage:    firstNonEmpty(refusal.FailureStage, recordToolFailureStage(status)),
+		Retryable:       recordToolRetryable(refusal.Retryable, status),
+		SafeRetry:       refusal.SafeRetry,
 		Result:          answer,
 	}
+}
+
+func recordToolRetryable(saidByTheRecord *bool, status int) bool {
+	if saidByTheRecord != nil {
+		return *saidByTheRecord
+	}
+	return status == http.StatusConflict
 }
 
 func recordToolErrorCode(status int) string {

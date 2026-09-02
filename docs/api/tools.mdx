@@ -161,13 +161,55 @@ everywhere else the key is carried but changes nothing. For agent messages,
 
 Mutating tools take no separate ID parameter. `task_update` and `task_delete`
 take a `taskHint`: the exact task ID, or the exact current title as a
-`task_list` result shows it. Never the new or intended title. The server
-resolves the hint deterministically; when it does not resolve to exactly one
-task, the call fails and returns the list of matching candidates to retry
-against. It never guesses.
-
-Person references work the same way: `participantPersonHints` takes names,
+`task_list` result shows it. Never the new or intended title. Person
+references work the same way: `participantPersonHints` takes names,
 `@handles`, or emails.
+
+The server climbs one ladder:
+
+1. an exact identifier or an exact title resolves;
+2. a title only one candidate contains resolves, ignoring case and spacing;
+3. a title several contain resolves only when exactly one of them is the
+   caller's own task, and is otherwise a question;
+4. nothing matching is approximated, and the nearest come back as a question.
+
+Ownership on rung three is the only tie a hint breaks by itself, and it breaks
+in one direction: towards the task the caller owns, never towards somebody
+else's. A hint that leaves two of anyone else's rows standing is a question.
+
+An identifier is never approximated: an ID one character off was invented
+rather than mistyped. An identifier several rows hold — two addresses that
+share a local part, so one `@handle` — is a question rather than the first of
+them. Nearness is measured the way that kind of value is actually got wrong: a
+name or a handle by a character or two, an address by its local part or its
+domain, a title by how much of it is shared, so a misspelling comes back with
+the nearest names rather than with nothing.
+
+An unresolved hint answers `409`:
+
+```json
+{
+  "error": "박 matches more than one person",
+  "errorCode": "interaction_required",
+  "failureStage": "target_resolution",
+  "retryable": true,
+  "safeRetry": true,
+  "hint": "박",
+  "candidates": [
+    { "id": "8f31…", "label": "박예시", "email": "yesi@example.com", "handle": "@yesi" }
+  ]
+}
+```
+
+`errorCode` is `interaction_required` when somebody has to be asked which one
+was meant, and `task_not_found`, `calendar_event_not_found`,
+`person_not_found` or `task_participant_not_found` when nothing came close.
+The candidates carry the identity to name one exactly on the retry: a
+candidate's `handle` is a value the next hint accepts, where a person's
+`mention` in a tool's result is the `@name` to write into a message, so the two
+are spelled differently and are not interchangeable. At most eight candidates
+come back. Nothing in the refusal tells you what to say: the wording is the
+caller's.
 
 ## End to end [#end-to-end]
 

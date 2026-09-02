@@ -145,9 +145,6 @@ type taskWriteRequest struct {
 	StartDate       string   `json:"startDate"`
 	EndDate         string   `json:"endDate"`
 	WeekCode        string   `json:"weekCode"`
-	Flag            int      `json:"flag"`
-	RequestReason   string   `json:"requestReason"`
-	DecisionReason  string   `json:"decisionReason"`
 	IsCalendarEvent bool     `json:"isCalendarEvent"`
 	EventStartISO   string   `json:"eventStartISO"`
 	EventEndISO     string   `json:"eventEndISO"`
@@ -191,7 +188,6 @@ type inferredTask struct {
 	StartDate      string   `json:"startDate"`
 	EndDate        string   `json:"endDate"`
 	ParticipantIDs []string `json:"participantIDs"`
-	RequestReason  string   `json:"requestReason"`
 }
 
 type taskDuplicateDecision struct {

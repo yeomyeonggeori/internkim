@@ -1,4 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { handleFromEmail } from '$lib/server/fleet-user-directory';
+import { emailNearness, typoNearness } from './hint-nearness';
+import {
+	HintRefused,
+	normalized,
+	resolveHint,
+	type HintCandidate,
+	type HintMatcher,
+	type HintSubject
+} from './hint-resolution';
 
 export type RecordPerson = {
 	personID: string;
@@ -8,26 +18,18 @@ export type RecordPerson = {
 
 type MemberRow = { id: string; name: string | null; email: string | null };
 
-export class HintUnresolved extends Error {
-	constructor(
-		readonly hint: string,
-		readonly candidates: string[]
-	) {
-		super(
-			candidates.length === 0
-				? `nobody here goes by ${hint}`
-				: `${hint} could be ${candidates.join(', ')}; name one of them exactly`
-		);
-		this.name = 'HintUnresolved';
-	}
-}
-
 export function displayNameOf(member: { name: string | null; email: string | null }): string {
 	return member.name?.trim() || (member.email ?? '').split('@')[0];
 }
 
-export function mentionOf(name: string): string {
-	return name.trim() ? `@${name.trim()}` : '';
+export function mentionOf(displayName: string): string {
+	const named = displayName.trim();
+	return named ? `@${named}` : '';
+}
+
+export function handleOf(email: string): string {
+	const handle = handleFromEmail(email);
+	return handle ? `@${handle}` : '';
 }
 
 export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPerson[]> {
@@ -45,30 +47,49 @@ export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPer
 	}));
 }
 
-// An identifier is matched exactly, because a near miss is a different person.
-// A name is matched by containment, and only a single match resolves: two
-// people who both answer to the hint are an ambiguity the caller settles.
-export function personOfHint(people: RecordPerson[], hint: string): RecordPerson {
-	const asked = hint.trim();
-	if (!asked) throw new HintUnresolved(hint, []);
+const personMatcher: HintMatcher<RecordPerson> = {
+	identifiersOf: (person) => [person.personID, person.email, handleOf(person.email)],
+	titleOf: (person) => person.name,
+	nearnessTo: (person, hint) =>
+		Math.max(
+			typoNearness(normalized(hint), normalized(person.name)),
+			emailNearness(normalized(hint), normalized(person.email)),
+			typoNearness(withoutAtSign(normalized(hint)), handleFromEmail(person.email))
+		)
+};
 
-	const exact = people.find(
-		(person) => person.personID === asked || person.email.toLowerCase() === asked.toLowerCase()
-	);
-	if (exact) return exact;
-
-	const named = people.filter((person) => person.name.toLowerCase() === asked.toLowerCase());
-	if (named.length === 1) return named[0];
-
-	const contained = named.length > 0 ? named : people.filter((person) => person.name.includes(asked));
-	if (contained.length === 1) return contained[0];
-	throw new HintUnresolved(hint, contained.map((person) => person.name));
+function withoutAtSign(value: string): string {
+	return value.startsWith('@') ? value.slice(1) : value;
 }
 
-export function peopleOfHints(people: RecordPerson[], hints: string[]): RecordPerson[] {
+export function personOfHint(
+	people: RecordPerson[],
+	hint: string,
+	subject: HintSubject = 'person'
+): RecordPerson {
+	const resolution = resolveHint(hint, people, personMatcher);
+	if (resolution.outcome === 'resolved') return resolution.match;
+	throw new HintRefused(subject, hint.trim(), resolution.outcome, resolution.candidates.map(candidateOf));
+}
+
+export function candidateOf(person: RecordPerson): HintCandidate {
+	const handle = handleOf(person.email);
+	return {
+		id: person.personID,
+		label: person.name,
+		...(person.email ? { email: person.email } : {}),
+		...(handle ? { handle } : {})
+	};
+}
+
+export function peopleOfHints(
+	people: RecordPerson[],
+	hints: string[],
+	subject: HintSubject = 'person'
+): RecordPerson[] {
 	const resolved: RecordPerson[] = [];
 	for (const hint of hints) {
-		const person = personOfHint(people, hint);
+		const person = personOfHint(people, hint, subject);
 		if (!resolved.some((held) => held.personID === person.personID)) resolved.push(person);
 	}
 	return resolved;

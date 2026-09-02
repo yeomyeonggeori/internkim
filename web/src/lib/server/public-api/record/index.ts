@@ -3,9 +3,9 @@ import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } fro
 import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
 import { eventAdd, eventDelete, eventList, eventUpdate } from './event-tools';
-import { HintUnresolved } from './people';
+import { HintRefused } from './hint-resolution';
 import { LabelUnresolved } from './labels';
-import { NothingMatchesTheHint, RecordRefusedTheWrite } from './tasks';
+import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
 import { leaveBalance, leaveDecide, leaveDelete, leaveList, leaveRequest, leaveUpdate } from './leave-tools';
 import { personList, taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
@@ -75,11 +75,31 @@ export async function runToolOverTheRecord(
 // A caller who named something the record could not place gets the candidates
 // back, so the next call can name one exactly rather than guess again.
 function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
-	if (refusal instanceof HintUnresolved) {
-		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
+	if (refusal instanceof HintRefused) {
+		return {
+			status: 409,
+			body: {
+				error: refusal.message,
+				errorCode: refusal.errorCode,
+				failureStage: refusal.failureStage,
+				retryable: refusal.retryable,
+				safeRetry: refusal.safeRetry,
+				hint: refusal.hint,
+				candidates: refusal.candidates
+			}
+		};
 	}
-	if (refusal instanceof NothingMatchesTheHint) {
-		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
+	if (refusal instanceof WriteNotReadBack) {
+		return {
+			status: 502,
+			body: {
+				error: refusal.message,
+				errorCode: refusal.errorCode,
+				failureStage: refusal.failureStage,
+				retryable: refusal.retryable,
+				safeRetry: refusal.safeRetry
+			}
+		};
 	}
 	if (refusal instanceof LabelUnresolved) {
 		return { status: 409, body: { error: refusal.message, registered: refusal.registered } };
