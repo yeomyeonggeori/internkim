@@ -1,4 +1,4 @@
-import { dayOfInstant, instantWritten, weekWindow } from './days';
+import { instantWritten, weekWindow } from './days';
 import { peopleOfHints } from './people';
 import type { RecordContext } from './company';
 import { deleteTask, saveTask, taskOfHint, tasksOfCompany, type TaskRow } from './tasks';
@@ -15,6 +15,12 @@ type EventWritten = {
 	participantPersonHints?: string[];
 };
 
+export type AnsweredAttendee = {
+	personID: string;
+	name: string;
+	email?: string;
+};
+
 export type AnsweredEvent = {
 	eventID: string;
 	title: string;
@@ -23,8 +29,9 @@ export type AnsweredEvent = {
 	startsAt: string;
 	endsAt: string;
 	isWholeDay: boolean;
-	notifyMinutesBefore: number | null;
-	participants: string[];
+	notifyMinutesBefore?: number;
+	participants: AnsweredAttendee[];
+	updatedAt: string;
 };
 
 function locationNameOf(location: unknown): string {
@@ -36,8 +43,16 @@ function locationNameOf(location: unknown): string {
 	return '';
 }
 
+function attendeesOfRow(context: RecordContext, row: TaskRow): AnsweredAttendee[] {
+	const personOf = new Map(context.people.map((person) => [person.personID, person]));
+	return row.task_participant.map(({ member_id }) => {
+		const person = personOf.get(member_id);
+		if (!person) return { personID: member_id, name: '' };
+		return { personID: member_id, name: person.name, ...(person.email ? { email: person.email } : {}) };
+	});
+}
+
 function answeredEvent(context: RecordContext, row: TaskRow): AnsweredEvent {
-	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));
 	return {
 		eventID: row.id,
 		title: row.title,
@@ -46,8 +61,9 @@ function answeredEvent(context: RecordContext, row: TaskRow): AnsweredEvent {
 		startsAt: row.starts_at ?? '',
 		endsAt: row.ends_at ?? '',
 		isWholeDay: row.is_whole_day,
-		notifyMinutesBefore: row.notify_minutes_before,
-		participants: row.task_participant.map(({ member_id }) => nameOf.get(member_id) ?? member_id)
+		...(row.notify_minutes_before ? { notifyMinutesBefore: row.notify_minutes_before } : {}),
+		participants: attendeesOfRow(context, row),
+		updatedAt: row.updated_at
 	};
 }
 
@@ -121,11 +137,11 @@ export async function eventUpdate(
 export async function eventDelete(
 	context: RecordContext,
 	input: { eventHint?: string }
-): Promise<{ eventID: string; title: string; deleted: true }> {
+): Promise<{ eventID: string; deleted: true }> {
 	if (!input.eventHint) throw new Error('a deletion names the event it removes');
 	const row = taskOfHint(await tasksOfCompany(context.caller, true), input.eventHint);
 	await deleteTask(context.caller, row.id);
-	return { eventID: row.id, title: row.title, deleted: true };
+	return { eventID: row.id, deleted: true };
 }
 
 export type EventListInput = {
@@ -180,10 +196,5 @@ export async function eventList(context: RecordContext, input: EventListInput) {
 		return searched.includes(input.query);
 	});
 	const kept = input.limit && input.limit > 0 ? found.slice(0, input.limit) : found;
-	return {
-		from: dayOfInstant(context.labels.timezone, window.from),
-		to: dayOfInstant(context.labels.timezone, window.to),
-		count: kept.length,
-		events: kept.map((row) => answeredEvent(context, row))
-	};
+	return { events: kept.map((row) => answeredEvent(context, row)) };
 }

@@ -1,6 +1,9 @@
+import { compatibilityOwnerOf } from '$lib/task/central-task';
+import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
+import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
 import { dayOfInstant, instantWritten, weekWindow, windowHoldsDay } from './days';
 import { firstRegistered, labelOf } from './labels';
-import { displayNameOf, personOfHint } from './people';
+import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
 import type { RecordContext } from './company';
 import {
 	deleteTask,
@@ -24,30 +27,67 @@ type TaskWritten = {
 	participantPersonHints?: string[];
 };
 
-export type AnsweredTask = {
-	taskID: string;
-	title: string;
-	status: string;
-	size: string;
-	business: string | null;
-	type: string | null;
-	startDate: string;
-	endDate: string;
-	participants: string[];
+export type AnsweredPerson = {
+	personID: string;
+	displayName?: string;
+	email?: string;
+	mention?: string;
 };
 
+export type AnsweredTask = {
+	taskID: string;
+	content: string;
+	ownerID: string;
+	ownerName: string;
+	participantIDs: string[];
+	participantNames: string[];
+	participantPresentations: AnsweredPerson[];
+	business: string;
+	type: string;
+	size: string;
+	status: string;
+	startDate: string;
+	endDate: string;
+	weekCode: string;
+};
+
+function presentationOf(personID: string, person: RecordPerson | undefined): AnsweredPerson {
+	if (!person) return { personID };
+	const mention = mentionOf(person.name);
+	return {
+		personID,
+		displayName: person.name,
+		...(person.email ? { email: person.email } : {}),
+		...(mention ? { mention } : {})
+	};
+}
+
+function participantsOf(context: RecordContext, row: TaskRow): AnsweredPerson[] {
+	const personOf = new Map(context.people.map((person) => [person.personID, person]));
+	return row.task_participant.map(({ member_id }) => presentationOf(member_id, personOf.get(member_id)));
+}
+
 function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
-	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));
+	const participants = participantsOf(context, row);
+	const owner = compatibilityOwnerOf(
+		participants.map((participant) => ({ id: participant.personID, name: participant.displayName ?? '' }))
+	);
+	const endDate = dayOfInstant(context.labels.timezone, row.ends_at);
 	return {
 		taskID: row.id,
-		title: row.title,
-		status: row.status,
+		content: row.title,
+		ownerID: owner.id,
+		ownerName: owner.name,
+		participantIDs: participants.map((participant) => participant.personID),
+		participantNames: participants.map((participant) => participant.displayName ?? ''),
+		participantPresentations: participants,
+		business: row.business ?? '',
+		type: row.type ?? '',
 		size: row.size ?? '',
-		business: row.business,
-		type: row.type,
+		status: row.status,
 		startDate: dayOfInstant(context.labels.timezone, row.starts_at),
-		endDate: dayOfInstant(context.labels.timezone, row.ends_at),
-		participants: row.task_participant.map(({ member_id }) => nameOf.get(member_id) ?? member_id)
+		endDate,
+		weekCode: endDate ? taskWeekCodeForDateISO(endDate) : ''
 	};
 }
 
@@ -107,12 +147,12 @@ export async function taskUpdate(
 export async function taskDelete(
 	context: RecordContext,
 	input: { taskHint?: string }
-): Promise<{ taskID: string; title: string; deleted: true }> {
+): Promise<{ taskID: string; deleted: true }> {
 	if (!input.taskHint) throw new Error('a deletion names the task it removes');
 	const tasks = await tasksOfCompany(context.caller, false);
 	const row = taskOfHint(tasks, input.taskHint);
 	await deleteTask(context.caller, row.id);
-	return { taskID: row.id, title: row.title, deleted: true };
+	return { taskID: row.id, deleted: true };
 }
 
 export type TaskListInput = {
@@ -146,26 +186,33 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
 	return {
 		scope: ownerID ? 'person' : 'everyone',
-		personID: ownerID,
-		personName: ownerID ? context.people.find((one) => one.personID === ownerID)?.name ?? '' : '',
-		weekFrom: input.weekFrom ?? null,
-		weekTo: input.weekTo ?? null,
-		statusFilter: input.status ?? null,
+		ownerID: ownerID ?? '',
+		weekFrom: input.weekFrom ?? 0,
+		weekTo: input.weekTo ?? input.weekFrom ?? 0,
+		statusFilter: input.status ?? '',
 		count: kept.length,
 		tasks: kept.map((row) => answeredTask(context, row)),
-		registeredLabels: { businesses: context.labels.businesses, types: context.labels.types }
+		registeredLabels: {
+			businesses: context.labels.businesses,
+			types: context.labels.types,
+			sizes: Object.values(WorkspaceTaskSize),
+			statuses: Object.values(WorkspaceTaskStatus)
+		}
+	};
+}
+
+function listedPerson(person: RecordPerson) {
+	const mention = mentionOf(person.name);
+	return {
+		personID: person.personID,
+		name: person.name,
+		email: person.email,
+		...(mention ? { mention } : {})
 	};
 }
 
 export function personList(context: RecordContext) {
-	return {
-		count: context.people.length,
-		people: context.people.map((person) => ({
-			personID: person.personID,
-			name: person.name,
-			email: person.email
-		}))
-	};
+	return { count: context.people.length, people: context.people.map(listedPerson) };
 }
 
 export { displayNameOf, personOfHint };
