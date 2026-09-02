@@ -4,6 +4,7 @@ import {
 	controlPlane,
 	inviteMember,
 	provisionCompany,
+	resetMemberPassword,
 } from '../../src/lib/server/control-plane';
 import {
 	connectMessengerAccount,
@@ -70,6 +71,19 @@ describe('provisioning a company', () => {
 
 		expect(data!.user_id).not.toBeNull();
 		expect(data!.status).toBe('invited');
+	});
+
+	test('resetting a password issues a new one and leaves the member where it was', async () => {
+		const memberID = await addMember(client, companyID, colleagueEmail);
+		const invitation = await inviteMember(client, memberID);
+		await client.from('member').update({ status: 'active' }).eq('id', memberID);
+
+		const reset = await resetMemberPassword(client, memberID);
+		const { data } = await client.from('member').select('status').eq('id', memberID).single();
+
+		expect(reset.email).toBe(colleagueEmail);
+		expect(reset.temporaryPassword).not.toBe(invitation.temporaryPassword);
+		expect(data!.status).toBe('active');
 	});
 
 	test('a platform identity resolves back to its member', async () => {
