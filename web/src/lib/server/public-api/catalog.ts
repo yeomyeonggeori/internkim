@@ -13,7 +13,9 @@ const catalog: ToolCatalog = catalogDocument;
 
 const sideEffectClassVocabulary: string[] = descriptorSchema.properties.sideEffectClass.enum;
 
-const reachableTools: ToolDescriptor[] = catalog.tools.filter(statesAResultContract);
+const reachableTools: ToolDescriptor[] = catalog.tools.filter(
+	(tool) => statesAResultContract(tool) && tool.answeredBy !== 'local'
+);
 
 const permissionRanks: Record<PublicAPIPermission, number> = { read: 1, write: 2, delete: 3 };
 
