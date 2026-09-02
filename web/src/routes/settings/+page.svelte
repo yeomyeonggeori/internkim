@@ -3,6 +3,7 @@
 	import CompanyProfileImage from './company-profile-image.svelte';
 	import CompanyConnections from './company-connections.svelte';
 	import SignInPasskeys from './sign-in-passkeys.svelte';
+	import SignInPassword from './sign-in-password.svelte';
 	import PersonalAPIKeys from './personal-access-tokens.svelte';
 	import Notifications from './notifications.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
@@ -38,6 +39,9 @@
 			<p class="text-sm text-muted-foreground">{text.signInDescription}</p>
 		</header>
 		<SignInPasskeys />
+		{#if isSupabaseConfigured()}
+			<SignInPassword />
+		{/if}
 		<PersonalAPIKeys />
 		<Notifications />
 		<MyMessengerAccount />
