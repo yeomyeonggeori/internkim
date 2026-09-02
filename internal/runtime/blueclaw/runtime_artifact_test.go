@@ -134,15 +134,17 @@ func TestPrepareRuntimeScriptKeysTheGuestKernelToItsConfiguration(t *testing.T) 
 	}
 }
 
-func TestGuestKernelConfigurationCarriesBothVirtioTransports(t *testing.T) {
+func TestGuestKernelConfigurationCarriesVirtioOverPCIOnly(t *testing.T) {
 	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
 	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "guest-kernel-aarch64.config"))
 	if errorValue != nil {
 		t.Fatalf("expected guest kernel configuration: %v", errorValue)
 	}
 	configuration := string(document)
+	if !strings.Contains(configuration, "\n# CONFIG_VIRTIO_MMIO is not set\n") {
+		t.Fatal("only Firecracker reached virtio over MMIO, so the guest kernel must not carry it")
+	}
 	for _, symbol := range []string{
-		"CONFIG_VIRTIO_MMIO=y",
 		"CONFIG_SERIAL_8250_CONSOLE=y",
 		"CONFIG_PCI=y",
 		"CONFIG_PCI_HOST_GENERIC=y",

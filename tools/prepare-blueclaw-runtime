@@ -182,7 +182,7 @@ ssh_base_command() {
   fi
 
   if [ -n "$ssh_password" ]; then
-    SSHPASS="$ssh_password" "$repository_root/bin/sshpass" -e ssh "${ssh_options[@]}" "$@"
+    "$repository_root/bin/sshpass" -p "$ssh_password" ssh "${ssh_options[@]}" "$@"
     return
   fi
   ssh "${ssh_options[@]}" "$@"
@@ -195,7 +195,7 @@ rsync_ssh_command() {
     ssh_command="$ssh_command -o 'ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h'"
   fi
   if [ -n "$ssh_password" ]; then
-    echo "'$repository_root/bin/sshpass' -e $ssh_command"
+    echo "'$repository_root/bin/sshpass' -p '$ssh_password' $ssh_command"
     return
   fi
   echo "$ssh_command"
@@ -207,13 +207,6 @@ rsync_to_builder() {
   append_ignored_top_level_excludes
   guard_transfer_size
   rsync_ssh="$(rsync_ssh_command)"
-  if [ -n "$ssh_password" ]; then
-    SSHPASS="$ssh_password" rsync -az --delete \
-      -e "$rsync_ssh" \
-      "${rsync_excludes[@]}" \
-      "$repository_root/" "$remote_target:$remote_directory/repo/"
-    return
-  fi
   rsync -az --delete \
     -e "$rsync_ssh" \
     "${rsync_excludes[@]}" \
@@ -225,12 +218,6 @@ rsync_from_builder() {
   local rsync_ssh
   rsync_ssh="$(rsync_ssh_command)"
   mkdir -p "$artifact_directory"
-  if [ -n "$ssh_password" ]; then
-    SSHPASS="$ssh_password" rsync -a --whole-file \
-      -e "$rsync_ssh" \
-      "$remote_target:$remote_directory/repo/.dependency/blueclaw-runtime/" "$artifact_directory/"
-    return
-  fi
   rsync -a --whole-file \
     -e "$rsync_ssh" \
     "$remote_target:$remote_directory/repo/.dependency/blueclaw-runtime/" "$artifact_directory/"
@@ -242,12 +229,6 @@ rsync_kernel_source_to_builder() {
   local rsync_ssh
   rsync_ssh="$(rsync_ssh_command)"
   ssh_base_command "$remote_target" "mkdir -p '$remote_directory/kernel-source'"
-  if [ -n "$ssh_password" ]; then
-    SSHPASS="$ssh_password" rsync -az \
-      -e "$rsync_ssh" \
-      "$local_kernel_source" "$remote_target:$remote_directory/kernel-source/vmlinux.bin"
-    return
-  fi
   rsync -az \
     -e "$rsync_ssh" \
     "$local_kernel_source" "$remote_target:$remote_directory/kernel-source/vmlinux.bin"
@@ -258,7 +239,7 @@ resolve_local_kernel_source() {
     echo "$kernel_source"
     return
   fi
-  if [ -s "$artifact_directory/vmlinux.bin" ]; then
+  if [ -s "$artifact_directory/vmlinux.bin" ] && published_kernel_matches_configuration; then
     echo "$artifact_directory/vmlinux.bin"
   fi
 }
@@ -491,7 +472,7 @@ prepare_kernel() {
     make -j"$(nproc)" Image
   )
 
-  assert_guest_kernel_supports_both_vmms "$kernel_source_directory/.config"
+  assert_guest_kernel_supports_cloud_hypervisor "$kernel_source_directory/.config"
 
   local built_kernel_path="$kernel_source_directory/arch/arm64/boot/Image"
   if [ ! -s "$built_kernel_path" ]; then
@@ -503,12 +484,11 @@ prepare_kernel() {
   install -m 0644 "$kernel_cache_path" "$stage_directory/vmlinux.bin"
 }
 
-assert_guest_kernel_supports_both_vmms() {
+assert_guest_kernel_supports_cloud_hypervisor() {
   local resolved_configuration_path="$1"
   local missing_symbols=()
   local symbol
   for symbol in \
-    CONFIG_VIRTIO_MMIO \
     CONFIG_SERIAL_8250_CONSOLE \
     CONFIG_PCI \
     CONFIG_PCI_HOST_GENERIC \
