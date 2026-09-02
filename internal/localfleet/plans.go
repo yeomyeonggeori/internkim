@@ -226,7 +226,6 @@ func (service Service) ephemeralCleanupPlans() []CommandPlan {
 func (service Service) predeployGatePlans() []CommandPlan {
 	return append(service.upPlans(false),
 		service.shellPlan("verify api", service.verifyCommand("api")),
-		service.shellPlan("verify mattermost", service.verifyCommand("mattermost")),
 		service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"),
 		service.shellPlan("verify browser", service.verifyCommand("browser --local")),
 	)
@@ -238,14 +237,6 @@ func (service Service) dmRecipientResolveScenarioPlans() []CommandPlan {
 
 func (service Service) mattermostScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.labCommand("scenario-mattermost"))
-}
-
-func (service Service) mattermostDirectMessageScenarioPlans(keepArtifacts bool) []CommandPlan {
-	verificationKind := "mattermost --direct-message-e2e"
-	if keepArtifacts {
-		verificationKind += " --keep"
-	}
-	return append(service.upPlans(false), service.shellPlan("verify direct message", service.verifyCommand(verificationKind)))
 }
 
 func (service Service) mattermostManualScenarioPlans() []CommandPlan {
@@ -269,23 +260,6 @@ func (service Service) mattermostAskEphemeralScenarioPlans() []CommandPlan {
 		"health",
 	}
 	return append(service.upPlansWithSkippedSetupSteps(true, skippedSteps), service.command(scriptPath, service.options.VirtualMachineName))
-}
-
-func (service Service) mattermostDocxAttachmentScenarioPlans(keepArtifacts bool) []CommandPlan {
-	prompt := "간단한 테스트 보고서를 워드 파일(.docx)로 만들어서 첨부파일로 줘. 제목은 Local Fleet DOCX Attachment Test."
-	downloadDirectory := filepath.Join(service.options.StateRootPath, "downloads", "mattermost-docx-attachment")
-	verificationKind := strings.Join([]string{
-		"mattermost",
-		"--prompt " + quoteShell(prompt),
-		"--expect-tool file_deliver",
-		"--download-files-to " + quoteShell(downloadDirectory),
-		"--wait-for-completion",
-		"--timeout 480",
-	}, " ")
-	if keepArtifacts {
-		verificationKind += " --keep"
-	}
-	return append(service.upPlans(false), service.shellPlan("verify docx attachment", service.verifyCommand(verificationKind)))
 }
 
 // Buzz is what a company's messages actually travel over; every other scenario

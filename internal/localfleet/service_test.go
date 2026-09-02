@@ -95,7 +95,6 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 		"configure-mattermost-test-settings.sh",
 		"--admin-email local-fleet-admin@internkim.test",
 		"verify api",
-		"verify mattermost",
 		"verify browser --local",
 	} {
 		if !strings.Contains(joinedPlans, expectedFragment) {
@@ -113,18 +112,6 @@ func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) 
 	script := string(document)
 	if !strings.Contains(script, "ldconfig -p | grep -F 'libgomp.so.1' >/dev/null") {
 		t.Fatal("local embedding script does not probe libgomp safely")
-	}
-}
-
-func TestMattermostDirectMessageScenarioUsesVerifyGate(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.mattermostDirectMessageScenarioPlans(false)
-	joinedPlans := joinedPlanArguments(plans)
-	if !strings.Contains(joinedPlans, "verify mattermost --direct-message-e2e") {
-		t.Fatalf("expected direct-message verify gate in plans:\n%s", joinedPlans)
 	}
 }
 
@@ -148,30 +135,6 @@ func TestMattermostAskEphemeralScenarioUsesContainerSmoke(t *testing.T) {
 	for _, skippedStep := range []string{"web", "blueclaw-runtime-base", "skills", "blueclaw-config", "blueclaw-payload", "blueclaw-payload-direct", "openrouter", "staging", "services", "users-sync", "health"} {
 		if !strings.Contains(joinedPlans, skippedStep) {
 			t.Fatalf("expected ask scenario to skip %q:\n%s", skippedStep, joinedPlans)
-		}
-	}
-}
-
-func TestMattermostDocxAttachmentScenarioUsesPromptDownloadGate(t *testing.T) {
-	service, errorValue := NewService(Options{
-		RepositoryRootPath: "/repo",
-		ExecutablePath:     "/repo/internkim",
-		StateRootPath:      "/repo/.local/local-fleet/runs/docx",
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.mattermostDocxAttachmentScenarioPlans(false)
-	joinedPlans := joinedPlanArguments(plans)
-	for _, expectedFragment := range []string{
-		"verify mattermost --prompt",
-		"Local Fleet DOCX Attachment Test",
-		"--expect-tool file_deliver",
-		"--download-files-to '/repo/.local/local-fleet/runs/docx/downloads/mattermost-docx-attachment'",
-		"--wait-for-completion",
-	} {
-		if !strings.Contains(joinedPlans, expectedFragment) {
-			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
 		}
 	}
 }
@@ -366,18 +329,6 @@ func TestPreparedFleetPlansOnlyRestoreConnectivity(t *testing.T) {
 	}
 }
 
-func TestMattermostDirectMessageScenarioCanKeepArtifacts(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.mattermostDirectMessageScenarioPlans(true)
-	joinedPlans := joinedPlanArguments(plans)
-	if !strings.Contains(joinedPlans, "verify mattermost --direct-message-e2e --keep") {
-		t.Fatalf("expected direct-message verify keep gate in plans:\n%s", joinedPlans)
-	}
-}
-
 func TestMattermostManualScenarioPreparesBrowserSession(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
@@ -437,8 +388,8 @@ func TestWithoutMattermostScenarioRunsLinuxVirtualSession(t *testing.T) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
 		}
 	}
-	if strings.Contains(joinedPlans, "setup --board lab") || strings.Contains(joinedPlans, "verify mattermost") {
-		t.Fatalf("without-mattermost scenario should not run setup or Mattermost verify:\n%s", joinedPlans)
+	if strings.Contains(joinedPlans, "setup --board lab") {
+		t.Fatalf("without-mattermost scenario should not run setup:\n%s", joinedPlans)
 	}
 }
 

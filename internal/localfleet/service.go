@@ -194,27 +194,22 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 	always := func(build func() []CommandPlan) scenarioPlanBuilder {
 		return func(bool) ([]CommandPlan, error) { return build(), nil }
 	}
-	withKeep := func(build func(bool) []CommandPlan) scenarioPlanBuilder {
-		return func(keepArtifacts bool) ([]CommandPlan, error) { return build(keepArtifacts), nil }
-	}
 	return map[string]scenarioPlanBuilder{
-		"dm-recipient-resolve":           always(service.dmRecipientResolveScenarioPlans),
-		"mattermost-bot-invited":         always(service.mattermostScenarioPlans),
-		"mattermost-direct-message-send": withKeep(service.mattermostDirectMessageScenarioPlans),
+		"dm-recipient-resolve":   always(service.dmRecipientResolveScenarioPlans),
+		"mattermost-bot-invited": always(service.mattermostScenarioPlans),
 		"mattermost-manual": func(keepArtifacts bool) ([]CommandPlan, error) {
 			if !keepArtifacts {
 				return nil, errors.New("mattermost-manual requires --keep so the browser test session remains available")
 			}
 			return service.mattermostManualScenarioPlans(), nil
 		},
-		"mattermost-ask-ephemeral":   always(service.mattermostAskEphemeralScenarioPlans),
-		"mattermost-docx-attachment": withKeep(service.mattermostDocxAttachmentScenarioPlans),
-		"buzz-attachment":            always(service.buzzAttachmentScenarioPlans),
-		"buzz-direct-message":        always(service.buzzDirectMessageScenarioPlans),
-		"restart-policy-survival":    always(service.restartPolicySurvivalScenarioPlans),
-		"workspace-persistence":      always(service.workspacePersistenceScenarioPlans),
-		"web-backed-ui":              always(func() []CommandPlan { return service.webBackedScenarioPlans("web-backed-ui") }),
-		"regression-proof":           always(func() []CommandPlan { return service.webBackedScenarioPlans("regression-proof") }),
+		"mattermost-ask-ephemeral": always(service.mattermostAskEphemeralScenarioPlans),
+		"buzz-attachment":          always(service.buzzAttachmentScenarioPlans),
+		"buzz-direct-message":      always(service.buzzDirectMessageScenarioPlans),
+		"restart-policy-survival":  always(service.restartPolicySurvivalScenarioPlans),
+		"workspace-persistence":    always(service.workspacePersistenceScenarioPlans),
+		"web-backed-ui":            always(func() []CommandPlan { return service.webBackedScenarioPlans("web-backed-ui") }),
+		"regression-proof":         always(func() []CommandPlan { return service.webBackedScenarioPlans("regression-proof") }),
 	}
 }
 
