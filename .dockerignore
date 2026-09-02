@@ -17,4 +17,3 @@ web/.svelte-kit
 *.img
 *.bin
 /internkim
-/internkim-llm-gateway
