@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from '$lib/supabase';
 import { forgetHeldTasks } from '$lib/task/task-cache';
 import { forgetLastSeenTask } from '../routes/task/task-last-seen';
@@ -84,12 +85,44 @@ export async function verifyClaimCode(email: string, code: string): Promise<void
 	if (error) throw new Error(error.message);
 }
 
-export async function setSupabasePassword(password: string): Promise<void> {
-	const { error } = await supabase().auth.updateUser({ password });
+export class WrongPasswordError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'WrongPasswordError';
+	}
+}
+
+export async function setSupabasePassword(
+	password: string,
+	client: SupabaseClient = supabase()
+): Promise<void> {
+	const { error } = await client.auth.updateUser({ password });
 	if (error) throw new Error(error.message);
 }
 
-export async function signInWithSupabase(email: string, password: string): Promise<void> {
-	const { error } = await supabase().auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-	if (error) throw new Error(error.message);
+export async function signInWithSupabase(
+	email: string,
+	password: string,
+	client: SupabaseClient = supabase()
+): Promise<void> {
+	const { error } = await client.auth.signInWithPassword({
+		email: email.trim().toLowerCase(),
+		password
+	});
+	if (!error) return;
+	if (error.code === 'invalid_credentials') throw new WrongPasswordError(error.message);
+	throw new Error(error.message);
+}
+
+export async function changeOwnPassword(
+	currentPassword: string,
+	newPassword: string,
+	client: SupabaseClient = supabase()
+): Promise<void> {
+	const { data } = await client.auth.getSession();
+	const email = data.session?.user.email;
+	if (!email) throw new Error('no signed-in account to change a password for');
+
+	await signInWithSupabase(email, currentPassword, client);
+	await setSupabasePassword(newPassword, client);
 }
