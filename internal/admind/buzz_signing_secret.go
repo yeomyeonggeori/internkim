@@ -57,7 +57,7 @@ func (service *Service) buzzSigningSecretForPubkey(ctx context.Context, pubkeyHe
 		return "", errorValue
 	}
 	for _, email := range service.everyAddressThisDeviceKnows(ctx) {
-		secretHex := service.currentBuzzSecret(ctx, seed, email, vaultSubjectForPerson(personIDs[email], email))
+		secretHex := service.currentBuzzSecret(seed, email, vaultSubjectForPerson(personIDs[email], email))
 		derived, errorValue := buzzPublicKey(secretHex)
 		if errorValue != nil {
 			return "", errorValue

@@ -65,7 +65,11 @@ func (service *Service) handleBuzzAdminReset(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, "buzz key seed is not configured", http.StatusNotImplemented)
 		return
 	}
-	personSubject := service.buzzVaultSubject(request.Context(), email)
+	personSubject, subjectError := service.buzzVaultSubject(request.Context(), email)
+	if subjectError != nil {
+		http.Error(responseWriter, "buzz_reset_failed", http.StatusBadGateway)
+		return
+	}
 	oldVersion := service.buzzIdentityVersion(personSubject)
 	oldSecret := buzzKeyForVersion(seed, email, oldVersion)
 	newVersion, errorValue := service.bumpBuzzIdentityVersion(personSubject)

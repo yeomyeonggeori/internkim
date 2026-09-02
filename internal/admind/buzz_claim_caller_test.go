@@ -8,10 +8,17 @@ import (
 
 func buzzClaimTestService(t *testing.T) *Service {
 	t.Helper()
-	return NewService(Configuration{
+	service := NewService(Configuration{
 		ListenAddress:   "127.0.0.1:18080",
 		BuzzKeySeedPath: writeTestFile(t, "a-seed-for-this-test"),
 	})
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isBlueclawPolicyGet(request) {
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		}
+		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+	})}
+	return service
 }
 
 // The relay is another service on this machine acting for somebody Supabase has
