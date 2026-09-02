@@ -18,13 +18,13 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 | `file_edit` | 정확한 텍스트 치환들을 원자적 편집 하나로 적용 |
 | `file_delete` | 승인 후 파일 하나를 지움 |
 | `file_deliver` | 완성된 워크스페이스 파일을 답장에 첨부 |
-| `terminal_run` | 워크스페이스에서 명령 하나를 실행 |
+| `shell` | 워크스페이스에서 명령 하나를 실행 |
 
 `.dependency/blueclaw/internal/agentruntime/file_tools.go`와
-`terminal_tools.go`에 등록되고, 이름은
-`.dependency/bluecollar/toolcontract/kernel_tools.go`에 있습니다. 파일
-도구는 별도 코드 경로가 아닙니다. 각자 셸 명령을 만들어 `terminal_run`과
-같은 요청자 프리미티브를 타고(`internal/agentruntime/requester_shell.go`),
+`shell_tools.go`에 등록되고, 이름은
+`.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go`에
+있습니다. 파일 도구는 별도 코드 경로가 아닙니다. 각자 셸 명령을 만들어
+`shell`과 같은 요청자 프리미티브를 타고(`internal/agentruntime/requester_shell.go`),
 요청자 본인의 `$HOME`에서 시작하므로 틸드 확장, 글롭, 상대 경로가 셸에서와
 똑같이 동작합니다.
 
@@ -76,7 +76,7 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 
 ```
 file_write   tmp/<slug>/…          초안과 빌드 입력
-terminal_run cwd=tmp/<slug>        빌드, 렌더링, 검증
+shell        cwd=tmp/<slug>        빌드, 렌더링, 검증
              artifacts/<slug>/…    완성물이 여기로 옮겨짐
 file_deliver                       받는 답장에 첨부됨
 ```
@@ -98,9 +98,7 @@ file_deliver                       받는 답장에 첨부됨
 
 ## 사람이 있어야 할 때 [#presence]
 
-로그인, MFA, 파일 선택, 확인은 컴패니언을 통해 사용자 자기 컴퓨터에서
-일어납니다. `file_pick`은 고른 파일을 서명된 브로커로 올리고 만료 시간이
-붙은 임시 장비 경로만 보고합니다. 로컬 경로는 사용자 컴퓨터를 떠나지
-않습니다. 파일·터미널 도구 옆에서 모델은 실행 제어 도구(`plan_update`,
+로그인, MFA, 확인은 컴패니언을 통해 사용자 자기 컴퓨터에서 일어나고,
+컴패니언은 에이전트에게 필요한 것만 돌려줍니다. 파일·터미널 도구 옆에서 모델은 실행 제어 도구(`plan_update`,
 `conversation_history`, `request_tools`, `ask_*` 프롬프트)도 쥐는데, 이들은
 실행 자체를 조형할 뿐 바깥의 무엇도 건드리지 않습니다.

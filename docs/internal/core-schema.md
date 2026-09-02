@@ -1,10 +1,10 @@
-# Core schema — the source of truth
+# Core schema — the decisions behind it
 
-Status: **canonical**. Owner: this document plus
-[`supabase/migrations/20260803000001_core_schema.sql`](../../supabase/migrations/20260803000001_core_schema.sql)
-and the later additive migrations in that directory.
-Verified by [`supabase/tests/rls_company_isolation.test.sql`](../../supabase/tests/rls_company_isolation.test.sql)
-(21 blocks, all green against a real Postgres).
+[`supabase/migrations/`](../../supabase/migrations/) is the schema itself and
+[`supabase/tests/`](../../supabase/tests/) is what holds it honest. This document
+holds the decisions behind it: what each table is for, why the ones that were
+proposed and rejected are absent, and which rules a client has to keep because
+the database cannot.
 
 Every new surface — the SaaS web app, the host agent, the central API — targets
 this schema. The device-era attendance and leave code in `internal/admind` does
@@ -17,21 +17,18 @@ run; this one decides what the data is.
 
 ## 1. Tables
 
-| Table | Purpose |
-|---|---|
-| `company` | One customer. The tenant boundary every RLS policy resolves to. |
-| `member` | One person in a company. Exists before they have an account. |
-| `credential` | A member's identity or secret on an external system. |
-| `organization` | An external institution, company, group, or prospect. |
-| `contact` | An external person and their messenger accounts. |
-| `opportunity` | A deal or ongoing case for an organization. |
-| `task` | Work. Also carries events and CRM activities — see §3. |
-| `task_participant` | Who attends a task. |
-| `attendance` | Clock-in / clock-out events, with location. |
-| `leave` | Time off. |
-| `push_device` | Somewhere a member can be reached with a notification. |
-| `circle` | A named group a member is put in by hand, for sharing. Named the way `team` is, unique per company. |
-| `circle_member` | Who is in a circle. |
+Read the table list from `supabase/migrations`; retyping it here is how it went
+stale the first time. What the names do not say:
+
+- `task` is work, and also events and CRM activities — see §3.
+- `member` is one person in a company, and exists before they have an account.
+- `credential` is a member's identity or secret on an external system.
+- `contact` is an external person and their messenger accounts; `organization`
+  is the institution they belong to and `opportunity` the deal with it.
+- `circle` is a named group a member is put in by hand, for sharing. It is named
+  the way `team` is, unique per company, and the two answer different questions:
+  see §6.
+- `company` is one customer, and the tenant boundary every RLS policy resolves to.
 
 Tables are singular. Timestamps are `timestamptz` named `_at`. Booleans use an
 `is_` prefix. Creation timestamps exist only where product behavior or audit
@@ -217,8 +214,5 @@ The service key never leaves the central plane.
 
 ## 7. Migrations
 
-While the project holds no real data, the single migration file is edited in
-place and the remote is reset to match. **The moment real data lands, that stops
-**: from then on, every change is a new migration file, and the Supabase GitHub
-integration becomes worth wiring up (with "Supabase changes only" enabled — this
-repository has dozens of branches).
+Every change is a new migration file. An applied migration is never edited,
+because the remote carries real data and cannot be reset to match.

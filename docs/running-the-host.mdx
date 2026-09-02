@@ -22,21 +22,22 @@ restarts it five seconds after any exit.
 **Wait for Postgres** at `DATABASE_URL` — the agent's own store.
 </Step>
 <Step>
-**`blueclaw-llmd`** on `/run/internkim/llmd/llmd.sock`. capabilityd counts it
-in its own health, so it still has to be up; it is no longer the model path,
-because the agent reaches the model itself through bluecollar's
-OpenAI-compatible client.
-</Step>
-<Step>
-**`internkim-capabilityd`** on `/run/internkim/capability.sock`. Optional in
-the sense that `not_configured` is a passing state, but the calendar, task,
-mail and site tools disappear without it.
+**`internkim-capabilityd`** on `/run/internkim/capability.sock`. The entrypoint
+waits for that socket and gives up if the daemon dies before it appears; once
+it is up nothing watches it again, and only the agent's own exit brings the
+bundle down. The calendar, task, mail and site tools disappear without it.
 </Step>
 <Step>
 **The agent**: `blueclaw -runtime /etc/blueclaw/runtime.json -policy
 /etc/blueclaw/policy.json`, answering on `127.0.0.1:8080`.
-`runtime.template.json` is rendered into that config from `DATABASE_URL` and
-`MESSENGER_PLATFORM`.
+`tools/render-company-runtime` fills `runtime.template.json` from this box's
+own addresses and merges capabilityd's `--print-capabilities` block into it.
+</Step>
+<Step>
+**`internkim-admind`** on `127.0.0.1:18080`, which the relay routes every
+workspace call to. It comes after the agent because it reconciles the
+company's roster onto it as it starts, and a reconcile against an agent that
+is not up yet waits two minutes for the next one.
 </Step>
 <Step>
 **`internkim-maild`** on `127.0.0.1:18092`, then **the connector** (`chatd`)
@@ -86,11 +87,9 @@ and answers neither the app nor the API. An empty messenger screen with a
 green process table is the symptom.
 </Callout>
 
-Calls that reach `admind` — the workspace screens, and every tool run through
-the public API — go over a unix socket, `ADMIND_SOCKET_PATH`, which defaults to
-`/run/internkim/admind.sock`. The bundle above starts no `admind`, so on a
-stock host those calls have nowhere to land: the API answers its catalog and
-its tokens, and an invocation does not.
+Without `admind` a person's memory, files, tasks and buzz claim answer `500`,
+and a direct message cannot go out under the name of the person who asked for
+it, because the seed that signs as them lives on this box.
 
 A company that chats on Buzz also runs the Buzz stack itself; `host/buzz/`
 carries a compose file that brings up Postgres, Redis, MinIO and the relay

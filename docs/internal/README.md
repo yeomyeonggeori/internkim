@@ -22,6 +22,9 @@ worktree.
 A document that tracked code or `AGENTS.md` links to cannot be private, or the
 link dangles for whoever clones. Check with a grep before moving one down.
 
+[`device/`](./device/) holds the rules for the frozen device path, which
+`AGENTS.md` no longer carries.
+
 The site that publishes `docs/` is `docs/web/`, a React Router build of
 Fumadocs that reads the directory above it. It publishes a named list of
 sections rather than everything it finds: `docs.files` in

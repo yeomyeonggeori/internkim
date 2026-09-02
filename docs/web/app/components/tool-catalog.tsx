@@ -1,28 +1,10 @@
 import catalog from '@/generated/tool-catalog.json';
-
-type CatalogLanguage = 'en' | 'ko';
-
-const koreanSideEffectLabels: Record<string, string> = {
-  read: '읽기',
-  workspace_write: '워크스페이스 쓰기',
-  external_write: '외부 수정',
-  external_send: '외부 발송',
-  site_publish: '사이트 게시',
-  connect: '연결',
-  destructive: '삭제',
-};
+import { approvalHeading, sideEffectLabel, yesOrNoLabel, type CatalogLanguage } from '@/lib/catalog-words';
 
 const columnHeadings: Record<CatalogLanguage, [string, string, string]> = {
   en: ['Tool', 'Effect', 'What the model reads'],
   ko: ['도구', '영향', '에이전트가 읽는 설명'],
 };
-
-function sideEffectLabel(sideEffectClass: string, language: CatalogLanguage): string {
-  if (language === 'ko') {
-    return koreanSideEffectLabels[sideEffectClass] ?? sideEffectClass;
-  }
-  return sideEffectClass;
-}
 
 export function ToolProtocolVersion() {
   return <>{catalog.protocolVersion}</>;
@@ -51,6 +33,7 @@ export function ToolCatalog({
           <tr>
             <th>{toolHeading}</th>
             <th>{effectHeading}</th>
+            <th>{approvalHeading(language)}</th>
             <th>{descriptionHeading}</th>
           </tr>
         </thead>
@@ -61,6 +44,7 @@ export function ToolCatalog({
                 <code>{tool.name}</code>
               </td>
               <td>{language === 'en' ? <code>{tool.sideEffectClass}</code> : sideEffectLabel(tool.sideEffectClass, language)}</td>
+              <td>{yesOrNoLabel(tool.requiresApproval, language)}</td>
               <td>{tool.summary}</td>
             </tr>
           ))}

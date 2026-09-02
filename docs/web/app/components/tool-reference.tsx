@@ -1,6 +1,7 @@
 import catalog from '@/generated/tool-catalog.json';
+import { approvalHeading, sideEffectLabel, yesOrNoLabel, type CatalogLanguage } from '@/lib/catalog-words';
 
-type ReferenceLanguage = 'en' | 'ko';
+type ReferenceLanguage = CatalogLanguage;
 
 type ReferenceTool = {
   name: string;
@@ -17,43 +18,22 @@ const labels: Record<ReferenceLanguage, Record<string, string>> = {
   en: {
     namespace: 'Namespace',
     effect: 'Effect',
-    approval: 'Approval',
     presence: 'Presence',
     privacy: 'Privacy',
     version: 'Version',
-    required: 'required',
-    notRequired: 'not required',
     modelReads: 'What the model reads',
     endpoint: 'Call it over HTTP',
   },
   ko: {
     namespace: '네임스페이스',
     effect: '영향',
-    approval: '승인',
     presence: '사용자 참석',
     privacy: '민감도',
     version: '버전',
-    required: '필요',
-    notRequired: '불필요',
     modelReads: '에이전트가 읽는 설명',
     endpoint: 'HTTP로 부르기',
   },
 };
-
-const koreanSideEffects: Record<string, string> = {
-  read: '읽기',
-  workspace_write: '워크스페이스 쓰기',
-  external_write: '외부 수정',
-  external_send: '외부 발송',
-  site_publish: '사이트 게시',
-  connect: '연결',
-  destructive: '삭제',
-};
-
-function sideEffectLabel(sideEffectClass: string, language: ReferenceLanguage): string {
-  if (language === 'ko') return koreanSideEffects[sideEffectClass] ?? sideEffectClass;
-  return sideEffectClass;
-}
 
 function findTool(name: string): ReferenceTool | undefined {
   return (catalog.tools as ReferenceTool[]).find((tool) => tool.name === name);
@@ -64,7 +44,6 @@ export function ToolReference({ name, language }: { name: string; language: Refe
   if (!tool) return null;
 
   const word = labels[language];
-  const yesOrNo = (required: boolean) => (required ? word.required : word.notRequired);
 
   return (
     <>
@@ -81,12 +60,12 @@ export function ToolReference({ name, language }: { name: string; language: Refe
             <td>{sideEffectLabel(tool.sideEffectClass, language)}</td>
           </tr>
           <tr>
-            <th>{word.approval}</th>
-            <td>{yesOrNo(tool.requiresApproval)}</td>
+            <th>{approvalHeading(language)}</th>
+            <td>{yesOrNoLabel(tool.requiresApproval, language)}</td>
           </tr>
           <tr>
             <th>{word.presence}</th>
-            <td>{yesOrNo(tool.requiresUserPresence)}</td>
+            <td>{yesOrNoLabel(tool.requiresUserPresence, language)}</td>
           </tr>
           <tr>
             <th>{word.privacy}</th>
