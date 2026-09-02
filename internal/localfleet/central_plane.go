@@ -55,11 +55,11 @@ func (service Service) joinCentralPlaneCommand() string {
 			"printf '%s\\n' \"$(printf %s \"$"+encodedVariable+"\" | base64 -d)\" > "+setting.path,
 			"chmod "+setting.mode+" "+setting.path,
 		)
-		carried = append(carried, encodedVariable+"=$(printf %s \\\"$"+setting.variable+"\\\" | base64 | tr -d '\\n')")
+		carried = append(carried, encodedVariable+`=$(printf %s "$`+setting.variable+`" | base64 | tr -d '\n')`)
 	}
 	encodedScript := base64.StdEncoding.EncodeToString([]byte(strings.Join(remoteSteps, "\n")))
-	remoteCommand := "\"sudo env " + strings.Join(carried, " ") +
-		" sh -c \\\"echo " + encodedScript + " | base64 -d | sh\\\"\""
+	remoteCommand := `"sudo env ` + strings.Join(carried, " ") +
+		` sh -c 'echo ` + encodedScript + ` | base64 -d | sh'"`
 	return strings.Join([]string{
 		". " + quoteShell(service.centralPlaneSettingsPath()),
 		quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) +
