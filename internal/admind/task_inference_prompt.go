@@ -25,7 +25,7 @@ func taskLLMRequest(prompt string, weekCode string, owner taskMember, members []
 			"document": map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
-				"required":             []string{"category", "type", "content", "goal", "size", "status", "startDate", "endDate", "participantIDs", "requestReason"},
+				"required":             []string{"category", "type", "content", "goal", "size", "status", "startDate", "endDate", "participantIDs"},
 				"properties": map[string]any{
 					"category":       map[string]any{"type": "string", "enum": append([]string{""}, definitions.Categories...)},
 					"type":           map[string]any{"type": "string", "enum": definitions.Types},
@@ -36,7 +36,6 @@ func taskLLMRequest(prompt string, weekCode string, owner taskMember, members []
 					"startDate":      map[string]any{"type": "string"},
 					"endDate":        map[string]any{"type": "string"},
 					"participantIDs": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": memberIDOptions(members)}},
-					"requestReason":  map[string]any{"type": "string"},
 				},
 			},
 		},

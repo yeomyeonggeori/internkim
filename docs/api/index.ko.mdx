@@ -98,9 +98,10 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 ## 오류 [#errors]
 
 성공 본문은 JSON이고, 오류 본문은 평문입니다. 앱이 JSON으로 답하는 예외가
-둘 있습니다. 카탈로그 자신의 `{"error":"not found"}`, 그리고 힌트 거절인데
-후자는 다음 호출이 하나를 정확히 지목할 수 있도록 `hint`와 `candidates`를
-싣습니다.
+둘 있습니다. 카탈로그 자신의 `{"error":"not found"}`, 그리고
+[힌트 거절](/docs/api/tools#choosing-a-target-with-a-hint)인데 후자는 다음 호출이
+하나를 정확히 지목할 수 있도록 `errorCode`, `failureStage`, `retryable`,
+`safeRetry`, `hint`, `candidates`를 싣습니다.
 
 답하는 기계가 둘이고, 둘은 문구를 공유하지 않습니다. 앱이 스스로 해결하는
 것은 앱이 답합니다.
@@ -117,7 +118,7 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 | `403` | `write permission required` | 읽기 전용 토큰으로 에이전트 엔드포인트를 부를 때 |
 | `404` | `{"error":"not found"}` | 이 토큰이 볼 수 없는 도구를 `GET /v1/tools/<name>`으로 물을 때 |
 | `409` | `a token cannot revoke itself...` | 인증에 쓴 그 토큰을 `DELETE /v1/token`으로 지우려 할 때 |
-| `409` | `hint`와 `candidates`가 실린 힌트 거절 | 힌트가 아무것도 못 맞혔거나 여럿을 맞혔을 때 |
+| `409` | `errorCode`, `hint`, `candidates`가 실린 힌트 거절 | 힌트가 여럿을 맞혔거나, 가까운 것만 있거나, 아무것도 못 맞혔을 때 |
 | `500` | `the control plane is not configured` | 앱에 Supabase 설정이 없을 때 |
 | `502` | `the gateway answered <status>, and no status a caller can use` | 게이트웨이가 부르는 쪽이 쓸 수 없는 것을 답했을 때 |
 | `503` | `the company gateway is not configured` | 회사에 닿는 길을 아무도 모르는 채로 실행을 부를 때 |
