@@ -101,12 +101,6 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "company_record_delete", Handler: Service.invokeCompanyTool},
 	{ToolName: "company_record_list", Handler: Service.invokeCompanyTool},
 	{ToolName: "company_record_update", Handler: Service.invokeCompanyTool},
-	{ToolName: "google_docs_create", Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google_sheets_create", Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google_gmail_send", Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google_calendar_event", Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google_event_list", Handler: Service.invokeGoogleWorkspaceTool},
-	{ToolName: "google_drive_import_pptx", Handler: Service.invokeGoogleWorkspaceTool},
 }
 
 var capabilityToolDescriptorsByCanonicalName = buildCapabilityToolDescriptorsByCanonicalName()
@@ -118,7 +112,7 @@ type capabilityApprovalFailure struct {
 }
 
 func buildCapabilityToolDescriptorsByCanonicalName() map[string]capabilities.Descriptor {
-	descriptors := capabilities.RegisteredToolDescriptors()
+	descriptors := capabilities.DefaultToolDescriptors()
 	byCanonicalName := make(map[string]capabilities.Descriptor, len(descriptors))
 	for _, descriptor := range descriptors {
 		byCanonicalName[descriptor.CanonicalName] = descriptor

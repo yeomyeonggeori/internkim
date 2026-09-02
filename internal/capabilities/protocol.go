@@ -190,17 +190,6 @@ func ArtifactDescriptors() []Descriptor {
 	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors("artifact_review"))
 }
 
-func GoogleWorkspaceDescriptors() []Descriptor {
-	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
-		"google_docs_create",
-		"google_sheets_create",
-		"google_gmail_send",
-		"google_calendar_event",
-		"google_event_list",
-		"google_drive_import_pptx",
-	))
-}
-
 func completionEvidence(mode string, action string, targetKind string) *CompletionEvidenceDescriptor {
 	return &CompletionEvidenceDescriptor{Mode: mode, Action: action, TargetKind: targetKind}
 }
@@ -218,12 +207,6 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, ArtifactDescriptors()...)
 	descriptors = append(descriptors, CompanyDescriptors()...)
-	return canonicalizeDescriptors(descriptors)
-}
-
-func RegisteredToolDescriptors() []Descriptor {
-	descriptors := DefaultToolDescriptors()
-	descriptors = append(descriptors, GoogleWorkspaceDescriptors()...)
 	return canonicalizeDescriptors(descriptors)
 }
 
@@ -269,7 +252,7 @@ func buildToolNamespaces() map[string]string {
 	for _, descriptor := range CompanionToolDescriptors() {
 		namespaceByToolName[descriptor.Name] = descriptor.Namespace
 	}
-	for _, descriptor := range RegisteredToolDescriptors() {
+	for _, descriptor := range DefaultToolDescriptors() {
 		namespaceByToolName[descriptor.Name] = descriptor.Namespace
 	}
 	return namespaceByToolName

@@ -35,7 +35,6 @@ type Configuration struct {
 	SocketPath                    string
 	VSockPort                     int
 	OpenRouterKeyPath             string
-	GoogleWorkspaceWebhookPath    string
 	SlackTokenPath                string
 	SlackAppTokenPath             string
 	SignalJSONRPCURL              string
@@ -186,7 +185,6 @@ func DefaultConfiguration() Configuration {
 		SocketPath:                    "/run/internkim/capability.sock",
 		VSockPort:                     0,
 		OpenRouterKeyPath:             "/root/.internkim/secrets/openrouter-api-key",
-		GoogleWorkspaceWebhookPath:    "/root/.internkim/secrets/gas-webhook-url",
 		SlackTokenPath:                "/root/.internkim/secrets/slack-bot-token",
 		SlackAppTokenPath:             "/root/.internkim/secrets/slack-app-token",
 		SignalJSONRPCURLPath:          "/root/.internkim/config/signal-jsonrpc-url",
@@ -1032,9 +1030,6 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.OpenRouterKeyPath == "" {
 		configuration.OpenRouterKeyPath = defaultConfiguration.OpenRouterKeyPath
-	}
-	if configuration.GoogleWorkspaceWebhookPath == "" {
-		configuration.GoogleWorkspaceWebhookPath = defaultConfiguration.GoogleWorkspaceWebhookPath
 	}
 	if configuration.SlackTokenPath == "" {
 		configuration.SlackTokenPath = defaultConfiguration.SlackTokenPath

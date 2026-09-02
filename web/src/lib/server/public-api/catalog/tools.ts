@@ -15,7 +15,6 @@ import {
   type CapabilityToolCatalog,
   type CapabilityToolDefinition,
 } from './definition';
-import { googleWorkspaceToolDefinitions } from './google';
 import { mailToolDefinitions } from './mail';
 import { modelToolDefinitions } from './model';
 
@@ -1686,7 +1685,6 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
   ...mailToolDefinitions,
-  ...googleWorkspaceToolDefinitions,
   ...modelToolDefinitions,
 ];
 

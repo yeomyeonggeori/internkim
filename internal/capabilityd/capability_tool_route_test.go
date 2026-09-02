@@ -7,7 +7,7 @@ import (
 )
 
 func TestEveryRegisteredToolHasARoute(t *testing.T) {
-	for _, descriptor := range capabilities.RegisteredToolDescriptors() {
+	for _, descriptor := range capabilities.DefaultToolDescriptors() {
 		if _, hasRoute := capabilityToolRouteFor(descriptor.CanonicalName); !hasRoute {
 			t.Errorf("%s is in the catalog but no route serves it, so an agent that calls it is told the tool is not configured", descriptor.CanonicalName)
 		}
