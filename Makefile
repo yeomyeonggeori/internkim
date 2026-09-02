@@ -1,14 +1,13 @@
 GO_HOST ?= $(shell go env GOOS 2>/dev/null)-$(shell go env GOARCH 2>/dev/null)
 GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
-BLUECLAW_GO_CACHE ?= /tmp/blueclaw-go-cache
 COMPANION_TARGET_TRIPLE ?= $(shell rustc -vV 2>/dev/null | sed -n 's/host: //p')
 RELAY_TARGET ?=
 AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-maild build-relay build-companion build-companion-shell package-companion-beta verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-api verify-browser verify-graphiti-local
+.PHONY: build build-maild build-relay build-companion build-companion-shell package-companion-beta verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser verify-graphiti-local
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -48,15 +47,8 @@ verify-generated-protocol:
 	cd .dependency/blueclaw/protocol && bun run generate:check
 	cd .dependency/blueclaw/protocol && bun run generate:check --target ../../../pkg/capabilityprotocol/generated
 
-check: build build-companion
-	cd companion && bun run check
-	cd companion && bun run test
-	cd web && bun run check
-	cd web && bun run test:unit
-	cd .dependency/blueclaw/protocol && bun run build
-	cd .dependency/blueclaw/protocol && bun test
-	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test ./...
-	cd .dependency/blueclaw && GOCACHE=$(BLUECLAW_GO_CACHE) go test ./...
+check:
+	tools/verify --all
 
 test: check
 
@@ -116,10 +108,6 @@ deploy-after-fleet: build
 sim-gate: fleet-gate
 
 deploy-after-sim: deploy-after-fleet
-
-verify-api: build
-	./internkim verify api
-	./internkim verify mattermost
 
 verify-browser: build
 	./internkim verify browser --local

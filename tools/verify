@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Run the checks a change needs, before it is pushed.
 
-Every group here is one job GitHub Actions used to run. It ran them on push and
-told you minutes later; this runs the ones your diff can break and tells you
-now. Groups run at once and their output is held until they finish, so a slow
-one never hides a fast one's failure.
+This is the whole check, and this machine is where it runs; AGENTS.md says why
+no GitHub Actions workflow runs it for you.
+
+Groups run at once and their output is held until they finish, so a slow one
+never hides a fast one's failure. Groups that name the same lane share
+something a second process would corrupt, so they run one after another, in the
+order they are declared here; a lane runs every group in it even after one
+fails, because the ones after it have their own verdict to give.
 """
 
 import argparse
@@ -19,11 +23,12 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Group:
-    def __init__(self, name, patterns, commands, working_directory="."):
+    def __init__(self, name, patterns, commands, working_directory=".", lane=None):
         self.name = name
         self.patterns = patterns
         self.commands = commands
         self.working_directory = working_directory
+        self.lane = lane or name
 
     def is_touched_by(self, changed_paths):
         return any(
@@ -38,8 +43,19 @@ BUN_INSTALL = ["bun", "install", "--frozen-lockfile"]
 GROUPS = [
     Group(
         "blueclaw-pointer",
-        [".dependency/blueclaw"],
+        [".dependency/blueclaw*"],
         [["tools/verify-blueclaw-pointer"]],
+    ),
+    Group(
+        "blueclaw",
+        [".dependency/blueclaw*"],
+        [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
+        working_directory=".dependency/blueclaw",
+    ),
+    Group(
+        "generated-protocol",
+        [".dependency/blueclaw*", "pkg/capabilityprotocol/*"],
+        [["make", "verify-generated-protocol"]],
     ),
     Group(
         "go",
@@ -52,6 +68,16 @@ GROUPS = [
             "assets/blueclaw-workspace/skills/*",
         ],
         [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
+    ),
+    Group(
+        "schema",
+        ["supabase/*", "tools/verify-migration-versions"],
+        [
+            ["tools/verify-migration-versions"],
+            ["supabase", "db", "reset"],
+            ["supabase", "test", "db"],
+        ],
+        lane="web",
     ),
     Group(
         "web",
@@ -73,12 +99,14 @@ GROUPS = [
             ["bun", "run", "build"],
         ],
         working_directory="web",
+        lane="web",
     ),
     Group(
         "host",
         ["host/*", "tools/render-company-runtime"],
         [["bun", "test", "tests/unit/host"]],
         working_directory="web",
+        lane="web",
     ),
     Group(
         "relay",
@@ -93,18 +121,20 @@ GROUPS = [
         working_directory="workers/connection-gateway",
     ),
     Group(
-        "schema",
-        ["supabase/*", "tools/verify-migration-versions"],
-        [
-            ["tools/verify-migration-versions"],
-            ["supabase", "db", "reset"],
-            ["supabase", "test", "db"],
-        ],
+        "companion",
+        ["companion/*"],
+        [BUN_INSTALL, ["bun", "run", "check"], ["bun", "run", "test"]],
+        working_directory="companion",
     ),
     Group(
         "docs-site",
         ["docs/*", "pkg/capabilityprotocol/generated/*"],
-        [BUN_INSTALL, ["bun", "run", "types:check"], ["bun", "test"]],
+        [
+            BUN_INSTALL,
+            ["bun", "run", "prebuild"],
+            ["bun", "run", "types:check"],
+            ["bun", "test"],
+        ],
         working_directory="docs/web",
     ),
     Group(
@@ -113,6 +143,12 @@ GROUPS = [
         [["tools/verify-doc-budgets"]],
     ),
 ]
+
+
+GROUP_NAMES = {group.name for group in GROUPS}
+for declared in GROUPS:
+    if declared.lane not in GROUP_NAMES:
+        raise SystemExit(f"{declared.name} runs in lane {declared.lane!r}, which is not a group")
 
 
 def changed_paths_against(base):
@@ -136,17 +172,31 @@ def changed_paths_against(base):
 def run_group(group):
     started = time.monotonic()
     for command in group.commands:
-        finished = subprocess.run(
-            command,
-            cwd=REPOSITORY_ROOT / group.working_directory,
-            capture_output=True,
-            text=True,
-        )
+        attempted = " ".join(command)
+        try:
+            finished = subprocess.run(
+                command,
+                cwd=REPOSITORY_ROOT / group.working_directory,
+                capture_output=True,
+                text=True,
+            )
+        except OSError as error:
+            return group.name, False, time.monotonic() - started, f"$ {attempted}\n{error}"
         if finished.returncode != 0:
-            attempted = " ".join(command)
             output = f"$ {attempted}\n{finished.stdout}{finished.stderr}"
             return group.name, False, time.monotonic() - started, output
     return group.name, True, time.monotonic() - started, ""
+
+
+def run_lane(groups):
+    return [run_group(group) for group in groups]
+
+
+def lanes_of(groups):
+    lanes = {}
+    for group in groups:
+        lanes.setdefault(group.lane, []).append(group)
+    return list(lanes.values())
 
 
 def groups_to_run(arguments):
@@ -175,12 +225,14 @@ def main():
         return 0
 
     print(f"running {', '.join(group.name for group in groups)}")
+    lanes = lanes_of(groups)
     failed = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(groups)) as pool:
-        for name, passed, seconds, output in pool.map(run_group, groups):
-            print(f"{'ok  ' if passed else 'FAIL'} {name} ({seconds:.0f}s)")
-            if not passed:
-                failed.append((name, output))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(lanes)) as pool:
+        for lane_results in pool.map(run_lane, lanes):
+            for name, passed, seconds, output in lane_results:
+                print(f"{'ok  ' if passed else 'FAIL'} {name} ({seconds:.0f}s)")
+                if not passed:
+                    failed.append((name, output))
 
     for name, output in failed:
         print(f"\n=== {name} ===\n{output}")
