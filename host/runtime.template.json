@@ -1,11 +1,7 @@
 {
   "baseURL": "${BLUECLAW_BASE_URL}",
   "languageModel": {
-    "defaultProvider": "direct",
-    "direct": {
-      "endpoint": "https://openrouter.ai/api/v1",
-      "apiKeyPath": "${OPENROUTER_KEY_PATH}"
-    }
+    "defaultProvider": "capabilityLLM"
   },
   "capabilities": {
     "unixSocketPath": "${CAPABILITY_SOCKET_PATH}",
