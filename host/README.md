@@ -22,8 +22,8 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **admind** | the workspace screens and the tools the central plane cannot run itself arrive on its socket; without it a person's memory, files, tasks and buzz claim answer `500` |
 | **the relay** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
 
-Firecracker, the POSIX helper, Mattermost, a relay and cloudflared are **not**
-needed. The device stack required them; this does not.
+A virtual-machine guest, the POSIX helper, Mattermost, a relay and cloudflared
+are **not** needed. The device stack required them; this does not.
 
 ## The relay
 

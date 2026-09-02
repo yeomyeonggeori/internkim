@@ -50,8 +50,8 @@ cannot reach, and it never leaves a server route.
 ### The device path
 
 Before the central plane there was one appliance per company: a Jetson Orin Nano
-Super with Firecracker, Mattermost and an update engine on board. That path still
-ships and still works. Sections below marked **device** describe it.
+Super with a virtual-machine guest, Mattermost and an update engine on board. That
+path still ships and still works. Sections below marked **device** describe it.
 
 ```
 operator on the same network ── Jetson Orin Nano Super
@@ -59,7 +59,7 @@ operator on the same network ── Jetson Orin Nano Super
                                  ├── internkim-admind (127.0.0.1:18080)
                                  ├── internkim-capabilityd
                                  ├── graphiti-memoryd :7791
-                                 ├── Firecracker blueclaw guest
+                                 ├── Cloud Hypervisor blueclaw guest
                                  └── /root/.internkim
                                        ├── secrets/
                                        ├── config/
@@ -217,7 +217,7 @@ reading one.
 | **internkim-admind** | The device administrator API: the admin UI reverse proxy, companion pairing and broker, backup and restore, status. |
 | **internkim-capabilityd** | Holds the OpenRouter key, the local model, messenger and companion credentials, and exposes only a capability API. Runs the optional Slack and Signal sidecars on the same boundary. |
 | **local model** | Generation and embedding both on a resident `llama-server`: gemma-4-E2B QAT with MTP drafting (`--chat-template gemma`) for generation, BGE-M3 Q8 on CPU (`-ngl 0`) for embedding. `internkim-local-llm-runner` (LiteRT) is a legacy fallback. |
-| **blueclaw** | The agent runtime. On a device it runs as a Firecracker guest under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json`. |
+| **blueclaw** | The agent runtime. On a device it runs as a Cloud Hypervisor guest under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json`. |
 | **chatd** | Per-person messenger operations, with Mattermost and Buzz adapters behind one gateway. |
 | **Graphiti memoryd** | The memory sidecar: episode ingestion, temporal graph extraction and hybrid graph search through `graphiti-core[kuzu]`. |
 | **internkim-companion** | A trusted runtime on the user's own computer for browser handoff, confirmation, input and file picking, and later for local-only inference. |
@@ -326,7 +326,7 @@ config.
 Setup fast-forwards the blueclaw submodule to `origin/main` and stops if it has
 local changes. To build the working tree as it stands, set
 `INTERNKIM_BLUECLAW_USE_LOCAL=1`, and run `make prepare-blueclaw-payload` first
-when the change has to reach the Firecracker payload.
+when the change has to reach the blueclaw payload.
 
 ```bash
 INTERNKIM_BLUECLAW_USE_LOCAL=1 ./internkim setup --only binaries,blueclaw-payload,services --force

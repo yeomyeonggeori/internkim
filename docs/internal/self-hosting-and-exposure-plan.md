@@ -24,7 +24,7 @@ Blueclaw/internkim을 오픈소스 셀프호스팅 가능하게. "clone → env 
 
 1. **POSIX 유저/그룹/파일권한이 불가침 보안 경계다.** 배포 형태가 이걸 흐리면 안 됨.
    Blueclaw 터미널은 per-person `bc_person_<id>` 유저, circle `bc_circle_<id>` 그룹,
-   `/workspace` POSIX 권한으로 실행 격리한다. Firecracker/bwrap은 **선택적 narrowing**(옵션),
+   `/workspace` POSIX 권한으로 실행 격리한다. 가상머신 게스트/bwrap은 **선택적 narrowing**(옵션),
    경계 자체는 POSIX. (CLAUDE.md "Blueclaw Terminal Permission Boundary" 참조)
 2. **배포단위 = 진짜 POSIX 시스템**(호스트/VM/시스템-컨테이너). **Docker 앱-컨테이너를 기본으로 쓰지 않는다** —
    앱-컨테이너 이디엄(한 프로세스·ephemeral)은 per-person `useradd`+영속 workspace+다중 UID 서브프로세스와

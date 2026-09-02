@@ -25,7 +25,7 @@ Blueclaw should be releasable as an open-source agent runtime without carrying i
 
 - Provider tokens, browser cookies, local file paths, local model paths, or device secrets.
 - internkim-specific URLs, release downloads, command names, service names, or filesystem paths.
-- Cloudflare, Mattermost, Slack, Signal, Google Workspace, OpenRouter, Jetson, Firecracker provisioning, or fleet code.
+- Cloudflare, Mattermost, Slack, Signal, Google Workspace, OpenRouter, Jetson, guest provisioning, or fleet code.
 - Companion pairing broker state or signed upload storage.
 - Product-specific capability catalogs such as `flow.*`, `site.app.*`, and Google bridge tools.
 
