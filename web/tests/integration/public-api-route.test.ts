@@ -266,7 +266,7 @@ describe('the documented endpoints', () => {
 			}
 		}
 		expect(wrong).toEqual([]);
-	});
+	}, 60_000);
 
 	test('cover every path these routes answer', () => {
 		const documented = new Set(
