@@ -154,18 +154,7 @@
           "content": {
             "type": "string"
           },
-          "decisionReason": {
-            "type": "string"
-          },
           "endDate": {
-            "type": "string"
-          },
-          "flag": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "mattermostPostID": {
             "type": "string"
           },
           "ownerID": {
@@ -196,9 +185,6 @@
                 "email": {
                   "type": "string"
                 },
-                "mattermostUsername": {
-                  "type": "string"
-                },
                 "mention": {
                   "type": "string"
                 },
@@ -209,9 +195,6 @@
               "type": "object"
             },
             "type": "array"
-          },
-          "requestReason": {
-            "type": "string"
           },
           "size": {
             "type": "string"
@@ -262,18 +245,7 @@
             "content": {
               "type": "string"
             },
-            "decisionReason": {
-              "type": "string"
-            },
             "endDate": {
-              "type": "string"
-            },
-            "flag": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
-            },
-            "mattermostPostID": {
               "type": "string"
             },
             "ownerID": {
@@ -304,9 +276,6 @@
                   "email": {
                     "type": "string"
                   },
-                  "mattermostUsername": {
-                    "type": "string"
-                  },
                   "mention": {
                     "type": "string"
                   },
@@ -317,9 +286,6 @@
                 "type": "object"
               },
               "type": "array"
-            },
-            "requestReason": {
-              "type": "string"
             },
             "size": {
               "type": "string"
@@ -484,18 +450,7 @@
                 "content": {
                   "type": "string"
                 },
-                "decisionReason": {
-                  "type": "string"
-                },
                 "endDate": {
-                  "type": "string"
-                },
-                "flag": {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
-                },
-                "mattermostPostID": {
                   "type": "string"
                 },
                 "ownerID": {
@@ -526,9 +481,6 @@
                       "email": {
                         "type": "string"
                       },
-                      "mattermostUsername": {
-                        "type": "string"
-                      },
                       "mention": {
                         "type": "string"
                       },
@@ -539,9 +491,6 @@
                     "type": "object"
                   },
                   "type": "array"
-                },
-                "requestReason": {
-                  "type": "string"
                 },
                 "size": {
                   "type": "string"
@@ -660,18 +609,7 @@
                   "content": {
                     "type": "string"
                   },
-                  "decisionReason": {
-                    "type": "string"
-                  },
                   "endDate": {
-                    "type": "string"
-                  },
-                  "flag": {
-                    "maximum": 9007199254740991,
-                    "minimum": -9007199254740991,
-                    "type": "integer"
-                  },
-                  "mattermostPostID": {
                     "type": "string"
                   },
                   "ownerID": {
@@ -702,9 +640,6 @@
                         "email": {
                           "type": "string"
                         },
-                        "mattermostUsername": {
-                          "type": "string"
-                        },
                         "mention": {
                           "type": "string"
                         },
@@ -715,9 +650,6 @@
                       "type": "object"
                     },
                     "type": "array"
-                  },
-                  "requestReason": {
-                    "type": "string"
                   },
                   "size": {
                     "type": "string"
@@ -934,18 +866,7 @@
           "content": {
             "type": "string"
           },
-          "decisionReason": {
-            "type": "string"
-          },
           "endDate": {
-            "type": "string"
-          },
-          "flag": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "mattermostPostID": {
             "type": "string"
           },
           "ownerID": {
@@ -976,9 +897,6 @@
                 "email": {
                   "type": "string"
                 },
-                "mattermostUsername": {
-                  "type": "string"
-                },
                 "mention": {
                   "type": "string"
                 },
@@ -989,9 +907,6 @@
               "type": "object"
             },
             "type": "array"
-          },
-          "requestReason": {
-            "type": "string"
           },
           "size": {
             "type": "string"
@@ -1042,18 +957,7 @@
             "content": {
               "type": "string"
             },
-            "decisionReason": {
-              "type": "string"
-            },
             "endDate": {
-              "type": "string"
-            },
-            "flag": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
-            },
-            "mattermostPostID": {
               "type": "string"
             },
             "ownerID": {
@@ -1084,9 +988,6 @@
                   "email": {
                     "type": "string"
                   },
-                  "mattermostUsername": {
-                    "type": "string"
-                  },
                   "mention": {
                     "type": "string"
                   },
@@ -1097,9 +998,6 @@
                 "type": "object"
               },
               "type": "array"
-            },
-            "requestReason": {
-              "type": "string"
             },
             "size": {
               "type": "string"
@@ -1245,7 +1143,7 @@
         "state": "ok"
       },
       "canonicalName": "person_list",
-      "description": "Everyone who works here, with their exact name, email, @handle, and mention. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.",
+      "description": "Everyone who works here, with their exact name, email and mention. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -1282,9 +1180,6 @@
               "additionalProperties": false,
               "properties": {
                 "email": {
-                  "type": "string"
-                },
-                "mattermostUsername": {
                   "type": "string"
                 },
                 "mention": {
@@ -1331,9 +1226,6 @@
                 "additionalProperties": false,
                 "properties": {
                   "email": {
-                    "type": "string"
-                  },
-                  "mattermostUsername": {
                     "type": "string"
                   },
                   "mention": {

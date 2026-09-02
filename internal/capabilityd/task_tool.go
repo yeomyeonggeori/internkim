@@ -108,10 +108,6 @@ type taskForTool struct {
 	StartDate                string                      `json:"startDate"`
 	EndDate                  string                      `json:"endDate"`
 	WeekCode                 string                      `json:"weekCode"`
-	Flag                     int                         `json:"flag"`
-	RequestReason            string                      `json:"requestReason"`
-	DecisionReason           string                      `json:"decisionReason"`
-	MattermostPostID         string                      `json:"mattermostPostID"`
 	CreatedAt                string                      `json:"createdAt,omitempty"`
 }
 
@@ -745,9 +741,6 @@ func (service Service) putTask(ctx context.Context, task taskForTool, requesterE
 		"startDate":      task.StartDate,
 		"endDate":        task.EndDate,
 		"weekCode":       task.WeekCode,
-		"flag":           task.Flag,
-		"requestReason":  task.RequestReason,
-		"decisionReason": task.DecisionReason,
 	}
 	document, errorValue := json.Marshal(payload)
 	if errorValue != nil {
