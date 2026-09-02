@@ -1,13 +1,24 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { aCompanyPlane } from './a-company-plane';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
-type SkillInventory = { skills: { name: string; path: string }[] };
+type SkillInventory = {
+	skills: { name: string; path: string }[];
+	unavailableSkills: { name: string; path: string; missingEnvironmentVariables: string[] }[];
+};
 
-test('the agent on the plane can see every skill the plugin carries', async () => {
+function theSkillsTheBoxCarries(): string[] {
+	const shippedSkillsPath = process.env.COMPANY_PLANE_SKILLS;
+	if (!shippedSkillsPath) throw new Error('COMPANY_PLANE_SKILLS is not set');
+	return readdirSync(shippedSkillsPath, { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => entry.name);
+}
+
+test('the agent on the plane can see every skill it can run, and no other', async () => {
 	const plane = await aCompanyPlane();
 	try {
 		const answer = await fetch(`${plane.blueclawURL}/admin/api/skills`);
@@ -15,7 +26,7 @@ test('the agent on the plane can see every skill the plugin carries', async () =
 		const inventory = (await answer.json()) as SkillInventory;
 		const names = inventory.skills.map((skill) => skill.name);
 
-		for (const skillName of ['internkim-task', 'presentation', 'internkim-api']) {
+		for (const skillName of ['internkim-task', 'presentation']) {
 			expect(
 				names,
 				`the plane shipped no ${skillName}: host/Dockerfile copies binaries only and the ` +
@@ -25,6 +36,19 @@ test('the agent on the plane can see every skill the plugin carries', async () =
 		expect(new Set(names).size, `a skill read once per instruction root is in the prompt twice`).toBe(
 			names.length
 		);
+
+		expect(
+			names,
+			`internkim-api is in the prompt on a plane with no INTERNKIM_TOKEN, so the agent ` +
+				`will select it and every call will end at "INTERNKIM_TOKEN is not set"`
+		).not.toContain('internkim-api');
+		expect(inventory.unavailableSkills.map((skill) => skill.name)).toEqual(['internkim-api']);
+		expect(inventory.unavailableSkills[0].missingEnvironmentVariables).toEqual(['INTERNKIM_TOKEN']);
+		expect(
+			[...names, ...inventory.unavailableSkills.map((skill) => skill.name)].sort(),
+			`the host ships every plugin skill to the box and only the prompt is smaller, so a ` +
+				`skill in neither list never reached disk`
+		).toEqual(theSkillsTheBoxCarries().sort());
 	} finally {
 		await plane.stop();
 	}

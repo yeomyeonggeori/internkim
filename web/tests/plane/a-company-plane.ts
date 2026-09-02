@@ -55,6 +55,15 @@ function environmentValue(name: string): string {
 	return value;
 }
 
+// A company box holds no personal access token: one here is a second path to the
+// record that skips approval, requester identity and POSIX isolation. Whoever
+// runs this has one in their own shell, and the box is not their shell.
+function theBoxEnvironment(): Record<string, string | undefined> {
+	const environment = { ...process.env };
+	delete environment.INTERNKIM_TOKEN;
+	return environment;
+}
+
 async function aFreePort(): Promise<number> {
 	const server = Bun.serve({ port: 0, fetch: () => new Response('') });
 	const port = server.port;
@@ -254,7 +263,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						{ '--mattermost-url': messenger.url }
 					)
 				],
-				logsTo(join(runDirectory, 'capabilityd.log'))
+				{ ...logsTo(join(runDirectory, 'capabilityd.log')), env: theBoxEnvironment() }
 			)
 		);
 		// A unix socket is not a file Bun.file() can answer for, so this asks the
@@ -294,7 +303,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			],
 			{
 				env: {
-					...process.env,
+					...theBoxEnvironment(),
 					DATABASE_URL: databaseURLFor(databaseName),
 					MESSENGER_PLATFORM: messengerPlatform,
 					BLUECLAW_BASE_URL: blueclawURL,
@@ -322,7 +331,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 				{
 					...logsTo(join(runDirectory, 'blueclaw.log')),
 					env: {
-						...process.env,
+						...theBoxEnvironment(),
 						BLUECLAW_BUNDLED_SKILLS_PATH: environmentValue('COMPANY_PLANE_SKILLS')
 					}
 				}
@@ -360,7 +369,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						}
 					)
 				],
-				logsTo(join(runDirectory, 'admind.log'))
+				{ ...logsTo(join(runDirectory, 'admind.log')), env: theBoxEnvironment() }
 			)
 		);
 		await untilReady('admind', async () => {
