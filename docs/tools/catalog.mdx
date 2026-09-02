@@ -8,15 +8,15 @@ reads (`pkg/capabilityprotocol/generated/capability-tools.json`, protocol
 <ToolProtocolVersion />), so they cannot drift from what is deployed. The
 descriptions are the exact English sentences the model receives.
 
-Tools whose effect column is `destructive`, plus `message_send`,
-`channel_update`, and the decision that spends somebody's entitlement, pause
-for [approval](/docs/tools/index#approval) before running.
+The approval column marks the tools that pause for
+[approval](/docs/tools/index#approval) before running. It is read from the
+catalog's own `requiresApproval`, so no list here can fall behind it.
 
 ## Tasks [#task]
 
 <ToolCatalog namespace="task" />
 
-Backed by admind's Flow API (`internal/capabilityd/flow_tool.go`). Updates and
+Backed by admind's task API (`internal/capabilityd/task_tool.go`). Updates and
 deletes take a `taskHint`: the exact task ID or exact current title from a
 `task_list` result. Dates are `yyyy-mm-dd`; the agent resolves "next Friday"
 before calling.
@@ -25,7 +25,7 @@ before calling.
 
 <ToolCatalog namespace="person" />
 
-Implemented in `internal/capabilityd/person_list_tool.go` over the same Flow
+Implemented in `internal/capabilityd/person_list_tool.go` over the same
 membership data. It answers who a person is and who works here. It is not a
 step before a hint: a hint takes the fragment as it was written and the server
 resolves it, and this is what the agent reads when a hint comes back with
@@ -36,7 +36,7 @@ candidates to choose between.
 <ToolCatalog namespace="calendar" />
 
 Implemented in `internal/capabilityd/calendar_tool.go`, also over admind's
-Flow API; a calendar event is a task with a time span. Times are ISO
+task API; a calendar event is a task with a time span. Times are ISO
 timestamps with a time zone, and `eventHint` follows the same resolution rule
 as `taskHint`.
 

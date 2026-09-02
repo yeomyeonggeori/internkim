@@ -76,9 +76,9 @@ companion opens no inbound port; it long-polls the admind broker, and its
 jobs survive an admind restart through
 `/root/.internkim/state/companion-jobs.json`.
 
-`file_pick` keeps local paths on the user's machine: the chosen file is
-uploaded through the signed broker and the agent sees only a device-local
-path with a TTL. Browser capabilities run headed on the companion, and
+A file the user picks is uploaded through the signed broker, so the agent sees
+a device-local path with a TTL and never the path on their own machine.
+Browser capabilities run headed on the companion, and
 capabilityd routes to them only while that person's companion is online.
 
 ## Deploying to a device

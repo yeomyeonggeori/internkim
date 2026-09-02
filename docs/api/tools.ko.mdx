@@ -32,7 +32,7 @@ curl https://api.intern.kim/v1/tools/task_add \
 |---|---|
 | `inputSchema` | `input`이 만족해야 하는 JSON Schema |
 | `outputSchema` | 성공 시 `result`의 모양 |
-| `sideEffectClass` | 호출에 필요한 범위 등급 |
+| `sideEffectClass` | 호출에 필요한 권한 |
 | `idempotency` | 이 도구에서 `idempotencyKey`가 의미가 있는지 |
 | `resultContract.effects` | 성공한 호출이 약속하는 `effects` 항목 |
 | `availability` | 지금 실행 가능한지, 아니라면 왜인지 |
@@ -54,11 +54,17 @@ curl https://api.intern.kim/v1/tools/task_add/invoke \
 <Callout title="승인 대기가 없습니다" type="warn">
 메신저 대화에서 에이전트는 삭제나 발송 전에 멈춰 서서 묻습니다. 이 길로 오는
 read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙으므로, 같은 도구가
-여기서는 즉시 실행됩니다. 토큰의 범위가 곧 동의입니다. `destructive` 토큰은
+여기서는 즉시 실행됩니다. 토큰의 권한이 곧 동의입니다. `delete` 토큰은
 묻지 않고 지웁니다.
 </Callout>
 
 ## 응답 [#the-response]
+
+기록 위에서 도는 도구(업무, 캘린더, 사람, 연차, 근태)는
+`{ "tool": ..., "result": ... }`를 답합니다. 평면이 직접 실행했기 때문입니다.
+근태 쓰기는 여기에 `notified`가 하나 더 붙어, 누구에게 알렸는지 또는 어느
+관리자에게 물었는지를 말합니다. 회사 컴퓨터로 실려 간 도구는 아래의 더 넓은
+모양으로 답합니다.
 
 ```json
 {
@@ -92,8 +98,9 @@ read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙�
 항목에 따라 `visibility`, `durability`, `filename`, `contentType`, `summary`가
 붙습니다.
 
-확인은 `result`가 아니라 `effects`로 합니다. `effects`가 비어 있으면 아무것도
-바뀌지 않은 것입니다. 결과 본문에 무슨 말이 적혀 있든 그렇습니다.
+`effects`가 실린 호출은 결과 본문 대신 그것으로 확인합니다. 비어 있으면
+아무것도 바뀌지 않은 것입니다. 기록 도구에는 `effects`가 없고, `result`가 답
+전부입니다.
 
 ## 멱등성 [#idempotency]
 
@@ -131,7 +138,7 @@ curl https://api.intern.kim/v1/tools/task_update/invoke \
 
 첫 응답의 `effects`에는 `{"objectType":"task","effect":"created","id":...}`가,
 두 번째에는 같은 task가 `"effect":"updated"`로 담깁니다. 지우려면
-`destructive` 토큰이 필요합니다.
+`delete` 토큰이 필요합니다.
 
 ```bash
 curl https://api.intern.kim/v1/tools/task_delete/invoke \
@@ -151,6 +158,6 @@ curl https://api.intern.kim/v1/tools/task_delete/invoke \
 | 호출 핸들러 | `internal/admind/public_tool_gateway.go`의 `invokePublicTool`. 회사 릴레이를 지나 닿습니다 |
 | `capabilityd`에서 디스크립터 가져오기 | unix 소켓 너머의 `fetchCapabilityRegistry`; 기기와 컴패니언 디스크립터는 `exposableCapabilityDescriptors`에서 합쳐집니다 |
 | actor 덮어쓰기 | `invokePublicTool`이 본문을 디코드한 뒤 `Actor`, `Context`, `PrivacyClass`, `RequiresUserPresence`를 다시 채웁니다 |
-| 승인-연속 플래그 | `publicToolInvokeContext`, `publicToolScopeForDescriptor`가 기준입니다 |
+| 승인-연속 플래그 | `publicToolInvokeContext`, `publicToolPermissionForDescriptor`가 기준입니다 |
 | 요청·응답 타입 | `pkg/capabilityprotocol/protocol.go`의 `ToolInvokeRequest`, `ToolInvokeResponse`, `ResourceEffect` |
 | 입력·출력 스키마 | `pkg/capabilityprotocol/generated/capability-tools.json` |

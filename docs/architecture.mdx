@@ -101,7 +101,7 @@ tells browsers whether the company's computer is currently connected at all.
 | the connector (`chatd`) | `127.0.0.1:18090` | messenger adapters: Buzz, Mattermost | `.dependency/blueclaw/chatd/` |
 | the agent (`blueclaw`) | `127.0.0.1:8080` | the loop, the task ledger, approval, the workspace | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | the typed capability boundary: calendar, tasks, mail, sites | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
-| `blueclaw-llmd` | `/run/internkim/llmd/llmd.sock` | counted in capabilityd's health; no longer the model path | `.dependency/blueclaw/llmd/` |
+| `internkim-admind` | `127.0.0.1:18080` | the workspace screens, and the tools the plane cannot run itself | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | answers mail for whichever account a call carries | `cmd/internkim-maild/` |
 | the agent's store | `DATABASE_URL` | Postgres holding conversations, runs, memory, policy | — |
 
@@ -133,9 +133,7 @@ What "serves it" means depends on the capability, and each branch is in
   account fetched per call, so no mail password is at rest on the box.
 - **Workspace views** (`person.memory.*`, `person.files.*`, `person.tasks.*`)
   and the public API's own calls (`person.api.request`, `person.api.file`) are
-  forwarded to `admind` over its unix socket where one is running. The host
-  bundle does not start one today, so a company on the bundle answers the
-  catalog and the tokens but cannot yet run a tool through the API.
+  forwarded to `admind` over its unix socket, which the bundle starts.
 - **Link previews** (`asset.link`) the relay builds itself, storing the
   preview image in Supabase Storage so the answer stays small.
 
@@ -153,9 +151,8 @@ the same connector. The agent behaves identically whichever client the person
 typed in.
 
 Separately, the messenger server reports every message it accepts to the
-relay on `127.0.0.1:18091` — for Mattermost, through the bundled
-`mattermost-plugin/internkim-ephemeral/` plugin. The relay resolves who was
-addressed and asks the control plane to notify them, which arrives as a web
+relay on `127.0.0.1:18091`, a port nothing outside the box can reach. The relay
+resolves who was addressed and asks the control plane to notify them, which arrives as a web
 push wherever those members registered a device.
 
 ## How someone in the messenger becomes someone in the record

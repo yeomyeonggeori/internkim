@@ -18,13 +18,13 @@ could touch at a shell.
 | `file_edit` | applies exact text replacements as one atomic edit |
 | `file_delete` | removes one file, after your approval |
 | `file_deliver` | attaches finished workspace files to the reply |
-| `terminal_run` | runs one command in the workspace |
+| `shell` | runs one command in the workspace |
 
 Registered in `.dependency/blueclaw/internal/agentruntime/file_tools.go` and
-`terminal_tools.go`; the names live in
-`.dependency/bluecollar/toolcontract/kernel_tools.go`. The file tools are not
-a separate code path: each builds a shell command and runs it through the same
-requester primitive as `terminal_run`
+`shell_tools.go`; the names live in
+`.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go`.
+The file tools are not a separate code path: each builds a shell command and
+runs it through the same requester primitive as `shell`
 (`internal/agentruntime/requester_shell.go`), starting in your own `$HOME`, so
 tilde expansion, globs, and relative paths behave as they do at a shell.
 
@@ -78,7 +78,7 @@ system-modifying command simply fails for an unprivileged actor. The
 
 ```
 file_write   tmp/<slug>/…          draft and build inputs
-terminal_run cwd=tmp/<slug>        build, render, verify
+shell        cwd=tmp/<slug>        build, render, verify
              artifacts/<slug>/…    the finished output moves here
 file_deliver                       attached to the reply you receive
 ```
@@ -100,10 +100,9 @@ any other command, and each `SKILL.md` is budgeted (the repository gate is
 
 ## When a human has to be there [#presence]
 
-Login, MFA, file picking, and confirmation happen on the user's own computer
-through the companion. `file_pick` uploads the chosen file through a signed
-broker and reports only a temporary device path with an expiry; the local path
-never leaves the user's machine. Alongside the file and terminal tools the
+Login, MFA, and confirmation happen on the user's own computer through the
+companion, which reports back only what the agent needs. Alongside the file
+and terminal tools the
 model also holds run-control tools (`plan_update`, `conversation_history`,
 `request_tools`, the `ask_*` prompts), which shape the run and touch nothing
 outside it.

@@ -14,7 +14,7 @@ them under your identity. There is no command syntax to learn.
 | "give Example Park a task to draft the quarterly report, due Friday" | `task_add` | the created task, with owner and due date |
 | "what am I supposed to do this week?" | `task_list` | your open items this week |
 | "how many days of leave have I got left?" | `leave_balance` | your remaining days for this year |
-| "move Thursday's design review to four" | `calendar_list`, then `calendar_update` | the moved event |
+| "move Thursday's design review to four" | `event_list`, then `event_update` | the moved event |
 | "DM Sample Lee that the deck is finished" | `message_send` | a draft, sent after you approve it |
 | "in last week's announcement, fix the date and nothing else" | `message_search`, then `message_update` | the corrected span in your earlier message |
 | "find out what changed in the new tax bill" | `web_search` | ranked public-web results, summarized |
@@ -29,9 +29,12 @@ a candidate list to choose from, and choosing is what `person_list` is for.
 
 **Capability tools** touch shared records and the world outside: tasks, the
 calendar, messages, channels, the public web, served sites, the browser.
-`internkim-capabilityd` serves <ToolCount /> of them under protocol
-<ToolProtocolVersion />. The [catalog](/docs/tools/catalog) lists every one,
-and the same tools answer over the [HTTP API](/docs/api/tools).
+The catalog holds <ToolCount /> of them under protocol
+<ToolProtocolVersion />. The agent reaches all of them through
+`internkim-capabilityd`; over the [HTTP API](/docs/api/tools) the task,
+calendar, people, leave and attendance tools run on the central plane instead,
+and the rest are carried to the company's computer. The
+[catalog](/docs/tools/catalog) lists every one.
 
 **Workspace tools** touch your files and the terminal: read, write, edit,
 run a command, deliver a finished file. They are built into the agent host
@@ -46,8 +49,8 @@ tool's name.
 
 | Class | The mark it leaves | Examples |
 |---|---|---|
-| `read` | none | `task_list`, `message_search`, `document_read` |
-| `workspace_write` | a company record created or changed | `task_add`, `calendar_update`, `file_write` |
+| `read` | none | `task_list`, `message_search`, `leave_balance` |
+| `workspace_write` | a company record created or changed | `task_add`, `event_update`, `file_write` |
 | `external_write` | state on the messenger changed | `message_update`, `channel_update` |
 | `external_send` | a message reaches people | `message_send` |
 | `site_publish` | a URL goes live | `site_serve` |
@@ -58,13 +61,11 @@ tool's name.
 
 Whether a call pauses for your approval is descriptor metadata
 (`requiresApproval`), checked by the approval gate in
-`.dependency/blueclaw/internal/approvalgate` before the call executes. In the
-current catalog that flag is set on `task_delete`, `calendar_delete`,
-`message_send`, `message_delete`, `channel_update`, `site_unserve`,
-`leave_decide`, `attendance_update`, and `attendance_delete`; the
-generated catalog is authoritative when they diverge. Among workspace tools,
-`file_delete` is gated, and `terminal_run` gates itself per call: the agent
-sets `approvalRequired` on a command it judges consequential.
+`.dependency/blueclaw/internal/approvalgate` before the call executes. The
+[catalog](/docs/tools/catalog) marks every tool the flag is set on, so read it
+there rather than from a list written by hand. Among workspace tools,
+`file_delete` is gated, and `shell` gates itself per call: the agent sets
+`approvalRequired` on a command it judges consequential.
 
 One exemption: a `message_send` whose `targetType` is `currentThread` or
 `currentChannel` is the agent answering the conversation it was asked in, and
