@@ -573,7 +573,23 @@ func TestBuzzAttachmentScenarioRunsTheBuzzScript(t *testing.T) {
 	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-attachment.sh") {
 		t.Fatalf("expected the buzz scenario script in plans:\n%s", joinedPlans)
 	}
-	if strings.Contains(joinedPlans, "verify mattermost") {
+	if strings.Contains(joinedPlans, "mattermost") {
 		t.Fatalf("expected the buzz scenario to reach nothing through mattermost:\n%s", joinedPlans)
+	}
+}
+
+func TestBuzzDirectMessageScenarioReachesNothingThroughMattermost(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	joinedPlans := joinedPlanArguments(service.buzzDirectMessageScenarioPlans())
+
+	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-direct-message.sh") {
+		t.Fatalf("expected the buzz direct message script in plans:\n%s", joinedPlans)
+	}
+	if strings.Contains(joinedPlans, "mattermost") {
+		t.Fatalf("the company reads buzz, so this scenario must not need mattermost:\n%s", joinedPlans)
 	}
 }
