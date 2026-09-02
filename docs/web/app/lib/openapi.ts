@@ -7,6 +7,7 @@ export type ApiDocumentationLanguage = 'ko' | 'en';
 
 type CatalogTool = {
 	name: string;
+	answeredBy?: string;
 	resultContract?: unknown;
 	namespace: string;
 	description?: string;
@@ -257,7 +258,7 @@ export function apiBaseURL(zone = defaultZone): string {
 
 export function baseTools(): CatalogTool[] {
 	return (catalog.tools as CatalogTool[])
-		.filter(statesAResultContract)
+		.filter((tool) => statesAResultContract(tool) && tool.answeredBy !== 'local')
 		.sort((left, right) => (left.name < right.name ? -1 : 1));
 }
 
