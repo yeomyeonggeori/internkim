@@ -33,17 +33,17 @@ export const devTaskMembers: TaskMember[] = [
 ];
 
 export const devTaskSpecs: DevTaskSpec[] = [
-	taskSpec('task-dashboard', 'kim-intern', ['kim-intern', 'engineer'], '샘플거리', '기능', 'Flow 주간 리포트 카드 정리', 'L', 'in_progress', 0, 0, { requesterID: 'kim-intern' }),
+	taskSpec('task-dashboard', 'kim-intern', ['kim-intern', 'engineer'], '샘플거리', '기능', 'Task 주간 리포트 카드 정리', 'L', 'in_progress', 0, 0, { requesterID: 'kim-intern' }),
 	taskSpec('calendar-sync', 'engineer', ['engineer'], '샘플거리', '개선', '캘린더 원격 동기화 재시도 점검', 'M', 'completed', 1, 2, { parentTaskID: 'task-dashboard' }),
 	taskSpec('attendance-policy', 'operator', ['operator', 'kim-intern'], '김인턴', '기획', '근태 위치 정책 초안 작성', 'M', 'requested', 2, 0, { parentTaskID: 'task-dashboard' }),
 	taskSpec('mail-triage', 'kim-intern', ['kim-intern'], '김인턴', '문서', '메일 분류 규칙 정리', 'S', 'planned', 3, 0, { parentTaskID: 'task-dashboard' }),
-	taskSpec('design-pass', 'designer', ['designer'], '샘플거리', '디자인', 'Flow 모바일 간격 점검', 'S', 'completed', 4, 4, { parentTaskID: 'task-dashboard' }),
+	taskSpec('design-pass', 'designer', ['designer'], '샘플거리', '디자인', 'Task 모바일 간격 점검', 'S', 'completed', 4, 4, { parentTaskID: 'task-dashboard' }),
 	taskSpec('mattermost-smoke', 'operator', ['operator', 'engineer'], '김인턴', '검증', 'Mattermost smoke 시나리오 재정리', 'M', 'paused', 2, 0, { parentTaskID: 'task-dashboard' }),
 	taskSpec('memory-graph', 'engineer', ['engineer', 'kim-intern'], '샘플거리', '기능', 'Memory 그래프 빈 상태 처리', 'L', 'stopped', 5, 0, { parentTaskID: 'task-dashboard' }),
 	taskSpec('launch-brief', 'designer', ['designer', 'operator'], '김인턴', '문서', '내부 데모 브리프 작성', 'XS', 'completed', 1, 3),
 	taskSpec('roadmap-review', 'planner', ['planner'], '샘플거리', '기획', '다음 스프린트 로드맵 정리', 'M', 'in_progress', 1, 0),
 	taskSpec('campaign-copy', 'marketer', ['marketer'], '김인턴', '마케팅', '온보딩 캠페인 문구 작성', 'S', 'completed', 2, 4),
-	taskSpec('regression-check', 'qa', ['qa'], '샘플거리', '검증', 'Flow 회귀 테스트 체크리스트 실행', 'M', 'completed', 3, 5),
+	taskSpec('regression-check', 'qa', ['qa'], '샘플거리', '검증', 'Task 회귀 테스트 체크리스트 실행', 'M', 'completed', 3, 5),
 	taskSpec('customer-reply', 'support', ['support'], '김인턴', '운영', '고객 문의 답변 정리', 'S', 'in_progress', 2, 0, { parentTaskID: 'task-dashboard' }),
 	taskSpec('release-note', 'writer', ['writer', 'kim-intern'], '샘플거리', '문서', '릴리즈 노트 초안 작성', 'S', 'completed', 4, 5),
 	taskSpec('market-scan', 'researcher', ['researcher'], '김인턴', null, '경쟁 서비스 화면 조사', 'M', 'rejected', 0, 0, { parentTaskID: 'task-dashboard' })
@@ -51,7 +51,7 @@ export const devTaskSpecs: DevTaskSpec[] = [
 
 export const devTaskFutureTaskSpecs: DevTaskSpec[] = [
 	taskSpec('partner-demo', 'planner', ['planner', 'marketer'], '샘플거리', '미팅', '파트너 데모 리허설', 'S', 'completed', 0, 1),
-	taskSpec('qa-followup', 'qa', ['qa', 'engineer'], '김인턴', '검증', 'Flow 보고 그래프 재확인', 'M', 'in_progress', 2, 0),
+	taskSpec('qa-followup', 'qa', ['qa', 'engineer'], '김인턴', '검증', 'Task 보고 그래프 재확인', 'M', 'in_progress', 2, 0),
 	taskSpec('release-review', 'writer', ['writer'], '샘플거리', '문서', '릴리즈 문구 검수', 'M', 'completed', 4, 4),
 	taskSpec('support-cleanup', 'support', ['support', 'operator'], '김인턴', '운영', '운영 문의 정리', 'S', 'completed', 5, 5)
 ];

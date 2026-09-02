@@ -69,7 +69,7 @@ try {
 		keys: subscriber.keys
 	});
 
-	const sent = { title: '이샘플', body: '오늘 회의 30분 미뤄도 될까요', openPath: '/flow/', tag: `message:${stamp}` };
+	const sent = { title: '이샘플', body: '오늘 회의 30분 미뤄도 될까요', openPath: '/task/', tag: `message:${stamp}` };
 	const answered = await notify(agentKey, {
 		platform: 'mattermost',
 		externalIDs: [externalID],

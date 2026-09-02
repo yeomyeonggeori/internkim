@@ -5,7 +5,7 @@ import { koreanSearchScore, matchesKoreanSearch } from '../../src/lib/korean-sea
 describe('korean search', () => {
 	test('matches plain substrings regardless of case', () => {
 		expect(matchesKoreanSearch('메일 캐시 동작 확인', '캐시')).toBe(true);
-		expect(matchesKoreanSearch('Flow 모바일 간격 점검', 'flow')).toBe(true);
+		expect(matchesKoreanSearch('Task 모바일 간격 점검', 'task')).toBe(true);
 		expect(matchesKoreanSearch('메일 캐시 동작 확인', '캘린더')).toBe(false);
 	});
 
