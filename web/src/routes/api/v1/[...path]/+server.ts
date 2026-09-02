@@ -16,7 +16,7 @@ import {
 	sizeTheHeaderClaims,
 } from '$lib/server/public-api/files';
 import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
-import { permissionForTool } from '$lib/server/public-api/catalog';
+import { answererOfTool, permissionForTool } from '$lib/server/public-api/catalog';
 import { reachesPermission } from '$lib/public-api-permission';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -38,9 +38,23 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 		if (answered) return answered;
 	}
 	const invoked = invokedToolName(request.method, path);
-	if (invoked && recordRunsTheTool(invoked)) return runHere(request, environment, member, invoked);
+	if (invoked) {
+		const refusal = refusalToCarry(invoked);
+		if (refusal) return refusal;
+		if (recordRunsTheTool(invoked)) return runHere(request, environment, member, invoked);
+	}
 	return carryToTheCompany(request, url, environment, member, path);
 };
+
+function refusalToCarry(name: string): Response | null {
+	if (answererOfTool(name) !== 'local') return null;
+	return json(
+		{
+			error: `${name} is answered by a runtime beside the agent, which this API has no way to reach`
+		},
+		{ status: 400 }
+	);
+}
 
 function invokedToolName(method: string, path: string): string | null {
 	if (method !== 'POST') return null;

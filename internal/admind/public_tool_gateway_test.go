@@ -354,16 +354,20 @@ func denyPermissionCapabilityHandler(t *testing.T) func(capabilities.ToolInvokeR
 func TestPublicToolPermissionForDescriptorClosedByDefault(t *testing.T) {
 	cases := map[string]string{
 		"read":             "",
+		"computation":      "",
 		"workspace_write":  publicAPIPermissionWrite,
-		"workspace_task":   publicAPIPermissionWrite,
 		"external_write":   publicAPIPermissionWrite,
 		"external_send":    publicAPIPermissionWrite,
 		"external_publish": publicAPIPermissionWrite,
 		"site_publish":     publicAPIPermissionWrite,
 		"connect":          publicAPIPermissionWrite,
-		"browser_write":    publicAPIPermissionWrite,
+		"approval":         publicAPIPermissionWrite,
+		"local_file":       publicAPIPermissionWrite,
+		"platform_reply":   publicAPIPermissionWrite,
 		"destructive":      publicAPIPermissionDelete,
 		"mystery_class":    publicAPIPermissionDelete,
+		"workspace_task":   publicAPIPermissionDelete,
+		"browser_write":    publicAPIPermissionDelete,
 	}
 	for sideEffectClass, expectedPermission := range cases {
 		permission := publicToolPermissionForDescriptor(capabilities.Descriptor{SideEffectClass: sideEffectClass})
