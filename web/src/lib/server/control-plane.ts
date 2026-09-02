@@ -218,13 +218,32 @@ export type Invitation = {
 };
 
 export async function inviteMember(client: SupabaseClient, memberID: string): Promise<Invitation> {
+	const invitation = await issueTemporaryPassword(client, memberID);
+
+	const { error } = await client.from('member').update({ status: 'invited' }).eq('id', memberID);
+	if (error) throw new Error(`member ${memberID}: ${error.message}`);
+
+	return invitation;
+}
+
+export async function resetMemberPassword(
+	client: SupabaseClient,
+	memberID: string,
+): Promise<Invitation> {
+	return issueTemporaryPassword(client, memberID);
+}
+
+async function issueTemporaryPassword(
+	client: SupabaseClient,
+	memberID: string,
+): Promise<Invitation> {
 	const { data: member, error: readError } = await client
 		.from('member')
 		.select('email')
 		.eq('id', memberID)
 		.single();
 	if (readError) throw new Error(`member ${memberID}: ${readError.message}`);
-	if (!member.email) throw new Error(`member ${memberID} has no address to invite`);
+	if (!member.email) throw new Error(`member ${memberID} has no address`);
 
 	const temporaryPassword = temporaryPasswordValue();
 	const { data: accounts, error: listError } = await client.auth.admin.listUsers();
@@ -245,12 +264,6 @@ export async function inviteMember(client: SupabaseClient, memberID: string): Pr
 		});
 		if (error) throw new Error(`account for ${member.email}: ${error.message}`);
 	}
-
-	const { error: statusError } = await client
-		.from('member')
-		.update({ status: 'invited' })
-		.eq('id', memberID);
-	if (statusError) throw new Error(`member ${memberID}: ${statusError.message}`);
 
 	return { memberID, email: member.email, temporaryPassword };
 }

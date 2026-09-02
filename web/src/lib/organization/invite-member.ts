@@ -38,6 +38,37 @@ export async function tellTheCompanyServerTheDirectoryChanged(): Promise<void> {
 // A member removed here is a former colleague everywhere: the company server is
 // told so it can take back their seats in the rooms and their place in the
 // community, rather than waiting for the pass that runs once a day.
+export async function resetMemberPassword(memberID: string): Promise<MemberInvitation> {
+	const { data } = await supabase().auth.getSession();
+	const accessToken = data.session?.access_token;
+	if (!accessToken) throw new Error('sign in first');
+
+	const response = await fetch('/api/member/password-reset', {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ memberID })
+	});
+	if (!response.ok) throw new Error((await response.text()).trim() || `password reset returned ${response.status}`);
+	return (await response.json()) as MemberInvitation;
+}
+
+export type WipedMemberMessages = {
+	email: string;
+	buzzDeleted: number;
+	mattermostDeleted: number;
+};
+
+export async function wipeMemberMessages(email: string): Promise<WipedMemberMessages> {
+	const response = await fetch('/agent/api/buzz-admin-wipe', {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ email })
+	});
+	if (!response.ok) throw new Error((await response.text()).trim() || `message wipe returned ${response.status}`);
+	return (await response.json()) as WipedMemberMessages;
+}
+
 export async function removeMemberFromCompany(memberID: string, purge = false): Promise<{ wasRemoved: boolean }> {
 	const { data } = await supabase().auth.getSession();
 	const accessToken = data.session?.access_token;
