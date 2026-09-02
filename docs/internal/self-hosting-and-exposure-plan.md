@@ -94,9 +94,9 @@ Blueclaw/internkim을 오픈소스 셀프호스팅 가능하게. "clone → env 
 - 단일 노드 셀프호스트가 1급 시민이 되게(현재는 fleet 노드 모델 중심).
 
 ### 4.6 타깃 제네릭화
-- Jetson 전용 스텝(L4T, Firecracker, CUDA llama.cpp)을 프로파일 뒤로.
+- Jetson 전용 스텝(L4T, 게스트 런타임 번들, CUDA llama.cpp)을 프로파일 뒤로.
 - `generic-linux-host` board type: Debian/Ubuntu systemd 호스트에 SSH로 구성. (SSH 백엔드 이미 존재.)
-- LLM 기본 = 리모트(OpenRouter). 로컬 CUDA LLM + Firecracker = 엣지/젯슨 프로파일 opt-in.
+- LLM 기본 = 리모트(OpenRouter). 로컬 CUDA LLM + 게스트 런타임 = 엣지/젯슨 프로파일 opt-in.
 
 ### 4.7 선택적 배포 형태 (core 아님, 나중)
 - **Nix flake(빌드)**: Go/bun/arm64 cross/llama.cpp 툴체인 핀 → 애드혹 컨테이너 빌더 대체. 유저 실행엔 불필요.

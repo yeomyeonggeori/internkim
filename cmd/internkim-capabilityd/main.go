@@ -15,7 +15,7 @@ func main() {
 	defaultConfiguration := capabilityd.DefaultConfiguration()
 	configuration := capabilityd.Configuration{}
 	flag.StringVar(&configuration.SocketPath, "socket", defaultConfiguration.SocketPath, "capability socket path")
-	flag.IntVar(&configuration.VSockPort, "vsock-port", defaultConfiguration.VSockPort, "optional host vsock port for Firecracker guests")
+	flag.IntVar(&configuration.VSockPort, "vsock-port", defaultConfiguration.VSockPort, "optional host vsock port for the agent guest")
 	flag.StringVar(&configuration.OpenRouterKeyPath, "openrouter-key", defaultConfiguration.OpenRouterKeyPath, "OpenRouter key path")
 	flag.StringVar(&configuration.SlackTokenPath, "slack-token", defaultConfiguration.SlackTokenPath, "Slack bot token path")
 	flag.StringVar(&configuration.SlackAppTokenPath, "slack-app-token", defaultConfiguration.SlackAppTokenPath, "Slack app token path")

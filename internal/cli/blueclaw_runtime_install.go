@@ -85,8 +85,6 @@ func blueclawRuntimeArtifactInstallDecision(
 
 func requiredBlueclawRuntimeInstallArtifacts() []blueclawRuntimeInstallArtifact {
 	return []blueclawRuntimeInstallArtifact{
-		{name: "firecracker", remotePath: blueclaw.BlueclawFirecrackerPath, mode: "0755"},
-		{name: "jailer", remotePath: blueclaw.BlueclawJailerPath, mode: "0755"},
 		{name: "cloud-hypervisor", remotePath: blueclaw.BlueclawCloudHypervisorPath, mode: "0755"},
 		{name: "virtiofsd", remotePath: blueclaw.BlueclawVirtiofsdPath, mode: "0755"},
 		{name: "vmlinux.bin", remotePath: blueclaw.BlueclawKernelImagePath, mode: "0644"},

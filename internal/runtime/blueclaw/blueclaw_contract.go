@@ -74,8 +74,6 @@ const (
 	LiteRTModelFilename                   = "gemma-4-E4B-it.litertlm"
 	BlueclawDefaultModelName              = llmbackend.DefaultActionModelName
 	BlueclawDefaultModelContextTokens     = 1048576
-	BlueclawFirecrackerPath               = "/usr/local/bin/firecracker"
-	BlueclawJailerPath                    = "/usr/local/bin/jailer"
 	BlueclawCloudHypervisorPath           = "/usr/local/bin/cloud-hypervisor"
 	BlueclawVirtiofsdPath                 = "/usr/local/bin/virtiofsd"
 	BlueclawVfkitPath                     = "/usr/local/bin/vfkit"
@@ -88,7 +86,6 @@ const (
 	BlueclawGuestDeliverySkillsPath       = "/delivery/skills"
 	BlueclawDeliveryServiceName           = "internkim-blueclaw-delivery.service"
 	BlueclawDeliveryServicePath           = "/etc/systemd/system/internkim-blueclaw-delivery.service"
-	FirecrackerMonitorName                = "firecracker"
 	CloudHypervisorMonitorName            = "cloudHypervisor"
 	VfkitMonitorName                      = "vfkit"
 	BlueclawVirtualMachineMonitor         = CloudHypervisorMonitorName

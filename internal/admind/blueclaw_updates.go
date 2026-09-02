@@ -49,10 +49,10 @@ type blueclawPayloadInstallTarget struct {
 }
 
 type blueclawPayloadRuntimeConfiguration struct {
-	Firecracker struct {
+	Guest struct {
 		HostWorkspacePath  string `json:"hostWorkspacePath"`
 		WorkspaceImagePath string `json:"workspaceImagePath"`
-	} `json:"firecracker"`
+	} `json:"guest"`
 }
 
 type blueclawTaskRunListItem struct {
@@ -762,8 +762,8 @@ func blueclawPayloadTenantInstallTarget(runtimeConfigurationPath string) (bluecl
 		return blueclawPayloadInstallTarget{}, false
 	}
 	tenantID := filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(runtimeConfigurationPath))))
-	hostWorkspacePath := strings.TrimSpace(runtimeConfiguration.Firecracker.HostWorkspacePath)
-	workspaceImagePath := strings.TrimSpace(runtimeConfiguration.Firecracker.WorkspaceImagePath)
+	hostWorkspacePath := strings.TrimSpace(runtimeConfiguration.Guest.HostWorkspacePath)
+	workspaceImagePath := strings.TrimSpace(runtimeConfiguration.Guest.WorkspaceImagePath)
 	if strings.TrimSpace(tenantID) == "" || hostWorkspacePath == "" || workspaceImagePath == "" {
 		return blueclawPayloadInstallTarget{}, false
 	}

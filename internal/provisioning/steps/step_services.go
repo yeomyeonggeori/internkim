@@ -361,12 +361,12 @@ if memory.get("graphitiKuzuPath") != "/workspace/.blueclaw/graphiti/kuzu":
     raise SystemExit
 
 terminal = runtime_configuration.get("terminal", {})
-if terminal.get("mode") != "firecrackerGuest":
+if terminal.get("mode") != "virtualMachineGuest":
     print("runtime-terminal-mode")
     raise SystemExit
 
-firecracker = runtime_configuration.get("firecracker", {})
-outbound_network = firecracker.get("outboundNetwork", {})
+guest = runtime_configuration.get("guest", {})
+outbound_network = guest.get("outboundNetwork", {})
 if outbound_network.get("enabled") is not True:
     print("runtime-outbound-network-disabled")
     raise SystemExit

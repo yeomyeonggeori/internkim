@@ -19,11 +19,6 @@ func TestLoadConfigurationAppliesDefaults(t *testing.T) {
     "container": {
       "cpuCount": 4
     }
-  },
-  "firecracker": {
-    "kernelImagePath": "/opt/blueclaw/vmlinux",
-    "rootfsImagePath": "/opt/blueclaw/rootfs.ext4",
-    "workspaceImagePath": "/opt/blueclaw/workspace.ext4"
   }
 }`), 0o600)
 	if errorValue != nil {
@@ -58,9 +53,6 @@ func TestLoadConfigurationAppliesDefaults(t *testing.T) {
 	}
 	if configuration.VirtualMachine.SSHUsername != "admin" {
 		t.Fatalf("expected default ssh username, got %q", configuration.VirtualMachine.SSHUsername)
-	}
-	if configuration.Firecracker.BinaryPath != "/usr/local/bin/firecracker" {
-		t.Fatalf("expected default firecracker binary, got %q", configuration.Firecracker.BinaryPath)
 	}
 }
 

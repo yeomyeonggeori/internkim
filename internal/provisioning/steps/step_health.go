@@ -430,8 +430,8 @@ if "ExecStart=/usr/local/bin/blueclaw " in text:
     raise SystemExit
 required = [
     "/usr/local/bin/blueclaw-supervisor",
-    "/usr/local/bin/firecracker",
-    "/usr/local/bin/jailer",
+    "/usr/local/bin/cloud-hypervisor",
+    "/usr/local/bin/virtiofsd",
     "/opt/internkim/blueclaw-runtime/manifest.json",
     "/opt/internkim/blueclaw-runtime/payload-manifest.json",
     "/opt/internkim/blueclaw-runtime/vmlinux.bin",
@@ -462,14 +462,14 @@ PY`))
 		}
 	}
 	if check == "ok" {
-		fmt.Println("  blueclaw firecracker runtime: ok")
+		fmt.Println("  blueclaw guest runtime: ok")
 		return
 	}
-	*failedChecks = append(*failedChecks, "blueclaw-firecracker-runtime")
+	*failedChecks = append(*failedChecks, "blueclaw-guest-runtime")
 	if check == "" {
 		check = "failed"
 	}
-	fmt.Printf("  blueclaw firecracker runtime: %s\n", check)
+	fmt.Printf("  blueclaw guest runtime: %s\n", check)
 }
 
 func blueclawServiceIsActive(context *Context) bool {
