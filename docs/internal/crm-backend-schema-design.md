@@ -33,7 +33,7 @@ same one `migrateCRMOpportunityAwayFromLostReasonForeignKey` performs.
 
 There is no `activity`, `crm_task`, `crm_task_contact`, `opportunity_contact`,
 `pipeline`, `pipeline_stage`, or `lost_reason` table. A CRM activity is the
-same `task` row shown by Flow. Setting `task.is_event = true` also makes that
+same `task` row the task board shows. Setting `task.is_event = true` also makes that
 row a calendar event.
 
 ## `company`

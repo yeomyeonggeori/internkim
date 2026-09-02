@@ -23,7 +23,7 @@ which side the write goes to first.
 | `intern.kim` | Supabase `public.task` | nothing |
 | the device, or the agent | admind SQLite, `calendar_events` | nothing |
 
-Two importers close the gap by hand, `web/scripts/import-flow-state.ts` and
+Two importers close the gap by hand, `web/scripts/import-task-state.ts` and
 `web/scripts/import-calendar-events.ts`. Someone has to run them, and between
 runs the two stores disagree. The calendar sat five weeks behind that way.
 

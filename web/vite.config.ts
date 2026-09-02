@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => {
 	const admindTarget = env.VITE_ADMIND_TARGET || 'http://127.0.0.1:18080';
 	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
 	const isAttendanceMockEnabled = env.VITE_MOCK_ATTENDANCE === '1';
-	const isFlowMockEnabled = env.VITE_MOCK_FLOW === '1';
+	const isTaskMockEnabled = env.VITE_MOCK_TASK === '1';
 	const isAdminMockEnabled = env.VITE_MOCK_ADMIN === '1' || env.VITE_MOCK_CRM === '1';
 	const devUserEmail = env.VITE_DEV_USER_EMAIL;
 	return {
@@ -65,9 +65,9 @@ export default defineConfig(({ mode }) => {
 				isEnabled: env.VITE_MOCK_FILES === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
-			devPersonProfileImageMockPlugin({ isEnabled: isFlowMockEnabled }),
+			devPersonProfileImageMockPlugin({ isEnabled: isTaskMockEnabled }),
 			devTaskMockPlugin({
-				isEnabled: isAttendanceMockEnabled || isFlowMockEnabled,
+				isEnabled: isAttendanceMockEnabled || isTaskMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devTasksMockPlugin({

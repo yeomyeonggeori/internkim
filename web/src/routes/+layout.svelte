@@ -74,7 +74,7 @@
 		if (routePath.startsWith('/files')) return text.files;
 		if (routePath.startsWith('/assistant')) return text.assistant;
 		if (routePath.startsWith('/messenger')) return text.messenger;
-		return text.flow;
+		return text.task;
 	}
 	function handleKeydown(event: KeyboardEvent) {
 		if (isCommandPaletteOpen) return;
