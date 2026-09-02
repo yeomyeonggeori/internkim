@@ -9,7 +9,7 @@ function argument(name: string): string | undefined {
 	return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-const accountID = argument('account') ?? '694280310d0ed1189a2a54c4a546403e';
+const accountID = argument('account') ?? requiredSetting('CLOUDFLARE_ACCOUNT_ID');
 const project = argument('project');
 if (!project) throw new Error('pass --project <name>');
 
