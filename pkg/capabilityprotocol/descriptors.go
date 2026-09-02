@@ -46,6 +46,12 @@ var sideEffectClasses = map[string]struct{}{
 	SideEffectWorkspaceWrite:  {},
 }
 
+var answerers = map[string]struct{}{
+	AnsweredByRecord:  {},
+	AnsweredByCompany: {},
+	AnsweredByLocal:   {},
+}
+
 var estimatedLatencies = map[string]struct{}{
 	"low":         {},
 	"medium":      {},
@@ -64,6 +70,7 @@ type DescriptorIdentity struct {
 	Name            string
 	CanonicalName   string
 	Namespace       string
+	AnsweredBy      string
 	ModelName       string
 	ModelVisibility string
 }
@@ -100,6 +107,7 @@ func NewDescriptor(definition DescriptorDefinition) Descriptor {
 		Name:                     definition.Identity.Name,
 		CanonicalName:            definition.Identity.CanonicalName,
 		Namespace:                definition.Identity.Namespace,
+		AnsweredBy:               definition.Identity.AnsweredBy,
 		ModelName:                definition.Identity.ModelName,
 		ModelVisibility:          definition.Identity.ModelVisibility,
 		ModelVisible:             definition.Identity.ModelVisibility == ModelVisibilityVisible,
@@ -263,6 +271,9 @@ func ValidateDescriptor(descriptor Descriptor) error {
 	}
 	if descriptor.Namespace != strings.TrimSpace(descriptor.Namespace) {
 		return fmt.Errorf("namespace must not have surrounding whitespace")
+	}
+	if _, found := answerers[descriptor.AnsweredBy]; !found {
+		return fmt.Errorf("answeredBy %q is invalid", descriptor.AnsweredBy)
 	}
 	if strings.TrimSpace(descriptor.ModelName) == "" {
 		return fmt.Errorf("modelName is required")

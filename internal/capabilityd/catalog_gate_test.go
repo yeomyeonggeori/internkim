@@ -441,13 +441,9 @@ func TestTheUncoveredListHoldsNothingThatIsCovered(t *testing.T) {
 // must be one the plane implements. Otherwise the gate would count a faked
 // answer as if the tool had been tested.
 func TestACarryingCaseNamesAToolThePlaneImplements(t *testing.T) {
-	runsOnThePlane := map[string]bool{
-		"task_add": true, "task_update": true, "task_list": true, "task_delete": true,
-		"event_add": true, "event_update": true, "event_list": true, "event_delete": true,
-		"person_list":  true,
-		"leave_list": true, "leave_balance": true, "leave_request": true, "leave_decide": true,
-		"leave_update": true, "leave_delete": true,
-		"attendance_list": true, "attendance_add": true, "attendance_update": true, "attendance_delete": true,
+	runsOnThePlane := map[string]bool{}
+	for _, name := range toolNamesAnsweredBy(capabilityprotocol.AnsweredByRecord) {
+		runsOnThePlane[name] = true
 	}
 	for name, gateCase := range gateCases() {
 		if gateCase.kind == "" {
