@@ -36,8 +36,6 @@ func (server *Server) runJob(contextValue context.Context, job *JobRunner, targe
 		server.runPilotStandardDeploy(contextValue, job, target)
 	case JobActionRestartSSH, JobActionRestartSSHRoute:
 		job.Error(server.runCommandPlan(contextValue, job, recoveryCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, action)))
-	case JobActionMattermostSmoke:
-		job.Error(server.runCommandPlan(contextValue, job, mattermostSmokeCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target)))
 	default:
 		job.Error(fmt.Errorf("unsupported job action: %s", action))
 	}
@@ -139,16 +137,6 @@ func updateApplyCommand(repositoryRootPath string, executablePath string, target
 
 func recoveryCommand(repositoryRootPath string, executablePath string, target Target, action string) CommandPlan {
 	arguments := commandTargetArguments(target, []string{"recover", "ssh", "--action", action})
-	return CommandPlan{
-		DirectoryPath: repositoryRootPath,
-		Name:          executablePath,
-		Arguments:     arguments,
-		Environment:   commandEnvironment(target),
-	}
-}
-
-func mattermostSmokeCommand(repositoryRootPath string, executablePath string, target Target) CommandPlan {
-	arguments := commandTargetArguments(target, []string{"verify", "mattermost"})
 	return CommandPlan{
 		DirectoryPath: repositoryRootPath,
 		Name:          executablePath,

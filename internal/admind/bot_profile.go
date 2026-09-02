@@ -1,23 +1,16 @@
 package admind
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"gitlab.com/eastriver/internkim/internal/botassets"
-	"gitlab.com/eastriver/internkim/internal/identity"
 )
 
 type botProfile struct {
@@ -149,70 +142,6 @@ func (service *Service) writeWorkspaceBotProfile(profile botProfile) error {
 	}
 	_ = os.Remove(filepath.Join(service.Configuration.BlueclawWorkspacePath, "BOT_PROFILE.md"))
 	return nil
-}
-
-func (service *Service) syncMattermostBotProfileImage(ctx context.Context, token string, userID string) error {
-	imagePath := strings.TrimSpace(service.Configuration.BotProfileImagePath)
-	if imagePath != "" {
-		imageDocument, errorValue := os.ReadFile(imagePath)
-		if errorValue == nil {
-			return service.mattermostUploadUserImage(ctx, token, userID, filepath.Base(imagePath), imageDocument)
-		}
-		if !os.IsNotExist(errorValue) {
-			return fmt.Errorf("read bot profile image: %w", errorValue)
-		}
-	}
-	return service.mattermostUploadUserImage(ctx, token, userID, botassets.AvatarFileName(), botassets.AvatarPNG())
-}
-
-func (service *Service) mattermostUploadUserImage(ctx context.Context, token string, userID string, filename string, imageDocument []byte) error {
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	imagePart, errorValue := writer.CreateFormFile("image", filename)
-	if errorValue != nil {
-		return errorValue
-	}
-	if _, errorValue := imagePart.Write(imageDocument); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := writer.Close(); errorValue != nil {
-		return errorValue
-	}
-
-	requestURL := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/api/v4/users/" + url.PathEscape(userID) + "/image"
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, body)
-	if errorValue != nil {
-		return errorValue
-	}
-	request.Header.Set("Content-Type", writer.FormDataContentType())
-	if token != "" {
-		request.Header.Set("Authorization", "Bearer "+token)
-	}
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return mattermostStatusError(response)
-	}
-	_, _ = io.Copy(io.Discard, response.Body)
-	return nil
-}
-
-func mattermostBotProfilePatch(profile botProfile) map[string]string {
-	body := map[string]string{
-		"nickname": firstNonEmpty(profile.DisplayName, profile.Username),
-		"position": profile.PublicDescription,
-	}
-	firstName, lastName := identity.SplitNameForMattermost(firstNonEmpty(profile.EnglishDisplayName, profile.Username))
-	if firstName != "" {
-		body["first_name"] = firstName
-	}
-	if lastName != "" {
-		body["last_name"] = lastName
-	}
-	return body
 }
 
 func normalizeBotProfile(profile botProfile) botProfile {

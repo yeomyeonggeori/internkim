@@ -306,29 +306,6 @@ func TestBlueclawHostNetworkDependencyInstallCommandInstallsTapNATTools(t *testi
 	}
 }
 
-func TestServicesReconcileMattermostSiteURLOnlyWhenMattermostIsPlanned(t *testing.T) {
-	if shouldReconcileMattermostSiteURL(&Context{PlannedSteps: map[string]bool{"local-llm": true}}) {
-		t.Fatal("expected non-Mattermost service plan to skip Mattermost SiteURL reconciliation")
-	}
-	if !shouldReconcileMattermostSiteURL(&Context{PlannedSteps: map[string]bool{"mattermost": true}}) {
-		t.Fatal("expected Mattermost plan to reconcile Mattermost SiteURL")
-	}
-}
-
-func TestMattermostSiteURLReconcileCommandRestartsOnlyWhenURLChanges(t *testing.T) {
-	command := mattermostSiteURLReconcileCommand("https://device.example")
-	for _, expectedValue := range []string{
-		`current_url="$(jq -r '.ServiceSettings.SiteURL // .SiteURL // ""'`,
-		`if [ "$current_url" != 'https://device.example' ]; then`,
-		`jq --arg siteURL 'https://device.example'`,
-		"systemctl restart mattermost",
-	} {
-		if !strings.Contains(command, expectedValue) {
-			t.Fatalf("expected Mattermost SiteURL command to contain %q, got:\n%s", expectedValue, command)
-		}
-	}
-}
-
 func TestJetsonServicesDoNotInstallLlamaCppUnitsByDefault(t *testing.T) {
 	command := serviceUnitInstallCommand(&Context{BoardType: BoardJetsonOrinNano})
 
@@ -382,7 +359,7 @@ func TestCloudSharedServicesUseRemoteInferenceMode(t *testing.T) {
 func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 	command := blueclawServiceHealthReportCommand(&Context{
 		BoardType:    BoardJetsonOrinNano,
-		PlannedSteps: map[string]bool{"local-llm": true, "mattermost": true},
+		PlannedSteps: map[string]bool{"local-llm": true},
 	})
 
 	for _, expectedValue := range []string{
@@ -396,8 +373,6 @@ func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 		"systemctl is-active graphiti-memoryd",
 		"printf '%s=' 'blueclawHealth'",
 		"curl --max-time 15 -fsS http://127.0.0.1:8080/admin/api/health",
-		"printf '%s=' 'capabilitydHealth'",
-		"curl --max-time 5 -fsS --unix-socket /run/internkim/capability.sock",
 		"printf '%s=' 'graphitiHealth'",
 		"curl --max-time 5 -fsS http://127.0.0.1:7791/health | jq -e '.status == \"ok\"'",
 		"printf '%s=' 'embedding'",
@@ -450,56 +425,6 @@ func TestBlueclawServicesHealthSkipsGraphitiWithoutLocalLLM(t *testing.T) {
 	}
 }
 
-func TestBlueclawServicesHealthSkipsMattermostCompositeHealthWithoutMattermost(t *testing.T) {
-	context := &Context{
-		BoardType:    BoardJetsonOrinNano,
-		PlannedSteps: map[string]bool{},
-		SSH: serviceHealthReportBoardConnection{
-			report: strings.Join([]string{
-				"blueclaw=active",
-				"capabilityd=active",
-				"admind=active",
-				"blueclawHealth=ok",
-			}, "\n"),
-		},
-	}
-
-	if !blueclawServicesAreHealthy(context) {
-		t.Fatal("expected Mattermost composite health to be skipped without Mattermost")
-	}
-}
-
-func TestBlueclawServicesHealthRequiresMattermostCompositeHealthWhenPlanned(t *testing.T) {
-	context := &Context{
-		BoardType:    BoardJetsonOrinNano,
-		PlannedSteps: map[string]bool{"mattermost": true},
-		SSH: serviceHealthReportBoardConnection{
-			report: strings.Join([]string{
-				"blueclaw=active",
-				"capabilityd=active",
-				"admind=active",
-				"blueclawHealth=ok",
-				"capabilitydHealth=no",
-			}, "\n"),
-		},
-	}
-
-	if blueclawServicesAreHealthy(context) {
-		t.Fatal("expected planned Mattermost composite health failure to fail service health")
-	}
-}
-
-func TestServiceHealthReportSkipsMattermostCompositeHealthWithoutMattermost(t *testing.T) {
-	command := blueclawServiceHealthReportCommand(&Context{
-		BoardType:    BoardJetsonOrinNano,
-		PlannedSteps: map[string]bool{},
-	})
-
-	if strings.Contains(command, "capabilitydHealth") {
-		t.Fatalf("expected Mattermost composite health check to be omitted, got:\n%s", command)
-	}
-}
-
 func TestServiceHealthReportChecksLocalLLMWhenPlanned(t *testing.T) {
 	command := blueclawServiceHealthReportCommand(&Context{
 		BoardType:    BoardJetsonOrinNano,
@@ -549,8 +474,6 @@ func (connection serviceSatisfiedWithoutGraphitiBoardConnection) Run(command str
 	case strings.Contains(command, "systemctl is-active internkim-capabilityd"):
 		return "active"
 	case strings.Contains(command, "systemctl is-active internkim-admind"):
-		return "active"
-	case strings.Contains(command, "systemctl is-active mattermost"):
 		return "active"
 	case strings.Contains(command, "curl --max-time 5 -fsS"):
 		return "ok"

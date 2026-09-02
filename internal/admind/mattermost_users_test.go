@@ -66,52 +66,6 @@ func isMattermostDefaultChannelMemberRequest(request *http.Request) bool {
 		request.URL.Path[len(request.URL.Path)-len("/members"):] == "/members"
 }
 
-func TestMattermostSyncedPersonCirclesUsesMemberAndChannelMembership(t *testing.T) {
-	person := map[string]any{
-		"emails": []any{"minsu@example.com", "other@example.com"},
-	}
-	circles := mattermostSyncedPersonCircles(person, map[string]map[string]bool{
-		"finance":        {"minsu@example.com": true},
-		"representative": {"someone@example.com": true},
-	})
-
-	if !containsMattermostTestString(circles, "member") || !containsMattermostTestString(circles, "finance") {
-		t.Fatalf("expected member and finance circles, got %+v", circles)
-	}
-	if containsMattermostTestString(circles, "representative") {
-		t.Fatalf("expected non-member representative circle omitted, got %+v", circles)
-	}
-}
-
-func TestMattermostSyncedPersonCirclesKeepsAdminFromPolicy(t *testing.T) {
-	person := map[string]any{
-		"emails":  []any{"owner@example.com"},
-		"isAdmin": true,
-	}
-	circles := mattermostSyncedPersonCircles(person, map[string]map[string]bool{})
-
-	if !containsMattermostTestString(circles, "member") || !containsMattermostTestString(circles, "admin") {
-		t.Fatalf("expected member and admin circles, got %+v", circles)
-	}
-}
-
-func TestMattermostSyncedPersonCirclesPreservesUnmanagedCircles(t *testing.T) {
-	person := map[string]any{
-		"emails":  []any{"owner@example.com"},
-		"circles": []any{"member", "lab", "c-level"},
-	}
-	circles := mattermostSyncedPersonCircles(person, map[string]map[string]bool{
-		"c-level": {"someone@example.com": true},
-	})
-
-	if !containsMattermostTestString(circles, "member") || !containsMattermostTestString(circles, "lab") {
-		t.Fatalf("expected member and unmanaged lab circles, got %+v", circles)
-	}
-	if containsMattermostTestString(circles, "c-level") {
-		t.Fatalf("expected managed c-level to come only from Mattermost membership, got %+v", circles)
-	}
-}
-
 func TestMattermostCircleChannelDefinitionsFromPolicy(t *testing.T) {
 	circleChannels := mattermostCircleChannelDefinitionsFromPolicy(map[string]any{
 		"circleSync": map[string]any{

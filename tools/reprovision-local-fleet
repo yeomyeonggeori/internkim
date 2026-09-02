@@ -33,4 +33,4 @@ INTERNKIM_TEST_MAXIMUM_MODEL_TIER='low' \
 	"$ROOT/internkim" setup --board lab --ssh --host "$vmInternetProtocolAddress" \
 		--user admin --password admin \
 		--admin-email local-fleet-admin@internkim.test \
-		--force --skip wifi,local-llm,cloudflare-access,tunnel,google,slack,mattermost
+		--force --skip wifi,local-llm,cloudflare-access,tunnel,google,slack

@@ -7,13 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
-	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -443,109 +438,6 @@ func (service *Service) removeMattermostChannelMember(ctx context.Context, token
 	return nil
 }
 
-func (service *Service) applyCircleEmailsToBlueclawPolicy(ctx context.Context, circleEmailsByID map[string]map[string]bool) error {
-	var policyDocument map[string]any
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
-		return errorValue
-	}
-	people, _ := policyDocument["people"].([]any)
-	hasPolicyChange := false
-	for _, value := range people {
-		person, isPerson := value.(map[string]any)
-		if !isPerson {
-			continue
-		}
-		currentCircles := policyStringList(person["circles"])
-		syncedCircles := mattermostSyncedPersonCircles(person, circleEmailsByID)
-		if mattermostCircleSetsEqual(currentCircles, syncedCircles) {
-			continue
-		}
-		reportCircleMembershipChange(person, currentCircles, syncedCircles)
-		person["circles"] = syncedCircles
-		hasPolicyChange = true
-	}
-	if !hasPolicyChange {
-		return nil
-	}
-	return service.deliverBlueclawPolicy(ctx, policyDocument)
-}
-
-// A circle is what a person can reach on the workspace, so taking one away names
-// which one and whose.
-func reportCircleMembershipChange(person map[string]any, current []string, synced []string) {
-	kept := map[string]bool{}
-	for _, circle := range synced {
-		kept[circle] = true
-	}
-	removed := []string{}
-	for _, circle := range current {
-		if !kept[circle] {
-			removed = append(removed, circle)
-		}
-	}
-	if len(removed) == 0 {
-		return
-	}
-	log.Printf("Mattermost circle sync removes %s from %s", strings.Join(removed, ","), policyPersonLabel(person))
-}
-
-func policyPersonLabel(person map[string]any) string {
-	if emails := policyStringList(person["emails"]); len(emails) > 0 {
-		return emails[0]
-	}
-	personID, _ := person["personID"].(string)
-	return personID
-}
-
-func mattermostCircleSetsEqual(current []string, synced []string) bool {
-	currentCopy := append([]string{}, current...)
-	syncedCopy := append([]string{}, synced...)
-	sort.Strings(currentCopy)
-	sort.Strings(syncedCopy)
-	return slices.Equal(currentCopy, syncedCopy)
-}
-
-func mattermostSyncedPersonCircles(person map[string]any, circleEmailsByID map[string]map[string]bool) []string {
-	emailValues, _ := person["emails"].([]any)
-	circles := []string{"member"}
-	if isAdmin, _ := person["isAdmin"].(bool); isAdmin {
-		circles = append(circles, "admin")
-	}
-	for _, circle := range policyStringList(person["circles"]) {
-		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
-		if normalizedCircle == "" || isTheCircleEveryoneIsIn(normalizedCircle) || normalizedCircle == "admin" {
-			continue
-		}
-		if _, isMattermostManaged := circleEmailsByID[normalizedCircle]; !isMattermostManaged {
-			circles = append(circles, normalizedCircle)
-		}
-	}
-	for circleID, emails := range circleEmailsByID {
-		for _, value := range emailValues {
-			email, isString := value.(string)
-			if isString && emails[strings.ToLower(strings.TrimSpace(email))] {
-				circles = append(circles, circleID)
-				break
-			}
-		}
-	}
-	return uniqueMattermostCircles(circles)
-}
-
-func uniqueMattermostCircles(circles []string) []string {
-	seenCircle := map[string]bool{}
-	uniqueCircles := []string{}
-	for _, circle := range circles {
-		normalizedCircle := strings.ToLower(strings.TrimSpace(circle))
-		if normalizedCircle == "" || seenCircle[normalizedCircle] {
-			continue
-		}
-		seenCircle[normalizedCircle] = true
-		uniqueCircles = append(uniqueCircles, normalizedCircle)
-	}
-	return uniqueCircles
-}
-
 type mattermostCircleChannelDefinition struct {
 	CircleID    string
 	ChannelName string
@@ -750,42 +642,4 @@ func isValidMattermostHandle(handle string) bool {
 
 func isLowercaseASCIIAlpha(character rune) bool {
 	return character >= 'a' && character <= 'z'
-}
-
-func (service *Service) ensureMattermostTownSquareChannel(ctx context.Context, token string, teamID string) (string, error) {
-	channel, _ := service.mattermostManagedPublicChannel(mattermostdefaults.TownSquareChannelName)
-	channelIDPath := filepath.Join(filepath.Dir(service.Configuration.FleetIDPath), "channel-id")
-	channelID := strings.TrimSpace(readTrimmedFile(channelIDPath))
-	if channelID != "" {
-		var channelRecord mattermostChannelRecord
-		errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+url.PathEscape(channelID), token, nil, &channelRecord)
-		if errorValue == nil && channelRecord.ID != "" {
-			return channelRecord.ID, service.updateMattermostManagedPublicChannelText(ctx, token, channelRecord.ID, channel)
-		}
-		if errorValue != nil && !isMattermostNotFound(errorValue) {
-			return "", errorValue
-		}
-	}
-
-	var channelRecord mattermostChannelRecord
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/teams/"+url.PathEscape(teamID)+"/channels/name/town-square", token, nil, &channelRecord)
-	if errorValue != nil && !isMattermostNotFound(errorValue) {
-		return "", errorValue
-	}
-	if channelRecord.ID == "" {
-		body := map[string]string{"team_id": teamID, "name": channel.Name, "display_name": channel.DisplayName, "type": "O"}
-		if errorValue := service.mattermostRequest(ctx, http.MethodPost, "/api/v4/channels", token, body, &channelRecord); errorValue != nil {
-			return "", errorValue
-		}
-	}
-	if channelRecord.ID == "" {
-		return "", fmt.Errorf("Mattermost channel town-square was not created")
-	}
-	if errorValue := service.updateMattermostManagedPublicChannelText(ctx, token, channelRecord.ID, channel); errorValue != nil {
-		return "", errorValue
-	}
-	if errorValue := os.WriteFile(channelIDPath, []byte(channelRecord.ID), 0o640); errorValue != nil {
-		return "", errorValue
-	}
-	return channelRecord.ID, nil
 }

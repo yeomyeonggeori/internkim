@@ -1,18 +1,14 @@
 package admind
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 type workspaceSettings struct {
@@ -227,20 +223,4 @@ func validateWorkspaceLanguage(language string) error {
 		return nil
 	}
 	return fmt.Errorf("language must be ko or en")
-}
-
-func (service *Service) ensureMattermostLocalizedPublicChannel(ctx context.Context, token string, teamID string, channel mattermostdefaults.PublicChannel) error {
-	channelID, errorValue := service.ensureMattermostPublicChannel(ctx, token, teamID, channel.Name, channel.DisplayName)
-	if errorValue != nil {
-		return errorValue
-	}
-	return service.updateMattermostManagedPublicChannelText(ctx, token, channelID, channel)
-}
-
-func (service *Service) updateMattermostChannelDisplayName(ctx context.Context, token string, channelID string, displayName string) error {
-	body := map[string]string{"display_name": displayName}
-	if errorValue := service.mattermostRequest(ctx, http.MethodPut, "/api/v4/channels/"+url.PathEscape(channelID)+"/patch", token, body, nil); errorValue != nil {
-		return errorValue
-	}
-	return service.cleanupMattermostManagedChannelSystemPosts(ctx, token, channelID)
 }
