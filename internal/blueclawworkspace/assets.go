@@ -31,16 +31,19 @@ func PluginPaths(scriptDir string) []string {
 	return pluginPaths
 }
 
-func PluginSkillPaths(scriptDir string) []string {
-	skillPaths := []string{}
-	for _, pluginPath := range PluginPaths(scriptDir) {
-		skillPaths = append(skillPaths, filepath.Join(pluginPath, "skills"))
+func SkillRootPaths(scriptDir string) ([]string, error) {
+	manifests, errorValue := PluginManifests(scriptDir)
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	return skillPaths
-}
-
-func SkillRootPaths(scriptDir string) []string {
-	return PluginSkillPaths(scriptDir)
+	if len(manifests) == 0 {
+		return nil, fmt.Errorf("no plugin under %s carries a plugin.json; run `git submodule update --init --recursive`", dependencyPath(scriptDir))
+	}
+	skillRootPaths := []string{}
+	for _, manifest := range manifests {
+		skillRootPaths = append(skillRootPaths, filepath.Join(manifest.Path, "skills"))
+	}
+	return skillRootPaths, nil
 }
 
 func isExistingFile(path string) bool {
@@ -54,9 +57,13 @@ type SkillDirectory struct {
 }
 
 func SkillDirectories(scriptDir string) ([]SkillDirectory, error) {
+	skillRootPaths, errorValue := SkillRootPaths(scriptDir)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	skillDirectories := []SkillDirectory{}
 	pathByName := map[string]string{}
-	for _, rootPath := range SkillRootPaths(scriptDir) {
+	for _, rootPath := range skillRootPaths {
 		entries, errorValue := os.ReadDir(rootPath)
 		if errorValue != nil {
 			if os.IsNotExist(errorValue) {

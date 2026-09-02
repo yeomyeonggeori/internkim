@@ -72,6 +72,11 @@ func TestEverySkillRootReachesTheShare(t *testing.T) {
 	layout, sources := deliverySourcesForTest(t)
 	pluginSkillsPath := filepath.Join(t.TempDir(), "plugin", "skills")
 	writeTestFile(t, filepath.Join(pluginSkillsPath, "a-plugin-skill", "SKILL.md"), "a plugin skill")
+	buildScriptPath := filepath.Join(pluginSkillsPath, "a-plugin-skill", "scripts", "build.sh")
+	writeTestFile(t, buildScriptPath, "#!/bin/sh\n")
+	if errorValue := os.Chmod(buildScriptPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	sources.SkillPaths = append(sources.SkillPaths, pluginSkillsPath)
 
 	if errorValue := WriteDeliveryDirectory(layout, sources); errorValue != nil {
@@ -83,6 +88,14 @@ func TestEverySkillRootReachesTheShare(t *testing.T) {
 		if _, errorValue := os.Stat(path); errorValue != nil {
 			t.Fatalf("the roots merge into one delivered directory; a later root must not delete an earlier one: %s: %v", path, errorValue)
 		}
+	}
+	deliveredScriptPath := filepath.Join(layout.DeliverySkillsPath(), "a-plugin-skill", "scripts", "build.sh")
+	fileInformation, errorValue := os.Stat(deliveredScriptPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if fileInformation.Mode().Perm() != deliveryExecutableMode {
+		t.Fatalf("a skill's own script must arrive runnable, got %v", fileInformation.Mode().Perm())
 	}
 }
 

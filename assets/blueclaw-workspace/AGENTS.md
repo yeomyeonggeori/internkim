@@ -73,9 +73,12 @@ Allowed workspace paths for raw terminal and file kernel tools:
 - `/workspace/shared/public`: intentionally public shared artifacts.
 - `/workspace/shared/cache/dependencies`: package caches only. Do not store task
   inputs, private source files, or final artifacts there.
-- `scripts/` inside a skill's own directory, the one holding its `SKILL.md`:
-  built-in helper code. Execute documented wrappers; create task-local scripts
-  under `tmp/<artifact-slug>`.
+
+## Skill scripts
+
+A skill's own directory is not on the workspace. Execute the wrappers a skill
+documents under its `scripts/`, and create task-local scripts under
+`tmp/<artifact-slug>` instead of writing next to a skill.
 
 Tool path fields such as `terminal.run.workingDirectoryPath` and
 `file.deliver.path` should use virtual workspace paths like

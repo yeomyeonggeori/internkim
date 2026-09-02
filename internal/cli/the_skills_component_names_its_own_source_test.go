@@ -9,12 +9,12 @@ import (
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 )
 
-// The skills release shipped every skill root while its revision was computed
-// from assets/skills, which no commit has ever touched, so a skills change
-// never moved the component and the repository revision stood in for it.
 func TestTheSkillsComponentNamesTheRootsItShips(t *testing.T) {
 	repositoryRootPath := repositoryRootForSourcePathTest(t)
-	sourcePaths := componentSourcePaths["skills"]
+	sourcePaths := skillComponentSourcePaths(repositoryRootPath)
+	if len(sourcePaths) == 0 {
+		t.Fatal("the skills component names no source, so a skills change moves nothing")
+	}
 
 	for _, sourcePath := range sourcePaths {
 		if _, errorValue := os.Stat(filepath.Join(repositoryRootPath, sourcePath)); errorValue != nil {
@@ -22,7 +22,11 @@ func TestTheSkillsComponentNamesTheRootsItShips(t *testing.T) {
 		}
 	}
 
-	for _, skillRootPath := range blueclawworkspace.SkillRootPaths(repositoryRootPath) {
+	skillRootPaths, errorValue := blueclawworkspace.SkillRootPaths(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, skillRootPath := range skillRootPaths {
 		relativeRootPath, errorValue := filepath.Rel(repositoryRootPath, skillRootPath)
 		if errorValue != nil {
 			t.Fatal(errorValue)

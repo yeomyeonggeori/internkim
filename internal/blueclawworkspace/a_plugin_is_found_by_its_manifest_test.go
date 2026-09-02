@@ -17,7 +17,7 @@ func writeTestPlugin(t *testing.T, repositoryRootPath string, pluginName string,
 	if errorValue := os.MkdirAll(filepath.Join(pluginPath, "skills"), 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	manifest := []byte(`{"name":"` + pluginName + `"}`)
+	manifest := []byte(`{"$schema":"` + PluginSchemaURL + `","name":"` + pluginName + `","version":"0.0.1"}`)
 	if errorValue := os.WriteFile(filepath.Join(pluginPath, "plugin.json"), manifest, 0o644); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -44,5 +44,11 @@ func TestASecondPluginIsFoundByItsManifest(t *testing.T) {
 	}
 	if len(PluginPaths(repositoryRootPath)) != 2 {
 		t.Fatalf("a vendored directory without a manifest is not a plugin, got %v", PluginPaths(repositoryRootPath))
+	}
+	if errorValue := os.WriteFile(filepath.Join(dependencyPath(repositoryRootPath), "another-plugin", "plugin.json"), []byte("not json"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := SkillDirectories(repositoryRootPath); errorValue == nil {
+		t.Fatal("a manifest nothing can parse must stop the load, not be skipped")
 	}
 }

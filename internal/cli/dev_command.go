@@ -45,9 +45,12 @@ type devCommandInvocation struct {
 // Declared by blueclaw, which is a separate module this one cannot import.
 const blueclawScenarioSkillRootsVariable = "BLUECLAW_SCENARIO_SKILL_ROOTS"
 
-func scenarioSkillRootsVariable(repositoryRootPath string) string {
-	skillRootPaths := blueclawworkspace.SkillRootPaths(repositoryRootPath)
-	return blueclawScenarioSkillRootsVariable + "=" + strings.Join(skillRootPaths, string(os.PathListSeparator))
+func scenarioSkillRootsVariable(repositoryRootPath string) (string, error) {
+	skillRootPaths, errorValue := blueclawworkspace.SkillRootPaths(repositoryRootPath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return blueclawScenarioSkillRootsVariable + "=" + strings.Join(skillRootPaths, string(os.PathListSeparator)), nil
 }
 
 var runDevLocalVirtualSession = runLocalDevVirtualSession
@@ -482,10 +485,14 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 	sessionArguments.ArtifactDirectoryPath = resolveDevPath(repositoryRootPath, sessionArguments.ArtifactDirectoryPath)
 	sessionArguments.ScenarioFilePath = resolveDevPath(repositoryRootPath, sessionArguments.ScenarioFilePath)
 	sessionArguments.SkillDirectoryPath = resolveDevPath(repositoryRootPath, sessionArguments.SkillDirectoryPath)
+	skillRootsVariable, errorValue := scenarioSkillRootsVariable(repositoryRootPath)
+	if errorValue != nil {
+		return devCommandInvocation{}, errorValue
+	}
 	return devCommandInvocation{
 		WorkingDirectoryPath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw"),
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
-		EnvironmentVariables: []string{scenarioSkillRootsVariable(repositoryRootPath)},
+		EnvironmentVariables: []string{skillRootsVariable},
 	}, nil
 }
 

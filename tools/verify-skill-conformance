@@ -24,6 +24,14 @@ def main() -> int:
         print("bunx is not on PATH, so the reference validator cannot run", file=sys.stderr)
         return 1
 
+    probe = subprocess.run([runner, VALIDATOR, "--help"], capture_output=True, text=True)
+    if probe.returncode != 0:
+        print(
+            f"{VALIDATOR} could not run, so no skill was checked:\n{probe.stdout.strip()}{probe.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return 1
+
     rejected: list[str] = []
     checked = 0
     for skill_root in skill_root_paths(REPOSITORY_ROOT):

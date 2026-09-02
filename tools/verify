@@ -48,7 +48,7 @@ GROUPS = [
     ),
     Group(
         "skill-tool-references",
-        [".dependency/internkim-plugin", ".dependency/blueclaw*", "internal/capabilities/*", "pkg/capabilityprotocol/*"],
+        [".dependency/*", ".dependency/blueclaw*", "internal/capabilities/*", "pkg/capabilityprotocol/*"],
         [["tools/verify-skill-tool-references"], ["tools/verify-skill-conformance"]],
     ),
     Group(
@@ -70,7 +70,7 @@ GROUPS = [
             "go.sum",
             "pkg/capabilityprotocol/generated/*",
             "supabase/functions/_shared/*",
-            ".dependency/internkim-plugin",
+            ".dependency/*",
         ],
         [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
     ),

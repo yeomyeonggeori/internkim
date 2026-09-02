@@ -59,7 +59,18 @@ rm -rf "$skillsDirectory"
 mkdir -p "$skillsDirectory"
 for pluginManifest in "$repositoryRoot"/.dependency/*/plugin.json; do
   [ -f "$pluginManifest" ] || continue
-  cp -R "$(dirname "$pluginManifest")/skills/." "$skillsDirectory/"
+  pluginSkills="$(dirname "$pluginManifest")/skills"
+  [ -d "$pluginSkills" ] || continue
+  for skillPath in "$pluginSkills"/*/; do
+    skillPath="${skillPath%/}"
+    [ -d "$skillPath" ] || continue
+    skillName="$(basename "$skillPath")"
+    if [ -e "$skillsDirectory/$skillName" ]; then
+      say "two plugins carry a skill named $skillName"
+      exit 1
+    fi
+    cp -R "$skillPath" "$skillsDirectory/$skillName"
+  done
 done
 
 say "the scenarios"

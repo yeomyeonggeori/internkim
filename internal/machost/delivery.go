@@ -1,6 +1,7 @@
 package machost
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -31,7 +32,11 @@ func WriteDeliveryDirectory(layout Layout, sources DeliverySources) error {
 	if errorValue := os.RemoveAll(layout.DeliverySkillsPath()); errorValue != nil {
 		return errorValue
 	}
+	rootBySkillName := map[string]string{}
 	for _, skillPath := range sources.SkillPaths {
+		if errorValue := recordDeliveredSkillNames(skillPath, rootBySkillName); errorValue != nil {
+			return errorValue
+		}
 		if errorValue := copyDeliveryTree(skillPath, layout.DeliverySkillsPath()); errorValue != nil {
 			return errorValue
 		}
@@ -43,6 +48,26 @@ func WriteDeliveryDirectory(layout Layout, sources DeliverySources) error {
 		return errorValue
 	}
 	return os.WriteFile(layout.PolicyPath(), []byte(sources.PolicyJSON), deliveryFileMode)
+}
+
+func recordDeliveredSkillNames(skillPath string, rootBySkillName map[string]string) error {
+	entries, errorValue := os.ReadDir(skillPath)
+	if errorValue != nil {
+		if os.IsNotExist(errorValue) {
+			return nil
+		}
+		return errorValue
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if previousRoot, isDuplicate := rootBySkillName[entry.Name()]; isDuplicate {
+			return fmt.Errorf("skill %q is provided by both %s and %s", entry.Name(), previousRoot, skillPath)
+		}
+		rootBySkillName[entry.Name()] = skillPath
+	}
+	return nil
 }
 
 func replaceDeliveryTree(sourcePath string, destinationPath string) error {
@@ -71,12 +96,16 @@ func copyDeliveryTree(sourcePath string, destinationPath string) error {
 		if !entry.Type().IsRegular() {
 			return nil
 		}
-		return copyDeliveryFile(currentPath, targetPath, deliveryFileModeFor(relativePath))
+		entryInformation, errorValue := entry.Info()
+		if errorValue != nil {
+			return errorValue
+		}
+		return copyDeliveryFile(currentPath, targetPath, deliveryFileModeFor(relativePath, entryInformation.Mode()))
 	})
 }
 
-func deliveryFileModeFor(relativePath string) fs.FileMode {
-	if strings.HasPrefix(relativePath, "bin"+string(filepath.Separator)) {
+func deliveryFileModeFor(relativePath string, sourceMode fs.FileMode) fs.FileMode {
+	if strings.HasPrefix(relativePath, "bin"+string(filepath.Separator)) || sourceMode.Perm()&0o100 != 0 {
 		return deliveryExecutableMode
 	}
 	return deliveryFileMode
