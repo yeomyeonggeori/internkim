@@ -30,6 +30,10 @@ const (
 
 	ToolConflictResolutionAllowDuplicate ToolConflictResolution = "allow_duplicate"
 
+	AnsweredByRecord  = "record"
+	AnsweredByCompany = "company"
+	AnsweredByLocal   = "local"
+
 	ResourceEffectIdentityID   ResourceEffectIdentity = "id"
 	ResourceEffectIdentityPath ResourceEffectIdentity = "path"
 	ResourceEffectIdentityURL  ResourceEffectIdentity = "url"
@@ -72,6 +76,7 @@ type Descriptor struct {
 	Name                     string                        `json:"name"`
 	CanonicalName            string                        `json:"canonicalName"`
 	Namespace                string                        `json:"namespace"`
+	AnsweredBy               string                        `json:"answeredBy"`
 	ModelName                string                        `json:"modelName"`
 	ModelVisibility          string                        `json:"modelVisibility"`
 	ModelVisible             bool                          `json:"modelVisible"`
