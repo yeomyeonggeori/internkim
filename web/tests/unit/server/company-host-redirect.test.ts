@@ -4,7 +4,7 @@ import {
 	theOneAddressOf
 } from '../../../src/lib/server/company-host-redirect';
 
-const zone = 'intern.kim';
+const zone = 'example.test';
 
 function asks(hostname: string, pathname = '/flow/'): boolean {
 	return movesToTheOneAddress({ hostname, zone, pathname });
@@ -12,7 +12,7 @@ function asks(hostname: string, pathname = '/flow/'): boolean {
 
 describe('the one address every company signs in at', () => {
 	test('moves a company subdomain to the one address', () => {
-		expect(asks('samplecompany.intern.kim')).toBe(true);
+		expect(asks('samplecompany.example.test')).toBe(true);
 	});
 
 	test('leaves the one address itself alone', () => {
@@ -20,7 +20,7 @@ describe('the one address every company signs in at', () => {
 	});
 
 	test('moves a page request on the api host, which is not a place to read', () => {
-		expect(asks('api.intern.kim')).toBe(true);
+		expect(asks('api.example.test')).toBe(true);
 	});
 
 	test('leaves a preview deployment alone', () => {
@@ -33,28 +33,28 @@ describe('the one address every company signs in at', () => {
 	});
 
 	test('is not fooled by a host that merely ends in the zone text', () => {
-		expect(asks('notintern.kim')).toBe(false);
-		expect(asks('evil-intern.kim')).toBe(false);
+		expect(asks('notexample.test')).toBe(false);
+		expect(asks('evil-example.test')).toBe(false);
 	});
 
 	test('reads a host the browser sent in capitals', () => {
-		expect(asks('SampleCompany.Intern.Kim')).toBe(true);
+		expect(asks('SampleCompany.Example.Test')).toBe(true);
 	});
 
 	test('stays put when no zone is configured, rather than moving somewhere wrong', () => {
-		expect(movesToTheOneAddress({ hostname: 'samplecompany.intern.kim', zone: '', pathname: '/flow/' })).toBe(false);
+		expect(movesToTheOneAddress({ hostname: 'samplecompany.example.test', zone: '', pathname: '/flow/' })).toBe(false);
 	});
 });
 
 describe('a caller that carries its own credential', () => {
 	test('is answered where it landed, because a redirect would drop its bearer token', () => {
-		expect(asks('samplecompany.intern.kim', '/api/agent/connection')).toBe(false);
-		expect(asks('api.intern.kim', '/api/agent/host-session')).toBe(false);
-		expect(asks('api.intern.kim', '/v1/tools/message_send/invoke')).toBe(false);
+		expect(asks('samplecompany.example.test', '/api/agent/connection')).toBe(false);
+		expect(asks('api.example.test', '/api/agent/host-session')).toBe(false);
+		expect(asks('api.example.test', '/v1/tools/message_send/invoke')).toBe(false);
 	});
 
 	test('still moves a page request on the same host', () => {
-		expect(asks('samplecompany.intern.kim', '/apiary')).toBe(true);
+		expect(asks('samplecompany.example.test', '/apiary')).toBe(true);
 	});
 });
 

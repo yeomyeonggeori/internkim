@@ -4,8 +4,8 @@ import "testing"
 
 func aTranslation() linkTranslation {
 	return linkTranslation{
-		appURL:     "https://intern.kim",
-		deviceHost: "zd2df6qt6jmc.intern.kim",
+		appURL:     "https://example.test",
+		deviceHost: "zd2df6qt6jmc.example.test",
 		recordCalendarID: func(given string) string {
 			if given == "device-event" {
 				return "record-event"
@@ -23,9 +23,9 @@ func aTranslation() linkTranslation {
 
 func TestALinkIsRewrittenWithTheRecordsIdentifier(t *testing.T) {
 	rewritten := aTranslation().rewrite(
-		"내일 일정입니다 https://zd2df6qt6jmc.intern.kim/calendar/?date=2026-09-22&event=device-event 확인해주세요")
+		"내일 일정입니다 https://zd2df6qt6jmc.example.test/calendar/?date=2026-09-22&event=device-event 확인해주세요")
 
-	expected := "내일 일정입니다 https://intern.kim/calendar/?date=2026-09-22&event=record-event 확인해주세요"
+	expected := "내일 일정입니다 https://example.test/calendar/?date=2026-09-22&event=record-event 확인해주세요"
 	if rewritten != expected {
 		t.Errorf("rewrote to %q", rewritten)
 	}
@@ -34,17 +34,17 @@ func TestALinkIsRewrittenWithTheRecordsIdentifier(t *testing.T) {
 // The record has not taken every event this device holds. Carrying the device's
 // identifier to the record opens nothing; the day it is on still does.
 func TestAnIdentifierTheRecordNeverTookIsLeftOut(t *testing.T) {
-	rewritten := aTranslation().rewrite("https://zd2df6qt6jmc.intern.kim/calendar/?date=2026-09-22&event=unknown")
+	rewritten := aTranslation().rewrite("https://zd2df6qt6jmc.example.test/calendar/?date=2026-09-22&event=unknown")
 
-	if rewritten != "https://intern.kim/calendar/?date=2026-09-22" {
+	if rewritten != "https://example.test/calendar/?date=2026-09-22" {
 		t.Errorf("rewrote to %q", rewritten)
 	}
 }
 
 func TestABoardLinkTakesTheRecordsTaskIdentifier(t *testing.T) {
-	rewritten := aTranslation().rewrite("https://zd2df6qt6jmc.intern.kim/flow/?week=26W18&task=device-task")
+	rewritten := aTranslation().rewrite("https://zd2df6qt6jmc.example.test/flow/?week=26W18&task=device-task")
 
-	if rewritten != "https://intern.kim/flow/?task=record-task&week=26W18" {
+	if rewritten != "https://example.test/flow/?task=record-task&week=26W18" {
 		t.Errorf("rewrote to %q", rewritten)
 	}
 }

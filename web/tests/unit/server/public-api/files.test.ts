@@ -51,33 +51,33 @@ describe('the ceiling on one file', () => {
 	});
 
 	test('is read from the length the caller claims before the body is read at all', () => {
-		const oversize = new Request('https://api.intern.kim/v1/files', {
+		const oversize = new Request('https://api.example.test/v1/files', {
 			method: 'POST',
 			headers: { 'Content-Length': '99999999' }
 		});
 		expect(sizeTheHeaderClaims(oversize)).toBe(99_999_999);
-		expect(sizeTheHeaderClaims(new Request('https://api.intern.kim/v1/files'))).toBeNull();
+		expect(sizeTheHeaderClaims(new Request('https://api.example.test/v1/files'))).toBeNull();
 	});
 });
 
 describe('what the call says about the file itself', () => {
 	test('is the content type it was sent with, or nothing named', () => {
-		const png = new Request('https://api.intern.kim/v1/files', {
+		const png = new Request('https://api.example.test/v1/files', {
 			method: 'POST',
 			headers: { 'Content-Type': 'image/png' },
 			body: 'x'
 		});
 		expect(contentTypeOffered(png)).toBe('image/png');
-		expect(contentTypeOffered(new Request('https://api.intern.kim/v1/files'))).toBe(
+		expect(contentTypeOffered(new Request('https://api.example.test/v1/files'))).toBe(
 			'application/octet-stream'
 		);
 	});
 
 	test('is a filename only when the caller offered one', () => {
-		expect(filenameOffered(new URL('https://api.intern.kim/v1/files?filename=report.pdf'))).toBe(
+		expect(filenameOffered(new URL('https://api.example.test/v1/files?filename=report.pdf'))).toBe(
 			'report.pdf'
 		);
-		expect(filenameOffered(new URL('https://api.intern.kim/v1/files'))).toBe('');
+		expect(filenameOffered(new URL('https://api.example.test/v1/files'))).toBe('');
 	});
 });
 
