@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
-	NothingMatchesTheHint,
 	participantsOfHints,
 	ownerOfScope,
 	taskOfHint,
 	taskWriteArguments,
 	type TaskRow
 } from '$lib/server/public-api/record/tasks';
+import { HintRefused } from '$lib/server/public-api/record/hint-resolution';
 
 function row(overrides: Partial<TaskRow> = {}): TaskRow {
 	return {
@@ -38,17 +38,60 @@ describe('naming a task', () => {
 		expect(taskOfHint(tasks, '휴가').id).toBe('t3');
 	});
 
-	test('refuses a part two tasks answer to, and says which', () => {
-		const refusal = (() => {
-			try {
-				taskOfHint(tasks, '보고서');
-			} catch (thrown) {
-				return thrown as NothingMatchesTheHint;
-			}
-			throw new Error('the hint was expected to be refused');
-		})();
-		expect(refusal.candidates).toEqual(['분기 보고서 초안', '분기 보고서 초안 검토']);
+	test('takes a part whose spacing differs from the title it holds', () => {
+		expect(taskOfHint(tasks, '  분기   보고서 초안 검토  ').id).toBe('t2');
 	});
+
+	test('refuses a part two tasks answer to, and says which', () => {
+		const refusal = refusalOf('보고서');
+		expect(refusal.outcome).toBe('ambiguous');
+		expect(refusal.errorCode).toBe('interaction_required');
+		expect(refusal.candidates).toEqual([
+			{ id: 't1', label: '분기 보고서 초안' },
+			{ id: 't2', label: '분기 보고서 초안 검토' }
+		]);
+	});
+
+	test('lets the requester’s own task break a tie neither title answers exactly', () => {
+		const mine = row({ id: 't4', title: '주간 보고 정리', task_participant: [{ member_id: 'm9' }] });
+		const theirs = row({ id: 't5', title: '주간 보고 정리 검토', task_participant: [{ member_id: 'm2' }] });
+		expect(taskOfHint([mine, theirs], '보고 정리', 'task', 'm9').id).toBe('t4');
+		expect(() => taskOfHint([mine, theirs], '보고 정리')).toThrow(HintRefused);
+	});
+
+	test('breaks a tie on ownership alone, never on taking part in somebody else’s', () => {
+		const theirs = row({ id: 't6', title: '월간 회의', task_participant: [{ member_id: 'm2' }, { member_id: 'm9' }] });
+		const alsoTheirs = row({ id: 't7', title: '월간 회의 준비', task_participant: [{ member_id: 'm3' }] });
+		expect(() => taskOfHint([theirs, alsoTheirs], '회의', 'task', 'm9')).toThrow(HintRefused);
+	});
+
+	test('offers the nearest titles when nothing holds the hint, and resolves nothing', () => {
+		const refusal = refusalOf('분기 보고서 초안을');
+		expect(refusal.outcome).toBe('approximate');
+		expect(refusal.candidates.map((one) => one.id)).toContain('t1');
+	});
+
+	test('caps the nearest at eight', () => {
+		const many = Array.from({ length: 20 }, (_, index) =>
+			row({ id: `n${index}`, title: `분기 보고 ${index}` })
+		);
+		expect(refusalOf('분기 보고서 초안을', many).candidates.length).toBe(8);
+	});
+
+	test('refuses an id that is a character off rather than approximating it', () => {
+		expect(refusalOf('t9').outcome).toBe('not_found');
+		expect(refusalOf('t9').errorCode).toBe('task_not_found');
+	});
+
+	function refusalOf(hint: string, over: TaskRow[] = tasks): HintRefused {
+		try {
+			taskOfHint(over, hint);
+		} catch (thrown) {
+			if (thrown instanceof HintRefused) return thrown;
+			throw thrown;
+		}
+		throw new Error(`${hint} was expected to be refused`);
+	}
 });
 
 describe('writing a task that already exists', () => {

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { centralStatusFromWord } from '$lib/task/central-task';
+import { centralStatusFromWord, compatibilityOwnerOf } from '$lib/task/central-task';
+import { titleNearness } from './hint-nearness';
+import { HintRefused, normalized, resolveHint, type HintMatcher, type HintSubject } from './hint-resolution';
 import { peopleOfHints, personOfHint, type RecordPerson } from './people';
 
 export type TaskRow = {
@@ -36,6 +38,24 @@ export class RecordRefusedTheWrite extends Error {
 	}
 }
 
+export class WriteNotReadBack extends Error {
+	readonly errorCode = 'record_write_not_read_back';
+	readonly failureStage = 'result_verification';
+	readonly retryable = true;
+	readonly safeRetry = false;
+
+	constructor(subject: 'task' | 'event') {
+		super(`the record saved this ${subject} and did not answer with it`);
+		this.name = 'WriteNotReadBack';
+	}
+}
+
+export function rowOfSavedID(rows: TaskRow[], savedID: string, subject: 'task' | 'event'): TaskRow {
+	const saved = rows.find((row) => row.id === savedID);
+	if (!saved) throw new WriteNotReadBack(subject);
+	return saved;
+}
+
 const insufficientPrivilege = '42501';
 const serializationFailure = '40001';
 
@@ -43,20 +63,6 @@ export function statusOfPostgresCode(code: string | undefined): number {
 	if (code === insufficientPrivilege) return 403;
 	if (code === serializationFailure) return 409;
 	return 422;
-}
-
-export class NothingMatchesTheHint extends Error {
-	constructor(
-		readonly hint: string,
-		readonly candidates: string[]
-	) {
-		super(
-			candidates.length === 0
-				? `nothing here goes by ${hint}`
-				: `${hint} could be ${candidates.join(' / ')}; name one of them exactly`
-		);
-		this.name = 'NothingMatchesTheHint';
-	}
 }
 
 export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean): Promise<TaskRow[]> {
@@ -70,19 +76,35 @@ export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean)
 	return data ?? [];
 }
 
-export function taskOfHint(tasks: TaskRow[], hint: string): TaskRow {
-	const asked = hint.trim();
-	if (!asked) throw new NothingMatchesTheHint(hint, []);
+const taskMatcher: HintMatcher<TaskRow> = {
+	identifiersOf: (task) => [task.id],
+	titleOf: (task) => task.title,
+	nearnessTo: (task, hint) => titleNearness(normalized(hint), normalized(task.title))
+};
 
-	const byID = tasks.find((task) => task.id === asked);
-	if (byID) return byID;
+export function taskOfHint(
+	tasks: TaskRow[],
+	hint: string,
+	subject: HintSubject = 'task',
+	requesterID = ''
+): TaskRow {
+	const resolution = resolveHint(hint, tasks, {
+		...taskMatcher,
+		...(requesterID ? { isPreferred: isOwnedBy(requesterID) } : {})
+	});
+	if (resolution.outcome === 'resolved') return resolution.match;
+	throw new HintRefused(
+		subject,
+		hint.trim(),
+		resolution.outcome,
+		resolution.candidates.map((task) => ({ id: task.id, label: task.title }))
+	);
+}
 
-	const titled = tasks.filter((task) => task.title.trim() === asked);
-	if (titled.length === 1) return titled[0];
-
-	const contained = titled.length > 0 ? titled : tasks.filter((task) => task.title.includes(asked));
-	if (contained.length === 1) return contained[0];
-	throw new NothingMatchesTheHint(hint, contained.map((task) => task.title));
+function isOwnedBy(requesterID: string): (task: TaskRow) => boolean {
+	return (task) =>
+		compatibilityOwnerOf(task.task_participant.map(({ member_id }) => ({ id: member_id, name: '' }))).id ===
+		requesterID;
 }
 
 // task_save writes every field it is given, so a patch that named only what
@@ -146,7 +168,7 @@ export function participantsOfHints(
 	requesterID: string
 ): string[] | undefined {
 	if (hints === undefined) return undefined;
-	const named = peopleOfHints(people, hints).map((person) => person.personID);
+	const named = peopleOfHints(people, hints, 'participant').map((person) => person.personID);
 	return named.length > 0 ? named : [requesterID];
 }
 

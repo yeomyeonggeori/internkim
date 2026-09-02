@@ -144,6 +144,6 @@ function messengerOf(held: Record<string, string> | null): Record<string, string
 	return { ...(held ?? {}) };
 }
 
-function handleFromEmail(email: string): string {
-	return email.split('@')[0] ?? '';
+export function handleFromEmail(email: string): string {
+	return email.trim().toLowerCase().split('@')[0] ?? '';
 }
