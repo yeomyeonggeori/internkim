@@ -126,6 +126,18 @@ function revoke(token: string, name: string): Promise<RouteAnswer> {
 	);
 }
 
+function invoke(name: string, token: string, input: unknown): Promise<RouteAnswer> {
+	return reach(`/tools/${name}/invoke`, token, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ input })
+	});
+}
+
+function messageOf(answered: RouteAnswer): string {
+	return (answered.body as { message?: string; error?: string }).message ?? '';
+}
+
 describe('a call that names nobody', () => {
 	test('is refused without a bearer, and with one nobody holds', async () => {
 		expect((await reach('/tools', null)).status).toBe(401);
@@ -241,12 +253,47 @@ describe('a tool whose rows live in the record', () => {
 
 describe('a tool the company machine runs', () => {
 	test('is refused with no gateway configured rather than answered here', async () => {
-		const answered = await reach('/tools/message_send/invoke', holdersToken, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ input: { conversationID: 'c1', message: 'hello' } })
+		const answered = await invoke('message_send', holdersToken, {
+			targetType: 'channel',
+			channelName: 'town-square',
+			message: 'hello'
 		});
 		expect(answered.status).toBe(503);
+	});
+
+	test('is refused here when its input does not fit, before anything is carried', async () => {
+		const answered = await invoke('message_send', holdersToken, {
+			targetType: 'channel',
+			conversationID: 'c1',
+			message: 'hello'
+		});
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('input.conversationID');
+	});
+});
+
+describe('input the catalog does not publish', () => {
+	test('is refused for a value outside the enum, naming the field', async () => {
+		const answered = await invoke('task_add', holdersToken, { title: 'a task', size: 'huge' });
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('input.size');
+	});
+
+	test('is refused for a field the strict object does not carry', async () => {
+		const answered = await invoke('task_list', holdersToken, { colour: 'red' });
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('input.colour');
+	});
+
+	test('is refused for a required field left out', async () => {
+		const answered = await invoke('task_add', holdersToken, { size: 'M' });
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('input.title');
+	});
+
+	test('lets an input the catalog does publish through to the record', async () => {
+		const answered = await invoke('task_list', holdersToken, { scope: 'self' });
+		expect(answered.status).toBe(200);
 	});
 });
 
