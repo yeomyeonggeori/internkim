@@ -527,9 +527,9 @@ func (state *platformHealthState) Update(update func(*platformHealthState)) {
 	update(state)
 }
 
-// mattermostAskMessage puts everything the person needs into the message itself. The
-// options used to live in an attachment beside the buttons, and removing the buttons would
-// have taken the choices with them.
+// The options go in the message itself. They used to live in an attachment
+// beside the buttons, and removing the buttons would have taken the choices
+// with them.
 func numberedChoiceLabel(index int, label string) string {
 	return strconv.Itoa(index+1) + ". " + strings.TrimSpace(label)
 }

@@ -235,9 +235,8 @@ func (service Service) dmRecipientResolveScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"))
 }
 
-// Buzz is what a company's messages actually travel over; every other scenario
-// here drives Mattermost. The fleet already provisions the relay and chatd, so
-// this one only needed a scenario to use them.
+// The fleet already provisions the relay and chatd, so this one only needed a
+// scenario to use them.
 func (service Service) buzzAttachmentScenarioPlans() []CommandPlan {
 	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-attachment"))
 }

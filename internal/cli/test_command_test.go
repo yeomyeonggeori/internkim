@@ -18,12 +18,6 @@ func TestParseTestArgumentsUsesPromptAndDefaults(t *testing.T) {
 	if configuration.DownloadDirectoryPath != "/tmp/internkim-test-20260625T103000" {
 		t.Fatalf("unexpected download directory: %s", configuration.DownloadDirectoryPath)
 	}
-	if configuration.OutputFilePath != "" {
-		t.Fatalf("unexpected output file path: %s", configuration.OutputFilePath)
-	}
-	if configuration.ShouldReuseFleet || configuration.ShouldKeepArtifacts {
-		t.Fatalf("unexpected reuse/keep defaults: %+v", configuration)
-	}
 	if configuration.MaximumModelTier != "low" {
 		t.Fatalf("expected low maximum model tier by default: %+v", configuration)
 	}
@@ -35,10 +29,6 @@ func TestParseTestArgumentsUsesPromptAndDefaults(t *testing.T) {
 func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 	configuration, errorValue := parseTestArguments([]string{
 		"슬라이드 만들어줘",
-		"--reuse",
-		"--keep",
-		"-o",
-		"/tmp/custom.docx",
 		"--timeout",
 		"120",
 		"--seed",
@@ -46,10 +36,6 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 		"--temperature",
 		"0.2",
 		"--real",
-		"--auto-confirm",
-		"--expect-public-url",
-		"--expect-tool",
-		"site_serve",
 	}, time.Now())
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -57,23 +43,17 @@ func TestParseTestArgumentsAcceptsFlagsAfterPrompt(t *testing.T) {
 	if configuration.Prompt != "슬라이드 만들어줘" {
 		t.Fatalf("unexpected prompt: %q", configuration.Prompt)
 	}
-	if !configuration.ShouldReuseFleet || !configuration.ShouldKeepArtifacts {
-		t.Fatalf("unexpected boolean flags: %+v", configuration)
-	}
-	if configuration.OutputFilePath != "/tmp/custom.docx" || configuration.TimeoutSeconds != 120 {
+	if configuration.TimeoutSeconds != 120 {
 		t.Fatalf("unexpected value flags: %+v", configuration)
 	}
 	if configuration.GenerationSeed == nil || *configuration.GenerationSeed != 7 || configuration.GenerationTemperature == nil || *configuration.GenerationTemperature != 0.2 {
 		t.Fatalf("unexpected generation flags: %+v", configuration)
 	}
-	if !configuration.ShouldUseRealModels || !configuration.ShouldAutoConfirm {
-		t.Fatalf("expected real model and auto confirm options: %+v", configuration)
+	if !configuration.ShouldUseRealModels {
+		t.Fatalf("expected real model option: %+v", configuration)
 	}
 	if configuration.MaximumModelTier != "" {
 		t.Fatalf("expected real mode to omit model ceiling: %+v", configuration)
-	}
-	if !configuration.ShouldExpectPublicURL || len(configuration.ExpectedTools) != 1 || configuration.ExpectedTools[0] != "site_serve" {
-		t.Fatalf("unexpected site verification flags: %+v", configuration)
 	}
 }
 
@@ -103,48 +83,16 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 	}
 }
 
-func TestParseTestArgumentsAcceptsFastFlag(t *testing.T) {
-	configuration, errorValue := parseTestArguments([]string{
-		"expensive",
-		"--scenario", "task-lifecycle",
-		"--fast",
-	}, time.Now())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !configuration.ShouldRunFast {
-		t.Fatalf("expected --fast to set ShouldRunFast: %+v", configuration)
-	}
-}
-
-func TestParseTestArgumentsDefaultsFastFlagToFalse(t *testing.T) {
-	configuration, errorValue := parseTestArguments([]string{"expensive", "--scenario", "task-lifecycle"}, time.Now())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if configuration.ShouldRunFast {
-		t.Fatalf("expected --fast to default to false: %+v", configuration)
-	}
-}
-
-func TestParseTestArgumentsAcceptsPreparedExpensiveRun(t *testing.T) {
+func TestParseTestArgumentsAcceptsRunIDForNamedSuite(t *testing.T) {
 	configuration, errorValue := parseTestArguments([]string{
 		"expensive",
 		"--run-id", "prepared-run",
-		"--skip-provisioning",
 	}, time.Now())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if configuration.RunID != "prepared-run" || !configuration.ShouldSkipProvisioning {
+	if configuration.Suite != testSuiteExpensive || configuration.RunID != "prepared-run" {
 		t.Fatalf("unexpected prepared run configuration: %+v", configuration)
-	}
-}
-
-func TestParseTestArgumentsRejectsUnidentifiedPreparedRun(t *testing.T) {
-	_, errorValue := parseTestArguments([]string{"expensive", "--skip-provisioning"}, time.Now())
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "requires --run-id or --reuse") {
-		t.Fatalf("unexpected error: %v", errorValue)
 	}
 }
 
@@ -223,15 +171,8 @@ func TestParseTestArgumentsAcceptsRunIDForDisposableFleet(t *testing.T) {
 }
 
 func TestParseTestArgumentsRequiresPrompt(t *testing.T) {
-	_, errorValue := parseTestArguments([]string{"--reuse"}, time.Now())
+	_, errorValue := parseTestArguments([]string{"--real"}, time.Now())
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "usage: internkim test") {
 		t.Fatalf("expected usage error, got %v", errorValue)
-	}
-}
-
-func TestParseTestArgumentsRejectsRunIDWithReuse(t *testing.T) {
-	_, errorValue := parseTestArguments([]string{"프롬프트", "--reuse", "--run-id", "run-a"}, time.Now())
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "--run-id requires") {
-		t.Fatalf("expected run-id reuse error, got %v", errorValue)
 	}
 }

@@ -84,6 +84,7 @@ echo "starting capabilityd"
 "$temporary_dir/internkim-capabilityd" \
   -socket "$socket_path" \
   -openrouter-key "$key_path" \
+  -chatd-platform buzz \
   -llamacpp-embedding-url "${LLAMACPP_EMBEDDING_URL:-http://127.0.0.1:18082}" \
   -llamacpp-embedding-model "${LLAMACPP_EMBEDDING_MODEL:-baai/bge-m3}" &
 capability_pid="$!"

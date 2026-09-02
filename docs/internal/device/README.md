@@ -15,7 +15,6 @@ you are working on the device path; nothing in them constrains the plane.
 |---|---|
 | [deploying-a-device.md](./deploying-a-device.md) | OTA releases, `setup`, the two-deploy rule, the local LLM |
 | [the-local-fleet.md](./the-local-fleet.md) | The disposable fleet VM, its scenarios, reprovision |
-| [expensive-acceptance-gates.md](./expensive-acceptance-gates.md) | Real-Mattermost acceptance runs and their artifacts |
 | [bringing-device-data-across.md](./bringing-device-data-across.md) | Moving a device's records onto the plane |
 | [the-companion-runtime.md](./the-companion-runtime.md) | The user's local trusted runtime |
 

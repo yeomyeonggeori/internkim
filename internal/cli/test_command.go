@@ -26,20 +26,11 @@ type testCommandConfiguration struct {
 	Suite                      string
 	Prompt                     string
 	DownloadDirectoryPath      string
-	OutputFilePath             string
 	RunID                      string
 	TimeoutSeconds             int
 	GenerationSeed             *int64
 	GenerationTemperature      *float64
-	ExpectedTools              []string
-	ShouldExpectPublicURL      bool
-	ShouldReuseFleet           bool
-	ShouldSkipProvisioning     bool
-	ShouldKeepArtifacts        bool
 	ShouldUseRealModels        bool
-	ShouldAutoConfirm          bool
-	ShouldRetryOnce            bool
-	ShouldRunFast              bool
 	MaximumModelTier           string
 	ScenarioNames              []string
 	LanguageModelProvider      string
@@ -69,19 +60,11 @@ func runTestArguments(arguments []string) error {
 
 func parseTestArguments(arguments []string, now time.Time) (testCommandConfiguration, error) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared Local Fleet instead of creating a disposable one")
-	skipProvisioning := flagSet.Bool("skip-provisioning", false, "Run against an already prepared Local Fleet")
-	keepArtifacts := flagSet.Bool("keep", false, "Keep the Local Fleet VM and evidence after the test")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
-	autoConfirm := flagSet.Bool("auto-confirm", false, "Automatically approve Mattermost confirmation prompts during the test")
-	retryOnce := flagSet.Bool("retry-once", false, "Rerun a scenario once against the kept Local Fleet if it fails with a non-infra scenario failure")
-	fastMode := flagSet.Bool("fast", false, "Skip Playwright browser verification for the expensive suite and click approvals over the Mattermost REST API; defer per-scenario cleanup to one combined cleanup at the end")
-	outputFilePath := flagSet.String("o", "", "Local output file path for one Mattermost attachment")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
 	timeoutSeconds := flagSet.Int("timeout", 0, "Maximum seconds to observe scenario work; 0 disables the deadline")
 	generationSeed := flagSet.Int64("seed", 0, "Generation seed to apply before the Mattermost prompt")
 	generationTemperature := flagSet.Float64("temperature", 0, "Generation temperature to apply before the Mattermost prompt")
-	expectPublicURL := flagSet.Bool("expect-public-url", false, "Require a public URL and remote desktop/mobile screenshot verification")
 	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum model tier for costed tests: xlow, low, medium, high, xhigh, or max")
 	languageModelProviderDefault := strings.TrimSpace(os.Getenv("BLUECLAW_E2E_LLM_PROVIDER"))
 	if languageModelProviderDefault == "" {
@@ -91,27 +74,16 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM endpoint; defaults to BLUECLAW_E2E_LLM_ENDPOINT")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM Unix socket; defaults to BLUECLAW_E2E_LLM_UNIX_SOCKET")
 	languageModelExecutionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode; defaults to BLUECLAW_E2E_LLM_EXECUTION_MODE")
-	expectedTools := repeatedStringFlag{}
 	scenarioNames := repeatedStringFlag{}
-	flagSet.Var(&expectedTools, "expect-tool", "Require a requested tool event; repeat for multiple tools")
 	flagSet.Var(&scenarioNames, "scenario", "Run one expensive scenario by name; repeat for multiple scenarios")
 	flagArguments, positionalArguments := splitFlagsAndPositionals(arguments, map[string]bool{
-		"reuse":             true,
-		"skip-provisioning": true,
-		"keep":              true,
-		"real":              true,
-		"auto-confirm":      true,
-		"retry-once":        true,
-		"fast":              true,
-		"expect-public-url": true,
-		"help":              true,
+		"real": true,
+		"help": true,
 	}, map[string]bool{
-		"o":                  true,
 		"run-id":             true,
 		"timeout":            true,
 		"seed":               true,
 		"temperature":        true,
-		"expect-tool":        true,
 		"maximum-model-tier": true,
 		"scenario":           true,
 		"llm-provider":       true,
@@ -133,15 +105,6 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	if providedFlags["temperature"] && (math.IsNaN(*generationTemperature) || math.IsInf(*generationTemperature, 0) || *generationTemperature < 0) {
 		return testCommandConfiguration{}, errors.New("--temperature must be 0 or greater")
 	}
-	if *reuseFleet && strings.TrimSpace(*runID) != "" {
-		return testCommandConfiguration{}, errors.New("--run-id requires a disposable Local Fleet run; remove --reuse")
-	}
-	if *skipProvisioning && suite != testSuiteExpensive {
-		return testCommandConfiguration{}, errors.New("--skip-provisioning requires the expensive suite")
-	}
-	if *skipProvisioning && !*reuseFleet && strings.TrimSpace(*runID) == "" {
-		return testCommandConfiguration{}, errors.New("--skip-provisioning requires --run-id or --reuse")
-	}
 	normalizedMaximumModelTier, errorValue := blueclaw.NormalizeMaximumModelTier(*maximumModelTier)
 	if errorValue != nil {
 		return testCommandConfiguration{}, errorValue
@@ -161,20 +124,11 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 		Suite:                      suite,
 		Prompt:                     prompt,
 		DownloadDirectoryPath:      defaultDownloadDirectoryPath,
-		OutputFilePath:             strings.TrimSpace(*outputFilePath),
 		RunID:                      strings.TrimSpace(*runID),
 		TimeoutSeconds:             *timeoutSeconds,
 		GenerationSeed:             optionalInt64(providedFlags["seed"], *generationSeed),
 		GenerationTemperature:      optionalFloat64(providedFlags["temperature"], *generationTemperature),
-		ExpectedTools:              expectedTools.Values(),
-		ShouldExpectPublicURL:      *expectPublicURL,
-		ShouldReuseFleet:           *reuseFleet,
-		ShouldSkipProvisioning:     *skipProvisioning,
-		ShouldKeepArtifacts:        *keepArtifacts,
 		ShouldUseRealModels:        *useRealModels,
-		ShouldAutoConfirm:          *autoConfirm,
-		ShouldRetryOnce:            *retryOnce,
-		ShouldRunFast:              *fastMode,
 		MaximumModelTier:           normalizedMaximumModelTier,
 		ScenarioNames:              scenarioNames.Values(),
 		LanguageModelProvider:      normalizedLanguageModelProvider,
@@ -220,20 +174,6 @@ func formatOptionalFloat64(value *float64) string {
 	return strconv.FormatFloat(*value, 'f', -1, 64)
 }
 
-func describeGenerationOptions(configuration testCommandConfiguration) string {
-	options := []string{}
-	if configuration.GenerationSeed != nil {
-		options = append(options, "seed="+formatOptionalInt64(configuration.GenerationSeed))
-	}
-	if configuration.GenerationTemperature != nil {
-		options = append(options, "temperature="+formatOptionalFloat64(configuration.GenerationTemperature))
-	}
-	if len(options) == 0 {
-		return "provider defaults"
-	}
-	return strings.Join(options, " ")
-}
-
 func normalizeTestLanguageModelProvider(provider string) (string, error) {
 	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
 	switch normalizedProvider {
@@ -270,13 +210,11 @@ func runTestConfiguration(contextValue context.Context, configuration testComman
 }
 
 func runTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
-	if configuration.Suite == testSuiteCheap || configuration.Suite == testSuiteFull {
-		if errorValue := runCheapTestSuite(contextValue, repositoryRootPath); errorValue != nil {
-			return errorValue
-		}
-	}
 	if configuration.Suite == testSuiteExpensive || configuration.Suite == testSuiteFull {
-		return runExpensiveTestSuite(contextValue, repositoryRootPath, configuration)
+		return refuseTheExpensiveSuite()
+	}
+	if configuration.Suite == testSuiteCheap {
+		return runCheapTestSuite(contextValue, repositoryRootPath)
 	}
 	return fmt.Errorf("unsupported test suite: %s", configuration.Suite)
 }
@@ -294,7 +232,7 @@ func runCheapTestSuite(contextValue context.Context, repositoryRootPath string) 
 	return nil
 }
 
-func runExpensiveTestSuite(contextValue context.Context, repositoryRootPath string, configuration testCommandConfiguration) error {
+func refuseTheExpensiveSuite() error {
 	return errors.New("the expensive suite drove tests/expensive through a real Mattermost, and that driver is gone with Mattermost. " +
 		"The Linux acceptance gate is now `internkim dev fleet run --scenario buzz-attachment` and `--scenario buzz-direct-message`; " +
 		"tests/expensive stays as the specification a Buzz driver has to satisfy")
