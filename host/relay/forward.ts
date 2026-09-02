@@ -528,7 +528,7 @@ async function serveWorkspace(
 }
 
 export const workspaceCapabilityPaths: Record<string, string> = {
-	'person.memory.graph': '/memory/api/graph',
+	'person.memory.facts': '/memory/api/facts',
 	'person.memory.schedules': '/memory/api/schedules',
 	[workspaceRootsCapability]: '/files/api/roots',
 	'person.files.list': '/files/api/list',
@@ -539,6 +539,7 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 };
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
+	'person.memory.facts.forget': '/memory/api/facts/forget',
 	'person.task.quick_task': '/task/api/tasks/quick',
 	'person.flow.quick_task': '/task/api/tasks/quick'
 };

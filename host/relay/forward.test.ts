@@ -176,8 +176,8 @@ describe('serveCallForMember', () => {
 
 		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
-			capability: 'person.memory.graph',
-			body: { personID: 'person-1' }
+			capability: 'person.memory.facts',
+			body: { limit: 50 }
 		}, 'member-1');
 
 		expect(served.status).toBe(200);
@@ -185,7 +185,7 @@ describe('serveCallForMember', () => {
 		expect(admindCalls).toEqual([
 			{
 				method: 'GET',
-				url: 'http://internkim/memory/api/graph?personID=person-1',
+				url: 'http://internkim/memory/api/facts?limit=50',
 				requester: 'sample@example.test'
 			}
 		]);
@@ -209,7 +209,7 @@ describe('serveCallForMember', () => {
 
 		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
-			capability: 'person.memory.graph',
+			capability: 'person.memory.facts',
 			body: {}
 		}, 'member-2');
 

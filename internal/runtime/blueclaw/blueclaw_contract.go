@@ -19,10 +19,8 @@ const (
 	CapabilitydName                       = "internkim-capabilityd"
 	AdmindName                            = "internkim-admind"
 	LocalLLMRunnerName                    = "internkim-local-llm-runner"
-	GraphitiMemorydName                   = "graphiti-memoryd"
 	CapabilitydServiceName                = "internkim-capabilityd"
 	AdmindServiceName                     = "internkim-admind"
-	GraphitiMemorydServiceName            = "graphiti-memoryd"
 	BlueclawUser                          = "blueclaw"
 	BlueclawHomePath                      = "/home/blueclaw"
 	BlueclawRootPath                      = "/root/.blueclaw"
@@ -34,18 +32,13 @@ const (
 	BlueclawServicePath                   = "/etc/systemd/system/blueclaw.service"
 	CapabilitydServicePath                = "/etc/systemd/system/internkim-capabilityd.service"
 	AdmindServicePath                     = "/etc/systemd/system/internkim-admind.service"
-	GraphitiMemorydServicePath            = "/etc/systemd/system/graphiti-memoryd.service"
 	BlueclawBinaryPath                    = "/usr/local/bin/blueclaw"
 	BlueclawSupervisorBinaryPath          = "/usr/local/bin/blueclaw-supervisor"
 	BlueclawPOSIXHelperPath               = "/usr/local/bin/blueclaw-posix-helper"
 	CapabilitydBinaryPath                 = "/usr/local/bin/internkim-capabilityd"
 	AdmindBinaryPath                      = "/usr/local/bin/internkim-admind"
 	LocalLLMRunnerBinaryPath              = "/usr/local/bin/internkim-local-llm-runner"
-	GraphitiMemorydPath                   = "/usr/local/bin/graphiti-memoryd"
-	GraphitiMemorydPackagePath            = "/opt/internkim/graphiti_memoryd"
 	OpenRouterKeyPath                     = "/root/.internkim/secrets/openrouter-api-key"
-	GraphitiKuzuPath                      = "/root/.blueclaw/workspace/.blueclaw/graphiti/kuzu"
-	GraphitiEndpoint                      = "http://127.0.0.1:7791"
 	BlueclawBaseURL                       = "http://127.0.0.1:8080"
 	AdmindBaseURL                         = "http://127.0.0.1:18080"
 	BlueclawDatabaseName                  = "blueclaw"
@@ -190,10 +183,6 @@ func RetireLLMDLeftByEarlierReleasesCommand() string {
 
 func RetiredLLMDServiceIsGoneCommand() string {
 	return "systemctl is-active " + retiredLLMDServiceName + " 2>/dev/null || true"
-}
-
-func GraphitiMemorydHealthCheckCommand() string {
-	return "curl --max-time 5 -fsS " + GraphitiEndpoint + "/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
 }
 
 func BlueclawWorkspaceSkillPath(skillName string) string {

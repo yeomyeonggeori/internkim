@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path"
 	"strconv"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
 const (
 	BlueclawCapabilityTimeoutSecond                     = 0
-	BlueclawPinnedMemoryHardLimitCharacterCount         = 6000
-	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
 	BlueclawGuestDefaultVirtualCPUCount                 = 2
 	BlueclawGuestDefaultMemoryMiB                       = 4096
 	BlueclawTestEscalationModelName                     = "z-ai/glm-5.3-flash"
@@ -47,7 +46,6 @@ type RuntimeConfigOptions struct {
 	MigrationDirectoryPath     string
 	CapabilitySocketPath       string
 	CapabilityVSockPort        int
-	GraphitiEndpoint           string
 	MattermostBaseURL          string
 	HostWorkspacePath          string
 	RootFilesystemImagePath    string
@@ -199,10 +197,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	virtualMachineMonitor := firstNonEmptyString(options.VirtualMachineMonitor, BlueclawVirtualMachineMonitor)
 	databaseConnectionString := firstNonEmptyString(options.DatabaseConnectionString, BlueclawGuestDatabaseConnectionString)
 	migrationDirectoryPath := firstNonEmptyString(options.MigrationDirectoryPath, guestMigrationDirectoryPath(virtualMachineMonitor))
-	graphitiEndpoint := firstNonEmptyString(options.GraphitiEndpoint, GraphitiEndpoint)
-	if options.DirectExecution && strings.TrimSpace(options.GraphitiEndpoint) == "" {
-		graphitiEndpoint = ""
-	}
 	mattermostBaseURL := firstNonEmptyString(options.MattermostBaseURL, "http://localhost:8065")
 	hostWorkspacePath := firstNonEmptyString(options.HostWorkspacePath, BlueclawWorkspacePath)
 	rootFilesystemImagePath := firstNonEmptyString(options.RootFilesystemImagePath, BlueclawRootFilesystemImagePath)
@@ -327,13 +321,9 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"migrationDirectoryPath": migrationDirectoryPath,
 		},
 		"memory": map[string]any{
-			"workspaceID":                                 "default",
-			"graphitiEndpoint":                            graphitiEndpoint,
-			"graphitiKuzuPath":                            path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "graphiti", "kuzu"),
-			"pinnedMemoryRootPath":                        path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "memory"),
-			"pinnedMemoryHardLimitCharacterCount":         BlueclawPinnedMemoryHardLimitCharacterCount,
-			"pinnedMemoryCompressionTargetCharacterCount": BlueclawPinnedMemoryCompressionTargetCharacterCount,
-			"timeoutSecond":                               60,
+			"embeddingModel":         MemoryEmbeddingModelName(options),
+			"embeddingExecutionMode": "auto",
+			"extractionDisabled":     false,
 		},
 		"agent": agentConfiguration,
 		"connectors": map[string]any{
@@ -432,6 +422,13 @@ func optionalBooleanEnvironment(name string) (bool, error) {
 		return false, fmt.Errorf("%s must be a boolean: %w", name, errorValue)
 	}
 	return parsedValue, nil
+}
+
+func MemoryEmbeddingModelName(options RuntimeConfigOptions) string {
+	if options.DirectExecution && !options.LocalOnly {
+		return llmbackend.DefaultRemoteEmbeddingModelName
+	}
+	return llmbackend.DefaultEmbeddingModelName
 }
 
 func LocalOnlyEnabled() bool {

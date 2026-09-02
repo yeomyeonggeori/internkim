@@ -1,68 +1,49 @@
-import type { MemoryGraphEpisode, MemoryGraphFact } from './memory-graph-api';
-import { isPersonalScope } from './memory-graph-selection';
+import type { MemoryFact } from './memory-facts-api';
 
 export const allFilterValue = 'all';
-export const personalScopeFilterValue = 'personal';
 
 export type MemoryFactFilters = {
 	searchText: string;
-	sourceKind: string;
+	kind: string;
 	scope: string;
 };
 
 export function emptyMemoryFactFilters(): MemoryFactFilters {
-	return { searchText: '', sourceKind: allFilterValue, scope: allFilterValue };
+	return { searchText: '', kind: allFilterValue, scope: allFilterValue };
 }
 
-export function filterMemoryFacts(facts: MemoryGraphFact[], filters: MemoryFactFilters): MemoryGraphFact[] {
+export function filterMemoryFacts(facts: MemoryFact[], filters: MemoryFactFilters): MemoryFact[] {
 	const searchText = filters.searchText.trim().toLowerCase();
 	return facts.filter(
-		(fact) =>
-			matchesSourceKind(fact, filters.sourceKind) &&
-			matchesScope(fact, filters.scope) &&
-			matchesSearchText(fact, searchText)
+		(fact) => matchesKind(fact, filters.kind) && matchesScope(fact, filters.scope) && matchesSearchText(fact, searchText)
 	);
 }
 
-export function sortMemoryFactsByRecency(facts: MemoryGraphFact[]): MemoryGraphFact[] {
-	return [...facts].sort((left, right) => (right.validAt ?? '').localeCompare(left.validAt ?? ''));
+export function sortMemoryFactsByRecency(facts: MemoryFact[]): MemoryFact[] {
+	return [...facts].sort((left, right) => right.validFrom.localeCompare(left.validFrom));
 }
 
-export function memoryFactSourceKinds(facts: MemoryGraphFact[]): string[] {
-	const sourceKinds = new Set<string>();
-	for (const fact of facts) {
-		if (fact.sourceKind) sourceKinds.add(fact.sourceKind);
-	}
-	return [...sourceKinds].sort();
+export function memoryFactKindsOf(facts: MemoryFact[]): string[] {
+	return [...new Set(facts.map((fact) => fact.kind))].sort();
 }
 
-export function memoryFactScopes(facts: MemoryGraphFact[]): string[] {
-	const scopes = new Set<string>();
-	for (const fact of facts) {
-		scopes.add(isPersonalScope(fact.scopeType) ? personalScopeFilterValue : fact.scopeType);
-	}
-	return [...scopes].sort();
+export function memoryFactScopesOf(facts: MemoryFact[]): string[] {
+	return [...new Set(facts.map((fact) => fact.scopeType))].sort();
 }
 
-export function episodeForFact(
-	episodes: MemoryGraphEpisode[],
-	fact: MemoryGraphFact
-): MemoryGraphEpisode | undefined {
-	if (!fact.sourceEpisodeID) return undefined;
-	return episodes.find((episode) => episode.episodeID === fact.sourceEpisodeID);
+export function isExpiringFact(fact: MemoryFact): boolean {
+	return fact.kind === 'temporary' && Boolean(fact.validUntil);
 }
 
-function matchesSourceKind(fact: MemoryGraphFact, sourceKind: string): boolean {
-	return sourceKind === allFilterValue || (fact.sourceKind ?? '') === sourceKind;
+function matchesKind(fact: MemoryFact, kind: string): boolean {
+	return kind === allFilterValue || fact.kind === kind;
 }
 
-function matchesScope(fact: MemoryGraphFact, scope: string): boolean {
-	if (scope === allFilterValue) return true;
-	if (scope === personalScopeFilterValue) return isPersonalScope(fact.scopeType);
-	return fact.scopeType === scope;
+function matchesScope(fact: MemoryFact, scope: string): boolean {
+	return scope === allFilterValue || fact.scopeType === scope;
 }
 
-function matchesSearchText(fact: MemoryGraphFact, searchText: string): boolean {
+function matchesSearchText(fact: MemoryFact, searchText: string): boolean {
 	if (!searchText) return true;
-	return fact.content.toLowerCase().includes(searchText) || fact.namespaceID.toLowerCase().includes(searchText);
+	return fact.content.toLowerCase().includes(searchText) || (fact.scopeID ?? '').toLowerCase().includes(searchText);
 }

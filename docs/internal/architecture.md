@@ -31,7 +31,6 @@
                  │    ├─ OpenRouter / local model / companion LLM routing
                  │    ├─ Mattermost platform I/O
                  │    └─ browser capability adapter
-                 ├─ graphiti-memoryd :7791
                  └─ Cloud Hypervisor guest
                       └─ Blueclaw HTTP API :8080
                            ├─ managed DB

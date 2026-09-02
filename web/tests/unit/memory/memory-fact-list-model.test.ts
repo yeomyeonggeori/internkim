@@ -1,48 +1,55 @@
 import { describe, expect, test } from 'bun:test';
-import type { MemoryGraphEpisode, MemoryGraphFact } from '../../../src/routes/memory/memory-graph-api';
+import type { MemoryFact } from '../../../src/routes/memory/memory-facts-api';
 import {
 	allFilterValue,
 	emptyMemoryFactFilters,
-	episodeForFact,
 	filterMemoryFacts,
-	memoryFactScopes,
-	memoryFactSourceKinds,
-	personalScopeFilterValue,
+	isExpiringFact,
+	memoryFactKindsOf,
+	memoryFactScopesOf,
 	sortMemoryFactsByRecency
 } from '../../../src/routes/memory/memory-fact-list-model';
 
-const facts: MemoryGraphFact[] = [
+const facts: MemoryFact[] = [
 	{
 		factID: 'fact-1',
-		scopeType: 'user',
-		namespaceID: 'user:person-1',
+		episodeID: 'episode-1',
+		scopeType: 'private',
+		scopeID: 'person-1',
+		kind: 'preference',
 		content: 'The user prefers terse release notes.',
-		sourceKind: 'fact',
-		sourceEpisodeID: 'episode-1',
-		validAt: '2026-07-01T09:00:00Z'
+		validFrom: '2026-07-01T09:00:00Z',
+		reinforcementCount: 2
 	},
 	{
 		factID: 'fact-2',
+		episodeID: 'episode-2',
 		scopeType: 'private',
-		namespaceID: 'private:person-1',
-		content: '# Memory\n- Pinned personal memory.',
-		sourceKind: 'pinned'
+		scopeID: 'person-1',
+		kind: 'temporary',
+		content: 'The user is away until Friday.',
+		validFrom: '2026-07-03T09:00:00Z',
+		validUntil: '2026-07-11T00:00:00Z',
+		reinforcementCount: 1
 	},
 	{
 		factID: 'fact-3',
+		episodeID: 'episode-3',
 		scopeType: 'circle',
-		namespaceID: 'circle:default:member',
+		scopeID: 'hr',
+		kind: 'fact',
 		content: 'Compensation data belongs to HR.',
-		sourceKind: 'fact',
-		validAt: '2026-07-05T09:00:00Z'
+		validFrom: '2026-07-05T09:00:00Z',
+		reinforcementCount: 1
 	},
 	{
 		factID: 'fact-4',
+		episodeID: 'episode-4',
 		scopeType: 'workspace',
-		namespaceID: 'workspace:default',
-		content: 'Quarterly launch review happens every Friday.',
-		sourceKind: 'node',
-		validAt: '2026-06-20T09:00:00Z'
+		kind: 'episode',
+		content: 'Quarterly launch review happened on Friday.',
+		validFrom: '2026-06-20T09:00:00Z',
+		reinforcementCount: 1
 	}
 ];
 
@@ -51,44 +58,35 @@ describe('filterMemoryFacts', () => {
 		expect(filterMemoryFacts(facts, emptyMemoryFactFilters()).length).toBe(4);
 	});
 
-	test('filters by source kind', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: '', sourceKind: 'pinned', scope: allFilterValue });
+	test('filters by kind', () => {
+		const filtered = filterMemoryFacts(facts, { searchText: '', kind: 'temporary', scope: allFilterValue });
 		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-2']);
 	});
 
-	test('personal scope filter matches user and private scopes', () => {
-		const filtered = filterMemoryFacts(facts, {
-			searchText: '',
-			sourceKind: allFilterValue,
-			scope: personalScopeFilterValue
-		});
+	test('filters by scope', () => {
+		const filtered = filterMemoryFacts(facts, { searchText: '', kind: allFilterValue, scope: 'private' });
 		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-1', 'fact-2']);
 	});
 
-	test('filters by explicit scope', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: '', sourceKind: allFilterValue, scope: 'circle' });
-		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-3']);
-	});
-
 	test('search text matches content case-insensitively', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: 'COMPENSATION', sourceKind: allFilterValue, scope: allFilterValue });
+		const filtered = filterMemoryFacts(facts, { searchText: 'COMPENSATION', kind: allFilterValue, scope: allFilterValue });
 		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-3']);
 	});
 
-	test('search text matches namespace', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: 'workspace:default', sourceKind: allFilterValue, scope: allFilterValue });
-		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-4']);
+	test('search text matches the circle', () => {
+		const filtered = filterMemoryFacts(facts, { searchText: 'hr', kind: allFilterValue, scope: allFilterValue });
+		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-3']);
 	});
 
 	test('combines filters', () => {
-		const filtered = filterMemoryFacts(facts, { searchText: 'memory', sourceKind: 'pinned', scope: personalScopeFilterValue });
-		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-2']);
+		const filtered = filterMemoryFacts(facts, { searchText: 'user', kind: 'preference', scope: 'private' });
+		expect(filtered.map((fact) => fact.factID)).toEqual(['fact-1']);
 	});
 });
 
 describe('sortMemoryFactsByRecency', () => {
-	test('sorts by validAt descending with missing dates last', () => {
-		expect(sortMemoryFactsByRecency(facts).map((fact) => fact.factID)).toEqual(['fact-3', 'fact-1', 'fact-4', 'fact-2']);
+	test('sorts by validFrom descending', () => {
+		expect(sortMemoryFactsByRecency(facts).map((fact) => fact.factID)).toEqual(['fact-3', 'fact-2', 'fact-1', 'fact-4']);
 	});
 
 	test('does not mutate the input array', () => {
@@ -99,23 +97,18 @@ describe('sortMemoryFactsByRecency', () => {
 });
 
 describe('filter options', () => {
-	test('memoryFactSourceKinds returns distinct sorted kinds', () => {
-		expect(memoryFactSourceKinds(facts)).toEqual(['fact', 'node', 'pinned']);
+	test('memoryFactKindsOf returns distinct sorted kinds', () => {
+		expect(memoryFactKindsOf(facts)).toEqual(['episode', 'fact', 'preference', 'temporary']);
 	});
 
-	test('memoryFactScopes folds personal scopes into one value', () => {
-		expect(memoryFactScopes(facts)).toEqual(['circle', personalScopeFilterValue, 'workspace']);
+	test('memoryFactScopesOf returns distinct sorted scopes', () => {
+		expect(memoryFactScopesOf(facts)).toEqual(['circle', 'private', 'workspace']);
 	});
 });
 
-describe('episodeForFact', () => {
-	const episodes: MemoryGraphEpisode[] = [{ episodeID: 'episode-1', namespaceIDs: ['user:person-1'] }];
-
-	test('finds the source episode', () => {
-		expect(episodeForFact(episodes, facts[0])?.episodeID).toBe('episode-1');
-	});
-
-	test('returns undefined without a source episode', () => {
-		expect(episodeForFact(episodes, facts[1])).toBe(undefined);
+describe('isExpiringFact', () => {
+	test('is true only for temporary facts with an expiry', () => {
+		expect(isExpiringFact(facts[1])).toBe(true);
+		expect(isExpiringFact(facts[0])).toBe(false);
 	});
 });

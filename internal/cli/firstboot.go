@@ -301,11 +301,6 @@ if [ -d "$STAGE/blueclaw-migrations" ]; then
   mkdir -p /root/.blueclaw/workspace/.blueclaw/runtime/current/migrations
   cp -af "$STAGE/blueclaw-migrations/." /root/.blueclaw/workspace/.blueclaw/runtime/current/migrations/
 fi
-if [ -d "$STAGE/graphiti_memoryd" ]; then
-  rm -rf /opt/internkim/graphiti_memoryd
-  mkdir -p /opt/internkim/graphiti_memoryd
-  cp -af "$STAGE/graphiti_memoryd/." /opt/internkim/graphiti_memoryd/
-fi
 if [ -d "$STAGE/admin-ui" ]; then
   rm -rf /opt/internkim/admin-ui
   mkdir -p /opt/internkim/admin-ui
@@ -579,17 +574,6 @@ if [ -f /opt/internkim/document-conversion/requirements.txt ]; then
   uv venv --clear /opt/internkim/document-venv >/dev/null
   uv pip install --quiet --python /opt/internkim/document-venv/bin/python -r /opt/internkim/document-conversion/requirements.txt >/dev/null
 fi
-if [ -f /opt/internkim/graphiti_memoryd/requirements.txt ]; then
-  uv venv --clear /opt/internkim/graphiti-venv >/dev/null
-  uv pip install --python /opt/internkim/graphiti-venv/bin/python -r /opt/internkim/graphiti_memoryd/requirements.txt >/dev/null
-  cat > /usr/local/bin/graphiti-memoryd <<'WRAPEOF'
-#!/bin/sh
-PYTHONPATH=/opt/internkim exec /opt/internkim/graphiti-venv/bin/python -m graphiti_memoryd "$@"
-WRAPEOF
-  chmod 755 /usr/local/bin/graphiti-memoryd
-  chown -R root:blueclaw /opt/internkim
-  chmod -R u=rwX,g=rX,o=rX /opt/internkim
-fi
 if [ ! -s %s ]; then
   curl -L --fail --retry 3 --output %s.tmp %s
   mv %s.tmp %s
@@ -653,8 +637,6 @@ else
 %sSVCEOF
   cat > %s <<'CAPABILITYEOF'
 %sCAPABILITYEOF
-  cat > %s <<'GRAPHITIEOF'
-%sGRAPHITIEOF
   cat > %s <<'ADMINDEOF'
 %sADMINDEOF
   cat > %s <<'LLAMACPP_EOF'
@@ -681,14 +663,12 @@ else
   systemctl start %s
   systemctl enable %s
   systemctl start %s
-  systemctl enable %s
-  systemctl start %s
   systemctl enable --now internkim-users-sync.timer
 
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in %s %s %s %s %s postgresql; do
+    for serviceName in %s %s %s %s postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -710,8 +690,6 @@ fi`,
 		blueclaw.BlueclawServiceUnit(),
 		blueclaw.CapabilitydServicePath,
 		blueclaw.CapabilitydServiceUnit(),
-		blueclaw.GraphitiMemorydServicePath,
-		blueclaw.GraphitiMemorydServiceUnit(),
 		blueclaw.AdmindServicePath,
 		blueclaw.AdmindServiceUnit(),
 		locallm.LlamaCppServicePath,
@@ -735,14 +713,11 @@ fi`,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
 		blueclaw.AdmindServiceName,
-		blueclaw.GraphitiMemorydServiceName,
-		blueclaw.GraphitiMemorydServiceName,
 		blueclaw.BlueclawServiceName,
 		blueclaw.BlueclawServiceName,
 		locallm.LlamaCppEmbeddingServiceName,
 		blueclaw.CapabilitydServiceName,
 		blueclaw.AdmindServiceName,
-		blueclaw.GraphitiMemorydServiceName,
 		blueclaw.BlueclawServiceName,
 	))
 	return section

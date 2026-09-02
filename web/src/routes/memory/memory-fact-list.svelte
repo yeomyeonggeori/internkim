@@ -1,11 +1,10 @@
 <script lang="ts">
-	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { Badge } from '$lib/components/ui/badge';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Empty from '$lib/components/ui/empty';
 	import * as Item from '$lib/components/ui/item';
-	import NetworkIcon from '@lucide/svelte/icons/network';
+	import BrainIcon from '@lucide/svelte/icons/brain';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as Card from '$lib/components/ui/card';
 	import * as Field from '$lib/components/ui/field';
@@ -15,58 +14,50 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
-	import {
-		deleteMemoryEpisode,
-		deletePinnedMemory,
-		fetchMemoryGraph,
-		type MemoryGraphFact,
-		type MemoryGraphResponse
-	} from './memory-graph-api';
+	import { fetchMemoryFacts, forgetMemoryFact, type MemoryFact, type MemoryFactsResponse } from './memory-facts-api';
 	import {
 		allFilterValue,
 		emptyMemoryFactFilters,
-		episodeForFact,
 		filterMemoryFacts,
-		memoryFactScopes,
-		memoryFactSourceKinds,
-		personalScopeFilterValue,
+		isExpiringFact,
+		memoryFactKindsOf,
+		memoryFactScopesOf,
 		sortMemoryFactsByRecency
 	} from './memory-fact-list-model';
-	import { isPersonalScope } from './memory-graph-selection';
 	import type { MemoryText } from './text';
 
 	let { text }: { text: MemoryText } = $props();
 
-	let memoryGraph = $state<MemoryGraphResponse | null>(null);
+	let memoryFacts = $state<MemoryFactsResponse | null>(null);
 	let filters = $state(emptyMemoryFactFilters());
 	let errorMessage = $state('');
 	let actionErrorMessage = $state('');
 	let isLoading = $state(false);
 
-	const facts = $derived(memoryGraph?.facts ?? []);
-	const episodes = $derived(memoryGraph?.episodes ?? []);
+	const facts = $derived(memoryFacts?.facts ?? []);
+	const profileLines = $derived([...(memoryFacts?.profile.identityLines ?? []), ...(memoryFacts?.profile.currentLines ?? [])]);
 	const visibleFacts = $derived(sortMemoryFactsByRecency(filterMemoryFacts(facts, filters)));
 	const hasActiveFilters = $derived(
-		filters.searchText.trim() !== '' || filters.sourceKind !== allFilterValue || filters.scope !== allFilterValue
+		filters.searchText.trim() !== '' || filters.kind !== allFilterValue || filters.scope !== allFilterValue
 	);
 
-	const sourceKindOptions = $derived([
+	const kindOptions = $derived([
 		{ value: allFilterValue, label: text.factFilterKindAll },
-		...memoryFactSourceKinds(facts).map((sourceKind) => ({ value: sourceKind, label: sourceKindLabel(sourceKind) }))
+		...memoryFactKindsOf(facts).map((kind) => ({ value: kind, label: kindLabel(kind) }))
 	]);
 	const scopeOptions = $derived([
 		{ value: allFilterValue, label: text.factFilterScopeAll },
-		...memoryFactScopes(facts).map((scope) => ({ value: scope, label: scopeLabel(scope) }))
+		...memoryFactScopesOf(facts).map((scope) => ({ value: scope, label: scopeLabel(scope) }))
 	]);
 
-	onMount(loadMemoryGraph);
+	onMount(loadMemoryFacts);
 
-	async function loadMemoryGraph(): Promise<void> {
+	async function loadMemoryFacts(): Promise<void> {
 		isLoading = true;
 		errorMessage = '';
 		actionErrorMessage = '';
 		try {
-			memoryGraph = await fetchMemoryGraph('');
+			memoryFacts = await fetchMemoryFacts();
 		} catch {
 			errorMessage = text.loadFailed;
 		} finally {
@@ -78,33 +69,37 @@
 		filters = emptyMemoryFactFilters();
 	}
 
-	function sourceKindLabel(sourceKind: string): string {
-		if (sourceKind === 'fact') return text.factKindFact;
-		if (sourceKind === 'node') return text.factKindNode;
-		if (sourceKind === 'episode') return text.factKindEpisode;
-		if (sourceKind === 'pinned') return text.factKindPinned;
-		return sourceKind;
+	function kindLabel(kind: string): string {
+		if (kind === 'identity') return text.factKindIdentity;
+		if (kind === 'preference') return text.factKindPreference;
+		if (kind === 'fact') return text.factKindFact;
+		if (kind === 'episode') return text.factKindEpisode;
+		if (kind === 'temporary') return text.factKindTemporary;
+		return kind;
 	}
 
 	function scopeLabel(scope: string): string {
-		if (scope === personalScopeFilterValue) return text.factScopePersonal;
+		if (scope === 'private') return text.factScopePersonal;
 		if (scope === 'circle') return text.factScopeCircle;
 		if (scope === 'workspace') return text.factScopeWorkspace;
-		if (scope === 'conversation') return text.factScopeConversation;
 		return scope;
 	}
 
-	function scopeDisplayName(fact: MemoryGraphFact): string {
-		return isPersonalScope(fact.scopeType) ? text.myMemory : fact.namespaceID;
+	function scopeDisplayName(fact: MemoryFact): string {
+		if (fact.scopeType === 'private') return text.myMemory;
+		if (fact.scopeType === 'circle') return fact.scopeID ?? text.factScopeCircle;
+		return text.factScopeWorkspace;
 	}
 
-	function validAtText(fact: MemoryGraphFact): string {
-		return fact.validAt ? fact.validAt.slice(0, 10) : text.validAtUnavailable;
+	function validityText(fact: MemoryFact): string {
+		const from = fact.validFrom.slice(0, 10);
+		if (isExpiringFact(fact) && fact.validUntil) return `${from} → ${fact.validUntil.slice(0, 10)}`;
+		return from;
 	}
 
-	function factScoreText(score: number | null | undefined): string {
-		if (typeof score !== 'number' || !Number.isFinite(score)) return text.scoreUnavailable;
-		return `${text.score} ${Math.round(score * 100)}%`;
+	function reinforcementText(fact: MemoryFact): string {
+		if (fact.reinforcementCount <= 1) return '';
+		return text.factReinforcedTemplate.replace('{count}', String(fact.reinforcementCount));
 	}
 
 	function countSummaryText(): string {
@@ -113,34 +108,23 @@
 			.replace('{total}', String(facts.length));
 	}
 
-	function canDeleteFact(fact: MemoryGraphFact): boolean {
-		return fact.sourceKind === 'pinned' || Boolean(episodeForFact(episodes, fact));
-	}
-
-	function confirmDeleteFact(fact: MemoryGraphFact): void {
-		const isPinned = fact.sourceKind === 'pinned';
+	function confirmForgetFact(fact: MemoryFact): void {
 		confirmDelete({
 			title: text.memoryDeleteTitle,
-			description: isPinned ? text.pinnedMemoryDeleteDescription : text.factDeleteDescription,
+			description: text.factDeleteDescription,
 			confirm: { text: text.memoryDeleteAction },
 			cancel: { text: text.cancel },
 			onConfirm: async () => {
-				await deleteFact(fact);
+				await forgetFact(fact);
 			}
 		});
 	}
 
-	async function deleteFact(fact: MemoryGraphFact): Promise<void> {
+	async function forgetFact(fact: MemoryFact): Promise<void> {
 		actionErrorMessage = '';
 		try {
-			if (fact.sourceKind === 'pinned') {
-				await deletePinnedMemory();
-			} else {
-				const episode = episodeForFact(episodes, fact);
-				if (!episode) return;
-				await deleteMemoryEpisode(episode.episodeID, episode.namespaceIDs ?? []);
-			}
-			await loadMemoryGraph();
+			await forgetMemoryFact(fact.factID, text.factForgetReason);
+			await loadMemoryFacts();
 		} catch {
 			actionErrorMessage = text.memoryDeleteFailed;
 		}
@@ -152,18 +136,29 @@
 		<Card.Title>{text.factListTab}</Card.Title>
 		<Card.Description>{countSummaryText()}</Card.Description>
 		<Card.Action>
-			<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemoryGraph} aria-label={text.refresh} title={text.refresh}>
+			<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={loadMemoryFacts} aria-label={text.refresh} title={text.refresh}>
 				<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
 			</Button>
 		</Card.Action>
 	</Card.Header>
 	<Card.Content class="grid min-w-0 gap-4">
+		{#if profileLines.length > 0}
+			<section class="bg-muted/40 grid gap-1 rounded-md border px-3 py-2" aria-label={text.profileTitle}>
+				<h3 class="text-muted-foreground text-xs font-medium tracking-wide uppercase">{text.profileTitle}</h3>
+				<ul class="grid gap-0.5 text-sm leading-5">
+					{#each profileLines as line (line)}
+						<li>{line}</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+
 		<div class="flex min-w-0 flex-wrap items-center gap-2">
 			<div class="relative min-w-48 flex-1">
 				<SearchIcon class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
 				<Input bind:value={filters.searchText} placeholder={text.factFilterPlaceholder} autocomplete="off" class="pl-8" />
 			</div>
-			<FilterCombobox bind:value={filters.sourceKind} options={sourceKindOptions} label={text.factFilterKindAll} clearValue="all" class="w-36" />
+			<FilterCombobox bind:value={filters.kind} options={kindOptions} label={text.factFilterKindAll} clearValue="all" class="w-36" />
 			<FilterCombobox bind:value={filters.scope} options={scopeOptions} label={text.factFilterScopeAll} clearValue="all" class="w-36" />
 			{#if hasActiveFilters}
 				<Button type="button" variant="ghost" size="sm" onclick={resetFilters}>
@@ -181,39 +176,37 @@
 			<Empty.Root class="border border-dashed">
 				<Empty.Header>
 					<Empty.Media variant="icon">
-						<NetworkIcon />
+						<BrainIcon />
 					</Empty.Media>
 					<Empty.Title>{facts.length === 0 ? text.noVisibleMemory : text.factListEmpty}</Empty.Title>
 				</Empty.Header>
 			</Empty.Root>
 		{:else}
 			<Item.Group class="gap-2">
-				{#each visibleFacts as fact (`${fact.namespaceID}:${fact.factID}`)}
+				{#each visibleFacts as fact (fact.factID)}
 					<Item.Root variant="outline" class="items-start">
 						<Item.Content>
 							<Item.Title class="text-muted-foreground gap-2 font-normal">
-								<Badge variant="outline">{sourceKindLabel(fact.sourceKind ?? '') || text.source}</Badge>
+								<Badge variant="outline">{kindLabel(fact.kind)}</Badge>
 								<span class="truncate text-xs">{scopeDisplayName(fact)}</span>
-								<span class="text-xs tabular-nums">{validAtText(fact)}</span>
+								<span class="text-xs tabular-nums">{validityText(fact)}</span>
+								{#if reinforcementText(fact)}
+									<span class="text-xs tabular-nums">{reinforcementText(fact)}</span>
+								{/if}
 							</Item.Title>
-							<div class="memory-fact-markdown text-sm leading-5">
-								<SvelteMarkdown source={fact.content} />
-							</div>
+							<p class="text-sm leading-5">{fact.content}</p>
 						</Item.Content>
 						<Item.Actions class="self-start">
-							<span class="text-muted-foreground text-xs tabular-nums">{factScoreText(fact.score)}</span>
-							{#if canDeleteFact(fact)}
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-sm"
-									onclick={() => confirmDeleteFact(fact)}
-									aria-label={text.memoryDelete}
-									title={text.memoryDelete}
-								>
-									<TrashIcon class="size-4" />
-								</Button>
-							{/if}
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								onclick={() => confirmForgetFact(fact)}
+								aria-label={text.memoryDelete}
+								title={text.memoryDelete}
+							>
+								<TrashIcon class="size-4" />
+							</Button>
 						</Item.Actions>
 					</Item.Root>
 				{/each}
@@ -221,46 +214,3 @@
 		{/if}
 	</Card.Content>
 </Card.Root>
-
-
-<style>
-	.memory-fact-markdown :global(h1) {
-		font-size: 0.875rem;
-		font-weight: 600;
-		margin: 0.25rem 0;
-	}
-	.memory-fact-markdown :global(h2),
-	.memory-fact-markdown :global(h3) {
-		font-size: 0.8125rem;
-		font-weight: 600;
-		margin: 0.5rem 0 0.25rem;
-		color: var(--color-muted-foreground);
-	}
-	.memory-fact-markdown :global(p) {
-		margin: 0.25rem 0;
-	}
-	.memory-fact-markdown :global(ul),
-	.memory-fact-markdown :global(ol) {
-		margin: 0.25rem 0;
-		padding-left: 1.1rem;
-	}
-	.memory-fact-markdown :global(ul) {
-		list-style: disc;
-	}
-	.memory-fact-markdown :global(ol) {
-		list-style: decimal;
-	}
-	.memory-fact-markdown :global(li) {
-		margin: 0.125rem 0;
-	}
-	.memory-fact-markdown :global(strong) {
-		font-weight: 600;
-	}
-	.memory-fact-markdown :global(code) {
-		font-family: var(--font-mono, monospace);
-		font-size: 0.8125rem;
-		background: var(--color-muted);
-		padding: 0.05rem 0.25rem;
-		border-radius: 0.25rem;
-	}
-</style>

@@ -352,7 +352,7 @@ curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json
 echo "checking the paths the company web reaches through the relay"
 relay_requester="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy | jq -r '[.people[] | select(.isAdmin != true) | .emails[0] // empty] | first // empty')"
 test -n "$relay_requester"
-for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /files/api/list /runs/api /runs/api/detail /agent/api/buzz-claim /agent/api/buzz-relay-config; do
+for relay_path in /memory/api/facts /memory/api/schedules /files/api/roots /files/api/list /runs/api /runs/api/detail /agent/api/buzz-claim /agent/api/buzz-relay-config; do
   relay_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --unix-socket ` + blueclaw.AdmindSocketPath + ` -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_requester" "http://internkim$relay_path")"
   case "$relay_status" in
     403|404)

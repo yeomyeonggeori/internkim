@@ -197,7 +197,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterGatewaySecretHeader: "X-INTERNKIM-GATEWAY-SECRET",
 		OpenRouterWebBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:    "https://openrouter.ai/api/v1/embeddings",
-		OpenRouterEmbeddingModel:      llmbackend.DefaultEmbeddingModelName,
+		OpenRouterEmbeddingModel:      llmbackend.DefaultRemoteEmbeddingModelName,
 		OpenRouterImageModel:          "google/gemini-3.1-flash-lite-image",
 		EmbeddingProviderOrder:        llmbackend.DefaultLocalEmbeddingProviderOrder,
 		OllamaBaseURL:                 "http://127.0.0.1:11434",

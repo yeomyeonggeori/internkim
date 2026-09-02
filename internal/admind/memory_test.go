@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
+func TestMemoryAPIUsesMattermostSessionUserFacts(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:        "https://api.example.test",
 		BlueclawBaseURL:   "http://blueclaw.local",
@@ -24,17 +24,17 @@ func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/memory/graph" && request.Method == http.MethodGet {
+		if request.URL.Path == "/admin/api/memory/facts" && request.Method == http.MethodGet {
 			if request.URL.Query().Get("readerPersonID") != "user:person-1" {
 				t.Fatalf("readerPersonID = %q", request.URL.Query().Get("readerPersonID"))
 			}
-			return jsonResponse(http.StatusOK, `{"nodes":[],"edges":[],"facts":[],"episodes":[],"namespaces":[]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"personID":"person-1","profile":{"identityLines":[],"currentLines":[]},"facts":[]}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
 
-	request := httptest.NewRequest(http.MethodGet, "/memory/api/graph?limit=10", nil)
+	request := httptest.NewRequest(http.MethodGet, "/memory/api/facts?limit=10", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
@@ -48,8 +48,8 @@ func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
 	if errorValue := json.NewDecoder(response.Body).Decode(&graph); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if _, ok := graph["nodes"]; !ok {
-		t.Fatalf("memory graph response = %+v", graph)
+	if _, ok := graph["facts"]; !ok {
+		t.Fatalf("memory facts response = %+v", graph)
 	}
 }
 
@@ -297,7 +297,7 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 	}
 }
 
-func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
+func TestMemoryAPIForgetInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:        "https://api.example.test",
 		BlueclawBaseURL:   "http://blueclaw.local",
@@ -309,10 +309,11 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/memory/pinned/update" && request.Method == http.MethodPost {
+		if request.URL.Path == "/admin/api/memory/facts/forget" && request.Method == http.MethodPost {
 			var payload struct {
-				ReaderPersonID string `json:"readerPersonID"`
-				Content        string `json:"content"`
+				ReaderPersonID string   `json:"readerPersonID"`
+				FactIDs        []string `json:"factIDs"`
+				Reason         string   `json:"reason"`
 			}
 			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 				t.Fatal(errorValue)
@@ -320,23 +321,23 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 			if payload.ReaderPersonID != "user:person-1" {
 				t.Fatalf("readerPersonID = %q", payload.ReaderPersonID)
 			}
-			if payload.Content != "# Memory\n- New memory." {
-				t.Fatalf("content = %q", payload.Content)
+			if len(payload.FactIDs) != 1 || payload.FactIDs[0] != "fact-1" || payload.Reason != "asked" {
+				t.Fatalf("forget payload = %+v", payload)
 			}
-			return jsonResponse(http.StatusOK, `{"updated":true}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"forgottenFactIDs":["fact-1"]}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
 
-	request := httptest.NewRequest(http.MethodPost, "/memory/api/pinned/update", strings.NewReader(`{"readerPersonID":"spoofed-person","content":"# Memory\n- New memory."}`))
+	request := httptest.NewRequest(http.MethodPost, "/memory/api/facts/forget", strings.NewReader(`{"readerPersonID":"spoofed-person","factIDs":["fact-1"],"reason":"asked"}`))
 	request.Header.Set(requesterEmailHeader, "member@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("memory pinned update status = %d body = %s", response.Code, response.Body.String())
+		t.Fatalf("memory forget status = %d body = %s", response.Code, response.Body.String())
 	}
 }
 
@@ -381,7 +382,7 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 	}
 }
 
-func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
+func TestMemoryAPIFactsHidesUpstreamFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:        "https://api.example.test",
 		BlueclawBaseURL:   "http://blueclaw.local",
@@ -396,14 +397,14 @@ func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
-		if request.URL.Path == "/admin/api/memory/graph" && request.Method == http.MethodGet {
+		if request.URL.Path == "/admin/api/memory/facts" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `Traceback /workspace/.blueclaw/private.py`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
 
-	request := httptest.NewRequest(http.MethodGet, "/memory/api/graph", nil)
+	request := httptest.NewRequest(http.MethodGet, "/memory/api/facts", nil)
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	response := httptest.NewRecorder()
@@ -417,12 +418,12 @@ func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 	if strings.Contains(responseBody, "Traceback") || strings.Contains(responseBody, "/workspace") {
 		t.Fatalf("memory graph leaked upstream detail: %s", responseBody)
 	}
-	if !strings.Contains(responseBody, "memory graph unavailable") {
+	if !strings.Contains(responseBody, "memory facts unavailable") {
 		t.Fatalf("memory graph body = %s", responseBody)
 	}
 }
 
-func TestMemoryAPIGraphHidesIdentityFailureDetails(t *testing.T) {
+func TestMemoryAPIFactsHidesIdentityFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:        "https://api.example.test",
 		BlueclawBaseURL:   "http://blueclaw.local",
@@ -438,7 +439,7 @@ func TestMemoryAPIGraphHidesIdentityFailureDetails(t *testing.T) {
 		return nil, nil
 	})}
 
-	request := httptest.NewRequest(http.MethodGet, "/memory/api/graph", nil)
+	request := httptest.NewRequest(http.MethodGet, "/memory/api/facts", nil)
 	request.Header.Set(requesterEmailHeader, "member@example.com")
 	response := httptest.NewRecorder()
 

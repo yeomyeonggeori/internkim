@@ -603,8 +603,6 @@ func (state *setupFlowState) binaryVersionSourcePaths() []string {
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "bun.lock"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "package.json"),
 		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "protocol", "src"),
-		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti_memoryd"),
-		filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti-memoryd"),
 	)
 	return uniqueExistingPaths(paths)
 }
@@ -982,9 +980,6 @@ chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 	}
 
 	if err := state.installBlueclawMigrationsSSH(); err != nil {
-		return err
-	}
-	if err := state.installGraphitiMemorydSSH(); err != nil {
 		return err
 	}
 
@@ -2225,50 +2220,6 @@ func (state *setupFlowState) installBlueclawMigrationsSSH() error {
 	return nil
 }
 
-func (state *setupFlowState) installGraphitiMemorydSSH() error {
-	packagePath := filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti_memoryd")
-	if fileInfo, errorValue := os.Stat(packagePath); errorValue != nil || !fileInfo.IsDir() {
-		return fmt.Errorf("graphiti memory daemon package missing at %s", packagePath)
-	}
-
-	archiveFile, errorValue := os.CreateTemp("", "internkim-graphiti-memoryd-*.tar.gz")
-	if errorValue != nil {
-		return errorValue
-	}
-	archivePath := archiveFile.Name()
-	_ = archiveFile.Close()
-	defer os.Remove(archivePath)
-
-	archiveCommand := exec.Command("tar", "-C", packagePath, "-czf", archivePath, ".")
-	archiveCommand.Env = append(os.Environ(), "COPYFILE_DISABLE=1")
-	if output, archiveError := archiveCommand.CombinedOutput(); archiveError != nil {
-		return fmt.Errorf("archive graphiti memory daemon: %s", strings.TrimSpace(string(output)))
-	}
-
-	remoteArchivePath := "/tmp/internkim-graphiti-memoryd.tar.gz"
-	if errorValue := state.sshClient.scpDirect(archivePath, remoteArchivePath); errorValue != nil {
-		return errorValue
-	}
-	installCommand := "rm -rf " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && mkdir -p " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && tar -xzf " + quoteShellValue(remoteArchivePath) + " -C " + quoteShellValue(blueclaw.GraphitiMemorydPackagePath) + " && rm -f " + quoteShellValue(remoteArchivePath)
-	if output, installError := state.sshClient.runResult(installCommand); installError != nil {
-		return fmt.Errorf("deploy graphiti memory daemon: %s: %w", strings.TrimSpace(output), installError)
-	}
-	if strings.TrimSpace(state.sshClient.run("test -f "+quoteShellValue(filepath.Join(blueclaw.GraphitiMemorydPackagePath, "__main__.py"))+" && echo ok")) != "ok" {
-		return fmt.Errorf("graphiti memory daemon package did not deploy correctly")
-	}
-	state.sshClient.run(fmt.Sprintf(`cat > %s <<'EOF'
-#!/bin/sh
-PYTHONPATH=/opt/internkim exec /opt/internkim/graphiti-venv/bin/python -m graphiti_memoryd "$@"
-EOF
-chmod 755 %s
-chown -R root:blueclaw /opt/internkim
-chmod -R u=rwX,g=rX,o=rX /opt/internkim`,
-		quoteShellValue(blueclaw.GraphitiMemorydPath),
-		quoteShellValue(blueclaw.GraphitiMemorydPath),
-	))
-	return nil
-}
-
 func (state *setupFlowState) writeWorkspaceDocumentsSSH(workspaceDocuments workspaceDocuments) {
 	state.sshClient.run("cat > /root/.blueclaw/workspace/AGENTS.md <<'EOF'\n" +
 		workspaceDocuments.Agents +
@@ -2365,30 +2316,9 @@ func (state *setupFlowState) stageBinariesSD(context *setup.Context) error {
 			return writeError
 		}
 	}
-	if err := state.stageGraphitiMemorydSD(context); err != nil {
-		return err
-	}
 
 	fmt.Printf("  %s\n", state.messenger.t("바이너리 준비 완료", "Binaries staged"))
 	return nil
-}
-
-func (state *setupFlowState) stageGraphitiMemorydSD(context *setup.Context) error {
-	packagePath := filepath.Join(blueclaw.BlueclawSubmoduleRoot(state.scriptDir), "tools", "graphiti_memoryd")
-	return filepath.WalkDir(packagePath, func(path string, entry os.DirEntry, walkError error) error {
-		if walkError != nil || entry.IsDir() {
-			return walkError
-		}
-		relativePath, relativeError := filepath.Rel(packagePath, path)
-		if relativeError != nil {
-			return relativeError
-		}
-		document, readError := os.ReadFile(path)
-		if readError != nil {
-			return readError
-		}
-		return context.SD.WriteFile(filepath.Join("graphiti_memoryd", relativePath), document, 0o644)
-	})
 }
 
 func (state *setupFlowState) ensureFleetRegistration(force bool) error {

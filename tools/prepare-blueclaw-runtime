@@ -521,6 +521,7 @@ build_blueclaw_base_binaries() {
 
 rootfs_base_packages="ca-certificates,curl,bash,bc,coreutils,findutils,postgresql,postgresql-client,python3,python3-venv,python3-pip,iproute2,procps,mount,e2fsprogs,unzip,chromium,fontconfig,fonts-noto-cjk"
 rootfs_base_release="bookworm"
+rootfs_pgvector_package="postgresql-15-pgvector"
 rootfs_base_cache_path=""
 
 ensure_rootfs_bun() {
@@ -613,15 +614,23 @@ ensure_rootfs_uv() {
   run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv --version >/dev/null
 }
 
-ensure_rootfs_graphiti_python() {
+ensure_rootfs_pgvector() {
   local base_directory="$1"
-  local requirements_path="$2"
 
-  run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/graphiti-requirements.txt"
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --clear --python /usr/bin/python3 /opt/blueclaw/graphiti-venv >/dev/null
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv pip install --python /opt/blueclaw/graphiti-venv/bin/python -r /opt/blueclaw/graphiti-requirements.txt >/dev/null
-  run_chroot_with_runtime_mounts "$base_directory" /opt/blueclaw/graphiti-venv/bin/python -c "from graphiti_core import Graphiti; from graphiti_core.llm_client.client import LLMClient; LLMClient.set_tracer" >/dev/null
-  run_root rm -f "$base_directory/opt/blueclaw/graphiti-requirements.txt"
+  run_chroot_with_runtime_mounts "$base_directory" /bin/sh -c '
+set -eu
+if [ -x /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh ]; then
+  /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+else
+  install -d /usr/share/keyrings
+  curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/keyrings/postgresql-archive-keyring.asc
+  echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.asc] https://apt.postgresql.org/pub/repos/apt '"$rootfs_base_release"'-pgdg main" >/etc/apt/sources.list.d/pgdg.list
+  apt-get update
+fi
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends '"$rootfs_pgvector_package"'
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+' >/dev/null
 }
 
 ensure_rootfs_builtin_skills_python() {
@@ -636,11 +645,6 @@ ensure_rootfs_builtin_skills_python() {
 
 ensure_rootfs_base() {
   require_command mmdebstrap
-  local graphiti_requirements_path="$repository_root/.dependency/blueclaw/tools/graphiti_memoryd/requirements.txt"
-  if [ ! -s "$graphiti_requirements_path" ]; then
-    echo "missing graphiti_memoryd requirements.txt at $graphiti_requirements_path" >&2
-    exit 1
-  fi
   local builtin_skills_requirements_path="$repository_root/assets/blueclaw-runtime/builtin-skills-requirements.txt"
   if [ ! -s "$builtin_skills_requirements_path" ]; then
     echo "missing builtin skills requirements.txt at $builtin_skills_requirements_path" >&2
@@ -651,8 +655,6 @@ ensure_rootfs_base() {
     echo "missing site scaffold package.json at $site_scaffold_package_json_path" >&2
     exit 1
   fi
-  local graphiti_requirements_hash
-  graphiti_requirements_hash="$(sha256sum "$graphiti_requirements_path" | cut -d' ' -f1)"
   local builtin_skills_requirements_hash
   builtin_skills_requirements_hash="$(sha256sum "$builtin_skills_requirements_path" | cut -d' ' -f1)"
   local site_scaffold_package_json_hash
@@ -660,7 +662,7 @@ ensure_rootfs_base() {
   local prepare_script_hash
   prepare_script_hash="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
   local cache_key
-  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$graphiti_requirements_hash" "$builtin_skills_requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" "$blueclaw_uv_version" "$site_scaffold_package_json_hash" "$prepare_script_hash" | sha256sum | cut -c1-16)"
+  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$rootfs_pgvector_package" "$builtin_skills_requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" "$blueclaw_uv_version" "$site_scaffold_package_json_hash" "$prepare_script_hash" | sha256sum | cut -c1-16)"
   rootfs_base_cache_path="$cache_directory/rootfs-base-${cache_key}.tar"
 
   if [ -s "$rootfs_base_cache_path" ]; then
@@ -678,8 +680,8 @@ ensure_rootfs_base() {
     http://deb.debian.org/debian
 
   run_root mkdir -p "$base_directory/opt/blueclaw"
+  ensure_rootfs_pgvector "$base_directory"
   ensure_rootfs_uv "$base_directory"
-  ensure_rootfs_graphiti_python "$base_directory" "$graphiti_requirements_path"
   ensure_rootfs_builtin_skills_python "$base_directory" "$builtin_skills_requirements_path"
   ensure_rootfs_bun "$base_directory"
   ensure_rootfs_marp "$base_directory"
@@ -691,6 +693,7 @@ ensure_rootfs_base() {
   run_root test -f "$base_directory/opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js"
   run_root test -x "$base_directory/opt/blueclaw/builtin-skills-venv/bin/python"
   run_root chroot "$base_directory" chromium --version >/dev/null
+  run_root test -f "$base_directory/usr/share/postgresql/15/extension/vector.control"
 
   run_root tar -C "$base_directory" --xattrs --acls --numeric-owner -cf "$rootfs_base_cache_path.tmp" .
   run_root chown "$(id -u):$(id -g)" "$rootfs_base_cache_path.tmp"
@@ -743,13 +746,6 @@ prepare_rootfs_directory() {
   run_root chown 0:0 "$rootfs_directory/usr/local/bin/blueclaw-posix-helper"
   run_root chmod 4755 "$rootfs_directory/usr/local/bin/blueclaw-posix-helper"
   run_root install -m 0755 "$repository_root/assets/blueclaw-runtime/guest-init" "$rootfs_directory/sbin/init"
-  run_root mkdir -p "$rootfs_directory/opt/blueclaw/graphiti_memoryd"
-  run_root rsync -a --delete "$repository_root/.dependency/blueclaw/tools/graphiti_memoryd/" "$rootfs_directory/opt/blueclaw/graphiti_memoryd/"
-  run_root tee "$rootfs_directory/usr/local/bin/graphiti-memoryd" >/dev/null <<'SCRIPT'
-#!/usr/bin/env bash
-exec /opt/blueclaw/graphiti-venv/bin/python -u /opt/blueclaw/graphiti_memoryd/main.py "$@"
-SCRIPT
-  run_root chmod 0755 "$rootfs_directory/usr/local/bin/graphiti-memoryd"
 }
 
 prepare_rootfs() {
@@ -821,7 +817,6 @@ paths = [
     "cmd/blueclaw-posix-helper",
     "internal/policy",
     "internal/security/posix_identity.go",
-    "tools/graphiti_memoryd",
 ]
 
 def file_sha256(path):

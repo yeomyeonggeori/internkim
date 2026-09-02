@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
@@ -103,8 +104,8 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 
 	memoryConfiguration := runtimeConfiguration["memory"].(map[string]any)
-	if memoryConfiguration["graphitiEndpoint"] != "" {
-		t.Fatalf("expected graphiti disabled for direct execution, got %q", memoryConfiguration["graphitiEndpoint"])
+	if memoryConfiguration["embeddingModel"] != llmbackend.DefaultRemoteEmbeddingModelName {
+		t.Fatalf("expected direct execution to embed with the remote model capabilityd serves, got %q", memoryConfiguration["embeddingModel"])
 	}
 
 	databaseConfiguration := runtimeConfiguration["database"].(map[string]any)
@@ -195,23 +196,17 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 		t.Fatal("expected LiteRT runtime details to be omitted")
 	}
 	memory := runtimeConfiguration["memory"].(map[string]any)
-	if memory["graphitiEndpoint"] != GraphitiEndpoint {
-		t.Fatalf("expected Graphiti endpoint, got %q", memory["graphitiEndpoint"])
+	if memory["embeddingModel"] != llmbackend.DefaultEmbeddingModelName {
+		t.Fatalf("expected a guest on a device to embed with the local model capabilityd serves first, got %q", memory["embeddingModel"])
 	}
-	if memory["graphitiKuzuPath"] != "/workspace/.blueclaw/graphiti/kuzu" {
-		t.Fatalf("expected Graphiti Kuzu path, got %q", memory["graphitiKuzuPath"])
+	if memory["embeddingExecutionMode"] != "auto" {
+		t.Fatalf("expected automatic embedding execution, got %q", memory["embeddingExecutionMode"])
 	}
-	if memory["pinnedMemoryRootPath"] != "/workspace/.blueclaw/memory" {
-		t.Fatalf("expected pinned memory path, got %q", memory["pinnedMemoryRootPath"])
+	if memory["extractionDisabled"] != false {
+		t.Fatalf("expected memory extraction enabled, got %v", memory["extractionDisabled"])
 	}
-	if memory["pinnedMemoryHardLimitCharacterCount"] != float64(6000) {
-		t.Fatalf("expected pinned memory hard limit, got %v", memory["pinnedMemoryHardLimitCharacterCount"])
-	}
-	if memory["pinnedMemoryCompressionTargetCharacterCount"] != float64(3500) {
-		t.Fatalf("expected pinned memory compression target, got %v", memory["pinnedMemoryCompressionTargetCharacterCount"])
-	}
-	if memory["timeoutSecond"] != float64(60) {
-		t.Fatalf("expected Graphiti timeout, got %v", memory["timeoutSecond"])
+	if len(memory) != 3 {
+		t.Fatalf("expected the memory section to carry only the embedding model, its execution mode and the extraction switch, got %+v", memory)
 	}
 	agent := runtimeConfiguration["agent"].(map[string]any)
 	intake := agent["intake"].(map[string]any)
@@ -452,6 +447,16 @@ func TestLocalOnlyEnvironmentConfiguresRuntimeAndServices(t *testing.T) {
 	if !strings.Contains(CapabilitydServiceUnit(), " --local-only") {
 		t.Fatalf("expected capabilityd local-only flag, got %s", CapabilitydServiceUnit())
 	}
+	memory := runtimeConfiguration["memory"].(map[string]any)
+	if memory["embeddingModel"] != llmbackend.DefaultEmbeddingModelName {
+		t.Fatalf("expected local-only to embed with the local model, got %q", memory["embeddingModel"])
+	}
+}
+
+func TestLocalOnlyDirectExecutionEmbedsWithTheLocalModel(t *testing.T) {
+	if MemoryEmbeddingModelName(RuntimeConfigOptions{DirectExecution: true, LocalOnly: true}) != llmbackend.DefaultEmbeddingModelName {
+		t.Fatal("expected local-only direct execution to embed with the local model, because capabilityd refuses the remote one")
+	}
 }
 
 func TestBlueclawRuntimeConfigUsesRequestedDefaultTaskLevel(t *testing.T) {
@@ -560,7 +565,6 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 		BaseURL:                  "http://127.0.0.1:18100",
 		CapabilitySocketPath:     "/srv/internkim/tenants/pilot-01/internkim/run/capability.sock",
 		CapabilityVSockPort:      17100,
-		GraphitiEndpoint:         "http://127.0.0.1:18791",
 		MattermostBaseURL:        "http://127.0.0.1:18065",
 		HostWorkspacePath:        "/srv/internkim/tenants/pilot-01/blueclaw/workspace",
 		RootFilesystemImagePath:  "/srv/internkim/tenants/pilot-01/blueclaw/guest/rootfs.ext4",
@@ -598,7 +602,6 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 		t.Fatalf("unexpected tenant capability listener proxy: %+v", firstGuestListenerProxy)
 	}
 	assertNestedValue(t, runtimeConfiguration, []string{"languageModel", "capability", "model"}, "x-ai/grok-4.3")
-	assertNestedValue(t, runtimeConfiguration, []string{"memory", "graphitiEndpoint"}, "http://127.0.0.1:18791")
 	assertNestedValue(t, runtimeConfiguration, []string{"connectors", "mattermost", "baseURL"}, "http://127.0.0.1:18065")
 	assertNestedValue(t, runtimeConfiguration, []string{"guest", "hostWorkspacePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/workspace")
 	assertNestedValue(t, runtimeConfiguration, []string{"guest", "workspaceImagePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/guest/workspace.ext4")

@@ -3,7 +3,6 @@
 	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import MemoryFactList from './memory-fact-list.svelte';
-	import MemoryGraphPanel from './memory-graph-panel.svelte';
 	import MemoryScheduleList from './memory-schedule-list.svelte';
 	import { memoryText } from './text';
 
@@ -19,14 +18,10 @@
 	<UnderlineTabs.Root bind:value={activeTab} class="min-w-0 gap-6">
 		<UnderlineTabs.List>
 			<UnderlineTabs.Trigger value="facts">{text.factListTab}</UnderlineTabs.Trigger>
-			<UnderlineTabs.Trigger value="graph">{text.graphTab}</UnderlineTabs.Trigger>
 			<UnderlineTabs.Trigger value="schedules">{text.scheduleTab}</UnderlineTabs.Trigger>
 		</UnderlineTabs.List>
 		<UnderlineTabs.Content value="facts" class="grid min-w-0 gap-5">
 			<MemoryFactList {text} />
-		</UnderlineTabs.Content>
-		<UnderlineTabs.Content value="graph" class="grid min-w-0 gap-5">
-			<MemoryGraphPanel {text} />
 		</UnderlineTabs.Content>
 		<UnderlineTabs.Content value="schedules" class="grid min-w-0 gap-5">
 			<MemoryScheduleList {text} />
