@@ -107,7 +107,8 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 
 | 상태 | 본문 | 언제 |
 |---|---|---|
-| `400` | 디코드 오류, `this call carried a body that is not a json object`, `input is the object the tool reads` | 본문이 올바른 JSON이 아니거나 필수 필드가 빠졌을 때 |
+| `400` | 디코드 오류, `this call carried a body that is not a json object`, `input is the object the tool reads` | 본문이 올바른 JSON이 아니거나 `input`이 객체가 아닐 때 |
+| `400` | `<필드>: <스키마가 말하는 것>`, 예를 들어 `input.title: Invalid input: expected string, received undefined` | `input`이 그 도구가 공표한 `inputSchema`를 만족하지 않을 때 |
 | `401` | `sign in first` | `Authorization: Bearer` 헤더가 없거나, 토큰이 가리키는 계정이 없을 때 |
 | `401` | `that key belongs to nobody` | `ik_` 토큰이 모르는 것이거나 폐기됐을 때 |
 | `403` | `refused` | 로그인한 계정이 어느 회사의 멤버도 아닐 때 |

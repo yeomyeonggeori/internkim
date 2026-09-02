@@ -109,7 +109,8 @@ everything it resolves itself:
 
 | Status | Body | When |
 |---|---|---|
-| `400` | decode error, `this call carried a body that is not a json object`, `input is the object the tool reads` | the body is not valid JSON, or a required field is missing |
+| `400` | decode error, `this call carried a body that is not a json object`, `input is the object the tool reads` | the body is not valid JSON, or `input` is not an object |
+| `400` | `<field>: <what the schema says>`, such as `input.title: Invalid input: expected string, received undefined` | `input` does not satisfy the tool's published `inputSchema` |
 | `401` | `sign in first` | no `Authorization: Bearer` header, or the token names no account |
 | `401` | `that key belongs to nobody` | the `ik_` token is unknown or revoked |
 | `403` | `refused` | the account signed in is a member of no company |
