@@ -54,7 +54,13 @@ GROUPS = [
     Group(
         "blueclaw",
         [".dependency/blueclaw*"],
-        [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
+        [
+            ["go", "build", "./..."],
+            ["go", "vet", "./..."],
+            ["go", "test", "./..."],
+            BUN_INSTALL,
+            ["bun", "run", "test"],
+        ],
         working_directory=".dependency/blueclaw",
     ),
     Group(
