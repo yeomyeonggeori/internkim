@@ -11,32 +11,26 @@
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
 	import { askToClaim, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
-	import { browser } from '$app/environment';
-	import { carriesAnEmailedLink } from './emailed-link';
+	import { hasThePasswordStepExpired } from './password-step';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { onMount } from 'svelte';
 
 	const text = createPageText(appShellText);
 	const fieldID = $props.id();
 
-	// Read before anything builds the Supabase client, whose detectSessionInUrl
-	// takes the emailed credential out of the URL.
-	const arrivedWithAnEmailedLink = browser && carriesAnEmailedLink(location.hash, location.search);
-	const passwordStepLifetimeMilliseconds = 10 * 60 * 1000;
-
 	let servesCompanies = $state(true);
-	let step = $state<'address' | 'sent' | 'issued' | 'password' | 'passkey'>('address');
+	let step = $state<'address' | 'signedIn' | 'sent' | 'issued' | 'password' | 'passkey'>('address');
 	let email = $state('');
 	let code = $state('');
 	let password = $state('');
 	let issuedPassword = $state('');
 	let busy = $state(false);
 	let errorMessage = $state('');
-	let isAlreadySignedIn = $state(false);
 	let passwordStepOpenedAt = 0;
 
 	const describedStep: Record<typeof step, string> = $derived({
 		address: text.claimAddressDescription,
+		signedIn: text.claimSignedInDescription,
 		sent: text.claimSentDescription.replace('{email}', email),
 		issued: text.claimIssuedDescription,
 		password: text.claimPasswordDescription,
@@ -100,8 +94,8 @@
 
 	const keepThePassword = () =>
 		run(async () => {
-			if (Date.now() - passwordStepOpenedAt > passwordStepLifetimeMilliseconds) {
-				step = 'address';
+			if (hasThePasswordStepExpired(passwordStepOpenedAt, Date.now())) {
+				step = 'signedIn';
 				throw new Error(text.claimExpired);
 			}
 			await setSupabasePassword(password);
@@ -129,8 +123,7 @@
 		const { data } = await supabase().auth.getSession();
 		if (!data.session) return;
 		email = data.session.user.email ?? '';
-		isAlreadySignedIn = true;
-		if (arrivedWithAnEmailedLink) openThePasswordStep();
+		step = 'signedIn';
 	});
 </script>
 
@@ -148,12 +141,6 @@
 			{:else if step === 'address'}
 				<form onsubmit={(event) => { event.preventDefault(); askToClaimTheAddress(); }}>
 					<FieldGroup>
-						{#if isAlreadySignedIn}
-							<FieldDescription>
-								{text.claimAlreadySignedIn}
-								<a class="underline" href="/settings">{text.claimGoToSettings}</a>
-							</FieldDescription>
-						{/if}
 						<Field>
 							<FieldLabel for="claim-email-{fieldID}">{text.emailLabel}</FieldLabel>
 							<Input id="claim-email-{fieldID}" type="email" autocomplete="username" bind:value={email} disabled={busy} />
@@ -163,6 +150,12 @@
 						<Button type="submit" class="w-full" disabled={busy || !email.includes('@')}>{text.claimSendLink}</Button>
 					</FieldGroup>
 				</form>
+			{:else if step === 'signedIn'}
+				<FieldGroup>
+					<FieldDescription>{text.claimSignedInHint}</FieldDescription>
+					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
+					<Button type="button" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimSendCode}</Button>
+				</FieldGroup>
 			{:else if step === 'sent'}
 				<form onsubmit={(event) => { event.preventDefault(); proveTheAddress(); }}>
 					<FieldGroup>
