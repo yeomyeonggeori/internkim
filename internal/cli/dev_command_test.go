@@ -69,7 +69,7 @@ func TestParseDevFleetRunMattermostScenarioUsesDisposableFleet(t *testing.T) {
 		"--run-id", "dm-smoke",
 		"--admin-port", "19080",
 		"--mattermost-port", "19065",
-		"--scenario", "mattermost-direct-message-send",
+		"--scenario", "buzz-direct-message",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected parse to pass: %v", errorValue)
@@ -83,7 +83,7 @@ func TestParseDevFleetRunMattermostScenarioUsesDisposableFleet(t *testing.T) {
 	if configuration.ServiceOptions.ShouldUseRealModels {
 		t.Fatalf("expected test models by default: %+v", configuration.ServiceOptions)
 	}
-	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "mattermost-direct-message-send" {
+	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "buzz-direct-message" {
 		t.Fatalf("request = %+v", configuration.Request)
 	}
 	if !configuration.Request.KeepArtifacts {
@@ -94,7 +94,7 @@ func TestParseDevFleetRunMattermostScenarioUsesDisposableFleet(t *testing.T) {
 func TestParseDevFleetRunCanUseRealModels(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
 		"--real",
-		"--scenario", "mattermost-direct-message-send",
+		"--scenario", "buzz-direct-message",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected parse to pass: %v", errorValue)
@@ -183,7 +183,7 @@ func TestLatestLocalFleetConfigurationPathFallsBackToLatestRun(t *testing.T) {
 func TestParseDevFleetRunCanReuseSharedFleet(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
 		"--reuse",
-		"--scenario", "mattermost-direct-message-send",
+		"--scenario", "buzz-direct-message",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected parse to pass: %v", errorValue)
@@ -191,7 +191,7 @@ func TestParseDevFleetRunCanReuseSharedFleet(t *testing.T) {
 	if configuration.ServiceOptions.IsEphemeral {
 		t.Fatalf("expected reusable service options: %+v", configuration.ServiceOptions)
 	}
-	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "mattermost-direct-message-send" {
+	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "buzz-direct-message" {
 		t.Fatalf("request = %+v", configuration.Request)
 	}
 }
@@ -200,7 +200,7 @@ func TestParseDevFleetRunRejectsConflictingFleetModes(t *testing.T) {
 	_, errorValue := parseDevFleetRunArguments([]string{
 		"--ephemeral",
 		"--reuse",
-		"--scenario", "mattermost-direct-message-send",
+		"--scenario", "buzz-direct-message",
 	})
 	if errorValue == nil {
 		t.Fatal("expected conflicting fleet modes to fail")
@@ -214,7 +214,7 @@ func TestParseDevFleetRunRejectsRunIDWithReusableFleet(t *testing.T) {
 	_, errorValue := parseDevFleetRunArguments([]string{
 		"--reuse",
 		"--run-id", "debug",
-		"--scenario", "mattermost-direct-message-send",
+		"--scenario", "buzz-direct-message",
 	})
 	if errorValue == nil {
 		t.Fatal("expected run id with reusable fleet to fail")

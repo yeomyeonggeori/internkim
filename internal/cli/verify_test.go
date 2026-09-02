@@ -5,61 +5,6 @@ import (
 	"testing"
 )
 
-func TestVerifyMattermostScriptDeletesTestMessagesAndBotReplies(t *testing.T) {
-	script := verifyMattermostScript()
-	requiredFragments := []string{
-		"delete_post",
-		"delete_user",
-		"delete_stale_verify_users",
-		"delete_verify_replies",
-		"delete_verify_channel",
-		"http://localhost:8065/api/v4/posts/$post_id",
-		"curl --fail --silent --show-error -X DELETE",
-		"http://localhost:8065/api/v4/users/$user_id?permanent=true",
-		"http://localhost:8065/api/v4/users/$user_id\" >/dev/null",
-		"invited_post_id",
-		"uninvited_post_id",
-		".user_id == $bot_user_id and .create_at >= $test_started_at",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost verify cleanup to include %q", fragment)
-		}
-	}
-}
-
-func TestVerifyMattermostScriptUsesTemporaryChannel(t *testing.T) {
-	script := verifyMattermostScript()
-	requiredFragments := []string{
-		"create_verify_channel",
-		"verify_channel_name=\"verify-$timestamp\"",
-		`'{team_id:$team_id,name:$name,display_name:$display_name,type:"P"}'`,
-		"join_channel \"$bot_user_id\"",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost verify temporary channel setup to include %q", fragment)
-		}
-	}
-	if strings.Contains(script, "/root/.internkim/env/channel-id") {
-		t.Fatal("expected Mattermost verify to avoid posting into the configured Town Square channel")
-	}
-}
-
-func TestVerifyMattermostScriptUsesStrictChannelMembership(t *testing.T) {
-	script := verifyMattermostScript()
-	requiredFragments := []string{
-		"api_request \"join team $user_id\"",
-		"api_request \"join channel $user_id\"",
-		"api_request \"verify channel membership $user_id\"",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost verify strict join to include %q", fragment)
-		}
-	}
-}
-
 func TestParseMattermostVerificationOutputAllowsTrailingCleanupLogs(t *testing.T) {
 	output := `{"ok":true,"botMessage":"done","downloadedFiles":[],"fileIDs":[]}` + "\n" +
 		"curl: (22) The requested URL returned error: 401\n" +
@@ -70,24 +15,6 @@ func TestParseMattermostVerificationOutputAllowsTrailingCleanupLogs(t *testing.T
 	}
 	if verificationOutput.BotMessage != "done" {
 		t.Fatalf("unexpected bot message: %q", verificationOutput.BotMessage)
-	}
-}
-
-func TestVerifyMattermostMessageDeleteE2EChecksIdentityBeforeWaitingForTask(t *testing.T) {
-	script := verifyMattermostMessageDeleteE2EScript(false, 90)
-	requiredFragments := []string{
-		"verify delete probe policy",
-		"identity.resolve",
-		"delete E2E Mattermost identity resolve did not return the probe email",
-		"probe identity resolve: $identity_response",
-		"diagnose delete E2E channel posts",
-		"connector event diagnostics for Mattermost message",
-		"/admin/api/connector/events?platform=mattermost&messageID=$message_id&limit=5",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost delete E2E script to include %q", fragment)
-		}
 	}
 }
 
@@ -124,28 +51,6 @@ func TestVerifyAPIScriptChecksRemoteStructuredLLM(t *testing.T) {
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected API verify script to include %q", fragment)
-		}
-	}
-}
-
-func TestMattermostDirectMessageKeepScriptPrintsManualLogin(t *testing.T) {
-	script := verifyMattermostDirectMessageE2EScript(true, 300)
-	for _, fragment := range []string{
-		"keep_artifacts=true",
-		"manualTest",
-		"requesterUsername: $requester_username",
-		"recipientUsername: $recipient_username",
-		"password: $password",
-		"Log in as requesterUsername and open the direct message with @internkim.",
-		"post recipient identity",
-		"resolve direct-message recipient",
-		`.status == "resolved" and .recipient.externalUserID == $user_id`,
-		`delete_post "${recipient_token:-}" "${recipient_identity_post_id:-}"`,
-		`--arg displayName "$requester_username"`,
-		`--arg displayName "$recipient_username"`,
-	} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected direct-message keep script to contain %q", fragment)
 		}
 	}
 }
