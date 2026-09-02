@@ -25,7 +25,10 @@ func WriteDeliveryDirectory(layout Layout, sources DeliverySources) error {
 	if errorValue := UnsealDeliveryDirectory(layout); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := copyDeliveryTree(sources.PayloadRuntimePath, layout.DeliveryRuntimePath()); errorValue != nil {
+	if errorValue := replaceDeliveryTree(sources.PayloadRuntimePath, layout.DeliveryRuntimePath()); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.RemoveAll(layout.DeliverySkillsPath()); errorValue != nil {
 		return errorValue
 	}
 	for _, skillPath := range sources.SkillPaths {
@@ -42,13 +45,17 @@ func WriteDeliveryDirectory(layout Layout, sources DeliverySources) error {
 	return os.WriteFile(layout.PolicyPath(), []byte(sources.PolicyJSON), deliveryFileMode)
 }
 
+func replaceDeliveryTree(sourcePath string, destinationPath string) error {
+	if errorValue := os.RemoveAll(destinationPath); errorValue != nil {
+		return errorValue
+	}
+	return copyDeliveryTree(sourcePath, destinationPath)
+}
+
 // virtio-fs passes uid and gid through untranslated, so the guest's blueclaw sees the host's
 // numbers and no group can span the boundary. The mode is what carries access, which is why
 // these are the same modes the Linux delivery refresh sets.
 func copyDeliveryTree(sourcePath string, destinationPath string) error {
-	if errorValue := os.RemoveAll(destinationPath); errorValue != nil {
-		return errorValue
-	}
 	return filepath.WalkDir(sourcePath, func(currentPath string, entry fs.DirEntry, walkError error) error {
 		if walkError != nil {
 			return walkError

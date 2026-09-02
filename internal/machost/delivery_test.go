@@ -68,6 +68,24 @@ func TestASecondWriteReplacesWhatWasThereBefore(t *testing.T) {
 	}
 }
 
+func TestEverySkillRootReachesTheShare(t *testing.T) {
+	layout, sources := deliverySourcesForTest(t)
+	pluginSkillsPath := filepath.Join(t.TempDir(), "plugin", "skills")
+	writeTestFile(t, filepath.Join(pluginSkillsPath, "a-plugin-skill", "SKILL.md"), "a plugin skill")
+	sources.SkillPaths = append(sources.SkillPaths, pluginSkillsPath)
+
+	if errorValue := WriteDeliveryDirectory(layout, sources); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	for _, skillName := range []string{"a-skill", "a-plugin-skill"} {
+		path := filepath.Join(layout.DeliverySkillsPath(), skillName, "SKILL.md")
+		if _, errorValue := os.Stat(path); errorValue != nil {
+			t.Fatalf("the roots merge into one delivered directory; a later root must not delete an earlier one: %s: %v", path, errorValue)
+		}
+	}
+}
+
 func deliverySourcesForTest(t *testing.T) (Layout, DeliverySources) {
 	t.Helper()
 	sourceRootPath := t.TempDir()

@@ -53,9 +53,20 @@ GOMODCACHE="${GO_MOD_CACHE:-/tmp/internkim-go-mod-cache-$(go env GOOS)-$(go env 
     go build -o "$binaryDirectory/blueclaw" ./cmd/blueclaw
 )
 
+say "the skills"
+skillsDirectory="$repositoryRoot/.local/company-plane/skills"
+rm -rf "$skillsDirectory"
+mkdir -p "$skillsDirectory"
+cp -R "$repositoryRoot/assets/blueclaw-workspace/skills/." "$skillsDirectory/"
+for pluginManifest in "$repositoryRoot"/.dependency/*/plugin.json; do
+  [ -f "$pluginManifest" ] || continue
+  cp -R "$(dirname "$pluginManifest")/skills/." "$skillsDirectory/"
+done
+
 say "the scenarios"
 cd web
 exec env \
+  COMPANY_PLANE_SKILLS="$skillsDirectory" \
   SUPABASE_URL="$API_URL" \
   SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
   SUPABASE_SECRET_KEY="$SECRET_KEY" \

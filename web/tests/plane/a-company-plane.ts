@@ -319,7 +319,13 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						'-policy': policyPath
 					})
 				],
-				logsTo(join(runDirectory, 'blueclaw.log'))
+				{
+					...logsTo(join(runDirectory, 'blueclaw.log')),
+					env: {
+						...process.env,
+						BLUECLAW_BUNDLED_SKILLS_PATH: environmentValue('COMPANY_PLANE_SKILLS')
+					}
+				}
 			)
 		);
 		await untilReady('blueclaw', async () => {
