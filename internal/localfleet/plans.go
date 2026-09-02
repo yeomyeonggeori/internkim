@@ -235,33 +235,6 @@ func (service Service) dmRecipientResolveScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"))
 }
 
-func (service Service) mattermostScenarioPlans() []CommandPlan {
-	return append(service.upPlans(false), service.labCommand("scenario-mattermost"))
-}
-
-func (service Service) mattermostManualScenarioPlans() []CommandPlan {
-	workspacePath := "/mnt/shared/workspace"
-	scriptPath := workspacePath + "/lab/scripts/prepare-mattermost-manual-test.sh"
-	return append(service.upPlans(false), service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065"))
-}
-
-func (service Service) mattermostAskEphemeralScenarioPlans() []CommandPlan {
-	scriptPath := filepath.Join(service.options.RepositoryRootPath, "lab", "scripts", "run-smoke-mattermost-ask-ephemeral-container.sh")
-	skippedSteps := []string{
-		"blueclaw-runtime-base",
-		"skills",
-		"blueclaw-config",
-		"blueclaw-payload",
-		"blueclaw-payload-direct",
-		"openrouter",
-		"staging",
-		"services",
-		"users-sync",
-		"health",
-	}
-	return append(service.upPlansWithSkippedSetupSteps(true, skippedSteps), service.command(scriptPath, service.options.VirtualMachineName))
-}
-
 // Buzz is what a company's messages actually travel over; every other scenario
 // here drives Mattermost. The fleet already provisions the relay and chatd, so
 // this one only needed a scenario to use them.

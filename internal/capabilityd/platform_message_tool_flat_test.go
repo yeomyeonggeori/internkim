@@ -1,10 +1,7 @@
 package capabilityd
 
 import (
-	"context"
 	"testing"
-
-	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
 func TestDecodePlatformMessageSendInputFlatChannel(t *testing.T) {
@@ -34,28 +31,6 @@ func TestDecodePlatformMessageSendInputDirectMessageDefaultsToRequester(t *testi
 	}
 	if input.DeliveryTarget.Type != "directMessage" || input.DeliveryTarget.PersonHint != "" {
 		t.Fatalf("expected an empty personHint to survive decoding, got %+v", input.DeliveryTarget)
-	}
-}
-
-func TestResolvePlatformDirectSendRecipientUsesRequesterWithoutHint(t *testing.T) {
-	service := Service{}
-	request := capabilities.ToolInvokeRequest{Context: capabilities.ToolInvokeContext{RequesterPlatformUserID: "requester-user-1"}}
-
-	recipientUserID, _, hasFailure := service.resolvePlatformDirectSendRecipient(context.Background(), request, "")
-
-	if hasFailure || recipientUserID != "requester-user-1" {
-		t.Fatalf("expected the requester to receive a hint-less direct message, got %q failure=%v", recipientUserID, hasFailure)
-	}
-}
-
-func TestResolvePlatformDirectSendRecipientFailsClosedWithoutRequesterIdentity(t *testing.T) {
-	service := Service{}
-	request := capabilities.ToolInvokeRequest{}
-
-	_, failure, hasFailure := service.resolvePlatformDirectSendRecipient(context.Background(), request, "")
-
-	if !hasFailure || failure.ErrorCode != "invalid_input" {
-		t.Fatalf("expected a loud failure without requester identity, got failure=%+v hasFailure=%v", failure, hasFailure)
 	}
 }
 

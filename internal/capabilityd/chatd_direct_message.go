@@ -25,7 +25,7 @@ func (service Service) invokeChatdDirectMessageSend(ctx context.Context, request
 	if hasFailure {
 		return platformDMErrorResponse(request.ToolName, failure), nil
 	}
-	return mattermostToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
+	return platformToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
 		MessageIDs:     []string{result.DispatchID},
 		DeliveryStatus: "sent",
 	})
@@ -53,7 +53,7 @@ func (service Service) invokeChatdDirectMessageBroadcast(ctx context.Context, re
 		response.Result, _ = json.Marshal(rollup)
 		return response, nil
 	}
-	return mattermostToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
+	return platformToolSuccessResponse(request.ToolName, "sent", platformMessageSendResult{
 		MessageIDs:     messageIDs,
 		DeliveryStatus: "sent",
 		Failures:       failures,

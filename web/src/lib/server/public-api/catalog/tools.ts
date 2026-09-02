@@ -74,10 +74,6 @@ export enum MessageToolName {
   Delete = 'message_delete',
 }
 
-export enum ChannelToolName {
-  Update = 'channel_update',
-}
-
 export enum MessageTargetType {
   DirectMessage = 'directMessage',
   CurrentThread = 'currentThread',
@@ -553,27 +549,6 @@ export const messageDeleteResultSchema = z.strictObject({
   messageIDs: uniqueResourceIDArraySchema,
   deliveryStatus: z.literal(MessageDeliveryStatus.Deleted),
   failures: z.array(messageDeliveryFailureSchema).optional(),
-});
-
-const channelUpdateObjectSchema = z.strictObject({
-  channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
-  channelName: z.string().min(1).describe('Exact Mattermost channel name without the # prefix.').optional(),
-  header: z.string().describe('New channel header. Use an empty string to clear it.').optional(),
-  displayName: z.string().min(1).describe('New channel display name.').optional(),
-  inviteeHints: z.array(z.string().min(1)).describe('Names, @handles, or emails of people to invite.').optional(),
-});
-
-export const channelUpdateInputSchema = channelUpdateObjectSchema
-  .refine(input => Boolean(input.channelID || input.channelName), 'channelID or channelName is required.')
-  .refine(input => input.header !== undefined || input.displayName !== undefined || input.inviteeHints !== undefined, 'At least one channel field must be updated.')
-  .meta({ minProperties: 2 });
-
-export const channelUpdateInputIntentSchema = channelUpdateObjectSchema;
-
-export const channelUpdateResultSchema = z.strictObject({
-  channelID: resourceIDSchema,
-  updated: z.literal(true),
-  invitedUserIDs: z.array(resourceIDSchema).optional(),
 });
 
 const storedSiteSlugSchema = z.string()
@@ -1267,33 +1242,6 @@ const messageToolDefinitions: CapabilityToolDefinition[] = [
   },
 ];
 
-const channelToolDefinitions: CapabilityToolDefinition[] = [
-  {
-    name: ChannelToolName.Update,
-    namespace: 'channel',
-    answeredBy: CapabilityAnsweredBy.Company,
-    privacyClass: 'platform_message',
-    policyResource: 'tool:channel_update',
-    description: 'Update an exact Mattermost channel display name, header, or membership after approval.',
-    version: '2',
-    estimatedLatency: CapabilityEstimatedLatency.Medium,
-    inputSchema: channelUpdateInputSchema,
-    inputIntentSchema: channelUpdateInputIntentSchema,
-    result: {
-      schema: channelUpdateResultSchema,
-      effects: [{
-        objectType: 'channel',
-        effect: ResourceMutationEffect.Updated,
-        resultField: 'channelID',
-        effectIdentity: ResourceEffectIdentity.ID,
-      }],
-    },
-    sideEffect: CapabilitySideEffect.ExternalWrite,
-    requiresApproval: true,
-    completionEvidence: { mode: 'success', action: 'update_channel', targetKind: 'channel' },
-  },
-];
-
 const siteToolDefinitions: CapabilityToolDefinition[] = [
   {
     name: SiteToolName.Serve,
@@ -1730,7 +1678,6 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...leaveToolDefinitions,
   ...attendanceToolDefinitions,
   ...messageToolDefinitions,
-  ...channelToolDefinitions,
   ...webToolDefinitions,
   ...siteToolDefinitions,
   ...fileToolDefinitions,
@@ -1777,8 +1724,6 @@ export type MessageSearchResult = z.infer<typeof messageSearchResultSchema>;
 export type MessageSendResult = z.infer<typeof messageSendResultSchema>;
 export type MessageUpdateResult = z.infer<typeof messageUpdateResultSchema>;
 export type MessageDeleteResult = z.infer<typeof messageDeleteResultSchema>;
-export type ChannelUpdateInput = z.infer<typeof channelUpdateInputSchema>;
-export type ChannelUpdateResult = z.infer<typeof channelUpdateResultSchema>;
 export type SiteServeInput = z.infer<typeof siteServeInputSchema>;
 export type SiteListInput = z.infer<typeof siteListInputSchema>;
 export type SiteUnserveInput = z.infer<typeof siteUnserveInputSchema>;

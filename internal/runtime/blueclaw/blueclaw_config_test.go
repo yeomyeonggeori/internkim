@@ -667,9 +667,6 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 			t.Fatalf("expected member %s tool rule, got %+v", toolName, resourceAccess)
 		}
 	}
-	if !containsPolicyResource(resourceAccess, "tool:channel_update", "admin") {
-		t.Fatalf("expected admin Mattermost channel update tool rule, got %+v", resourceAccess)
-	}
 	if !containsPolicyResource(resourceAccess, "tool:mail_message_search", "member") {
 		t.Fatalf("expected member mail search tool rule, got %+v", resourceAccess)
 	}

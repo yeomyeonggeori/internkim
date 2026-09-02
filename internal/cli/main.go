@@ -1903,8 +1903,6 @@ func runLabArgumentsForTarget(arguments []string, boardType string) error {
 			return service.SetupSimulation(ctx, executablePath, nil)
 		}
 		return service.Setup(ctx, executablePath, nil)
-	case "scenario-mattermost":
-		return service.ScenarioMattermost(ctx)
 	case "scenario-google":
 		return service.ScenarioGoogle(ctx)
 	case "scenario-cloudflare":
