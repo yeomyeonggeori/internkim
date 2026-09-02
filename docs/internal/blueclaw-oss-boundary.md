@@ -17,7 +17,8 @@ Blueclaw should be releasable as an open-source agent runtime without carrying i
 
 - Capability client code that calls a configured provider endpoint.
 - Provider-neutral tool names and descriptor handling.
-- Policy decisions about which actor may request which tool.
+- Policy decisions about which actor may request which tool, read from the descriptor's `sideEffectClass` and `requiresApproval` rather than from a list of tool names.
+- The requirement side of a skill: the tool names its `tool-references` state, and refusing to offer a skill whose tools this runtime was not given.
 - Task, memory, scheduler, and skill orchestration.
 - Runtime configuration fields that describe the capability endpoint, not provider implementation details.
 
@@ -28,6 +29,7 @@ Blueclaw should be releasable as an open-source agent runtime without carrying i
 - Cloudflare, Mattermost, Slack, Signal, Google Workspace, OpenRouter, Jetson, Firecracker provisioning, or fleet code.
 - Companion pairing broker state or signed upload storage.
 - Product-specific capability catalogs such as `flow.*`, `site.app.*`, and Google bridge tools.
+- Prose describing a product tool's parameters or its approval rules. A skill states the workflow and the judgment; the descriptor states the fields, the enums and whether the call is gated, and the runtime reads it.
 
 ## Capability Protocol
 
