@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Fail when two migrations claim one version, here or against origin/main.
+
+A migration version is the primary key of supabase_migrations.schema_migrations,
+so a repeated one stops `supabase db reset` at the second file and leaves the
+database half built. A branch cannot see this coming: its own versions are
+unique until the day another branch merges one of them, and by then the break is
+on main. So this reads origin/main as well as the working tree.
+"""
+
+import collections
+import pathlib
+import subprocess
+import sys
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+MIGRATIONS = REPOSITORY_ROOT / "supabase" / "migrations"
+BASE = "origin/main"
+
+
+def version_of(name):
+    return name.split("_", 1)[0]
+
+
+def names_here():
+    return sorted(path.name for path in MIGRATIONS.glob("*.sql"))
+
+
+def names_on_base():
+    finished = subprocess.run(
+        ["git", "ls-tree", "--name-only", BASE, "supabase/migrations/"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if finished.returncode != 0:
+        return None
+    return sorted(
+        line.rsplit("/", 1)[-1]
+        for line in finished.stdout.split()
+        if line.endswith(".sql")
+    )
+
+
+def main():
+    here = names_here()
+    failures = []
+
+    claimed = collections.defaultdict(list)
+    for name in here:
+        claimed[version_of(name)].append(name)
+    for version, names in sorted(claimed.items()):
+        if len(names) > 1:
+            failures.append(f"{version} is claimed by {' and '.join(names)}")
+
+    base = names_on_base()
+    if base is None:
+        print(f"note {BASE} is not fetched, so only this tree was read")
+    else:
+        on_base = {version_of(name): name for name in base}
+        for name in here:
+            taken = on_base.get(version_of(name))
+            if taken is not None and taken != name:
+                failures.append(
+                    f"{version_of(name)} is {taken} on {BASE} and {name} here"
+                )
+
+    if failures:
+        for failure in failures:
+            print(f"fail {failure}", file=sys.stderr)
+        print(
+            "\nRename the later file to a free version. The number orders the "
+            "migrations and carries no other meaning, so renaming one that has "
+            "not been applied anywhere is a rename and nothing more.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"ok   {len(here)} migrations, every version its own")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
