@@ -54,7 +54,7 @@ export type AnsweredTask = {
 
 function presentationOf(personID: string, person: RecordPerson | undefined): AnsweredPerson {
 	if (!person) return { personID };
-	const mention = mentionOf(person.email);
+	const mention = mentionOf(person.name);
 	return {
 		personID,
 		displayName: person.name,
@@ -202,7 +202,7 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 }
 
 function listedPerson(person: RecordPerson) {
-	const mention = mentionOf(person.email);
+	const mention = mentionOf(person.name);
 	return {
 		personID: person.personID,
 		name: person.name,

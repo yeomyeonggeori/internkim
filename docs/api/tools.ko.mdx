@@ -192,7 +192,7 @@ read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙�
   "safeRetry": true,
   "hint": "박",
   "candidates": [
-    { "id": "8f31…", "label": "박예시", "email": "yesi@example.com", "mention": "@yesi" }
+    { "id": "8f31…", "label": "박예시", "email": "yesi@example.com", "handle": "@yesi" }
   ]
 }
 ```
@@ -200,9 +200,11 @@ read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙�
 누구를 말한 것인지 사람에게 물어야 하면 `errorCode`는 `interaction_required`이고,
 아무것도 가깝지 않으면 `task_not_found`, `calendar_event_not_found`,
 `person_not_found`, `task_participant_not_found` 중 하나입니다. 후보는 재시도에서
-하나를 정확히 지목할 수 있도록 신원을 싣고, `mention`은 다음 힌트가 그대로 받는
-값입니다. 최대 여덟 개까지 옵니다. 거절은 무엇을 말하라고 지시하지 않습니다.
-문구는 부르는 쪽의 몫입니다.
+하나를 정확히 지목할 수 있도록 신원을 싣습니다. 후보의 `handle`은 다음 힌트가
+그대로 받는 값이고, 도구 결과에 실리는 사람의 `mention`은 메시지에 적어 넣는
+`@이름`이라서, 둘은 철자가 다르고 서로 바꿔 쓸 수 없습니다. 후보는 최대 여덟
+개까지 옵니다. 거절은 무엇을 말하라고 지시하지 않습니다. 문구는 부르는 쪽의
+몫입니다.
 
 ## 처음부터 끝까지 [#end-to-end]
 

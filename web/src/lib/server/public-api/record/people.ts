@@ -22,7 +22,12 @@ export function displayNameOf(member: { name: string | null; email: string | nul
 	return member.name?.trim() || (member.email ?? '').split('@')[0];
 }
 
-export function mentionOf(email: string): string {
+export function mentionOf(displayName: string): string {
+	const named = displayName.trim();
+	return named ? `@${named}` : '';
+}
+
+export function handleOf(email: string): string {
 	const handle = handleFromEmail(email);
 	return handle ? `@${handle}` : '';
 }
@@ -43,7 +48,7 @@ export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPer
 }
 
 const personMatcher: HintMatcher<RecordPerson> = {
-	identifiersOf: (person) => [person.personID, person.email, mentionOf(person.email)],
+	identifiersOf: (person) => [person.personID, person.email, handleOf(person.email)],
 	titleOf: (person) => person.name,
 	nearnessTo: (person, hint) =>
 		Math.max(
@@ -68,12 +73,12 @@ export function personOfHint(
 }
 
 export function candidateOf(person: RecordPerson): HintCandidate {
-	const mention = mentionOf(person.email);
+	const handle = handleOf(person.email);
 	return {
 		id: person.personID,
 		label: person.name,
 		...(person.email ? { email: person.email } : {}),
-		...(mention ? { mention } : {})
+		...(handle ? { handle } : {})
 	};
 }
 

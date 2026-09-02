@@ -91,7 +91,7 @@ export type HintCandidate = {
 	id: string;
 	label: string;
 	email?: string;
-	mention?: string;
+	handle?: string;
 };
 
 export class HintRefused extends Error {

@@ -123,9 +123,7 @@ describe('a task written through the record', () => {
 		expect(made.business).toBe('영업');
 		expect(made.status).toBe('planned');
 		expect(made.content).toBe('분기 보고서 초안');
-		expect((made.participantPresentations as { mention: string }[])[0].mention).toBe(
-			`@${slug}-sample`
-		);
+		expect((made.participantPresentations as { mention: string }[])[0].mention).toBe('@이샘플');
 	});
 
 	test('keeps what an update did not name', async () => {
@@ -188,7 +186,7 @@ describe('a task written through the record', () => {
 		const refused = await run('task_add', { title: '가까운 이름', participantPersonHints: ['박예시연'] });
 		const refusal = refused.body as {
 			errorCode: string;
-			candidates: { id: string; label: string; email: string; mention: string }[];
+			candidates: { id: string; label: string; email: string; handle: string }[];
 		};
 		expect(refused.status).toBe(409);
 		expect(refusal.errorCode).toBe('interaction_required');
@@ -196,9 +194,9 @@ describe('a task written through the record', () => {
 
 		// The retry the refusal invites has to work on the value it handed back.
 		const offered = refusal.candidates.find((one) => one.label === '박예시');
-		expect(offered?.mention).toBe(`@${slug}-example`);
+		expect(offered?.handle).toBe(`@${slug}-example`);
 		const named = resultOf(
-			await run('task_add', { title: '가까운 이름', participantPersonHints: [offered!.mention] })
+			await run('task_add', { title: '가까운 이름', participantPersonHints: [offered!.handle] })
 		);
 		expect(named.participantNames).toEqual(['박예시']);
 	});

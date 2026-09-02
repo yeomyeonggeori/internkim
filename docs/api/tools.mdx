@@ -196,7 +196,7 @@ An unresolved hint answers `409`:
   "safeRetry": true,
   "hint": "박",
   "candidates": [
-    { "id": "8f31…", "label": "박예시", "email": "yesi@example.com", "mention": "@yesi" }
+    { "id": "8f31…", "label": "박예시", "email": "yesi@example.com", "handle": "@yesi" }
   ]
 }
 ```
@@ -204,9 +204,12 @@ An unresolved hint answers `409`:
 `errorCode` is `interaction_required` when somebody has to be asked which one
 was meant, and `task_not_found`, `calendar_event_not_found`,
 `person_not_found` or `task_participant_not_found` when nothing came close.
-The candidates carry the identity to name one exactly on the retry, and their
-`mention` is a value the next hint accepts. At most eight come back. Nothing
-in the refusal tells you what to say: the wording is the caller's.
+The candidates carry the identity to name one exactly on the retry: a
+candidate's `handle` is a value the next hint accepts, where a person's
+`mention` in a tool's result is the `@name` to write into a message, so the two
+are spelled differently and are not interchangeable. At most eight candidates
+come back. Nothing in the refusal tells you what to say: the wording is the
+caller's.
 
 ## End to end [#end-to-end]
 

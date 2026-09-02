@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { candidateOf, personOfHint, peopleOfHints } from '$lib/server/public-api/record/people';
+import { candidateOf, mentionOf, personOfHint, peopleOfHints } from '$lib/server/public-api/record/people';
 import { HintRefused } from '$lib/server/public-api/record/hint-resolution';
 
 const people = [
@@ -33,10 +33,11 @@ describe('naming a person', () => {
 		expect(personOfHint(people, '예시연').personID).toBe('m3');
 	});
 
-	test('takes an @handle derived from the address, the one a candidate hands back', () => {
+	test('takes the @handle a candidate hands back, which is not the mention', () => {
 		expect(personOfHint(people, '@yesi').personID).toBe('m2');
-		expect(candidateOf(people[1]).mention).toBe('@yesi');
-		expect(personOfHint(people, candidateOf(people[1]).mention as string).personID).toBe('m2');
+		expect(candidateOf(people[1]).handle).toBe('@yesi');
+		expect(personOfHint(people, candidateOf(people[1]).handle as string).personID).toBe('m2');
+		expect(mentionOf(people[1].name)).toBe('@박예시');
 	});
 
 	test('asks rather than picking one when two addresses share a local part', () => {
@@ -63,7 +64,7 @@ describe('naming a person', () => {
 			id: 'm2',
 			label: '박예시',
 			email: 'yesi@example.com',
-			mention: '@yesi'
+			handle: '@yesi'
 		});
 	});
 
