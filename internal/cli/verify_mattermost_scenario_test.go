@@ -249,7 +249,7 @@ func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
 		!containsMattermostScenarioString(deleteStep.ExpectedEvents, "approval.executed") {
 		t.Fatalf("unexpected delete approval flow: %#v", deleteStep)
 	}
-	skillDocument, errorValue := os.ReadFile("../../assets/blueclaw-workspace/skills/document/SKILL.md")
+	skillDocument, errorValue := os.ReadFile("../../.dependency/internkim-plugin/skills/document/SKILL.md")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

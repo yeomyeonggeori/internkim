@@ -7,7 +7,7 @@ const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
 type SkillInventory = { skills: { name: string; path: string }[] };
 
-test('the agent on the plane can see a plugin skill and a workspace skill', async () => {
+test('the agent on the plane can see every skill the plugin carries', async () => {
 	const plane = await aCompanyPlane();
 	try {
 		const answer = await fetch(`${plane.blueclawURL}/admin/api/skills`);
@@ -15,15 +15,13 @@ test('the agent on the plane can see a plugin skill and a workspace skill', asyn
 		const inventory = (await answer.json()) as SkillInventory;
 		const names = inventory.skills.map((skill) => skill.name);
 
-		expect(
-			names,
-			`the plane shipped no skills: host/Dockerfile copies binaries only and the workspace ` +
-				`volume is empty, so the agent answers every request with none of them`
-		).toContain('internkim-task');
-		expect(
-			names,
-			`the vendored plugin's skills reached no plane, so a company plane can do less than a device`
-		).toContain('presentation');
+		for (const skillName of ['internkim-task', 'presentation', 'internkim-api']) {
+			expect(
+				names,
+				`the plane shipped no ${skillName}: host/Dockerfile copies binaries only and the ` +
+					`workspace volume is empty, so the agent answers every request without it`
+			).toContain(skillName);
+		}
 		expect(new Set(names).size, `a skill read once per instruction root is in the prompt twice`).toBe(
 			names.length
 		);
@@ -41,10 +39,8 @@ test('the company box ships the skills it starts the agent with', () => {
 		`host/entrypoint.sh names no bundled skills root, so blueclaw looks under the empty ` +
 			`/workspace volume and starts with nothing`
 	).toBe(true);
-	for (const root of ['assets/blueclaw-workspace/skills', '.dependency/internkim-plugin/skills']) {
-		expect(
-			dockerfile.includes(root),
-			`host/Dockerfile copies no ${root}, so the path the entrypoint names is empty in the image`
-		).toBe(true);
-	}
+	expect(
+		dockerfile.includes('.dependency/internkim-plugin/skills'),
+		`host/Dockerfile copies no plugin skills, so the path the entrypoint names is empty in the image`
+	).toBe(true);
 });

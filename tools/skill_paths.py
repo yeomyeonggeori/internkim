@@ -1,9 +1,8 @@
-import json
 import pathlib
 
 
 def skill_root_paths(repository_root: pathlib.Path) -> list[pathlib.Path]:
-    root_paths = [repository_root / "assets" / "blueclaw-workspace" / "skills"]
+    root_paths: list[pathlib.Path] = []
     dependency_root = repository_root / ".dependency"
     if not dependency_root.is_dir():
         return root_paths

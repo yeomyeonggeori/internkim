@@ -57,7 +57,6 @@ say "the skills"
 skillsDirectory="$repositoryRoot/.local/company-plane/skills"
 rm -rf "$skillsDirectory"
 mkdir -p "$skillsDirectory"
-cp -R "$repositoryRoot/assets/blueclaw-workspace/skills/." "$skillsDirectory/"
 for pluginManifest in "$repositoryRoot"/.dependency/*/plugin.json; do
   [ -f "$pluginManifest" ] || continue
   cp -R "$(dirname "$pluginManifest")/skills/." "$skillsDirectory/"

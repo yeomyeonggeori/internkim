@@ -65,7 +65,7 @@ GROUPS = [
             "go.sum",
             "pkg/capabilityprotocol/generated/*",
             "supabase/functions/_shared/*",
-            "assets/blueclaw-workspace/skills/*",
+            ".dependency/internkim-plugin",
         ],
         [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
     ),

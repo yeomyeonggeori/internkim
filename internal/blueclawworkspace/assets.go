@@ -11,10 +11,6 @@ func AssetsPath(scriptDir string) string {
 	return filepath.Join(scriptDir, "assets", "blueclaw-workspace")
 }
 
-func SkillsPath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "skills")
-}
-
 func dependencyPath(scriptDir string) string {
 	return filepath.Join(scriptDir, ".dependency")
 }
@@ -44,7 +40,7 @@ func PluginSkillPaths(scriptDir string) []string {
 }
 
 func SkillRootPaths(scriptDir string) []string {
-	return append([]string{SkillsPath(scriptDir)}, PluginSkillPaths(scriptDir)...)
+	return PluginSkillPaths(scriptDir)
 }
 
 func isExistingFile(path string) bool {

@@ -1117,7 +1117,7 @@ var componentSourcePaths = map[string][]string{
 	"admind":             {"cmd/internkim-admind"},
 	"capabilityd":        {"cmd/internkim-capabilityd"},
 	"blueclawSupervisor": {"cmd/blueclaw-supervisor"},
-	"skills":             {"assets/blueclaw-workspace/skills", ".dependency/internkim-plugin"},
+	"skills":             {".dependency/internkim-plugin"},
 	"fonts":              {"assets/fonts"},
 	"relay":              {"host/relay"},
 	"buzzMigrate":        {"cmd/buzz-migrate"},

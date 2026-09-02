@@ -1313,9 +1313,8 @@ func (state *setupFlowState) installGoServiceUnitSSH(servicePath string, service
 }
 
 func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
-	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
-	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
-		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
+	if len(blueclawworkspace.SkillRootPaths(state.scriptDir)) == 0 {
+		return fmt.Errorf("no plugin is checked out under %s", filepath.Join(state.scriptDir, ".dependency"))
 	}
 	toolsDirectoryPath := blueclawworkspace.ToolsPath(state.scriptDir)
 	if info, errorValue := os.Stat(toolsDirectoryPath); errorValue != nil || !info.IsDir() {
@@ -1434,9 +1433,8 @@ func (state *setupFlowState) installSkillPythonDependenciesSSH() error {
 }
 
 func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
-	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
-	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
-		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
+	if len(blueclawworkspace.SkillRootPaths(state.scriptDir)) == 0 {
+		return fmt.Errorf("no plugin is checked out under %s", filepath.Join(state.scriptDir, ".dependency"))
 	}
 	toolsDirectoryPath := blueclawworkspace.ToolsPath(state.scriptDir)
 	if info, errorValue := os.Stat(toolsDirectoryPath); errorValue != nil || !info.IsDir() {
