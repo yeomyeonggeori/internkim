@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"log"
 	"net/http"
 )
 
@@ -10,7 +11,11 @@ func (service *Service) buzzSecretForEmail(ctx context.Context, email string) st
 	if seed == "" {
 		return ""
 	}
-	subject := service.buzzVaultSubject(ctx, email)
+	subject, errorValue := service.buzzVaultSubject(ctx, email)
+	if errorValue != nil {
+		log.Printf("buzz identity withheld: %v", errorValue)
+		return ""
+	}
 	version := service.buzzIdentityVersion(subject)
 	return buzzKeyForVersion(seed, email, version)
 }

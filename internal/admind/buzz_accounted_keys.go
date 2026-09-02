@@ -31,7 +31,11 @@ func (service *Service) accountedBuzzPubkeys(ctx context.Context, seed string) (
 		accounted[pubkey] = true
 	}
 	for _, email := range addresses {
-		for _, pubkey := range service.everyKeyHeldBy(ctx, seed, email) {
+		held, errorValue := service.everyKeyHeldBy(ctx, seed, email)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		for _, pubkey := range held {
 			accounted[pubkey] = true
 		}
 	}

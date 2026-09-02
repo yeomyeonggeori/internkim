@@ -145,8 +145,6 @@ type Service struct {
 	buzzInviteStoreOnce                sync.Once
 	buzzKeySeedOnce                    sync.Once
 	buzzKeySeedValue                   string
-	botBuzzEmailOnce                   sync.Once
-	botBuzzEmailValue                  string
 	cloudflareAccessOnce               sync.Once
 	cloudflareAccessCheck              *cloudflareAccessVerifier
 	sites                              map[string]*SiteRecord

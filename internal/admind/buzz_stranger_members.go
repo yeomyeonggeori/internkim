@@ -296,7 +296,11 @@ func (service *Service) strangerBuzzPubkeys(ctx context.Context, seed string) ([
 		}
 		seen[email] = true
 		emails = append(emails, email)
-		pubkeys = append(pubkeys, service.everyKeyHeldBy(ctx, seed, email)...)
+		held, errorValue := service.everyKeyHeldBy(ctx, seed, email)
+		if errorValue != nil {
+			return nil, nil, errorValue
+		}
+		pubkeys = append(pubkeys, held...)
 	}
 	return pubkeys, emails, nil
 }
@@ -304,8 +308,12 @@ func (service *Service) strangerBuzzPubkeys(ctx context.Context, seed string) ([
 // A person who was rotated to a fresh identity holds the key of every version
 // they have had, and the current one is the version the vault names. Deriving
 // only version one calls the person they are today a stranger.
-func (service *Service) everyKeyHeldBy(ctx context.Context, seed string, email string) []string {
-	version := service.buzzIdentityVersion(service.buzzVaultSubject(ctx, email))
+func (service *Service) everyKeyHeldBy(ctx context.Context, seed string, email string) ([]string, error) {
+	vaultSubject, errorValue := service.buzzVaultSubject(ctx, email)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	version := service.buzzIdentityVersion(vaultSubject)
 	keys := []string{}
 	for held := 1; held <= version; held++ {
 		pubkey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, versionedSubject(email, held)))
@@ -314,5 +322,5 @@ func (service *Service) everyKeyHeldBy(ctx context.Context, seed string, email s
 		}
 		keys = append(keys, pubkey)
 	}
-	return keys
+	return keys, nil
 }

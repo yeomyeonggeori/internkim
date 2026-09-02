@@ -182,13 +182,12 @@ func (service *Service) companyPeopleEmails(ctx context.Context) ([]string, erro
 	}
 
 	policyEmails, errorValue := service.policyPeopleEmails(ctx)
-	if errorValue != nil && client == nil {
+	if errorValue != nil {
 		return nil, errorValue
 	}
 	for _, email := range policyEmails {
 		add(email)
 	}
-	add(service.mattermostBotBuzzEmail(ctx))
 	return emails, nil
 }
 
