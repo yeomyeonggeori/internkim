@@ -188,8 +188,6 @@ model path directly; it reaches them through the typed capability boundary that
 |---|---|---|
 | `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` | the remote LLM provider |
 | `/root/.internkim/models/*` | `internkim-capabilityd`, the local model wrapper | the local model runtime |
-| `/root/.internkim/secrets/google-sa.json` | `gws`, `gws-bot`, the Apps Script helper | Google Workspace |
-| `/root/.internkim/secrets/gas-webhook-url` | the Apps Script bridge helper | calling the bridge |
 | `/root/.internkim/secrets/slack-*` | `internkim-capabilityd` | optional Slack Socket Mode |
 | `/root/.internkim/config/signal-*` | `internkim-capabilityd` | optional Signal JSON-RPC |
 | `/root/.internkim/state/companion-jobs.json` | `internkim-admind` | companion broker restart recovery |
@@ -221,10 +219,9 @@ reading one.
 | **chatd** | Per-person messenger operations, with Mattermost and Buzz adapters behind one gateway. |
 | **Graphiti memoryd** | The memory sidecar: episode ingestion, temporal graph extraction and hybrid graph search through `graphiti-core[kuzu]`. |
 | **internkim-companion** | A trusted runtime on the user's own computer for browser handoff, confirmation, input and file picking, and later for local-only inference. |
-| **gws** | A Google Workspace CLI for Drive, Docs, Gmail and Sheets, with an MCP server mode. |
 | **Mattermost** | The self-hostable messenger used as the collaboration channel and the entry point for work. |
 | **SvelteKit web app** (`web/`) | The company app on Cloudflare Pages, and the operating surfaces served same-origin from a device: `/admin`, `/flow`, `/memory`, `/calendar`, `/mail`, `/attendance`, `/files`, `/ops`. |
-| **workspace assets** (`assets/blueclaw-workspace/`) | AGENTS.md, skills, helpers and Apps Script source, installed to the host workspace and mounted into the guest. |
+| **workspace assets** (`assets/blueclaw-workspace/`) | AGENTS.md, skills and helpers, installed to the host workspace and mounted into the guest. |
 
 ## Running it
 
@@ -294,7 +291,6 @@ them an invocation answers `503`, while the catalog and the tokens still work.
   storage recommended
 - SSH reachability and the device IP
 - an [OpenRouter API key](https://openrouter.ai/keys)
-- a Google Cloud project, for Google Workspace
 
 ```bash
 make build
@@ -335,7 +331,7 @@ INTERNKIM_BLUECLAW_USE_LOCAL=1 ./internkim setup --only binaries,blueclaw-payloa
 The steps a full setup runs: connect over SSH; build and deploy the web app;
 prepare Jetson packages and runtime; install blueclaw and create system users;
 write the OpenRouter key; prepare the local model runtime; register the device;
-install only the Google Workspace credentials the user supplied; configure Mattermost, which can be skipped;
+configure Mattermost, which can be skipped;
 configure user sync and the optional Slack and Signal channels; start
 `blueclaw.service` and run the final health check.
 
@@ -644,7 +640,6 @@ behind them; `ls cmd internal` answers what exists today. The rest:
 | Cloudflare Tunnel, Access, Pages, KV | free tier |
 | Supabase | free tier to start |
 | OpenRouter | metered, with free models available |
-| Google Cloud IAM | free |
 
 The remote provider is the default path for generation. The device's local model
 and, later, a strong local model on a companion host are the fallbacks that keep

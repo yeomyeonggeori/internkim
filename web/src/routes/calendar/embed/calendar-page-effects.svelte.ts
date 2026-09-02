@@ -2,7 +2,6 @@ import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model'
 import type { ViewType } from '../calendar-view-type';
 import type { CalendarLocaleText } from '../text';
 import type { CalendarPageRangePreviewActions } from './calendar-page-range-preview';
-import type { CalendarPageRenderSyncActions } from './calendar-page-render-sync';
 import type { MonthRangeSelection } from './calendar-month-range-action';
 import type { TimelineRangeSelection } from './calendar-timeline-range-action';
 
@@ -15,7 +14,6 @@ type CalendarPageEffectsContext = {
 	getToolbarView: () => ViewType;
 	getVisibleEvents: () => DayTaskEvent[];
 	rangePreview: CalendarPageRangePreviewActions;
-	renderSync: CalendarPageRenderSyncActions;
 	text: CalendarLocaleText;
 };
 

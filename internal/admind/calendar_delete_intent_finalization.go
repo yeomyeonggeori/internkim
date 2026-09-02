@@ -96,8 +96,6 @@ func (service *Service) finalizeCalendarDeleteIntent(ctx context.Context, operat
 	if errorValue := transaction.Commit(); errorValue != nil {
 		return errorValue
 	}
-	service.runCalendarStoreSideEffectUnlocked(func() {
-	})
 	return nil
 }
 

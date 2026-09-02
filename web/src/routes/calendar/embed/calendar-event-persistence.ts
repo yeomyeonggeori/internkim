@@ -57,12 +57,10 @@ export type CalendarDeleteIntent = {
 	executeAt: string;
 };
 
-export const calendarTargetUnavailableErrorCode = 'calendar_target_unavailable';
 export const calendarEventVersionConflictErrorCode = 'calendar_event_version_conflict';
 export const calendarDeleteIntentConflictErrorCode = 'calendar_delete_intent_conflict';
 
 export type CalendarPersistenceErrorCode =
-	| typeof calendarTargetUnavailableErrorCode
 	| typeof calendarEventVersionConflictErrorCode
 	| typeof calendarDeleteIntentConflictErrorCode
 	| 'unknown';
@@ -212,7 +210,6 @@ function decodeCalendarPersistenceErrorCode(responseBody: string): CalendarPersi
 		return 'unknown';
 	}
 	if (!document || typeof document !== 'object' || !('code' in document)) return 'unknown';
-	if (document.code === calendarTargetUnavailableErrorCode) return calendarTargetUnavailableErrorCode;
 	if (document.code === calendarEventVersionConflictErrorCode) return calendarEventVersionConflictErrorCode;
 	if (document.code === calendarDeleteIntentConflictErrorCode) return calendarDeleteIntentConflictErrorCode;
 	return 'unknown';

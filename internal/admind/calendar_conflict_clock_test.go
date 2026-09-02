@@ -22,7 +22,7 @@ func TestCalendarConflictClockAdvancesPastPersistedValueDuringWallClockRollback(
 	}
 }
 
-func TestCalendarConflictClockUsesEveryLegacyLocalEvidenceFloor(t *testing.T) {
+func TestCalendarConflictClockFloorsOnTheEventsOwnUpdatedAndDeletedTimes(t *testing.T) {
 	candidate := time.Date(2036, 7, 16, 4, 0, 0, 0, time.UTC)
 	legacyTime := candidate.Add(time.Hour)
 	testCases := []struct {

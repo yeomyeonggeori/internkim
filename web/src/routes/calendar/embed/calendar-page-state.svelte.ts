@@ -1,6 +1,5 @@
 import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import type { ViewType } from '../calendar-view-type';
-import type { CalendarConflict } from './calendar-conflicts';
 import type { DraftPopoverState } from './calendar-draft-popover-state';
 import type { CalendarParticipant } from './calendar-participants';
 import type { MonthRangePreviewSegment, MonthRangeSelection } from './calendar-month-range-action';
@@ -31,7 +30,6 @@ export class CalendarEmbedPageState {
 	activeMobileEditorEventID = $state<string | null>(null);
 	pendingEventID: string | null;
 	draftPopover = $state<DraftPopoverState | null>(null);
-	calendarConflicts = $state<CalendarConflict[]>([]);
 	participantCandidates = $state<CalendarParticipant[]>([]);
 	viewerParticipants = $state<CalendarParticipant[]>([]);
 

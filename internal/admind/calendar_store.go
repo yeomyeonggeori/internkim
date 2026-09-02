@@ -220,10 +220,6 @@ func (service *Service) readCalendarEventByID(ctx context.Context, eventID strin
 	return service.readCalendarEvent(ctx, "id", eventID)
 }
 
-func (service *Service) readCalendarEventByUID(ctx context.Context, uid string) (calendarEvent, bool, error) {
-	return service.readCalendarEvent(ctx, "uid", uid)
-}
-
 type calendarEventProjection struct {
 	Event     calendarEvent
 	IsDeleted bool

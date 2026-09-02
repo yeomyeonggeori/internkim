@@ -14,7 +14,7 @@ import { CalendarProgrammaticUpdateState } from '../../../src/routes/calendar/em
 export type { CalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 
 export const toastErrorMessages: string[] = [];
-export const targetUnavailableMessage = 'Reconnect the account or select a writable calendar.';
+export const persistenceFailureMessage = 'Could not persist the event.';
 
 mock.module('svelte-sonner', () => ({
 	toast: Object.assign(() => {}, {
@@ -88,7 +88,6 @@ export function createPersistenceScenario(
 				'This event changed elsewhere, so it could not be deleted. The latest server version has been reloaded.',
 			calendarEventVersionConflictError:
 				'This event changed elsewhere. The latest server version has been reloaded.',
-			calendarTargetUnavailableError: targetUnavailableMessage,
 			deleteError: 'Could not delete the event.',
 			deleteUndoAction: 'Undo',
 			deleteUndoMessage: 'Event deleted.',
@@ -99,16 +98,16 @@ export function createPersistenceScenario(
 	};
 	const persistedEvents: CalendarPersistedEventActions = {
 		writeEvent: async () => {
-			throw targetUnavailableError();
+			throw unknownPersistenceError();
 		},
 		deleteEvent: async () => {
-			throw targetUnavailableError();
+			throw unknownPersistenceError();
 		},
 		createDeleteIntent: async () => {
-			throw targetUnavailableError();
+			throw unknownPersistenceError();
 		},
 		cancelDeleteIntent: async () => {
-			throw targetUnavailableError();
+			throw unknownPersistenceError();
 		},
 		applyServerMetadata: async () => {},
 		...persistedOverrides
@@ -189,8 +188,12 @@ export function calendarVersionedTestEvent(
 	});
 }
 
-export function targetUnavailableError(): CalendarPersistenceError {
-	return new CalendarPersistenceError('calendar_target_unavailable', 'Could not persist the event.');
+export function unknownPersistenceError(): CalendarPersistenceError {
+	return new CalendarPersistenceError('unknown', 'Could not persist the event.');
+}
+
+export function deleteIntentConflictError(): CalendarPersistenceError {
+	return new CalendarPersistenceError('calendar_delete_intent_conflict', 'Could not persist the event.');
 }
 
 export function calendarServerEvent(eventID: string, title: string): CalendarEvent {

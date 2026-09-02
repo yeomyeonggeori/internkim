@@ -280,7 +280,7 @@ export function createCalendarDeletePersistenceActions(
 
 	function isRetryableCancellationFailure(error: unknown): boolean {
 		if (!(error instanceof CalendarPersistenceError)) return true;
-		return error.code === 'unknown' || error.code === 'calendar_target_unavailable';
+		return error.code === 'unknown';
 	}
 
 	function hasLocalEvent(eventID: string): boolean {

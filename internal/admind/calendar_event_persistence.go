@@ -162,7 +162,5 @@ func (service *Service) softDeleteCalendarEventLocked(ctx context.Context, event
 		return errorValue
 	}
 	service.deletePairedTaskForCalendarEvent(ctx, event.ID)
-	service.runCalendarStoreSideEffectUnlocked(func() {
-	})
 	return nil
 }

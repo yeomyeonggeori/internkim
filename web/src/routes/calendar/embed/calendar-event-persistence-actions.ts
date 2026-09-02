@@ -14,7 +14,6 @@ import type { CalendarEvent } from './calendar-event-persistence';
 import {
 	CalendarPersistenceError,
 	calendarEventVersionConflictErrorCode,
-	calendarTargetUnavailableErrorCode,
 	isCalendarPersistenceErrorCode
 } from './calendar-event-persistence';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
@@ -211,9 +210,6 @@ export function createCalendarEventPersistenceActions(
 		fallback: string,
 		versionConflictMessage: string
 	): string {
-		if (isCalendarPersistenceErrorCode(error, calendarTargetUnavailableErrorCode)) {
-			return options.context.text.calendarTargetUnavailableError;
-		}
 		if (isCalendarPersistenceErrorCode(error, calendarEventVersionConflictErrorCode)) {
 			return versionConflictMessage;
 		}

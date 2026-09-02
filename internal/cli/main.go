@@ -2604,7 +2604,7 @@ func runSetupSD(m *msg) {
 		fatal(err.Error())
 	}
 
-	// 7. Flash image (skip if same image already on SD)
+	// The image is not reflashed when the SD card already carries it.
 	step(6, totalSteps, m.t("이미지 굽기...", "Flashing image..."))
 
 	// Pre-download Mattermost tar.gz to cache
@@ -2745,8 +2745,7 @@ func runSetupSD(m *msg) {
 		exec.Command("sync").Run()
 	}
 
-	// 8. Mount boot partition and stage provisioning data
-	// macOS cannot mount ext4 root partition, so we put everything on the
+	// macOS cannot mount the ext4 root partition, so everything goes on the
 	// FAT32 boot partition. The first-boot script moves files into place.
 	step(7, totalSteps, m.t("파일 주입 중...", "Injecting files..."))
 	exec.Command("diskutil", "mountDisk", disk).Run()
@@ -2773,7 +2772,7 @@ func runSetupSD(m *msg) {
 	}
 	fmt.Printf("  %s\n", m.t("스테이지 디렉터리 복사 완료", "Stage directory copied"))
 
-	// 8f. sysconf.txt — Debian raspi standard first-boot config
+	// sysconf.txt is Debian raspi's own first-boot configuration file.
 	sysconf := "hostname=internkim\n"
 	if flowState.publicKey != "" {
 		sysconf += fmt.Sprintf("root_authorized_key=%s\n", flowState.publicKey)
@@ -2802,7 +2801,6 @@ func runSetupSD(m *msg) {
 		}
 	}
 
-	// 9. Unmount and done
 	step(8, totalSteps, m.t("완료!", "Done!"))
 	exec.Command("diskutil", "unmountDisk", disk).Run()
 

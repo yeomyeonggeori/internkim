@@ -98,17 +98,8 @@ export function createDevCalendarMockResponse(
 	if (request.method === 'GET' && request.pathname === '/calendar/api/sync') {
 		return { status: 200, body: { caldavURL: '', caldavUsername: '', caldavPassword: '', icsURL: '' } };
 	}
-	if (request.method === 'GET' && request.pathname === '/calendar/api/account-status') {
-		return { status: 200, body: { connected: false, needsReauth: false, googleOAuthConfigured: true, canManageGoogleOAuth: false } };
-	}
 	if (request.method === 'GET' && request.pathname === '/calendar/api/participants') {
 		return { status: 200, body: { participants: devCalendarParticipants() } };
-	}
-	if (request.method === 'POST' && request.pathname === '/calendar/api/remote-sync') {
-		return { status: 200, body: { synced: false } };
-	}
-	if (request.method === 'GET' && request.pathname === '/calendar/api/conflicts') {
-		return { status: 200, body: { conflicts: [] } };
 	}
 	const deleteIntentEventID = deleteIntentEventIDFromPath(request.pathname);
 	if (deleteIntentEventID) {
@@ -223,10 +214,7 @@ function shouldHandleDevCalendarMockRequest(method: string, pathname: string): b
 	if (method === 'GET' && pathname === '/admin/api/session') return true;
 	if ((method === 'GET' || method === 'PUT') && pathname === '/admin/api/locale') return true;
 	if (method === 'GET' && pathname === '/calendar/api/sync') return true;
-	if (method === 'GET' && pathname === '/calendar/api/account-status') return true;
 	if (method === 'GET' && pathname === '/calendar/api/participants') return true;
-	if (method === 'POST' && pathname === '/calendar/api/remote-sync') return true;
-	if (method === 'GET' && pathname === '/calendar/api/conflicts') return true;
 	return method === 'GET' && pathname === '/calendar/api/events';
 }
 

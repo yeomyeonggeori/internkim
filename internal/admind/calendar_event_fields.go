@@ -1,7 +1,5 @@
 package admind
 
-import "strings"
-
 const (
 	calendarFieldTitle             = "title"
 	calendarFieldDescription       = "description"
@@ -15,25 +13,7 @@ const (
 	calendarFieldReminderLeadHours = "reminderLeadHours"
 )
 
-func calendarAllUserEditableFields() []string {
-	return []string{
-		calendarFieldTitle,
-		calendarFieldDescription,
-		calendarFieldLocation,
-		calendarFieldStart,
-		calendarFieldEnd,
-		calendarFieldTimeZone,
-		calendarFieldIsAllDay,
-		calendarFieldColor,
-		calendarFieldParticipants,
-		calendarFieldReminderLeadHours,
-	}
-}
-
 func diffCalendarEventFields(previous calendarEvent, current calendarEvent) []string {
-	if strings.TrimSpace(previous.ID) == "" {
-		return calendarAllUserEditableFields()
-	}
 	fields := []string{}
 	if previous.Title != current.Title {
 		fields = append(fields, calendarFieldTitle)
