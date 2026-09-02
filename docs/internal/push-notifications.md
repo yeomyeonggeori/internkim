@@ -13,7 +13,7 @@ costs only the interruption.
 | `attendance` | a member clocks in or out | everyone else in the company |
 | `leave` | a member asks for leave | the administrators, minus the asker |
 | `task` | a task moves between statuses | the requester and the participants, minus whoever moved it |
-| `calendar` | the hour a member chose arrives | that member, if they are on today's events |
+| `calendar` | an event's reminder lead time is reached | the members on that event |
 | `approval` | an agent run needs a person | the requester |
 | `mail` | new mail arrives | the account's owner |
 
@@ -90,12 +90,14 @@ delete from public.push_device where kind = 'web-push';
 Everyone turns notifications on again after that, and the browser re-subscribes
 because it checks which key its subscription was made with.
 
-## The day digest needs a schedule
+## The reminder needs a schedule
 
-Everything else is sent by the request that caused it. The day digest has no
-such request: it fires at an hour each member chose. `pg_cron` looks every
-minute and `pg_net` posts to `announce-day`, reading the address and the key it
-carries from the vault.
+Everything else is sent by the request that caused it. A calendar reminder has
+no such request: it fires the number of minutes before an event that whoever
+made the event chose, held in `task.notify_minutes_before`. An event that names
+no lead time reminds nobody. `pg_cron` looks every minute and `pg_net` posts to
+`announce-event-reminder`, reading the address and the key it carries from the
+vault.
 
 Founding a company sets both, through the same `POST /api/company` call that
 sets the VAPID pair. By hand, an administrator posts to `setup-digest-key`:
@@ -111,12 +113,6 @@ project, so a call made while a valid one stands answers `{"stored":false}` and
 leaves it alone. The address goes to `project_url`, taken from the function's
 own `SUPABASE_URL` and never from anything the caller sends.
 
-`day_digest_app_url` is still read, as the fallback that carries a deployment
-across this release: with no `project_url` the schedule keeps posting where it
-always did. Drop it only after `setup-digest-key` has written `project_url` and
-the queue shows a call to `/functions/v1/announce-day`; dropping it before that
-stops the digest.
-
 With no address and no key the function returns and nothing is sent, and no
 error is raised: a self-hosted install that has not been set up yet should not
 fail once a minute.
@@ -124,12 +120,11 @@ fail once a minute.
 Check that it is running:
 
 ```sql
-select jobname, schedule from cron.job where jobname = 'announce-the-day';
+select jobname, schedule from cron.job where jobname = 'announce-event-reminders';
 select status_code, content from net._http_response order by created desc limit 5;
 ```
 
-A response of `{"told":0,"reached":0}` at a minute nobody chose is the correct
-answer.
+A minute in which no event is due sends nothing, which is the correct answer.
 
 ## What the platforms do differently
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { notifyMember } from '../../src/lib/server/notify-member';
+import { notifyMember } from '../../../supabase/functions/_shared/notify-member.ts';
 import { encodeBase64URL } from '../../src/lib/notifications/base64url';
 
 const vapid = {

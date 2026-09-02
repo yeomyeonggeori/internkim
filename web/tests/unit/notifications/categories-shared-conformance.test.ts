@@ -15,9 +15,6 @@ describe('the shared categories copy stays interchangeable with the web one', ()
 
 	test('both read the same defaults and overrides', () => {
 		expect(sharedRead(undefined)).toEqual(webRead(undefined));
-		expect(sharedRead({ mail: true, task: false, calendarAt: '21:30' })).toEqual(
-			webRead({ mail: true, task: false, calendarAt: '21:30' })
-		);
-		expect(sharedRead({ calendarAt: 'nonsense' })).toEqual(webRead({ calendarAt: 'nonsense' }));
+		expect(sharedRead({ mail: true, task: false })).toEqual(webRead({ mail: true, task: false }));
 	});
 });
