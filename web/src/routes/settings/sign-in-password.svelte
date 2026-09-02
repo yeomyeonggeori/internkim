@@ -3,14 +3,16 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { changeOwnPassword, WrongCurrentPasswordError } from '$lib/account-password';
+	import { changeOwnPassword, supabaseWebAuthSession, WrongPasswordError } from '$lib/supabase-session';
 	import { toast } from 'svelte-sonner';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { onMount } from 'svelte';
 
 	const text = createPageText(companySettingsText);
 	const fieldID = $props.id();
 
+	let email = $state('');
 	let currentPassword = $state('');
 	let newPassword = $state('');
 	let confirmedPassword = $state('');
@@ -20,6 +22,10 @@
 	const isReady = $derived(
 		currentPassword.length > 0 && newPassword.length > 0 && confirmedPassword.length > 0
 	);
+
+	onMount(async () => {
+		email = (await supabaseWebAuthSession('')).email;
+	});
 
 	function forget() {
 		currentPassword = '';
@@ -47,7 +53,7 @@
 	}
 
 	function messageOf(error: unknown): string {
-		if (error instanceof WrongCurrentPasswordError) return text.currentPasswordWrong;
+		if (error instanceof WrongPasswordError) return text.currentPasswordWrong;
 		return error instanceof Error ? error.message : text.passwordChangeFailed;
 	}
 </script>
@@ -59,6 +65,7 @@
 	</Card.Header>
 	<Card.Content>
 		<form class="grid gap-4" onsubmit={change}>
+			<input class="sr-only" type="text" autocomplete="username" value={email} readonly tabindex={-1} />
 			<div class="grid gap-1.5">
 				<Label for="current-password-{fieldID}">{text.currentPassword}</Label>
 				<Input

@@ -39,7 +39,9 @@
 			<p class="text-sm text-muted-foreground">{text.signInDescription}</p>
 		</header>
 		<SignInPasskeys />
-		<SignInPassword />
+		{#if isSupabaseConfigured()}
+			<SignInPassword />
+		{/if}
 		<PersonalAPIKeys />
 		<Notifications />
 		<MyMessengerAccount />

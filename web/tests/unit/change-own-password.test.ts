@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, test } from 'bun:test';
-import { changeOwnPassword, WrongCurrentPasswordError } from '../../src/lib/account-password';
+import { changeOwnPassword, WrongPasswordError } from '../../src/lib/supabase-session';
 
-type AuthAnswer = { error: { message: string; status?: number } | null };
+type AuthAnswer = { error: { message: string; code?: string } | null };
 
 const signedIn = { data: { session: { user: { email: 'sample@example.com' } } } };
 
@@ -42,20 +42,27 @@ describe('changing your own password', () => {
 	test('leaves the password alone when the current one is wrong', async () => {
 		const updated: string[] = [];
 		const client = clientThat({
-			signIn: { error: { message: 'Invalid login credentials', status: 400 } },
+			signIn: { error: { message: 'Invalid login credentials', code: 'invalid_credentials' } },
 			updated
 		});
 
 		await expect(changeOwnPassword('guessed', 'new-one', client)).rejects.toBeInstanceOf(
-			WrongCurrentPasswordError
+			WrongPasswordError
 		);
 		expect(updated).toEqual([]);
 	});
 
-	test('reports a sign-in failure that is not a wrong password as itself', async () => {
-		const client = clientThat({ signIn: { error: { message: 'the network is down', status: 503 } } });
+	// GoTrue answers 400 for email_not_confirmed and provider_disabled too, not
+	// only for invalid_credentials.
+	test('reports a refusal that is not a wrong password as itself', async () => {
+		const client = clientThat({
+			signIn: { error: { message: 'Email not confirmed', code: 'email_not_confirmed' } }
+		});
 
-		await expect(changeOwnPassword('old-one', 'new-one', client)).rejects.toThrow('the network is down');
+		const failing = changeOwnPassword('old-one', 'new-one', client);
+
+		await expect(failing).rejects.toThrow('Email not confirmed');
+		await expect(failing).rejects.not.toBeInstanceOf(WrongPasswordError);
 	});
 
 	test('refuses when nobody is signed in', async () => {
