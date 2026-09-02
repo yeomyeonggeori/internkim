@@ -23,4 +23,11 @@ describe('the API reference has one home', () => {
 		expect(apiReferenceHomeFor('/api/member/tokens')).toBeNull();
 		expect(apiReferenceHomeFor('/api-docsomething')).toBeNull();
 	});
+
+	test('a self-hosted zone replaces the default', () => {
+		expect(apiReferenceHomeFor('/api-docs', 'example.test')).toBe('https://docs.example.test/api');
+		expect(apiReferenceHomeFor('/openapi/en.json', 'example.test')).toBe(
+			'https://docs.example.test/openapi/en.json'
+		);
+	});
 });

@@ -3,7 +3,7 @@
 import { requiredSetting, setting } from './repository-setting';
 
 const token = requiredSetting('CLOUDFLARE_API_TOKEN');
-const accountID = '694280310d0ed1189a2a54c4a546403e';
+const accountID = requiredSetting('CLOUDFLARE_ACCOUNT_ID');
 
 const given = process.argv.slice(2);
 const secretNames = given.filter((_, index) => given[index - 1] === '--secret');

@@ -11,7 +11,7 @@ func TestAdminLoopbackCommandReachesTheDeviceWithoutAHostname(t *testing.T) {
 	if !strings.Contains(command, "http://127.0.0.1:18080/admin/api/updates/status") {
 		t.Fatalf("expected the loopback address, got %s", command)
 	}
-	for _, forbidden := range []string{"intern.kim", "https://", "cloudflared"} {
+	for _, forbidden := range []string{"example.test", "https://", "cloudflared"} {
 		if strings.Contains(command, forbidden) {
 			t.Fatalf("a loopback request names no public host, found %q in %s", forbidden, command)
 		}
