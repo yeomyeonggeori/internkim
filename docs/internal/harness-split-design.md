@@ -6,6 +6,11 @@ the open-sourcing of blueclaw do not have to be done twice.
 
 Status: design agreed, implementation started. Task list at the end.
 
+Superseded 2026-09-02 by #1263 wherever this document says `llmd`: the daemon's
+llmd provider, client and identity are gone, `providerByName` takes
+`capabilityLLM` or `direct`, and admind deletes a deployed `defaultProvider` of
+`llmd` rather than writing one.
+
 ---
 
 ## 1. The three layers

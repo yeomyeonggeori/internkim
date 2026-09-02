@@ -19,7 +19,6 @@ dist/
 /internkim-admind
 /internkim-capabilityd
 /internkim-companion
-/internkim-llm-gateway
 /internkim-relay
 .github/*
 !.github/PULL_REQUEST_TEMPLATE.md

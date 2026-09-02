@@ -198,30 +198,7 @@ Graphiti runs as a memory sidecar and reads none of these. A companion's signing
 private key lives in the user's own secure storage, and the device state file
 keeps only a reference to it.
 
-### The LLM gateway
-
-An operator machine, the Cloudflare Worker, a shared tenant container and a
-Jetson do not share one `.env`. Losing one of them should not lose the fleet.
-
-| Where | May hold | Must never hold |
-|---|---|---|
-| operator machine, CI | `OPENROUTER_MANAGEMENT_KEY`, Cloudflare deploy tokens | a tenant's runtime `.env` |
-| Cloudflare Worker gateway | tenant token hashes, per-tenant upstream OpenRouter keys, the quota ledger | any device or tenant admin password |
-| shared tenant container | `LLM_DEVICE_TOKEN`, its own admin and bot secrets | `OPENROUTER_MANAGEMENT_KEY`, upstream provider keys, another tenant's keys |
-| Jetson appliance | a device-scoped `LLM_DEVICE_TOKEN`, its own admin, bot and tunnel secrets | `OPENROUTER_MANAGEMENT_KEY`, fleet-wide provider keys, another device's keys |
-
-`OPENROUTER_MANAGEMENT_KEY` mints and revokes OpenRouter keys, so it stays on an
-operator machine or a restricted CI secret.
-`tenant create-fleet --openrouter-management-key <path>` uses it to issue a
-per-tenant upstream key, which is then stored only in the gateway token store.
-
-Runtimes carry an OpenRouter-compatible `LLM_DEVICE_TOKEN` that Intern Kim
-issued. The Worker enforces revocation, requests per minute, a hard cap and the
-usage ledger before any provider call. Only `/health` is public: everything else
-checks the `X-INTERNKIM-GATEWAY-SECRET` shared header first, then
-`Authorization: Bearer <LLM_DEVICE_TOKEN>` or `GATEWAY_ADMIN_TOKEN`. That shared
-header is a coarse gate against untargeted internet traffic; a Cloudflare Access
-service token is what to add when a real network boundary is wanted.
+### Where operator secrets live
 
 Operator secrets are written in `.env`, which git ignores, and read from there.
 Copying one into a second file under `.local/` gave the value two homes, one of
@@ -230,16 +207,6 @@ which nobody remembers to rotate.
 `.env.example` is the list of names, with fake values. It is what to copy when
 setting up a second machine, and where to add a name when the code starts
 reading one.
-
-Deploying the Worker needs the account ID alongside the token, because Wrangler
-otherwise fails authenticating against `/memberships`. Wrangler reads both under
-the names `.env` already uses, so handing it the file is the whole step.
-
-```bash
-cd workers/llm-gateway
-set -a && . ../../.env && set +a
-../../web/node_modules/.bin/wrangler deploy --keep-vars
-```
 
 ## The pieces
 

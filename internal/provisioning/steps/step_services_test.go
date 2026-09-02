@@ -417,12 +417,10 @@ func TestBlueclawServicesHealthRequiresGraphiti(t *testing.T) {
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
-				"llmd=active",
 				"admind=active",
 				"graphiti=inactive",
 				"blueclawHealth=ok",
 				"capabilitydHealth=ok",
-				"llmdHealth=ok",
 				"graphitiHealth=no",
 			}, "\n"),
 		},
@@ -440,11 +438,9 @@ func TestBlueclawServicesHealthSkipsGraphitiWithoutLocalLLM(t *testing.T) {
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
-				"llmd=active",
 				"admind=active",
 				"blueclawHealth=ok",
 				"capabilitydHealth=ok",
-				"llmdHealth=ok",
 			}, "\n"),
 		},
 	}
@@ -462,10 +458,8 @@ func TestBlueclawServicesHealthSkipsMattermostCompositeHealthWithoutMattermost(t
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
-				"llmd=active",
 				"admind=active",
 				"blueclawHealth=ok",
-				"llmdHealth=ok",
 			}, "\n"),
 		},
 	}
@@ -483,11 +477,9 @@ func TestBlueclawServicesHealthRequiresMattermostCompositeHealthWhenPlanned(t *t
 			report: strings.Join([]string{
 				"blueclaw=active",
 				"capabilityd=active",
-				"llmd=active",
 				"admind=active",
 				"blueclawHealth=ok",
 				"capabilitydHealth=no",
-				"llmdHealth=ok",
 			}, "\n"),
 		},
 	}
