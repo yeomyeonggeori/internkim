@@ -144,7 +144,7 @@ create unique index memory_job_pending_idx on memory_job (kind, subject_id)
 
 Vectors live in a side table that the migration creates only when
 `pg_available_extensions` lists `vector`. Two databases blueclaw runs against
-have no pgvector: the Firecracker guest is Debian bookworm, whose archive
+have no pgvector: the virtual-machine guest is Debian bookworm, whose archive
 carries no pgvector package (trixie is the first release that does), and the
 standalone `cmd/blueclaw` boots the embedded-postgres binaries, which ship
 without it. Both still apply the migration and run lexical search; the vector
@@ -442,7 +442,7 @@ blueclaw never names a provider. Two small additions to the Go client:
 the sidecar it replaces.
 
 A host picks its embedding model once, at setup, from how it executes. A
-device that runs the agent as a Firecracker guest embeds with `baai/bge-m3`,
+device that runs the agent as a virtual-machine guest embeds with `baai/bge-m3`,
 the model its own llama.cpp serves on CPU beside generation, and reaches
 the same model on OpenRouter when the local server is down. A host that runs
 the agent directly without local models embeds with
