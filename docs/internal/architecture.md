@@ -85,8 +85,6 @@ Mattermost API, Blueclaw API, 내부 업무 API 호출은 사용자 브라우저
 |------|--------|
 | `/root/.internkim/secrets/openrouter-api-key` | internkim-capabilityd |
 | `/root/.internkim/models/*` | internkim-capabilityd, local model wrapper |
-| `/root/.internkim/secrets/google-sa.json` | gws / gws-bot |
-| `/root/.internkim/secrets/gas-webhook-url` | GAS bridge helper |
 | `/root/.internkim/secrets/slack-*` | internkim-capabilityd |
 | `/root/.internkim/config/signal-*` | internkim-capabilityd |
 | `/root/.internkim/state/companion-jobs.json` | internkim-admind |

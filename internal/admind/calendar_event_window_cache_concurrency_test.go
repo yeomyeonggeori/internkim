@@ -23,7 +23,7 @@ func TestCalendarEventWindowCacheConcurrentRevisionChangeRejectsStalePayload(t *
 		ReminderLeadHours: calendarDefaultReminderLeadHours,
 		CreatedByEmail:    "member@example.com",
 	}
-	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	readCount := 0
@@ -60,7 +60,7 @@ func TestCalendarEventWindowCacheConcurrentRevisionChangeRejectsStalePayload(t *
 		t.Fatal(ctx.Err())
 	}
 	event.Title = "Fresh"
-	if errorValue := service.writeCalendarEventWithSource(ctx, event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(ctx, event); errorValue != nil {
 		close(resumeFirstSourceRead)
 		t.Fatal(errorValue)
 	}

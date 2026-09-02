@@ -51,7 +51,7 @@ func TestCalendarEventWindowCacheRebuildsPayloadVersionMismatch(t *testing.T) {
 	startTime := time.Date(2026, time.July, 15, 0, 0, 0, 0, time.UTC)
 	endTime := startTime.Add(24 * time.Hour)
 	event := calendarEventWindowCacheEdgeEvent(startTime)
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime); errorValue != nil {
@@ -83,7 +83,7 @@ func TestCalendarEventWindowCacheRollsBackMutationWhenInvalidationFails(t *testi
 	startTime := time.Date(2026, time.July, 15, 0, 0, 0, 0, time.UTC)
 	endTime := startTime.Add(24 * time.Hour)
 	event := calendarEventWindowCacheEdgeEvent(startTime)
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime); errorValue != nil {
@@ -106,7 +106,7 @@ func TestCalendarEventWindowCacheRollsBackMutationWhenInvalidationFails(t *testi
 		t.Fatal(errorValue)
 	}
 	event.Title = "Changed title"
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue == nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue == nil {
 		t.Fatal("event mutation succeeded")
 	}
 	database, errorValue = service.openCalendarDatabase(context.Background())
@@ -142,7 +142,7 @@ func TestCalendarEventWindowCacheInitializationFailureRetriesAfterSourceFallback
 	startTime := time.Date(2026, time.July, 16, 0, 0, 0, 0, time.UTC)
 	endTime := startTime.Add(24 * time.Hour)
 	event := calendarEventWindowCacheEdgeEvent(startTime)
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime); errorValue != nil {
@@ -166,7 +166,7 @@ func TestCalendarEventWindowCacheInitializationFailureRetriesAfterSourceFallback
 	}
 	restartedService := NewService(service.Configuration)
 	event.Title = "Updated from source"
-	if errorValue := restartedService.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := restartedService.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	events, errorValue := restartedService.readCalendarEventWindow(context.Background(), startTime, endTime)

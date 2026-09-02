@@ -102,14 +102,6 @@ type calendarSyncResponse struct {
 	ICSURL         string `json:"icsURL"`
 }
 
-type calendarRemoteSyncResponse struct {
-	Changed             bool `json:"changed"`
-	PullAttempted       bool `json:"pullAttempted"`
-	PullSkippedByCache  bool `json:"pullSkippedByCache"`
-	SyncSkippedByLease  bool `json:"syncSkippedByLease"`
-	PullCacheTTLSeconds int  `json:"pullCacheTTLSeconds"`
-}
-
 type calendarPeopleInput []string
 
 func (service *Service) serveCalendarPage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -185,20 +177,6 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		service.deleteCalendarEventFromAPIPath(responseWriter, request, escapedPath)
 	case request.Method == http.MethodGet && path == "/sync":
 		service.writeCalendarSync(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/remote-sync":
-		service.runCalendarRemoteSync(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/account-status":
-		service.serveCalendarAccountStatus(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/google-calendars":
-		service.serveGoogleCalendarList(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/google-calendars/selection":
-		service.selectGoogleCalendar(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/google-oauth-client":
-		service.uploadGoogleOAuthClient(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/conflicts":
-		service.serveCalendarConflicts(responseWriter, request)
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/conflicts/") && strings.HasSuffix(path, "/dismiss"):
-		service.dismissCalendarConflictRequest(responseWriter, request, path)
 	case request.Method == http.MethodPost && path == "/ics-token":
 		service.rotateCalendarICSToken(responseWriter, request)
 	default:
@@ -308,9 +286,6 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		}
 	}
 	if errorValue := service.writeCalendarEvent(request.Context(), event); errorValue != nil {
-		if writeCalendarTargetUnavailableError(responseWriter, errorValue) {
-			return
-		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -388,9 +363,6 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 		if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
 			return
 		}
-		if writeCalendarTargetUnavailableError(responseWriter, errorValue) {
-			return
-		}
 		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
 		return
 	}
@@ -446,9 +418,6 @@ func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, 
 			http.NotFound(responseWriter, request)
 			return
 		}
-		if writeCalendarTargetUnavailableError(responseWriter, errorValue) {
-			return
-		}
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -468,34 +437,6 @@ func (service *Service) writeCalendarSync(responseWriter http.ResponseWriter, re
 		CalDAVUsername: calendarDAVUsername,
 		CalDAVPassword: token,
 		ICSURL:         baseURL + "/calendar/ics/" + url.PathEscape(token) + ".ics",
-	})
-}
-
-func (service *Service) runCalendarRemoteSync(responseWriter http.ResponseWriter, request *http.Request) {
-	syncStartedAt := time.Now().UTC()
-	decision, errorValue := service.acquireCalendarRemoteSync(request.Context(), syncStartedAt)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	if !decision.Acquired {
-		service.writeJSON(responseWriter, calendarRemoteSyncResponse{
-			PullSkippedByCache:  decision.SkippedByCache,
-			SyncSkippedByLease:  decision.SkippedByLease,
-			PullCacheTTLSeconds: int(calendarRemoteSyncSuccessCacheDuration.Seconds()),
-		})
-		return
-	}
-	result := service.runCalendarUserSyncCycle(request.Context())
-	if errorValue := service.finishCalendarRemoteSync(request.Context(), decision, time.Now().UTC(), result.Succeeded()); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(responseWriter, calendarRemoteSyncResponse{
-		Changed:             result.Changed,
-		PullAttempted:       result.PullAttempted,
-		PullSkippedByCache:  result.PullSkippedByCache,
-		PullCacheTTLSeconds: int(calendarRemoteSyncSuccessCacheDuration.Seconds()),
 	})
 }
 

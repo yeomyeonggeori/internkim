@@ -245,7 +245,6 @@ test.describe('calendar route shell', () => {
 
 		await openCalendarSettings(page);
 		await expect(page.getByText('구독 URL 준비됨')).toBeVisible();
-		await expect(page.getByText('연결된 Google 캘린더')).toHaveCount(0);
 		await expect(
 			page.getByText('https://calendar.example.test/calendar/ics/a-subscription-token.ics')
 		).toBeVisible();

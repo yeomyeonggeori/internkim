@@ -52,10 +52,7 @@ describe('dev calendar mock plugin', () => {
 		const requests = [
 			{ method: 'GET', pathname: '/admin/api/session' },
 			{ method: 'GET', pathname: '/calendar/api/sync' },
-			{ method: 'GET', pathname: '/calendar/api/account-status' },
-			{ method: 'GET', pathname: '/calendar/api/participants' },
-			{ method: 'POST', pathname: '/calendar/api/remote-sync' },
-			{ method: 'GET', pathname: '/calendar/api/conflicts' }
+			{ method: 'GET', pathname: '/calendar/api/participants' }
 		];
 
 		for (const request of requests) {

@@ -352,11 +352,6 @@ if capabilities.get("endpoint") != "http://internkim-capability":
     print("runtime-capability-endpoint")
     raise SystemExit
 
-for descriptor in capabilities.get("toolDescriptors", []):
-    if descriptor.get("namespace") == "google":
-        print("runtime-capability-google-tool")
-        raise SystemExit
-
 database = runtime_configuration.get("database", {})
 if database.get("connectionString") != "user=blueclaw dbname=blueclaw host=/workspace/.blueclaw/postgres sslmode=disable":
     print("runtime-database")

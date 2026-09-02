@@ -2,9 +2,7 @@ package admind
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -24,63 +22,6 @@ func TestCalendarDeleteIntentDeletesExpectedVersionUsingRequestClock(t *testing.
 	}
 	if projection.DeletedAt != intent.RequestedAt {
 		t.Fatalf("deletedAt = %q, request clock = %q", projection.DeletedAt, intent.RequestedAt)
-	}
-	assertCalendarDeleteIntentStatus(t, service, intent.OperationID, calendarDeleteIntentStatusExecuted)
-}
-
-func TestCalendarDeleteIntentSupersedesSameClientEarlierMutation(t *testing.T) {
-	service := newCalendarTestService(t)
-	account := seedAccountWithDiscovery(t, service)
-	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-earlier-mutation")
-	actionAt := time.Now().UTC().Add(-calendarDeleteIntentDelay - time.Second)
-	intent := createCalendarDeleteIntentForTest(t, service, event, "earlier-mutation-operation", "page-a", 2, actionAt)
-
-	updateResponse := sendCalendarMutationUpdate(t, service, event, "Late PUT", event.UpdatedAt, "page-a", 1, true, true)
-	if updateResponse.Code != 200 {
-		t.Fatalf("late PUT status = %d body = %s", updateResponse.Code, updateResponse.Body.String())
-	}
-	var latePutEvent calendarEvent
-	if errorValue := json.Unmarshal(updateResponse.Body.Bytes(), &latePutEvent); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := service.processDueCalendarDeleteIntents(context.Background(), time.Now().UTC()); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	projection, found, errorValue := service.readCalendarEventProjectionByID(context.Background(), event.ID)
-	if errorValue != nil || !found || !projection.IsDeleted {
-		t.Fatalf("projection found = %v deleted = %v error = %v", found, projection.IsDeleted, errorValue)
-	}
-	if projection.DeletedAt != intent.RequestedAt {
-		t.Errorf("deletedAt = %q, request clock = %q", projection.DeletedAt, intent.RequestedAt)
-	}
-	if !parseCalendarConflictTime(projection.Event.UpdatedAt).After(parseCalendarConflictTime(latePutEvent.UpdatedAt)) {
-		t.Errorf("storage revision = %q, late PUT revision = %q", projection.Event.UpdatedAt, latePutEvent.UpdatedAt)
-	}
-	database, errorValue := service.openCalendarDatabase(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	fieldClocks, errorValue := readCalendarEventFieldClocksForUID(context.Background(), database, event.UID)
-	database.Close()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	deletionClock := fieldClocks[calendarEventDeletionClockField].Format(time.RFC3339Nano)
-	if deletionClock != intent.RequestedAt {
-		t.Errorf("deletion field clock = %q, request clock = %q", deletionClock, intent.RequestedAt)
-	}
-	outboxRows, errorValue := service.listPendingCalendarOutbox(context.Background(), account.ID)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	deleteOutboxCreatedAt := ""
-	for _, row := range outboxRows {
-		if row.EventID == event.ID && row.Operation == calendarOutboxOperationDelete {
-			deleteOutboxCreatedAt = row.CreatedAt
-		}
-	}
-	if deleteOutboxCreatedAt != intent.RequestedAt {
-		t.Errorf("delete outbox createdAt = %q, request clock = %q", deleteOutboxCreatedAt, intent.RequestedAt)
 	}
 	assertCalendarDeleteIntentStatus(t, service, intent.OperationID, calendarDeleteIntentStatusExecuted)
 }
@@ -123,26 +64,6 @@ func TestCalendarDeleteIntentConflictsWithSameClientLaterMutation(t *testing.T) 
 	assertCalendarDeleteIntentStatus(t, service, intent.OperationID, calendarDeleteIntentStatusConflicted)
 }
 
-func TestCalendarDeleteIntentConflictsAfterRemoteMutationClearsOrigin(t *testing.T) {
-	service := newCalendarTestService(t)
-	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-remote-mutation")
-	actionAt := time.Now().UTC().Add(-calendarDeleteIntentDelay - time.Second)
-	intent := createCalendarDeleteIntentForTest(t, service, event, "remote-mutation-operation", "page-a", 2, actionAt)
-
-	remoteEvent := event
-	remoteEvent.Title = "Remote mutation"
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), remoteEvent, calendarSourcePull); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := service.processDueCalendarDeleteIntents(context.Background(), time.Now().UTC()); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if _, found, errorValue := service.readCalendarEventByID(context.Background(), event.ID); errorValue != nil || !found {
-		t.Fatalf("event after remote mutation found = %v error = %v", found, errorValue)
-	}
-	assertCalendarDeleteIntentStatus(t, service, intent.OperationID, calendarDeleteIntentStatusConflicted)
-}
-
 func TestCalendarDeleteIntentCancellationPreventsFinalization(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-canceled-order")
@@ -159,30 +80,6 @@ func TestCalendarDeleteIntentCancellationPreventsFinalization(t *testing.T) {
 		t.Fatalf("event after canceled intent found = %v error = %v", found, errorValue)
 	}
 	assertCalendarDeleteIntentStatus(t, service, intent.OperationID, calendarDeleteIntentStatusCanceled)
-}
-
-func TestCalendarDeleteIntentAlreadyDeletedEventResolvesWithoutDuplicateOutbox(t *testing.T) {
-	service := newCalendarTestService(t)
-	account := seedAccountWithDiscovery(t, service)
-	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-already-deleted")
-	actionAt := time.Now().UTC().Add(-calendarDeleteIntentDelay - time.Second)
-	intent := createCalendarDeleteIntentForTest(t, service, event, "already-deleted-operation", "page-a", 2, actionAt)
-	if errorValue := service.softDeleteCalendarEvent(context.Background(), event.ID); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	rowsBefore, errorValue := service.listPendingCalendarOutbox(context.Background(), account.ID)
-	if errorValue != nil || len(rowsBefore) != 1 {
-		t.Fatalf("outbox before finalizer rows = %d error = %v", len(rowsBefore), errorValue)
-	}
-
-	if errorValue := service.processDueCalendarDeleteIntents(context.Background(), time.Now().UTC()); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	rowsAfter, errorValue := service.listPendingCalendarOutbox(context.Background(), account.ID)
-	if errorValue != nil || len(rowsAfter) != 1 {
-		t.Fatalf("outbox after finalizer rows = %d error = %v", len(rowsAfter), errorValue)
-	}
-	assertCalendarDeleteIntentStatus(t, service, intent.OperationID, calendarDeleteIntentStatusExecuted)
 }
 
 func TestCalendarDeleteIntentFinalizationRollsBackAndRecordsRetry(t *testing.T) {
@@ -214,49 +111,6 @@ func TestCalendarDeleteIntentFinalizationRollsBackAndRecordsRetry(t *testing.T) 
 	if !parseCalendarConflictTime(storedIntent.NextAttemptAt).After(processAt) {
 		t.Fatalf("nextAttemptAt = %q processAt = %s", storedIntent.NextAttemptAt, processAt)
 	}
-}
-
-func TestConcurrentCalendarDeleteIntentFinalizersEnqueueOneDelete(t *testing.T) {
-	service := newCalendarTestService(t)
-	account := seedAccountWithDiscovery(t, service)
-	event := seedCalendarDeleteIntentEvent(t, service, "delete-intent-concurrent-finalizers")
-	actionAt := time.Now().UTC().Add(-calendarDeleteIntentDelay - time.Second)
-	intent := createCalendarDeleteIntentForTest(t, service, event, "concurrent-finalizers-operation", "page-a", 2, actionAt)
-	restartedService := NewService(service.Configuration)
-
-	start := make(chan struct{})
-	errorsByWorker := make(chan error, 2)
-	var waitGroup sync.WaitGroup
-	for _, workerService := range []*Service{service, restartedService} {
-		waitGroup.Add(1)
-		go func(currentService *Service) {
-			defer waitGroup.Done()
-			<-start
-			errorsByWorker <- currentService.processDueCalendarDeleteIntents(context.Background(), time.Now().UTC())
-		}(workerService)
-	}
-	close(start)
-	waitGroup.Wait()
-	close(errorsByWorker)
-	for errorValue := range errorsByWorker {
-		if errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
-	rows, errorValue := service.listPendingCalendarOutbox(context.Background(), account.ID)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	deleteCount := 0
-	for _, row := range rows {
-		if row.Operation == calendarOutboxOperationDelete && row.EventID == event.ID {
-			deleteCount++
-		}
-	}
-	if deleteCount != 1 {
-		t.Fatalf("delete outbox count = %d rows = %+v", deleteCount, rows)
-	}
-	assertCalendarDeleteIntentStatus(t, service, intent.OperationID, calendarDeleteIntentStatusExecuted)
 }
 
 func TestCalendarDeleteIntentRetryDelayIsCapped(t *testing.T) {

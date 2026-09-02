@@ -91,10 +91,7 @@ func readCalendarConflictCandidateSeed(ctx context.Context, service *Service) (t
 	}
 	legacyRows, errorValue := database.QueryContext(ctx, `
 SELECT updated_at FROM calendar_events
-UNION ALL SELECT deleted_at FROM calendar_events
-UNION ALL SELECT created_at FROM calendar_outbox
-UNION ALL SELECT last_seen_at FROM calendar_remote_event_sync_state
-UNION ALL SELECT missing_detected_at FROM calendar_remote_event_sync_state`)
+UNION ALL SELECT deleted_at FROM calendar_events`)
 	if errorValue != nil {
 		return time.Time{}, errorValue
 	}

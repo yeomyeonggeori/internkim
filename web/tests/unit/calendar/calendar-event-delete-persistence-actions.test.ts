@@ -9,9 +9,10 @@ import {
 	calendarTestEvent,
 	calendarVersionedTestEvent,
 	createPersistenceScenario,
-	targetUnavailableError,
+	deleteIntentConflictError,
+	unknownPersistenceError,
 	type CalendarEvent,
-	targetUnavailableMessage
+	persistenceFailureMessage
 } from './calendar-event-persistence-scenario';
 
 const initialUpdatedAt = '2026-07-17T01:00:00Z';
@@ -55,7 +56,7 @@ test('waits for a preceding PUT before recovering from delete intent registratio
 			return pendingWrite;
 		},
 		createDeleteIntent: async () => {
-			throw targetUnavailableError();
+			throw deleteIntentConflictError();
 		}
 	});
 
@@ -72,7 +73,7 @@ test('waits for a preceding PUT before recovering from delete intent registratio
 	await waitForQueuedPersistence();
 
 	expect(scenario.restoredEventTitles).toEqual(['Updated title']);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
 	expect(scenario.refreshCount()).toBe(1);
 });
 
@@ -132,7 +133,7 @@ test('keeps an ambiguously deleted event hidden when compensation cancellation f
 		},
 		cancelDeleteIntent: async (_eventID, operationID) => {
 			canceledOperationIDs.push(operationID);
-			throw targetUnavailableError();
+			throw unknownPersistenceError();
 		}
 	});
 
@@ -207,7 +208,7 @@ test('handles Undo cancellation failure without waiting for intent registration 
 			return pendingCreate;
 		},
 		cancelDeleteIntent: async () => {
-			throw targetUnavailableError();
+			throw unknownPersistenceError();
 		}
 	});
 
@@ -219,7 +220,7 @@ test('handles Undo cancellation failure without waiting for intent registration 
 	await waitForQueuedPersistence();
 
 	expect(refreshCountBeforeRegistrationSettled).toBe(1);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
 });
 
 test('keeps the event hidden after Undo cancellation cannot be confirmed', async () => {
@@ -233,7 +234,7 @@ test('keeps the event hidden after Undo cancellation cannot be confirmed', async
 		}),
 		cancelDeleteIntent: async () => {
 			cancelCount += 1;
-			throw targetUnavailableError();
+			throw unknownPersistenceError();
 		}
 	});
 
@@ -243,7 +244,7 @@ test('keeps the event hidden after Undo cancellation cannot be confirmed', async
 
 	expect(cancelCount).toBe(3);
 	expect(scenario.events()).toEqual([]);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
 	expect(scenario.refreshCount()).toBe(1);
 });
 
@@ -303,7 +304,7 @@ test('keeps the event hidden when undo cancellation fails behind a failed pendin
 	await writeStarted;
 	await scenario.actions.deleteEvent(optimisticEvent.id);
 	scenario.undoPendingDelete();
-	rejectWrite(targetUnavailableError());
+	rejectWrite(unknownPersistenceError());
 	await save;
 	await waitForQueuedPersistence();
 
@@ -373,7 +374,7 @@ test('skips an undo refresh when a newer update is queued', async () => {
 	scenario.undoPendingDelete();
 	scenario.context.restoreCalendarEvent(latestUpdate);
 	const latestSave = scenario.actions.saveUpdatedEvent(latestUpdate, firstUpdate);
-	rejectFirstWrite(targetUnavailableError());
+	rejectFirstWrite(unknownPersistenceError());
 	await Promise.all([firstSave, latestSave]);
 	await waitForQueuedPersistence();
 
@@ -455,9 +456,13 @@ test('keeps a newer local update when an older delete intent registration succee
 	expect(scenario.pendingLoadInvalidationCount()).toBe(2);
 });
 
-test('restores an optimistically deleted event after delete reports target unavailable', async () => {
+test('restores an optimistically deleted event after delete fails', async () => {
 	const persistedEvent = calendarTestEvent('deleted-event', 'Persisted title');
-	const scenario = createPersistenceScenario([persistedEvent]);
+	const scenario = createPersistenceScenario([persistedEvent], () => [persistedEvent], {
+		createDeleteIntent: async () => {
+			throw deleteIntentConflictError();
+		}
+	});
 
 	await scenario.actions.deleteEvent(persistedEvent.id);
 	expect(scenario.events()).toEqual([]);
@@ -466,7 +471,7 @@ test('restores an optimistically deleted event after delete reports target unava
 	await waitForQueuedPersistence();
 
 	expect(scenario.events().map((event) => event.title)).toEqual(['Persisted title']);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
 });
 
 async function waitForQueuedPersistence(): Promise<void> {

@@ -222,7 +222,7 @@ func TestSoftDeletingAnEventFromTheStoreRemovesThePairedTask(t *testing.T) {
 	if errorValue != nil || !found {
 		t.Fatalf("paired task missing (found=%v error=%v)", found, errorValue)
 	}
-	if errorValue := service.softDeleteCalendarEventWithSource(context.Background(), createdEvent.ID, calendarSourcePull); errorValue != nil {
+	if errorValue := service.softDeleteCalendarEvent(context.Background(), createdEvent.ID); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if _, found, errorValue := service.readTaskByID(context.Background(), pairedTask.ID); errorValue != nil || found {

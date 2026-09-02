@@ -38,13 +38,6 @@ export type CalendarDeleteIntentRequests = {
 	releaseRegistrationFailures: () => void;
 };
 
-type CalendarTestAccountStatus = {
-	connected: boolean;
-	needsReauth: boolean;
-	googleOAuthConfigured: boolean;
-	canManageGoogleOAuth: boolean;
-};
-
 export async function routeDefaultCalendarAPI(page: Page, locale: CalendarTestLocale = 'ko'): Promise<void> {
 	await page.route('**/calendar/api/events?**', async (route) => {
 		await route.fulfill({
@@ -61,32 +54,8 @@ export async function routeDefaultCalendarAPI(page: Page, locale: CalendarTestLo
 			}
 		});
 	});
-	await routeCalendarBackgroundAPI(page);
 	await routeCalendarParticipants(page, []);
 	await routeCalendarLocale(page, locale);
-}
-
-export async function routeCalendarBackgroundAPI(
-	page: Page,
-	accountStatus: CalendarTestAccountStatus = {
-		connected: false,
-		needsReauth: false,
-		googleOAuthConfigured: true,
-		canManageGoogleOAuth: false
-	}
-): Promise<void> {
-	await page.route('**/calendar/api/account-status', async (route) => {
-		await route.fulfill({ json: accountStatus });
-	});
-	await page.route('**/calendar/api/remote-sync', async (route) => {
-		await route.fulfill({ json: { synced: false } });
-	});
-	await page.route('**/calendar/api/conflicts', async (route) => {
-		await route.fulfill({ json: { conflicts: [] } });
-	});
-	await page.route('**/calendar/api/conflicts/*', async (route) => {
-		await route.fulfill({ json: {} });
-	});
 }
 
 export async function routeCalendarLocale(page: Page, locale: CalendarTestLocale): Promise<void> {

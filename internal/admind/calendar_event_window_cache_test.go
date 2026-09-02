@@ -86,7 +86,7 @@ func TestCalendarEventWindowCacheReusesStoredProjection(t *testing.T) {
 			{PersonID: stableTaskID("member@example.com"), Name: "Member", Email: "member@example.com"},
 		},
 	}
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	firstEvents, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime)
@@ -141,7 +141,7 @@ func TestCalendarEventWindowCacheRebuildsInvalidEntries(t *testing.T) {
 				ReminderLeadHours: calendarDefaultReminderLeadHours,
 				CreatedByEmail:    "member@example.com",
 			}
-			if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+			if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 				t.Fatal(errorValue)
 			}
 			if _, errorValue := service.readCalendarEventWindow(context.Background(), startTime, endTime); errorValue != nil {

@@ -57,15 +57,13 @@ type setupFlowState struct {
 }
 
 type setupParameterValues struct {
-	AdminEmail        string
-	OpenRouterAPIKey  string
-	LiteRTModelPath   string
-	GasWebhookURL     string
-	GoogleAccessToken string
-	SlackBotToken     string
-	SlackAppToken     string
-	SignalJSONRPCURL  string
-	SignalAccount     string
+	AdminEmail       string
+	OpenRouterAPIKey string
+	LiteRTModelPath  string
+	SlackBotToken    string
+	SlackAppToken    string
+	SignalJSONRPCURL string
+	SignalAccount    string
 }
 
 type localBinaryAsset struct {
@@ -179,7 +177,6 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		GetBuzzKeySeed:              buildBuzzKeySeedCallback(),
 		GetBuzzRelayOwnerPubkey:     buildBuzzRelayOwnerPubkeyCallback(),
 		GetBuzzAgentSecret:          buildBuzzAgentSecretCallback(),
-		GetGasWebhookURL:            state.provisionGasWebhook,
 		BinariesVersion:             state.binariesVersion,
 		InstallBinariesSSH:          state.installBinariesSSH,
 		InstallLocalLLMRuntimeSSH:   state.installLocalLLMRuntimeSSH,
@@ -205,20 +202,6 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		StageUsersSyncSD:            state.stageUsersSyncSD,
 		StageBootstrapSD:            state.stageBootstrapSD,
 	}
-}
-
-func (state *setupFlowState) provisionGasWebhook(accessToken string) (string, error) {
-	if state.parameters.GasWebhookURL != "" {
-		return state.parameters.GasWebhookURL, nil
-	}
-	if webhookURL := strings.TrimSpace(os.Getenv("INTERNKIM_GAS_WEBHOOK_URL")); webhookURL != "" {
-		return webhookURL, nil
-	}
-	if webhookURL := strings.TrimSpace(os.Getenv("GAS_WEBHOOK_URL")); webhookURL != "" {
-		return webhookURL, nil
-	}
-	_ = accessToken
-	return provisionGasWebhook("")
 }
 
 func (state *setupFlowState) resolveSlackBotToken() string {
@@ -2461,7 +2444,7 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 		saveState(state.stateDir, "tunnel_revision", setup.TunnelConfigurationRevision)
 		saveDefaultFleetNode(state.stateDir, registrationResponse)
 		if state.adminEmail != "" {
-			saveState(state.stateDir, "google_email", state.adminEmail)
+			saveState(state.stateDir, "admin_email", state.adminEmail)
 		}
 	} else {
 		fmt.Printf("  %s\n", state.messenger.t("이미 등록됨", "Already registered"))

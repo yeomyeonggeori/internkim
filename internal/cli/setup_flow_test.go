@@ -274,30 +274,9 @@ func containsBinaryAsset(assets []localBinaryAsset, name string, remotePath stri
 	return false
 }
 
-func TestDefaultJetsonSetupSkipsGoogle(t *testing.T) {
-	selector := applySetupBoardDefaults(setup.BoardJetsonOrinNano, false, setup.Selector{})
-	if !containsName(selector.Skip, "google") {
-		t.Fatalf("expected default Jetson setup to skip Google, got %+v", selector.Skip)
-	}
-}
-
-func TestJetsonSetupWithGoogleIncludesGoogle(t *testing.T) {
-	selector := applySetupBoardDefaults(setup.BoardJetsonOrinNano, true, setup.Selector{})
-	if containsName(selector.Skip, "google") {
-		t.Fatalf("expected --with-google to avoid Google skip, got %+v", selector.Skip)
-	}
-}
-
-func TestJetsonOnlyGoogleStillWorks(t *testing.T) {
-	selector := applySetupBoardDefaults(setup.BoardJetsonOrinNano, false, setup.Selector{Only: []string{"google"}})
-	if containsName(selector.Skip, "google") {
-		t.Fatalf("expected --only google to avoid Google skip, got %+v", selector.Skip)
-	}
-}
-
 func TestCloudSharedSetupSkipsHardwareAndOptionalProviderSteps(t *testing.T) {
-	selector := applySetupBoardDefaults(setup.BoardCloudShared, false, setup.Selector{})
-	for _, expectedName := range []string{"wifi", "local-llm", "google"} {
+	selector := applySetupBoardDefaults(setup.BoardCloudShared, setup.Selector{})
+	for _, expectedName := range []string{"wifi", "local-llm"} {
 		if !containsName(selector.Skip, expectedName) {
 			t.Fatalf("expected cloud-shared setup to skip %s, got %+v", expectedName, selector.Skip)
 		}
@@ -305,7 +284,7 @@ func TestCloudSharedSetupSkipsHardwareAndOptionalProviderSteps(t *testing.T) {
 }
 
 func TestCloudSharedOnlyLocalLLMCanExplicitlySelectLocalLLM(t *testing.T) {
-	selector := applySetupBoardDefaults(setup.BoardCloudShared, false, setup.Selector{Only: []string{"local-llm"}})
+	selector := applySetupBoardDefaults(setup.BoardCloudShared, setup.Selector{Only: []string{"local-llm"}})
 	if containsName(selector.Skip, "local-llm") {
 		t.Fatalf("expected --only local-llm to avoid local-llm skip, got %+v", selector.Skip)
 	}

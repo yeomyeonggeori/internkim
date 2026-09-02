@@ -7,8 +7,8 @@ import {
 	calendarTestEvent,
 	calendarVersionedTestEvent,
 	createPersistenceScenario,
-	targetUnavailableError,
-	targetUnavailableMessage,
+	unknownPersistenceError,
+	persistenceFailureMessage,
 	toastErrorMessages,
 	type CalendarEvent
 } from './calendar-event-persistence-scenario';
@@ -40,7 +40,7 @@ test('restores the previous event after an optimistic update fails', async () =>
 
 	expect(scenario.events().map((event) => event.title)).toEqual(['Previous title']);
 	expect(scenario.refreshCount()).toBe(0);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
 });
 
 test('does not let a stale update failure overwrite a newer update', async () => {
@@ -70,7 +70,7 @@ test('does not let a stale update failure overwrite a newer update', async () =>
 	const firstSave = scenario.actions.saveUpdatedEvent(firstUpdate, previousEvent);
 	await firstWriteStarted;
 	const latestSave = scenario.actions.saveUpdatedEvent(latestUpdate, firstUpdate);
-	rejectFirstWrite(targetUnavailableError());
+	rejectFirstWrite(unknownPersistenceError());
 	await Promise.all([firstSave, latestSave]);
 
 	expect(writes).toEqual(['First update', 'Latest update']);
@@ -198,7 +198,7 @@ test('does not restore an event deleted while its update is pending', async () =
 	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
 	await writeStarted;
 	await scenario.actions.deleteEvent(updatedEvent.id);
-	rejectWrite(targetUnavailableError());
+	rejectWrite(unknownPersistenceError());
 	await save;
 	await scenario.actions.flushPendingDelete();
 
@@ -214,7 +214,7 @@ test('uses toast error as the default persistence failure notification', async (
 
 	await scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
 
-	expect(toastErrorMessages).toEqual([targetUnavailableMessage]);
+	expect(toastErrorMessages).toEqual([persistenceFailureMessage]);
 });
 
 test('refreshes the persisted event when an update callback has no previous snapshot', async () => {
@@ -226,7 +226,7 @@ test('refreshes the persisted event when an update callback has no previous snap
 
 	expect(scenario.events().map((event) => event.title)).toEqual(['Previous title']);
 	expect(scenario.refreshCount()).toBe(1);
-	expect(scenario.notifications).toEqual([targetUnavailableMessage]);
+	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
 });
 
 test('shows a localized version conflict and refreshes the server event', async () => {

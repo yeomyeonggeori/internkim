@@ -30,11 +30,6 @@ type SDStage interface {
 	RootPath() string
 }
 
-type GoogleAuth struct {
-	AccessToken string
-	Email       string
-}
-
 type Callbacks struct {
 	Translate func(korean, english string) string
 
@@ -46,8 +41,6 @@ type Callbacks struct {
 	GetBuzzKeySeed          func(force bool) (string, error)
 	GetBuzzRelayOwnerPubkey func() (string, error)
 	GetBuzzAgentSecret      func() (string, error)
-
-	GetGasWebhookURL func(accessToken string) (string, error)
 
 	BinariesVersion             func() string
 	InstallBinariesSSH          func(context *Context) error
@@ -99,8 +92,6 @@ type Context struct {
 	SetupLockID  string
 	Force        bool
 	PlannedSteps map[string]bool
-
-	Google *GoogleAuth
 
 	Callbacks Callbacks
 
