@@ -19,6 +19,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | the agent binary | — |
 | **capabilityd** | optional — `not_configured` is a passing state, but the calendar, task, mail and site tools disappear without it |
 | **chatd** | optional — only if a messenger is attached |
+| **admind** | the workspace screens and the tools the central plane cannot run itself arrive on its socket; without it a person's memory, files, tasks and buzz claim answer `500` |
 | **the relay** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
 
 Firecracker, the POSIX helper, Mattermost, a relay and cloudflared are **not**
@@ -194,8 +195,14 @@ CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
 ```
 
 `runtime.template.json` is rendered with `DATABASE_URL` and `MESSENGER_PLATFORM`
-to `/etc/blueclaw/runtime.json`. `MESSENGER_PLATFORM` names which of the two the
-company runs, and the relay refuses to start rather than guess.
+to `/run/internkim/runtime.json`, unless a `runtime.json` is mounted at
+`/etc/blueclaw`, which is read instead. The roster goes the other way: admind
+rewrites `/run/internkim/policy.json` whenever the company changes, so a
+`policy.json` mounted there seeds that file rather than being it. The seed is
+`/secrets/buzz-key-seed`, beside the agent key, and without it a message the
+agent sends under a person's own name cannot be signed. `MESSENGER_PLATFORM`
+names which of the two messengers the company runs, and the relay refuses to
+start rather than guess.
 
 ## Acceptance
 
