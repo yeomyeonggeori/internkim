@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import {
 	notificationCategories,
 	readNotificationSettings,
-	readTimeOfDay,
 	writeNotificationSettings
 } from '../../src/lib/notifications/categories';
 
@@ -32,15 +31,8 @@ describe('what a member is told about', () => {
 		expect(settings.categories.approval).toBe(true);
 	});
 
-	test('the schedule goes out in the morning until someone says otherwise', () => {
-		expect(readNotificationSettings(null).calendarAt).toBe('08:00');
-		expect(readNotificationSettings({ calendarAt: '10:30' }).calendarAt).toBe('10:30');
-		expect(readNotificationSettings({ calendarAt: '25:00' }).calendarAt).toBe('08:00');
-		expect(readNotificationSettings({ calendarAt: 'morning' }).calendarAt).toBe('08:00');
-	});
-
 	test('what is written back is what reading it gives again', () => {
-		const chosen = readNotificationSettings({ message: false, mail: true, calendarAt: '09:15' });
+		const chosen = readNotificationSettings({ message: false, mail: true });
 		expect(readNotificationSettings(writeNotificationSettings(chosen))).toEqual(chosen);
 	});
 
@@ -48,20 +40,6 @@ describe('what a member is told about', () => {
 		const stored = writeNotificationSettings(readNotificationSettings(null));
 		for (const category of notificationCategories) {
 			expect(typeof stored[category]).toBe('boolean');
-		}
-	});
-});
-
-describe('a time of day', () => {
-	test('is two digits, a colon, and a real hour', () => {
-		expect(readTimeOfDay('00:00')).toBe('00:00');
-		expect(readTimeOfDay('23:59')).toBe('23:59');
-		expect(readTimeOfDay(' 08:00 ')).toBe('08:00');
-	});
-
-	test('is nothing when it is not one', () => {
-		for (const said of ['8:00', '24:00', '08:60', '0800', '', null, 12]) {
-			expect(readTimeOfDay(said)).toBe('');
 		}
 	});
 });

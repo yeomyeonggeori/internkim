@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { encryptForSubscription } from '../../src/lib/server/web-push-encrypt';
+import { encryptForSubscription } from '../../../supabase/functions/_shared/web-push-encrypt.ts';
 import { encodeBase64URL } from '../../src/lib/notifications/base64url';
 import { aBrowserThatSubscribed, readAsTheBrowserWould } from '../support/read-as-the-browser-would';
 
