@@ -49,7 +49,11 @@ GROUPS = [
     Group(
         "skill-tool-references",
         [".dependency/*", ".dependency/blueclaw*", "internal/capabilities/*", "pkg/capabilityprotocol/*"],
-        [["tools/verify-skill-tool-references"], ["tools/verify-skill-conformance"]],
+        [
+            ["tools/verify-skill-tool-references"],
+            ["tools/verify-skill-field-references"],
+            ["tools/verify-skill-conformance"],
+        ],
     ),
     Group(
         "blueclaw",

@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Fail when a skill body names a field its referenced tools do not carry.
+
+The model-facing schemas are strict, so a call carrying a field the descriptor
+dropped is rejected before dispatch and costs a recovery turn on every task.
+A skill's prose is the only place naming those fields that nothing validated.
+"""
+
+import json
+import pathlib
+import re
+import sys
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
+from skill_paths import skill_root_paths  # noqa: E402
+
+GENERATED_CATALOG = (
+    REPOSITORY_ROOT / "pkg" / "capabilityprotocol" / "generated" / "capability-tools.json"
+)
+CAPABILITY_DESCRIPTORS = REPOSITORY_ROOT / "internal" / "capabilities" / "protocol.go"
+BLUECLAW_RUNTIME = REPOSITORY_ROOT / ".dependency" / "blueclaw" / "internal" / "agentruntime"
+
+SCHEMA_KEYS = ("inputSchema", "inputIntentSchema", "outputSchema")
+MINIMUM_DESCRIBED_TOOLS = 40
+
+CAMEL_CASE_IDENTIFIER = re.compile(r"^[a-z][A-Za-z0-9]*$")
+BACKTICKED = re.compile(r"`([^`\n]+)`")
+WORD = re.compile(r"[A-Za-z0-9_]+")
+TOOL_REFERENCES = re.compile(r'^\s*(?:kim\.intern\.)?tool-references:\s*"?([^"]*)"?\s*$')
+GO_SCHEMA_FUNCTION = re.compile(r"func ([A-Za-z0-9_]+)\(\) json\.RawMessage \{(.*?)\n\}", re.S)
+GO_SCHEMA_FIELD = re.compile(r'jsonschema\.(?:Field|Required)\("([A-Za-z0-9_]+)"')
+GO_DESCRIPTOR = re.compile(
+    r'\{Name: "([a-z0-9_]+)".*?Description: "(.*?[^\\])".*?InputSchema: ([A-Za-z0-9_]+)\(\)'
+)
+GO_RAW_SCHEMA = re.compile(r"var ([A-Za-z0-9_]+) = json\.RawMessage\(`(.*?)`\)", re.S)
+GO_TOOL_NAME = re.compile(r'^\s*Name:\s+"([a-z0-9_.]+)",\s*$')
+GO_TOOL_SCHEMA = re.compile(r"^\s*[A-Za-z]*Schema:\s+([A-Za-z0-9_]+),\s*$")
+
+
+def is_field_name(token: str) -> bool:
+    return bool(CAMEL_CASE_IDENTIFIER.match(token)) and token != token.lower()
+
+
+def field_names_in(text: str) -> set[str]:
+    return {word for word in WORD.findall(text) if is_field_name(word)}
+
+
+def schema_property_names(node, found: set[str]) -> None:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "properties" and isinstance(value, dict):
+                found.update(value.keys())
+            if isinstance(value, (dict, list)):
+                schema_property_names(value, found)
+        return
+    if isinstance(node, list):
+        for item in node:
+            schema_property_names(item, found)
+
+
+def catalog_vocabulary() -> dict[str, set[str]]:
+    vocabulary: dict[str, set[str]] = {}
+    for tool in json.loads(GENERATED_CATALOG.read_text())["tools"]:
+        found: set[str] = set()
+        for key in SCHEMA_KEYS:
+            schema_property_names(tool.get(key), found)
+        found |= field_names_in(tool.get("description", ""))
+        vocabulary[tool["canonicalName"]] = found
+    return vocabulary
+
+
+def descriptor_vocabulary() -> dict[str, set[str]]:
+    source = CAPABILITY_DESCRIPTORS.read_text()
+    schemas = {
+        match.group(1): set(GO_SCHEMA_FIELD.findall(match.group(2)))
+        for match in GO_SCHEMA_FUNCTION.finditer(source)
+    }
+    vocabulary: dict[str, set[str]] = {}
+    for name, description, schema in GO_DESCRIPTOR.findall(source):
+        vocabulary.setdefault(name, set())
+        vocabulary[name] |= schemas.get(schema, set())
+        vocabulary[name] |= field_names_in(description)
+    return vocabulary
+
+
+def runtime_vocabulary() -> dict[str, set[str]]:
+    if not BLUECLAW_RUNTIME.is_dir():
+        return {}
+    sources = [
+        path.read_text()
+        for path in sorted(BLUECLAW_RUNTIME.glob("*.go"))
+        if not path.name.endswith("_test.go")
+    ]
+    schemas: dict[str, set[str]] = {}
+    for source in sources:
+        for name, body in GO_RAW_SCHEMA.findall(source):
+            found: set[str] = set()
+            try:
+                schema_property_names(json.loads(body), found)
+            except json.JSONDecodeError:
+                continue
+            schemas[name] = found
+    vocabulary: dict[str, set[str]] = {}
+    for source in sources:
+        tool = ""
+        for line in source.splitlines():
+            named = GO_TOOL_NAME.match(line)
+            if named:
+                tool = named.group(1)
+                vocabulary.setdefault(tool, set())
+                continue
+            referenced = GO_TOOL_SCHEMA.match(line)
+            if referenced and tool:
+                vocabulary[tool] |= schemas.get(referenced.group(1), set())
+    return vocabulary
+
+
+def tool_vocabulary() -> dict[str, set[str]]:
+    vocabulary = catalog_vocabulary()
+    for source in (descriptor_vocabulary(), runtime_vocabulary()):
+        for tool, found in source.items():
+            vocabulary.setdefault(tool, set()).update(found)
+    return vocabulary
+
+
+def declared_references(skill_document: pathlib.Path) -> list[str]:
+    references: list[str] = []
+    for line in skill_document.read_text().splitlines():
+        if line.strip() == "---" and references:
+            break
+        match = TOOL_REFERENCES.match(line)
+        if match:
+            references.extend(match.group(1).split())
+    return references
+
+
+def bundled_words(skill_document: pathlib.Path) -> set[str]:
+    words: set[str] = set()
+    for path in sorted(skill_document.parent.rglob("*")):
+        if not path.is_file() or path == skill_document:
+            continue
+        words.update(WORD.findall(path.read_text(errors="ignore")))
+    return words
+
+
+def named_fields(skill_document: pathlib.Path) -> set[str]:
+    return {
+        token
+        for token in BACKTICKED.findall(skill_document.read_text())
+        if is_field_name(token)
+    }
+
+
+def main() -> int:
+    vocabulary = tool_vocabulary()
+    described = [tool for tool, found in vocabulary.items() if found]
+    if len(described) < MINIMUM_DESCRIBED_TOOLS:
+        print(
+            f"read fields for only {len(described)} tools, so this check is reading the wrong"
+            f" place; expected at least {MINIMUM_DESCRIBED_TOOLS}",
+            file=sys.stderr,
+        )
+        return 1
+
+    unknown: list[str] = []
+    unchecked: list[str] = []
+    checked = 0
+    for skill_root in skill_root_paths(REPOSITORY_ROOT):
+        for skill_document in sorted(skill_root.glob("*/SKILL.md")):
+            skill = skill_document.parent.name
+            references = declared_references(skill_document)
+            unresolved = [name for name in references if not vocabulary.get(name)]
+            if not references or unresolved:
+                unchecked.append(f"{skill} references {' '.join(unresolved) or 'no tool'}")
+                continue
+            checked += 1
+            carried = set().union(*(vocabulary[name] for name in references))
+            carried |= bundled_words(skill_document)
+            for field in sorted(named_fields(skill_document) - carried):
+                unknown.append(f"{skill} names {field}, which {' '.join(references)} do not carry")
+    if checked == 0:
+        print("no skill was checked, so this check is reading the wrong place", file=sys.stderr)
+        return 1
+    if unknown:
+        print("a skill names a field its tools reject:", file=sys.stderr)
+        for entry in unknown:
+            print(f"  {entry}", file=sys.stderr)
+        return 1
+    print(f"ok {checked} skills against {len(described)} tools")
+    for entry in unchecked:
+        print(f"  unchecked: {entry}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
