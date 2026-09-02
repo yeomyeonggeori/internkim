@@ -2,12 +2,8 @@ import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model'
 import { calendarColors } from './calendar-config';
 import { calendarEventPayloadFromDayTaskEvent } from './calendar-event-mapping';
 import {
-	calendarEventPath,
-	cancelCalendarEventDeleteIntent,
-	createCalendarEventDeleteIntent,
 	deletePersistedCalendarEvent,
 	writeCalendarEvent,
-	type CalendarDeleteIntent,
 	type CalendarEvent
 } from './calendar-event-persistence';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
@@ -24,22 +20,13 @@ type CalendarPersistedEventActionsContext = {
 
 export type CalendarPersistedEventActions = {
 	writeEvent: (
-		path: string,
-		method: 'POST' | 'PUT',
+		isNewEvent: boolean,
 		event: DayTaskEvent,
 		expectedUpdatedAt?: string,
 		mutationClientID?: string,
 		mutationSequence?: number
 	) => Promise<CalendarEvent>;
-	deleteEvent: (eventID: string, expectedUpdatedAt?: string) => Promise<void>;
-	createDeleteIntent: (
-		eventID: string,
-		operationID: string,
-		clientID: string,
-		sequence: number,
-		expectedUpdatedAt: string
-	) => Promise<CalendarDeleteIntent>;
-	cancelDeleteIntent: (eventID: string, operationID: string, clientID: string, sequence: number) => Promise<void>;
+	deleteEvent: (eventID: string) => Promise<void>;
 	applyServerMetadata: (eventID: string, event: CalendarEvent) => Promise<void>;
 };
 
@@ -54,8 +41,7 @@ export function createCalendarPersistedEventActions(
 	}
 
 	async function writeEvent(
-		path: string,
-		method: 'POST' | 'PUT',
+		isNewEvent: boolean,
 		event: DayTaskEvent,
 		expectedUpdatedAt?: string,
 		mutationClientID?: string,
@@ -64,57 +50,24 @@ export function createCalendarPersistedEventActions(
 		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 		const currentExpectedUpdatedAt = expectedUpdatedAt
 			?? (typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined);
-		const eventID = method === 'PUT' ? persistedEventID(event.id) : event.id;
+		const eventID = isNewEvent ? event.id : persistedEventID(event.id);
 		const payload = {
 			...calendarEventPayloadFromDayTaskEvent(event, calendarColors.lineColor, timeZone),
 			eventID,
-			...(method === 'PUT' && currentExpectedUpdatedAt !== undefined
+			...(!isNewEvent && currentExpectedUpdatedAt !== undefined
 				? { expectedUpdatedAt: currentExpectedUpdatedAt }
 				: {}),
-			...(method === 'PUT' && mutationClientID !== undefined && mutationSequence !== undefined
+			...(!isNewEvent && mutationClientID !== undefined && mutationSequence !== undefined
 				? { mutationClientID, mutationSequence }
 				: {})
 		};
-		const requestPath = eventID === event.id ? path : calendarEventPath(eventID);
-		const saved = await writeCalendarEvent(requestPath, method, payload, context.text.saveError);
-		if (method === 'POST' && saved.id && saved.id !== event.id) persistedEventIDs.set(event.id, saved.id);
+		const saved = await writeCalendarEvent(isNewEvent, payload);
+		if (isNewEvent && saved.id && saved.id !== event.id) persistedEventIDs.set(event.id, saved.id);
 		return saved;
 	}
 
-	async function deleteEvent(eventID: string, expectedUpdatedAt?: string): Promise<void> {
-		await deletePersistedCalendarEvent(persistedEventID(eventID), expectedUpdatedAt, context.text.deleteError);
-	}
-
-	async function createDeleteIntent(
-		eventID: string,
-		operationID: string,
-		clientID: string,
-		sequence: number,
-		expectedUpdatedAt: string
-	): Promise<CalendarDeleteIntent> {
-		return createCalendarEventDeleteIntent(
-			persistedEventID(eventID),
-			operationID,
-			clientID,
-			sequence,
-			expectedUpdatedAt,
-			context.text.deleteError
-		);
-	}
-
-	async function cancelDeleteIntent(
-		eventID: string,
-		operationID: string,
-		clientID: string,
-		sequence: number
-	): Promise<void> {
-		await cancelCalendarEventDeleteIntent(
-			persistedEventID(eventID),
-			operationID,
-			clientID,
-			sequence,
-			context.text.deleteError
-		);
+	async function deleteEvent(eventID: string): Promise<void> {
+		await deletePersistedCalendarEvent(persistedEventID(eventID));
 	}
 
 	async function applyServerMetadata(eventID: string, event: CalendarEvent): Promise<void> {
@@ -149,8 +102,6 @@ export function createCalendarPersistedEventActions(
 	return {
 		writeEvent,
 		deleteEvent,
-		createDeleteIntent,
-		cancelDeleteIntent,
 		applyServerMetadata
 	};
 }

@@ -4,17 +4,15 @@ import { mock } from 'bun:test';
 import { CalendarDraftEventState } from '../../../src/routes/calendar/embed/calendar-draft-events';
 import type { CalendarDraftEventDOMActions } from '../../../src/routes/calendar/embed/calendar-draft-event-dom';
 import type { CalendarEventActionsContext } from '../../../src/routes/calendar/embed/calendar-event-actions';
-import {
-	CalendarPersistenceError,
-	type CalendarEvent
-} from '../../../src/routes/calendar/embed/calendar-event-persistence';
+import type { CalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 import type { CalendarPersistedEventActions } from '../../../src/routes/calendar/embed/calendar-persisted-event-actions';
 import { CalendarProgrammaticUpdateState } from '../../../src/routes/calendar/embed/calendar-programmatic-updates';
 
 export type { CalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 
 export const toastErrorMessages: string[] = [];
-export const persistenceFailureMessage = 'Could not persist the event.';
+export const saveFailureMessage = 'Could not save the event.';
+export const deleteFailureMessage = 'Could not delete the event.';
 
 mock.module('svelte-sonner', () => ({
 	toast: Object.assign(() => {}, {
@@ -34,8 +32,7 @@ export function createPersistenceScenario(
 	initialEvents: DayTaskEvent[],
 	refreshedEvents: () => DayTaskEvent[] = () => initialEvents,
 	persistedOverrides: Partial<CalendarPersistedEventActions> = {},
-	useDefaultNotifier = false,
-	waitForDeleteIntentCancellationRetry: (delay: number) => Promise<void> = async () => {}
+	useDefaultNotifier = false
 ) {
 	let calendarEvents = [...initialEvents];
 	let calendarRefreshCount = 0;
@@ -84,10 +81,6 @@ export function createPersistenceScenario(
 			pendingLoadInvalidationCount += 1;
 		},
 		text: {
-			calendarDeleteVersionConflictError:
-				'This event changed elsewhere, so it could not be deleted. The latest server version has been reloaded.',
-			calendarEventVersionConflictError:
-				'This event changed elsewhere. The latest server version has been reloaded.',
 			deleteError: 'Could not delete the event.',
 			deleteUndoAction: 'Undo',
 			deleteUndoMessage: 'Event deleted.',
@@ -101,12 +94,6 @@ export function createPersistenceScenario(
 			throw unknownPersistenceError();
 		},
 		deleteEvent: async () => {
-			throw unknownPersistenceError();
-		},
-		createDeleteIntent: async () => {
-			throw unknownPersistenceError();
-		},
-		cancelDeleteIntent: async () => {
 			throw unknownPersistenceError();
 		},
 		applyServerMetadata: async () => {},
@@ -130,7 +117,6 @@ export function createPersistenceScenario(
 		{
 			createPersistedEventActions: () => persistedEvents,
 			dismissDeleteUndoToast: () => {},
-			waitForDeleteIntentCancellationRetry,
 			showDeleteUndoToast: (options) => {
 				undoPendingDelete = options.undo;
 			},
@@ -188,12 +174,8 @@ export function calendarVersionedTestEvent(
 	});
 }
 
-export function unknownPersistenceError(): CalendarPersistenceError {
-	return new CalendarPersistenceError('unknown', 'Could not persist the event.');
-}
-
-export function deleteIntentConflictError(): CalendarPersistenceError {
-	return new CalendarPersistenceError('calendar_delete_intent_conflict', 'Could not persist the event.');
+export function unknownPersistenceError(): Error {
+	return new Error('the record refused the write');
 }
 
 export function calendarServerEvent(eventID: string, title: string): CalendarEvent {

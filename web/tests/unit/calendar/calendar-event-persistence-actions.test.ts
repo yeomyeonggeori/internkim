@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
 
-import { CalendarPersistenceError } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 
 import {
 	calendarServerEvent,
@@ -8,7 +7,7 @@ import {
 	calendarVersionedTestEvent,
 	createPersistenceScenario,
 	unknownPersistenceError,
-	persistenceFailureMessage,
+	saveFailureMessage,
 	toastErrorMessages,
 	type CalendarEvent
 } from './calendar-event-persistence-scenario';
@@ -40,7 +39,7 @@ test('restores the previous event after an optimistic update fails', async () =>
 
 	expect(scenario.events().map((event) => event.title)).toEqual(['Previous title']);
 	expect(scenario.refreshCount()).toBe(0);
-	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
+	expect(scenario.notifications).toEqual([saveFailureMessage]);
 });
 
 test('does not let a stale update failure overwrite a newer update', async () => {
@@ -57,7 +56,7 @@ test('does not let a stale update failure overwrite a newer update', async () =>
 		rejectFirstWrite = reject;
 	});
 	const scenario = createPersistenceScenario([latestUpdate], () => [previousEvent], {
-		writeEvent: async (_path, _method, event) => {
+		writeEvent: async (_isNewEvent, event) => {
 			writes.push(event.title ?? '');
 			if (writes.length === 1) {
 				reportFirstWriteStarted();
@@ -95,7 +94,7 @@ test('uses the persisted version from a completed PUT for the next queued PUT', 
 		resolveFirstWrite = resolve;
 	});
 	const scenario = createPersistenceScenario([latestUpdate], () => [previousEvent], {
-		writeEvent: async (_path, _method, event, expectedUpdatedAt) => {
+		writeEvent: async (_isNewEvent, event, expectedUpdatedAt) => {
 			expectedUpdatedAtValues.push(expectedUpdatedAt);
 			if (expectedUpdatedAtValues.length === 1) {
 				reportFirstWriteStarted();
@@ -125,7 +124,7 @@ test('refreshes from the server when metadata application fails after a successf
 	const updatedEvent = calendarTestEvent('metadata-failure', 'Updated title');
 	const serverEvent = calendarTestEvent('metadata-failure', 'Server title');
 	const scenario = createPersistenceScenario([updatedEvent], () => [serverEvent], {
-		writeEvent: async (_path, _method, event) => calendarServerEvent(event.id, event.title ?? ''),
+		writeEvent: async (_isNewEvent, event) => calendarServerEvent(event.id, event.title ?? ''),
 		applyServerMetadata: async () => {
 			throw new Error('event disappeared during metadata application');
 		}
@@ -150,15 +149,12 @@ test('does not refresh a deleted event after stale metadata application fails', 
 		rejectMetadata = reject;
 	});
 	const scenario = createPersistenceScenario([updatedEvent], () => [previousEvent], {
-		writeEvent: async (_path, _method, event) => calendarServerEvent(event.id, event.title ?? ''),
+		writeEvent: async (_isNewEvent, event) => calendarServerEvent(event.id, event.title ?? ''),
+		deleteEvent: async () => {},
 		applyServerMetadata: async () => {
 			reportMetadataStarted();
 			await pendingMetadata;
-		},
-		createDeleteIntent: async (_eventID, operationID) => ({
-			operationID,
-			executeAt: '2026-07-17T01:00:05Z'
-		})
+		}
 	});
 
 	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
@@ -189,10 +185,7 @@ test('does not restore an event deleted while its update is pending', async () =
 			reportWriteStarted();
 			return pendingWrite;
 		},
-		createDeleteIntent: async (_eventID, operationID) => ({
-			operationID,
-			executeAt: '2026-07-17T01:00:05Z'
-		})
+		deleteEvent: async () => {}
 	});
 
 	const save = scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
@@ -214,7 +207,7 @@ test('uses toast error as the default persistence failure notification', async (
 
 	await scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
 
-	expect(toastErrorMessages).toEqual([persistenceFailureMessage]);
+	expect(toastErrorMessages).toEqual([saveFailureMessage]);
 });
 
 test('refreshes the persisted event when an update callback has no previous snapshot', async () => {
@@ -226,52 +219,6 @@ test('refreshes the persisted event when an update callback has no previous snap
 
 	expect(scenario.events().map((event) => event.title)).toEqual(['Previous title']);
 	expect(scenario.refreshCount()).toBe(1);
-	expect(scenario.notifications).toEqual([persistenceFailureMessage]);
+	expect(scenario.notifications).toEqual([saveFailureMessage]);
 });
 
-test('shows a localized version conflict and refreshes the server event', async () => {
-	const previousEvent = calendarTestEvent('version-conflict-event', 'Previous title');
-	const updatedEvent = calendarTestEvent('version-conflict-event', 'Optimistic title');
-	const serverEvent = calendarTestEvent('version-conflict-event', 'Server title');
-	const scenario = createPersistenceScenario([updatedEvent], () => [serverEvent], {
-		writeEvent: async () => {
-			throw new CalendarPersistenceError('calendar_event_version_conflict', 'Could not save the event.');
-		}
-	});
-
-	await scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
-
-	expect(scenario.events().map((event) => event.title)).toEqual(['Server title']);
-	expect(scenario.notifications).toEqual([
-		'This event changed elsewhere. The latest server version has been reloaded.'
-	]);
-	expect(scenario.refreshCount()).toBe(1);
-});
-
-test('releases the saving state when version conflict refresh fails', async () => {
-	const previousEvent = calendarTestEvent('version-conflict-refresh-failure', 'Previous title');
-	const updatedEvent = calendarTestEvent('version-conflict-refresh-failure', 'Optimistic title');
-	const refreshError = new Error('calendar refresh failed');
-	const scenario = createPersistenceScenario(
-		[updatedEvent],
-		() => {
-			throw refreshError;
-		},
-		{
-			writeEvent: async () => {
-				throw new CalendarPersistenceError('calendar_event_version_conflict', 'Could not save the event.');
-			}
-		}
-	);
-	let rejection: unknown;
-
-	try {
-		await scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
-	} catch (error: unknown) {
-		rejection = error;
-	}
-
-	expect(rejection).toBe(refreshError);
-	expect(scenario.refreshCount()).toBe(1);
-	expect(scenario.savingStates).toEqual([true, false]);
-});

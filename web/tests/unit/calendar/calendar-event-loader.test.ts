@@ -46,7 +46,7 @@ test('does not apply a deferred refresh after a newer local update', async () =>
 			refreshSelectedMonthDateCell: () => {}
 		},
 		{
-			fetchEvents: async (_startDate, _endDate, _errorFallback, locale) => {
+			fetchEvents: async (_startDate, _endDate, locale) => {
 				fetchedEventLocale = locale;
 				reportFetchStarted();
 				return pendingEvents;
