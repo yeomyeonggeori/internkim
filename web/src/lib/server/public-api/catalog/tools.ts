@@ -1815,3 +1815,7 @@ export function buildCapabilityToolCatalog(protocolVersion: string): CapabilityT
 export function capabilityToolInputSchema(name: string): z.ZodType | undefined {
   return capabilityToolDefinitions.find((definition) => definition.name === name)?.inputSchema;
 }
+
+export function capabilityToolResultSchema(name: string): z.ZodType | undefined {
+  return capabilityToolDefinitions.find((definition) => definition.name === name)?.result?.schema;
+}
