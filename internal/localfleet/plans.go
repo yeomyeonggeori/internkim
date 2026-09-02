@@ -123,7 +123,7 @@ func (service Service) preparedFleetPlans() []CommandPlan {
 	}
 }
 
-func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
+func (service Service) upPlansThroughSetup(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
 	plans := []CommandPlan{
 		service.shellPlan("check the guest can see the shared artifacts", service.checkSharedArtifactsCommand()),
 		service.prepareContainerKernelPlan(),
@@ -142,10 +142,14 @@ func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkip
 		service.shellPlan("setup local fleet", service.setupCommand(skipWeb, additionalSkippedSteps...)),
 		service.configureLocalEmbeddingPlan(),
 	)
-	if slices.Contains(additionalSkippedSteps, "mattermost") {
-		return plans
-	}
-	return append(plans, service.mattermostTestSettingsPlan())
+	return plans
+}
+
+func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
+	return append(
+		service.upPlansThroughSetup(skipWeb, additionalSkippedSteps),
+		service.mattermostTestSettingsPlan(),
+	)
 }
 
 func (service Service) prepareLocalEmbeddingPlan() CommandPlan {
@@ -288,14 +292,14 @@ func (service Service) mattermostDocxAttachmentScenarioPlans(keepArtifacts bool)
 // here drives Mattermost. The fleet already provisions the relay and chatd, so
 // this one only needed a scenario to use them.
 func (service Service) buzzAttachmentScenarioPlans() []CommandPlan {
-	return append(service.upPlans(true), service.blueclawLabScenarioScriptPlan("buzz-attachment"))
+	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-attachment"))
 }
 
 // Outbound direct messages were only ever driven through Mattermost, so the one
 // door a company's own people use — the public API, and the messenger the
 // company reads — had no scenario at all.
 func (service Service) buzzDirectMessageScenarioPlans() []CommandPlan {
-	return append(service.upPlans(true), service.blueclawLabScenarioScriptPlan("buzz-direct-message"))
+	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-direct-message"))
 }
 
 func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
