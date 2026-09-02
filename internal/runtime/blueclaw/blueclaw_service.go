@@ -216,7 +216,7 @@ WantedBy=multi-user.target
 }
 
 func ChatdHealthCheckCommand() string {
-	return "curl --max-time 5 -fsS " + ChatdEndpoint + "/health >/dev/null && echo ok || echo no"
+	return "curl --max-time 5 -fsS " + ChatdEndpoint + ChatdHealthPath + " >/dev/null && echo ok || echo no"
 }
 
 func MinioServiceUnit() string {
