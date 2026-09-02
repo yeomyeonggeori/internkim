@@ -13,21 +13,21 @@ insert into public.company (id, name, slug, country, locale, timezone) values
 insert into public.task (id, company_id, title, status, starts_at, ends_at, is_event) values
   ('99900000-0000-0000-0000-0000000000b1', '99900000-0000-0000-0000-0000000000a0', 'Dateless task', 'planned', null, null, false),
   ('99900000-0000-0000-0000-0000000000b2', '99900000-0000-0000-0000-0000000000a0', 'Future task', 'planned',
-    (current_date + 3)::timestamptz, (current_date + 5)::timestamptz, false),
+    ((now() at time zone 'Asia/Seoul')::date + 3)::timestamptz, ((now() at time zone 'Asia/Seoul')::date + 5)::timestamptz, false),
   ('99900000-0000-0000-0000-0000000000b3', '99900000-0000-0000-0000-0000000000a0', 'Anciently ended task', 'planned',
-    (current_date - 9)::timestamptz, (current_date - 7)::timestamptz, false),
+    ((now() at time zone 'Asia/Seoul')::date - 9)::timestamptz, ((now() at time zone 'Asia/Seoul')::date - 7)::timestamptz, false),
   ('99900000-0000-0000-0000-0000000000b4', '99900000-0000-0000-0000-0000000000a0', 'Rescheduled task', 'planned',
-    (current_date - 3)::timestamptz, (current_date + 3)::timestamptz, false),
+    ((now() at time zone 'Asia/Seoul')::date - 3)::timestamptz, ((now() at time zone 'Asia/Seoul')::date + 3)::timestamptz, false),
   ('99900000-0000-0000-0000-0000000000b5', '99900000-0000-0000-0000-0000000000a0', 'Deliberately paused task', 'planned',
-    (current_date - 3)::timestamptz, (current_date + 3)::timestamptz, false),
+    ((now() at time zone 'Asia/Seoul')::date - 3)::timestamptz, ((now() at time zone 'Asia/Seoul')::date + 3)::timestamptz, false),
   ('99900000-0000-0000-0000-0000000000b9', '99900000-0000-0000-0000-0000000000a0', 'Openly running task', 'in_progress',
-    (current_date - 1)::timestamptz, (current_date + 5)::timestamptz, false),
+    ((now() at time zone 'Asia/Seoul')::date - 1)::timestamptz, ((now() at time zone 'Asia/Seoul')::date + 5)::timestamptz, false),
   ('99900000-0000-0000-0000-0000000000b7', '99900000-0000-0000-0000-0000000000a0', 'Freshly completed task', 'completed',
-    (current_date - 2)::timestamptz, (current_date)::timestamptz, false),
+    ((now() at time zone 'Asia/Seoul')::date - 2)::timestamptz, ((now() at time zone 'Asia/Seoul')::date)::timestamptz, false),
   ('99900000-0000-0000-0000-0000000000b8', '99900000-0000-0000-0000-0000000000a0', 'Anciently completed task', 'completed',
-    (current_date - 8)::timestamptz, (current_date - 8)::timestamptz, false),
+    ((now() at time zone 'Asia/Seoul')::date - 8)::timestamptz, ((now() at time zone 'Asia/Seoul')::date - 8)::timestamptz, false),
   ('99900000-0000-0000-0000-0000000000c1', '99900000-0000-0000-0000-0000000000a0', 'Waiting future task', 'planned',
-    (current_date + 2)::timestamptz, (current_date + 5)::timestamptz, false);
+    ((now() at time zone 'Asia/Seoul')::date + 2)::timestamptz, ((now() at time zone 'Asia/Seoul')::date + 5)::timestamptz, false);
 
 update public.task set status = 'completed' where id = '99900000-0000-0000-0000-0000000000b1';
 select is(
@@ -43,16 +43,16 @@ select throws_ok(
 update public.task set status = 'completed' where id = '99900000-0000-0000-0000-0000000000b3';
 select is(
   (select (ends_at at time zone 'UTC')::date from public.task where id = '99900000-0000-0000-0000-0000000000b3'),
-  current_date - 7,
+  (now() at time zone 'Asia/Seoul')::date - 7,
   'agree: a passed end date is the truer one and stays');
 
-update public.task set ends_at = (current_date - 1)::timestamptz where id = '99900000-0000-0000-0000-0000000000b4';
+update public.task set ends_at = ((now() at time zone 'Asia/Seoul')::date - 1)::timestamptz where id = '99900000-0000-0000-0000-0000000000b4';
 select is(
   (select status from public.task where id = '99900000-0000-0000-0000-0000000000b4')::text,
   'completed',
   'agree: pulling the end date to the past completes the task');
 
-update public.task set ends_at = (current_date - 1)::timestamptz, status = 'paused' where id = '99900000-0000-0000-0000-0000000000b5';
+update public.task set ends_at = ((now() at time zone 'Asia/Seoul')::date - 1)::timestamptz, status = 'paused' where id = '99900000-0000-0000-0000-0000000000b5';
 select is(
   (select status from public.task where id = '99900000-0000-0000-0000-0000000000b5')::text,
   'paused',
@@ -61,24 +61,24 @@ select is(
 select throws_ok(
   $$insert into public.task (company_id, title, status, starts_at, ends_at) values
     ('99900000-0000-0000-0000-0000000000a0', 'Insert claiming a future start', 'completed',
-      (current_date + 1)::timestamptz, (current_date + 4)::timestamptz)$$,
+      ((now() at time zone 'Asia/Seoul')::date + 1)::timestamptz, ((now() at time zone 'Asia/Seoul')::date + 4)::timestamptz)$$,
   '23514', 'a task cannot complete before it starts',
   'agree: an insert cannot complete before it starts either');
 
-update public.task set status = 'completed', ends_at = (current_date + 5)::timestamptz
+update public.task set status = 'completed', ends_at = ((now() at time zone 'Asia/Seoul')::date + 5)::timestamptz
   where id = '99900000-0000-0000-0000-0000000000b9';
 select is(
   (select (ends_at at time zone 'UTC')::date from public.task where id = '99900000-0000-0000-0000-0000000000b9'),
   (now() at time zone 'Asia/Seoul')::date,
   'agree: completion outranks a future end named in the same write');
 
-update public.task set ends_at = (current_date + 4)::timestamptz where id = '99900000-0000-0000-0000-0000000000b7';
+update public.task set ends_at = ((now() at time zone 'Asia/Seoul')::date + 4)::timestamptz where id = '99900000-0000-0000-0000-0000000000b7';
 select is(
   (select status from public.task where id = '99900000-0000-0000-0000-0000000000b7')::text,
   'in_progress',
   'agree: postponing a started task reopens it as in progress');
 
-update public.task set starts_at = (current_date + 1)::timestamptz, ends_at = (current_date + 4)::timestamptz
+update public.task set starts_at = ((now() at time zone 'Asia/Seoul')::date + 1)::timestamptz, ends_at = ((now() at time zone 'Asia/Seoul')::date + 4)::timestamptz
   where id = '99900000-0000-0000-0000-0000000000b8';
 select is(
   (select status from public.task where id = '99900000-0000-0000-0000-0000000000b8')::text,
@@ -95,7 +95,7 @@ select throws_ok(
   '23514', 'a task past its end cannot go back to planned; move the end date first',
   'agree: a task past its end cannot go back to planned');
 
-update public.task set starts_at = current_date::timestamptz where id = '99900000-0000-0000-0000-0000000000c1';
+update public.task set starts_at = (now() at time zone 'Asia/Seoul')::date::timestamptz where id = '99900000-0000-0000-0000-0000000000c1';
 select is(
   (select status from public.task where id = '99900000-0000-0000-0000-0000000000c1')::text,
   'in_progress',
