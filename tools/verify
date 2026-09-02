@@ -68,6 +68,16 @@ GROUPS = [
         working_directory=".dependency/blueclaw",
     ),
     Group(
+        "blueclaw-scenarios",
+        [
+            ".dependency/blueclaw*",
+            ".dependency/*/skills/*",
+            "internal/capabilities/*",
+            "pkg/capabilityprotocol/*",
+        ],
+        [["tools/blueclaw-scenario-test"]],
+    ),
+    Group(
         "generated-protocol",
         [".dependency/blueclaw*", "pkg/capabilityprotocol/*"],
         [["make", "verify-generated-protocol"]],
