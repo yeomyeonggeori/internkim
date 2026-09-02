@@ -79,6 +79,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
     TrayIconBuilder::new()
         .icon(tray_icon)
+        .icon_as_template(true)
         .tooltip("internkim")
         .menu(&menu)
         .show_menu_on_left_click(true)
