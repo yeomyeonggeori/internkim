@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""Run blueclaw's scenario tests against the skills this repository ships.
+
+Blueclaw's scenarios read their skill roots from BLUECLAW_SCENARIO_SKILL_ROOTS
+and skip when nothing sets it.
+"""
+
+import os
+import pathlib
+import re
+import subprocess
+import sys
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+SUBMODULE_PATH = REPOSITORY_ROOT / ".dependency" / "blueclaw"
+
+sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
+from skill_paths import skill_root_paths  # noqa: E402
+
+
+def scenario_skill_roots_variable() -> str:
+    declaration = re.search(
+        r'ScenarioSkillRootsVariable = "([A-Z_]+)"',
+        (SUBMODULE_PATH / "internal" / "e2e" / "scenarios.go").read_text(),
+    )
+    if declaration is None:
+        raise SystemExit("blueclaw declares no ScenarioSkillRootsVariable, so its scenarios would skip")
+    return declaration.group(1)
+
+
+def main() -> int:
+    if not (SUBMODULE_PATH / "go.mod").is_file():
+        print("blueclaw is not checked out: git submodule update --init --recursive", file=sys.stderr)
+        return 1
+    skill_roots = [str(path) for path in skill_root_paths(REPOSITORY_ROOT) if path.is_dir()]
+    if not skill_roots:
+        print("no skill root exists to offer blueclaw's scenarios", file=sys.stderr)
+        return 1
+    environment = dict(os.environ)
+    environment[scenario_skill_roots_variable()] = os.pathsep.join(skill_roots)
+    arguments = sys.argv[1:] or ["-tags", "appliance", "./internal/e2e/"]
+    return subprocess.run(["go", "test", *arguments], cwd=SUBMODULE_PATH, env=environment).returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

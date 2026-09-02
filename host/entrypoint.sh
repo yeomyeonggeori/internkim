@@ -8,6 +8,7 @@
 set -e
 
 capabilitySocketPath="/run/internkim/capability.sock"
+bundledSkillsPath="${BLUECLAW_BUNDLED_SKILLS_PATH:-/opt/internkim/skills}"
 blueclawAddress="127.0.0.1:8080"
 chatdPort="${CHATD_LISTEN_PORT:-18090}"
 arrivalsPort="${ARRIVALS_PORT:-18091}"
@@ -125,7 +126,8 @@ while [ ! -S "${capabilitySocketPath}" ]; do
 done
 
 echo "[host] starting blueclaw"
-blueclaw -runtime "${runtimeConfigurationPath}" -policy "${policyPath}" &
+BLUECLAW_BUNDLED_SKILLS_PATH="${bundledSkillsPath}" \
+  blueclaw -runtime "${runtimeConfigurationPath}" -policy "${policyPath}" &
 blueclawPid="$!"
 
 until nc -z 127.0.0.1 8080 >/dev/null 2>&1; do

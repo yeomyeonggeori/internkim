@@ -1313,9 +1313,8 @@ func (state *setupFlowState) installGoServiceUnitSSH(servicePath string, service
 }
 
 func (state *setupFlowState) installSkillsSSH(context *setup.Context) error {
-	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
-	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
-		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
+	if _, errorValue := blueclawworkspace.SkillRootPaths(state.scriptDir); errorValue != nil {
+		return errorValue
 	}
 	toolsDirectoryPath := blueclawworkspace.ToolsPath(state.scriptDir)
 	if info, errorValue := os.Stat(toolsDirectoryPath); errorValue != nil || !info.IsDir() {
@@ -1393,8 +1392,12 @@ func (state *setupFlowState) installHostDeviceAssetsSSH() error {
 }
 
 func (state *setupFlowState) installDeviceAssetSSH(asset deviceassets.Asset) error {
+	assetSourcePaths, errorValue := asset.SourcePaths(state.scriptDir)
+	if errorValue != nil {
+		return errorValue
+	}
 	sourceDirectoryPaths := []string{}
-	for _, sourceDirectoryPath := range asset.SourcePaths(state.scriptDir) {
+	for _, sourceDirectoryPath := range assetSourcePaths {
 		if info, errorValue := os.Stat(sourceDirectoryPath); errorValue == nil && info.IsDir() {
 			sourceDirectoryPaths = append(sourceDirectoryPaths, sourceDirectoryPath)
 		}
@@ -1434,9 +1437,8 @@ func (state *setupFlowState) installSkillPythonDependenciesSSH() error {
 }
 
 func (state *setupFlowState) stageSkillsSD(context *setup.Context) error {
-	skillsDirectoryPath := blueclawworkspace.SkillsPath(state.scriptDir)
-	if info, errorValue := os.Stat(skillsDirectoryPath); errorValue != nil || !info.IsDir() {
-		return fmt.Errorf("skills directory missing: %s", skillsDirectoryPath)
+	if _, errorValue := blueclawworkspace.SkillRootPaths(state.scriptDir); errorValue != nil {
+		return errorValue
 	}
 	toolsDirectoryPath := blueclawworkspace.ToolsPath(state.scriptDir)
 	if info, errorValue := os.Stat(toolsDirectoryPath); errorValue != nil || !info.IsDir() {
@@ -1494,7 +1496,11 @@ func sha256String(value string) string {
 
 func skillRootsDigest(scriptDir string) (string, error) {
 	digests := []string{}
-	for _, rootPath := range blueclawworkspace.SkillRootPaths(scriptDir) {
+	skillRootPaths, errorValue := blueclawworkspace.SkillRootPaths(scriptDir)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	for _, rootPath := range skillRootPaths {
 		if info, statError := os.Stat(rootPath); statError != nil || !info.IsDir() {
 			continue
 		}

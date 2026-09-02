@@ -33,6 +33,7 @@ COPY --from=go-build /out/internkim-maild /usr/local/bin/internkim-maild
 COPY --from=bun-build /src/chatd /opt/chatd
 COPY --from=bun-build /src/relay /opt/relay
 COPY .dependency/blueclaw/migrations /opt/blueclaw/migrations
+COPY .dependency/internkim-plugin/skills /opt/internkim/skills
 COPY host/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY tools/render-company-runtime /usr/local/bin/render-company-runtime
 COPY host/runtime.template.json /opt/internkim/runtime.template.json

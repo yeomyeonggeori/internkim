@@ -52,6 +52,11 @@ leaf directories enforce privacy and membership.
 - Use bundled skill scripts, `shell`, and `file_deliver` for
   user-visible artifacts. If a built-in capability reads through a grant, do not leave the
   privileged source file in a terminal-visible path.
+- Prefer `rg` when searching text or files.
+- For a flow of several steps, write a script under `tmp/<artifact-slug>`, run
+  it, and report the exit code, stdout, and stderr.
+- The terminal reaches the requester's workspace and nothing else. Do not claim
+  host, root, or user-computer shell access.
 
 Allowed workspace paths for raw terminal and file kernel tools:
 
@@ -68,8 +73,12 @@ Allowed workspace paths for raw terminal and file kernel tools:
 - `/workspace/shared/public`: intentionally public shared artifacts.
 - `/workspace/shared/cache/dependencies`: package caches only. Do not store task
   inputs, private source files, or final artifacts there.
-- `/workspace/skills/<skill>/scripts/...`: built-in helper code. Execute
-  documented wrappers; create task-local scripts under `tmp/<artifact-slug>`.
+
+## Skill scripts
+
+A skill's own directory is not on the workspace. Execute the wrappers a skill
+documents under its `scripts/`, and create task-local scripts under
+`tmp/<artifact-slug>` instead of writing next to a skill.
 
 Tool path fields such as `terminal.run.workingDirectoryPath` and
 `file.deliver.path` should use virtual workspace paths like
