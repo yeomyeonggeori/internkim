@@ -75,10 +75,9 @@ existing device working. A company on the central plane is deployed by
   the device's llama.cpp, the companion, and OpenRouter by execution mode.
   `llmd` was removed: no device installs or starts it, and every release apply
   stops and deletes whatever an earlier one left. The only `llmd` in this
-  repository is the code that removes it. `.dependency/blueclaw/llmd/` stays,
-  because blueclaw's own README documents a standalone `llmd` deployment for
-  running blueclaw without an appliance; that is upstream's, and not how a
-  device is configured.
+  repository is the code that removes it. `.dependency/blueclaw/llmd/` stays
+  because blueclaw publishes it as its own AI SDK sidecar package, a bun
+  workspace blueclaw typechecks and tests; nothing in this repository reads it.
 - After changing Go setup, provisioning, runtime, or service code, run
   `make build` before deployment.
 - Prefer `./internkim deploy --components <components>` for normal device

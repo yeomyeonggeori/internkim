@@ -309,16 +309,15 @@ func TestParseDevVirtualSessionArgumentsForwardsStrictScenarioFile(t *testing.T)
 
 func TestDevVirtualSessionCommandArgumentsForwardsTheChosenProvider(t *testing.T) {
 	arguments := devVirtualSessionCommandArguments(devVirtualSessionArguments{
-		ScenarioName:             "plain_question_acceptance",
-		ArtifactDirectoryPath:    "artifacts",
-		LanguageModelEndpoint:    "http://capability",
-		LanguageModelSocket:      "/tmp/capability.sock",
-		LanguageModelProvider:    "capability",
-		LanguageModelAuthKeyPath: "/tmp/capability-auth",
-		IsLiveLanguageModel:      true,
+		ScenarioName:          "plain_question_acceptance",
+		ArtifactDirectoryPath: "artifacts",
+		LanguageModelEndpoint: "http://capability",
+		LanguageModelSocket:   "/tmp/capability.sock",
+		LanguageModelProvider: "capability",
+		IsLiveLanguageModel:   true,
 	})
 
-	for _, expectedArgument := range []string{"--llm-provider", "capability", "--llm-auth-key-path", "/tmp/capability-auth"} {
+	for _, expectedArgument := range []string{"--llm-provider", "capability", "--llm-unix-socket", "/tmp/capability.sock"} {
 		if !slices.Contains(arguments, expectedArgument) {
 			t.Fatalf("expected %q in %#v", expectedArgument, arguments)
 		}
