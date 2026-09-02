@@ -75,6 +75,12 @@ GROUPS = [
         working_directory="web",
     ),
     Group(
+        "host",
+        ["host/*", "tools/render-company-runtime"],
+        [["bun", "test", "tests/unit/host"]],
+        working_directory="web",
+    ),
+    Group(
         "relay",
         ["host/relay/*"],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],

@@ -19,7 +19,6 @@ container gets:
   BLUECLAW_BASE_URL         http://127.0.0.1:8080
   CAPABILITY_SOCKET_PATH    /run/internkim/capability.sock
   CHATD_ENDPOINT            http://127.0.0.1:18090
-  OPENROUTER_KEY_PATH       /secrets/openrouter-key
   WORKSPACE_ROOT_PATH       /workspace
   MIGRATION_DIRECTORY_PATH  /opt/blueclaw/migrations
   LOG_DIRECTORY_PATH        /var/log/internkim
@@ -46,10 +45,15 @@ done
 : "${DATABASE_URL:?set DATABASE_URL}"
 : "${MESSENGER_PLATFORM:?set MESSENGER_PLATFORM}"
 
+templateProvider="$(jq -r '.languageModel.defaultProvider // ""' "${templatePath}")"
+if [ "${templateProvider}" != "capabilityLLM" ]; then
+  echo "render-company-runtime: ${templatePath} asks the agent for its model through \"${templateProvider}\"; a company plane reaches one only through capabilityd, which is capabilityLLM" >&2
+  exit 1
+fi
+
 : "${BLUECLAW_BASE_URL:=http://127.0.0.1:8080}"
 : "${CAPABILITY_SOCKET_PATH:=/run/internkim/capability.sock}"
 : "${CHATD_ENDPOINT:=http://127.0.0.1:18090}"
-: "${OPENROUTER_KEY_PATH:=/secrets/openrouter-key}"
 : "${WORKSPACE_ROOT_PATH:=/workspace}"
 : "${MIGRATION_DIRECTORY_PATH:=/opt/blueclaw/migrations}"
 : "${LOG_DIRECTORY_PATH:=/var/log/internkim}"
@@ -66,7 +70,6 @@ sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
     -e "s|\${BLUECLAW_BASE_URL}|${BLUECLAW_BASE_URL}|g" \
     -e "s|\${CAPABILITY_SOCKET_PATH}|${CAPABILITY_SOCKET_PATH}|g" \
     -e "s|\${CHATD_ENDPOINT}|${CHATD_ENDPOINT}|g" \
-    -e "s|\${OPENROUTER_KEY_PATH}|${OPENROUTER_KEY_PATH}|g" \
     -e "s|\${WORKSPACE_ROOT_PATH}|${WORKSPACE_ROOT_PATH}|g" \
     -e "s|\${MIGRATION_DIRECTORY_PATH}|${MIGRATION_DIRECTORY_PATH}|g" \
     -e "s|\${LOG_DIRECTORY_PATH}|${LOG_DIRECTORY_PATH}|g" \
