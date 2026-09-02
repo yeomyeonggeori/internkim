@@ -11,7 +11,7 @@ select is(
       and pg_type.typnamespace = 'public'::regnamespace
   ),
   array['completed', 'in_progress', 'paused', 'planned', 'rejected', 'requested', 'stopped'],
-  'status: the task status enum names exactly the statuses the shared source names'
+  'status: the task status enum names exactly these seven, which a web test holds to the shared source'
 );
 
 select * from finish();

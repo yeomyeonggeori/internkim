@@ -3,11 +3,29 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"strings"
 )
 
 type taskQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func requestedBeforeTheRest(first Task, second Task) int {
+	firstIsRequested := isTaskRequestedStatus(first.Status)
+	secondIsRequested := isTaskRequestedStatus(second.Status)
+	if firstIsRequested == secondIsRequested {
+		return 0
+	}
+	if firstIsRequested {
+		return -1
+	}
+	return 1
+}
+
+func requestedFirst(tasks []Task) []Task {
+	slices.SortStableFunc(tasks, requestedBeforeTheRest)
+	return tasks
 }
 
 func (service *Service) readTasks(ctx context.Context, weekCode string, members []taskMember) ([]Task, error) {
@@ -26,7 +44,7 @@ func (service *Service) readTasks(ctx context.Context, weekCode string, members 
 SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
 WHERE week_code = ?
-ORDER BY status = ? DESC, owner_name, updated_at DESC`, weekCode, taskStatusRequested)
+ORDER BY owner_name, updated_at DESC`, weekCode)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -39,7 +57,7 @@ ORDER BY status = ? DESC, owner_name, updated_at DESC`, weekCode, taskStatusRequ
 		}
 		tasks = append(tasks, task)
 	}
-	return alignTasksWithMembers(tasks, members), rows.Err()
+	return alignTasksWithMembers(requestedFirst(tasks), members), rows.Err()
 }
 
 func (service *Service) readAllTasks(ctx context.Context, members []taskMember) ([]Task, error) {
@@ -57,7 +75,7 @@ func (service *Service) readAllTasks(ctx context.Context, members []taskMember) 
 	rows, errorValue := database.QueryContext(ctx, `
 SELECT id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size, status, status_rank, start_date, end_date, mattermost_post_id, calendar_event_id, created_at
 FROM flow_tasks
-ORDER BY status = ? DESC, week_code DESC, owner_name, updated_at DESC`, taskStatusRequested)
+ORDER BY week_code DESC, owner_name, updated_at DESC`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -70,7 +88,7 @@ ORDER BY status = ? DESC, week_code DESC, owner_name, updated_at DESC`, taskStat
 		}
 		tasks = append(tasks, task)
 	}
-	return alignTasksWithMembers(tasks, members), rows.Err()
+	return alignTasksWithMembers(requestedFirst(tasks), members), rows.Err()
 }
 
 func (service *Service) readTasksBetweenDates(ctx context.Context, startDate string, endDate string, members []taskMember) ([]Task, error) {

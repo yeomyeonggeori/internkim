@@ -16,7 +16,10 @@ function statusesTheDatabaseIsPinnedTo(): string[] {
 	const pinned = readFileSync('../supabase/tests/task_status_is_declared_once.test.sql', 'utf8');
 	const declaration = pinned.match(/array\[([^\]]+)\]/);
 	if (!declaration) throw new Error('the pgTAP test no longer pins the task status enum to an array literal');
-	return declaration[1].split(',').map((value) => value.trim().replace(/^'|'$/g, ''));
+	return declaration[1]
+		.split(',')
+		.map((value) => value.trim().replace(/^'|'$/g, ''))
+		.sort();
 }
 
 describe('the shared task status copy stays interchangeable with the web one', () => {

@@ -43,12 +43,25 @@ GROUPS = [
     ),
     Group(
         "go",
-        ["*.go", "go.mod", "go.sum"],
+        [
+            "*.go",
+            "go.mod",
+            "go.sum",
+            "pkg/capabilityprotocol/generated/*",
+            "supabase/functions/_shared/*",
+            "assets/blueclaw-workspace/skills/*",
+        ],
         [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],
     ),
     Group(
         "web",
-        ["web/*", "pkg/capabilityprotocol/generated/*", "docs/web/app/lib/openapi.ts"],
+        [
+            "web/*",
+            "pkg/capabilityprotocol/generated/*",
+            "docs/web/app/lib/openapi.ts",
+            "supabase/functions/_shared/*",
+            "supabase/tests/*",
+        ],
         [
             BUN_INSTALL,
             ["bun", "run", "check"],
