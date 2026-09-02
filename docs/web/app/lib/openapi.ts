@@ -1,5 +1,6 @@
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import { publicAPIPermissions } from '../../../../web/src/lib/public-api-permission';
+import { defaultZone } from '../../../../web/src/lib/server/fleet-domain';
 
 export type ApiDocumentationLanguage = 'ko' | 'en';
 
@@ -248,8 +249,6 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 	}
 };
 
-const defaultZone = 'intern.kim';
-
 export function apiBaseURL(zone = defaultZone): string {
 	return `https://api.${zone}/v1`;
 }
@@ -492,7 +491,7 @@ const languageFreeExampleValues: Record<string, unknown> = {
 	startISO: '2026-09-01T10:00:00+09:00',
 	endISO: '2026-09-01T11:00:00+09:00',
 	limit: 20,
-	url: 'https://intern.kim/files/example.png',
+	url: `https://${defaultZone}/files/example.png`,
 	path: 'shared/reports/q3.md',
 	slug: 'q3-report'
 };

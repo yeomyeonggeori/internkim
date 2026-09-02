@@ -1,16 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { declaredZone } from './fleet-domain-declaration';
 
 // supabase/config.toml is Supabase's own file, read by the Supabase CLI, so it
 // cannot import internal/fleetdomain's declaration. This test is the check
 // that keeps its zone lines from drifting away from the one declaration.
-
-function declaredZone(): string {
-	const source = readFileSync(new URL('../../../internal/fleetdomain/fleetdomain.go', import.meta.url), 'utf8');
-	const declaration = source.match(/var defaultZone = "([^"]+)"/);
-	if (!declaration) throw new Error('internal/fleetdomain/fleetdomain.go no longer declares defaultZone');
-	return declaration[1];
-}
 
 function configTOML(): string {
 	return readFileSync(new URL('../../../supabase/config.toml', import.meta.url), 'utf8');
