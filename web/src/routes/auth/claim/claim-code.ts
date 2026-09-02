@@ -1,3 +1,1 @@
-export const claimCodeLength = 8;
-
-export const shortestClaimCodeLength = 6;
+export const claimCodeLength = 6;

@@ -11,7 +11,7 @@
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
 	import { askToClaim, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
-	import { claimCodeLength, shortestClaimCodeLength } from './claim-code';
+	import { claimCodeLength } from './claim-code';
 	import { hasThePasswordStepExpired } from './password-step';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { onMount } from 'svelte';
@@ -198,7 +198,7 @@
 							<FieldDescription>{text.claimCodeHint}</FieldDescription>
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-						<Button type="submit" class="w-full" disabled={busy || code.trim().length < shortestClaimCodeLength}>{text.claimVerify}</Button>
+						<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
 						<Button variant="ghost" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
 						<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
 					</FieldGroup>
