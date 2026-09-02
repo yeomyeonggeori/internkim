@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Fail when a skill's tool-references name a tool nothing serves.
+
+The selector hides a skill whose references are all unreachable rather than
+reporting them, which is how the calculator's terminal_run survived #875.
+"""
+
+import json
+import pathlib
+import re
+import sys
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
+from skill_paths import skill_root_paths  # noqa: E402
+
+GENERATED_CATALOG = (
+    REPOSITORY_ROOT / "pkg" / "capabilityprotocol" / "generated" / "capability-tools.json"
+)
+CAPABILITY_DESCRIPTORS = REPOSITORY_ROOT / "internal" / "capabilities" / "protocol.go"
+BLUECLAW_LOCAL_TOOLS = (
+    REPOSITORY_ROOT / ".dependency" / "blueclaw" / "internal" / "agentruntime" / "local_tool_provider.go"
+)
+KERNEL_TOOLS = (
+    REPOSITORY_ROOT
+    / ".dependency"
+    / "blueclaw"
+    / ".dependency"
+    / "bluecollar"
+    / "toolcontract"
+    / "kernel_tools.go"
+)
+
+MINIMUM_CATALOG_SIZE = 60
+
+
+def names_in(path: pathlib.Path, pattern: str) -> set[str]:
+    if not path.is_file():
+        return set()
+    return set(re.findall(pattern, path.read_text()))
+
+
+def catalog_tool_names() -> set[str]:
+    names = {tool["name"] for tool in json.loads(GENERATED_CATALOG.read_text())["tools"]}
+    names |= names_in(CAPABILITY_DESCRIPTORS, r'\{Name: "([a-z0-9_]+)"')
+    names |= names_in(BLUECLAW_LOCAL_TOOLS, r'Name:\s+"([a-z0-9_]+)"')
+    names |= names_in(KERNEL_TOOLS, r'ToolName\s+= "([a-z0-9_.]+)"')
+    return names
+
+
+def declared_references(skill_document: pathlib.Path) -> list[str]:
+    references: list[str] = []
+    for line in skill_document.read_text().splitlines():
+        if line.strip() == "---" and references:
+            break
+        match = re.match(r'^\s*(?:kim\.intern\.)?tool-references:\s*"?([^"]*)"?\s*$', line)
+        if match:
+            references.extend(match.group(1).split())
+    return references
+
+
+def main() -> int:
+    catalog = catalog_tool_names()
+    if len(catalog) < MINIMUM_CATALOG_SIZE:
+        print(
+            f"read only {len(catalog)} tool names, so this check is reading the wrong place;"
+            f" expected at least {MINIMUM_CATALOG_SIZE}",
+            file=sys.stderr,
+        )
+        return 1
+
+    unknown: list[str] = []
+    checked = 0
+    for skill_root in skill_root_paths(REPOSITORY_ROOT):
+        for skill_document in sorted(skill_root.glob("*/SKILL.md")):
+            checked += 1
+            for reference in declared_references(skill_document):
+                if reference not in catalog:
+                    unknown.append(f"{skill_document.parent.name} declares {reference}")
+    if checked == 0:
+        print("no skill was checked, so this check is reading the wrong place", file=sys.stderr)
+        return 1
+    if unknown:
+        print("a tool-references entry names no tool in the catalog:", file=sys.stderr)
+        for entry in unknown:
+            print(f"  {entry}", file=sys.stderr)
+        return 1
+    print(f"ok {checked} skills against {len(catalog)} tools")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

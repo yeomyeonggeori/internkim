@@ -47,6 +47,11 @@ GROUPS = [
         [["tools/verify-blueclaw-pointer"]],
     ),
     Group(
+        "skill-tool-references",
+        [".dependency/internkim-plugin", ".dependency/blueclaw*", "internal/capabilities/*", "pkg/capabilityprotocol/*"],
+        [["tools/verify-skill-tool-references"], ["tools/verify-skill-conformance"]],
+    ),
+    Group(
         "blueclaw",
         [".dependency/blueclaw*"],
         [["go", "build", "./..."], ["go", "vet", "./..."], ["go", "test", "./..."]],

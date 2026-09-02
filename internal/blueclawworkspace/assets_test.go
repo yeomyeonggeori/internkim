@@ -537,7 +537,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
-	expectedToolReferences := "tool-references: browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"
+	expectedToolReferences := `kim.intern.tool-references: "browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"`
 	if !strings.Contains(string(siteSkillDocument), expectedToolReferences) {
 		t.Fatalf("website skill must use the canonical tool references")
 	}
@@ -939,7 +939,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{`"command": "<skill>/scripts/build.sh"`, `"command": "FORMATS=pptx <skill>/scripts/build.sh"`, "`<skill>` is this skill's own directory", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "then deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{`"command": "<skill>/scripts/build.sh"`, `"command": "FORMATS=pptx <skill>/scripts/build.sh"`, `"workingDirectoryPath": "artifacts/<deck-slug>"`, "then deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
 		if !strings.Contains(skillContent, expectedText) {
 			t.Fatalf("presentation must document %q", expectedText)
 		}

@@ -253,7 +253,7 @@ func TestDocumentLifecycleUsesCanonicalReadAndButtonApproval(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !strings.Contains(string(skillDocument), "tool-references: read") {
+	if !strings.Contains(string(skillDocument), `kim.intern.tool-references: "read"`) {
 		t.Fatal("document skill does not reference read")
 	}
 }
