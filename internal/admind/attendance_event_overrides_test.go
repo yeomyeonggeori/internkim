@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestAttendanceEventOverrideRejectsFutureTime(t *testing.T) {
@@ -28,7 +30,7 @@ func TestAttendanceEventOverrideRejectsFutureTime(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(
 		userRecord,
 		attendanceKindClockOut,
@@ -98,7 +100,7 @@ func TestAttendanceEventOverrideUsesCurrentMinuteBoundary(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	defer database.Close()
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(
 		userRecord,
 		attendanceKindClockOut,

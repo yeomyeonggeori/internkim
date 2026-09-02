@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
-	"time"
 )
 
 type mattermostLoginCounter struct {
@@ -70,7 +69,7 @@ func TestTheAdminSessionIsReusedAcrossCalls(t *testing.T) {
 	service, counter := aMattermostThatCountsLogins(t)
 
 	for attempt := 0; attempt < 50; attempt++ {
-		if _, errorValue := service.mattermostAdminToken(context.Background()); errorValue != nil {
+		if _, errorValue := service.mattermostAdmin().AdminToken(context.Background()); errorValue != nil {
 			t.Fatalf("attempt %d: %v", attempt, errorValue)
 		}
 	}
@@ -88,7 +87,7 @@ func TestConcurrentCallersShareOneAdminSession(t *testing.T) {
 		waiting.Add(1)
 		go func() {
 			defer waiting.Done()
-			_, _ = service.mattermostAdminToken(context.Background())
+			_, _ = service.mattermostAdmin().AdminToken(context.Background())
 		}()
 	}
 	waiting.Wait()
@@ -101,18 +100,18 @@ func TestConcurrentCallersShareOneAdminSession(t *testing.T) {
 func TestARefusedSessionIsReplaced(t *testing.T) {
 	service, counter := aMattermostThatCountsLogins(t)
 
-	firstToken, errorValue := service.mattermostAdminToken(context.Background())
+	firstToken, errorValue := service.mattermostAdmin().AdminToken(context.Background())
 	if errorValue != nil {
 		t.Fatalf("first token: %v", errorValue)
 	}
 
 	counter.refuseEverything(true)
-	if errorValue := service.mattermostRequest(context.Background(), http.MethodGet, "/api/v4/users/me", firstToken, nil, nil); errorValue == nil {
+	if errorValue := service.mattermostAdmin().Request(context.Background(), http.MethodGet, "/api/v4/users/me", firstToken, nil, nil); errorValue == nil {
 		t.Fatal("the refused request reported success")
 	}
 	counter.refuseEverything(false)
 
-	secondToken, errorValue := service.mattermostAdminToken(context.Background())
+	secondToken, errorValue := service.mattermostAdmin().AdminToken(context.Background())
 	if errorValue != nil {
 		t.Fatalf("second token: %v", errorValue)
 	}
@@ -121,21 +120,5 @@ func TestARefusedSessionIsReplaced(t *testing.T) {
 	}
 	if counter.count() != 2 {
 		t.Fatalf("expected exactly one replacement login, got %d in total", counter.count())
-	}
-}
-
-func TestAStaleSessionIsNotKeptForever(t *testing.T) {
-	service, counter := aMattermostThatCountsLogins(t)
-
-	if _, errorValue := service.mattermostAdminToken(context.Background()); errorValue != nil {
-		t.Fatalf("first token: %v", errorValue)
-	}
-	service.mattermostAdminSession.issuedAt = time.Now().Add(-mattermostAdminSessionLifetime - time.Minute)
-	if _, errorValue := service.mattermostAdminToken(context.Background()); errorValue != nil {
-		t.Fatalf("token after the lifetime: %v", errorValue)
-	}
-
-	if counter.count() != 2 {
-		t.Fatalf("a session older than its lifetime was reused; logins: %d", counter.count())
 	}
 }

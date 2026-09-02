@@ -54,11 +54,11 @@ func blueclawAvailableCircles(policyDocument map[string]any) []adminCircleRecord
 		if !isCircle {
 			continue
 		}
-		circleID := strings.ToLower(strings.TrimSpace(mattermostPolicyString(circle["circleID"])))
+		circleID := strings.ToLower(strings.TrimSpace(policyString(circle["circleID"])))
 		if circleID == "" {
 			continue
 		}
-		displayName := strings.TrimSpace(mattermostPolicyString(circle["displayName"]))
+		displayName := strings.TrimSpace(policyString(circle["displayName"]))
 		if displayName == "" {
 			displayName = circleID
 		}
@@ -106,8 +106,8 @@ func blueclawAvailableGroups(policyDocument map[string]any) []orgGroupRecord {
 		if !isGroup {
 			continue
 		}
-		id := strings.TrimSpace(mattermostPolicyString(group["id"]))
-		name := strings.TrimSpace(mattermostPolicyString(group["name"]))
+		id := strings.TrimSpace(policyString(group["id"]))
+		name := strings.TrimSpace(policyString(group["name"]))
 		if id == "" || name == "" {
 			continue
 		}
@@ -125,10 +125,10 @@ func blueclawProfilesByEmail(policyDocument map[string]any) map[string]blueclawP
 			continue
 		}
 		profile := blueclawPersonProfile{
-			PersonID:     strings.TrimSpace(mattermostPolicyString(person["personID"])),
-			Note:         strings.TrimSpace(mattermostPolicyString(person["note"])),
-			JobTitle:     strings.TrimSpace(mattermostPolicyString(person["jobTitle"])),
-			SupervisorID: strings.TrimSpace(mattermostPolicyString(person["supervisorID"])),
+			PersonID:     strings.TrimSpace(policyString(person["personID"])),
+			Note:         strings.TrimSpace(policyString(person["note"])),
+			JobTitle:     strings.TrimSpace(policyString(person["jobTitle"])),
+			SupervisorID: strings.TrimSpace(policyString(person["supervisorID"])),
 		}
 		emailValues, _ := person["emails"].([]any)
 		for _, emailValue := range emailValues {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func (service *Service) localBlueclawPersonIDByEmail(ctx context.Context, email string) (string, error) {
@@ -26,7 +28,7 @@ func (service *Service) localBlueclawPersonIDsByEmail(ctx context.Context) (map[
 		if !isPerson {
 			continue
 		}
-		personID := strings.TrimSpace(mattermostPolicyString(person["personID"]))
+		personID := strings.TrimSpace(policyString(person["personID"]))
 		if personID == "" {
 			continue
 		}
@@ -44,7 +46,7 @@ func (service *Service) localBlueclawPersonIDsByEmail(ctx context.Context) (map[
 	return personIDs, nil
 }
 
-func (service *Service) demoteLocalBlueclawPersonBeforeRemoval(ctx context.Context, userRecord mattermostUserRecord) error {
+func (service *Service) demoteLocalBlueclawPersonBeforeRemoval(ctx context.Context, userRecord mattermostadmin.UserRecord) error {
 	personID, errorValue := service.localBlueclawPersonIDByEmail(ctx, userRecord.Email)
 	if errorValue != nil {
 		return errorValue

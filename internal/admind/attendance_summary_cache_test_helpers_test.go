@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func insertAttendanceCacheTestEvent(t *testing.T, service *Service, occurredAtValue string) (*sql.DB, attendanceEvent) {
@@ -18,7 +20,7 @@ func insertAttendanceCacheTestEvent(t *testing.T, service *Service, occurredAtVa
 		t.Fatal(errorValue)
 	}
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"},
+		mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"},
 		attendanceKindClockIn,
 		occurredAt,
 		"team-1",

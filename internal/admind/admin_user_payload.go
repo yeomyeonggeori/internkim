@@ -49,8 +49,8 @@ func normalizeAdminUserPayload(payload adminUserMutation) (adminUserMutation, bo
 		return adminUserMutation{}, false, errors.New("email required")
 	}
 	payload.Image = ""
-	payload.Handle = normalizeMattermostHandle(firstNonEmpty(payload.Handle, mattermostUsernameBase(payload.Email)))
-	if !isValidMattermostHandle(payload.Handle) {
+	payload.Handle = normalizeMemberHandle(firstNonEmpty(payload.Handle, memberHandleBase(payload.Email)))
+	if !isValidMemberHandle(payload.Handle) {
 		return adminUserMutation{}, false, errors.New("handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores")
 	}
 	payload.Name = firstNonEmpty(strings.TrimSpace(payload.Name), payload.Handle)

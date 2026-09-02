@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 type attendanceActionPost struct {
@@ -163,7 +165,7 @@ func insertGhostClockInEventForTest(t *testing.T, service *Service, resultPostID
 		t.Fatal(errorValue)
 	}
 	defer database.Close()
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(userRecord, attendanceKindClockIn, time.Now().UTC(), "team-1", "attendance-channel", "entry-post", resultPostID, service.attendanceLocationByID("office"))
 	if errorValue := service.insertAttendanceEvent(t.Context(), database, event); errorValue != nil {
 		t.Fatal(errorValue)

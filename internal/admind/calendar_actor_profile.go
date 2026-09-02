@@ -56,13 +56,13 @@ func (service *Service) calendarActorProfiles(ctx context.Context, events []cale
 	if len(missingEmails) == 0 || strings.TrimSpace(service.Configuration.MattermostBaseURL) == "" {
 		return profiles
 	}
-	token, errorValue := service.mattermostAdminToken(ctx)
+	token, errorValue := service.mattermostAdmin().AdminToken(ctx)
 	if errorValue != nil {
 		return profiles
 	}
 	expiresAt := time.Now().Add(calendarActorProfileCacheTTL)
 	for _, email := range missingEmails {
-		userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, token, email)
+		userRecord, found, errorValue := service.mattermostAdmin().FindUserByEmail(ctx, token, email)
 		if errorValue != nil || !found || strings.TrimSpace(userRecord.ID) == "" {
 			continue
 		}
@@ -173,7 +173,7 @@ func (service *Service) serveCalendarActorImage(responseWriter http.ResponseWrit
 		http.NotFound(responseWriter, request)
 		return
 	}
-	token, errorValue := service.mattermostAdminToken(request.Context())
+	token, errorValue := service.mattermostAdmin().AdminToken(request.Context())
 	if errorValue != nil {
 		http.NotFound(responseWriter, request)
 		return

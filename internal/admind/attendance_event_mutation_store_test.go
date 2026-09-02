@@ -6,6 +6,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestReadAttendanceEventCacheDatesByResultPostIDReturnsEveryDistinctDate(t *testing.T) {
@@ -17,7 +19,7 @@ func TestReadAttendanceEventCacheDatesByResultPostIDReturnsEveryDistinctDate(t *
 	}
 	defer database.Close()
 	resultPostID := "shared-result-post"
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	for _, occurredAt := range []time.Time{
 		time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC),
 		time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC),

@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 const (
@@ -135,7 +137,7 @@ func (service *Service) handleEmailVerifyCallback(responseWriter http.ResponseWr
 		logAuditEvent("cloudflare auth callback denied: non_member")
 		return
 	}
-	userRecord := mattermostUserRecord{Email: email}
+	userRecord := mattermostadmin.UserRecord{Email: email}
 	if errorValue := service.issueWebSessionCookie(responseWriter, request, userRecord); errorValue != nil {
 		respondWebAuthError(responseWriter, http.StatusInternalServerError, "웹 세션을 만들지 못했습니다.")
 		logAuditEvent("cloudflare auth callback failed: session")
@@ -158,7 +160,7 @@ func (service *Service) renewWebSessionCookieIfExpiringSoon(responseWriter http.
 	if time.Unix(payload.ExpiresAt, 0).UTC().Sub(now) > webSessionRenewalWindow {
 		return
 	}
-	userRecord := mattermostUserRecord{Email: payload.Email, ID: payload.MattermostUserID}
+	userRecord := mattermostadmin.UserRecord{Email: payload.Email, ID: payload.MattermostUserID}
 	if errorValue := service.issueWebSessionCookie(responseWriter, request, userRecord); errorValue != nil {
 		logAuditEvent("web session renewal failed: " + errorValue.Error())
 		return
@@ -179,7 +181,7 @@ func (service *Service) webSessionActorEmail(request *http.Request) string {
 	return payload.Email
 }
 
-func (service *Service) issueWebSessionCookie(responseWriter http.ResponseWriter, request *http.Request, userRecord mattermostUserRecord) error {
+func (service *Service) issueWebSessionCookie(responseWriter http.ResponseWriter, request *http.Request, userRecord mattermostadmin.UserRecord) error {
 	now := time.Now().UTC()
 	policyVersion, errorValue := service.currentWebPolicyVersion(request.Context())
 	if errorValue != nil {

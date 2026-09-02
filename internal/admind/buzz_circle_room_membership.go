@@ -137,8 +137,8 @@ func declaredCirclesOfPolicy(policyDocument map[string]any) []declaredCircle {
 		if !isCircle {
 			continue
 		}
-		circleID := strings.TrimSpace(mattermostPolicyString(circle["circleID"]))
-		displayName := strings.TrimSpace(mattermostPolicyString(circle["displayName"]))
+		circleID := strings.TrimSpace(policyString(circle["circleID"]))
+		displayName := strings.TrimSpace(policyString(circle["displayName"]))
 		if circleID == "" || displayName == "" {
 			continue
 		}

@@ -281,7 +281,7 @@ func (service *Service) fetchMattermostChannelSafeName(ctx context.Context, botT
 	var channel struct {
 		Name string `json:"name"`
 	}
-	errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+url.PathEscape(channelID), botToken, nil, &channel)
+	errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, "/api/v4/channels/"+url.PathEscape(channelID), botToken, nil, &channel)
 	if errorValue != nil || strings.TrimSpace(channel.Name) == "" {
 		return ""
 	}

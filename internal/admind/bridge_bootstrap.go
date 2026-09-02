@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"gitlab.com/eastriver/internkim/internal/buzzidentity"
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 var errBridgeSeedMissing = errors.New("buzz key seed is not configured")
@@ -56,19 +57,19 @@ func (service *Service) resolveBridgeChannel(ctx context.Context, platform strin
 }
 
 func (service *Service) bootstrapBridgeChannels(ctx context.Context) (int, error) {
-	token, errorValue := service.mattermostAdminToken(ctx)
+	token, errorValue := service.mattermostAdmin().AdminToken(ctx)
 	if errorValue != nil {
 		return 0, errorValue
 	}
-	teamRecord, errorValue := service.ensureMattermostTeam(ctx, token)
+	teamRecord, errorValue := service.mattermostAdmin().EnsureTeam(ctx, token)
 	if errorValue != nil {
 		return 0, errorValue
 	}
 	count := 0
 	for page := 0; ; page++ {
-		var channels []mattermostChannelRecord
+		var channels []mattermostadmin.ChannelRecord
 		path := "/api/v4/teams/" + url.PathEscape(teamRecord.ID) + "/channels?per_page=200&page=" + strconv.Itoa(page)
-		if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &channels); errorValue != nil {
+		if errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, path, token, nil, &channels); errorValue != nil {
 			return count, errorValue
 		}
 		if len(channels) == 0 {
