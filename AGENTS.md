@@ -62,12 +62,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 Nothing lands on `main` or `design/saas` by direct push. Branch, run
 `tools/verify`, open a pull request, merge.
 
-`tools/verify` is the whole check. It reads what your diff touches and runs only
-those groups, at once: the blueclaw pointer, `go build/vet/test`, and `check`
-plus tests for `web`, `host/relay` and `workers/connection-gateway`, a Supabase
-reset and pgTAP for `supabase/`, and the document budgets. `--all` runs every
-group, `--only <names>` runs the ones you name. Nothing runs it for you after
-you push, so a push that skipped it is a push nobody checked.
+`tools/verify` is the whole check, and `make check` is that command. It reads
+what your diff touches and runs only the groups that diff can break, at once;
+the groups, and what each one runs, are declared at the top of the file. `--all`
+runs every group and `--only <names>` runs the ones you name. Nothing runs it
+for you after you push: a private repository on the free plan cannot require a
+GitHub Actions check, so the workflows went away (#774) and a push that skipped
+`verify` is a push nobody checked.
 
 ### Branch names
 
