@@ -5,7 +5,7 @@ The daemon creates the socket with mode `0660` and assigns the configured group,
 which defaults to `blueclaw`.
 
 Blueclaw is the trusted caller for `ToolInvokeContext` fields received over this
-socket. In the Firecracker deployment, the guest runtime is configured to use
+socket. In the device deployment, the guest runtime is configured to use
 vsock transport and an empty Unix socket path. The host maps the guest vsock
 listener to the host Unix socket. The socket path itself is not a guest
 workspace path.
