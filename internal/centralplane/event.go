@@ -26,6 +26,10 @@ type Event struct {
 	Status              string
 	UpdatedAt           string
 	ParticipantMails    []string
+	// Whoever asked for the event is who it was created by; the company records
+	// no other authorship.
+	RequesterEmail string
+	RequesterName  string
 	// ExpectedUpdatedAt is the version the writer read. The company refuses a
 	// write whose version is already gone, so two people holding the same event
 	// open no longer both win.
@@ -36,7 +40,7 @@ type Event struct {
 // gone, and PostgREST carries that code through in the body it answers with.
 const serializationFailureCode = "40001"
 
-const eventSelection = "id,title,note,location,starts_at,ends_at,is_whole_day,notify_minutes_before,status,updated_at,task_participant(member(email))"
+const eventSelection = "id,title,note,location,starts_at,ends_at,is_whole_day,notify_minutes_before,status,updated_at,requester:requester_id(email,name),task_participant(member(email))"
 
 // EventsBetween answers the company's events that overlap the window, earliest
 // first. An event that started before it and has not ended overlaps it, so the
@@ -108,7 +112,11 @@ func (client *Client) eventsMatching(ctx context.Context, session memberSession,
 		NotifyMinutesBefore *int   `json:"notify_minutes_before"`
 		Status              string `json:"status"`
 		UpdatedAt           string `json:"updated_at"`
-		Participants        []struct {
+		Requester           *struct {
+			Email string `json:"email"`
+			Name  string `json:"name"`
+		} `json:"requester"`
+		Participants []struct {
 			Member struct {
 				Email string `json:"email"`
 			} `json:"member"`
@@ -131,6 +139,10 @@ func (client *Client) eventsMatching(ctx context.Context, session memberSession,
 			NotifyMinutesBefore: minutesOf(row.NotifyMinutesBefore),
 			Status:              row.Status,
 			UpdatedAt:           row.UpdatedAt,
+		}
+		if row.Requester != nil {
+			event.RequesterEmail = strings.TrimSpace(row.Requester.Email)
+			event.RequesterName = strings.TrimSpace(row.Requester.Name)
 		}
 		for _, participant := range row.Participants {
 			if email := strings.TrimSpace(participant.Member.Email); email != "" {
