@@ -179,7 +179,7 @@ func TestAgentsAssetDocumentsWorkspacePermissionBoundaries(t *testing.T) {
 		"/workspace/circles/<circleID>",
 		"/workspace/shared/public",
 		"/workspace/shared/cache/dependencies",
-		"/workspace/skills/<skill>/scripts/...",
+		"`scripts/` inside a skill's own directory",
 		"Linux UID, GID, supplementary groups, and file permissions",
 		"Do not infer authorization from path",
 		"Some parent directories allow",
@@ -262,7 +262,7 @@ func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
 		"TODO(design)",
 		"colors, typography, rounded, spacing, components",
 		"dark navy shell",
-		"file_edit",
+		"Make small value changes as targeted edits",
 		"siteReference",
 		"publishedURL",
 		"sourceSHA256",
@@ -540,7 +540,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
-	expectedToolReferences := "tool-references: shell read file_write file_edit browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"
+	expectedToolReferences := "tool-references: browser_open browser_snapshot browser_screenshot browser_click artifact_review site_serve site_list site_unserve"
 	if !strings.Contains(string(siteSkillDocument), expectedToolReferences) {
 		t.Fatalf("website skill must use the canonical tool references")
 	}
@@ -549,7 +549,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must not reference %q", removedToolName)
 		}
 	}
-	for _, expectedText := range []string{"file_edit", "siteReference", "runtime obtains approval", "sourceSHA256"} {
+	for _, expectedText := range []string{"targeted edit", "siteReference", "runtime obtains approval", "sourceSHA256"} {
 		if !strings.Contains(string(siteSkillDocument), expectedText) {
 			t.Fatalf("website skill must include %q", expectedText)
 		}

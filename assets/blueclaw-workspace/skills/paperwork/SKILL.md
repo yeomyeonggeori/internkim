@@ -6,6 +6,8 @@ tool-references: company_info_get company_info_set company_document_register com
 ---
 
 
+In every terminal command here and in `references/`, `<skill>` is this skill's own directory — the one holding this `SKILL.md`.
+
 # Company Paperwork
 
 Create standardized business documents with the bundled letterhead renderer and the matching spec. Do not substitute the pdf skill's `create_pdf.py`, ad-hoc DOCX blocks, or hand-written scripts: letterhead, approval boxes, item tables, seals, and fixed wording belong to this skill.

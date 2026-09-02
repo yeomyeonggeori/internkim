@@ -1,6 +1,7 @@
 ---
 name: direct-message
 description: Send or schedule direct messages to approved workspace people through message.send.
+compatibility: Requires InternKim's tool server.
 tool-references: message_send schedule_create
 ---
 
@@ -10,7 +11,7 @@ Call `message_send` directly with the recipient hint and message; its descriptor
 
 ## Approval
 
-The runtime confirms messages to someone else automatically; do not call `ask_confirm`. Messages to the requester need no confirmation. Scheduled direct messages use `schedule_create` and do not require approval at run time.
+The runtime confirms messages to someone else automatically; do not ask the user to confirm. Messages to the requester need no confirmation. Scheduled direct messages use `schedule_create` and do not require approval at run time.
 
 ## Workflow
 

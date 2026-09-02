@@ -1,6 +1,7 @@
 ---
 name: internkim-task
 description: Add, find, update, or complete weekly work items when the user asks to add, record, request, find, change, or complete work, todos, 업무, deadlines, or task notes.
+compatibility: Requires InternKim's tool server.
 tool-references: task_add task_list task_update task_delete person_list
 ---
 
@@ -18,7 +19,7 @@ Use the typed work capability operations for work items; descriptors define fiel
 - Update with at least one mutable field; completion sets status to `completed`. `task_update` also changes people: `ownerPersonHint` reassigns the task, and `participantPersonHints` replaces the participant set, so send everyone who takes part and not only the person being added. Delete only on explicit request, passing the exact ID or title as `taskHint`. Approval authorizes deletion but does not identify the target.
 - `category` and `type` accept only labels this workspace registers. Write the label you saw in a `task_list` result; an unregistered one fails with the registered labels, so retry against those rather than inventing a new label.
 - Current-week listing is the default. Use week offsets for another period, including `weekFrom -1, weekTo -1` for last week, `weekFrom -3, weekTo 0` for the last four weeks, and a wide range such as `weekFrom -520` for history.
-- A person hint resolves against the workspace roster: an exact ID, email, or @handle, otherwise a name that uniquely contains the hint. When a message names someone by a given name alone or by a fragment, call `person_list` and pass the exact name it returns. If a hint matches several people, the runtime returns the candidates and requires `ask_input` — the user chooses, never you. When a person hint fails to resolve, retry it against the returned candidates or ask; never drop the person and record the work without them, which answers a different request than the one that was made.
+- A person hint resolves against the workspace roster: an exact ID, email, or @handle, otherwise a name that uniquely contains the hint. When a message names someone by a given name alone or by a fragment, call `person_list` and pass the exact name it returns. If a hint matches several people, the runtime returns the candidates and requires you to ask — the user chooses, never you. When a person hint fails to resolve, retry it against the returned candidates or ask; never drop the person and record the work without them, which answers a different request than the one that was made.
 
 ## Replies and failures
 
