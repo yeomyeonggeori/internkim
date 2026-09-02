@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Fail when a skill's tool-references name a tool nothing serves.
+"""Fail when a hand-written tool name names a tool nothing serves.
 
-The selector hides a skill whose references are all unreachable rather than
-reporting them, which is how the calculator's terminal_run survived #875.
+Two places name this repository's tools by hand: a skill's tool-references, and
+the standing duty registry in bluecollar, which is the ceiling on what a task an
+ambient duty launches may call. Both fail quietly. The selector hides a skill
+whose references are all unreachable instead of reporting them, which is how the
+calculator's terminal_run survived #875; the ceiling silently drops a name no
+tool answers to, which is how calendar_upkeep spent #1282 unable to call the one
+tool it exists for.
 """
 
 import json
@@ -22,15 +27,9 @@ CAPABILITY_DESCRIPTORS = REPOSITORY_ROOT / "internal" / "capabilities" / "protoc
 BLUECLAW_LOCAL_TOOLS = (
     REPOSITORY_ROOT / ".dependency" / "blueclaw" / "internal" / "agentruntime" / "local_tool_provider.go"
 )
-KERNEL_TOOLS = (
-    REPOSITORY_ROOT
-    / ".dependency"
-    / "blueclaw"
-    / ".dependency"
-    / "bluecollar"
-    / "toolcontract"
-    / "kernel_tools.go"
-)
+BLUECOLLAR_ROOT = REPOSITORY_ROOT / ".dependency" / "blueclaw" / ".dependency" / "bluecollar"
+KERNEL_TOOLS = BLUECOLLAR_ROOT / "toolcontract" / "kernel_tools.go"
+STANDING_DUTIES = BLUECOLLAR_ROOT / "agentcontract" / "standing_duty.go"
 
 MINIMUM_CATALOG_SIZE = 60
 
@@ -47,6 +46,19 @@ def catalog_tool_names() -> set[str]:
     names |= names_in(BLUECLAW_LOCAL_TOOLS, r'Name:\s+"([a-z0-9_]+)"')
     names |= names_in(KERNEL_TOOLS, r'ToolName\s+= "([a-z0-9_.]+)"')
     return names
+
+
+def standing_duty_tool_names() -> list[tuple[str, str]]:
+    document = STANDING_DUTIES.read_text()
+    duties: list[tuple[str, str]] = []
+    for duty in re.finditer(
+        r'Name:\s+"([a-z0-9_]+)".*?ToolNames:\s+\[\]string\{([^}]*)\}',
+        document,
+        re.DOTALL,
+    ):
+        for tool_name in re.findall(r'"([a-z0-9_.]+)"', duty.group(2)):
+            duties.append((duty.group(1), tool_name))
+    return duties
 
 
 def declared_references(skill_document: pathlib.Path) -> list[str]:
@@ -77,16 +89,26 @@ def main() -> int:
             checked += 1
             for reference in declared_references(skill_document):
                 if reference not in catalog:
-                    unknown.append(f"{skill_document.parent.name} declares {reference}")
+                    unknown.append(f"skill {skill_document.parent.name} declares {reference}")
     if checked == 0:
         print("no skill was checked, so this check is reading the wrong place", file=sys.stderr)
         return 1
+
+    duties = standing_duty_tool_names()
+    if not duties:
+        print("no standing duty was checked, so this check is reading the wrong place", file=sys.stderr)
+        return 1
+    for duty_name, tool_name in duties:
+        if tool_name not in catalog:
+            unknown.append(f"standing duty {duty_name} names {tool_name}")
+
     if unknown:
-        print("a tool-references entry names no tool in the catalog:", file=sys.stderr)
+        print("a hand-written tool name names no tool in the catalog:", file=sys.stderr)
         for entry in unknown:
             print(f"  {entry}", file=sys.stderr)
         return 1
-    print(f"ok {checked} skills against {len(catalog)} tools")
+    duty_names = {duty_name for duty_name, _ in duties}
+    print(f"ok {checked} skills and {len(duty_names)} standing duties against {len(catalog)} tools")
     return 0
 
 
