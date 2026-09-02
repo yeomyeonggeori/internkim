@@ -9,7 +9,6 @@ import type { CalendarSelectedMonthDateActions } from './calendar-month-selectio
 import type { CalendarPageEventSelectionActions } from './calendar-page-event-selection';
 import type { CalendarPageMessageActions } from './calendar-page-messages';
 import type { CalendarPageNavigation } from './calendar-page-navigation';
-import type { CalendarPageRenderSyncActions } from './calendar-page-render-sync';
 
 type CalendarPageLifecycleOptionsContext = {
 	applyCalendarView: (view: ViewType) => void;
@@ -29,7 +28,6 @@ type CalendarPageLifecycleOptionsContext = {
 	initialCalendarView: () => ViewType;
 	pageMessages: CalendarPageMessageActions;
 	pageNavigation: CalendarPageNavigation;
-	renderSync: CalendarPageRenderSyncActions;
 	selectedMonthDate: CalendarSelectedMonthDateActions;
 	setSelectedAuditEventID: (eventID: string | null) => void;
 	setToolbarView: (view: ViewType) => void;
@@ -50,7 +48,6 @@ export function createCalendarPageLifecycleOptions(
 		hasVisibleRange: context.eventLoader.hasVisibleRange,
 		initialCalendarDate: context.initialCalendarDate,
 		loadEvents: context.eventLoader.loadEvents,
-		syncRemoteCalendarAndRefresh: context.renderSync.syncRemoteCalendarAndRefresh,
 		draftPopoverDismiss: draftPopoverDismiss(context),
 		monthKeyboardNavigation: {
 			currentView: context.getCurrentView,

@@ -123,7 +123,7 @@ func checkSecretIsolation(context *Context, failedChecks *[]string) {
 		fmt.Printf("  runtime configuration: %s\n", runtimeCheck)
 		return
 	}
-	check := strings.TrimSpace(context.SSH.Run(`if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/slack-app-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/secrets/google-sa.json || test -r /root/.internkim/secrets/gas-webhook-url || test -r /root/.internkim/config/signal-jsonrpc-url || test -r /root/.internkim/config/signal-account || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null; then
+	check := strings.TrimSpace(context.SSH.Run(`if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/slack-app-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/config/signal-jsonrpc-url || test -r /root/.internkim/config/signal-account || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null; then
   echo readable
 else
   echo ok

@@ -30,9 +30,6 @@ func TestCalendarConflictCandidateClockSeedsFromLegacyEvidenceAfterRestart(t *te
 	}{
 		{name: "event updated", seed: seedLegacyCalendarEventUpdatedTime},
 		{name: "event deleted", seed: seedLegacyCalendarEventDeletedTime},
-		{name: "outbox created", seed: seedLegacyCalendarOutboxCreatedTime},
-		{name: "remote last seen", seed: seedLegacyCalendarRemoteLastSeenTime},
-		{name: "remote missing detected", seed: seedLegacyCalendarRemoteMissingTime},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -47,28 +44,6 @@ func TestCalendarConflictCandidateClockSeedsFromLegacyEvidenceAfterRestart(t *te
 				t.Fatalf("reserved=%s legacy=%s", reserved, legacyTime)
 			}
 		})
-	}
-}
-
-func TestCalendarConflictCandidateClockIgnoresRemoteModifiedAtWhenSeeding(t *testing.T) {
-	service := newCalendarTestService(t)
-	contextValue := context.Background()
-	candidate := time.Date(2036, 7, 16, 13, 30, 0, 0, time.UTC)
-	if errorValue := service.upsertCalendarRemoteEventState(contextValue, calendarRemoteEventState{
-		AccountID:        "candidate-remote-skew-account",
-		CalendarURL:      "/calendars/candidate-remote-skew/",
-		EventUID:         "candidate-remote-skew@internkim",
-		RemoteModifiedAt: time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano),
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	restartedService := NewService(service.Configuration)
-	reserved, errorValue := restartedService.reserveCalendarConflictCandidateTime(contextValue, candidate)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if reserved != candidate {
-		t.Fatalf("reserved=%s candidate=%s", reserved, candidate)
 	}
 }
 
@@ -119,7 +94,6 @@ func TestCalendarConflictCandidateClockSerializesConcurrentReservations(t *testi
 func TestCalendarConflictCandidateClockOrdersLocalActionsAcrossUIDs(t *testing.T) {
 	service := newCalendarTestService(t)
 	contextValue := context.Background()
-	account := seedAccountWithDiscovery(t, service)
 	snapshotBoundary, errorValue := service.reserveCalendarConflictCandidateTime(contextValue, time.Date(2036, 7, 16, 15, 0, 0, 0, time.UTC))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -132,45 +106,23 @@ func TestCalendarConflictCandidateClockOrdersLocalActionsAcrossUIDs(t *testing.T
 	if errorValue := service.writeCalendarEvent(contextValue, secondEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	rows, errorValue := service.listCalendarOutbox(contextValue, account.ID, true)
-	if errorValue != nil || len(rows) != 2 {
-		t.Fatalf("outbox rows=%d error=%v", len(rows), errorValue)
+	firstRevision := storedCalendarEventRevision(t, service, firstEvent.ID)
+	secondRevision := storedCalendarEventRevision(t, service, secondEvent.ID)
+	if !firstRevision.After(snapshotBoundary) {
+		t.Fatalf("first revision=%s snapshot boundary=%s", firstRevision, snapshotBoundary)
 	}
-	firstCreatedAt := parseCalendarConflictTime(rows[0].CreatedAt)
-	secondCreatedAt := parseCalendarConflictTime(rows[1].CreatedAt)
-	if !firstCreatedAt.After(snapshotBoundary) {
-		t.Fatalf("first created at=%s snapshot boundary=%s", firstCreatedAt, snapshotBoundary)
-	}
-	if !secondCreatedAt.After(firstCreatedAt) {
-		t.Fatalf("second created at=%s first created at=%s", secondCreatedAt, firstCreatedAt)
+	if !secondRevision.After(firstRevision) {
+		t.Fatalf("second revision=%s first revision=%s", secondRevision, firstRevision)
 	}
 }
 
-func TestCalendarConflictCandidateClockOrdersLocalDeleteAfterSnapshotBoundary(t *testing.T) {
-	service := newCalendarTestService(t)
-	contextValue := context.Background()
-	account := seedAccountWithDiscovery(t, service)
-	event := newLocalTestCalendarEvent("candidate-local-delete", "Delete")
-	event.RemoteSource = remoteCalendarProviderGoogle
-	event.RemoteHref = "/calendars/me/candidate-local-delete.ics"
-	if errorValue := service.writeCalendarEventWithSource(contextValue, event, calendarSourcePull); errorValue != nil {
-		t.Fatal(errorValue)
+func storedCalendarEventRevision(t *testing.T, service *Service, eventID string) time.Time {
+	t.Helper()
+	event, found, errorValue := service.readCalendarEventByID(context.Background(), eventID)
+	if errorValue != nil || !found {
+		t.Fatalf("stored event %q found=%v error=%v", eventID, found, errorValue)
 	}
-	snapshotBoundary, errorValue := service.reserveCalendarConflictCandidateTime(contextValue, time.Date(2036, 7, 16, 15, 30, 0, 0, time.UTC))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := service.softDeleteCalendarEvent(contextValue, event.ID); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	rows, errorValue := service.listCalendarOutbox(contextValue, account.ID, true)
-	if errorValue != nil || len(rows) != 1 {
-		t.Fatalf("outbox rows=%d error=%v", len(rows), errorValue)
-	}
-	deletedAt := parseCalendarConflictTime(rows[0].CreatedAt)
-	if !deletedAt.After(snapshotBoundary) {
-		t.Fatalf("deleted at=%s snapshot boundary=%s", deletedAt, snapshotBoundary)
-	}
+	return parseCalendarConflictTime(event.UpdatedAt)
 }
 
 func TestCalendarConflictCandidateClockKeepsAllocatorResultAfterTransactionRollback(t *testing.T) {

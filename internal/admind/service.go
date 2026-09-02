@@ -29,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
@@ -61,7 +60,6 @@ type Configuration struct {
 	DatabasePath                   string
 	TaskDatabasePath               string
 	CalendarDatabasePath           string
-	CalendarSecretsDirectory       string
 	MailDatabasePath               string
 	AttendanceDatabasePath         string
 	CentralPlaneAppURL             string
@@ -102,7 +100,6 @@ type Configuration struct {
 	BotProfileImagePath            string
 	BlueclawWorkspacePath          string
 	BlueclawRuntimeConfigPath      string
-	CalendarSyncDisabled           bool
 	BuzzInviteKeyPath              string
 	BuzzCommunityID                string
 	BuzzRelayURL                   string
@@ -152,13 +149,7 @@ type Service struct {
 	siteRuntimeMutex                   sync.Mutex
 	siteRuntimeActivities              map[string]*siteRuntimeActivity
 	mailBackend                        mail.Backend
-	googleOAuthStates                  sync.Map
-	calendarSyncWakeUp                 chan struct{}
 	calendarDeleteIntentWakeUp         chan struct{}
-	calendarSyncCycleMutex             sync.Mutex
-	calendarRemoteMutex                sync.Mutex
-	calendarOAuthTokenMutex            sync.Mutex
-	calendarSwitchWaiters              atomic.Int64
 	calendarStoreWriteMutex            sync.Mutex
 	calendarHolidayCacheMutex          sync.RWMutex
 	calendarHolidayLoadMutex           sync.Mutex
@@ -168,8 +159,6 @@ type Service struct {
 	calendarHolidayRetryLoadError      error
 	holidayCheckedMonth                string
 	calendarCandidateClock             calendarConflictCandidateClock
-	calendarPullCacheMutex             sync.Mutex
-	lastCalendarPullAt                 time.Time
 	calendarActorCacheMutex            sync.Mutex
 	calendarActorCache                 map[string]calendarActorProfileCacheEntry
 	companyShareMutex                  sync.Mutex
@@ -315,7 +304,6 @@ func DefaultConfiguration() Configuration {
 		CompanionJobPath:               "/root/.internkim/state/companion-jobs.json",
 		TaskDatabasePath:               "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:           "/root/.internkim/state/calendar.sqlite",
-		CalendarSecretsDirectory:       "/root/.internkim/secrets/google-oauth",
 		MailDatabasePath:               "/root/.internkim/state/mail.sqlite",
 		AttendanceDatabasePath:         "/root/.internkim/state/attendance.sqlite",
 		BridgeMapDatabasePath:          "/root/.internkim/state/bridge-map.sqlite",
@@ -372,7 +360,6 @@ func NewService(configuration Configuration) *Service {
 		companionFileUploads:       map[string]*CompanionFileUpload{},
 		sites:                      map[string]*SiteRecord{},
 		mailBackend:                mail.StandardBackend{},
-		calendarSyncWakeUp:         make(chan struct{}, 1),
 		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
 		calendarActorCache:         map[string]calendarActorProfileCacheEntry{},
 		calendarHolidayCache:       map[calendarHolidayCacheKey][]calendarHoliday{},
@@ -411,16 +398,12 @@ func (service *Service) Run(ctx context.Context) error {
 	} else if repairedCount > 0 {
 		log.Printf("attendance clock-out date repair completed: repaired=%d", repairedCount)
 	}
-	if errorValue := service.recoverGoogleOAuthTokenResetState(ctx); errorValue != nil {
-		return fmt.Errorf("recover google calendar OAuth token reset state: %w", errorValue)
-	}
 	service.sweepUpdateLeftovers()
 	service.adoptAccountHireDates(ctx)
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarDeleteIntentWorker(ctx)
-	service.startCalendarSyncWorker(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
 	service.startBuzzMemberLinker(ctx)
@@ -535,8 +518,6 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
 	multiplexer.HandleFunc("/calendar/ics/", service.serveCalendarICS)
 	multiplexer.HandleFunc("/calendar/dav/", service.serveCalendarDAV)
-	multiplexer.HandleFunc("/calendar/oauth/google/start", service.handleGoogleOAuthStart)
-	multiplexer.HandleFunc("/calendar/oauth/google/callback", service.handleGoogleOAuthCallback)
 	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
 	multiplexer.HandleFunc("/auth/session", service.handleWebSession)
 	multiplexer.HandleFunc("/auth/vault", service.handleAuthVault)

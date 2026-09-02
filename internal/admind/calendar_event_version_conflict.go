@@ -21,7 +21,7 @@ func (service *Service) writeCalendarEventIfCurrentVersionWithOrigin(ctx context
 	}
 	service.calendarStoreWriteMutex.Lock()
 	defer service.calendarStoreWriteMutex.Unlock()
-	return service.writeCalendarEventWithSourceLockedAndOriginIfCurrent(ctx, event, calendarSourceLocal, candidateUpdatedAt, origin, expectedUpdatedAt)
+	return service.writeCalendarEventLockedWithOriginIfCurrent(ctx, event, candidateUpdatedAt, origin, expectedUpdatedAt)
 }
 
 func (service *Service) softDeleteCalendarEventIfCurrentVersion(ctx context.Context, eventID string, expectedUpdatedAt string) error {
@@ -38,7 +38,7 @@ func (service *Service) softDeleteCalendarEventIfCurrentVersion(ctx context.Cont
 	if !found || strings.TrimSpace(currentEvent.UpdatedAt) != strings.TrimSpace(expectedUpdatedAt) {
 		return errCalendarEventVersionConflict
 	}
-	return service.softDeleteCalendarEventWithSourceLocked(ctx, eventID, calendarSourceLocal, candidateDeletedAt)
+	return service.softDeleteCalendarEventLocked(ctx, eventID, candidateDeletedAt)
 }
 
 func normalizeExpectedCalendarEventUpdatedAt(value string) (string, error) {

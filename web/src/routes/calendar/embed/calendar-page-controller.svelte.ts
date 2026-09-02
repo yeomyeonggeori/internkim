@@ -6,7 +6,6 @@ import {
 	broadcastCalendarEventsChanged,
 	broadcastCalendarView
 } from '../refresh-signal.svelte';
-import { createCalendarConflictActions } from './calendar-conflict-actions';
 import {
 	createCalendarDraftPopoverActions,
 	type CalendarDraftPopoverActions
@@ -26,7 +25,6 @@ import { shouldPreserveLocalCalendarEvent } from './calendar-visible-events';
 import { createCalendarPageEventDetails } from './calendar-page-event-details';
 import { createCalendarPageEventSelection } from './calendar-page-event-selection';
 import { createCalendarPageInteractionServices } from './calendar-page-interaction-services';
-import { createCalendarPageRenderSync } from './calendar-page-render-sync';
 import type { CalendarEmbedPageState } from './calendar-page-state.svelte';
 import type { CalendarHolidayLocale } from './calendar-holiday-persistence';
 
@@ -53,19 +51,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		getSelectedDateKey: () => context.state.selectedMonthDateKey,
 		setSelectedDateKey: (dateKey) => {
 			context.state.selectedMonthDateKey = dateKey;
-		}
-	});
-
-	const conflictActions = createCalendarConflictActions({
-		isBrowser: context.isBrowser,
-		errorFallback: () => context.text.error,
-		getCalendarConflicts: () => context.state.calendarConflicts,
-		setCalendarConflicts: (conflicts) => {
-			context.state.calendarConflicts = conflicts;
-		},
-		setErrorMessage: () => {},
-		syncRemoteCalendarAndRefresh: async () => {
-			await renderSync.syncRemoteCalendarAndRefresh();
 		}
 	});
 
@@ -133,18 +118,13 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 			},
 			notifyEventsChanged: broadcastCalendarEventsChanged,
 			invalidatePendingEventLoad: eventLoader.invalidatePendingLoad,
-			refreshCalendar: async () => {
-				await renderSync.refreshCalendar();
-			},
+			refreshCalendar: eventLoader.refreshCurrentRange,
 			text: {
 				get calendarDeleteVersionConflictError() {
 					return context.text.calendarDeleteVersionConflictError;
 				},
 				get calendarEventVersionConflictError() {
 					return context.text.calendarEventVersionConflictError;
-				},
-				get calendarTargetUnavailableError() {
-					return context.text.calendarTargetUnavailableError;
 				},
 				get deleteError() {
 					return context.text.deleteError;
@@ -205,19 +185,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		openEventDraftPopover: draftPopoverActions.openEventDraftPopover
 	});
 
-	const renderSync = createCalendarPageRenderSync({
-		isBrowser: context.isBrowser,
-		errorFallback: () => context.text.error,
-		getStageElement: () => context.state.calendarStageElement,
-		getSelectedEventID: () => context.state.selectedAuditEventID,
-		getToolbarView: () => context.state.toolbarView,
-		getToolbarDate: () => context.state.toolbarDate,
-		getCalendarEvents: () => eventStore.getAllEvents(),
-		refreshCurrentRange: eventLoader.refreshCurrentRange,
-		loadCalendarConflicts: conflictActions.loadCalendarConflicts,
-		broadcastCalendarEventsChanged
-	});
-
 	const interactionServices = createCalendarPageInteractionServices({
 		broadcastCalendarView,
 		eventLoader,
@@ -233,7 +200,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 
 	return {
 		eventStore,
-		conflictActions,
 		draftEvents,
 		draftPopoverActions,
 		eventActions,
@@ -243,7 +209,6 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 		pageMessages: interactionServices.pageMessages,
 		pageNavigation: interactionServices.pageNavigation,
 		rangePreview: interactionServices.rangePreview,
-		renderSync,
 		selectedMonthDate
 	};
 }

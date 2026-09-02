@@ -52,29 +52,6 @@ func TestCalendarNoOpUpdateDoesNotReplaceMutationOrigin(t *testing.T) {
 	}
 }
 
-func TestCalendarRemoteWriteClearsBrowserMutationOrigin(t *testing.T) {
-	service := newCalendarTestService(t)
-	event := seedCalendarDeleteIntentEvent(t, service, "mutation-origin-remote-clear")
-	response := sendCalendarMutationUpdate(t, service, event, "Browser update", event.UpdatedAt, "page-a", 1, true, true)
-	if response.Code != http.StatusOK {
-		t.Fatalf("browser update status = %d body = %s", response.Code, response.Body.String())
-	}
-	var browserEvent calendarEvent
-	if errorValue := json.Unmarshal(response.Body.Bytes(), &browserEvent); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	readCalendarMutationOrigin(t, service, event.ID)
-
-	remoteEvent := browserEvent
-	remoteEvent.Title = "Remote update"
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), remoteEvent, calendarSourcePull); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if count := calendarMutationOriginCount(t, service, event.ID); count != 0 {
-		t.Fatalf("origin count after remote write = %d, want 0", count)
-	}
-}
-
 func TestCalendarUpdateWithoutMutationIdentityClearsOriginAndConflictsPendingIntent(t *testing.T) {
 	service := newCalendarTestService(t)
 	event := seedCalendarDeleteIntentEvent(t, service, "mutation-origin-identityless-update")
@@ -109,7 +86,7 @@ func TestCalendarEventMutationWithOriginRevalidatesExpectedVersionInWriteTransac
 	event := seedCalendarDeleteIntentEvent(t, service, "mutation-origin-transaction-revalidation")
 	newerEvent := event
 	newerEvent.Title = "Newer event"
-	if errorValue := service.writeCalendarEventWithSource(context.Background(), newerEvent, calendarSourcePull); errorValue != nil {
+	if errorValue := service.writeCalendarEvent(context.Background(), newerEvent); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -120,10 +97,9 @@ func TestCalendarEventMutationWithOriginRevalidatesExpectedVersionInWriteTransac
 		t.Fatal(errorValue)
 	}
 	service.calendarStoreWriteMutex.Lock()
-	errorValue = service.writeCalendarEventWithSourceLockedAndOriginIfCurrent(
+	errorValue = service.writeCalendarEventLockedWithOriginIfCurrent(
 		context.Background(),
 		staleEvent,
-		calendarSourceLocal,
 		candidateUpdatedAt,
 		&calendarMutationOrigin{ClientID: "page-a", Sequence: 1},
 		event.UpdatedAt,

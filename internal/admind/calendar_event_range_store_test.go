@@ -19,7 +19,7 @@ func TestReadCalendarEventRowsPreservesFractionalRangeBoundaries(t *testing.T) {
 		calendarEventRangeStoreTestEvent("starts-at-end", rangeEnd, rangeEnd.Add(time.Second)),
 	}
 	for _, event := range events {
-		if errorValue := service.writeCalendarEventWithSource(context.Background(), event, calendarSourcePull); errorValue != nil {
+		if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
 			t.Fatal(errorValue)
 		}
 	}

@@ -32,25 +32,6 @@ export async function routeCalendarAPI(page: Page): Promise<void> {
 			}
 		});
 	});
-	await page.route('**/calendar/api/account-status', async (route) => {
-		await route.fulfill({
-			json: {
-				connected: false,
-				needsReauth: false,
-				googleOAuthConfigured: true,
-				canManageGoogleOAuth: false
-			}
-		});
-	});
-	await page.route('**/calendar/api/remote-sync', async (route) => {
-		await route.fulfill({ json: { synced: false } });
-	});
-	await page.route('**/calendar/api/conflicts', async (route) => {
-		await route.fulfill({ json: { conflicts: [] } });
-	});
-	await page.route('**/calendar/api/conflicts/*', async (route) => {
-		await fulfillEmptyResponse(route);
-	});
 }
 
 export function draftPopoverEvent(overrides: Partial<CalendarDraftPopoverEvent>): CalendarDraftPopoverEvent {
@@ -262,8 +243,4 @@ export async function dispatchMonthRangePointerDrag(
 		},
 		{ startDateKey, endDateKey, finishWith }
 	);
-}
-
-async function fulfillEmptyResponse(route: Route): Promise<void> {
-	await route.fulfill({ json: {} });
 }

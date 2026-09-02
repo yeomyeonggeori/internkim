@@ -17,6 +17,8 @@ Everything currently working keeps working. That is the constraint, not an aspir
 
 ## 1. What the device has now
 
+> Superseded 2026-09-03 by #1347: Google Workspace was removed entirely. admind no longer syncs any remote calendar, so the Google half of what follows describes code that is gone. CalDAV survives as the inbound server clients subscribe to, never as an outbound sync target.
+
 | Table | Holds |
 |---|---|
 | `calendar_events` | The event row |
@@ -101,6 +103,8 @@ real rows, and the rule rides along on each of them.
   have that undone by a later series edit.
 
 ## 4. External mirrors
+
+> Superseded 2026-09-03 by #1347: Google Workspace was removed entirely. admind no longer syncs any remote calendar, so the Google half of what follows describes code that is gone. CalDAV survives as the inbound server clients subscribe to, never as an outbound sync target.
 
 Each occurrence carries its own external identities, because Google and CalDAV
 assign an id per occurrence, not per series.
@@ -222,7 +226,7 @@ the accepted labels in `registeredLabels`.
 
 1. `task.calendar` and the two new status values (`20260812000001`).
 2. Central API writes tasks and events through one surface.
-3. Sync workers move to `mirrors[]`; CalDAV and Google keep working throughout.
+3. Sync workers move to `mirrors[]`; CalDAV keeps working throughout. (Superseded 2026-09-03 by #1347: the Google sync worker is gone, and CalDAV is inbound only.)
 4. Tools renamed to `task_read`/`task_write`/`task_delete`; `calendar_*` retired.
 5. Device calendar tables dropped once nothing reads them.
 

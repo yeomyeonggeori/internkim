@@ -25,9 +25,8 @@ func TestCalendarHolidaySchemaIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestCalendarHolidaysUseCachedCountryAPIResponseWithConnectedGoogleAccount(t *testing.T) {
+func TestCalendarHolidaysUseCachedCountryAPIResponse(t *testing.T) {
 	service := newCalendarTestService(t)
-	seedGoogleCalendarListAccount(t, service)
 	var requestCount atomic.Int64
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		requestCount.Add(1)

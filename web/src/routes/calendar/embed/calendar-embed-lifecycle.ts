@@ -23,7 +23,6 @@ export type CalendarEmbedLifecycleOptions = {
 	hasVisibleRange: () => boolean;
 	initialCalendarDate: () => Date;
 	loadEvents: (startDate: Date, endDate: Date) => void;
-	syncRemoteCalendarAndRefresh: () => Promise<void>;
 	draftPopoverDismiss: Omit<CalendarDraftPopoverDismissOptions, 'stageElement'>;
 	monthKeyboardNavigation: CalendarMonthKeyboardNavigationOptions;
 	keyboardDelete: CalendarKeyboardDeleteContext;
@@ -41,7 +40,6 @@ export function installCalendarEmbedLifecycle(options: CalendarEmbedLifecycleOpt
 	options.applyCalendarView(savedView);
 	options.setToolbarView(savedView);
 	loadInitialVisibleRange(options);
-	startInitialRemoteCalendarSync(options);
 	const stopStageActions = installStageActions(options);
 	const stopMonthKeyboardNavigation = installCalendarMonthKeyboardNavigation(options.monthKeyboardNavigation);
 	const stopKeyboardDelete = installCalendarKeyboardDelete(options.keyboardDelete);
@@ -64,10 +62,6 @@ function loadInitialVisibleRange(options: CalendarEmbedLifecycleOptions): void {
 	if (options.hasVisibleRange()) return;
 	const initialDate = options.initialCalendarDate();
 	options.loadEvents(startOfMonthWindow(initialDate), endOfMonthWindow(initialDate));
-}
-
-function startInitialRemoteCalendarSync(options: CalendarEmbedLifecycleOptions): void {
-	void options.syncRemoteCalendarAndRefresh().catch(() => undefined);
 }
 
 function installStageActions(options: CalendarEmbedLifecycleOptions): () => void {

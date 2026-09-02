@@ -37,7 +37,6 @@ func TestACompanyCalendarIsNotServedBesideTheRecord(t *testing.T) {
 	}{
 		{"the subscription feed", http.MethodGet, "/calendar/ics/anything.ics", (*Service).serveCalendarICS},
 		{"the dav collection", "PROPFIND", "/calendar/dav/", (*Service).serveCalendarDAV},
-		{"connecting a google account", http.MethodGet, "/calendar/oauth/google/start", (*Service).handleGoogleOAuthStart},
 	} {
 		t.Run(address.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
@@ -61,20 +60,5 @@ func TestADeviceWithNoCompanyStillServesItsOwnCalendar(t *testing.T) {
 
 	if recorder.Code == http.StatusGone {
 		t.Fatal("a device that names no company keeps serving its own calendar")
-	}
-}
-
-func TestNoRemoteCalendarIsSyncedOntoACompanyDevice(t *testing.T) {
-	if calendarServiceWithACompanyForTest(t).syncsRemoteCalendars() {
-		t.Fatal("a company device syncs no remote calendar into its own store")
-	}
-}
-
-func TestADeviceWithNoCompanySyncsItsRemoteCalendars(t *testing.T) {
-	service := newCalendarTestService(t)
-	service.Configuration.CalendarSyncDisabled = false
-
-	if !service.syncsRemoteCalendars() {
-		t.Fatal("a device that names no company keeps its remote calendars")
 	}
 }

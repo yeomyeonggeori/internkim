@@ -249,9 +249,9 @@ func (connection *setupLockBoardConnection) SCP(localPath, remotePath string) er
 	return nil
 }
 
-func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
+func TestJetsonDefaultResolveIncludesLocalLLM(t *testing.T) {
 	context := &Context{Backend: BackendSSH, BoardType: BoardJetsonOrinNano}
-	plan, err := DefaultRegistry().resolve(context, Selector{Skip: []string{"google"}})
+	plan, err := DefaultRegistry().resolve(context, Selector{})
 	if err != nil {
 		t.Fatalf("resolve failed: %v", err)
 	}
@@ -265,14 +265,11 @@ func TestJetsonDefaultResolveIncludesLocalLLMAndSkipsGoogle(t *testing.T) {
 	if strings.Contains(joinedPlan, "ollama") {
 		t.Fatalf("expected default plan to skip ollama, got %s", joinedPlan)
 	}
-	if strings.Contains(joinedPlan, "google") {
-		t.Fatalf("expected plan to skip google, got %s", joinedPlan)
-	}
 }
 
 func TestSkillsRunAfterBlueclawRuntimeBase(t *testing.T) {
 	context := &Context{Backend: BackendSSH}
-	plan, err := DefaultRegistry().resolve(context, Selector{Skip: []string{"google"}})
+	plan, err := DefaultRegistry().resolve(context, Selector{})
 	if err != nil {
 		t.Fatal(err)
 	}

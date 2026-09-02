@@ -38,7 +38,6 @@ export type CalendarEventActionsContext = {
 	text: {
 		calendarDeleteVersionConflictError: string;
 		calendarEventVersionConflictError: string;
-		calendarTargetUnavailableError: string;
 		deleteError: string;
 		deleteUndoAction: string;
 		deleteUndoMessage: string;

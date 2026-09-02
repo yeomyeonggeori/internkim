@@ -353,7 +353,6 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 		DeviceURLPath:               writeTestFile(t, "https://fleet-1.example.test"),
 		FleetSecretPath:             writeTestFile(t, "secret"),
 		BlueclawRuntimeConfigPath:   writeTestFile(t, "{}"),
-		CalendarSecretsDirectory:    t.TempDir(),
 		StateDirectory:              t.TempDir(),
 		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
 		TaskDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),

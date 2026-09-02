@@ -4,93 +4,41 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
-	import CalendarLayoutGoogleAccountCard from './calendar-layout-google-account-card.svelte';
-	import type {
-		CalendarAccountStatusResponse,
-		CalendarSyncResponse,
-		GoogleCalendarListEntry
-	} from './calendar-layout-types';
-	import type { CalendarGoogleAccountText, CalendarLocaleText } from './text';
+	import type { CalendarSyncResponse } from './calendar-layout-types';
+	import type { CalendarLocaleText } from './text';
 
-	type CalendarSyncSheetText = CalendarGoogleAccountText &
-		Pick<
-			CalendarLocaleText,
-			| 'saveError'
-			| 'syncTitle'
-			| 'syncDescription'
-			| 'googleCalendarConnectionFailed'
-			| 'subscriptionReady'
-			| 'subscriptionShownOnce'
-			| 'caldav'
-			| 'username'
-			| 'password'
-			| 'ics'
-			| 'rotate'
-		>;
+	type CalendarSyncSheetText = Pick<
+		CalendarLocaleText,
+		| 'saveError'
+		| 'syncTitle'
+		| 'syncDescription'
+		| 'subscriptionReady'
+		| 'subscriptionShownOnce'
+		| 'caldav'
+		| 'username'
+		| 'password'
+		| 'ics'
+		| 'rotate'
+	>;
 
 	let {
 		isOpen = $bindable(false),
 		text,
 		syncInformation,
-		accountStatus,
-		googleCalendars,
-		accountStatusError,
-		isLoadingAccountStatus,
-		isLoadingGoogleCalendars,
-		isSelectingGoogleCalendar,
 		isRotatingSync,
-		isUploadingGoogleOAuthClient,
 		syncError,
-		syncNotice,
-		googleCalendarSelectionError,
-		rotateSubscriptionURL,
-		selectGoogleCalendar,
-		uploadGoogleOAuthClient
+		rotateSubscriptionURL
 	}: {
 		isOpen: boolean;
 		text: CalendarSyncSheetText;
 		syncInformation: CalendarSyncResponse | null;
-		accountStatus: CalendarAccountStatusResponse | null;
-		googleCalendars: GoogleCalendarListEntry[];
-		accountStatusError: boolean;
-		isLoadingAccountStatus: boolean;
-		isLoadingGoogleCalendars: boolean;
-		isSelectingGoogleCalendar: boolean;
 		isRotatingSync: boolean;
-		isUploadingGoogleOAuthClient: boolean;
 		syncError: string;
-		syncNotice: string;
-		googleCalendarSelectionError: string;
 		rotateSubscriptionURL: () => void;
-		selectGoogleCalendar: (calendarID: string) => Promise<boolean>;
-		uploadGoogleOAuthClient: (file: File) => Promise<boolean>;
 	} = $props();
 
 	function hasSubscription(): boolean {
 		return Boolean(syncInformation?.caldavURL || syncInformation?.icsURL || syncInformation?.isRegistered);
-	}
-
-	function isWaitingForInitialAccountStatus(): boolean {
-		return isLoadingAccountStatus && !accountStatus;
-	}
-
-	function canManageGoogleOAuth(): boolean {
-		if (isWaitingForInitialAccountStatus() || accountStatusError) return false;
-		return accountStatus?.canManageGoogleOAuth === true;
-	}
-
-	function syncNoticeText(): string {
-		if (syncNotice === 'googleOAuthConnected') return text.googleCalendarConnectionComplete;
-		if (syncNotice === 'googleOAuthFailed') return text.googleCalendarConnectionFailed;
-		if (syncNotice === 'googleOAuthClientUploaded') return text.googleOAuthClientUploadComplete;
-		return syncNotice;
-	}
-
-	function syncNoticeClass(): string {
-		if (syncNotice === 'googleOAuthFailed') {
-			return 'rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive';
-		}
-		return 'rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700';
 	}
 </script>
 
@@ -102,30 +50,8 @@
 		</Sheet.Header>
 
 		<div class="grid min-h-0 flex-1 gap-5 overflow-y-auto px-4 pb-4">
-			{#if syncNotice}
-				<p role="status" class={syncNoticeClass()}>
-					{syncNoticeText()}
-				</p>
-			{/if}
-
 			{#if syncError}
 				<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{syncError}</p>
-			{/if}
-
-			{#if canManageGoogleOAuth()}
-				<CalendarLayoutGoogleAccountCard
-					{text}
-					{accountStatus}
-					{accountStatusError}
-					{isLoadingAccountStatus}
-					{googleCalendars}
-					{isLoadingGoogleCalendars}
-					{isSelectingGoogleCalendar}
-					{isUploadingGoogleOAuthClient}
-					{googleCalendarSelectionError}
-					{selectGoogleCalendar}
-					{uploadGoogleOAuthClient}
-				/>
 			{/if}
 
 			{#if hasSubscription()}

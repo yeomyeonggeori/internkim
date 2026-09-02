@@ -2,9 +2,7 @@
 	import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 	import { ViewType } from '../calendar-view-type';
 	import type { CalendarLocaleText } from '../text';
-	import type { CalendarConflict } from './calendar-conflicts';
 	import { calendarParticipantKey, type CalendarParticipant } from './calendar-participants';
-	import CalendarConflictBanner from './calendar-conflict-banner.svelte';
 	import {
 		draftPopoverEndDate,
 		draftPopoverStartDate,
@@ -30,10 +28,8 @@
 		activeMobileEditorEventID: string | null;
 		calendarOptions: CalendarOption[];
 		participantCandidates: CalendarParticipant[];
-		conflicts: CalendarConflict[];
 		currentMonthTitle: string;
 		deletePopover: () => void;
-		dismissConflict: (conflictID: number) => void | Promise<void>;
 		goToNext: () => void;
 		goToPrevious: () => void;
 		goToToday: () => void;
@@ -54,7 +50,6 @@
 		popover: DraftPopoverState | null;
 		participantFilterKey: string;
 		selectParticipantFilter: (participantKey: string) => void;
-		refreshConflicts: () => void;
 		saveMovedEvent: (event: DayTaskEvent) => void | Promise<void>;
 		savePopover: () => void;
 		cancelPopover: () => void;
@@ -81,10 +76,8 @@
 		changeCalendarView,
 		clearSelectedEvent,
 		clearActiveMobileEditorEvent,
-		conflicts,
 		currentMonthTitle,
 		deletePopover,
-		dismissConflict,
 		goToNext,
 		goToPrevious,
 		goToToday,
@@ -105,7 +98,6 @@
 		popover,
 		participantFilterKey,
 		selectParticipantFilter,
-		refreshConflicts,
 		saveMovedEvent,
 		savePopover,
 		selectDate,
@@ -146,11 +138,6 @@
 </script>
 
 <main class="calendar-page flex min-h-screen flex-col">
-	<CalendarConflictBanner
-		conflicts={conflicts}
-		{dismissConflict}
-		refreshConflicts={refreshConflicts}
-	/>
 	<CalendarLoadWarning message={loadErrorMessage} />
 	<CalendarToolbar
 		{currentMonthTitle}
