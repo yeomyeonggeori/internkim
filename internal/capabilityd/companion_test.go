@@ -577,7 +577,6 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 		"mail_connection_start",
 		"mail_message_send",
 		"site_unserve",
-		"google_gmail_send",
 	}
 	for _, toolName := range toolNames {
 		t.Run(toolName, func(t *testing.T) {
@@ -910,7 +909,7 @@ func TestCompanionOnlyBrowserToolPreservesNotReadyDenial(t *testing.T) {
 	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
-		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
+		"input":{"url":"https://credentials.example.test/apis"}
 	}`))
 	if errorValue != nil {
 		t.Fatalf("expected structured denial: %v", errorValue)
@@ -948,7 +947,7 @@ func TestCompanionRequiredBrowserJobExpiryReportsNotReady(t *testing.T) {
 	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
-		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
+		"input":{"url":"https://credentials.example.test/apis"}
 	}`))
 
 	if errorValue != nil {
@@ -985,7 +984,7 @@ func TestUserPresenceBrowserToolDoesNotFallbackToDeviceWhenCompanionUnavailable(
 	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
-		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
+		"input":{"url":"https://credentials.example.test/apis"}
 	}`))
 
 	if errorValue != nil {
@@ -1009,7 +1008,7 @@ func TestUserPresenceBrowserToolRequiresConnectWhenCompanionNotConfigured(t *tes
 	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_open", strings.NewReader(`{
 		"requiresUserPresence":true,
 		"executionMode":"companion",
-		"input":{"url":"https://console.cloud.google.com/apis/credentials"}
+		"input":{"url":"https://credentials.example.test/apis"}
 	}`))
 
 	if errorValue != nil {

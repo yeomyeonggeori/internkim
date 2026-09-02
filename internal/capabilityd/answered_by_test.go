@@ -24,7 +24,7 @@ var recordToolsStillAnsweredInGo = []string{
 
 func toolNamesAnsweredBy(answerer string) []string {
 	names := []string{}
-	for _, descriptor := range capabilities.RegisteredToolDescriptors() {
+	for _, descriptor := range capabilities.DefaultToolDescriptors() {
 		if descriptor.AnsweredBy == answerer {
 			names = append(names, descriptor.CanonicalName)
 		}
@@ -39,7 +39,7 @@ func TestEveryRegisteredToolNamesItsAnswerer(t *testing.T) {
 		capabilityprotocol.AnsweredByCompany: true,
 		capabilityprotocol.AnsweredByLocal:   true,
 	}
-	for _, descriptor := range capabilities.RegisteredToolDescriptors() {
+	for _, descriptor := range capabilities.DefaultToolDescriptors() {
 		if !answerers[descriptor.AnsweredBy] {
 			t.Errorf("%s answeredBy is %q", descriptor.CanonicalName, descriptor.AnsweredBy)
 		}

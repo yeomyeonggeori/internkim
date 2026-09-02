@@ -338,7 +338,7 @@ func TestHealthIncludesLiteRTProviderAvailability(t *testing.T) {
 func TestToolInvokeDoesNotExposeSecretsForUnconfiguredTool(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "sk-must-not-leak")
 	service := Service{Configuration: DefaultConfiguration()}
-	request := httptest.NewRequest(http.MethodPost, "/v1/tools/google.search/invoke", strings.NewReader(`{"input":{"query":"hello"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/v1/tools/nothing.registered/invoke", strings.NewReader(`{"input":{"query":"hello"}}`))
 	responseRecorder := httptest.NewRecorder()
 
 	service.router().ServeHTTP(responseRecorder, request)

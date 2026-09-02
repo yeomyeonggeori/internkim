@@ -20,7 +20,7 @@ func TestEveryCompanionToolDeclaresTheAxesItsCallersRead(t *testing.T) {
 }
 
 func TestNoToolIsNamedWithADot(t *testing.T) {
-	for _, descriptor := range append(CompanionToolDescriptors(), RegisteredToolDescriptors()...) {
+	for _, descriptor := range append(CompanionToolDescriptors(), DefaultToolDescriptors()...) {
 		for _, name := range []string{descriptor.Name, descriptor.CanonicalName, descriptor.ModelName} {
 			for _, character := range name {
 				if character == '.' {
