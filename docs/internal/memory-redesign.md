@@ -441,8 +441,8 @@ blueclaw never names a provider. Two small additions to the Go client:
 `inputType` (`query` versus `document`) and a batch form, both already spoken by
 the sidecar it replaces.
 
-The default model is `qwen/qwen3-embedding-8b` through OpenRouter, in remote
-execution mode. Memory embeds little: one query per launch, one per
+The default model is `baai/bge-m3`, the same model the device runs on
+llama.cpp, reached through OpenRouter in remote execution mode. Memory embeds little: one query per launch, one per
 `memory_search`, and one transcript plus at most twelve facts per finished
 task. At OpenRouter's listed price that is well under a cent per thousand tasks,
 and a 200 ms round trip sits beside an LLM call that already takes seconds. The
@@ -481,18 +481,20 @@ hand-marked Korean questions at 1,024 dimensions
 | `qwen/qwen3-embedding-4b` | 1.000 | 1.000 | 1.000 | 79 s |
 | `perplexity/pplx-embed-v1-4b` | 1.000 | 1.000 | 1.000 | 15 s |
 | `perplexity/pplx-embed-v1-0.6b` | 0.950 | 0.950 | 0.960 | 12 s |
+| `baai/bge-m3` | 0.950 | 1.000 | 0.975 | 26 s |
 
-The set is too small to separate the top three on quality, so the choice fell
-to what a self-hosting company can run and to how many providers serve it.
-Qwen3 embedding models are supported by llama.cpp with GGUF files the vendor
-publishes, while pplx-embed's bidirectional variant of Qwen3 has no accepted
-conversion. Between the two Qwen sizes, OpenRouter serves the 4b through one
-provider and the 8b through three at the same price; a burst of fifty calls
-against the 4b answered 429 with nowhere to fail over to, which decided it.
-The capability daemon retries a throttled embedding call with backoff and
-honours `Retry-After`, and the store's job queue waits out anything longer.
-The set grows as real facts accumulate and the table is rerun before any
-change of default.
+The set is too small to rank the top three, bge-m3 misses one question at
+rank one and has it at rank two, and the choice fell to what a host can run
+itself. bge-m3 is what the device already serves
+on llama.cpp beside its generation model, on CPU, in about a gigabyte; the
+Qwen sizes that measured the same either share the GPU with generation (4b)
+or do not fit an 8 GB host at all (8b). One name on both paths means a
+host's local and remote embeddings share a vector space, so the capability
+daemon can answer from either, and a self-hosting company needs no second
+model. OpenRouter serves bge-m3 through two providers; the daemon retries a
+throttled call with backoff and honours `Retry-After`, and the store's job
+queue waits out anything longer. The set grows as real facts accumulate and
+the table is rerun before any change of default.
 
 ---
 

@@ -205,7 +205,7 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 	] as const;
 	return {
 		personID: 'dev-person',
-		embeddingModel: 'qwen/qwen3-embedding-8b',
+		embeddingModel: 'baai/bge-m3',
 		profile: {
 			identityLines: ['이샘플은 플랫폼 팀 소속이며 짧은 한국어 릴리스 노트를 선호한다.'],
 			currentLines: ['이샘플은 2026-09-11까지 휴가 중이다.'],
