@@ -13,8 +13,11 @@ export async function supabaseCalendarEvents(
 	return companyCalendarEntries(supabase(), startDate, endDate, await companyTimeZone(), locale);
 }
 
-export async function saveSupabaseCalendarEvent(payload: CalendarEventPayload): Promise<CalendarEvent> {
-	const saved = await supabase().rpc('task_save', supabaseCalendarEventRPCArguments(payload));
+export async function saveSupabaseCalendarEvent(
+	payload: CalendarEventPayload,
+	targetEventID: string | null
+): Promise<CalendarEvent> {
+	const saved = await supabase().rpc('task_save', supabaseCalendarEventRPCArguments(payload, targetEventID));
 	if (saved.error) throw new Error(saved.error.message);
 	if (typeof saved.data !== 'string') throw new Error('calendar event save returned no event ID');
 	return readEvent(saved.data);
@@ -34,10 +37,11 @@ export type SupabaseCalendarEventRPCArguments = {
 };
 
 export function supabaseCalendarEventRPCArguments(
-	payload: CalendarEventPayload
+	payload: CalendarEventPayload,
+	targetEventID: string | null
 ): SupabaseCalendarEventRPCArguments {
 	return {
-		target_task_id: payload.eventID || null,
+		target_task_id: targetEventID,
 		target_title: payload.title,
 		target_note: payload.description || null,
 		target_location: payload.location ? { name: payload.location } : null,
