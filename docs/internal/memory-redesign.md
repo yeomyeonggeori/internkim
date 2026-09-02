@@ -1,6 +1,6 @@
 # Agent memory: a clean-slate design
 
-Status: Implemented on blueclaw branch `feat/memory-store` · Last updated: 2026-09-02
+Status: Implemented; the store lives in [bluememo](https://github.com/yeomyeonggeori/bluememo) · Last updated: 2026-09-03
 
 This replaces blueclaw's memory subsystem (`internal/memory`, the Graphiti
 sidecar, the Kuzu graph, the per-person `MEMORY.md`) with one store, one write
@@ -9,9 +9,12 @@ and keeps our scope model, which is finer than theirs. Nothing here moves memory
 off the host; [`saas-design.md`](./saas-design.md) §7.1 decided that agent memory
 is host-local, and this design lives inside the host's own Postgres.
 
-Layering follows [`harness-split-design.md`](./harness-split-design.md): the
-subsystem is blueclaw's. The harness sees memory only as a rendered context
-string and a `MemoryFact` list through `agentcontract`, exactly as today.
+Layering follows [`harness-split-design.md`](./harness-split-design.md), one
+step further: the store is its own module, `bluememo`, vendored into blueclaw
+at `.dependency/bluememo` the way the harness is. It depends on nothing but
+`pgx`; blueclaw adapts its task, model and identity types at the edge in
+`internal/memory`. The harness sees memory only as a rendered context string
+and a `MemoryFact` list through `agentcontract`, exactly as today.
 
 ---
 
@@ -81,8 +84,8 @@ create table memory_fact (
   fact_id             text primary key,
   episode_id          text not null references memory_episode (episode_id),
   scope_type          text not null check (scope_type in ('private', 'circle', 'workspace')),
-  scope_id            text not null default '',
-  subject_person_id   text references person (person_id),
+  owner_person_id     text not null default '',
+  subject_person_id   text not null default '',
   kind                text not null check (kind in ('identity', 'preference', 'fact', 'episode', 'temporary')),
   content             text not null check (char_length(content) <= 240),
   embedding_model     text not null default '',
@@ -98,8 +101,14 @@ create table memory_fact (
   created_at          timestamptz not null default now()
 );
 
+create table memory_fact_circle (
+  fact_id   text not null references memory_fact (fact_id) on delete cascade,
+  circle_id text not null,
+  primary key (fact_id, circle_id)
+);
+
 create index memory_fact_content_idx   on memory_fact using gin (content gin_trgm_ops);
-create index memory_fact_live_idx      on memory_fact (scope_type, scope_id)
+create index memory_fact_live_idx      on memory_fact (scope_type, owner_person_id)
   where superseded_by is null and forgotten_at is null;
 
 -- only where the vector extension is installed
@@ -147,11 +156,20 @@ move to trixie, and it is scheduled with the rollout, not before it.
 
 ### Scopes
 
-| `scope_type` | `scope_id` | Readable by | Written by |
+| `scope_type` | carries | Readable by | Written by |
 |---|---|---|---|
-| `private` | person ID | that person | extraction, `memory_remember` |
-| `circle` | circle ID | members of the circle | extraction, `memory_remember` |
-| `workspace` | `''` | anyone whose rank and classes pass the label | extraction, `memory_remember` |
+| `private` | `owner_person_id` | that person | extraction, `memory_remember` |
+| `circle` | one or more rows in `memory_fact_circle` | members of any named circle, and members of any circle that contains one | extraction, `memory_remember` |
+| `workspace` | nothing | anyone whose rank and classes pass the label | extraction, `memory_remember` |
+
+Circles nest. `memberCircles` on a circle in `policy.json` lists the circles
+that belong to it; the projection turns that into a containment map, and a
+reader's readable set is their own circles plus everything those contain,
+transitively, with cycles tolerated. A fact shared with `platform` is readable
+from `engineering` when `engineering` contains `platform`; the reverse is not
+true. Writing to a circle needs direct membership, so the model can name
+several circles for one fact but never one the requester is not in; a fact
+whose named circles all fail that test narrows to `private`.
 
 The `conversation` scope is gone. A conversation's own memory is its task ledger
 and the recent-turn context the loop already injects; extracting from it into a
@@ -163,8 +181,10 @@ never chosen by the model. The reader filter is the existing triple gate, now in
 SQL:
 
 ```sql
-where (scope_type = 'private'   and scope_id = $person_id)
-   or (scope_type = 'circle'    and scope_id = any($circle_ids))
+where (scope_type = 'private'   and owner_person_id = $person_id)
+   or (scope_type = 'circle'    and exists (
+        select 1 from memory_fact_circle c
+        where c.fact_id = f.fact_id and c.circle_id = any($readable_circle_ids)))
    or (scope_type = 'workspace')
   and security_level_rank <= $reader_rank
   and required_classes <@ $granted_classes
@@ -201,7 +221,9 @@ should hold afterwards, each related to what was already there.
    candidates, the requester's name, the active circle, and today's date.
 3. Validate: `relatedFactID` must be a candidate ID when the relation is
    `supersedes` or `reinforces` and empty when it is `new`; `circle` scope
-   without an active circle the requester belongs to narrows to `private`;
+   keeps the named circles the requester is a member of, defaults to the
+   active circle when none is named, and narrows to `private` when none
+   survives;
    `validUntil` is required for `temporary` and forbidden otherwise; a
    private fact carries no security label because its scope is already one
    person. A violation fails the ingest with a ledger event, never a silent
@@ -259,11 +281,12 @@ Provider-portable by the runtime policy: string enums only, `required` kept,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["content", "kind", "scope", "subjectPersonHint", "relation", "relatedFactID", "validUntil"],
+        "required": ["content", "kind", "scope", "circleIDs", "subjectPersonHint", "relation", "relatedFactID", "validUntil"],
         "properties": {
           "content":           { "type": "string", "maxLength": 240 },
           "kind":              { "type": "string", "enum": ["identity", "preference", "fact", "episode", "temporary"] },
           "scope":             { "type": "string", "enum": ["private", "circle", "workspace"] },
+          "circleIDs":         { "type": "array", "items": { "type": "string" } },
           "subjectPersonHint": { "type": "string" },
           "relation":          { "type": "string", "enum": ["new", "supersedes", "reinforces"] },
           "relatedFactID":     { "type": "string" },
@@ -387,6 +410,7 @@ effect contracts (`memory_fact` created, `memory_fact` forgotten).
 | Item | Replacement |
 |---|---|
 | `tools/graphiti_memoryd/`, `tools/graphiti-memoryd` | none |
+| `internal/memory` as the store | `.dependency/bluememo`; `internal/memory` keeps the host adapters |
 | Kuzu at `/workspace/.blueclaw/graphiti/kuzu`, its backup root entry | `memory_*` tables in the host Postgres |
 | `graphiti_namespace`, `graphiti_episode` (migrations 012, 028, 029) | dropped in migration 031 |
 | `memory.graphitiEndpoint`, `memory.graphitiKuzuPath` | none |
@@ -529,3 +553,6 @@ and `./internkim dev fleet run` for the Postgres extensions on the guest image.
   administrator removes a memory.
 - **A cross-encoder reranker.** Measured first, added if recall@10 says so.
 - **Central storage.** Decided in `saas-design.md` §7.1.
+- **Circle nesting on the central plane.** `circle_member` on Supabase holds
+  people only; `memberCircles` exists in blueclaw's policy document today and
+  admind does not yet write it. That is the next change on the internkim side.
