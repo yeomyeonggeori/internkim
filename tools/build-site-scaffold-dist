@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Bakes the generic React/Vite site scaffold into a prebuilt dist that admind
-# embeds and publishes without running a build in the Blueclaw agent loop.
-# Run this whenever internal/admind/site_scaffold/react-vite-ts changes; the
-# TestSiteScaffoldDistMatchesScaffoldSource binding test fails otherwise.
+# Bakes the website skill's scaffold into a prebuilt dist that admind embeds
+# and publishes without running a build in the agent loop. Run this whenever
+# the plugin's scaffold changes; TestSiteScaffoldDistMatchesScaffoldSource
+# fails otherwise.
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-scaffold_source_directory="$repository_root/internal/admind/site_scaffold/react-vite-ts"
+scaffold_source_directory="$repository_root/.dependency/internkim-plugin/skills/website/assets/scaffold/app"
 scaffold_dist_directory="$repository_root/internal/admind/site_scaffold_dist/react-vite-ts"
 stage_directory="${TMPDIR:-/tmp}/internkim-site-scaffold-dist-stage"
 

@@ -356,6 +356,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 							'-blueclaw-url': blueclawURL,
 							'-blueclaw-policy': policyPath,
 							'-buzz-key-seed-path': join(runDirectory, 'secrets', 'buzz-key-seed'),
+							'-site-scaffold': join(environmentValue('COMPANY_PLANE_SKILLS'), 'website', 'assets', 'scaffold', 'app'),
 							'-central-plane-app-url': environmentValue('INTERNKIM_APP_URL'),
 							'-central-plane-agent-key': agentKeyPath,
 							'-central-plane-project-url': projectURL,
