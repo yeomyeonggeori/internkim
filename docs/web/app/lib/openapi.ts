@@ -111,7 +111,7 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			listTools: {
 				summary: '이 토큰이 부를 수 있는 도구',
 				description:
-					'토큰의 scope로 부를 수 있는 도구만 돌려줍니다. 컴패니언 도구처럼 상황에 따라 생기고 사라지는 도구는 여기에서 확인합니다.'
+					'토큰의 권한으로 부를 수 있는 도구만 돌려줍니다. 컴패니언 도구처럼 상황에 따라 생기고 사라지는 도구는 여기에서 확인합니다.'
 			},
 			readTool: { summary: '도구 하나의 명세', description: '입력 스키마와 부작용 등급을 포함합니다.' },
 			invokeTool: {
@@ -202,7 +202,7 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			listTools: {
 				summary: 'List the tools this token may call',
 				description:
-					"Returns only the tools the token's scopes reach. Tools that come and go with circumstance, such as the companion's, are discovered here."
+					"Returns only the tools the token's permission reaches. Tools that come and go with circumstance, such as the companion's, are discovered here."
 			},
 			readTool: {
 				summary: 'Read one tool',

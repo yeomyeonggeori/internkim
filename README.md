@@ -69,7 +69,7 @@ operator on the same network ── Jetson Orin Nano Super
 the user's own computer
   └── internkim-companion
         ├── long-polls the admind companion broker
-        ├── user_confirm / user_input / file_pick
+        ├── user_confirm / user_input / picking a local file
         └── a headed browser through the bundled agent-browser
 ```
 
@@ -564,17 +564,16 @@ port and long-polls the device broker.
 ./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fexample&code=ABCD-1234'
 ```
 
-The executor handles `user_confirm`, `user_input`, approval grants, `file_pick`,
-the `browser_*` family, and mock `llm_text` and `llm_structured` for
-development. A companion LLM job carrying a requester identity can be claimed
+The executor handles approval grants, the `browser_*` family, and mock
+`llm_text` and `llm_structured` for development. A companion LLM job carrying a requester identity can be claimed
 only by that same owner's companion. The Tauri shell raises the confirmation,
 input, approval and file-picker windows, and lists what a task is currently
 allowed to do so it can be revoked. `--allow-stdin-prompts` is a CLI fallback
 for debugging without the shell.
 
-`file_pick` keeps local paths on the user's machine. The companion uploads the
-chosen file through the signed broker to `/tmp/internkim-companion-files/` on
-the device, and the response carries only that device-local path and a TTL.
+A file the user picks never leaves their machine as a path. The companion
+uploads it through the signed broker to `/tmp/internkim-companion-files/` on
+the device, and the answer carries only that device-local path and a TTL.
 Admind deletes the file when the TTL passes.
 
 Browser capabilities route to the companion first, running headed with a
@@ -604,8 +603,8 @@ submits to notarytool when `APPLE_ID`, `APPLE_TEAM_ID` and
 `APPLE_APP_SPECIFIC_PASSWORD` are all present.
 
 capabilityd never calls a companion URL. It creates a job on the local admind
-broker, and routes `browser.*`, `user.*`, `file_pick` and companion LLM
-capabilities only while that companion is online and advertising them. Blueclaw
+broker, and routes `browser.*`, `user.*` and companion LLM capabilities only
+while that companion is online and advertising them. Blueclaw
 sees no provider implementation, browser binary, model path or user cookie.
 
 ## The API
@@ -630,8 +629,8 @@ curl https://<host>/api/v1/tools/task_add/invoke \
 
 `POST /api/v1/token` issues one, `GET /api/v1/tokens` lists them and
 `DELETE /api/v1/token?name=` revokes one. A session makes the first; after that a
-token makes its own successors, never above its own rung. The twenty-six base
-tools in the reference are read from
+token makes its own successors, never above its own rung. The base tools in the
+reference are read from
 `pkg/capabilityprotocol/generated/capability-tools.json`, the same catalog the
 agent runs on, and `GET /api/v1/tools` answers them without asking the company
 machine. Tools that come and go with circumstance, such as the companion's, are
@@ -655,44 +654,21 @@ Mattermost and blueclaw go over loopback and stay exempt.
 
 ## Repository layout
 
-```
-internkim/
-├── cmd/
-│   ├── internkim/                 the operator CLI
-│   ├── internkim-admind/          device admin API and companion broker
-│   ├── internkim-capabilityd/     LLM, platform and browser capability daemon
-│   ├── internkim-companion/       the user's trusted runtime
-│   ├── internkim-llm-gateway/     OpenRouter-compatible tenant gateway
-│   └── internkim-local-llm-runner/  LiteRT runner, legacy fallback
-├── internal/
-│   ├── admind/                    admin proxy, backup/restore, broker
-│   ├── browser/                   agent-browser runtime adapter
-│   ├── capabilities/              the typed capability protocol
-│   ├── capabilityd/               LLM, platform and browser providers
-│   ├── cli/                       setup, deploy, lab, reset, verify
-│   ├── companion/                 pairing, jobs, local executor
-│   ├── lab/                       container lab and its scenarios
-│   ├── llmgateway/                routing, tokens, quota, providers
-│   ├── localfleet/                fleet scenarios, recipes, regression gate
-│   ├── provisioning/steps/        the setup flow, step by step
-│   ├── releaseset/                release manifest and component checks
-│   └── runtime/blueclaw/          the blueclaw runtime contract
-├── host/
-│   ├── relay/                     the company computer's link to the plane
-│   └── entrypoint.sh              boot order for the host bundle
-├── supabase/
-│   ├── migrations/                the schema of record
-│   ├── seed.dev.sql               local fixtures, the only ones
-│   └── tests/                     pgTAP
-├── web/                           SvelteKit: the company app and device UI
-├── companion/                     the Tauri desktop shell
-├── assets/blueclaw-workspace/     AGENTS.md, skills, helpers, Apps Script
-├── workers/                       connection-gateway, llm-gateway, release-registry
-├── docs/internal/                 design documents and runbooks
-├── lab/                           low-level VM lab config and scripts
-├── tools/                         development helpers
-└── .dependency/blueclaw/          the blueclaw submodule
-```
+`cmd/` holds the binaries, one directory each, and `internal/` the packages
+behind them; `ls cmd internal` answers what exists today. The rest:
+
+| | |
+|---|---|
+| `web/` | the SvelteKit app, which is also the public API (`src/routes/api/v1/`) |
+| `supabase/` | `migrations/` is the schema of record, `seed.dev.sql` the only local fixtures, `tests/` the pgTAP suite |
+| `host/` | `entrypoint.sh` is the boot order for the company computer's bundle, `relay/` its link to the plane |
+| `assets/blueclaw-workspace/` | the agent's own AGENTS.md, skills and helpers |
+| `companion/` | the Tauri desktop shell |
+| `workers/` | the Cloudflare workers |
+| `docs/` | the pages the docs site publishes; `docs/internal/` is what a contributor reads |
+| `lab/` | VM lab configuration and scripts |
+| `tools/` | development helpers, `tools/verify` among them |
+| `.dependency/blueclaw/` | the agent submodule |
 
 ## Cost
 

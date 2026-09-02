@@ -21,20 +21,23 @@ description: 켜 둔 컴퓨터 한 대, 그 기동 순서, 그리고 받는 설�
 **Postgres 대기** — `DATABASE_URL`, 에이전트 자신의 저장소.
 </Step>
 <Step>
-**`blueclaw-llmd`**, `/run/internkim/llmd/llmd.sock`. capabilityd가 자기
-헬스에 포함시키므로 여전히 떠 있어야 하지만, 더는 모델 경로가 아닙니다.
-에이전트는 bluecollar의 OpenAI 호환 클라이언트로 모델에 직접 닿습니다.
-</Step>
-<Step>
-**`internkim-capabilityd`**, `/run/internkim/capability.sock`.
-`not_configured`도 통과 상태라는 의미에서 선택이지만, 없으면 캘린더, 업무,
-메일, 사이트 도구가 사라집니다.
+**`internkim-capabilityd`**, `/run/internkim/capability.sock`. entrypoint는 그
+소켓을 기다리고, 소켓이 생기기 전에 데몬이 죽으면 포기합니다. 한번 뜬 뒤로는
+아무도 다시 보지 않고, 번들을 내리는 것은 에이전트 자신의 종료뿐입니다. 없으면
+캘린더, 업무, 메일, 사이트 도구가 사라집니다.
 </Step>
 <Step>
 **에이전트**: `blueclaw -runtime /etc/blueclaw/runtime.json -policy
 /etc/blueclaw/policy.json`, `127.0.0.1:8080`에서 응답.
-`runtime.template.json`이 `DATABASE_URL`과 `MESSENGER_PLATFORM`으로 그 설정
-파일로 렌더링됩니다.
+`tools/render-company-runtime`이 이 컴퓨터의 주소들로
+`runtime.template.json`을 채우고, capabilityd의 `--print-capabilities` 블록을
+합칩니다.
+</Step>
+<Step>
+**`internkim-admind`**, `127.0.0.1:18080`. 릴레이가 워크스페이스 호출을 전부
+여기로 보냅니다. 에이전트 다음인 이유는, 시작하면서 회사 명부를 에이전트 위에
+맞추는데 아직 뜨지 않은 에이전트에 맞추려 하면 다음 시도까지 2분을 기다리기
+때문입니다.
 </Step>
 <Step>
 **`internkim-maild`**, `127.0.0.1:18092`. 그다음 **커넥터**(`chatd`)가
@@ -84,11 +87,9 @@ GATEWAY_URL=…            GATEWAY_SERVER_KEY=…
 화면이 비어 있는 것이 그 증상입니다.
 </Callout>
 
-`admind`에 닿는 호출 — 워크스페이스 화면들, 그리고 공개 API로 실행하는 모든
-도구 — 은 unix 소켓으로 갑니다. `ADMIND_SOCKET_PATH`이고, 기본값은
-`/run/internkim/admind.sock`입니다. 위의 번들은 `admind`를 띄우지 않으므로,
-기본 호스트에서 그 호출들은 닿을 곳이 없습니다. API는 카탈로그와 토큰은 답하고
-실행은 답하지 못합니다.
+`admind`가 없으면 어떤 사람의 기억, 파일, 업무, buzz 클레임이 `500`을 답하고,
+부탁한 사람의 이름으로 다이렉트 메시지가 나갈 수 없습니다. 그 사람으로
+서명하는 시드가 이 컴퓨터에 있기 때문입니다.
 
 Buzz로 채팅하는 회사는 Buzz 스택도 직접 굴립니다. `host/buzz/`에 Postgres,
 Redis, MinIO, 그리고 `.dependency/buzz-relay/`의 릴레이 바이너리를 같은 기계에
