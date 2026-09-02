@@ -54,7 +54,7 @@ func TestTheToolCatalogOpensATaskOnEveryStatusButRequested(t *testing.T) {
 
 func TestTheTaskSkillTellsTheModelTheStatusesTheCentralPlaneDeclares(t *testing.T) {
 	declared := statusesTheCentralPlaneDeclares(t)
-	skill, errorValue := os.ReadFile(filepath.Join("..", "..", "assets", "blueclaw-workspace", "skills", "internkim-task", "SKILL.md"))
+	skill, errorValue := os.ReadFile(filepath.Join("..", "..", ".dependency", "internkim-plugin", "skills", "internkim-task", "SKILL.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

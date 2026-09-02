@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/deviceassets"
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -421,10 +422,10 @@ func releaseChannelHistoryKey(channel string) string {
 	return "channels/" + strings.Trim(strings.TrimSpace(channel), "/") + "-history.json"
 }
 
-func deviceAssetSourcePaths(assetName string, repositoryRootPath string) []string {
+func deviceAssetSourcePaths(assetName string, repositoryRootPath string) ([]string, error) {
 	asset, found := deviceassets.Find(assetName)
 	if !found {
-		panic("deviceassets: unknown asset " + assetName)
+		return nil, fmt.Errorf("deviceassets: unknown asset %s", assetName)
 	}
 	return asset.SourcePaths(repositoryRootPath)
 }
@@ -437,7 +438,11 @@ func buildDeviceAssetRelease(assetName string) func(string, string) error {
 		if errorValue := os.MkdirAll(destinationPath, 0o755); errorValue != nil {
 			return errorValue
 		}
-		for _, sourcePath := range deviceAssetSourcePaths(assetName, repositoryRootPath) {
+		sourcePaths, errorValue := deviceAssetSourcePaths(assetName, repositoryRootPath)
+		if errorValue != nil {
+			return errorValue
+		}
+		for _, sourcePath := range sourcePaths {
 			if info, statError := os.Stat(sourcePath); statError != nil || !info.IsDir() {
 				continue
 			}
@@ -1095,6 +1100,9 @@ func releaseComponentRevision(name string, repositoryRootPath string, gitRevisio
 		return blueclawSubmoduleRevision(repositoryRootPath)
 	}
 	paths := componentSourcePaths[name]
+	if name == "skills" {
+		paths = skillComponentSourcePaths(repositoryRootPath)
+	}
 	if len(paths) == 1 && strings.HasPrefix(paths[0], "cmd/") {
 		if dependencyPaths := goComponentSourcePaths(repositoryRootPath, paths[0]); len(dependencyPaths) > 0 {
 			paths = dependencyPaths
@@ -1112,12 +1120,21 @@ func releaseComponentRevision(name string, repositoryRootPath string, gitRevisio
 // both embed the generated capability catalog, so regenerating the protocol
 // changed the contract they serve while leaving both revisions untouched, and
 // the release guard waved through a device whose halves disagreed.
+// git tracks a submodule by its gitlink, so history moves on the plugin
+// directory and never on the skills directory inside it.
+func skillComponentSourcePaths(repositoryRootPath string) []string {
+	paths := []string{}
+	for _, pluginPath := range blueclawworkspace.PluginPaths(repositoryRootPath) {
+		paths = append(paths, filepath.Join(".dependency", filepath.Base(pluginPath)))
+	}
+	return paths
+}
+
 var componentSourcePaths = map[string][]string{
 	"internkim":          {"cmd/internkim"},
 	"admind":             {"cmd/internkim-admind"},
 	"capabilityd":        {"cmd/internkim-capabilityd"},
 	"blueclawSupervisor": {"cmd/blueclaw-supervisor"},
-	"skills":             {"assets/skills"},
 	"fonts":              {"assets/fonts"},
 	"relay":              {"host/relay"},
 	"buzzMigrate":        {"cmd/buzz-migrate"},

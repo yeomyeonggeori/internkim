@@ -295,7 +295,7 @@ Blueclaw skill은 host `/root/.blueclaw/workspace/skills`에 배치되고 guest�
 권장 orchestration 디렉토리:
 
 ```text
-assets/blueclaw-workspace/skills/
+.dependency/internkim-plugin/skills/
 ├── workspace-orchestrator/
 ├── artifact-orchestrator/
 ├── document-orchestrator/

@@ -11,20 +11,44 @@ func AssetsPath(scriptDir string) string {
 	return filepath.Join(scriptDir, "assets", "blueclaw-workspace")
 }
 
-func SkillsPath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "skills")
+func dependencyPath(scriptDir string) string {
+	return filepath.Join(scriptDir, ".dependency")
 }
 
-func PluginPath(scriptDir string) string {
-	return filepath.Join(scriptDir, ".dependency", "internkim-plugin")
+func PluginPaths(scriptDir string) []string {
+	entries, errorValue := os.ReadDir(dependencyPath(scriptDir))
+	if errorValue != nil {
+		return nil
+	}
+	pluginPaths := []string{}
+	for _, entry := range entries {
+		pluginPath := filepath.Join(dependencyPath(scriptDir), entry.Name())
+		if isExistingFile(filepath.Join(pluginPath, "plugin.json")) {
+			pluginPaths = append(pluginPaths, pluginPath)
+		}
+	}
+	sort.Strings(pluginPaths)
+	return pluginPaths
 }
 
-func PluginSkillsPath(scriptDir string) string {
-	return filepath.Join(PluginPath(scriptDir), "skills")
+func SkillRootPaths(scriptDir string) ([]string, error) {
+	manifests, errorValue := PluginManifests(scriptDir)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if len(manifests) == 0 {
+		return nil, fmt.Errorf("no plugin under %s carries a plugin.json; run `git submodule update --init --recursive`", dependencyPath(scriptDir))
+	}
+	skillRootPaths := []string{}
+	for _, manifest := range manifests {
+		skillRootPaths = append(skillRootPaths, filepath.Join(manifest.Path, "skills"))
+	}
+	return skillRootPaths, nil
 }
 
-func SkillRootPaths(scriptDir string) []string {
-	return []string{SkillsPath(scriptDir), PluginSkillsPath(scriptDir)}
+func isExistingFile(path string) bool {
+	information, errorValue := os.Stat(path)
+	return errorValue == nil && information.Mode().IsRegular()
 }
 
 type SkillDirectory struct {
@@ -33,9 +57,13 @@ type SkillDirectory struct {
 }
 
 func SkillDirectories(scriptDir string) ([]SkillDirectory, error) {
+	skillRootPaths, errorValue := SkillRootPaths(scriptDir)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	skillDirectories := []SkillDirectory{}
 	pathByName := map[string]string{}
-	for _, rootPath := range SkillRootPaths(scriptDir) {
+	for _, rootPath := range skillRootPaths {
 		entries, errorValue := os.ReadDir(rootPath)
 		if errorValue != nil {
 			if os.IsNotExist(errorValue) {

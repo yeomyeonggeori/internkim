@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/localfleet"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -38,6 +39,18 @@ type devVirtualSessionArguments struct {
 type devCommandInvocation struct {
 	WorkingDirectoryPath string
 	Arguments            []string
+	EnvironmentVariables []string
+}
+
+// Declared by blueclaw, which is a separate module this one cannot import.
+const blueclawScenarioSkillRootsVariable = "BLUECLAW_SCENARIO_SKILL_ROOTS"
+
+func scenarioSkillRootsVariable(repositoryRootPath string) (string, error) {
+	skillRootPaths, errorValue := blueclawworkspace.SkillRootPaths(repositoryRootPath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	return blueclawScenarioSkillRootsVariable + "=" + strings.Join(skillRootPaths, string(os.PathListSeparator)), nil
 }
 
 var runDevLocalVirtualSession = runLocalDevVirtualSession
@@ -457,6 +470,7 @@ func runLocalDevVirtualSession(sessionArguments devVirtualSessionArguments) erro
 	}
 	command := exec.Command("go", invocation.Arguments...)
 	command.Dir = invocation.WorkingDirectoryPath
+	command.Env = append(os.Environ(), invocation.EnvironmentVariables...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
@@ -471,9 +485,14 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 	sessionArguments.ArtifactDirectoryPath = resolveDevPath(repositoryRootPath, sessionArguments.ArtifactDirectoryPath)
 	sessionArguments.ScenarioFilePath = resolveDevPath(repositoryRootPath, sessionArguments.ScenarioFilePath)
 	sessionArguments.SkillDirectoryPath = resolveDevPath(repositoryRootPath, sessionArguments.SkillDirectoryPath)
+	skillRootsVariable, errorValue := scenarioSkillRootsVariable(repositoryRootPath)
+	if errorValue != nil {
+		return devCommandInvocation{}, errorValue
+	}
 	return devCommandInvocation{
 		WorkingDirectoryPath: filepath.Join(repositoryRootPath, ".dependency", "blueclaw"),
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
+		EnvironmentVariables: []string{skillRootsVariable},
 	}, nil
 }
 
