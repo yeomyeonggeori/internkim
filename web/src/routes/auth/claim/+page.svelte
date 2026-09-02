@@ -11,6 +11,7 @@
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
 	import { askToClaim, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
+	import { claimCodeLength } from './claim-code';
 	import { hasThePasswordStepExpired } from './password-step';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { onMount } from 'svelte';
@@ -58,6 +59,7 @@
 
 	const askToClaimTheAddress = () =>
 		run(async () => {
+			code = '';
 			const outcome = await askToClaim(email);
 			if (outcome.kind === 'sent') {
 				step = 'sent';
@@ -83,6 +85,7 @@
 
 	function openThePasswordStep() {
 		passwordStepOpenedAt = Date.now();
+		code = '';
 		step = 'password';
 	}
 
@@ -121,7 +124,7 @@
 		servesCompanies = isSupabaseConfigured();
 		if (!servesCompanies) return;
 		const { data } = await supabase().auth.getSession();
-		if (!data.session) return;
+		if (!data.session || step !== 'address') return;
 		email = data.session.user.email ?? '';
 		step = 'signedIn';
 	});
@@ -155,6 +158,7 @@
 					<FieldDescription>{text.claimSignedInHint}</FieldDescription>
 					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
 					<Button type="button" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimSendCode}</Button>
+					<Button variant="ghost" class="w-full" onclick={() => (step = 'address')} disabled={busy}>{text.claimUseAnotherAddress}</Button>
 				</FieldGroup>
 			{:else if step === 'sent'}
 				<form onsubmit={(event) => { event.preventDefault(); proveTheAddress(); }}>
@@ -163,20 +167,20 @@
 							<FieldLabel for="claim-code-{fieldID}">{text.claimCodeLabel}</FieldLabel>
 							<InputOTP.Root
 								id="claim-code-{fieldID}"
-								maxlength={6}
+								maxlength={claimCodeLength}
 								bind:value={code}
 								disabled={busy}
 								onComplete={proveTheAddress}
 							>
 								{#snippet children({ cells })}
 									<InputOTP.Group>
-										{#each cells.slice(0, 3) as cell (cell)}
+										{#each cells.slice(0, claimCodeLength / 2) as cell (cell)}
 											<InputOTP.Slot {cell} />
 										{/each}
 									</InputOTP.Group>
 									<InputOTP.Separator />
 									<InputOTP.Group>
-										{#each cells.slice(3, 6) as cell (cell)}
+										{#each cells.slice(claimCodeLength / 2) as cell (cell)}
 											<InputOTP.Slot {cell} />
 										{/each}
 									</InputOTP.Group>
@@ -185,7 +189,7 @@
 							<FieldDescription>{text.claimCodeHint}</FieldDescription>
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-						<Button type="submit" class="w-full" disabled={busy || code.trim().length < 6}>{text.claimVerify}</Button>
+						<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
 						<Button variant="ghost" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
 					</FieldGroup>
 				</form>
