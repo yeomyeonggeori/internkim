@@ -8,6 +8,18 @@ whose references are all unreachable instead of reporting them, which is how the
 calculator's terminal_run survived #875; the ceiling silently drops a name no
 tool answers to, which is how calendar_upkeep spent #1282 unable to call the one
 tool it exists for.
+
+A third place names them: the agent's own Go source, where a tool name is a
+string constant nothing validates. loop/calendar_duplicate_gate.go held
+"calendar_add" for the two months after the host renamed it event_add, and the
+gate behind it never ran once (#1297). Every rename records the old name in
+internal/capabilities/legacy.go, so a retired name in non-test agent source
+fails unless the file also names its replacement, which is what a normalizer
+translating old ledgers looks like.
+
+This cannot catch a tool name deleted with no successor, or one that never
+existed. Telling a tool-name literal from any other snake_case string would take
+a heuristic that fires on every event name and failure code in the tree.
 """
 
 import json
@@ -24,14 +36,16 @@ GENERATED_CATALOG = (
     REPOSITORY_ROOT / "pkg" / "capabilityprotocol" / "generated" / "capability-tools.json"
 )
 CAPABILITY_DESCRIPTORS = REPOSITORY_ROOT / "internal" / "capabilities" / "protocol.go"
-BLUECLAW_LOCAL_TOOLS = (
-    REPOSITORY_ROOT / ".dependency" / "blueclaw" / "internal" / "agentruntime" / "local_tool_provider.go"
-)
-BLUECOLLAR_ROOT = REPOSITORY_ROOT / ".dependency" / "blueclaw" / ".dependency" / "bluecollar"
+RETIRED_TOOL_NAMES = REPOSITORY_ROOT / "internal" / "capabilities" / "legacy.go"
+BLUECLAW_ROOT = REPOSITORY_ROOT / ".dependency" / "blueclaw"
+BLUECLAW_LOCAL_TOOLS = BLUECLAW_ROOT / "internal" / "agentruntime" / "local_tool_provider.go"
+BLUECOLLAR_ROOT = BLUECLAW_ROOT / ".dependency" / "bluecollar"
 KERNEL_TOOLS = BLUECOLLAR_ROOT / "toolcontract" / "kernel_tools.go"
 STANDING_DUTIES = BLUECOLLAR_ROOT / "agentcontract" / "standing_duty.go"
 
 MINIMUM_CATALOG_SIZE = 60
+MINIMUM_RETIRED_NAMES = 20
+MINIMUM_AGENT_SOURCES = 200
 
 
 def names_in(path: pathlib.Path, pattern: str) -> set[str]:
@@ -59,6 +73,29 @@ def standing_duty_tool_names() -> list[tuple[str, str]]:
         for tool_name in re.findall(r'"([a-z0-9_.]+)"', duty.group(2)):
             duties.append((duty.group(1), tool_name))
     return duties
+
+
+def retired_tool_names() -> dict[str, str]:
+    return dict(re.findall(r'"([a-z0-9_.]+)":\s+"([a-z0-9_]+)"', RETIRED_TOOL_NAMES.read_text()))
+
+
+def agent_source_paths() -> list[pathlib.Path]:
+    if not BLUECLAW_ROOT.is_dir():
+        return []
+    return [path for path in sorted(BLUECLAW_ROOT.rglob("*.go")) if not path.name.endswith("_test.go")]
+
+
+def retired_names_left_in(source_paths: list[pathlib.Path], retired_names: dict[str, str]) -> list[str]:
+    left_behind: list[str] = []
+    for path in source_paths:
+        source = path.read_text(errors="ignore")
+        for retired_name, current_name in retired_names.items():
+            if f'"{retired_name}"' not in source or f'"{current_name}"' in source:
+                continue
+            left_behind.append(
+                f"{path.relative_to(BLUECLAW_ROOT)} names {retired_name}, retired for {current_name}"
+            )
+    return left_behind
 
 
 def declared_references(skill_document: pathlib.Path) -> list[str]:
@@ -102,13 +139,34 @@ def main() -> int:
         if tool_name not in catalog:
             unknown.append(f"standing duty {duty_name} names {tool_name}")
 
+    retired_names = retired_tool_names()
+    if len(retired_names) < MINIMUM_RETIRED_NAMES:
+        print(
+            f"read only {len(retired_names)} retired tool names, so this check is reading the"
+            f" wrong place; expected at least {MINIMUM_RETIRED_NAMES}",
+            file=sys.stderr,
+        )
+        return 1
+    source_paths = agent_source_paths()
+    if len(source_paths) < MINIMUM_AGENT_SOURCES:
+        print(
+            f"read only {len(source_paths)} agent sources, so the submodules are not checked out:"
+            " git submodule update --init --recursive",
+            file=sys.stderr,
+        )
+        return 1
+    unknown.extend(retired_names_left_in(source_paths, retired_names))
+
     if unknown:
         print("a hand-written tool name names no tool in the catalog:", file=sys.stderr)
         for entry in unknown:
             print(f"  {entry}", file=sys.stderr)
         return 1
     duty_names = {duty_name for duty_name, _ in duties}
-    print(f"ok {checked} skills and {len(duty_names)} standing duties against {len(catalog)} tools")
+    print(
+        f"ok {checked} skills, {len(duty_names)} standing duties and {len(source_paths)} agent"
+        f" sources against {len(catalog)} tools"
+    )
     return 0
 
 
