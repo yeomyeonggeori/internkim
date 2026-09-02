@@ -47,7 +47,7 @@ test.describe('flow task relationships', () => {
 		await relationships.getByRole('button', { name: /자녀 업무: 캘린더 원격 동기화 재시도 점검/ }).click();
 
 		await expect(relationships.getByRole('button', { name: '부모 업무 추가', exact: true })).toHaveCount(0);
-		await expect(relationships.getByText('Flow 주간 리포트 카드 정리', { exact: true })).toBeVisible();
+		await expect(relationships.getByText('Task 주간 리포트 카드 정리', { exact: true })).toBeVisible();
 		await expect(relationships.getByRole('button', { name: '자녀 업무 추가', exact: true })).toHaveCount(0);
 		await expect(relationships.getByText('연결된 자녀 업무가 없습니다.')).toHaveCount(0);
 

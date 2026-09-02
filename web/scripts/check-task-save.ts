@@ -14,13 +14,13 @@ if (!projectURL || !serviceRoleKey || !publishableKey) {
 
 const admin = controlPlane({ projectURL, serviceRoleKey });
 const stamp = new Date().toISOString().replaceAll(/[^0-9]/g, '').slice(0, 14);
-const email = `flow-save-check-${stamp}@example.test`;
+const email = `task-save-check-${stamp}@example.test`;
 
 const company = await provisionCompany(
 	admin,
 	{
-		name: 'Flow save check',
-		slug: `flow-save-check-${stamp}`,
+		name: 'Task save check',
+		slug: `task-save-check-${stamp}`,
 		country: 'KR',
 		locale: 'ko',
 		timezone: 'Asia/Seoul'

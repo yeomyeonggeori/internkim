@@ -245,9 +245,9 @@ export const taskText = {
 		loadError: '업무 데이터를 불러오지 못했습니다.'
 	},
 	en: {
-		pageTitle: 'Flow · Intern Kim',
+		pageTitle: 'Task · Intern Kim',
 		product: 'Intern Kim',
-		title: 'Flow',
+		title: 'Task',
 		description: 'Review this week’s tasks, requests, stopped work, and member progress in one place.',
 		previousWeek: 'Previous',
 		lastWeek: 'Last week',
@@ -487,6 +487,6 @@ export const taskText = {
 			logout: 'Sign out',
 			signedOut: 'Guest'
 		},
-		loadError: 'Could not load Flow data.'
+		loadError: 'Could not load Task data.'
 	}
 } as const;

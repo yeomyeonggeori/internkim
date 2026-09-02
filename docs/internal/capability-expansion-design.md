@@ -24,7 +24,6 @@
 | Portable artifacts | ICS, CalDAV, DOCX, XLSX, CSV, HTML, PDF | Google 인증 없이 먼저 생성/공유 가능한 기본 산출물 |
 | Google Workspace | `gws`, `gws-bot`, Apps Script bridge | optional import/export/publish target으로 유지 |
 | 기억 | Graphiti memory sidecar | 대화, 업무, 사람, 파일 요약을 장기 기억으로 저장 |
-| 사용자 플로우 문서 | `docs/flows/user/*` | 기능별 UX 기준으로 유지 |
 
 현재 부족한 것은 기능별 실행 계약, 권한 승인 흐름, 산출물 관리, 개인별 preference 저장, 반복 작업 스케줄러, 문서/파일 ingest pipeline이다.
 
