@@ -470,7 +470,6 @@ After deploying to a real device:
 
 ```bash
 ./internkim status
-./internkim verify mattermost
 ./internkim verify api
 ```
 
