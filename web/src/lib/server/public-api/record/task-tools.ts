@@ -9,6 +9,7 @@ import {
 	deleteTask,
 	ownerOfScope,
 	participantsOfHints,
+	rowOfSavedID,
 	saveTask,
 	taskOfHint,
 	tasksOfCompany,
@@ -53,7 +54,7 @@ export type AnsweredTask = {
 
 function presentationOf(personID: string, person: RecordPerson | undefined): AnsweredPerson {
 	if (!person) return { personID };
-	const mention = mentionOf(person.name);
+	const mention = mentionOf(person.email);
 	return {
 		personID,
 		displayName: person.name,
@@ -92,8 +93,7 @@ function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 }
 
 async function taskByID(context: RecordContext, taskID: string): Promise<TaskRow> {
-	const tasks = await tasksOfCompany(context.caller, false);
-	return taskOfHint(tasks, taskID);
+	return rowOfSavedID(await tasksOfCompany(context.caller, false), taskID, 'task');
 }
 
 function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRow | null) {
@@ -202,7 +202,7 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 }
 
 function listedPerson(person: RecordPerson) {
-	const mention = mentionOf(person.name);
+	const mention = mentionOf(person.email);
 	return {
 		personID: person.personID,
 		name: person.name,

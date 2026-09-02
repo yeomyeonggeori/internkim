@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { handleFromEmail } from '$lib/server/fleet-user-directory';
 import { emailNearness, typoNearness } from './hint-nearness';
 import {
 	HintRefused,
@@ -21,8 +22,9 @@ export function displayNameOf(member: { name: string | null; email: string | nul
 	return member.name?.trim() || (member.email ?? '').split('@')[0];
 }
 
-export function mentionOf(name: string): string {
-	return name.trim() ? `@${name.trim()}` : '';
+export function mentionOf(email: string): string {
+	const handle = handleFromEmail(email);
+	return handle ? `@${handle}` : '';
 }
 
 export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPerson[]> {
@@ -41,20 +43,15 @@ export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPer
 }
 
 const personMatcher: HintMatcher<RecordPerson> = {
-	identifiersOf: (person) => [person.personID, person.email, handleOf(person)],
+	identifiersOf: (person) => [person.personID, person.email, mentionOf(person.email)],
 	titleOf: (person) => person.name,
 	nearnessTo: (person, hint) =>
 		Math.max(
 			typoNearness(normalized(hint), normalized(person.name)),
 			emailNearness(normalized(hint), normalized(person.email)),
-			typoNearness(withoutAtSign(normalized(hint)), withoutAtSign(handleOf(person)))
+			typoNearness(withoutAtSign(normalized(hint)), handleFromEmail(person.email))
 		)
 };
-
-function handleOf(person: RecordPerson): string {
-	const local = normalized(person.email).split('@')[0];
-	return local ? `@${local}` : '';
-}
 
 function withoutAtSign(value: string): string {
 	return value.startsWith('@') ? value.slice(1) : value;
@@ -71,7 +68,7 @@ export function personOfHint(
 }
 
 export function candidateOf(person: RecordPerson): HintCandidate {
-	const mention = mentionOf(person.name);
+	const mention = mentionOf(person.email);
 	return {
 		id: person.personID,
 		label: person.name,

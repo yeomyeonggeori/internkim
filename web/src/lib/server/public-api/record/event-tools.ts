@@ -1,7 +1,7 @@
 import { instantWritten, weekWindow } from './days';
 import { peopleOfHints } from './people';
 import type { RecordContext } from './company';
-import { deleteTask, saveTask, taskOfHint, tasksOfCompany, type TaskRow } from './tasks';
+import { deleteTask, rowOfSavedID, saveTask, taskOfHint, tasksOfCompany, type TaskRow } from './tasks';
 
 type EventWritten = {
 	title?: string;
@@ -120,7 +120,7 @@ async function eventOfHint(context: RecordContext, hint: string): Promise<TaskRo
 }
 
 async function eventByID(context: RecordContext, eventID: string): Promise<TaskRow> {
-	return taskOfHint(await tasksOfCompany(context.caller, true), eventID, 'event');
+	return rowOfSavedID(await tasksOfCompany(context.caller, true), eventID, 'event');
 }
 
 export async function eventAdd(context: RecordContext, input: EventWritten): Promise<AnsweredEvent> {

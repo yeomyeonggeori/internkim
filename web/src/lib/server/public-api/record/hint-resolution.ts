@@ -21,8 +21,9 @@ export function resolveHint<Item>(
 	const asked = hint.trim();
 	if (asked === '') return { outcome: 'not_found', candidates: [] };
 
-	const identified = items.find((item) => hasIdentifier(matcher.identifiersOf(item), asked));
-	if (identified) return { outcome: 'resolved', match: identified };
+	const identified = items.filter((item) => hasIdentifier(matcher.identifiersOf(item), asked));
+	if (identified.length === 1) return { outcome: 'resolved', match: identified[0] };
+	if (identified.length > 1) return { outcome: 'ambiguous', candidates: identified };
 
 	const titled = items.filter((item) => normalized(matcher.titleOf(item)) === normalized(asked));
 	const titledResolution = onlyOrPreferred(titled, matcher.isPreferred);

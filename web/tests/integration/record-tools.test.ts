@@ -123,7 +123,9 @@ describe('a task written through the record', () => {
 		expect(made.business).toBe('영업');
 		expect(made.status).toBe('planned');
 		expect(made.content).toBe('분기 보고서 초안');
-		expect((made.participantPresentations as { mention: string }[])[0].mention).toBe('@이샘플');
+		expect((made.participantPresentations as { mention: string }[])[0].mention).toBe(
+			`@${slug}-sample`
+		);
 	});
 
 	test('keeps what an update did not name', async () => {
@@ -191,7 +193,14 @@ describe('a task written through the record', () => {
 		expect(refused.status).toBe(409);
 		expect(refusal.errorCode).toBe('interaction_required');
 		expect(refusal.candidates.map((one) => one.label)).toContain('박예시');
-		expect(refusal.candidates.find((one) => one.label === '박예시')?.mention).toBe('@박예시');
+
+		// The retry the refusal invites has to work on the value it handed back.
+		const offered = refusal.candidates.find((one) => one.label === '박예시');
+		expect(offered?.mention).toBe(`@${slug}-example`);
+		const named = resultOf(
+			await run('task_add', { title: '가까운 이름', participantPersonHints: [offered!.mention] })
+		);
+		expect(named.participantNames).toEqual(['박예시']);
 	});
 
 	test('refuses a name nothing comes close to as a participant, not as a person', async () => {

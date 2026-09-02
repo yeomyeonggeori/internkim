@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { personOfHint, peopleOfHints } from '$lib/server/public-api/record/people';
+import { candidateOf, personOfHint, peopleOfHints } from '$lib/server/public-api/record/people';
 import { HintRefused } from '$lib/server/public-api/record/hint-resolution';
 
 const people = [
@@ -33,8 +33,25 @@ describe('naming a person', () => {
 		expect(personOfHint(people, '예시연').personID).toBe('m3');
 	});
 
-	test('takes an @handle derived from the address', () => {
+	test('takes an @handle derived from the address, the one a candidate hands back', () => {
 		expect(personOfHint(people, '@yesi').personID).toBe('m2');
+		expect(candidateOf(people[1]).mention).toBe('@yesi');
+		expect(personOfHint(people, candidateOf(people[1]).mention as string).personID).toBe('m2');
+	});
+
+	test('asks rather than picking one when two addresses share a local part', () => {
+		const sharing = [...people, { personID: 'm4', name: '박예시', email: 'yesi@example.co.kr' }];
+		const refusal = (() => {
+			try {
+				personOfHint(sharing, '@yesi');
+			} catch (thrown) {
+				if (thrown instanceof HintRefused) return thrown;
+				throw thrown;
+			}
+			throw new Error('the shared handle was expected to be refused');
+		})();
+		expect(refusal.outcome).toBe('ambiguous');
+		expect(refusal.candidates.map((one) => one.id).sort()).toEqual(['m2', 'm4']);
 	});
 
 	test('refuses a part two people answer to, and says who they are', () => {
@@ -46,7 +63,7 @@ describe('naming a person', () => {
 			id: 'm2',
 			label: '박예시',
 			email: 'yesi@example.com',
-			mention: '@박예시'
+			mention: '@yesi'
 		});
 	});
 

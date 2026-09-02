@@ -52,10 +52,17 @@ describe('naming a task', () => {
 		]);
 	});
 
-	test('lets the requester’s own task break a tie between two the hint holds', () => {
-		const mine = row({ id: 't4', title: '보고 정리', task_participant: [{ member_id: 'm9' }] });
-		const theirs = row({ id: 't5', title: '보고 정리 검토', task_participant: [{ member_id: 'm2' }] });
+	test('lets the requester’s own task break a tie neither title answers exactly', () => {
+		const mine = row({ id: 't4', title: '주간 보고 정리', task_participant: [{ member_id: 'm9' }] });
+		const theirs = row({ id: 't5', title: '주간 보고 정리 검토', task_participant: [{ member_id: 'm2' }] });
 		expect(taskOfHint([mine, theirs], '보고 정리', 'task', 'm9').id).toBe('t4');
+		expect(() => taskOfHint([mine, theirs], '보고 정리')).toThrow(HintRefused);
+	});
+
+	test('breaks a tie on ownership alone, never on taking part in somebody else’s', () => {
+		const theirs = row({ id: 't6', title: '월간 회의', task_participant: [{ member_id: 'm2' }, { member_id: 'm9' }] });
+		const alsoTheirs = row({ id: 't7', title: '월간 회의 준비', task_participant: [{ member_id: 'm3' }] });
+		expect(() => taskOfHint([theirs, alsoTheirs], '회의', 'task', 'm9')).toThrow(HintRefused);
 	});
 
 	test('offers the nearest titles when nothing holds the hint, and resolves nothing', () => {

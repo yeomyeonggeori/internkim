@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { centralStatusFromWord } from '$lib/task/central-task';
+import { centralStatusFromWord, compatibilityOwnerOf } from '$lib/task/central-task';
 import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher, type HintSubject } from './hint-resolution';
 import { peopleOfHints, personOfHint, type RecordPerson } from './people';
@@ -38,6 +38,24 @@ export class RecordRefusedTheWrite extends Error {
 	}
 }
 
+export class WriteNotReadBack extends Error {
+	readonly errorCode = 'record_write_not_read_back';
+	readonly failureStage = 'result_verification';
+	readonly retryable = true;
+	readonly safeRetry = false;
+
+	constructor(subject: 'task' | 'event') {
+		super(`the record saved this ${subject} and did not answer with it`);
+		this.name = 'WriteNotReadBack';
+	}
+}
+
+export function rowOfSavedID(rows: TaskRow[], savedID: string, subject: 'task' | 'event'): TaskRow {
+	const saved = rows.find((row) => row.id === savedID);
+	if (!saved) throw new WriteNotReadBack(subject);
+	return saved;
+}
+
 const insufficientPrivilege = '42501';
 const serializationFailure = '40001';
 
@@ -72,7 +90,7 @@ export function taskOfHint(
 ): TaskRow {
 	const resolution = resolveHint(hint, tasks, {
 		...taskMatcher,
-		...(requesterID ? { isPreferred: standsOn(requesterID) } : {})
+		...(requesterID ? { isPreferred: isOwnedBy(requesterID) } : {})
 	});
 	if (resolution.outcome === 'resolved') return resolution.match;
 	throw new HintRefused(
@@ -83,8 +101,10 @@ export function taskOfHint(
 	);
 }
 
-function standsOn(requesterID: string): (task: TaskRow) => boolean {
-	return (task) => task.task_participant.some(({ member_id }) => member_id === requesterID);
+function isOwnedBy(requesterID: string): (task: TaskRow) => boolean {
+	return (task) =>
+		compatibilityOwnerOf(task.task_participant.map(({ member_id }) => ({ id: member_id, name: '' }))).id ===
+		requesterID;
 }
 
 // task_save writes every field it is given, so a patch that named only what

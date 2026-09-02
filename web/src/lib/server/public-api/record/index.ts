@@ -5,7 +5,7 @@ import { recordContextOf, type RecordContext } from './company';
 import { eventAdd, eventDelete, eventList, eventUpdate } from './event-tools';
 import { HintRefused } from './hint-resolution';
 import { LabelUnresolved } from './labels';
-import { RecordRefusedTheWrite } from './tasks';
+import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
 import { leaveBalance, leaveDecide, leaveDelete, leaveList, leaveRequest, leaveUpdate } from './leave-tools';
 import { personList, taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
@@ -86,6 +86,18 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 				safeRetry: refusal.safeRetry,
 				hint: refusal.hint,
 				candidates: refusal.candidates
+			}
+		};
+	}
+	if (refusal instanceof WriteNotReadBack) {
+		return {
+			status: 502,
+			body: {
+				error: refusal.message,
+				errorCode: refusal.errorCode,
+				failureStage: refusal.failureStage,
+				retryable: refusal.retryable,
+				safeRetry: refusal.safeRetry
 			}
 		};
 	}
