@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { claimCodeLength } from '../../src/routes/auth/claim/claim-code';
+import { claimCodeLength, shortestClaimCodeLength } from '../../src/routes/auth/claim/claim-code';
 
 function codeLengthInConfiguration(): number {
 	const configuration = readFileSync(new URL('../../../supabase/config.toml', import.meta.url), 'utf8');
@@ -10,7 +10,12 @@ function codeLengthInConfiguration(): number {
 }
 
 describe('the emailed claim code', () => {
-	test('is as long as the config the mail is generated from says it is', () => {
+	test('gets a field as long as the config the mail is generated from says it is', () => {
 		expect(claimCodeLength).toBe(codeLengthInConfiguration());
+	});
+
+	test('is verifiable at the shortest length GoTrue accepts, whatever the project runs', () => {
+		expect(shortestClaimCodeLength).toBe(6);
+		expect(shortestClaimCodeLength).toBeLessThanOrEqual(claimCodeLength);
 	});
 });
