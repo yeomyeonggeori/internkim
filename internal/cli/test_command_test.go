@@ -96,8 +96,7 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 		"--maximum-model-tier", "high",
 		"--llm-provider", "capability",
 		"--llm-endpoint", "http://capability.test",
-		"--llm-unix-socket", "/tmp/llmd.sock",
-		"--llm-auth-key-path", "/tmp/llmd-auth-key",
+		"--llm-unix-socket", "/tmp/capability.sock",
 		"--llm-execution-mode", "auto",
 		"--seed", "41",
 	}, time.Now())
@@ -110,7 +109,7 @@ func TestParseTestArgumentsAcceptsExpensiveSuiteControls(t *testing.T) {
 	if len(configuration.ScenarioNames) != 2 || configuration.ScenarioNames[0] != "task-lifecycle" || configuration.ScenarioNames[1] != "message-lifecycle" {
 		t.Fatalf("unexpected scenario selection: %+v", configuration.ScenarioNames)
 	}
-	if configuration.LanguageModelProvider != "capability" || configuration.LanguageModelEndpoint != "http://capability.test" || configuration.LanguageModelSocket != "/tmp/llmd.sock" || configuration.LanguageModelAuthKeyPath != "/tmp/llmd-auth-key" || configuration.LanguageModelExecutionMode != "auto" {
+	if configuration.LanguageModelProvider != "capability" || configuration.LanguageModelEndpoint != "http://capability.test" || configuration.LanguageModelSocket != "/tmp/capability.sock" || configuration.LanguageModelExecutionMode != "auto" {
 		t.Fatalf("unexpected live LLM configuration: %+v", configuration)
 	}
 }

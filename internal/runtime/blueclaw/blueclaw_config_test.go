@@ -826,9 +826,9 @@ func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
 	if !strings.Contains(serviceDocument, "--mattermost-token "+BlueclawMattermostTokenPath) {
 		t.Fatalf("expected capabilityd service to include Mattermost bot token path, got %s", serviceDocument)
 	}
-	for _, forbiddenValue := range []string{"internkim-llm-gateway", "workers", "llm-gateway-shared-secret", "--openrouter-gateway-secret"} {
+	for _, forbiddenValue := range []string{"workers", "--openrouter-gateway-secret"} {
 		if strings.Contains(serviceDocument, forbiddenValue) {
-			t.Fatalf("expected physical Jetson capabilityd service to avoid Worker gateway value %q, got %s", forbiddenValue, serviceDocument)
+			t.Fatalf("expected physical Jetson capabilityd service to avoid fronting gateway value %q, got %s", forbiddenValue, serviceDocument)
 		}
 	}
 }

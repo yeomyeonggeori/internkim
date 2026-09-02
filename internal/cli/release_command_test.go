@@ -224,31 +224,6 @@ func containsDeletedObjectKey(values []string, expected string) bool {
 	return false
 }
 
-func writeBlueclawLLMDArtifact(t *testing.T, artifactDirectoryPath string, revision string) {
-	t.Helper()
-	binaryPath := filepath.Join(artifactDirectoryPath, "blueclaw-llmd")
-	writeReleaseTestFile(t, binaryPath, revision, 0o755)
-	binarySHA256, _, errorValue := releaseFileSHA256AndSize(binaryPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	manifestDocument, errorValue := json.Marshal(map[string]string{"blueclawRevision": revision, "sha256": binarySHA256})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	writeReleaseTestFile(t, filepath.Join(artifactDirectoryPath, "manifest.json"), string(manifestDocument), 0o644)
-}
-
-func writeReleaseTestFile(t *testing.T, path string, content string, mode os.FileMode) {
-	t.Helper()
-	if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(path, []byte(content), mode); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-}
-
 func runCommandForTest(directoryPath string, name string, arguments ...string) (string, error) {
 	command := exec.Command(name, arguments...)
 	command.Dir = directoryPath

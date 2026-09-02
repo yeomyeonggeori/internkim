@@ -6,6 +6,10 @@ metadata, package `.d.ts` files unpacked from the published tarballs, and the
 official docs. Anything not confirmed from a primary source is marked
 **UNVERIFIED**.
 
+Superseded 2026-09-02 by #1263 wherever this document says `llmd`: the daemon no
+longer reaches a model through it, so nothing here about building an AI SDK
+harness in llmd or upgrading its `ai` pin describes work that remains.
+
 ---
 
 ## 0. What this changes about our plan
