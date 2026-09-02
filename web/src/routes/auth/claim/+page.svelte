@@ -9,7 +9,13 @@
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
-	import { askToClaim, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
+	import {
+		askToClaim,
+		hasSignedInJustNow,
+		setSupabasePassword,
+		signInWithSupabase,
+		verifyClaimCode
+	} from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { onMount } from 'svelte';
@@ -111,7 +117,7 @@
 		const { data } = await supabase().auth.getSession();
 		if (!data.session) return;
 		email = data.session.user.email ?? '';
-		step = 'password';
+		if (await hasSignedInJustNow()) step = 'password';
 	});
 </script>
 
