@@ -5,7 +5,7 @@ describe('memory facts api normalizer', () => {
 	test('keeps well-formed facts and drops the rest', () => {
 		const response = normalizeMemoryFactsResponse({
 			personID: 'person-1',
-			embeddingModel: 'baai/bge-m3',
+			embeddingModel: 'perplexity/pplx-embed-v1-4b',
 			profile: { identityLines: ['이샘플 prefers bullets', 7], currentLines: [], builtAt: '2026-09-02T10:00:00Z' },
 			facts: [
 				{
@@ -27,7 +27,7 @@ describe('memory facts api normalizer', () => {
 		});
 
 		expect(response.personID).toBe('person-1');
-		expect(response.embeddingModel).toBe('baai/bge-m3');
+		expect(response.embeddingModel).toBe('perplexity/pplx-embed-v1-4b');
 		expect(response.profile.identityLines).toEqual(['이샘플 prefers bullets']);
 		expect(response.profile.builtAt).toBe('2026-09-02T10:00:00Z');
 		expect(response.facts.length).toBe(1);

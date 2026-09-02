@@ -14,7 +14,7 @@ import (
 const (
 	EmbeddingGemmaModelName         = "embeddinggemma"
 	DefaultEmbeddingModelName       = "baai/bge-m3"
-	DefaultRemoteEmbeddingModelName = DefaultEmbeddingModelName
+	DefaultRemoteEmbeddingModelName = "perplexity/pplx-embed-v1-4b"
 	qwen3EmbeddingModelNamePrefix   = "qwen/qwen3-embedding"
 	qwen3EmbeddingInstructionPrefix = "Instruct: "
 	qwen3EmbeddingQueryInstruction  = "Instruct: Given a question about a person or their work, retrieve the memory facts that answer it\nQuery: "

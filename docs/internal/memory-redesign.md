@@ -441,13 +441,21 @@ blueclaw never names a provider. Two small additions to the Go client:
 `inputType` (`query` versus `document`) and a batch form, both already spoken by
 the sidecar it replaces.
 
-The default model is `baai/bge-m3`, the same model the device runs on
-llama.cpp, reached through OpenRouter in remote execution mode. Memory embeds little: one query per launch, one per
+A host picks its embedding model once, at setup, from how it executes. A
+device that runs the agent as a Firecracker guest embeds with `baai/bge-m3`,
+the model its own llama.cpp serves on CPU beside generation, and reaches
+the same model on OpenRouter when the local server is down. A host that runs
+the agent directly without local models embeds with
+`perplexity/pplx-embed-v1-4b` on OpenRouter. The two are not fallbacks for
+each other: vectors from two models do not compare, so a store ranks vectors
+only from the model it names, and a host that changes its model enqueues a
+`reembed` job that moves every live fact across while the rest answer
+lexically. Memory embeds little: one query per launch, one per
 `memory_search`, and one transcript plus at most twelve facts per finished
-task. At OpenRouter's listed price that is well under a cent per thousand tasks,
-and a 200 ms round trip sits beside an LLM call that already takes seconds. The
-text sent is the same class of company text the agent's own LLM calls already
-send to the same gateway, so it opens no new exposure.
+task. At OpenRouter's listed price that is well under a cent per thousand
+tasks, and a 200 ms round trip sits beside an LLM call that already takes
+seconds. The text sent is the same class of company text the agent's own LLM
+calls already send to the same gateway, so it opens no new exposure.
 
 Three consequences are handled, not hoped away:
 
@@ -483,18 +491,17 @@ hand-marked Korean questions at 1,024 dimensions
 | `perplexity/pplx-embed-v1-0.6b` | 0.950 | 0.950 | 0.960 | 12 s |
 | `baai/bge-m3` | 0.950 | 1.000 | 0.975 | 26 s |
 
-The set is too small to rank the top three, bge-m3 misses one question at
-rank one and has it at rank two, and the choice fell to what a host can run
-itself. bge-m3 is what the device already serves
-on llama.cpp beside its generation model, on CPU, in about a gigabyte; the
-Qwen sizes that measured the same either share the GPU with generation (4b)
-or do not fit an 8 GB host at all (8b). One name on both paths means a
-host's local and remote embeddings share a vector space, so the capability
-daemon can answer from either, and a self-hosting company needs no second
-model. OpenRouter serves bge-m3 through two providers; the daemon retries a
-throttled call with backoff and honours `Retry-After`, and the store's job
-queue waits out anything longer. The set grows as real facts accumulate and
-the table is rerun before any change of default.
+The set is too small to rank the top three; bge-m3 misses one question at
+rank one and has it at rank two. The device takes bge-m3 because it is what
+the device can run itself, in about a gigabyte on CPU, where the Qwen sizes
+either share the GPU with generation (4b) or do not fit an 8 GB host (8b).
+The direct-execution host takes pplx-embed-v1-4b for its quality and its
+speed; it is not convertible to llama.cpp, which does not matter to a host
+that runs no local model. Each is served by one or two providers on
+OpenRouter; the capability daemon retries a throttled call with backoff and
+honours `Retry-After`, and the store's job queue waits out anything longer.
+The set grows as real facts accumulate and the table is rerun before any
+change of default.
 
 ---
 
