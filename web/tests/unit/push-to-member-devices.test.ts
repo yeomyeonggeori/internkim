@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { pushToMemberDevices } from '../../src/lib/server/push-to-member-devices';
+import { pushToMemberDevices } from '../../../supabase/functions/_shared/push-to-member-devices.ts';
 import { encodeBase64URL } from '../../src/lib/notifications/base64url';
 
 const vapid = {
