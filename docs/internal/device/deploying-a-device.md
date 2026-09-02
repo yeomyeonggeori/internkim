@@ -6,7 +6,7 @@ existing device working. A company on the central plane is deployed by
 
 - The fleet domain lives in exactly one place: `fleetdomain.defaultZone`.
   Everything that needs it — the origin allowlist, the release registry,
-  device hosts, Flow action URLs — derives it rather than spelling it out.
+  device hosts, Task action URLs — derives it rather than spelling it out.
   Configuration wins over that default: a device takes it from the `api-url`
   file setup writes, and self-hosting replaces it with `INTERNKIM_DOMAIN` or
   `-api-url`.
@@ -100,7 +100,7 @@ existing device working. A company on the central plane is deployed by
   Bazel/CUDA builds OOM the 8GB Jetson.
 - Stop if the plan unexpectedly includes `binaries`, on-device model-runtime *builds*,
   CUDA, or Jetson model runtime work that is not part of an intended local-LLM change.
-- For Admin/Flow web UI-only changes on a device, rebuild the board UI first:
+- For Admin/Task web UI-only changes on a device, rebuild the board UI first:
   run `cd web && bun install` when dependencies may have changed, then
   `cd web && bun run build:board`, then `./internkim deploy --components web`
   from the repository root. The OTA web deploy packages the pre-built

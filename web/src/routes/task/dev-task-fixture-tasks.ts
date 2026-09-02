@@ -54,6 +54,6 @@ function taskFromSpec(spec: DevTaskSpec, week: TaskWeek): Task {
 
 function memberByID(id: string): TaskMember {
 	const found = devTaskMembers.find((member) => member.id === id);
-	if (!found) throw new Error(`unknown dev flow member: ${id}`);
+	if (!found) throw new Error(`unknown dev task member: ${id}`);
 	return found;
 }

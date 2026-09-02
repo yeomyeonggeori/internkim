@@ -56,7 +56,7 @@
 	const currentSearchScope = $derived(searchScopeFromPath(appNavigation.currentPath));
 	const hasSuggestionResults = $derived(
 		(currentSearchScope === 'mail' && mailMessageSearch.results.length > 0) ||
-			(currentSearchScope === 'flow' && taskResults.length > 0) ||
+			(currentSearchScope === 'task' && taskResults.length > 0) ||
 			(currentSearchScope === 'calendar' && calendarResults.length > 0)
 	);
 
@@ -85,7 +85,7 @@
 	function searchScopeFromPath(pathname: string) {
 		if (pathname.startsWith('/mail')) return 'mail';
 		if (pathname.startsWith('/calendar')) return 'calendar';
-		if (pathname.startsWith('/task')) return 'flow';
+		if (pathname.startsWith('/task')) return 'task';
 		return '';
 	}
 
@@ -192,7 +192,7 @@
 					{/if}
 				{:else if currentSearchScope === 'mail'}
 					{@render mailResultItems()}
-				{:else if currentSearchScope === 'flow'}
+				{:else if currentSearchScope === 'task'}
 					{@render taskResultItems()}
 				{:else if currentSearchScope === 'calendar'}
 					{@render calendarResultItems()}
@@ -207,9 +207,9 @@
 			</Command.Group>
 		{/if}
 
-		{#if currentSearchScope !== 'flow' && taskResults.length > 0}
+		{#if currentSearchScope !== 'task' && taskResults.length > 0}
 			<Command.Separator />
-			<Command.Group forceMount heading={text.flow}>
+			<Command.Group forceMount heading={text.task}>
 				{@render taskResultItems()}
 			</Command.Group>
 		{/if}

@@ -1,4 +1,4 @@
-//   bun run web/scripts/import-flow-state.ts --file <flow-state.json> --people <organization-people.json> --company <uuid> [--apply]
+//   bun run web/scripts/import-task-state.ts --file <task-state.json> --people <organization-people.json> --company <uuid> [--apply]
 
 import { controlPlane } from '../src/lib/server/control-plane';
 import { readAllRows } from './read-all-rows';
@@ -22,7 +22,7 @@ const peopleFile = argument('people');
 const companyID = argument('company');
 const shouldApply = process.argv.includes('--apply');
 if (!file || !peopleFile || !companyID) {
-	throw new Error('pass --file <flow-state.json> --people <organization-people.json> --company <uuid>');
+	throw new Error('pass --file <task-state.json> --people <organization-people.json> --company <uuid>');
 }
 
 const client = controlPlane({
