@@ -26,6 +26,10 @@ export function displayNameOf(member: { name: string | null; email: string | nul
 	return member.name?.trim() || (member.email ?? '').split('@')[0];
 }
 
+export function mentionOf(name: string): string {
+	return name.trim() ? `@${name.trim()}` : '';
+}
+
 export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPerson[]> {
 	const { data, error } = await caller
 		.from('member')

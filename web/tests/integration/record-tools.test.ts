@@ -3,6 +3,7 @@ import { addMember, controlPlane, provisionCompany, sessionForMember } from '../
 import { asMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
+import { capabilityToolResultSchema } from '../../src/lib/server/public-api/catalog/tools';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -63,8 +64,20 @@ afterAll(async () => {
 	}
 }, networkHookTimeout);
 
-function run(name: string, input: Record<string, unknown> = {}) {
-	return runToolOverTheRecord(caller, sampleID, name, input, now);
+async function run(name: string, input: Record<string, unknown> = {}) {
+	const answered = await runToolOverTheRecord(caller, sampleID, name, input, now);
+	if (answered.status === 200) holdToTheContract(name, (answered.body as { result: unknown }).result);
+	return answered;
+}
+
+function holdToTheContract(name: string, result: unknown): void {
+	const schema = capabilityToolResultSchema(name);
+	if (!schema) throw new Error(`${name} publishes no result contract to hold its answer to`);
+	const parsed = schema.safeParse(result);
+	const refused = parsed.success
+		? []
+		: parsed.error.issues.map((issue) => `${['result', ...issue.path.map(String)].join('.')}: ${issue.message}`);
+	expect({ tool: name, refused }).toEqual({ tool: name, refused: [] });
 }
 
 function resultOf(answer: { status: number; body: unknown }): Record<string, unknown> {
@@ -106,9 +119,11 @@ describe('person_list', () => {
 describe('a task written through the record', () => {
 	test('belongs to the caller when nobody was named', async () => {
 		const made = resultOf(await run('task_add', { title: '분기 보고서 초안', size: 'M' }));
-		expect(made.participants).toEqual(['이샘플']);
+		expect(made.participantNames).toEqual(['이샘플']);
 		expect(made.business).toBe('영업');
 		expect(made.status).toBe('planned');
+		expect(made.content).toBe('분기 보고서 초안');
+		expect((made.participantPresentations as { mention: string }[])[0].mention).toBe('@이샘플');
 	});
 
 	test('keeps what an update did not name', async () => {
@@ -126,7 +141,7 @@ describe('a task written through the record', () => {
 		const changed = resultOf(await run('task_update', { taskHint: '월간 회고 정리', status: 'in_progress' }));
 		expect(changed.taskID).toBe(made.taskID);
 		expect(changed.status).toBe('in_progress');
-		expect(changed.title).toBe('월간 회고 정리');
+		expect(changed.content).toBe('월간 회고 정리');
 		expect(changed.size).toBe('S');
 		expect(changed.business).toBe('개발');
 		expect(changed.type).toBe('문서');
@@ -138,7 +153,7 @@ describe('a task written through the record', () => {
 		const made = resultOf(
 			await run('task_add', { title: '채용 공고 검토', participantPersonHints: ['예시'] })
 		);
-		expect(made.participants).toEqual(['박예시']);
+		expect(made.participantNames).toEqual(['박예시']);
 	});
 
 	test('refuses a label the company never registered, and says what it has', async () => {
@@ -177,11 +192,11 @@ describe('task_list', () => {
 
 	test('keeps only the weeks asked for', async () => {
 		const fixedWeek = resultOf(await run('task_list', { scope: 'all', weekFrom: 0, weekTo: 0 }));
-		const titles = (fixedWeek.tasks as { title: string }[]).map((task) => task.title);
+		const titles = (fixedWeek.tasks as { content: string }[]).map((task) => task.content);
 		expect(titles).not.toContain('이미 끝난 기간');
 
 		const wide = resultOf(await run('task_list', { scope: 'all', weekFrom: -400, weekTo: 400 }));
-		expect((wide.tasks as { title: string }[]).map((task) => task.title)).toContain('이미 끝난 기간');
+		expect((wide.tasks as { content: string }[]).map((task) => task.content)).toContain('이미 끝난 기간');
 	});
 
 	test('keeps only the status asked for, and stops at the limit', async () => {
@@ -204,7 +219,8 @@ describe('an event written through the record', () => {
 			})
 		);
 		expect(made.location).toBe('회의실');
-		expect(made.participants).toEqual(['이샘플']);
+		expect((made.participants as { name: string }[]).map((one) => one.name)).toEqual(['이샘플']);
+		expect(made.updatedAt).not.toBe('');
 
 		const listed = resultOf(await run('event_list', { weekFrom: 0, weekTo: 0 }));
 		expect((listed.events as { title: string }[]).map((event) => event.title)).toContain('주간 회의');
@@ -219,7 +235,7 @@ describe('an event written through the record', () => {
 				everyoneAttends: true
 			})
 		);
-		expect((made.participants as string[]).length >= 3).toBe(true);
+		expect((made.participants as unknown[]).length >= 3).toBe(true);
 	});
 
 	test('keeps what an update did not name', async () => {
@@ -243,7 +259,7 @@ describe('deleting', () => {
 		const gone = resultOf(await run('task_delete', { taskHint: '분기 보고서 초안' }));
 		expect(gone.deleted).toBe(true);
 		const left = resultOf(await run('task_list', { scope: 'all' }));
-		expect((left.tasks as { title: string }[]).map((task) => task.title)).not.toContain('분기 보고서 초안');
+		expect((left.tasks as { content: string }[]).map((task) => task.content)).not.toContain('분기 보고서 초안');
 	});
 
 	test('refuses to take away a task that is somebody else’s', async () => {

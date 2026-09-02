@@ -79,18 +79,37 @@ or which administrators were asked. `task_add` is one of these:
 {
   "tool": "task_add",
   "result": {
-    "taskID": "...",
-    "title": "draft the quarterly report",
-    "status": "planned",
+    "taskID": "b2c0…",
+    "content": "draft the quarterly report",
+    "ownerID": "8f31…",
+    "ownerName": "Sample Lee",
+    "participantIDs": ["8f31…"],
+    "participantNames": ["Sample Lee"],
+    "participantPresentations": [
+      {
+        "personID": "8f31…",
+        "displayName": "Sample Lee",
+        "email": "sample@example.com",
+        "mention": "@Sample Lee"
+      }
+    ],
+    "business": "Sales",
+    "type": "",
     "size": "M",
-    "business": null,
-    "type": null,
+    "status": "planned",
     "startDate": "",
     "endDate": "",
-    "participants": ["..."]
+    "weekCode": ""
   }
 }
 ```
+
+Every field here is the tool's own `outputSchema`, which the descriptor carries
+and the record answer is held to: nothing else may appear, and the record's
+answer is checked against it before it leaves. A task's title is `content`, and
+the people on it come three ways — `participantIDs` to act on,
+`participantNames` to print, and `participantPresentations` to address someone.
+
 
 A tool carried to the company's computer answers the fuller shape below —
 `message_send` is one of these:
