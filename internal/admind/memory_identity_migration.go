@@ -47,7 +47,7 @@ func (service *Service) writeMemoryPersonMessages(responseWriter http.ResponseWr
 		http.Error(responseWriter, "memory graph unavailable", http.StatusBadGateway)
 		return
 	}
-	botToken, errorValue := service.mattermostBotToken()
+	botToken, errorValue := service.mattermostAdmin().BotToken()
 	if errorValue != nil {
 		http.Error(responseWriter, "mattermost token unavailable", http.StatusBadGateway)
 		return
@@ -60,7 +60,7 @@ func (service *Service) writeMemoryPersonMessages(responseWriter http.ResponseWr
 			continue
 		}
 		var post mattermostPostLookup
-		if errorValue := service.mattermostRequest(request.Context(), http.MethodGet, "/api/v4/posts/"+messageID, botToken, nil, &post); errorValue != nil {
+		if errorValue := service.mattermostAdmin().Request(request.Context(), http.MethodGet, "/api/v4/posts/"+messageID, botToken, nil, &post); errorValue != nil {
 			continue
 		}
 		messages = append(messages, memoryPersonMessage{MessageID: messageID, OccurredAt: occurredAt, Text: post.Message})
@@ -133,7 +133,7 @@ func (service *Service) writeMemoryIdentityMigrationMap(responseWriter http.Resp
 		return
 	}
 
-	botToken, errorValue := service.mattermostBotToken()
+	botToken, errorValue := service.mattermostAdmin().BotToken()
 	if errorValue != nil {
 		log.Printf("memory identity migration bot token unavailable: %v", errorValue)
 		http.Error(responseWriter, "mattermost token unavailable", http.StatusBadGateway)
@@ -240,7 +240,7 @@ func (service *Service) resolveMigrationEntryFromDMChannel(ctx context.Context, 
 		return memoryPersonMigrationEntry{}, false
 	}
 	var channel mattermostChannelLookup
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/channels/"+channelID, botToken, nil, &channel); errorValue != nil {
+	if errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, "/api/v4/channels/"+channelID, botToken, nil, &channel); errorValue != nil {
 		return memoryPersonMigrationEntry{}, false
 	}
 	for _, memberUserID := range strings.Split(channel.Name, "__") {
@@ -257,7 +257,7 @@ func (service *Service) resolveMigrationEntryFromUser(ctx context.Context, botTo
 		return memoryPersonMigrationEntry{}, false
 	}
 	var user mattermostUserLookup
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/users/"+userID, botToken, nil, &user); errorValue != nil {
+	if errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, "/api/v4/users/"+userID, botToken, nil, &user); errorValue != nil {
 		return memoryPersonMigrationEntry{}, false
 	}
 	if user.Email == "" {
@@ -303,7 +303,7 @@ func (service *Service) resolveMigrationEntry(ctx context.Context, botToken stri
 
 func (service *Service) resolveMigrationEntryFromMessage(ctx context.Context, botToken string, messageID string) (memoryPersonMigrationEntry, bool) {
 	var post mattermostPostLookup
-	if errorValue := service.mattermostRequest(ctx, http.MethodGet, "/api/v4/posts/"+messageID, botToken, nil, &post); errorValue != nil {
+	if errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, "/api/v4/posts/"+messageID, botToken, nil, &post); errorValue != nil {
 		return memoryPersonMigrationEntry{}, false
 	}
 	return service.resolveMigrationEntryFromUser(ctx, botToken, post.UserID)

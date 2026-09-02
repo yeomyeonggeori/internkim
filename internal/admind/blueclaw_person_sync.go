@@ -99,7 +99,7 @@ func applyBlueclawPersonAttributes(person map[string]any, name string, role stri
 		return
 	}
 	person["isAdmin"] = false
-	if strings.TrimSpace(mattermostPolicyString(person["securityLevelName"])) == "" || mattermostPolicyString(person["securityLevelName"]) == "admin" {
+	if strings.TrimSpace(policyString(person["securityLevelName"])) == "" || policyString(person["securityLevelName"]) == "admin" {
 		person["securityLevelName"] = "member"
 	}
 	if rank, _ := person["securityLevelRank"].(float64); rank == 0 || rank == 100 {

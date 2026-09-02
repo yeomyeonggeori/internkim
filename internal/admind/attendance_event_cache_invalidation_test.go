@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestAttendanceEventCacheMonthsForDates(t *testing.T) {
@@ -31,7 +33,7 @@ func TestInsertAttendanceEventInvalidatesTeamCache(t *testing.T) {
 	}
 	defer database.Close()
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"},
+		mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"},
 		attendanceKindClockIn,
 		time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
 		"team-1",
@@ -66,7 +68,7 @@ END`); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"},
+		mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"},
 		attendanceKindClockIn,
 		time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
 		"team-1",
@@ -169,7 +171,7 @@ func TestCancelAttendanceEventDoesNotPostWhenEventDoesNotExist(t *testing.T) {
 	}
 	defer database.Close()
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"},
+		mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"},
 		attendanceKindClockIn,
 		time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
 		"team-1",
@@ -296,7 +298,7 @@ func TestRepairFutureAttendanceEventsInvalidatesOldAndNewMonthCaches(t *testing.
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	futureTime := time.Date(2026, 7, 1, 0, 30, 0, 0, location)
 	event := service.createAttendanceEvent(userRecord, attendanceKindClockIn, futureTime.UTC(), "team-1", "attendance-channel", "action-post", "result-post", attendanceLocation{})
 	if errorValue := service.insertAttendanceEvent(ctx, database, event); errorValue != nil {
@@ -341,7 +343,7 @@ func TestDeleteAttendanceEventByResultPostIDInvalidatesEveryAffectedMonth(t *tes
 	}
 	email := "member@example.com"
 	resultPostID := "shared-result-post"
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: email, Nickname: "Member"}
 	overrideEvent := attendanceEvent{}
 	for _, occurredAt := range []time.Time{
 		time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC),

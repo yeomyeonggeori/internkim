@@ -4,40 +4,42 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestMattermostChannelShapeMirrorsWhoCanRead(t *testing.T) {
 	cases := []struct {
 		name                string
-		record              mattermostChannelRecord
+		record              mattermostadmin.ChannelRecord
 		expectedName        string
 		expectedChannelType string
 		expectedVisibility  string
 	}{
 		{
 			name:                "public channel",
-			record:              mattermostChannelRecord{ID: "ch-1", Name: "town-square", DisplayName: "Town Square", Type: "O"},
+			record:              mattermostadmin.ChannelRecord{ID: "ch-1", Name: "town-square", DisplayName: "Town Square", Type: "O"},
 			expectedName:        "Town Square",
 			expectedChannelType: "stream",
 			expectedVisibility:  "open",
 		},
 		{
 			name:                "private channel",
-			record:              mattermostChannelRecord{ID: "ch-2", Name: "leadership", DisplayName: "Leadership", Type: "P"},
+			record:              mattermostadmin.ChannelRecord{ID: "ch-2", Name: "leadership", DisplayName: "Leadership", Type: "P"},
 			expectedName:        "Leadership",
 			expectedChannelType: "stream",
 			expectedVisibility:  "private",
 		},
 		{
 			name:                "direct conversation",
-			record:              mattermostChannelRecord{ID: "ch-3", Name: "user-a__user-b", Type: "D"},
+			record:              mattermostadmin.ChannelRecord{ID: "ch-3", Name: "user-a__user-b", Type: "D"},
 			expectedName:        "user-a__user-b",
 			expectedChannelType: "dm",
 			expectedVisibility:  "private",
 		},
 		{
 			name:                "group conversation without a name",
-			record:              mattermostChannelRecord{ID: "ch-4", Type: "G"},
+			record:              mattermostadmin.ChannelRecord{ID: "ch-4", Type: "G"},
 			expectedName:        "ch-4",
 			expectedChannelType: "dm",
 			expectedVisibility:  "private",

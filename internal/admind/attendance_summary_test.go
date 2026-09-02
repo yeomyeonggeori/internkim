@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func newLocalAttendanceRequest(method string, target string, body io.Reader) *http.Request {
@@ -113,13 +115,13 @@ func TestAttendanceSummaryScopesHiddenTeamViewToActor(t *testing.T) {
 	}
 	defer database.Close()
 	occurredAt := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC)
-	insertAttendanceSummaryTestEvent(t, service, database, mattermostUserRecord{
+	insertAttendanceSummaryTestEvent(t, service, database, mattermostadmin.UserRecord{
 		ID:       "user-1",
 		Username: "member",
 		Email:    "member@example.com",
 		Nickname: "Member",
 	}, attendanceKindClockIn, occurredAt)
-	insertAttendanceSummaryTestEvent(t, service, database, mattermostUserRecord{
+	insertAttendanceSummaryTestEvent(t, service, database, mattermostadmin.UserRecord{
 		ID:       "user-2",
 		Username: "other",
 		Email:    "other@example.com",
@@ -318,7 +320,7 @@ func TestRepairFutureAttendanceEventsMovesEventToPreviousDay(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	location, _ := time.LoadLocation("Asia/Seoul")
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member1", Email: "member1@example.com", Nickname: "이샘플"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member1", Email: "member1@example.com", Nickname: "이샘플"}
 	futureTime := time.Date(2026, 6, 10, 23, 30, 0, 0, location)
 	event := service.createAttendanceEvent(userRecord, attendanceKindClockIn, futureTime.UTC(), "team-1", "attendance-channel", "entry-post", "result-post", service.attendanceLocationByID("office"))
 	if errorValue := service.insertAttendanceEvent(context.Background(), database, event); errorValue != nil {
@@ -361,7 +363,7 @@ func TestAttendanceEventOverridePreservesOriginalAndProjectsSummary(t *testing.T
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(
 		userRecord,
 		attendanceKindClockIn,
@@ -435,7 +437,7 @@ func TestAttendanceEventOverrideRequiresOwnerOrAdmin(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	userRecord := mattermostUserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
+	userRecord := mattermostadmin.UserRecord{ID: "user-1", Username: "member", Email: "member@example.com", Nickname: "Member"}
 	event := service.createAttendanceEvent(
 		userRecord,
 		attendanceKindClockIn,
@@ -464,7 +466,7 @@ func TestAttendanceEventOverrideRequiresOwnerOrAdmin(t *testing.T) {
 	}
 }
 
-func insertAttendanceSummaryTestEvent(t *testing.T, service *Service, database *sql.DB, userRecord mattermostUserRecord, kind string, occurredAt time.Time) {
+func insertAttendanceSummaryTestEvent(t *testing.T, service *Service, database *sql.DB, userRecord mattermostadmin.UserRecord, kind string, occurredAt time.Time) {
 	t.Helper()
 	event := service.createAttendanceEvent(
 		userRecord,

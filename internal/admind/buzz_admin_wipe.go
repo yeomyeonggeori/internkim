@@ -130,11 +130,11 @@ func channelIDOfEvent(event *nostr.Event) string {
 }
 
 func (service *Service) wipeMattermostMessages(ctx context.Context, email string) int {
-	token, errorValue := service.mattermostAdminToken(ctx)
+	token, errorValue := service.mattermostAdmin().AdminToken(ctx)
 	if errorValue != nil {
 		return 0
 	}
-	userRecord, found, errorValue := service.findMattermostUserByEmail(ctx, token, email)
+	userRecord, found, errorValue := service.mattermostAdmin().FindUserByEmail(ctx, token, email)
 	if errorValue != nil || !found {
 		return 0
 	}
@@ -157,7 +157,7 @@ func (service *Service) wipeMattermostMessages(ctx context.Context, email string
 			if post.UserID != userRecord.ID || post.DeleteAt != 0 {
 				continue
 			}
-			if errorValue := service.mattermostRequest(ctx, http.MethodDelete, "/api/v4/posts/"+post.ID, token, nil, nil); errorValue == nil {
+			if errorValue := service.mattermostAdmin().Request(ctx, http.MethodDelete, "/api/v4/posts/"+post.ID, token, nil, nil); errorValue == nil {
 				deleted++
 			}
 		}

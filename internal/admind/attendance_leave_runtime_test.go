@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestApprovedPartialLeaveClosesOpenWorkAtLeaveStart(t *testing.T) {
@@ -318,7 +320,7 @@ func insertRuntimeClockInForTest(t *testing.T, service *Service) {
 	}
 	defer database.Close()
 	event := service.createAttendanceEvent(
-		mattermostUserRecord{
+		mattermostadmin.UserRecord{
 			ID:       "member-user",
 			Username: "member",
 			Email:    "member@example.com",

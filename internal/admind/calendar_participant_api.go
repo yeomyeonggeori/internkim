@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 type calendarParticipantsResponse struct {
@@ -23,7 +25,7 @@ func (service *Service) serveCalendarParticipantImage(responseWriter http.Respon
 		http.NotFound(responseWriter, request)
 		return
 	}
-	token, errorValue := service.mattermostAdminToken(request.Context())
+	token, errorValue := service.mattermostAdmin().AdminToken(request.Context())
 	if errorValue != nil {
 		http.NotFound(responseWriter, request)
 		return
@@ -62,21 +64,21 @@ func calendarParticipantImageMember(members []taskMember, path string) (taskMemb
 	return taskMember{}, false
 }
 
-func (service *Service) calendarParticipantMattermostUser(request *http.Request, token string, member taskMember) (mattermostUserRecord, bool, error) {
+func (service *Service) calendarParticipantMattermostUser(request *http.Request, token string, member taskMember) (mattermostadmin.UserRecord, bool, error) {
 	username := strings.TrimSpace(member.MattermostUsername)
 	if username != "" {
-		userRecord, found, errorValue := service.findMattermostUserByUsername(request.Context(), token, username)
+		userRecord, found, errorValue := service.mattermostAdmin().FindUserByUsername(request.Context(), token, username)
 		if errorValue != nil || found {
 			return userRecord, found, errorValue
 		}
 	}
 	email := strings.ToLower(strings.TrimSpace(member.Email))
 	if email == "" {
-		return mattermostUserRecord{}, false, nil
+		return mattermostadmin.UserRecord{}, false, nil
 	}
-	return service.findMattermostUserByEmail(request.Context(), token, email)
+	return service.mattermostAdmin().FindUserByEmail(request.Context(), token, email)
 }
 
-func mattermostUserHasProfileImage(userRecord mattermostUserRecord) bool {
+func mattermostUserHasProfileImage(userRecord mattermostadmin.UserRecord) bool {
 	return userRecord.LastPictureUpdate > 0
 }

@@ -137,7 +137,7 @@ func blueclawPersonIDByEmail(policyDocument map[string]any, email string) string
 		emails, _ := person["emails"].([]any)
 		for _, emailValue := range emails {
 			if personEmail, isString := emailValue.(string); isString && strings.EqualFold(strings.TrimSpace(personEmail), normalizedEmail) {
-				return strings.TrimSpace(mattermostPolicyString(person["personID"]))
+				return strings.TrimSpace(policyString(person["personID"]))
 			}
 		}
 	}

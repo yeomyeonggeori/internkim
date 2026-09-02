@@ -67,7 +67,7 @@ func (service *Service) repairBuzzOrphanRoots(ctx context.Context, apply bool) (
 	if seed == "" || databaseURL == "" {
 		return buzzRepairResponse{}, errors.New("buzz key seed and database url must be configured")
 	}
-	token, errorValue := service.mattermostBotToken()
+	token, errorValue := service.mattermostAdmin().BotToken()
 	if errorValue != nil {
 		return buzzRepairResponse{}, errorValue
 	}

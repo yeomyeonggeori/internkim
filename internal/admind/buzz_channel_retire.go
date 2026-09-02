@@ -133,7 +133,7 @@ func (service *Service) describeRoomForRetirement(
 }
 
 func (service *Service) mattermostRoomMemberCount(ctx context.Context, externalChannelID string) (int, error) {
-	token, errorValue := service.mattermostAdminToken(ctx)
+	token, errorValue := service.mattermostAdmin().AdminToken(ctx)
 	if errorValue != nil {
 		return 0, errorValue
 	}
@@ -141,7 +141,7 @@ func (service *Service) mattermostRoomMemberCount(ctx context.Context, externalC
 		UserID string `json:"user_id"`
 	}
 	path := "/api/v4/channels/" + url.PathEscape(externalChannelID) + "/members?per_page=200"
-	errorValue = service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &members)
+	errorValue = service.mattermostAdmin().Request(ctx, http.MethodGet, path, token, nil, &members)
 	return len(members), errorValue
 }
 
@@ -152,12 +152,12 @@ func (service *Service) retireRoomAndItsMirror(
 	isAlreadyArchived bool,
 ) error {
 	if !isAlreadyArchived {
-		token, errorValue := service.mattermostAdminToken(ctx)
+		token, errorValue := service.mattermostAdmin().AdminToken(ctx)
 		if errorValue != nil {
 			return errorValue
 		}
 		path := "/api/v4/channels/" + url.PathEscape(mapping.ExternalChannelID)
-		if errorValue := service.mattermostRequest(ctx, http.MethodDelete, path, token, nil, nil); errorValue != nil {
+		if errorValue := service.mattermostAdmin().Request(ctx, http.MethodDelete, path, token, nil, nil); errorValue != nil {
 			return errorValue
 		}
 	}

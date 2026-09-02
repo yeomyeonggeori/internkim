@@ -272,7 +272,7 @@ func (service *Service) strangerBuzzPubkeys(ctx context.Context, seed string) ([
 		ours[email] = true
 	}
 
-	token, errorValue := service.mattermostBotToken()
+	token, errorValue := service.mattermostAdmin().BotToken()
 	if errorValue != nil {
 		return nil, nil, errorValue
 	}

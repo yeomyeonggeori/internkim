@@ -69,7 +69,7 @@ func (service *Service) customEmojiRecords(ctx context.Context) ([]customEmojiRe
 }
 
 func (service *Service) fetchMattermostCustomEmoji(ctx context.Context) ([]customEmojiRecord, error) {
-	token, errorValue := service.mattermostAdminToken(ctx)
+	token, errorValue := service.mattermostAdmin().AdminToken(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -78,7 +78,7 @@ func (service *Service) fetchMattermostCustomEmoji(ctx context.Context) ([]custo
 	for page := 0; page < 100; page++ {
 		var pageEmoji []mattermostCustomEmoji
 		path := "/api/v4/emoji?page=" + strconv.Itoa(page) + "&per_page=" + strconv.Itoa(customEmojiPageSize) + "&sort=name"
-		if errorValue := service.mattermostRequest(ctx, http.MethodGet, path, token, nil, &pageEmoji); errorValue != nil {
+		if errorValue := service.mattermostAdmin().Request(ctx, http.MethodGet, path, token, nil, &pageEmoji); errorValue != nil {
 			return nil, errorValue
 		}
 		for _, emoji := range pageEmoji {
@@ -104,7 +104,7 @@ func (service *Service) handleCustomEmojiImage(responseWriter http.ResponseWrite
 		http.Error(responseWriter, "invalid emoji", http.StatusBadRequest)
 		return
 	}
-	token, errorValue := service.mattermostAdminToken(request.Context())
+	token, errorValue := service.mattermostAdmin().AdminToken(request.Context())
 	if errorValue != nil {
 		http.Error(responseWriter, "custom emoji unavailable", http.StatusBadGateway)
 		return

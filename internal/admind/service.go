@@ -32,6 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/centralplane"
 	"gitlab.com/eastriver/internkim/internal/fleetdomain"
@@ -132,8 +133,8 @@ type Service struct {
 	siteScaffoldDocuments              []siteScaffoldDocument
 	siteScaffoldError                  error
 	centralPlaneClient                 *centralplane.Client
-	mattermostAdminSessionMutex        sync.Mutex
-	mattermostAdminSession             mattermostAdminSession
+	mattermostAdminOnce                sync.Once
+	mattermostAdminClient              *mattermostadmin.Client
 	jobs                               map[string]*Job
 	uploads                            map[string]*RestoreUpload
 	blueclawUpdateUploads              map[string]*BlueclawUpdateUpload
@@ -1110,7 +1111,7 @@ func upsertBlueclawCircle(value any, circle adminCircleRecord) []any {
 		if !isCircle {
 			continue
 		}
-		if strings.ToLower(strings.TrimSpace(mattermostPolicyString(existingCircle["circleID"]))) == circle.CircleID {
+		if strings.ToLower(strings.TrimSpace(policyString(existingCircle["circleID"]))) == circle.CircleID {
 			existingCircle["displayName"] = circle.DisplayName
 			existingCircle["isMattermostManaged"] = circle.IsMattermostManaged
 			existingCircle["workspaceDirectoryPath"] = "/workspace/circles/" + circle.CircleID
@@ -1134,7 +1135,7 @@ func removeBlueclawCircle(value any, circleID string) []any {
 	result := []any{}
 	for _, item := range circleValues {
 		circle, isCircle := item.(map[string]any)
-		if !isCircle || strings.ToLower(strings.TrimSpace(mattermostPolicyString(circle["circleID"]))) == circleID {
+		if !isCircle || strings.ToLower(strings.TrimSpace(policyString(circle["circleID"]))) == circleID {
 			continue
 		}
 		result = append(result, circle)
@@ -1171,7 +1172,7 @@ func removeMattermostCircleSync(value any, circleID string) []any {
 	result := []any{}
 	for _, item := range channelValues {
 		channel, isChannel := item.(map[string]any)
-		if !isChannel || strings.ToLower(strings.TrimSpace(mattermostPolicyString(channel["circleID"]))) == circleID {
+		if !isChannel || strings.ToLower(strings.TrimSpace(policyString(channel["circleID"]))) == circleID {
 			continue
 		}
 		result = append(result, channel)
@@ -2169,7 +2170,7 @@ func (service *Service) writeUserRole(ctx context.Context, fleetID string, fleet
 		"fleet_id": fleetID,
 		"email":    strings.ToLower(strings.TrimSpace(email)),
 		"role":     normalizeAdminUserRole(role),
-		"handle":   normalizeMattermostHandle(mattermostUsernameBase(email)),
+		"handle":   normalizeMemberHandle(memberHandleBase(email)),
 		"name":     firstNonEmpty(strings.TrimSpace(email), "Admin"),
 	}
 	document, errorValue := json.Marshal(payload)
