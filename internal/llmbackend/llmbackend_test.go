@@ -730,7 +730,7 @@ func TestNativeActionToolsPreserveFlattenedToolInputOptionalityForProviderCompat
 }
 
 func TestNativeActionToolsProjectEveryDefaultCapabilitySchema(t *testing.T) {
-	descriptors := append(capabilities.DefaultToolDescriptors(), capabilities.GoogleWorkspaceDescriptors()...)
+	descriptors := capabilities.DefaultToolDescriptors()
 	for _, descriptor := range descriptors {
 		toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 			Name:     "bluecollar_agent_turn_action",

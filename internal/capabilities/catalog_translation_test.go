@@ -42,13 +42,11 @@ func readDescriptorSetSnapshot(t *testing.T) descriptorSetSnapshot {
 func TestEverySetPublishesWhatItPublishedBeforeTheCatalogMove(t *testing.T) {
 	snapshot := readDescriptorSetSnapshot(t)
 	sets := map[string][]Descriptor{
-		"CompanionLLMDescriptors":    CompanionLLMDescriptors(),
-		"CompanionToolDescriptors":   CompanionToolDescriptors(),
-		"DefaultToolDescriptors":     DefaultToolDescriptors(),
-		"DeviceBrowserDescriptors":   DeviceBrowserDescriptors(),
-		"DeviceDescriptors":          DeviceDescriptors(),
-		"GoogleWorkspaceDescriptors": GoogleWorkspaceDescriptors(),
-		"RegisteredToolDescriptors":  RegisteredToolDescriptors(),
+		"CompanionLLMDescriptors":  CompanionLLMDescriptors(),
+		"CompanionToolDescriptors": CompanionToolDescriptors(),
+		"DefaultToolDescriptors":   DefaultToolDescriptors(),
+		"DeviceBrowserDescriptors": DeviceBrowserDescriptors(),
+		"DeviceDescriptors":        DeviceDescriptors(),
 	}
 
 	if len(sets) != len(snapshot.Membership) {

@@ -105,26 +105,6 @@ func TestLegacyToolNameReplacementsReturnsIndependentMaps(t *testing.T) {
 	}
 }
 
-func TestGoogleWorkspaceToolsAreNotDefaultDeviceCapabilities(t *testing.T) {
-	for _, descriptor := range DeviceDescriptors() {
-		if descriptor.PrivacyClass == "workspace_google" {
-			t.Fatalf("expected Google Workspace to be disabled by default, got %+v", descriptor)
-		}
-	}
-	for _, toolName := range defaultToolNames() {
-		if strings.HasPrefix(toolName, "google.") {
-			t.Fatalf("expected default tools to omit Google Workspace, got %+v", defaultToolNames())
-		}
-	}
-}
-
-func TestRegisteredToolDescriptorsIncludeOptionalCapabilities(t *testing.T) {
-	descriptor := descriptorForTool(t, RegisteredToolDescriptors(), "google_gmail_send")
-	if descriptor.CanonicalName != "google_gmail_send" || descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
-		t.Fatalf("unexpected registered descriptor: %+v", descriptor)
-	}
-}
-
 func TestCalendarConnectionStartIsNotAdvertised(t *testing.T) {
 	for _, descriptor := range CalendarDescriptors() {
 		if descriptor.Name == "calendar.connection.start" {
@@ -170,7 +150,7 @@ func TestCalendarDescriptorIncludesEventDeleteInput(t *testing.T) {
 }
 
 func TestRegisteredDescriptorsRequireTypedContractsWhenModelVisible(t *testing.T) {
-	for _, descriptors := range [][]Descriptor{DeviceDescriptors(), RegisteredToolDescriptors()} {
+	for _, descriptors := range [][]Descriptor{DeviceDescriptors(), DefaultToolDescriptors()} {
 		if errorValue := capabilityprotocol.ValidateModelVisibleCapabilityDescriptorSet(descriptors); errorValue != nil {
 			t.Fatal(errorValue)
 		}
@@ -620,8 +600,6 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_serve", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_list", false)
 	assertDescriptorApproval(t, SiteAppDescriptors(), "site_unserve", true)
-	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google_calendar_event", false)
-	assertDescriptorApproval(t, GoogleWorkspaceDescriptors(), "google_gmail_send", true)
 }
 
 func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
@@ -629,8 +607,6 @@ func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail_message_send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "event_add", "success", "write_calendar", "calendar")
 	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site_serve", "success", "serve_site", "site")
-	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google_gmail_send", "success", "send_email", "email")
-	assertDescriptorCompletionEvidence(t, GoogleWorkspaceDescriptors(), "google_calendar_event", "success", "write_calendar", "calendar")
 }
 
 func TestMailDescriptorsMatchSkillInputs(t *testing.T) {
@@ -737,25 +713,6 @@ func TestSiteServeEffectsProjectByMode(t *testing.T) {
 	}
 }
 
-func TestGoogleWorkspaceDescriptorsMatchSkillInputs(t *testing.T) {
-	descriptors := GoogleWorkspaceDescriptors()
-	docsSchema := descriptorSchema(t, descriptors, "google_docs_create")
-	sheetsSchema := descriptorSchema(t, descriptors, "google_sheets_create")
-	gmailSchema := descriptorSchema(t, descriptors, "google_gmail_send")
-	eventSchema := descriptorSchema(t, descriptors, "google_calendar_event")
-	listSchema := descriptorSchema(t, descriptors, "google_event_list")
-
-	assertSchemaHasProperties(t, docsSchema, "title", "body")
-	assertSchemaOmitsProperties(t, docsSchema, "content")
-	assertSchemaHasProperties(t, sheetsSchema, "title", "sheets", "values")
-	assertSchemaOmitsProperties(t, sheetsSchema, "rows")
-	assertSchemaHasProperties(t, gmailSchema, "to", "subject", "body", "cc", "bcc")
-	assertSchemaHasProperties(t, eventSchema, "title", "start", "end", "attendees", "description", "location")
-	assertSchemaRequires(t, eventSchema, "title", "start", "end")
-	assertSchemaHasProperties(t, listSchema, "start", "end", "limit", "query")
-	assertSchemaOmitsProperties(t, listSchema, "timeMin", "timeMax")
-}
-
 func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 	descriptorGroups := [][]Descriptor{
 		CompanionToolDescriptors(),
@@ -767,7 +724,6 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		MailDescriptors(),
 		SiteAppDescriptors(),
 		ArtifactDescriptors(),
-		GoogleWorkspaceDescriptors(),
 	}
 	for _, descriptors := range descriptorGroups {
 		for _, descriptor := range descriptors {
@@ -803,8 +759,8 @@ func TestDefaultDescriptorsSatisfyCanonicalProviderContract(t *testing.T) {
 }
 
 func TestSendDescriptorsOwnIdempotencyMetadata(t *testing.T) {
-	for _, toolName := range []string{"message_send", "mail_message_send", "google_gmail_send"} {
-		descriptor := descriptorForTool(t, append(DefaultToolDescriptors(), GoogleWorkspaceDescriptors()...), toolName)
+	for _, toolName := range []string{"message_send", "mail_message_send"} {
+		descriptor := descriptorForTool(t, DefaultToolDescriptors(), toolName)
 		if !descriptor.Idempotency.Supported || descriptor.Idempotency.Scope != "operation" {
 			t.Fatalf("%s must explicitly support operation idempotency: %+v", toolName, descriptor)
 		}
