@@ -40,7 +40,7 @@ async function readLiveBuildMessage(accountID: string, projectName: string): Pro
 
 const isProduction = process.argv.includes('--production');
 const isReplacingNewerAllowed = process.argv.includes('--replace-newer');
-const accountID = argument('account') ?? '694280310d0ed1189a2a54c4a546403e';
+const accountID = argument('account') ?? requiredSetting('CLOUDFLARE_ACCOUNT_ID');
 const project = argument('project');
 const outputArgument = argument('output');
 

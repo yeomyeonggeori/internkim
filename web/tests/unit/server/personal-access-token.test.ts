@@ -9,7 +9,7 @@ import { memberAccessTokenOf } from '../../../src/lib/server/member-request';
 const credentials = { projectURL: 'https://example.supabase.co', serviceRoleKey: 'service-role' };
 
 function asking(authorization?: string): Request {
-	return new Request('https://intern.kim/api/member/me', {
+	return new Request('https://example.test/api/member/me', {
 		headers: authorization ? { authorization } : {}
 	});
 }

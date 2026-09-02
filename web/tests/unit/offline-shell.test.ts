@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { isShippedFile } from '../../src/lib/offline-shell';
 
-const appOrigin = 'https://acme.intern.kim';
+const appOrigin = 'https://acme.example.test';
 const shipped = new Set(['/_app/immutable/entry/app.CZVK1F5r.js', '/icon-192.png', '/flow/']);
 
 function get(url: string) {

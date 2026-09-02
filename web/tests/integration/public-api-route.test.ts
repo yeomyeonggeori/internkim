@@ -64,7 +64,7 @@ afterAll(async () => {
 
 function asking(path: string, token: string | null, options: RequestInit = {}): Request {
 	const headers = token ? { Authorization: `Bearer ${token}`, ...options.headers } : options.headers;
-	return new Request(`https://space.intern.kim/api/v1${path}`, { ...options, headers });
+	return new Request(`https://space.example.test/api/v1${path}`, { ...options, headers });
 }
 
 type RouteAnswer = { status: number; body: unknown };
