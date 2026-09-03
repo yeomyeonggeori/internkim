@@ -95,6 +95,93 @@ export async function deleteTaskRun(taskRunID: string): Promise<void> {
 	}
 }
 
+export const waitingApprovalStatus = 'waiting_approval';
+export const confirmationRequestedEventName = 'confirmation.requested';
+export const askRequestedEventName = 'ask.requested';
+export const approvalDecisions = ['confirm', 'confirm_task', 'cancel'] as const;
+
+export type ApprovalDecision = (typeof approvalDecisions)[number];
+
+export type ApprovalDecisionRequest = {
+	taskRunID: string;
+	decision: ApprovalDecision;
+};
+
+export type ApprovalOutcome = {
+	taskRunID: string;
+	status: string;
+};
+
+export type PendingApproval = {
+	taskRun: TaskRunSummary;
+	question: string;
+	scope: string;
+};
+
+export function approvalDecisionRequestOf(taskRunID: string, decision: ApprovalDecision): ApprovalDecisionRequest {
+	return { taskRunID, decision };
+}
+
+export function pendingApprovalOf(detail: TaskDetail): PendingApproval | undefined {
+	if (detail.taskRun.status !== waitingApprovalStatus) return undefined;
+	return {
+		taskRun: detail.taskRun,
+		question: lastEventField(detail.taskEvents, confirmationRequestedEventName, 'userFacingMessage'),
+		scope: lastEventField(detail.taskEvents, askRequestedEventName, 'approvalScope')
+	};
+}
+
+function lastEventField(taskEvents: TaskEvent[], eventName: string, fieldName: string): string {
+	for (let index = taskEvents.length - 1; index >= 0; index -= 1) {
+		if (taskEvents[index].name !== eventName) continue;
+		const body = readRecord(parseEventBody(taskEvents[index].body));
+		const value = body?.[fieldName];
+		if (typeof value === 'string' && value.trim()) return value.trim();
+	}
+	return '';
+}
+
+export async function fetchPendingApprovals(limit = 20): Promise<PendingApproval[]> {
+	const response = await fetchTaskRuns({ status: waitingApprovalStatus, limit });
+	const details = await Promise.all(response.taskRuns.map((taskRun) => fetchTaskDetail(taskRun.taskRunID)));
+	return details.flatMap((detail) => {
+		const approval = pendingApprovalOf(detail);
+		return approval ? [approval] : [];
+	});
+}
+
+export async function decideApproval(taskRunID: string, decision: ApprovalDecision): Promise<ApprovalOutcome> {
+	const request = approvalDecisionRequestOf(taskRunID, decision);
+	const document = isSupabaseConfigured()
+		? await askTheCompanyAppToDecide(request)
+		: await askTheDeviceToDecide(request);
+	return readApprovalOutcome(document, taskRunID);
+}
+
+export function readApprovalOutcome(document: unknown, taskRunID: string): ApprovalOutcome {
+	const record = readRecord(document);
+	return {
+		taskRunID: record && typeof record.taskRunID === 'string' ? record.taskRunID : taskRunID,
+		status: record && typeof record.status === 'string' ? record.status : ''
+	};
+}
+
+async function askTheDeviceToDecide(request: ApprovalDecisionRequest): Promise<unknown> {
+	const response = await adminApiFetch('/runs/api/approve', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(request)
+	});
+	if (!response.ok) throw new Error(`Task approval request returned ${response.status}`);
+	return response.json();
+}
+
+async function askTheCompanyAppToDecide(request: ApprovalDecisionRequest): Promise<unknown> {
+	const answer = await callCompanyApp({ capability: 'person.runs.approve', body: { ...request } });
+	if (answer.status >= 400) throw new Error(`Task approval request returned ${answer.status}`);
+	return answer.body;
+}
+
 function readTaskRunsResponse(document: unknown): TaskRunsResponse {
 	if (Array.isArray(document)) {
 		return { taskRuns: readTaskRunSummaries(document) };
@@ -148,28 +235,33 @@ function readDailyCostScope(entry: unknown): DailyCostScope | undefined {
 }
 
 export async function fetchTaskDetail(taskRunID: string): Promise<TaskDetail> {
-	const document = isSupabaseConfigured()
-		? await askTheCompanyAppForDetail(taskRunID)
-		: await askTheDeviceForDetail(taskRunID);
+	return readTaskDetail(
+		isSupabaseConfigured() ? await askTheCompanyAppForDetail(taskRunID) : await askTheDeviceForDetail(taskRunID)
+	);
+}
+
+export function readTaskDetail(document: unknown): TaskDetail {
 	const record = readRecord(document);
 	const taskRun = record ? readTaskRunSummary(record.taskRun) : undefined;
 	if (!record || !taskRun) {
 		throw new Error('Task detail response was malformed');
 	}
-	const taskEvents = Array.isArray(record.taskEvents)
-		? record.taskEvents.flatMap((entry) => {
-				const eventRecord = readRecord(entry);
-				if (!eventRecord || typeof eventRecord.name !== 'string') return [];
-				return [
-					{
-						name: eventRecord.name,
-						body: typeof eventRecord.body === 'string' ? eventRecord.body : '',
-						createdAt: typeof eventRecord.createdAt === 'string' ? eventRecord.createdAt : undefined
-					}
-				];
-			})
-		: [];
-	return { taskRun, taskEvents };
+	return { taskRun, taskEvents: readTaskEvents(record.taskEvents) };
+}
+
+function readTaskEvents(entries: unknown): TaskEvent[] {
+	if (!Array.isArray(entries)) return [];
+	return entries.flatMap((entry) => {
+		const record = readRecord(entry);
+		if (!record || typeof record.name !== 'string') return [];
+		return [
+			{
+				name: record.name,
+				body: typeof record.body === 'string' ? record.body : '',
+				createdAt: typeof record.createdAt === 'string' ? record.createdAt : undefined
+			}
+		];
+	});
 }
 
 export type EventLane = 'llm' | 'tool' | 'failure' | 'control';
