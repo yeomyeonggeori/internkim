@@ -162,3 +162,16 @@ function minutesBetween(start: string, end: string): number {
 	if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return 0;
 	return Math.round((endMs - startMs) / 60000);
 }
+
+// A shift that outlived its day leaves no segment, so a clock-in nobody closed
+// disappears from every screen while public.attendance_add still reads it as
+// the last thing that happened and refuses the next clock-in as a repeat. This
+// asks the record's question — is the newest event a clock-in — so both sides
+// answer the same way.
+export function clockInNobodyClosed(events: AttendanceEvent[]): AttendanceEvent | undefined {
+	const newest = events
+		.filter((event) => !event.canceledAt)
+		.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt))
+		.at(-1);
+	return newest?.kind === 'clock_in' ? newest : undefined;
+}
