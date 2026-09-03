@@ -1,6 +1,5 @@
 <script lang="ts">
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
-	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import MemoryFactList from './memory-fact-list.svelte';
 	import MemoryGraphPanel from './memory-graph-panel.svelte';
@@ -33,5 +32,3 @@
 		</UnderlineTabs.Content>
 	</UnderlineTabs.Root>
 </main>
-
-<ConfirmDeleteDialog />
