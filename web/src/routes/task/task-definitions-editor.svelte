@@ -6,7 +6,6 @@
 	import type { LoadTask } from './task-load-tracker';
 	import type { TaskDefinitions, TaskSizeDefinition, TaskSummary } from './task-types';
 	import { taskDefinitionPaletteColor, unknownDefinitionColor } from './task-definition-colors';
-	import { isCentralTaskSource } from './task-source';
 	import { taskText } from './text';
 	import type { PageText } from '$lib/i18n/page-text.svelte';
 
@@ -213,7 +212,6 @@
 	etcTypeColor={etcTypeColorDraft || unknownDefinitionColor}
 	{setEtcBusinessColor}
 	{setEtcTypeColor}
-	canEditEtcColor={isCentralTaskSource(summary?.source ?? '')}
 	isAdmin={summary?.isAdmin ?? false}
 	canEditDefinitions={canEditDefinitions()}
 	{isSavingDefinitions}

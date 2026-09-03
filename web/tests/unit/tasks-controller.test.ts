@@ -65,7 +65,6 @@ describe('flow tasks controller', () => {
 				summary: taskSummary({
 					currentUserEmail: 'admin@example.com',
 					isAdmin: true,
-					source: 'supabase',
 					members: [
 						taskMember({ id: 'admin', name: '관리자', email: 'admin@example.com' }),
 						taskMember({ id: 'owner', name: '담당자', email: 'owner@example.com' }),
@@ -114,26 +113,6 @@ describe('flow tasks controller', () => {
 		expect(controller.taskDraft?.participantIDs).toEqual(['target-left', 'target-right']);
 		expect(controller.taskDraft?.participantNames).toEqual(['동명이인', '동명이인']);
 		expect(controller.taskDraft?.ownerID).toBe('');
-	});
-
-	test('keeps the legacy device owner in participant edits without exposing an owner mutation', async () => {
-		const controller = await syncedController([
-			taskMember({ id: 'owner', name: '담당자', email: 'owner@example.com' }),
-			taskMember({ id: 'participant', name: '참여자', email: 'participant@example.com' })
-		], 'sqlite', 'owner@example.com');
-		const task = taskOf({
-			ownerID: 'owner',
-			ownerName: '담당자',
-			participantIDs: ['owner', 'participant'],
-			participantNames: ['담당자', '참여자']
-		});
-		controller.openTask(task);
-
-		controller.setParticipantIDs(['participant']);
-
-		expect(controller.taskDraft?.ownerID).toBe('owner');
-		expect(controller.taskDraft?.ownerName).toBe('담당자');
-		expect(controller.taskDraft?.participantIDs).toEqual(['owner', 'participant']);
 	});
 
 	test('creates normal work for the current member without requester provenance', async () => {
@@ -228,7 +207,7 @@ describe('flow tasks controller', () => {
 async function syncedController(members: TaskMember[] = [
 	taskMember({ id: 'requester', name: '요청자', email: 'requester@example.com' }),
 	taskMember({ id: 'target', name: '대상자', email: 'target@example.com' })
-], source = 'supabase', currentUserEmail = 'requester@example.com') {
+], currentUserEmail = 'requester@example.com') {
 	const originalState = Reflect.get(globalThis, '$state');
 	Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
 	const { createTasksController } = await import('../../src/routes/task/tasks-controller.svelte');
@@ -236,7 +215,6 @@ async function syncedController(members: TaskMember[] = [
 	controller.sync({
 		summary: taskSummary({
 			currentUserEmail,
-			source,
 			members
 		}),
 		text: taskText.ko,
@@ -279,7 +257,6 @@ function taskSummary(overrides: Partial<TaskSummary>): TaskSummary {
 		currentUserEmail: '',
 		currentUserName: '',
 		isAdmin: false,
-		source: 'test',
 		...overrides
 	};
 }

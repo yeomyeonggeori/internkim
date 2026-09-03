@@ -16,10 +16,6 @@ func taskScoreDateRange(weekStart time.Time) (time.Time, time.Time) {
 	return weeklyStart, endOfMonth(weekStart)
 }
 
-func buildTaskMemberScores(tasks []Task, members []taskMember, definitions taskDefinitions, weekStart time.Time) map[string]int {
-	return currentTaskMemberScores(buildTaskMemberScoreDetails(tasks, members, definitions, weekStart))
-}
-
 func buildTaskMemberScoreDetails(tasks []Task, members []taskMember, definitions taskDefinitions, weekStart time.Time) map[string]taskMemberScoreItem {
 	weeklyDistances := initializedMemberScorePeriods(members)
 	monthlyDistances := initializedMemberScorePeriods(members)

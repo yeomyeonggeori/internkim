@@ -231,7 +231,7 @@ func TestBuildTaskMemberScoresKeepsDuplicateNamesSeparate(t *testing.T) {
 		},
 	}
 	weekStart := time.Date(2026, time.June, 1, 0, 0, 0, 0, taskDateLocation())
-	scores := buildTaskMemberScores([]Task{
+	scores := currentTaskMemberScores(buildTaskMemberScoreDetails([]Task{
 		{
 			ParticipantIDs:   []string{"member-a"},
 			ParticipantNames: []string{"김철수"},
@@ -239,7 +239,7 @@ func TestBuildTaskMemberScoresKeepsDuplicateNamesSeparate(t *testing.T) {
 			Status:           "completed",
 			EndDate:          "2026-06-01",
 		},
-	}, members, definitions, weekStart)
+	}, members, definitions, weekStart))
 
 	if scores["member-a"] != 115 {
 		t.Fatalf("member-a score = %d, want 115", scores["member-a"])

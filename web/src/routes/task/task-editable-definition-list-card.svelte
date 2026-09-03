@@ -27,7 +27,6 @@
 		etcLabel: string;
 		etcColor: string;
 		setEtcColor: (color: string) => void;
-		canEditEtcColor: boolean;
 	};
 
 	let {
@@ -51,7 +50,6 @@
 		etcLabel,
 		etcColor,
 		setEtcColor,
-		canEditEtcColor
 	}: Props = $props();
 </script>
 
@@ -91,7 +89,7 @@
 			</div>
 		{/each}
 		<div class="grid grid-cols-[auto_1fr_auto] items-center gap-2">
-			{#if isAdmin && canEditEtcColor}
+			{#if isAdmin}
 				<ColorPicker
 					value={etcColor}
 					label={colorLabel}

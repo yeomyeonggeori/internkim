@@ -77,7 +77,6 @@ function taskState(tasks: Task[]): TaskState {
 		currentUserEmail: 'member1@example.com',
 		currentUserName: '이영희',
 		isAdmin: false,
-		source: 'test'
 	};
 }
 

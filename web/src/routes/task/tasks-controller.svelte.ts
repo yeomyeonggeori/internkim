@@ -138,7 +138,6 @@ class TasksController {
 	participantScope = () => taskBoardParticipantScope(this.filters.participantFilterIDs, currentTaskMember(this.summary)?.id);
 	memberEmail = (memberID: string) => this.members().find((member) => member.id === memberID)?.email ?? '';
 	currentMemberID = () => currentTaskMember(this.summary)?.id ?? '';
-	canUseTaskRelationships = () => this.summary?.source === 'supabase' || this.summary?.source === 'dev-mock';
 
 	filteredTasks = () => this.filters.tasks(this.tasks());
 
@@ -161,7 +160,6 @@ class TasksController {
 	};
 
 	setTaskParent = async (taskID: string, parentTaskID?: string): Promise<boolean> => {
-		if (!this.canUseTaskRelationships()) return false;
 		const updated = await this.relationships.setParent(taskID, parentTaskID);
 		if (updated && this.editor.taskDraft?.id === taskID) {
 			this.editor.taskDraft = { ...this.editor.taskDraft, parentTaskID };
@@ -169,10 +167,8 @@ class TasksController {
 		return updated;
 	};
 
-	setTaskParents = async (taskIDs: string[], parentTaskID: string): Promise<boolean> => {
-		if (!this.canUseTaskRelationships()) return false;
-		return this.relationships.setParents(taskIDs, parentTaskID);
-	};
+	setTaskParents = (taskIDs: string[], parentTaskID: string): Promise<boolean> =>
+		this.relationships.setParents(taskIDs, parentTaskID);
 
 	createQuickTask = (allowDuplicate = false): Promise<TaskQuickTaskCreateResult> => this.quickTask.createQuickTask(allowDuplicate);
 

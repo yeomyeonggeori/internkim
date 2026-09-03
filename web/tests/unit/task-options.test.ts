@@ -6,22 +6,12 @@ const allStatuses = ['requested', 'planned', 'in_progress', 'completed', 'paused
 const normalStatuses = ['planned', 'in_progress', 'completed', 'paused', 'stopped'];
 
 describe('flow task status options', () => {
-	test('returns the exact normal choices for a central task without requester', () => {
-		expect(statusOptionsFromSummary(summary({ source: 'supabase' }), task({ requesterID: '' }))).toEqual(normalStatuses);
+	test('returns the exact normal choices for a task without requester', () => {
+		expect(statusOptionsFromSummary(summary(), task({ requesterID: '' }))).toEqual(normalStatuses);
 	});
 
-	test('returns the exact full-order choices for a central task with requester', () => {
-		expect(statusOptionsFromSummary(summary({ source: 'supabase' }), task({ requesterID: 'requester-1' }))).toEqual(allStatuses);
-	});
-
-	test('keeps legacy request statuses available for device tasks without requester provenance', () => {
-		const deviceSummary = summary({ source: 'sqlite', statusOptions: allStatuses });
-		expect(statusOptionsFromSummary(deviceSummary, task({ status: 'requested', requesterID: '' }))).toEqual(allStatuses);
-		expect(statusOptionsFromSummary(deviceSummary, task({ status: 'rejected', requesterID: '' }))).toEqual(allStatuses);
-	});
-
-	test('preserves the existing global status contract for ordinary device tasks', () => {
-		expect(statusOptionsFromSummary(summary({ source: 'sqlite', statusOptions: allStatuses }), task({ status: 'in_progress', requesterID: '' }))).toEqual(allStatuses);
+	test('returns the exact full-order choices for a task with requester', () => {
+		expect(statusOptionsFromSummary(summary(), task({ requesterID: 'requester-1' }))).toEqual(allStatuses);
 	});
 });
 
@@ -36,7 +26,6 @@ function summary(fields: Partial<TaskSummary> = {}): TaskSummary {
 		currentUserEmail: '',
 		currentUserName: '',
 		isAdmin: false,
-		source: 'test',
 		...fields
 	};
 }

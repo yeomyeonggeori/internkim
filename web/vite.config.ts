@@ -4,7 +4,6 @@ import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
 import { devAdminOrganizationMockPlugin } from './dev-admin-organization-mock-plugin';
 import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
 import { devFilesMockPlugin } from './dev-files-mock-plugin';
-import { devTaskMockPlugin } from './dev-task-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
 import { devTasksMockPlugin } from './dev-tasks-mock-plugin';
@@ -35,7 +34,6 @@ export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
 	const admindTarget = env.VITE_ADMIND_TARGET || 'http://127.0.0.1:18080';
 	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
-	const isTaskMockEnabled = env.VITE_MOCK_TASK === '1';
 	const isAdminMockEnabled = env.VITE_MOCK_ADMIN === '1' || env.VITE_MOCK_CRM === '1';
 	const devUserEmail = env.VITE_DEV_USER_EMAIL;
 	return {
@@ -51,10 +49,6 @@ export default defineConfig(({ mode }) => {
 			}),
 			devFilesMockPlugin({
 				isEnabled: env.VITE_MOCK_FILES === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
-			}),
-				devTaskMockPlugin({
-				isEnabled: isTaskMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devTasksMockPlugin({
@@ -83,8 +77,6 @@ export default defineConfig(({ mode }) => {
 				'/auth': admindProxy(admindTarget, devUserEmail),
 				'/calendar/api': admindProxy(admindTarget),
 				'/crm/api': admindProxy(admindTarget, devUserEmail),
-				'/task/api': admindProxy(admindTarget),
-				'/flow/api': admindProxy(admindTarget),
 				'/mail/api': admindProxy(admindTarget),
 				'/memory/api': admindProxy(admindTarget),
 				'/organization/api': admindProxy(admindTarget)

@@ -14,8 +14,7 @@ describe('flow task participant draft', () => {
 				member({ id: 'left', name: '동명이인', email: 'left@example.com' }),
 				member({ id: 'right', name: '동명이인', email: 'right@example.com' })
 			],
-			['left', 'right'],
-			'supabase'
+			['left', 'right']
 		);
 
 		expect(updated.participantIDs).toEqual(['left', 'right']);
@@ -23,29 +22,7 @@ describe('flow task participant draft', () => {
 		expect(updated.ownerID).toBe('');
 	});
 
-	test('keeps a legacy device owner first and nonempty when participants change', () => {
-		const updated = updateTaskParticipantIDs(
-			task({
-				ownerID: 'owner',
-				ownerName: '담당자',
-				participantIDs: ['owner'],
-				participantNames: ['담당자']
-			}),
-			[
-				member({ id: 'owner', name: '담당자' }),
-				member({ id: 'participant', name: '참여자' })
-			],
-			['participant'],
-			'sqlite'
-		);
-
-		expect(updated.ownerID).toBe('owner');
-		expect(updated.ownerName).toBe('담당자');
-		expect(updated.participantIDs).toEqual(['owner', 'participant']);
-		expect(updated.participantNames).toEqual(['담당자', '참여자']);
-	});
-
-	test('does not remove the legacy device owner from a task draft', () => {
+	test('drops the participant asked for and lets the record name the owner again', () => {
 		const original = task({
 			ownerID: 'owner',
 			ownerName: '담당자',
@@ -53,8 +30,8 @@ describe('flow task participant draft', () => {
 			participantNames: ['담당자', '참여자']
 		});
 
-		expect(removeTaskParticipant(original, 'owner', 'sqlite').participantIDs).toEqual(['owner', 'participant']);
-		expect(removeTaskParticipant(original, 'participant', 'sqlite').participantIDs).toEqual(['owner']);
+		expect(removeTaskParticipant(original, 'participant').participantIDs).toEqual(['owner']);
+		expect(removeTaskParticipant(original, 'owner').participantIDs).toEqual(['participant']);
 	});
 
 	test('does not toggle away a selected participant without removal authority', () => {

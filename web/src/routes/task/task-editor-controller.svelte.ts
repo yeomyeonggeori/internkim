@@ -16,7 +16,6 @@ import {
 	currentTaskMember
 } from './task-workspace-model';
 import { taskText } from './text';
-import { isCentralTaskSource } from './task-source';
 import type { TaskMember, TaskSummary, Task } from './task-types';
 import type { PageText } from '$lib/i18n/page-text.svelte';
 
@@ -82,14 +81,12 @@ export class TaskEditorController {
 		this.statusWhenOpened = null;
 		this.isEditingTask = true;
 		if (typeof status === 'string' && status) this.taskDraft.status = status;
-		if (this.summary.source === 'supabase') {
-			const isRequest = status === 'requested';
-			this.taskDraft.requesterID = isRequest ? owner.id : '';
-			this.taskDraft.requesterName = isRequest ? owner.name : '';
-			if (isRequest) {
-				const targetIDs = targetParticipantIDs.length > 0 ? targetParticipantIDs : [owner.id];
-				this.taskDraft = updateTaskParticipantIDs(this.taskDraft, this.members(), targetIDs, this.summary.source);
-			}
+		const isRequest = status === 'requested';
+		this.taskDraft.requesterID = isRequest ? owner.id : '';
+		this.taskDraft.requesterName = isRequest ? owner.name : '';
+		if (isRequest) {
+			const targetIDs = targetParticipantIDs.length > 0 ? targetParticipantIDs : [owner.id];
+			this.taskDraft = updateTaskParticipantIDs(this.taskDraft, this.members(), targetIDs);
 		}
 		this.taskDraft.parentTaskID = parentTaskID;
 		this.taskErrorMessage = '';
@@ -131,12 +128,12 @@ export class TaskEditorController {
 
 	setParticipantIDs = (memberIDs: string[]): void => {
 		if (!this.taskDraft) return;
-		this.taskDraft = updateTaskParticipantIDs(this.taskDraft, this.members(), memberIDs, this.summary?.source ?? '');
+		this.taskDraft = updateTaskParticipantIDs(this.taskDraft, this.members(), memberIDs);
 	};
 
 	removeParticipantID = (memberID: string): void => {
 		if (!this.taskDraft || !this.canRemoveParticipant(this.taskDraft, memberID)) return;
-		this.taskDraft = removeTaskParticipant(this.taskDraft, memberID, this.summary?.source ?? '');
+		this.taskDraft = removeTaskParticipant(this.taskDraft, memberID);
 	};
 
 	closeEditor = (): void => {
@@ -148,10 +145,7 @@ export class TaskEditorController {
 	canUpdateTask = (task: Task): boolean => canUpdateTask(this.summary, task);
 	canDeleteTask = (task: Task): boolean => canDeleteTask(this.summary, task);
 	canManageTaskAssignment = (task: Task): boolean => canManageTaskAssignment(this.summary, task);
-	canRemoveParticipant = (task: Task, memberID: string): boolean => {
-		if (!canRemoveTaskParticipant(task, memberID)) return false;
-		return isCentralTaskSource(this.summary?.source ?? '') || memberID !== task.ownerID;
-	};
+	canRemoveParticipant = (task: Task, memberID: string): boolean => canRemoveTaskParticipant(task, memberID);
 
 	private members(): TaskMember[] {
 		return this.summary?.members ?? [];
