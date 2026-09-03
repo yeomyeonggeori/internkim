@@ -328,16 +328,12 @@ when the change has to reach the blueclaw payload.
 INTERNKIM_BLUECLAW_USE_LOCAL=1 ./internkim setup --only binaries,blueclaw-payload,services --force
 ```
 
-The steps a full setup runs: connect over SSH; build and deploy the web app;
-prepare Jetson packages and runtime; install blueclaw and create system users;
-write the OpenRouter key; prepare the local model runtime; register the device;
-configure Mattermost, which can be skipped;
-configure user sync and the optional Slack and Signal channels; start
-`blueclaw.service` and run the final health check.
-
-Self-hosted Mattermost counts active and inactive users against
-`TeamSettings.MaxUsersPerTeam`, which defaults to 50. Test runs that leave users
-behind eventually break the team and channel join APIs.
+A full setup runs every step in `internal/provisioning/steps/`, in the order
+that package declares: preflight and staging, the binaries and services,
+blueclaw's runtime and config, the Buzz relay with its media store and `chatd`
+adapter, the OpenRouter key and the local model, user sync, and a closing health
+check. Read the directory rather than a list here; `--only` takes the same
+names.
 
 ### Deploying — device
 
@@ -434,23 +430,16 @@ own Admin and Web UI and localhost smoke are what get checked. Jetson GPU checks
 report `not applicable`. `./internkim dev fleet up`, `status`, `run --reuse` and
 `reset` are for holding a shared VM open to debug it.
 
-`./internkim test "<prompt>"` raises a disposable fleet, sends the prompt as a
-real Mattermost DM and waits for the task to finish. It skips the web UI build,
-prints the bot's final message, and saves attachments to
-`/tmp/internkim-test-<timestamp>/` before opening them with macOS `open`. `-o
-<file>` writes a single attachment to exactly that path and fails when there is
-more than one. `--reuse` keeps the fleet; `--no-open` leaves the files closed.
+`./internkim test "<prompt>"` raises a disposable fleet, sends the prompt to
+the agent as a person would, and waits for the task to finish. It skips the web
+UI build, prints the bot's final message, and saves attachments under
+`/tmp/internkim-test-<timestamp>/`. Run it with no argument for the flags it
+takes.
 
 ```bash
 ./internkim test "make me a report on last month's work as a Word file"
-./internkim test "build a website" -o /tmp/site.html
+./internkim test expensive --scenario buzz-attachment
 ```
-
-The Mattermost gate creates an invited and an uninvited test user, checks that
-the bot answers the first and refuses the second, then deletes the messages and
-the users it made. Cleanup skips Mattermost system posts when the SSH account
-has no passwordless sudo, and still removes users and bot replies through the
-API.
 
 The same engine drives the ops console at `http://127.0.0.1:8789/ops`, so the
 CLI and the UI cannot diverge on ordering.
