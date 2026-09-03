@@ -10,9 +10,6 @@ import (
 	"testing"
 )
 
-
-
-
 func newCalendarTestService(t *testing.T) *Service {
 	t.Helper()
 	rootPath := t.TempDir()
