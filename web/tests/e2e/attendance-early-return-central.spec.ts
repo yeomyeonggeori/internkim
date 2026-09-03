@@ -48,8 +48,12 @@ async function approveTheRequest(page: Page): Promise<void> {
 	await page.getByTestId('leave-approval-navigation').click();
 	const view = page.getByTestId('leave-approval-view');
 	await view.waitFor({ state: 'visible', timeout: 20000 });
-	await view.getByRole('button', { name: '승인' }).first().click();
-	await expect(view.getByRole('button', { name: '승인' })).toHaveCount(0, { timeout: 20000 });
+	const quarterDayRequest = view
+		.locator('[data-testid^="leave-approval-request-"]')
+		.filter({ hasText: '반반차' });
+	await expect(quarterDayRequest).toHaveCount(1, { timeout: 20000 });
+	await quarterDayRequest.getByRole('button', { name: '승인', exact: true }).click();
+	await expect(quarterDayRequest).toHaveCount(0, { timeout: 20000 });
 }
 
 test('a member who returns early is clocked in and no longer on leave', async ({ page }) => {

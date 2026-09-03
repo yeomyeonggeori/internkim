@@ -62,7 +62,6 @@ export default defineConfig(({ mode }) => {
 		server: {
 			allowedHosts: env.VITE_ALLOWED_HOSTS ? env.VITE_ALLOWED_HOSTS.split(',') : undefined,
 			proxy: {
-				'/api/v1': admindProxy(admindTarget),
 				'/admin/api': admindProxy(admindTarget),
 				'/agent/api': admindProxy(admindTarget, devUserEmail),
 				'/buzz/api': admindProxy(admindTarget, devUserEmail),
