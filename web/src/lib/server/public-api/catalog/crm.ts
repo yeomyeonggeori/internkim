@@ -9,6 +9,8 @@ import {
   CapabilitySideEffect,
 } from './protocol';
 
+import { taskLabelVocabularySchema } from './labels';
+
 import type { CapabilityToolDefinition } from './definition';
 
 const resourceIDSchema = z.string()
@@ -17,61 +19,61 @@ const resourceIDSchema = z.string()
 
 const dayDescription = 'A day as yyyy-mm-dd.';
 const momentDescription = 'ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.';
-const amountDescription = "The amount in the currency's smallest unit: 15000000 is ₩15,000,000 and 120000 is $1,200.00.";
+const amountDescription = "What it is worth, in the currency's smallest unit: 15000000 is ₩15,000,000.";
 
 const organizationHintSchema = z.string().min(1).max(256).describe(
-  'The organization: its exact ID, or its name as crm_organization_list shows it. A name several carry fails with the candidates.',
+  'The organization: its exact ID, or its name as crm_organization_list shows it.',
 );
 
 const contactHintSchema = z.string().min(1).max(256).describe(
-  'The person: their exact contact ID, their email address, or their name as crm_contact_list shows it. A name several carry fails with the candidates.',
+  'The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.',
 );
 
 const opportunityHintSchema = z.string().min(1).max(256).describe(
-  'The deal: its exact opportunity ID, or its exact CURRENT title as crm_opportunity_list shows it. Never a new or intended title.',
+  'The deal: its exact opportunity ID, or its exact CURRENT title from crm_opportunity_list. Never a new title.',
 );
 
 export const crmStageSchema = z.enum(crmStageKeys);
 
-const ownerHintDescription = 'Name, @handle or email of the colleague who owns it.';
+const ownerHintDescription = 'The colleague who owns it, by name or email.';
 const importanceDescription = 'high, medium or low.';
 
 const organizationFields = {
   name: z.string().min(1).max(256).describe("The organization's name."),
-  types: z.array(z.string()).describe('Organization types from crm_vocabulary_get, replacing the whole list.').optional(),
+  types: z.array(z.string()).describe('Types from crm_vocabulary_get, e.g. customer. Replaces the whole list.').optional(),
   status: z.string().max(32).describe('prospect, active or paused.').optional(),
   importance: z.string().max(32).describe(importanceDescription).optional(),
-  tags: z.array(z.string()).describe('Free-text tags, replacing the whole list.').optional(),
+  tags: z.array(z.string()).describe('Replaces the whole list.').optional(),
   ownerPersonHint: z.string().max(256).describe(ownerHintDescription).optional(),
   address: z.string().max(512).optional(),
-  description: z.string().max(4096).describe('What this company should remember about them.').optional(),
+  description: z.string().max(4096).describe('What to remember about them.').optional(),
 };
 
 const contactFields = {
   name: z.string().min(1).max(256).describe("The person's name."),
   email: z.string().max(256).optional(),
   phoneNumber: z.string().max(64).optional(),
-  role: z.string().max(128).describe("Their title where they work, e.g. 'purchasing manager'.").optional(),
-  department: z.string().max(128).describe('The team they work in.').optional(),
-  description: z.string().max(4096).describe('What this company should remember about them.').optional(),
+  role: z.string().max(128).describe("Their title, e.g. 'purchasing manager'.").optional(),
+  department: z.string().max(128).optional(),
+  description: z.string().max(4096).describe('What to remember about them.').optional(),
 };
 
 const opportunityFields = {
   title: z.string().min(1).max(256).describe('What the deal is called.'),
-  pipeline: z.string().max(128).describe('The pipeline it runs in, from crm_vocabulary_get. Omit to use the only one registered.').optional(),
-  business: z.string().max(128).describe('Business label, from registeredLabels.businesses in a task_list result.').optional(),
-  amountMinor: z.number().int().describe(`What it is worth. ${amountDescription}`).optional(),
-  currencyCode: z.string().length(3).describe("ISO 4217 code, e.g. 'KRW'. Defaults to the company's.").optional(),
+  pipeline: z.string().max(128).describe('The pipeline from crm_vocabulary_get. Omit when the company runs one.').optional(),
+  business: z.string().max(128).describe('Business label from a task_list result.').optional(),
+  amountMinor: z.number().int().describe(amountDescription).optional(),
+  currencyCode: z.string().length(3).describe("ISO 4217, e.g. 'KRW'.").optional(),
   contactHint: contactHintSchema.optional(),
   ownerPersonHint: z.string().max(256).describe(ownerHintDescription).optional(),
   importance: z.string().max(32).describe(importanceDescription).optional(),
-  expectedCloseDate: z.string().describe(`When it is expected to close, in the company's time zone. ${dayDescription}`).optional(),
-  description: z.string().max(4096).describe('What this company should remember about the deal.').optional(),
+  expectedCloseDate: z.string().describe(`When it should close, in the company's time zone. ${dayDescription}`).optional(),
+  description: z.string().max(4096).describe('What to remember about the deal.').optional(),
 };
 
 export const crmOrganizationListInputSchema = z.strictObject({
-  query: z.string().max(256).describe('Free-text filter matched against the name, the address and the description.').optional(),
-  includeArchived: z.boolean().describe('Set true to include organizations somebody archived.').optional(),
+  query: z.string().max(256).describe('Filter on the name, the address and the description.').optional(),
+  includeArchived: z.boolean().describe('Set true to include archived ones.').optional(),
 });
 
 export const crmOrganizationAddInputSchema = z.strictObject(organizationFields);
@@ -81,7 +83,7 @@ export const crmOrganizationAddInputIntentSchema = crmOrganizationAddInputSchema
 const crmOrganizationUpdateObjectSchema = z.strictObject({
   organizationHint: organizationHintSchema,
   ...organizationFields,
-  name: organizationFields.name.describe('The name it should carry now.').optional(),
+  name: organizationFields.name.optional(),
 });
 
 export const crmOrganizationUpdateInputSchema = crmOrganizationUpdateObjectSchema
@@ -99,9 +101,9 @@ export const crmOrganizationArchiveInputSchema = z.strictObject({
 export const crmOrganizationArchiveInputIntentSchema = z.strictObject({});
 
 export const crmContactListInputSchema = z.strictObject({
-  organizationHint: organizationHintSchema.describe('Only the people at this organization, named the way crm_organization_list shows it.').optional(),
-  query: z.string().max(256).describe('Free-text filter matched against the name, the email address and the title.').optional(),
-  includeArchived: z.boolean().describe('Set true to include people somebody archived.').optional(),
+  organizationHint: organizationHintSchema.describe('Only the people at this organization.').optional(),
+  query: z.string().max(256).describe('Filter on the name, the email address and the title.').optional(),
+  includeArchived: z.boolean().describe('Set true to include archived ones.').optional(),
 });
 
 export const crmContactAddInputSchema = z.strictObject({
@@ -113,9 +115,9 @@ export const crmContactAddInputIntentSchema = crmContactAddInputSchema.partial()
 
 const crmContactUpdateObjectSchema = z.strictObject({
   contactHint: contactHintSchema,
-  organizationHint: organizationHintSchema.describe('Where they work now, named the way crm_organization_list shows it.').optional(),
+  organizationHint: organizationHintSchema.describe('Where they work now.').optional(),
   ...contactFields,
-  name: contactFields.name.describe('The name they should carry now.').optional(),
+  name: contactFields.name.optional(),
 });
 
 export const crmContactUpdateInputSchema = crmContactUpdateObjectSchema
@@ -131,25 +133,25 @@ export const crmContactArchiveInputSchema = z.strictObject({
 export const crmContactArchiveInputIntentSchema = z.strictObject({});
 
 export const crmOpportunityListInputSchema = z.strictObject({
-  organizationHint: organizationHintSchema.describe('Only the deals with this organization, named the way crm_organization_list shows it.').optional(),
+  organizationHint: organizationHintSchema.describe('Only the deals with this organization.').optional(),
   stage: crmStageSchema.describe('Only the deals at this stage.').optional(),
-  query: z.string().max(256).describe('Free-text filter matched against the title and the description.').optional(),
-  includeArchived: z.boolean().describe('Set true to include deals somebody archived.').optional(),
+  query: z.string().max(256).describe('Filter on the title and the description.').optional(),
+  includeArchived: z.boolean().describe('Set true to include archived ones.').optional(),
 });
 
 export const crmOpportunityAddInputSchema = z.strictObject({
   organizationHint: organizationHintSchema,
   ...opportunityFields,
-  stage: crmStageSchema.describe('Where the deal starts. Defaults to waiting, and a stage that closes it is refused here.').optional(),
+  stage: crmStageSchema.describe('Where it starts. Defaults to waiting; a closing stage is refused here.').optional(),
 });
 
 export const crmOpportunityAddInputIntentSchema = crmOpportunityAddInputSchema.partial();
 
 const crmOpportunityUpdateObjectSchema = z.strictObject({
   opportunityHint: opportunityHintSchema,
-  organizationHint: organizationHintSchema.describe('The organization it is with now, named the way crm_organization_list shows it.').optional(),
+  organizationHint: organizationHintSchema.describe('The organization it is with now.').optional(),
   ...opportunityFields,
-  title: opportunityFields.title.describe('The title it should carry now.').optional(),
+  title: opportunityFields.title.optional(),
 });
 
 export const crmOpportunityUpdateInputSchema = crmOpportunityUpdateObjectSchema
@@ -162,11 +164,11 @@ export const crmOpportunityUpdateInputIntentSchema = crmOpportunityUpdateObjectS
 
 const crmOpportunityMoveObjectSchema = z.strictObject({
   opportunityHint: opportunityHintSchema,
-  stage: crmStageSchema.describe('Where the deal moves to. Omit to leave it where it stands and only change its position.').optional(),
-  position: z.number().int().min(0).describe('Where it sits among the deals at that stage, counting from 0.').optional(),
+  stage: crmStageSchema.describe('Where it moves to. Omit to only change its position.').optional(),
+  position: z.number().int().min(0).describe('Where it sits at that stage, counting from 0.').optional(),
   closedAt: z.string().describe(`When the move happened. ${momentDescription} Defaults to now.`).optional(),
-  finalAmountMinor: z.number().int().describe(`What it was worth in the company's own currency when it closed. ${amountDescription} Only a deal held in another currency needs one, and the record converts it when the call does not.`).optional(),
-  reason: z.string().max(1024).describe('Why the deal was lost. A move into lost is refused without one.').optional(),
+  finalAmountMinor: z.number().int().describe("What it was worth in the company's own currency, which the record converts when the call does not.").optional(),
+  reason: z.string().max(1024).describe('Why it was lost. A move into lost is refused without one.').optional(),
 });
 
 export const crmOpportunityMoveInputSchema = crmOpportunityMoveObjectSchema
@@ -199,6 +201,65 @@ const crmPipelineDefinitionSchema = z.strictObject({
 export const crmVocabularySetInputSchema = z.strictObject({
   organizationTypes: z.array(crmDefinitionSchema).describe('Every organization type this company names, replacing the whole list. A type still carried by an organization cannot be dropped.'),
   pipelines: z.array(crmPipelineDefinitionSchema).describe('Every pipeline this company runs deals through, replacing the whole list. A pipeline still carried by a deal cannot be dropped.'),
+});
+
+const activityHintSchema = z.string().min(1).max(256).describe(
+  'The activity: its exact task ID, or its exact CURRENT title as crm_activity_list shows it.',
+);
+
+export const crmActivityListInputSchema = z.strictObject({
+  organizationHint: organizationHintSchema.describe('Only the work with this organization.').optional(),
+  opportunityHint: opportunityHintSchema.describe('Only the work on this deal.').optional(),
+  query: z.string().max(256).describe('Free-text filter matched against the title and the note.').optional(),
+});
+
+export const crmActivitySaveInputSchema = z.strictObject({
+  activityHint: activityHintSchema.describe('The activity to change. Omit to record a new one.').optional(),
+  organizationHint: organizationHintSchema.describe('The organization the work is with. A new activity names one.').optional(),
+  opportunityHint: opportunityHintSchema.describe('The deal the work belongs to.').optional(),
+  contactHint: contactHintSchema.describe('The person the work was with.').optional(),
+  title: z.string().min(1).max(256).describe('What happened, in a line.').optional(),
+  kind: z.string().max(64).describe('The kind of work it was: a note, a call, a meeting, an email, a task.').optional(),
+  business: z.string().max(128).describe('Business label, from registeredLabels.businesses.').optional(),
+  note: z.string().max(8192).describe('What was said or decided.').optional(),
+  status: z.string().max(32).describe('The status the task stands at.').optional(),
+  occurredAt: z.string().describe(`When it happened. ${momentDescription}`).optional(),
+  ownerPersonHint: z.string().max(256).describe('Name, @handle or email of the colleague it belongs to.').optional(),
+  isEvent: z.boolean().describe('Set true for work that goes in the calendar, which then needs startsAt and endsAt.').optional(),
+  isWholeDay: z.boolean().describe('Whether the calendar entry takes the whole day.').optional(),
+  startsAt: z.string().describe(`When the calendar entry starts. ${momentDescription}`).optional(),
+  endsAt: z.string().describe(`When the calendar entry ends. ${momentDescription}`).optional(),
+  location: z.string().max(256).describe('Where it happens.').optional(),
+  notifyMinutesBefore: z.number().int().min(0).describe('Minutes before the start to remind the people in it.').optional(),
+});
+
+export const crmActivityResultSchema = z.strictObject({
+  activityID: resourceIDSchema,
+  organizationID: z.string(),
+  opportunityID: z.string(),
+  contactID: z.string(),
+  business: z.string(),
+  kind: z.string(),
+  title: z.string(),
+  occurredAt: z.string(),
+  content: z.string(),
+  taskStatus: z.string(),
+  ownerPersonID: z.string(),
+  requesterPersonID: z.string(),
+  isEvent: z.boolean(),
+  isWholeDay: z.boolean(),
+  startsAt: z.string(),
+  endsAt: z.string(),
+  notifyMinutesBefore: z.number().int().nullable(),
+  location: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const crmActivityListResultSchema = z.strictObject({
+  count: z.number().int(),
+  activities: z.array(crmActivityResultSchema),
+  registeredLabels: taskLabelVocabularySchema,
 });
 
 const crmAuditResultSchema = z.strictObject({
@@ -309,7 +370,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_organization_list',
-    description: "The organizations this company sells to, partners with, or buys from, by name. Use this to answer 'who are our customers', to find the organization another crm tool is about to change, or to read who owns a relationship.",
+    description: "The organizations this company sells to, partners with or buys from, with who owns each relationship — 'who are our customers'.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: crmOrganizationListInputSchema,
@@ -322,7 +383,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_organization_add',
-    description: 'Add an organization this company deals with. Read crm_organization_list first when the requester may be naming one that already exists; a second row for the same company is what makes a CRM useless.',
+    description: 'Add an organization this company deals with, after crm_organization_list shows it is not one already held.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOrganizationAddInputSchema,
@@ -337,9 +398,10 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_organization_update',
-    description: 'Change what this company holds about an organization. Only the fields the call names change.',
+    description: 'Change what this company holds about an organization; only the fields the call names change.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmOrganizationUpdateInputSchema,
     inputIntentSchema: crmOrganizationUpdateInputIntentSchema,
     result: { schema: crmOrganizationResultSchema, effects: [] },
@@ -352,9 +414,10 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_organization_archive',
-    description: 'Put an organization away, so it leaves the CRM screens while everything recorded against it stays. Its people and its deals stay where they are, so put it to the requester before calling.',
+    description: 'Put an organization away, so it leaves the CRM screens while its people, its deals and everything recorded against it stay.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmOrganizationArchiveInputSchema,
     inputIntentSchema: crmOrganizationArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
@@ -368,7 +431,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_contact_list',
-    description: "The people this company deals with at other organizations, with their email address, phone number and title. Use this to answer 'who do we talk to at ABC' or to find the contact another crm tool is about to change. These are counterparts, not colleagues; person_list answers for colleagues.",
+    description: "The people this company deals with at other organizations, with how to reach them — 'who do we talk to at ABC'. Colleagues are person_list's.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: crmContactListInputSchema,
@@ -381,7 +444,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_contact_add',
-    description: 'Add a person at an organization this company deals with. The organization has to exist already, so add it with crm_organization_add first when it does not.',
+    description: 'Add a person at an organization this company already holds, which crm_organization_add creates when it does not.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmContactAddInputSchema,
@@ -396,9 +459,10 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_contact_update',
-    description: 'Change what this company holds about a person at another organization, including moving them to a different one. Only the fields the call names change.',
+    description: 'Change what this company holds about a person, including moving them to another organization; only the fields the call names change.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmContactUpdateInputSchema,
     inputIntentSchema: crmContactUpdateInputIntentSchema,
     result: { schema: crmContactResultSchema, effects: [] },
@@ -411,9 +475,10 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_contact_archive',
-    description: 'Put a person away, so they leave the CRM screens while everything recorded against them stays. Use this when somebody has left the organization rather than when a name is wrong.',
+    description: 'Put a person away, so they leave the CRM screens while everything recorded against them stays, as when somebody leaves the organization.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmContactArchiveInputSchema,
     inputIntentSchema: crmContactArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
@@ -427,7 +492,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_opportunity_list',
-    description: "The deals this company is working on, each with the stage it stands at, where it sits in that stage, what it is worth and how much has been recorded against it. Use this to answer 'what are we closing this month', 'how is the ABC deal going', or to find the deal another crm tool is about to change.",
+    description: "The deals this company is working on, each with its stage, what it is worth and how much work has been recorded against it — 'what are we closing this month'.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: crmOpportunityListInputSchema,
@@ -440,7 +505,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_opportunity_add',
-    description: 'Open a deal with an organization this company already holds. It starts at waiting unless the call names another stage, and a stage that closes it is refused here: open it, then move it with crm_opportunity_move.',
+    description: 'Open a deal with an organization this company already holds. A deal already won or lost is opened here and then closed with crm_opportunity_move.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOpportunityAddInputSchema,
@@ -455,7 +520,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_opportunity_update',
-    description: 'Change what this company holds about a deal: its title, what it is worth, who it is with, when it is expected to close. Only the fields the call names change. The stage is crm_opportunity_move’s.',
+    description: 'Change what a deal is worth, who it is with, or when it should close; only the fields the call names change. Its stage is crm_opportunity_move\u2019s.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOpportunityUpdateInputSchema,
@@ -470,7 +535,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_opportunity_move',
-    description: "Move a deal to another stage, or reorder it within the one it stands at. A move into done or lost settles what the deal was worth in the company's own currency and cannot be undone by moving it back, and losing one needs a written reason, so put the move to the requester before calling.",
+    description: "Move a deal to another stage, or reorder it within the one it stands at. A move into done or lost settles what it was worth and cannot be undone, so put it to the requester first.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOpportunityMoveInputSchema,
@@ -486,15 +551,45 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_crm',
     policyResource: 'tool:crm_opportunity_archive',
-    description: 'Put a deal away, so it leaves the pipeline while everything recorded against it stays. A deal that was lost is moved to lost with its reason rather than archived.',
+    description: 'Put a deal away, so it leaves the pipeline while everything recorded against it stays. A deal that was lost is moved to lost instead.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmOpportunityArchiveInputSchema,
     inputIntentSchema: crmOpportunityArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
+  },
+  {
+    name: 'crm_activity_list',
+    namespace: 'crm',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_crm',
+    policyResource: 'tool:crm_activity_list',
+    description: 'The work recorded against the organizations and deals this company holds, newest first, with the labels and colours the CRM screens draw it in. The same rows task_list answers, shaped for the CRM.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: crmActivityListInputSchema,
+    result: { schema: crmActivityListResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+  {
+    name: 'crm_activity_save',
+    namespace: 'crm',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_crm',
+    policyResource: 'tool:crm_activity_save',
+    description: 'Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, plus the calendar entry when the work goes in the calendar.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: crmActivitySaveInputSchema,
+    result: { schema: crmActivityResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_activity' },
   },
   {
     name: 'crm_vocabulary_get',
@@ -546,3 +641,7 @@ export type CRMOpportunityListResult = z.infer<typeof crmOpportunityListResultSc
 export type CRMArchivedResult = z.infer<typeof crmArchivedResultSchema>;
 export type CRMVocabularySetInput = z.infer<typeof crmVocabularySetInputSchema>;
 export type CRMVocabularyResult = z.infer<typeof crmVocabularyResultSchema>;
+export type CRMActivityListInput = z.infer<typeof crmActivityListInputSchema>;
+export type CRMActivitySaveInput = z.infer<typeof crmActivitySaveInputSchema>;
+export type CRMActivityResult = z.infer<typeof crmActivityResultSchema>;
+export type CRMActivityListResult = z.infer<typeof crmActivityListResultSchema>;

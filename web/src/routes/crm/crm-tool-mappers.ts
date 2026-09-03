@@ -1,12 +1,15 @@
 import { isCRMStage } from '$lib/crm/crm-stage';
 import { CRMApiError } from './crm-api';
 import type {
+	CRMActivityResponse,
 	CRMAuditResponse,
 	CRMContactResponse,
 	CRMOpportunityResponse,
 	CRMOrganizationResponse
 } from './crm-api-types';
+import type { NamedColour } from '$lib/task/task-vocabulary';
 import type {
+	CRMActivityKind,
 	CRMCurrency,
 	CRMImportance,
 	CRMOpportunityStage,
@@ -157,4 +160,69 @@ function importanceOf(value: string): CRMImportance {
 
 function currencyOf(value: string): CRMCurrency {
 	return /^[A-Z]{3}$/.test(value) ? value : '';
+}
+
+export type CRMActivityToolResult = {
+	activityID: string;
+	organizationID: string;
+	opportunityID: string;
+	contactID: string;
+	business: string;
+	kind: string;
+	title: string;
+	occurredAt: string;
+	content: string;
+	taskStatus: string;
+	ownerPersonID: string;
+	requesterPersonID: string;
+	isEvent: boolean;
+	isWholeDay: boolean;
+	startsAt: string;
+	endsAt: string;
+	notifyMinutesBefore: number | null;
+	location: string;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type CRMOrganizationListToolResult = { count: number; organizations: CRMOrganizationToolResult[] };
+export type CRMContactListToolResult = { count: number; contacts: CRMContactToolResult[] };
+export type CRMOpportunityListToolResult = { count: number; opportunities: CRMOpportunityToolResult[] };
+export type CRMActivityListToolResult = {
+	count: number;
+	activities: CRMActivityToolResult[];
+	registeredLabels: { businesses: NamedColour[]; types: NamedColour[]; sizes: string[]; statuses: string[] };
+};
+export type CRMVocabularyToolResult = {
+	organizationTypes: { id: string; name: string; color?: string }[];
+	pipelines: { id: string; name: string; color?: string; direction?: string }[];
+	stages: { stage: string; outcome: string }[];
+};
+
+export function activityResponseOf(result: CRMActivityToolResult): CRMActivityResponse {
+	return {
+		id: result.activityID,
+		organizationID: result.organizationID,
+		contactID: result.contactID || undefined,
+		opportunityID: result.opportunityID || undefined,
+		business: result.business || undefined,
+		kind: (result.kind || 'task') as CRMActivityKind,
+		title: result.title,
+		occurredAt: result.occurredAt,
+		content: result.content || undefined,
+		taskStatus: result.taskStatus,
+		taskOwnerID: result.ownerPersonID || undefined,
+		isEvent: result.isEvent,
+		isWholeDay: result.isWholeDay,
+		startsAt: result.startsAt || undefined,
+		endsAt: result.endsAt || undefined,
+		notifyMinutesBefore: result.notifyMinutesBefore ?? undefined,
+		location: result.location || undefined,
+		audit: {
+			createdAt: result.createdAt,
+			createdByPersonID: result.requesterPersonID,
+			updatedAt: result.updatedAt,
+			updatedByPersonID: result.requesterPersonID
+		}
+	};
 }

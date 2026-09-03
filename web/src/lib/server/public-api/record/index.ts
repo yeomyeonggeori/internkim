@@ -16,6 +16,7 @@ import {
 	companySettingsGet,
 	companySettingsUpdate
 } from './company-tools';
+import { crmActivityList, crmActivitySave } from './crm-activity-tools';
 import {
 	crmContactAdd,
 	crmContactArchive,
@@ -123,7 +124,9 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	crm_opportunity_move: (context, input) => crmOpportunityMove(context, input),
 	crm_opportunity_archive: (context, input) => crmOpportunityArchive(context, input),
 	crm_vocabulary_get: (context) => crmVocabularyGet(context),
-	crm_vocabulary_set: (context, input) => crmVocabularySet(context, input)
+	crm_vocabulary_set: (context, input) => crmVocabularySet(context, input),
+	crm_activity_list: (context, input) => crmActivityList(context, input),
+	crm_activity_save: (context, input) => crmActivitySave(context, input)
 };
 
 export function recordRunsTheTool(name: string): boolean {

@@ -38,6 +38,19 @@ import type {
 	CRMVocabularyResult
 } from '../catalog/crm';
 
+export type CRMColumnsWritten = {
+	organizationHint?: string;
+	opportunityHint?: string;
+	contactHint?: string;
+	dueAt?: string;
+};
+
+export type CRMColumnHolder = {
+	organization_id: string | null;
+	opportunity_id: string | null;
+	contact_id: string | null;
+};
+
 export type CRMOrganizationListInput = { query?: string; includeArchived?: boolean };
 
 export type CRMOrganizationWritten = {
@@ -656,4 +669,78 @@ function definitionWritten(definition: CRMPipelineDefinition): Record<string, un
 		...(definition.color?.trim() ? { color: definition.color.trim() } : {}),
 		...(definition.direction?.trim() ? { direction: definition.direction.trim() } : {})
 	};
+}
+
+// task_crm_references_match_organization refuses a task whose deal, contact and
+// organization disagree, so the columns task_save does not carry are resolved
+// against each other and written in one go.
+export async function crmColumnsWritten(
+	context: RecordContext,
+	input: CRMColumnsWritten,
+	row: CRMColumnHolder | null
+): Promise<Record<string, unknown> | null> {
+	const namesNothing =
+		input.organizationHint === undefined &&
+		input.opportunityHint === undefined &&
+		input.contactHint === undefined;
+	if (namesNothing && input.dueAt === undefined) return null;
+
+	const dueAt =
+		input.dueAt === undefined
+			? {}
+			: { due_at: input.dueAt.trim() ? instantWritten(context.labels.timezone, input.dueAt) : null };
+	if (namesNothing) return dueAt;
+
+	return { ...(await linksWritten(context, input, row)), ...dueAt };
+}
+
+async function linksWritten(
+	context: RecordContext,
+	input: CRMColumnsWritten,
+	row: CRMColumnHolder | null
+): Promise<Record<string, unknown>> {
+	if (input.organizationHint !== undefined && !input.organizationHint.trim()) {
+		return { organization_id: null, opportunity_id: null, contact_id: null };
+	}
+
+	const dealHint =
+		input.opportunityHint === undefined ? row?.opportunity_id ?? '' : input.opportunityHint.trim();
+	const deal = dealHint ? await opportunityOfCRMHint(context, dealHint) : null;
+	const named = input.organizationHint
+		? await organizationOfCRMHint(context, input.organizationHint)
+		: null;
+	if (deal && named && deal.organization_id !== named.id) {
+		throw new Error(`${deal.name} is a deal with another organization`);
+	}
+
+	const contactHint = input.contactHint === undefined ? row?.contact_id ?? '' : input.contactHint.trim();
+	const contact = contactHint ? await contactOfCRMHint(context, contactHint) : null;
+	const organizationID = deal?.organization_id ?? named?.id ?? row?.organization_id ?? null;
+	return {
+		organization_id: organizationID,
+		opportunity_id: deal?.id ?? null,
+		contact_id: contact?.id ?? null
+	};
+}
+
+export async function writeCRMColumns(
+	context: RecordContext,
+	taskID: string,
+	columns: Record<string, unknown> | null
+): Promise<void> {
+	if (!columns) return;
+	const { data, error } = await context.caller
+		.from('task')
+		.update(columns)
+		.eq('id', taskID)
+		.select('id')
+		.returns<{ id: string }[]>();
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if ((data ?? []).length === 0) {
+		throw new RecordRefusedTheWrite(
+			'only somebody taking part in this task or an admin can put it on an organization',
+			403,
+			'task_write_forbidden'
+		);
+	}
 }

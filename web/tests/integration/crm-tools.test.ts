@@ -53,6 +53,13 @@ beforeAll(async () => {
 	outsiderID = outsiderCompany.adminMemberID;
 	outsider = await signedInMember(outsiderID, `${otherSlug}-admin@example.test`);
 
+	await client
+		.from('company')
+		.update({
+			task_vocabulary: { businesses: [{ name: '영업', color: '#2563eb' }], types: [{ name: 'meeting' }] }
+		})
+		.eq('id', companyID);
+
 	await asAdmin('crm_vocabulary_set', {
 		organizationTypes: [{ id: 'customer', name: '고객' }],
 		pipelines: [{ id: 'partnership', name: '파트너십', direction: 'outbound' }]
@@ -104,6 +111,10 @@ function organizationsOf(answer: { body: unknown }): Record<string, unknown>[] {
 
 function opportunitiesOf(answer: { body: unknown }): Record<string, unknown>[] {
 	return resultOf(answer).opportunities as Record<string, unknown>[];
+}
+
+function activitiesOf(answer: { body: unknown }): Record<string, unknown>[] {
+	return resultOf(answer).activities as Record<string, unknown>[];
 }
 
 describe('the organizations a company deals with', () => {
@@ -332,5 +343,96 @@ describe('the work recorded against a deal', () => {
 		expect(taken.status).toBe(200);
 		expect(resultOf(taken).opportunityID).toBe('');
 		expect(resultOf(taken).organizationID).toBe('');
+	});
+});
+
+describe('the activities recorded against a deal', () => {
+	test('are written through the same task writer the task tools use', async () => {
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			opportunityHint: 'ABC상사 도입',
+			contactHint: 'yesi',
+			title: '킥오프 미팅',
+			kind: 'meeting',
+			business: '영업',
+			note: '요구사항을 들었다',
+			occurredAt: '2026-09-02T09:00:00+09:00'
+		});
+
+		expect(recorded.status).toBe(200);
+		expect(resultOf(recorded).content).toBe('요구사항을 들었다');
+		expect(resultOf(recorded).kind).toBe('meeting');
+		expect(resultOf(recorded).isEvent).toBe(false);
+		expect(new Date(resultOf(recorded).occurredAt as string).toISOString()).toBe(
+			'2026-09-02T00:00:00.000Z'
+		);
+
+		const listed = await asSample('task_list', { opportunityHint: 'ABC상사 도입', scope: 'all' });
+		expect((resultOf(listed).tasks as { content: string }[]).map((task) => task.content)).toContain(
+			'킥오프 미팅'
+		);
+	});
+
+	test('go in the calendar when the requester asks for it', async () => {
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			opportunityHint: 'ABC상사 도입',
+			title: '2차 미팅',
+			kind: 'meeting',
+			business: '영업',
+			isEvent: true,
+			startsAt: '2026-09-10T10:00:00+09:00',
+			endsAt: '2026-09-10T11:00:00+09:00',
+			location: '회의실',
+			notifyMinutesBefore: 30
+		});
+
+		expect(recorded.status).toBe(200);
+		expect(resultOf(recorded).isEvent).toBe(true);
+		expect(resultOf(recorded).location).toBe('회의실');
+		expect(resultOf(recorded).notifyMinutesBefore).toBe(30);
+		expect(resultOf(recorded).business).toBe('영업');
+		expect(resultOf(recorded).opportunityID).toBe(
+			opportunitiesOf(await asSample('crm_opportunity_list', {}))[0].opportunityID
+		);
+	});
+
+	test('are listed for the board with the colours the company gave its labels', async () => {
+		const listed = await asSample('crm_activity_list', { opportunityHint: 'ABC상사 도입' });
+
+		expect(activitiesOf(listed).map((activity) => activity.title).sort()).toEqual([
+			'2차 미팅',
+			'킥오프 미팅'
+		]);
+		expect((resultOf(listed).registeredLabels as { businesses: unknown[] }).businesses).toEqual([
+			{ name: '영업', color: '#2563eb' }
+		]);
+	});
+
+	test('are changed in place, keeping the deal they belong to', async () => {
+		const changed = await asSample('crm_activity_save', {
+			activityHint: '킥오프 미팅',
+			note: '예산까지 들었다',
+			status: 'in_progress'
+		});
+
+		expect(changed.status).toBe(200);
+		expect(resultOf(changed).content).toBe('예산까지 들었다');
+		expect(resultOf(changed).taskStatus).toBe('in_progress');
+		expect(resultOf(changed).opportunityID).not.toBe('');
+	});
+
+	test('name the organization they are with, and leave stage changes to the record', async () => {
+		const unnamed = await asSample('crm_activity_save', { title: '어디의 일인지 모르는 활동' });
+		expect(unnamed.status).toBe(400);
+		expect(errorOf(unnamed)).toContain('organization');
+
+		const invented = await asSample('crm_activity_save', {
+			organizationHint: 'ABC상사',
+			title: '직접 쓴 단계 변경',
+			kind: 'stage_change'
+		});
+		expect(invented.status).toBe(400);
+		expect(errorOf(invented)).toContain('moving the deal');
 	});
 });

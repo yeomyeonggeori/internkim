@@ -143,6 +143,8 @@ func CRMDescriptors() []Descriptor {
 		"crm_opportunity_archive",
 		"crm_vocabulary_get",
 		"crm_vocabulary_set",
+		"crm_activity_list",
+		"crm_activity_save",
 	))
 }
 

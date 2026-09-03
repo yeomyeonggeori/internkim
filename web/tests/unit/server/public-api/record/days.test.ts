@@ -56,8 +56,8 @@ describe('a label a company registered', () => {
 	);
 
 	test('is read from the company’s own vocabulary', () => {
-		expect(labels.businesses).toEqual(['영업', '개발']);
-		expect(labels.types).toEqual(['문서']);
+		expect(labels.businesses).toEqual([{ name: '영업' }, { name: '개발' }]);
+		expect(labels.types).toEqual([{ name: '문서' }]);
 	});
 
 	test('falls back to the company timezone it was given', () => {

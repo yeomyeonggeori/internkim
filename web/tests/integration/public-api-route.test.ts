@@ -334,6 +334,19 @@ describe('input the catalog does not publish', () => {
 		const answered = await invoke('task_list', holdersToken, { scope: 'self' });
 		expect(answered.status).toBe(200);
 	});
+
+	test('answers the labels a company registered in the colours it gave them', async () => {
+		await client
+			.from('company')
+			.update({ task_vocabulary: { businesses: [{ name: '영업', color: '#2563eb' }], types: [] } })
+			.eq('id', companyID);
+
+		const answered = await invoke('task_list', holdersToken, { scope: 'self' });
+		const labels = (answered.body as { result: { registeredLabels: { businesses: unknown[] } } }).result
+			.registeredLabels;
+
+		expect(labels.businesses).toEqual([{ name: '영업', color: '#2563eb' }]);
+	});
 });
 
 function pictureCall(token: string, picture?: File): Promise<RouteAnswer> {

@@ -11,6 +11,7 @@ import {
 import { hiddenBrowserToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { crmToolDefinitions } from './crm';
+import { taskLabelVocabularySchema } from './labels';
 import {
   buildCapabilityCatalog,
   ResourceMutationEffect,
@@ -297,13 +298,6 @@ export const taskDeleteInputSchema = z.strictObject({
 });
 
 export const taskDeleteInputIntentSchema = z.strictObject({});
-
-const taskLabelVocabularySchema = z.strictObject({
-  businesses: z.array(z.string()),
-  types: z.array(z.string()),
-  sizes: z.array(z.string()),
-  statuses: z.array(z.string()),
-});
 
 export const taskListResultSchema = z.strictObject({
   tasks: z.array(taskResultSchema),
