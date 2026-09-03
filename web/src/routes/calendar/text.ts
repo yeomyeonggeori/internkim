@@ -33,6 +33,8 @@ export type CalendarLocaleText = {
 	holidayLoadError: string;
 	saveError: string;
 	deleteError: string;
+	calendarEventVersionConflictError: string;
+	calendarDeleteVersionConflictError: string;
 	deleteUndoMessage: string;
 	deleteUndoAction: string;
 	allDay: string;
@@ -126,6 +128,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		holidayLoadError: '공휴일을 불러오지 못했습니다. 일반 일정은 계속 사용할 수 있습니다.',
 		saveError: '일정을 저장하지 못했습니다.',
 		deleteError: '일정을 삭제하지 못했습니다.',
+		calendarEventVersionConflictError:
+			'다른 곳에서 이 일정이 변경되었습니다. 서버의 최신 내용을 다시 불러왔습니다.',
+		calendarDeleteVersionConflictError:
+			'다른 곳에서 이 일정이 변경되어 삭제하지 못했습니다. 서버의 최신 내용을 다시 불러왔습니다.',
 		deleteUndoMessage: '일정을 삭제했습니다.',
 		deleteUndoAction: '실행 취소',
 		allDay: '종일',
@@ -228,6 +234,10 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		holidayLoadError: 'Could not load public holidays. Other calendar events remain available.',
 		saveError: 'Could not save the event.',
 		deleteError: 'Could not delete the event.',
+		calendarEventVersionConflictError:
+			'This event changed elsewhere. The latest server version has been reloaded.',
+		calendarDeleteVersionConflictError:
+			'This event changed elsewhere, so it could not be deleted. The latest server version has been reloaded.',
 		deleteUndoMessage: 'Event deleted.',
 		deleteUndoAction: 'Undo',
 		allDay: 'All day',

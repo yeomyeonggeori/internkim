@@ -157,6 +157,11 @@ an empty list means nothing changed. A record tool carries none, and its
 everywhere else the key is carried but changes nothing. For agent messages,
 [`messageID` deduplicates instead](/docs/api/agent#sending-a-message).
 
+`event_update` and `event_delete` take an optional `expectedUpdatedAt`, the
+`updatedAt` the caller last read, and answer `409` with
+`calendar_event_version_conflict` and the event's current `updatedAt` when
+somebody else has changed it since.
+
 ## Choosing a target with a hint [#choosing-a-target-with-a-hint]
 
 Mutating tools take no separate ID parameter. `task_update` and `task_delete`

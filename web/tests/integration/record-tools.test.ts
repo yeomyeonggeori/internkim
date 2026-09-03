@@ -317,6 +317,57 @@ describe('an event written through the record', () => {
 		expect(changed.startsAt).not.toBe('');
 	});
 
+	test('lets only the first of two updates from one base land', async () => {
+		const base = resultOf(
+			await run('event_add', {
+				title: '분기 리뷰',
+				startsAt: `${dayAround(1)}T10:00:00+09:00`,
+				endsAt: `${dayAround(1)}T11:00:00+09:00`
+			})
+		);
+		const readVersion = base.updatedAt as string;
+
+		const first = resultOf(
+			await run('event_update', {
+				eventHint: '분기 리뷰',
+				expectedUpdatedAt: readVersion,
+				location: '회의실 A'
+			})
+		);
+		expect(first.location).toBe('회의실 A');
+		expect(first.updatedAt).not.toBe(readVersion);
+
+		const second = await run('event_update', {
+			eventHint: '분기 리뷰',
+			expectedUpdatedAt: readVersion,
+			location: '회의실 B'
+		});
+		expect(second.status).toBe(409);
+		expect(second.body).toEqual({
+			error: 'this event changed since the version named here was read',
+			errorCode: 'calendar_event_version_conflict',
+			failureStage: 'resolution',
+			retryable: true,
+			safeRetry: false,
+			updatedAt: first.updatedAt
+		});
+
+		const held = resultOf(await run('event_update', { eventHint: '분기 리뷰', note: '' }));
+		expect(held.location).toBe('회의실 A');
+	});
+
+	test('refuses a delete that names a version the event has moved past', async () => {
+		const refused = await run('event_delete', {
+			eventHint: '분기 리뷰',
+			expectedUpdatedAt: '2020-01-01T00:00:00.000Z'
+		});
+		expect(refused.status).toBe(409);
+		expect((refused.body as { errorCode: string }).errorCode).toBe('calendar_event_version_conflict');
+
+		const still = resultOf(await run('event_list', { query: '분기 리뷰' }));
+		expect((still.events as { title: string }[]).map((event) => event.title)).toEqual(['분기 리뷰']);
+	});
+
 	test('refuses an event that ends before it starts', async () => {
 		const refused = await run('event_add', {
 			title: '거꾸로',

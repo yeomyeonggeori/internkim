@@ -8,9 +8,44 @@ import {
 	createPersistenceScenario,
 	unknownPersistenceError,
 	saveFailureMessage,
+	saveVersionConflictMessage,
 	toastErrorMessages,
+	versionConflictRefusal,
 	type CalendarEvent
 } from './calendar-event-persistence-scenario';
+
+test('an update names the version the screen rendered', async () => {
+	const rendered = calendarVersionedTestEvent('versioned-update', 'Updated title', '2026-07-16T00:00:00Z');
+	const namedVersions: (string | undefined)[] = [];
+	const scenario = createPersistenceScenario([rendered], () => [rendered], {
+		writeEvent: async (_isNewEvent, _event, expectedUpdatedAt) => {
+			namedVersions.push(expectedUpdatedAt);
+			return calendarServerEvent(rendered.id, 'Updated title');
+		}
+	});
+
+	await scenario.actions.saveUpdatedEvent(rendered);
+
+	expect(namedVersions).toEqual(['2026-07-16T00:00:00Z']);
+});
+
+test('an update refused as a version conflict reloads rather than rolling back', async () => {
+	const previousEvent = calendarVersionedTestEvent('conflicted-update', 'Previous title', '2026-07-16T00:00:00Z');
+	const updatedEvent = calendarVersionedTestEvent('conflicted-update', 'My title', '2026-07-16T00:00:00Z');
+	const somebodyElsesTitle = calendarTestEvent('conflicted-update', 'Their title');
+	const scenario = createPersistenceScenario([updatedEvent], () => [somebodyElsesTitle], {
+		writeEvent: async () => {
+			throw versionConflictRefusal();
+		}
+	});
+
+	await scenario.actions.saveUpdatedEvent(updatedEvent, previousEvent);
+
+	expect(scenario.notifications).toEqual([saveVersionConflictMessage]);
+	expect(scenario.refreshCount()).toBe(1);
+	expect(scenario.events().map((event) => event.title)).toEqual(['Their title']);
+	expect(scenario.restoredEventTitles).toEqual([]);
+});
 
 test('does not expose a pagehide delete action', () => {
 	const scenario = createPersistenceScenario([]);
