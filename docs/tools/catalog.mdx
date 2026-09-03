@@ -100,6 +100,31 @@ them writes it.
 A correction keeps what the record held before it, and a removal keeps who
 removed it and why.
 
+## CRM [#crm]
+
+<ToolCatalog namespace="crm" />
+
+Answered on the central plane by
+`web/src/lib/server/public-api/record/crm-tools.ts`, against the record's
+`organization`, `contact` and `opportunity` tables and its
+`crm_opportunity_close` function, running as the calling member. An
+organization, a person at one, and a deal are each named by a hint: an exact id,
+or the name or current title a list result shows.
+
+A deal stands at one of six stages: `waiting`, `in_progress`, `review`, `done`,
+`on_hold`, `lost`. They are declared once as the record's `crm_stage` type,
+which the catalog and the screens both read. `crm_opportunity_move` is the only
+way a deal changes stage. A move into `done` or `lost` settles what the deal was
+worth in the company's own currency, converting it when the deal is held in
+another, and losing one needs a written reason. Naming a position and no stage
+reorders the deal where it stands.
+
+An activity is a task: `task_add`, `task_update` and `task_list` take
+`organizationHint` and `opportunityHint`, so the work recorded against a deal is
+the company's ordinary work. The screens and the API reach the same rows through
+`crm_activity_save` and `crm_activity_list`, which are not offered to the model
+and which write through the writers `task_add` and `event_add` already use.
+
 ## Messages [#message]
 
 <ToolCatalog namespace="message" />
