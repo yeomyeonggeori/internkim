@@ -4,9 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+)
+
+const (
+	blueclawRosterArrivalWait  = 3 * time.Minute
+	blueclawRosterPollInterval = 5 * time.Second
 )
 
 var StepHealth = Step{
@@ -135,13 +141,32 @@ fi`))
 }
 
 func checkBlueclawUsersPolicy(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(blueclawUsersPolicyCheckCommand()))
+	checkBlueclawUsersPolicyWithin(context, blueclawRosterArrivalWait, blueclawRosterPollInterval, failedChecks)
+}
+
+func checkBlueclawUsersPolicyWithin(context *Context, arrivalWait time.Duration, pollInterval time.Duration, failedChecks *[]string) {
+	check := waitForBlueclawUsersPolicy(context, arrivalWait, pollInterval)
 	if check == "ok" {
 		fmt.Println("  blueclaw users policy: ok")
 		return
 	}
 	*failedChecks = append(*failedChecks, "blueclaw-users-policy")
 	fmt.Printf("  blueclaw users policy: failed (%s)\n", check)
+}
+
+func waitForBlueclawUsersPolicy(context *Context, arrivalWait time.Duration, pollInterval time.Duration) string {
+	deadline := time.Now().Add(arrivalWait)
+	for {
+		check := strings.TrimSpace(context.SSH.Run(blueclawUsersPolicyCheckCommand()))
+		if check == "ok" {
+			return check
+		}
+		if time.Now().Add(pollInterval).After(deadline) {
+			return check
+		}
+		fmt.Printf("  blueclaw users policy: %s, waiting for the roster\n", check)
+		time.Sleep(pollInterval)
+	}
 }
 
 func blueclawUsersPolicyCheckCommand() string {

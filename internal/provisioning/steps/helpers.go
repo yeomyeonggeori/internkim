@@ -6,6 +6,28 @@ import (
 	"strings"
 )
 
+func withPackageWorkSettled(command string) string {
+	return command + `
+wait_for_package_work_to_settle() {
+  attempt=0
+  while [ "$attempt" -lt 120 ]; do
+    running=''
+    for comm_path in /proc/[0-9]*/comm; do
+      read -r process_name < "$comm_path" 2>/dev/null || continue
+      case "$process_name" in
+        apt|apt-get|dpkg|useradd|usermod|groupadd) running="$running $process_name" ;;
+      esac
+    done
+    [ -n "$running" ] || return 0
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  echo "package installation is still running:$running" >&2
+  return 1
+}
+wait_for_package_work_to_settle`
+}
+
 func trimmedRun(context *Context, command string) string {
 	if context.SSH == nil {
 		return ""

@@ -9,11 +9,18 @@ import (
 
 type relayDatabaseConnection struct {
 	databaseComesUp bool
+	cacheStaysDown  bool
 	commands        []string
 }
 
 func (connection *relayDatabaseConnection) Run(command string) string {
 	connection.commands = append(connection.commands, command)
+	if command == "systemctl is-active redis-server" {
+		if connection.cacheStaysDown {
+			return "inactive\n"
+		}
+		return "active\n"
+	}
 	if command == "systemctl is-active postgresql" {
 		if connection.databaseComesUp {
 			return "active\n"
@@ -59,6 +66,37 @@ func TestBuzzRelayFailsWhenTheDatabaseDoesNotStart(t *testing.T) {
 	}
 	if !strings.Contains(errorValue.Error(), "postgresql") {
 		t.Fatalf("the failure must name what is missing, got %v", errorValue)
+	}
+}
+
+func TestBuzzRelayFailsWhenTheCacheDoesNotStart(t *testing.T) {
+	errorValue := StepBuzzRelay.Run(relayContext(&relayDatabaseConnection{databaseComesUp: true, cacheStaysDown: true}))
+	if errorValue == nil {
+		t.Fatal("a relay whose redis is not running must not report success")
+	}
+	if !strings.Contains(errorValue.Error(), "redis-server") {
+		t.Fatalf("the failure must name what is missing, got %v", errorValue)
+	}
+}
+
+func TestBuzzRelayWaitsForTheAccountsItsPackagesCreate(t *testing.T) {
+	connection := &relayDatabaseConnection{databaseComesUp: true}
+	if errorValue := StepBuzzRelay.Run(relayContext(connection)); errorValue != nil {
+		t.Fatalf("a machine whose services come up must install cleanly, got %v", errorValue)
+	}
+	for _, packageName := range []string{"redis-server", blueclaw.BuzzRelayDatabasePackages} {
+		installCommand := ""
+		for _, command := range connection.commands {
+			if strings.Contains(command, "apt-get install -y -qq "+packageName) {
+				installCommand = command
+			}
+		}
+		if installCommand == "" {
+			t.Fatalf("expected the step to install %s", packageName)
+		}
+		if !strings.Contains(installCommand, "wait_for_package_work_to_settle") {
+			t.Fatalf("installing %s must not return while useradd is still rewriting /etc/shadow: %s", packageName, installCommand)
+		}
 	}
 }
 
