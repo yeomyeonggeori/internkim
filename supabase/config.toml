@@ -32,8 +32,8 @@ minimum_password_length = 6
 password_requirements = ""
 
 [auth.sessions]
-timebox = 0
-inactivity_timeout = 0
+timebox = "0s"
+inactivity_timeout = "0s"
 
 [auth.rate_limit]
 anonymous_users = 30
