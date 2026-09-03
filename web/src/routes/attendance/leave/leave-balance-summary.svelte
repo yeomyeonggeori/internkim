@@ -5,14 +5,12 @@
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import { milliDaysValue } from './leave-history-model';
 	import { leaveBalanceSegments } from './leave-balance-segments';
-	import { isSupabaseConfigured } from '$lib/supabase';
 
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
 	const summary = $derived(employeeLeave.payload?.summary);
 	const isUnlimited = $derived(employeeLeave.payload?.balanceTrackingMode === 'unlimited');
-	const pendingIsInsideRemaining = isSupabaseConfigured();
-	const segments = $derived(leaveBalanceSegments(summary, pendingIsInsideRemaining));
+	const segments = $derived(leaveBalanceSegments(summary));
 	const hasABarToDraw = $derived(
 		segments.usedPercent + segments.reservedPercent + segments.availablePercent > 0
 	);
