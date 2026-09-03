@@ -439,9 +439,9 @@ export const messageContextInputSchema = z.strictObject({});
 export const messageSearchInputSchema = z.strictObject({
   messageIDs: uniqueMessageIDArraySchema.describe('Exact message IDs to read in full instead of searching. Returns each message\'s complete text rather than a preview. Use this before rewriting a long message.').optional(),
   scope: z.enum(MessageSearchScope)
-    .describe('Where to search. Current conversation scopes use the active Mattermost context.')
+    .describe('Where to search. Current conversation scopes use the channel or thread this request is running in.')
     .optional(),
-  channelName: z.string().describe('Exact Mattermost channel name without the # prefix.').optional(),
+  channelName: z.string().describe('Exact channel name as the messenger shows it.').optional(),
   channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
   personHint: z.string().describe('Exact name, @handle, or email of the direct-message counterpart.').optional(),
   authoredBy: z.enum(MessageAuthor).describe('Message author filter. Defaults to anyone.').optional(),
@@ -453,12 +453,12 @@ export const messageSearchInputSchema = z.strictObject({
 export const messageSendInputSchema = z.strictObject({
   targetType: z.enum(MessageTargetType).describe('Destination for the new message.'),
   message: z.string().min(1).regex(/\S/, 'Message must contain a non-whitespace character.'),
-  channelName: z.string().describe('Exact Mattermost channel name without the # prefix.').optional(),
+  channelName: z.string().describe('Exact channel name as the messenger shows it.').optional(),
   channelID: resourceIDSchema.describe('Exact channel ID from message_context or a prior result.').optional(),
   personHint: z.string().describe('Name, @handle, or email of one direct-message recipient. Omit for a direct message to the requester themself.').optional(),
   personHints: z.array(z.string().min(1)).max(50).describe('Direct-message recipients for one fan-out send.').optional(),
   pin: z.boolean().describe('Whether to pin the created message. Defaults to false.').optional(),
-  attachments: z.array(z.string().min(1)).max(5).describe('Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target. Mattermost accepts at most five files per message.').optional(),
+  attachments: z.array(z.string().min(1)).describe('Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target.').optional(),
   reason: z.string().describe('Reason shown to the approver.').optional(),
 });
 
@@ -469,7 +469,7 @@ const messageUpdateObjectSchema = z.strictObject({
   oldText: z.string().min(1).regex(/\S/, 'oldText must contain a non-whitespace character.').describe('Exact text as it currently appears in that message, copied verbatim from a message_search preview or from the message you sent. Must occur exactly once in the message. Quote only the span that changes, never the whole message.').optional(),
   newText: z.string().describe('Text that replaces oldText. Empty string removes the span.').optional(),
   isPinned: z.boolean().describe('Whether the message should be pinned.').optional(),
-  attachments: z.array(z.string().min(1)).max(5).describe('Workspace file paths to upload into the edited message, copied exactly from the attachment catalog or a file tool result. Use this to add an original file, such as an inbound image, to a message already sent. The message keeps its text when no oldText is given.').optional(),
+  attachments: z.array(z.string().min(1)).describe('Workspace file paths to upload into the edited message, copied exactly from the attachment catalog or a file tool result. Use this to add an original file, such as an inbound image, to a message already sent. The message keeps its text when no oldText is given.').optional(),
 });
 
 export const messageUpdateInputSchema = messageUpdateObjectSchema
