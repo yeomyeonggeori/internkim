@@ -166,6 +166,43 @@ test.describe('calendar draft popover', () => {
 		await expect(page.locator('[data-calendar-event-id^="month-"]')).toHaveCount(0);
 	});
 
+	test('unchecking all day on an existing all-day event gives it valid times and saves the draft on dismissal', async ({
+		page
+	}) => {
+		const updatedPayloads = await routeEventUpdate(page);
+		const [eventID] = await seedCalendarEvents([
+			{
+				title: '전사 워크숍',
+				startISO: '2026-06-10T00:00:00+09:00',
+				endISO: '2026-06-12T00:00:00+09:00',
+				isAllDay: true
+			}
+		]);
+		try {
+			await page.reload();
+			await waitForClientHydration(page);
+			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
+			await expect(chip).toBeVisible();
+			await chip.click();
+			const popover = page.locator('.calendar-draft-popover');
+			await expect(popover).toBeVisible();
+			await expect(popover.getByLabel('종일')).toBeChecked();
+
+			await popover.getByLabel('종일').click();
+
+			await expect(popover.getByLabel('시작 시간')).toHaveValue('09:00');
+			await expect(popover.getByLabel('종료 시간')).toHaveValue('10:00');
+
+			await clickOutsideDraftPopover(page);
+
+			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+			await expect.poll(() => updatedPayloads.length).toBe(1);
+			expect(updatedPayloads[0]).toMatchObject({ eventHint: eventID, isWholeDay: false });
+		} finally {
+			await cleanupCalendarEvents([eventID]);
+		}
+	});
+
 	test('opens one all-day draft popover for a dragged month range', async ({ page }) => {
 		const addedPayloads = await routeEventAdd(page);
 
