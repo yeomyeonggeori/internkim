@@ -648,6 +648,36 @@ describe('every capability the workspace family names', () => {
 		expect(JSON.parse(String(call?.body))).toEqual({ taskRunID: 'run-1', decision: 'confirm' });
 		expect(call?.requester).toBe('sample@example.test');
 	});
+
+	test('the skill inventory is a workspace read, not a message to the agent', () => {
+		expect(isWorkspaceCapability('person.skills.list')).toBe(true);
+		const call = workspaceCallOf('person.skills.list', { actor: { kind: 'buzz' } }, 'sample@example.test');
+
+		expect(call?.method).toBe('GET');
+		expect(call?.url).toBe('http://internkim/skills/api');
+		expect(call?.requester).toBe('sample@example.test');
+	});
+
+	test('every memory change is posted to the workspace as the person who signed in', () => {
+		const changes: [string, string, Record<string, unknown>][] = [
+			['person.memory.episode_delete', '/memory/api/episodes/delete', { episodeID: 'episode-1' }],
+			['person.memory.pinned_update', '/memory/api/pinned/update', { content: '금요일마다 회고' }],
+			['person.memory.pinned_delete', '/memory/api/pinned/delete', {}],
+			['person.memory.schedule_cancel', '/memory/api/schedules/cancel', { taskScheduleID: 'schedule-1' }],
+			['person.memory.schedule_delete', '/memory/api/schedules/delete', { taskScheduleID: 'schedule-1' }],
+			['person.memory.schedule_update', '/memory/api/schedules/update', { taskScheduleID: 'schedule-1', name: '주간 보고' }]
+		];
+
+		for (const [capability, path, body] of changes) {
+			expect(isWorkspaceCapability(capability)).toBe(true);
+			const call = workspaceCallOf(capability, { ...body, actor: { kind: 'buzz' } }, 'sample@example.test');
+
+			expect(`${capability} ${call?.method} ${call?.url}`).toBe(`${capability} POST http://internkim${path}`);
+			expect(call?.contentType).toBe('application/json');
+			expect(JSON.parse(String(call?.body))).toEqual(body);
+			expect(call?.requester).toBe('sample@example.test');
+		}
+	});
 });
 
 type ArrivedRequest = {
