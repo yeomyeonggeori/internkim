@@ -9,9 +9,10 @@ import (
 )
 
 const bluecollarToolContractPath = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/registry.go"
+const bluecollarApprovalTargetPath = "../../.dependency/blueclaw/.dependency/bluecollar/agentcontract/approval_target.go"
 
 func TestRecoveryHintMatchesBluecollarToolContract(t *testing.T) {
-	canonicalTags := bluecollarStructJSONTags(t, "RecoveryHint")
+	canonicalTags := bluecollarStructJSONTags(t, bluecollarToolContractPath, "RecoveryHint")
 	if len(canonicalTags) == 0 {
 		t.Fatalf("no RecoveryHint fields found in %s", bluecollarToolContractPath)
 	}
@@ -22,15 +23,15 @@ func TestRecoveryHintMatchesBluecollarToolContract(t *testing.T) {
 	}
 }
 
-func bluecollarStructJSONTags(t *testing.T, structName string) []string {
+func bluecollarStructJSONTags(t *testing.T, sourcePath string, structName string) []string {
 	t.Helper()
-	source, errorValue := os.ReadFile(filepath.FromSlash(bluecollarToolContractPath))
+	source, errorValue := os.ReadFile(filepath.FromSlash(sourcePath))
 	if errorValue != nil {
 		t.Skipf("bluecollar source unavailable: %v", errorValue)
 	}
 	declaration := regexp.MustCompile(`(?s)type ` + structName + ` struct \{(.*?)\n\}`).FindSubmatch(source)
 	if declaration == nil {
-		t.Fatalf("type %s not found in %s", structName, bluecollarToolContractPath)
+		t.Fatalf("type %s not found in %s", structName, sourcePath)
 	}
 	tags := []string{}
 	for _, match := range regexp.MustCompile("`json:\"([^\"]+)\"`").FindAllSubmatch(declaration[1], -1) {
