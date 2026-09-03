@@ -21,7 +21,7 @@ import {
 	runToolOverTheRecord
 } from '$lib/server/public-api/record';
 import { answererOfTool, destroysSomething, permissionForTool } from '$lib/server/public-api/catalog';
-import { refusalOfToolInput } from '$lib/server/public-api/tool-input';
+import { refusalOfToolInput, toolInputRecovered } from '$lib/server/public-api/tool-input';
 import { reachesPermission } from '$lib/public-api-permission';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -77,12 +77,16 @@ function descriptorTheTokenReaches(name: string, member: CallingMember) {
 	return descriptor;
 }
 
-function refuseInputTheToolDoesNotTake(name: string, input: unknown): void {
+// The gate answers for the input the tool is then handed, so what it read and
+// what runs are the same object rather than two readings of one body.
+function inputTheToolWillRead(name: string, input: unknown): Record<string, unknown> {
 	if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
 		error(400, 'input is the object the tool reads');
 	}
-	const refusal = refusalOfToolInput(name, input);
+	const read = toolInputRecovered(name, input);
+	const refusal = refusalOfToolInput(name, read);
 	if (refusal) error(400, refusal);
+	return read;
 }
 
 function invokedToolName(method: string, path: string): string | null {
@@ -108,14 +112,13 @@ async function previewHere(request: Request, member: CallingMember, name: string
 
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
-	const input = payload.input;
-	refuseInputTheToolDoesNotTake(name, input);
+	const input = inputTheToolWillRead(name, payload.input);
 
 	const answered = await previewToolOverTheRecord(
 		member.caller,
 		member.memberID,
 		name,
-		(input as Record<string, unknown>) ?? {},
+		input,
 		new Date()
 	);
 	return json(answered.body, { status: answered.status });
@@ -131,14 +134,13 @@ async function runHere(
 
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
-	const input = payload.input;
-	refuseInputTheToolDoesNotTake(name, input);
+	const input = inputTheToolWillRead(name, payload.input);
 
 	const answered = await runToolOverTheRecord(
 		member.caller,
 		member.memberID,
 		name,
-		(input as Record<string, unknown>) ?? {},
+		input,
 		new Date()
 	);
 	return json(
@@ -215,7 +217,9 @@ async function carryToTheCompany(
 ): Promise<Response> {
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
-	if (invoked) refuseInputTheToolDoesNotTake(invoked, payload.input);
+	const carried = invoked
+		? { ...payload, input: inputTheToolWillRead(invoked, payload.input) }
+		: payload;
 
 	const answer = await callCompany(environment, member.companyID, apiRequestCapability, {
 		method: request.method,
@@ -223,7 +227,7 @@ async function carryToTheCompany(
 		query: queryTheCompanySees(url),
 		permission: member.permission,
 		requester: member.email,
-		payload
+		payload: carried
 	});
 	return json(answer.body, { status: answer.status });
 }
