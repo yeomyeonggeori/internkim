@@ -23,7 +23,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `attendance_reconciliation_save` | `target_company uuid, attendance_work_policy jsonb, attendance_calendar jsonb` | `void` | invoker | service_role |
 | `attendance_remove` | `event_id uuid, reason text` | `jsonb` | definer | authenticated |
 | `attendance_server_time` | — | `timestamp with time zone` | invoker | authenticated, service_role |
-| `attendance_work_policies` | — | `TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)` | invoker | anon, authenticated, service_role |
+| `attendance_work_policies` | — | `TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)` | definer | anon, authenticated, service_role |
 | `attendance_work_policy_save` | `target_policy jsonb` | `jsonb` | definer | authenticated |
 | `calendar_subscription_company` | `target_token_hash text` | `uuid` | definer | service_role |
 | `calendar_subscription_save` | `target_token_hash text` | `void` | definer | authenticated |
@@ -54,17 +54,17 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `leave_management_source` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_return_early` | `work_location text` | `jsonb` | definer | authenticated, service_role |
 | `member_hr_file` | `target_member uuid` | `TABLE(member_id uuid, leave_days numeric, note text)` | definer | authenticated, service_role |
-| `member_leave_days` | `target_member uuid` | `numeric` | invoker | anon, authenticated, service_role |
+| `member_leave_days` | `target_member uuid` | `numeric` | definer | anon, authenticated, service_role |
 | `member_leave_days_set` | `target_member uuid, granted_days numeric` | `numeric` | definer | anon, authenticated, service_role |
-| `member_leave_remaining` | `target_member uuid, target_year integer` | `numeric` | invoker | anon, authenticated, service_role |
-| `member_locale` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
-| `member_minimum_daily_minutes` | `target_member uuid` | `integer` | invoker | anon, authenticated, service_role |
+| `member_leave_remaining` | `target_member uuid, target_year integer` | `numeric` | definer | anon, authenticated, service_role |
+| `member_locale` | `target_member uuid` | `text` | definer | anon, authenticated, service_role |
+| `member_minimum_daily_minutes` | `target_member uuid` | `integer` | definer | anon, authenticated, service_role |
 | `member_secret_name` | `target_member uuid, target_kind text` | `text` | invoker | anon, authenticated, service_role |
-| `member_timezone` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
-| `member_today` | `target_member uuid` | `date` | invoker | anon, authenticated, service_role |
+| `member_timezone` | `target_member uuid` | `text` | definer | anon, authenticated, service_role |
+| `member_today` | `target_member uuid` | `date` | definer | anon, authenticated, service_role |
 | `member_topic` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
-| `member_work_hours` | `target_member uuid` | `jsonb` | invoker | anon, authenticated, service_role |
-| `member_work_hours_on` | `target_member uuid, target_day date` | `jsonb` | invoker | anon, authenticated, service_role |
+| `member_work_hours` | `target_member uuid` | `jsonb` | definer | anon, authenticated, service_role |
+| `member_work_hours_on` | `target_member uuid, target_day date` | `jsonb` | definer | anon, authenticated, service_role |
 | `my_app_company` | — | `uuid` | invoker | anon, authenticated, service_role |
 | `my_company_topic` | — | `text` | definer | anon, authenticated, service_role |
 | `my_member` | — | `uuid` | definer | anon, authenticated, service_role |
