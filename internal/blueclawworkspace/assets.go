@@ -104,15 +104,3 @@ func AgentBrowserSkillPath(scriptDir string) string {
 func AgentsPath(scriptDir string) string {
 	return filepath.Join(AssetsPath(scriptDir), "AGENTS.md")
 }
-
-func IdentityPath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "IDENTITY.md")
-}
-
-func SoulPath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "SOUL.md")
-}
-
-func BotProfilePath(scriptDir string) string {
-	return filepath.Join(AssetsPath(scriptDir), "BOT_PROFILE.yaml")
-}

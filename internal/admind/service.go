@@ -96,7 +96,8 @@ type Configuration struct {
 	FontsDirectory                 string
 	SiteSecretDirectory            string
 	SiteSystemdDirectory           string
-	BotProfilePath                 string
+	IdentityDocumentPath           string
+	SoulDocumentPath               string
 	BotProfileImagePath            string
 	BlueclawWorkspacePath          string
 	BlueclawRuntimeConfigPath      string
@@ -327,7 +328,8 @@ func DefaultConfiguration() Configuration {
 		FontsDirectory:                 "/opt/internkim/fonts",
 		SiteSecretDirectory:            "/root/.internkim/secrets/sites",
 		SiteSystemdDirectory:           "/etc/systemd/system",
-		BotProfilePath:                 "/root/.internkim/config/bot-profile.yaml",
+		IdentityDocumentPath:           "/root/.internkim/config/identity.json",
+		SoulDocumentPath:               "/root/.internkim/config/soul.json",
 		BotProfileImagePath:            "/opt/internkim/board-ui/logo.png",
 		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
 		BlueclawRuntimeConfigPath:      "/root/.blueclaw/config/runtime.json",
@@ -371,7 +373,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.reconcileSiteSourcesToMemberCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	service.sweepUpdateLeftovers()
-	service.startBotProfileSync(ctx)
+	service.startPersonaSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarSweep(ctx)
@@ -746,10 +748,14 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeCompanionReleases(responseWriter)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
 		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
-	case request.Method == http.MethodGet && path == "/bot-profile":
-		service.writeBotProfile(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/bot-profile":
-		service.updateBotProfile(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/identity":
+		service.writeIdentity(responseWriter, request)
+	case request.Method == http.MethodPut && path == "/identity":
+		service.updateIdentity(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/soul":
+		service.writeSoul(responseWriter, request)
+	case request.Method == http.MethodPut && path == "/soul":
+		service.updateSoul(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/credentials/providers":
 		service.writeCredentialProviders(responseWriter)
 	case request.Method == http.MethodPut && path == "/credentials/openrouter-key":
@@ -2475,12 +2481,11 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.SiteSystemdDirectory == "" {
 		configuration.SiteSystemdDirectory = defaultConfiguration.SiteSystemdDirectory
 	}
-	if configuration.BotProfilePath == "" {
-		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
-			configuration.BotProfilePath = defaultConfiguration.BotProfilePath
-		} else {
-			configuration.BotProfilePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bot-profile.yaml")
-		}
+	if configuration.IdentityDocumentPath == "" {
+		configuration.IdentityDocumentPath = personaDocumentPath(configuration, defaultConfiguration, defaultConfiguration.IdentityDocumentPath, "identity.json")
+	}
+	if configuration.SoulDocumentPath == "" {
+		configuration.SoulDocumentPath = personaDocumentPath(configuration, defaultConfiguration, defaultConfiguration.SoulDocumentPath, "soul.json")
 	}
 	if configuration.BotProfileImagePath == "" {
 		configuration.BotProfileImagePath = defaultConfiguration.BotProfileImagePath
@@ -2850,4 +2855,11 @@ func Run(configuration Configuration) error {
 	service := NewService(configuration)
 	log.Printf("internkim admind listening on %s", service.Configuration.ListenAddress)
 	return service.Run(ctx)
+}
+
+func personaDocumentPath(configuration Configuration, defaultConfiguration Configuration, defaultPath string, fileName string) string {
+	if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
+		return defaultPath
+	}
+	return filepath.Join(filepath.Dir(configuration.CompanionJobPath), fileName)
 }
