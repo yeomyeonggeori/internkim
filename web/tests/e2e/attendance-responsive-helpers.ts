@@ -1,7 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import type { AttendanceSummary } from '../../src/routes/attendance/attendance-context.svelte';
 
-type MobileTeamStatusTableLayout = {
+export type MobileTeamStatusTableLayout = {
 	canScrollDates: boolean;
 	canScrollEmployees: boolean;
 	initialEmployeeHeaderTop: number;
@@ -34,20 +33,20 @@ const koreanMonthPickerLayoutOptions: MobileMonthPickerLayoutOptions = {
 
 export async function measureMobileTeamStatusTable(
 	statusTable: Locator,
-	targetDate: string
+	subject: { email: string; date: string }
 ): Promise<MobileTeamStatusTableLayout> {
-	return statusTable.evaluate((tableElement, date) => {
+	return statusTable.evaluate((tableElement, target) => {
 		const table = tableElement as HTMLElement;
 		const employeeHeader = table.querySelector<HTMLElement>('[data-testid^="team-status-person-header-"]');
-		const dateRowHeader = table.querySelector<HTMLElement>(`[data-testid="team-status-day-${date}"]`);
-		const targetCell = table.querySelector<HTMLElement>(`[data-testid="team-status-cell-kim@example.com-${date}"]`);
+		const dateRowHeader = table.querySelector<HTMLElement>(`[data-testid="team-status-day-${target.date}"]`);
+		const targetCell = table.querySelector<HTMLElement>(`[data-testid="team-status-cell-${target.email}-${target.date}"]`);
 		if (!employeeHeader || !dateRowHeader || !targetCell) {
 			throw new Error(`Missing monthly attendance table cells: employeeHeader=${!!employeeHeader}, dateRowHeader=${!!dateRowHeader}, targetCell=${!!targetCell}`);
 		}
 		const scrollProbeCell =
 			Array.from(
 				table.querySelectorAll<HTMLElement>(
-					'[data-testid^="team-status-cell-kim@example.com-"]'
+					`[data-testid^="team-status-cell-${target.email}-"]`
 				)
 			).find((cell) => cell !== targetCell) ?? targetCell;
 
@@ -100,10 +99,13 @@ export async function measureMobileTeamStatusTable(
 			visibleLocationLabels,
 			pageOverflows: document.documentElement.scrollWidth > window.innerWidth
 		};
-	}, targetDate);
+	}, subject);
 }
 
-export function expectReadableMobileTeamStatusTable(layout: MobileTeamStatusTableLayout): void {
+export function expectReadableMobileTeamStatusTable(
+	layout: MobileTeamStatusTableLayout,
+	expectedLocationLabel: string
+): void {
 	expect(layout.canScrollDates).toBe(true);
 	expect(Math.abs(layout.scrolledEmployeeHeaderTop - layout.initialEmployeeHeaderTop)).toBeLessThanOrEqual(1);
 	expect(Math.abs(layout.scrolledDateRowHeaderLeft - layout.initialDateRowHeaderLeft)).toBeLessThanOrEqual(1);
@@ -112,17 +114,8 @@ export function expectReadableMobileTeamStatusTable(layout: MobileTeamStatusTabl
 	expect(layout.dateRowHeight).toBeLessThanOrEqual(64);
 	expect(layout.overflowingLabels).toEqual([]);
 	expect(layout.overflowingEmployeeDetails).toEqual([]);
-	expect(layout.visibleLocationLabels).toContain('사무실본관회의실A');
+	expect(layout.visibleLocationLabels).toContain(expectedLocationLabel);
 	expect(layout.pageOverflows).toBe(false);
-}
-
-export function withLongMobileDisplayName(summary: AttendanceSummary): AttendanceSummary {
-	return {
-		...summary,
-		events: summary.events.map((event) =>
-			event.email === 'kim@example.com' ? { ...event, displayName: '아주긴이름테스트사용자' } : event
-		)
-	};
 }
 
 export async function mobileTabStyle(

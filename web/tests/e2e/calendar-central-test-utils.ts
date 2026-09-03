@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import type { Page } from '@playwright/test';
+import { centralPlaneAdminClient, exampleCompanyID, member1ID } from './central-test-utils';
 
 export type CalendarCentralEvent = {
 	id?: string;
@@ -9,20 +9,6 @@ export type CalendarCentralEvent = {
 	isAllDay?: boolean;
 	note?: string;
 };
-
-const exampleCompanyID = '000000cc-0000-0000-0000-000000000001';
-export const member1ID = '000000ee-0000-0000-0000-000000000001';
-export const member2ID = '000000ee-0000-0000-0000-000000000002';
-export const member3ID = '000000ee-0000-0000-0000-000000000003';
-
-function centralPlaneAdminClient() {
-	const projectURL = process.env.SUPABASE_URL;
-	const secretKey = process.env.SUPABASE_SECRET_KEY;
-	if (!projectURL || !secretKey) {
-		throw new Error('SUPABASE_URL and SUPABASE_SECRET_KEY must be set to seed calendar fixtures');
-	}
-	return createClient(projectURL, secretKey);
-}
 
 export async function signInToCalendar(page: Page): Promise<void> {
 	await page.goto('/example-co/calendar');
@@ -62,35 +48,4 @@ export async function cleanupCalendarEvents(eventIDs: string[]): Promise<void> {
 	const admin = centralPlaneAdminClient();
 	const deleted = await admin.from('task').delete().in('id', eventIDs);
 	if (deleted.error) throw new Error(`Failed to clean up calendar events: ${deleted.error.message}`);
-}
-
-export type CalendarCentralLeave = {
-	memberID: string;
-	kind: string;
-	days: number;
-	startISO: string;
-	endISO: string;
-};
-
-export async function seedApprovedLeave(leave: CalendarCentralLeave[]): Promise<string[]> {
-	const admin = centralPlaneAdminClient();
-	const rows = leave.map((entry) => ({
-		member_id: entry.memberID,
-		kind: entry.kind,
-		days: entry.days,
-		is_paid: true,
-		status: 'approved' as const,
-		starts_at: entry.startISO,
-		ends_at: entry.endISO
-	}));
-	const inserted = await admin.from('leave').insert(rows).select('id');
-	if (inserted.error) throw new Error(`Failed to seed approved leave: ${inserted.error.message}`);
-	return inserted.data.map((row) => row.id as string);
-}
-
-export async function cleanupApprovedLeave(leaveIDs: string[]): Promise<void> {
-	if (leaveIDs.length === 0) return;
-	const admin = centralPlaneAdminClient();
-	const deleted = await admin.from('leave').delete().in('id', leaveIDs);
-	if (deleted.error) throw new Error(`Failed to clean up approved leave: ${deleted.error.message}`);
 }

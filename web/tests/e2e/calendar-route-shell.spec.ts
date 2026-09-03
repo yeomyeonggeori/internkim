@@ -1,13 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
-	cleanupApprovedLeave,
 	cleanupCalendarEvents,
-	member1ID,
-	member2ID,
-	seedApprovedLeave,
 	seedCalendarEvents,
 	signInToCalendar
 } from './calendar-central-test-utils';
+import { cleanupLeave, member1ID, member2ID, seedLeave } from './central-test-utils';
 
 async function routeCalendarHolidays(page: Page): Promise<void> {
 	await page.route('**/api/calendar/holidays?**', async (route) => {
@@ -97,9 +94,9 @@ test.describe('calendar route shell', () => {
 	test('renders approved full-day and partial leave as read-only events', async ({ page }) => {
 		await routeCalendarHolidays(page);
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
-		const leaveIDs = await seedApprovedLeave([
-			{ memberID: member1ID, kind: '연차', days: 1, startISO: '2026-06-15T00:00:00+09:00', endISO: '2026-06-16T00:00:00+09:00' },
-			{ memberID: member2ID, kind: '반차', days: 0.5, startISO: '2026-06-15T14:00:00+09:00', endISO: '2026-06-15T18:00:00+09:00' }
+		const leaveIDs = await seedLeave([
+			{ memberID: member1ID, kind: '연차', days: 1, status: 'approved', startISO: '2026-06-15T00:00:00+09:00', endISO: '2026-06-16T00:00:00+09:00' },
+			{ memberID: member2ID, kind: '반차', days: 0.5, status: 'approved', startISO: '2026-06-15T14:00:00+09:00', endISO: '2026-06-15T18:00:00+09:00' }
 		]);
 		try {
 			await signInToCalendar(page);
@@ -113,7 +110,7 @@ test.describe('calendar route shell', () => {
 			await partialLeave.click({ force: true });
 			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		} finally {
-			await cleanupApprovedLeave(leaveIDs);
+			await cleanupLeave(leaveIDs);
 		}
 	});
 
