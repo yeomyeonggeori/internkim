@@ -360,9 +360,8 @@ func TestCompanyShareUnlockRateLimit(t *testing.T) {
 func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testing.T) {
 	temporaryDirectory := t.TempDir()
 	service := NewService(Configuration{
-		StateDirectory:         temporaryDirectory,
-		TaskDatabasePath:       temporaryDirectory + "/flow.sqlite",
-		AttendanceDatabasePath: temporaryDirectory + "/attendance.sqlite",
+		StateDirectory:   temporaryDirectory,
+		TaskDatabasePath: temporaryDirectory + "/flow.sqlite",
 	})
 	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul", Language: workspaceLanguageEnglish}); errorValue != nil {
 		t.Fatal(errorValue)
@@ -373,11 +372,8 @@ func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testin
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if activity.AttendanceTotal != 2 || activity.WorkTotal != 2 || len(activity.Members) != 2 {
+	if activity.WorkTotal != 2 || len(activity.Members) != 2 {
 		t.Fatalf("unexpected activity aggregate: %#v", activity)
-	}
-	if activity.Days[len(activity.Days)-2].WorkMinutes != 60 || activity.Days[len(activity.Days)-1].WorkMinutes != 300 {
-		t.Fatalf("overnight work minutes were not split by date: %#v", activity.Days[len(activity.Days)-2:])
 	}
 	if len(activity.RecentWork) != 2 || activity.RecentWork[0].MemberSeed == "" || activity.RecentWork[0].Title == "" {
 		t.Fatalf("unexpected recent work: %#v", activity.RecentWork)
@@ -395,7 +391,7 @@ func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testin
 			t.Fatalf("activity omitted %q: %s", publicValue, serialized)
 		}
 	}
-	for _, privateValue := range []string{"member@example.com", "second@example.com", "김철수", "이영희", "09:00"} {
+	for _, privateValue := range []string{"member@example.com", "second@example.com", "김철수", "이영희"} {
 		if strings.Contains(serialized, privateValue) {
 			t.Fatalf("activity exposed %q: %s", privateValue, serialized)
 		}
@@ -461,26 +457,66 @@ INSERT INTO company_documents (id, document_number, kind, document_type, title, 
 	}
 }
 
+// The company is the only attendance store, so the clocks this panel counts
+// come back from the record rather than from a table on the device.
+func companyShareRecordHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+	if strings.HasSuffix(request.URL.Path, "/api/agent/session") {
+		writer.Write([]byte(`{"memberID":"admin","accessToken":"token","expiresAt":99999999999}`))
+		return
+	}
+	if strings.Contains(request.URL.Path, "/rest/v1/attendance") {
+		writer.Write([]byte(`[
+			{"kind":"clock_in","occurred_at":"2026-07-13T14:00:00Z","member":{"email":"member@example.com","name":"김철수"}},
+			{"kind":"clock_out","occurred_at":"2026-07-13T17:00:00Z","member":{"email":"member@example.com","name":"김철수"}},
+			{"kind":"clock_in","occurred_at":"2026-07-14T00:00:00Z","member":{"email":"second@example.com","name":"이영희"}},
+			{"kind":"clock_out","occurred_at":"2026-07-14T03:00:00Z","member":{"email":"second@example.com","name":"이영희"}}
+		]`))
+		return
+	}
+	writer.Write([]byte(`[]`))
+}
+
+func TestCompanyShareCountsTheClocksTheCompanyHolds(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	plane := httptest.NewServer(http.HandlerFunc(companyShareRecordHandler))
+	defer plane.Close()
+	service := NewService(Configuration{
+		StateDirectory:             temporaryDirectory,
+		TaskDatabasePath:           temporaryDirectory + "/flow.sqlite",
+		ClaimedAdminEmailPath:      writeTestFile(t, "admin@example.com"),
+		CentralPlaneAppURL:         plane.URL,
+		CentralPlaneProjectURL:     plane.URL,
+		CentralPlanePublishableKey: "publishable",
+		CentralPlaneAgentKeyPath:   writeAgentKeyForTest(t, "agent-key"),
+	})
+	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul", Language: workspaceLanguageEnglish}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	activity, errorValue := service.buildCompanyShareTeamActivity(t.Context(), time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if activity.AttendanceTotal != 2 {
+		t.Fatalf("the record holds two days of clocks: %#v", activity)
+	}
+	if activity.Days[len(activity.Days)-2].WorkMinutes != 60 || activity.Days[len(activity.Days)-1].WorkMinutes != 300 {
+		t.Fatalf("overnight work minutes were not split by date: %#v", activity.Days[len(activity.Days)-2:])
+	}
+	document, errorValue := json.Marshal(activity)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, privateValue := range []string{"member@example.com", "second@example.com", "김철수", "이영희"} {
+		if strings.Contains(string(document), privateValue) {
+			t.Fatalf("the panel exposed %q", privateValue)
+		}
+	}
+}
+
 func insertCompanyShareActivityTestData(t *testing.T, service *Service) {
 	t.Helper()
-	attendanceDatabase, errorValue := service.openAttendanceDatabase(t.Context())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	_, errorValue = attendanceDatabase.ExecContext(t.Context(), `
-INSERT INTO attendance_events (
-	id, mattermost_user_id, mattermost_username, email, display_name, kind, occurred_at, local_date, local_time,
-	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, location_id, location_name,
-	canceled_at, cancel_reason, repeated_click_at
-) VALUES
-('attendance-1', 'member-1', 'member', 'member@example.com', '김철수', 'clock_in', '2026-07-13T14:00:00Z', '2026-07-13', '23:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', ''),
-('attendance-1-out', 'member-1', 'member', 'member@example.com', '김철수', 'clock_out', '2026-07-13T17:00:00Z', '2026-07-13', '02:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', ''),
-('attendance-2', 'member-2', 'second', 'second@example.com', '이영희', 'clock_in', '2026-07-14T00:00:00Z', '2026-07-14', '09:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', ''),
-('attendance-2-out', 'member-2', 'second', 'second@example.com', '이영희', 'clock_out', '2026-07-14T03:00:00Z', '2026-07-14', '12:00', 'Asia/Seoul', 'test', '', '', '', '', '', '', '', '', '')`)
-	attendanceDatabase.Close()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	taskDatabase, errorValue := service.openTaskDatabase(t.Context())
 	if errorValue != nil {
 		t.Fatal(errorValue)

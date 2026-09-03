@@ -19,12 +19,12 @@ func (service *Service) centralPlane() *centralplane.Client {
 		// plane must not go asking for one to find out it has none.
 		if strings.TrimSpace(settings.AppURL) == "" || strings.TrimSpace(settings.ProjectURL) == "" ||
 			strings.TrimSpace(settings.PublishableKey) == "" {
-			log.Printf("this device keeps its own records: the central plane is not configured")
+			log.Printf("this device names no company, so the record it would read is not there")
 			return
 		}
 		settings.AgentAPIKey = service.centralPlaneAgentKey()
 		if !settings.Configured() {
-			log.Printf("this device keeps its own records: the central plane issued no agent key")
+			log.Printf("this device names a company that issued it no agent key")
 			return
 		}
 		service.centralPlaneClient = centralplane.New(settings)
