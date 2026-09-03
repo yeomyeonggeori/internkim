@@ -17,8 +17,8 @@
 	let { adminBaseURL, isDeviceReachable, text }: SettingsSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
-	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko', callingCode: '82' });
-	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko', callingCode: '82' });
+	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko' });
+	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko' });
 	let workspaceSettingsMessage = $state('');
 	let isLoadingWorkspaceSettings = $state(false);
 	let isSavingWorkspaceSettings = $state(false);
@@ -40,7 +40,6 @@
 		return {
 			timeZone: settings.timeZone?.trim() || 'system',
 			language: settings.language === 'en' ? 'en' : 'ko',
-			callingCode: settings.callingCode?.replace(/[^0-9]/g, '') || '82',
 			updatedAt: settings.updatedAt
 		};
 	}
@@ -96,18 +95,6 @@
 						autocomplete="off"
 					/>
 					<Field.Description>{text.settings.timeZoneHint}</Field.Description>
-				</Field.Field>
-				<Field.Field>
-					<Field.Label for="workspace-calling-code">{text.settings.callingCode}</Field.Label>
-					<Input
-						id="workspace-calling-code"
-						bind:value={workspaceSettingsDraft.callingCode}
-						placeholder={text.settings.callingCodePlaceholder}
-						disabled={isLoadingWorkspaceSettings}
-						autocomplete="off"
-						inputmode="numeric"
-					/>
-					<Field.Description>{text.settings.callingCodeHint}</Field.Description>
 				</Field.Field>
 				<Field.Field>
 					<Field.Label for="workspace-language">{text.settings.workspaceLanguageTitle}</Field.Label>

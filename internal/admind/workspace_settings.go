@@ -1,162 +1,141 @@
 package admind
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
 type workspaceSettings struct {
-	TimeZone    string `json:"timeZone"`
-	Language    string `json:"language"`
-	CallingCode string `json:"callingCode"`
-	UpdatedAt   string `json:"updatedAt,omitempty"`
+	TimeZone string `json:"timeZone"`
+	Language string `json:"language"`
 }
 
 const (
-	workspaceLanguageKorean     = "ko"
-	workspaceLanguageEnglish    = "en"
-	workspaceDefaultCallingCode = "82"
+	workspaceLanguageKorean  = "ko"
+	workspaceLanguageEnglish = "en"
 )
+
+// The time zone is read once per calendar event and the language once per
+// message, so the company is asked at most this often and the last answer
+// stands in between.
+const workspaceSettingsFreshFor = 30 * time.Second
+
+type heldWorkspaceSettings struct {
+	mutex    sync.Mutex
+	settings workspaceSettings
+	readAt   time.Time
+	isHeld   bool
+}
 
 func defaultWorkspaceSettings() workspaceSettings {
 	return workspaceSettings{
-		TimeZone:    workspaceSystemTimeZone,
-		Language:    workspaceLanguageKorean,
-		CallingCode: workspaceDefaultCallingCode,
+		TimeZone: workspaceSystemTimeZone,
+		Language: workspaceLanguageKorean,
 	}
 }
 
-func (service *Service) workspaceCallingCode() string {
-	settings, errorValue := service.readWorkspaceSettings()
-	if errorValue != nil {
-		return workspaceDefaultCallingCode
+func (service *Service) readWorkspaceSettings() workspaceSettings {
+	service.workspaceSettingsCache.mutex.Lock()
+	defer service.workspaceSettingsCache.mutex.Unlock()
+	if service.workspaceSettingsCache.isHeld && time.Since(service.workspaceSettingsCache.readAt) < workspaceSettingsFreshFor {
+		return service.workspaceSettingsCache.settings
 	}
-	return normalizeWorkspaceSettingsWithoutValidation(settings).CallingCode
+	client := service.centralPlane()
+	if client == nil {
+		return defaultWorkspaceSettings()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	answered, errorValue := client.CompanySettings(ctx, service.claimedAdminEmail())
+	if errorValue != nil {
+		if service.workspaceSettingsCache.isHeld {
+			return service.workspaceSettingsCache.settings
+		}
+		return defaultWorkspaceSettings()
+	}
+	service.workspaceSettingsCache.settings = workspaceSettingsOf(answered.TimeZone, answered.Locale)
+	service.workspaceSettingsCache.readAt = time.Now()
+	service.workspaceSettingsCache.isHeld = true
+	return service.workspaceSettingsCache.settings
+}
+
+func (service *Service) forgetWorkspaceSettings() {
+	service.workspaceSettingsCache.mutex.Lock()
+	defer service.workspaceSettingsCache.mutex.Unlock()
+	service.workspaceSettingsCache.isHeld = false
+}
+
+// The record holds a BCP 47 tag and the workspace speaks two languages, so a
+// tag it does not speak reads as the default rather than as itself.
+func workspaceSettingsOf(timeZone string, locale string) workspaceSettings {
+	defaults := defaultWorkspaceSettings()
+	settings := workspaceSettings{TimeZone: strings.TrimSpace(timeZone), Language: defaults.Language}
+	if settings.TimeZone == "" {
+		settings.TimeZone = defaults.TimeZone
+	}
+	language, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(locale)), "-")
+	if language == workspaceLanguageKorean || language == workspaceLanguageEnglish {
+		settings.Language = language
+	}
+	return settings
+}
+
+func (service *Service) workspaceLanguage() string {
+	return service.readWorkspaceSettings().Language
 }
 
 func (service *Service) writeWorkspaceSettings(responseWriter http.ResponseWriter) {
-	settings, errorValue := service.readWorkspaceSettings()
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(responseWriter, settings)
+	service.writeJSON(responseWriter, service.readWorkspaceSettings())
 }
 
 func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWriter, request *http.Request) {
-	previousSettings, errorValue := service.readWorkspaceSettings()
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
 	var payload workspaceSettings
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if service.centralPlane() != nil && strings.TrimSpace(payload.TimeZone) != previousSettings.TimeZone {
-		http.Error(responseWriter, "the company record keeps the time zone", http.StatusConflict)
-		return
-	}
-	settings, errorValue := normalizeWorkspaceSettings(payload)
+	change, errorValue := workspaceSettingsChange(payload)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	currentTime := time.Now().UTC()
-	settings.UpdatedAt = currentTime.Format(time.RFC3339)
-	if errorValue := service.writeWorkspaceSettingsFile(settings); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	client := service.centralPlane()
+	if client == nil {
+		http.Error(responseWriter, errNoCompanyDirectory.Error(), http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, settings)
-}
-
-func (service *Service) readWorkspaceSettings() (workspaceSettings, error) {
-	document, errorValue := os.ReadFile(service.workspaceSettingsPath())
-	if os.IsNotExist(errorValue) {
-		return defaultWorkspaceSettings(), nil
-	}
+	answered, errorValue := client.WriteCompanySettings(request.Context(), service.recordReaderEmail(request), change)
 	if errorValue != nil {
-		return workspaceSettings{}, errorValue
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
 	}
-	var settings workspaceSettings
-	if errorValue := json.Unmarshal(document, &settings); errorValue != nil {
-		return defaultWorkspaceSettings(), nil
-	}
-	return normalizeWorkspaceSettingsWithoutValidation(settings), nil
+	service.forgetWorkspaceSettings()
+	service.writeJSON(responseWriter, workspaceSettingsOf(answered.TimeZone, answered.Locale))
 }
 
-func (service *Service) writeWorkspaceSettingsFile(settings workspaceSettings) error {
-	document, errorValue := json.MarshalIndent(settings, "", "  ")
-	if errorValue != nil {
-		return errorValue
-	}
-	path := service.workspaceSettingsPath()
-	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
-		return errorValue
-	}
-	temporaryPath := path + ".tmp"
-	if errorValue := os.WriteFile(temporaryPath, append(document, '\n'), 0o600); errorValue != nil {
-		return errorValue
-	}
-	return os.Rename(temporaryPath, path)
-}
-
-func (service *Service) workspaceSettingsPath() string {
-	return filepath.Join(service.Configuration.StateDirectory, "workspace-settings.json")
-}
-
-func (service *Service) workspaceLanguage() string {
-	settings, errorValue := service.readWorkspaceSettings()
-	if errorValue != nil {
-		return workspaceLanguageKorean
-	}
-	return settings.Language
-}
-
-func normalizeWorkspaceSettings(settings workspaceSettings) (workspaceSettings, error) {
-	normalized := normalizeWorkspaceSettingsWithoutValidation(settings)
-	language := strings.ToLower(strings.TrimSpace(settings.Language))
-	if language != "" {
+func workspaceSettingsChange(payload workspaceSettings) (map[string]any, error) {
+	change := map[string]any{}
+	if language := strings.ToLower(strings.TrimSpace(payload.Language)); language != "" {
 		if errorValue := validateWorkspaceLanguage(language); errorValue != nil {
-			return workspaceSettings{}, errorValue
+			return nil, errorValue
 		}
+		change["locale"] = language
 	}
-	if normalized.TimeZone == workspaceSystemTimeZone {
-		return normalized, nil
+	if timeZone := strings.TrimSpace(payload.TimeZone); timeZone != "" && timeZone != workspaceSystemTimeZone {
+		if _, errorValue := time.LoadLocation(timeZone); errorValue != nil {
+			return nil, errorValue
+		}
+		change["timeZone"] = timeZone
 	}
-	if _, errorValue := time.LoadLocation(normalized.TimeZone); errorValue != nil {
-		return workspaceSettings{}, errorValue
+	if len(change) == 0 {
+		return nil, fmt.Errorf("name a language or a time zone to change")
 	}
-	return normalized, nil
-}
-
-func normalizeWorkspaceSettingsWithoutValidation(settings workspaceSettings) workspaceSettings {
-	defaults := defaultWorkspaceSettings()
-	timeZone := strings.TrimSpace(settings.TimeZone)
-	if timeZone == "" {
-		timeZone = defaults.TimeZone
-	}
-	language := strings.ToLower(strings.TrimSpace(settings.Language))
-	if language != workspaceLanguageKorean && language != workspaceLanguageEnglish {
-		language = defaults.Language
-	}
-	callingCode := normalizeCallingCode(settings.CallingCode)
-	if callingCode == "" {
-		callingCode = defaults.CallingCode
-	}
-	return workspaceSettings{
-		TimeZone:    timeZone,
-		Language:    language,
-		CallingCode: callingCode,
-		UpdatedAt:   strings.TrimSpace(settings.UpdatedAt),
-	}
+	return change, nil
 }
 
 func validateWorkspaceLanguage(language string) error {

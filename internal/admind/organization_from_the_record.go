@@ -113,9 +113,10 @@ func (service *Service) persistOrganizationHireDate(ctx context.Context, email s
 	}
 }
 
-// team_list is read as a person. A colleague asking reads it as themselves; a
-// merge nobody asked for reads it as the administrator who claimed the device.
-func (service *Service) organizationReaderEmail(request *http.Request) string {
+// A record tool is invoked as a person. A colleague asking reads it as
+// themselves; a read nobody asked for reads it as the administrator who
+// claimed the device.
+func (service *Service) recordReaderEmail(request *http.Request) string {
 	if email := strings.ToLower(strings.TrimSpace(service.webActorEmail(request))); email != "" {
 		return email
 	}

@@ -112,6 +112,7 @@ var SSHRecoveryActions = []string{
 	"task-carry-into-the-record",
 	"organization-record-coverage",
 	"organization-carry-into-the-record",
+	"company-profile-carry-into-the-record",
 	"buzz-device-link-count",
 	"buzz-rewrite-old-links",
 	"buzz-rewrite-old-links-dryrun",
@@ -327,6 +328,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove members the directory does not name", "sh", "-lc", buzzStrangerMemberCommand(true)))
 	case "organization-record-coverage":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the organization profiles the record has not taken", "sh", "-lc", organizationRecordCoverageCommand(false)))
+	case "company-profile-carry-into-the-record":
+		companyProfileCarryContext, cancelCompanyProfileCarry := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(companyProfileCarryContext, "carry the master profile the record never took", "sh", "-lc", companyProfileCarryCommand()))
+		cancelCompanyProfileCarry()
 	case "organization-carry-into-the-record":
 		organizationCarryContext, cancelOrganizationCarry := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(organizationCarryContext, "carry the organization profiles the record never took", "sh", "-lc", organizationRecordCoverageCommand(true)))
@@ -1676,6 +1681,13 @@ printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 // Every link the agent sent before it learned the company's address names a
 // device host, and the identifier beside it is one only this device knows. A
 // rewrite has to resolve each one, so the count comes first.
+func companyProfileCarryCommand() string {
+	return strings.TrimSpace(`
+body=$(curl -sS -X POST "` + blueclaw.AdmindBaseURL + `/agent/api/company-profile-carry")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
+`)
+}
+
 func organizationRecordCoverageCommand(carry bool) string {
 	carryValue := "false"
 	if carry {

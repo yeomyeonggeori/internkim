@@ -153,6 +153,7 @@ type Service struct {
 	calendarStoreWriteMutex    sync.Mutex
 	companyShareMutex          sync.Mutex
 	companyShareAttempts       map[string]companyShareAttempt
+	workspaceSettingsCache     heldWorkspaceSettings
 	policyRecordCacheMutex     sync.Mutex
 	policyRecordCache          []adminUserMutation
 	requestMetrics             *adminRequestMetrics
@@ -375,6 +376,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarSweep(ctx)
 	service.startOrganizationSweep(ctx)
+	service.startCompanyProfileSweep(ctx)
 	service.startAttendanceSweep(ctx)
 	service.startTaskSweep(ctx)
 	service.startSiteRuntimeJanitor(ctx)
@@ -479,6 +481,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/attendance-record-coverage", service.handleAttendanceRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/task-record-coverage", service.handleTaskRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/organization-record-coverage", service.handleOrganizationRecordCoverage)
+	multiplexer.HandleFunc("/agent/api/company-profile-carry", service.handleCompanyProfileCarry)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", service.handleBuzzChannelVisibilityRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)
