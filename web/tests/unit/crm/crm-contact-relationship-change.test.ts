@@ -27,7 +27,7 @@ function opportunity(organizationID: string, name: string, contactID: string): C
 		business: 'general',
 		name,
 		pipeline: 'sales',
-		stage: 'lead',
+		stage: 'waiting',
 		ownerName: '담당자',
 		currency: 'KRW',
 		importance: 'medium',

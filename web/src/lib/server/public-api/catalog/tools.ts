@@ -10,6 +10,8 @@ import {
 
 import { hiddenBrowserToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
+import { crmToolDefinitions } from './crm';
+import { taskLabelVocabularySchema } from './labels';
 import {
   buildCapabilityCatalog,
   ResourceMutationEffect,
@@ -194,8 +196,15 @@ const taskParticipantSchema = z.strictObject({
   mention: z.string().optional(),
 });
 
+const crmOrganizationHintDescription =
+  'Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.';
+const crmOpportunityHintDescription =
+  'Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.';
+
 export const taskResultSchema = z.strictObject({
   taskID: resourceIDSchema,
+  organizationID: z.string().optional(),
+  opportunityID: z.string().optional(),
   ownerID: z.string().optional(),
   ownerName: z.string().optional(),
   participantIDs: z.array(z.string()).optional(),
@@ -232,6 +241,8 @@ export const taskAddInputSchema = z.strictObject({
   participantPersonHints: z.array(z.string())
     .describe('Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester\u2019s own.')
     .optional(),
+  organizationHint: z.string().max(256).describe(crmOrganizationHintDescription).optional(),
+  opportunityHint: z.string().max(256).describe(crmOpportunityHintDescription).optional(),
 });
 
 export const taskAddInputIntentSchema = taskAddInputSchema.partial();
@@ -251,6 +262,8 @@ export const taskListInputSchema = z.strictObject({
   status: z.enum(WorkspaceTaskStatus)
     .describe('Filter by task status. Omit the field to return every status.')
     .optional(),
+  organizationHint: z.string().max(256).describe(`Only the work for one organization. ${crmOrganizationHintDescription}`).optional(),
+  opportunityHint: z.string().max(256).describe(`Only the work on one deal. ${crmOpportunityHintDescription}`).optional(),
   limit: z.number().describe('Maximum number of tasks to return. Defaults to 50.').optional(),
 });
 
@@ -270,6 +283,8 @@ const taskUpdateObjectSchema = z.strictObject({
   participantPersonHints: z.array(z.string())
     .describe('Names, @handles, or emails of everyone taking part, replacing the current participants. Send the whole set, not just additions.')
     .optional(),
+  organizationHint: z.string().max(256).describe(`${crmOrganizationHintDescription} An empty string takes the work off the organization it was for.`).optional(),
+  opportunityHint: z.string().max(256).describe(`${crmOpportunityHintDescription} An empty string takes the work off the deal it belonged to.`).optional(),
 });
 
 export const taskUpdateInputSchema = taskUpdateObjectSchema
@@ -283,13 +298,6 @@ export const taskDeleteInputSchema = z.strictObject({
 });
 
 export const taskDeleteInputIntentSchema = z.strictObject({});
-
-const taskLabelVocabularySchema = z.strictObject({
-  businesses: z.array(z.string()),
-  types: z.array(z.string()),
-  sizes: z.array(z.string()),
-  statuses: z.array(z.string()),
-});
 
 export const taskListResultSchema = z.strictObject({
   tasks: z.array(taskResultSchema),
@@ -1667,6 +1675,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...hiddenBrowserToolDefinitions,
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
+  ...crmToolDefinitions,
   ...settingsToolDefinitions,
   ...notificationToolDefinitions,
   ...mailToolDefinitions,

@@ -85,10 +85,19 @@ const notFoundCodes = {
 	supervisor: 'supervisor_not_found',
 	task: 'task_not_found',
 	event: 'calendar_event_not_found',
-	organization: 'organization_not_found'
+	organization: 'organization_not_found',
+	crmOrganization: 'crm_organization_not_found',
+	crmContact: 'crm_contact_not_found',
+	crmOpportunity: 'crm_opportunity_not_found'
 } as const;
 
 export type HintSubject = keyof typeof notFoundCodes;
+
+const subjectNouns: Partial<Record<HintSubject, string>> = {
+	crmOrganization: 'organization',
+	crmContact: 'contact',
+	crmOpportunity: 'deal'
+};
 
 export type HintCandidate = {
 	id: string;
@@ -116,7 +125,8 @@ export class HintRefused extends Error {
 }
 
 function refusalOf(subject: HintSubject, hint: string, outcome: HintOutcome): string {
-	if (outcome === 'ambiguous') return `${hint} matches more than one ${subject}`;
-	if (outcome === 'approximate') return `no ${subject} is called ${hint}; these are the nearest`;
-	return `no ${subject} matches ${hint}`;
+	const noun = subjectNouns[subject] ?? subject;
+	if (outcome === 'ambiguous') return `${hint} matches more than one ${noun}`;
+	if (outcome === 'approximate') return `no ${noun} is called ${hint}; these are the nearest`;
+	return `no ${noun} matches ${hint}`;
 }

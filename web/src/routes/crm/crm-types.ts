@@ -1,7 +1,9 @@
+import type { CRMStage } from '$lib/crm/crm-stage';
+
 export const crmOrganizationTypes = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'portfolio', 'other'] as const;
 export type CRMOrganizationType = string;
 export type CRMOrganizationStatus = 'prospect' | 'active' | 'paused';
-export type CRMOpportunityStage = string;
+export type CRMOpportunityStage = CRMStage;
 export type CRMActivityKind = string;
 
 export const deviceCRMActivityKinds: CRMActivityKind[] = ['note', 'email', 'meeting', 'call', 'task', 'file', 'event'];

@@ -1,5 +1,7 @@
 import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
+import { crmColumnsWritten, writeCRMColumns } from './crm-tools';
 import { dayIn, instantOfDay, instantWritten, isTheSameMoment, momentIn, weekWindow } from './days';
+import { labelOf } from './labels';
 import { peopleOfHints } from './people';
 import type { RecordContext } from './company';
 import {
@@ -23,6 +25,11 @@ type EventWritten = {
 	everyoneAttends?: boolean;
 	notifyMinutesBefore?: number;
 	participantPersonHints?: string[];
+	business?: string;
+	type?: string;
+	organizationHint?: string;
+	opportunityHint?: string;
+	contactHint?: string;
 };
 
 export type AnsweredAttendee = {
@@ -80,7 +87,7 @@ export function sizeOfEvent(startsAt: string, endsAt: string, isWholeDay: boolea
 	return sizeOfWholeDays(Math.max(1, Math.round(hours / 24)));
 }
 
-function locationNameOf(location: unknown): string {
+export function locationNameOf(location: unknown): string {
 	if (typeof location === 'string') return location;
 	if (typeof location === 'object' && location !== null) {
 		const named = (location as { name?: unknown }).name;
@@ -136,6 +143,8 @@ function eventWriteArguments(
 	written: EventWritten,
 	row: TaskRow | null
 ): Record<string, unknown> {
+	const business = labelOf(context.labels.businesses, written.business, row ? row.business : null);
+	const type = labelOf(context.labels.types, written.type, row ? row.type : null);
 	const timezone = context.labels.timezone;
 	const startsAt =
 		written.startsAt !== undefined ? instantWritten(timezone, written.startsAt) : row?.starts_at ?? '';
@@ -163,6 +172,8 @@ function eventWriteArguments(
 		target_size: sizeOfEvent(startsAt, endsAt, isWholeDay),
 		target_title: written.title ?? row?.title ?? '',
 		target_note: written.note !== undefined ? written.note || null : row?.note ?? null,
+		target_business: business,
+		target_type: type,
 		target_location: location ? { name: location } : null,
 		target_starts_at: startsAt,
 		target_ends_at: endsAt,
@@ -241,6 +252,7 @@ function isTheSameHeldMoment(held: string | null, written: unknown): boolean {
 export async function eventAdd(context: RecordContext, input: EventWritten): Promise<AnsweredEvent> {
 	if (!input.title?.trim()) throw new Error('an event needs a title');
 	const saved = await savedOrRefusedAsADuplicate(context, eventWriteArguments(context, input, null));
+	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, null));
 	return answeredEvent(context, await eventByID(context, saved));
 }
 
@@ -252,6 +264,7 @@ export async function eventUpdate(
 	const row = await eventOfHint(context, input.eventHint);
 	refuseAVersionThatMovedOn(versionOfEvent(row), input.expectedUpdatedAt);
 	const saved = await savedOrRefusedAsADuplicate(context, eventWriteArguments(context, input, row));
+	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, row));
 	return answeredEvent(context, await eventByID(context, saved));
 }
 

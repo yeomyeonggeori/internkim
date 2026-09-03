@@ -19,6 +19,7 @@
 		CRMCurrency,
 		CRMImportance,
 		CRMOpportunity,
+		CRMOpportunityStage,
 		CRMPipeline,
 		CRMPipelineStage
 	} from './crm-types';
@@ -36,7 +37,7 @@
 		businessOptions: string[];
 		people: UserRecord[];
 		groups: OrgGroup[];
-		requestedStage?: string;
+		requestedStage?: CRMOpportunityStage;
 		text: CRMText;
 		currencyCatalogue: CurrencyCatalogue;
 		companyBaseCurrency: string;
@@ -50,7 +51,7 @@
 	let pipeline = $state('');
 	let business = $state('');
 	let name = $state('');
-	let stage = $state('');
+	let stage = $state<CRMOpportunityStage>('waiting');
 	let amount = $state('');
 	let currency = $state<CRMCurrency>('');
 	let typedAmountMinor = $derived.by(() => {
