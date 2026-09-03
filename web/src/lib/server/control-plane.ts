@@ -141,7 +141,7 @@ export type FoundedCompany = {
 	invitations: Invitation[];
 };
 
-export type ClaimedMember = { memberID: string; companyID: string };
+export type ClaimedMember = { memberID: string; companyID: string; hasJustArrived: boolean };
 
 type MemberRow = { id: string; company_id: string; status: string };
 
@@ -152,8 +152,9 @@ export async function claimMemberFor(
 ): Promise<ClaimedMember | null> {
 	const found = (await memberHeldByAccount(client, accountID)) ?? (await memberWaitingForAddress(client, email));
 	if (!found) return null;
-	if (hasNotArrivedYet(found.status)) await markArrived(client, found.id, accountID, email);
-	return { memberID: found.id, companyID: found.company_id };
+	const hasJustArrived = hasNotArrivedYet(found.status);
+	if (hasJustArrived) await markArrived(client, found.id, accountID, email);
+	return { memberID: found.id, companyID: found.company_id, hasJustArrived };
 }
 
 async function memberHeldByAccount(client: SupabaseClient, accountID: string): Promise<MemberRow | null> {

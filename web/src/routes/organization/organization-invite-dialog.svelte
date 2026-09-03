@@ -51,6 +51,9 @@
 				<p class="text-sm">{invitation.email}</p>
 				<p class="rounded-lg border bg-muted p-3 font-mono text-lg select-all">{invitation.temporaryPassword}</p>
 				<p class="text-xs text-muted-foreground">{text.inviteHandOver}</p>
+				{#if !invitation.wasTheCompanyServerTold}
+					<p class="text-xs text-destructive">{text.inviteCompanyServerUnreached}</p>
+				{/if}
 			</div>
 			<Dialog.Footer>
 				<Button onclick={close}>{text.done}</Button>
