@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -306,6 +307,14 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 	mattermostHostPort := flagSet.Int("mattermost-port", 0, "Host port for the local Mattermost tunnel")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	upgradeGate := flagSet.Bool("upgrade-gate", false, "Regress persisted fleet state to the previous generation, apply the current release over OTA, then run the scenario")
+	flagSet.Usage = func() {
+		fmt.Fprintln(flagSet.Output(), "Usage: internkim dev fleet run [flags]")
+		flagSet.PrintDefaults()
+		fmt.Fprintln(flagSet.Output(), "\nScenarios:")
+		for _, name := range localfleet.ScenarioNames() {
+			fmt.Fprintln(flagSet.Output(), "  "+name)
+		}
+	}
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return devFleetRunConfiguration{}, errorValue
 	}
@@ -444,6 +453,12 @@ func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArgum
 	temperatureValue := flagSet.Float64("temperature", 0, "Generation temperature for live LLM calls")
 	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum live model tier")
 	strictAssertions := flagSet.Bool("strict-assertions", false, "Fail when a declared expectation is not satisfied")
+	flagSet.Usage = func() {
+		fmt.Fprintln(flagSet.Output(), "Usage: internkim dev simulate [flags]")
+		flagSet.PrintDefaults()
+		fmt.Fprintln(flagSet.Output(), "\nScenarios:")
+		printBlueclawScenarioNames(flagSet.Output())
+	}
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return devVirtualSessionArguments{}, errorValue
 	}
@@ -502,6 +517,24 @@ func localDevVirtualSessionInvocation(sessionArguments devVirtualSessionArgument
 		Arguments:            devVirtualSessionCommandArguments(sessionArguments),
 		EnvironmentVariables: []string{skillRootsVariable, scenarioCapabilityCatalogVariable(repositoryRootPath)},
 	}, nil
+}
+
+func printBlueclawScenarioNames(output io.Writer) {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		fmt.Fprintln(output, "  (scenario names unavailable: "+errorValue.Error()+")")
+		return
+	}
+	command := exec.Command("go", "run", "./cmd/blueclaw-lab", "virtual-session", "--list-scenarios")
+	command.Dir = filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
+	scenarioNamesOutput, errorValue := command.Output()
+	if errorValue != nil {
+		fmt.Fprintln(output, "  (scenario names unavailable: "+errorValue.Error()+")")
+		return
+	}
+	for _, scenarioName := range strings.Fields(string(scenarioNamesOutput)) {
+		fmt.Fprintln(output, "  "+scenarioName)
+	}
 }
 
 func resolveDevPath(repositoryRootPath string, value string) string {
