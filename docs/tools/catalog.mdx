@@ -16,8 +16,10 @@ catalog's own `requiresApproval`, so no list here can fall behind it.
 
 <ToolCatalog namespace="task" />
 
-Backed by admind's task API (`internal/capabilityd/task_tool.go`). Updates and
-deletes take a `taskHint`: the exact task ID or exact current title from a
+Answered on the central plane by
+`web/src/lib/server/public-api/record/task-tools.ts`, against the record's own
+`task` table, running as the calling member so row level security decides what
+each call may see. Updates and deletes take a `taskHint`: the exact task ID or exact current title from a
 `task_list` result. Dates are `yyyy-mm-dd`; the agent resolves "next Friday"
 before calling.
 
@@ -35,8 +37,8 @@ first task rather than making a second, and answers with it.
 
 <ToolCatalog namespace="person" />
 
-Implemented in `internal/capabilityd/person_list_tool.go` over the same
-membership data. It answers who a person is and who works here. It is not a
+Answered on the central plane from the company's own member directory. It
+answers who a person is and who works here. It is not a
 step before a hint: a hint takes the fragment as it was written and the server
 resolves it, and this is what the agent reads when a hint comes back with
 candidates to choose between.
@@ -45,8 +47,9 @@ candidates to choose between.
 
 <ToolCatalog namespace="calendar" />
 
-Implemented in `internal/capabilityd/calendar_tool.go`, also over admind's
-task API; a calendar event is a task with a time span. Times are ISO
+Answered on the central plane by
+`web/src/lib/server/public-api/record/event-tools.ts`; a calendar event is a
+task with a time span. Times are ISO
 timestamps with a time zone, answered where the company is rather than in UTC,
 and `eventHint` follows the same resolution rule as `taskHint`.
 

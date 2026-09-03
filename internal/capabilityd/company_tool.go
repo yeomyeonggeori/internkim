@@ -416,7 +416,7 @@ func (service Service) sendCompanyToolRequest(ctx context.Context, method string
 	if payload != nil {
 		httpRequest.Header.Set("Content-Type", "application/json")
 	}
-	setCalendarRequesterEmailHeader(httpRequest, requesterEmail)
+	setAccessAuthenticatedUserHeader(httpRequest, requesterEmail)
 	httpResponse, errorValue := service.httpClient().Do(httpRequest)
 	if errorValue != nil {
 		return nil, errorValue
@@ -440,4 +440,12 @@ func companyToolResponse(toolName string, status string, result json.RawMessage)
 		Status:          status,
 		Result:          result,
 	}
+}
+
+func setAccessAuthenticatedUserHeader(request *http.Request, requesterEmail string) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(requesterEmail))
+	if normalizedEmail == "" {
+		return
+	}
+	request.Header.Set("CF-Access-Authenticated-User-Email", normalizedEmail)
 }

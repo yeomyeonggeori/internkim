@@ -13,11 +13,6 @@ import (
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
-func theRecordAnswers(toolName string) bool {
-	descriptor, hasDescriptor := capabilityToolDescriptorFor(toolName)
-	return hasDescriptor && descriptor.AnsweredBy == capabilityprotocol.AnsweredByRecord
-}
-
 // These tools live in the record, so this carries the call to admind, which
 // runs it on the plane as the person who asked. Nothing is decided here.
 func (service Service) invokeRecordTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
