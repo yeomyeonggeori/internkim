@@ -45,6 +45,12 @@ type commandUsersResponse struct {
 
 var usersCommandOutput io.Writer = os.Stdout
 
+func runUsers() {
+	if errorValue := runUsersArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
 func runUsersArguments(arguments []string) error {
 	if hasCommandArgument(arguments, "--help") || hasCommandArgument(arguments, "-h") {
 		printUsersUsage()
@@ -59,6 +65,12 @@ func runUsersArguments(arguments []string) error {
 		return errorValue
 	}
 	return runUsersArgumentsWithClient(arguments, client)
+}
+
+func runInvite() {
+	if errorValue := runInviteArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
 }
 
 func runInviteArguments(arguments []string) error {
