@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -34,12 +35,15 @@ var identitySchemaDocument []byte
 //go:embed persona-schema/soul.schema.json
 var soulSchemaDocument []byte
 
+//go:embed persona-schema/user.schema.json
+var userSchemaDocument []byte
+
+var personaPersonIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+
 type identityDocument struct {
 	SchemaVersion int      `json:"schemaVersion"`
-	Name          string   `json:"name"`
-	EnglishName   string   `json:"englishName,omitempty"`
-	Handle        string   `json:"handle"`
-	Aliases       []string `json:"aliases,omitempty"`
+	Names         []string `json:"names"`
+	Handle        string   `json:"handle,omitempty"`
 	Role          string   `json:"role,omitempty"`
 	Creature      string   `json:"creature,omitempty"`
 	Emoji         string   `json:"emoji,omitempty"`
@@ -55,6 +59,19 @@ type soulDocument struct {
 	Language      *soulLanguage `json:"language,omitempty"`
 }
 
+type userDocument struct {
+	SchemaVersion int           `json:"schemaVersion"`
+	CallMe        string        `json:"callMe,omitempty"`
+	About         string        `json:"about,omitempty"`
+	Preferences   []string      `json:"preferences,omitempty"`
+	Tone          *soulTone     `json:"tone,omitempty"`
+	Language      *userLanguage `json:"language,omitempty"`
+}
+
+type userLanguage struct {
+	Default string `json:"default,omitempty"`
+}
+
 type soulTone struct {
 	Register string   `json:"register,omitempty"`
 	Traits   []string `json:"traits,omitempty"`
@@ -68,10 +85,8 @@ type soulLanguage struct {
 func defaultIdentityDocument() identityDocument {
 	return identityDocument{
 		SchemaVersion: personaSchemaVersion,
-		Name:          agentName,
-		EnglishName:   agentEnglishName,
+		Names:         []string{agentName, agentEnglishName, "인턴킴", "intern kim"},
 		Handle:        agentHandle,
-		Aliases:       []string{"인턴킴", "intern kim"},
 		Role:          "회사의 인턴. 남들이 귀찮아하는 궂은 일, 반복 작업, 확인 작업을 먼저 도맡는다.",
 		Introduction:  "안녕하세요, 김인턴입니다. 회사 일을 돕고 있어요.",
 	}
@@ -124,15 +139,6 @@ func (service *Service) startPersonaSync(ctx context.Context) {
 	}()
 }
 
-func (service *Service) writeIdentity(responseWriter http.ResponseWriter, _ *http.Request) {
-	identity, _, errorValue := service.loadOrSeedPersona()
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(responseWriter, identity)
-}
-
 func (service *Service) writeSoul(responseWriter http.ResponseWriter, _ *http.Request) {
 	_, soul, errorValue := service.loadOrSeedPersona()
 	if errorValue != nil {
@@ -140,28 +146,6 @@ func (service *Service) writeSoul(responseWriter http.ResponseWriter, _ *http.Re
 		return
 	}
 	service.writeJSON(responseWriter, soul)
-}
-
-func (service *Service) updateIdentity(responseWriter http.ResponseWriter, request *http.Request) {
-	document, errorValue := readRequestDocument(request)
-	if errorValue != nil {
-		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	identity, errorValue := parseIdentityDocument(document)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	if errorValue := service.saveIdentity(identity); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	if _, _, errorValue := service.loadOrSeedPersona(); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(responseWriter, identity)
 }
 
 func (service *Service) updateSoul(responseWriter http.ResponseWriter, request *http.Request) {
@@ -259,16 +243,16 @@ func (service *Service) migratedOrDefaultIdentity() identityDocument {
 		return identity
 	}
 	legacy := parseLegacyBotProfileYAML(string(document))
+	names := []string{agentName}
 	if englishName := strings.TrimSpace(legacy["englishDisplayName"]); englishName != "" {
-		identity.EnglishName = englishName
+		names = append(names, englishName)
 	}
-	if aliases := legacyAliases(legacy["aliases"]); len(aliases) > 0 {
-		identity.Aliases = aliases
-	}
+	names = append(names, legacyAliases(legacy["aliases"])...)
+	identity.Names = names
 	if introduction := strings.TrimSpace(legacy["publicDescription"]); introduction != "" && !isLegacyDefaultBotPublicDescription(introduction) {
 		identity.Introduction = introduction
 	}
-	log.Printf("persona: migrated %s into %s; the display name is %s by rule and identityExtension was not carried", legacyPath, service.Configuration.IdentityDocumentPath, agentName)
+	log.Printf("persona: migrated %s into %s; the first name is %s by rule and identityExtension was not carried", legacyPath, service.Configuration.IdentityDocumentPath, agentName)
 	return normalizeIdentityDocument(identity)
 }
 
@@ -355,13 +339,13 @@ func parseSoulDocument(document []byte) (soulDocument, error) {
 }
 
 func validateIdentityRules(identity identityDocument) error {
-	if identity.Name != agentName {
-		return fmt.Errorf("the agent's name is %s and cannot be changed", agentName)
+	if len(identity.Names) == 0 || identity.Names[0] != agentName {
+		return fmt.Errorf("the agent's first name is %s and cannot be changed", agentName)
 	}
-	if identity.Handle != agentHandle {
+	if identity.Handle != "" && identity.Handle != agentHandle {
 		return fmt.Errorf("the agent's handle is %s and cannot be changed", agentHandle)
 	}
-	for _, value := range append([]string{identity.EnglishName, identity.Role, identity.Creature, identity.Introduction}, identity.Aliases...) {
+	for _, value := range append([]string{identity.Role, identity.Creature, identity.Introduction}, identity.Names...) {
 		if containsSecretLikeText(value) {
 			return errors.New("the identity must not contain secrets")
 		}
@@ -384,10 +368,8 @@ func validateSoulRules(soul soulDocument) error {
 
 func normalizeIdentityDocument(identity identityDocument) identityDocument {
 	identity.SchemaVersion = personaSchemaVersion
-	identity.Name = strings.TrimSpace(identity.Name)
-	identity.EnglishName = strings.TrimSpace(identity.EnglishName)
+	identity.Names = normalizePersonaLines(identity.Names)
 	identity.Handle = strings.ToLower(strings.TrimSpace(identity.Handle))
-	identity.Aliases = normalizePersonaLines(identity.Aliases)
 	identity.Role = strings.TrimSpace(identity.Role)
 	identity.Creature = strings.TrimSpace(identity.Creature)
 	identity.Emoji = strings.TrimSpace(identity.Emoji)
@@ -542,4 +524,171 @@ func yamlUnquote(value string) string {
 func isLegacyDefaultBotPublicDescription(value string) bool {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(value)))
 	return fmt.Sprintf("%x", sum) == legacyDefaultBotPublicDescriptionHash
+}
+
+type personaActor struct {
+	email    string
+	personID string
+	isAdmin  bool
+}
+
+var resolvePersonaActor = func(service *Service, request *http.Request) (personaActor, bool, error) {
+	access, found, errorValue := service.resolveWorkspaceAccess(request)
+	if errorValue != nil || !found {
+		return personaActor{}, found, errorValue
+	}
+	email := service.actorEmailAllowingAssertedRequester(request)
+	return personaActor{email: email, personID: access.personID, isAdmin: service.isTaskAdminEmail(request.Context(), email)}, true, nil
+}
+
+func (service *Service) handlePersona(responseWriter http.ResponseWriter, request *http.Request) {
+	actor, found, errorValue := resolvePersonaActor(service, request)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(responseWriter, "workspace access required", http.StatusForbidden)
+		return
+	}
+	path := strings.TrimPrefix(request.URL.Path, "/persona/api")
+	switch {
+	case request.Method == http.MethodGet && path == "/soul":
+		service.writeSoul(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/soul":
+		if !actor.isAdmin {
+			http.Error(responseWriter, "only an administrator changes the agent's soul", http.StatusForbidden)
+			return
+		}
+		service.updateSoul(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/user":
+		service.writeUserDocument(responseWriter, actor.personID)
+	case request.Method == http.MethodPost && path == "/user":
+		service.updateUserDocument(responseWriter, request, actor.personID)
+	default:
+		http.NotFound(responseWriter, request)
+	}
+}
+
+func (service *Service) writeUserDocument(responseWriter http.ResponseWriter, personID string) {
+	user, errorValue := service.loadUserDocument(personID)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, user)
+}
+
+func (service *Service) updateUserDocument(responseWriter http.ResponseWriter, request *http.Request, personID string) {
+	document, errorValue := readRequestDocument(request)
+	if errorValue != nil {
+		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	user, errorValue := parseUserDocument(document)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	if errorValue := service.saveUserDocument(personID, user); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	service.writeJSON(responseWriter, user)
+}
+
+func (service *Service) userDocumentPaths(personID string) (string, string, error) {
+	trimmedPersonID := strings.TrimSpace(personID)
+	if !personaPersonIDPattern.MatchString(trimmedPersonID) {
+		return "", "", fmt.Errorf("person %q has no document path", personID)
+	}
+	configurationPath := filepath.Join(filepath.Dir(service.Configuration.IdentityDocumentPath), "users", trimmedPersonID+".json")
+	workspacePath := filepath.Join(service.Configuration.BlueclawWorkspacePath, ".blueclaw", "persona", "users", trimmedPersonID+".json")
+	return configurationPath, workspacePath, nil
+}
+
+func (service *Service) loadUserDocument(personID string) (userDocument, error) {
+	configurationPath, _, errorValue := service.userDocumentPaths(personID)
+	if errorValue != nil {
+		return userDocument{}, errorValue
+	}
+	document, errorValue := os.ReadFile(configurationPath)
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return userDocument{SchemaVersion: personaSchemaVersion}, nil
+	}
+	if errorValue != nil {
+		return userDocument{}, errorValue
+	}
+	user, errorValue := parseUserDocument(document)
+	if errorValue != nil {
+		return userDocument{}, fmt.Errorf("%s: %w", configurationPath, errorValue)
+	}
+	return user, nil
+}
+
+func (service *Service) saveUserDocument(personID string, user userDocument) error {
+	configurationPath, workspacePath, errorValue := service.userDocumentPaths(personID)
+	if errorValue != nil {
+		return errorValue
+	}
+	document, errorValue := canonicalUserDocument(user)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := writeDocumentAtomically(configurationPath, document, 0o600); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := os.MkdirAll(filepath.Dir(workspacePath), 0o755); errorValue != nil {
+		return errorValue
+	}
+	return writeDocumentAtomically(workspacePath, document, 0o644)
+}
+
+func parseUserDocument(document []byte) (userDocument, error) {
+	if errorValue := validatePersonaDocument(userSchemaDocument, "user.json", document); errorValue != nil {
+		return userDocument{}, errorValue
+	}
+	var user userDocument
+	if errorValue := json.Unmarshal(document, &user); errorValue != nil {
+		return userDocument{}, fmt.Errorf("user.json: %w", errorValue)
+	}
+	user = normalizeUserDocument(user)
+	lines := append([]string{user.CallMe, user.About}, user.Preferences...)
+	if user.Tone != nil {
+		lines = append(lines, user.Tone.Traits...)
+	}
+	for _, value := range lines {
+		if containsSecretLikeText(value) {
+			return userDocument{}, errors.New("the user document must not contain secrets")
+		}
+	}
+	return user, nil
+}
+
+func normalizeUserDocument(user userDocument) userDocument {
+	user.SchemaVersion = personaSchemaVersion
+	user.CallMe = strings.TrimSpace(user.CallMe)
+	user.About = strings.TrimSpace(user.About)
+	user.Preferences = normalizePersonaLines(user.Preferences)
+	if user.Tone != nil {
+		tone := soulTone{Register: strings.ToLower(strings.TrimSpace(user.Tone.Register)), Traits: normalizePersonaLines(user.Tone.Traits)}
+		if tone.Register == "" && len(tone.Traits) == 0 {
+			user.Tone = nil
+		} else {
+			user.Tone = &tone
+		}
+	}
+	if user.Language != nil {
+		language := userLanguage{Default: strings.TrimSpace(user.Language.Default)}
+		if language.Default == "" {
+			user.Language = nil
+		} else {
+			user.Language = &language
+		}
+	}
+	return user
+}
+
+func canonicalUserDocument(user userDocument) ([]byte, error) {
+	return canonicalPersonaDocument(normalizeUserDocument(user), userSchemaDocument, "user.json")
 }
