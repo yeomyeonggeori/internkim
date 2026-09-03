@@ -216,13 +216,6 @@ func TestCalendarInputsRejectUnknownTrailingAndLegacyAliases(t *testing.T) {
 			},
 		},
 		{
-			name: "add hidden duplicate override",
-			decode: func() error {
-				_, errorValue := decodeCalendarEventWriteInput([]byte(`{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00","allowDuplicate":true}`))
-				return errorValue
-			},
-		},
-		{
 			name: "list trailing data",
 			decode: func() error {
 				_, errorValue := decodeCalendarEventListInput([]byte(`{} {}`))
@@ -369,56 +362,6 @@ func TestCalendarEventListRejectsEventWithoutIdentity(t *testing.T) {
 	}); errorValue == nil {
 		t.Fatal("expected list result identity error")
 	}
-}
-
-func TestCalendarEventAddPreservesDuplicateControlWithoutSuccessEffect(t *testing.T) {
-	var allowDuplicate bool
-	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if isDirectoryPeopleRequest(request) {
-				return directoryPeopleTestResponse(directoryPeopleTestDocument), nil
-			}
-			var payload map[string]any
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			allowDuplicate, _ = payload["allowDuplicate"].(bool)
-			if !allowDuplicate {
-				return calendarToolJSONResponse(`{"status":"duplicate_candidate","candidates":[{"id":"event-existing","title":"Demo"}]}`), nil
-			}
-			return calendarToolEventResponse("admind-event-3", "Demo", "2026-05-08T10:00:00+09:00", "2026-05-08T11:00:00+09:00"), nil
-		})},
-	}
-	baseInput := `{"title":"Demo","startsAt":"2026-05-08T10:00:00+09:00","endsAt":"2026-05-08T11:00:00+09:00"`
-	response, errorValue := service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "event_add",
-		Input:    []byte(baseInput + `}`),
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Outcome != capabilities.ToolOutcomeFailed || !response.IsError || response.Status != "duplicate_candidate" || len(response.Effects) != 0 {
-		t.Fatalf("duplicate candidate response = %+v", response)
-	}
-	if !strings.Contains(string(response.Result), `"candidates"`) {
-		t.Fatalf("duplicate candidate result = %s", response.Result)
-	}
-
-	response, errorValue = service.invokeCalendarEventAdd(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName: "event_add",
-		Input:    []byte(baseInput + `}`),
-		Context: capabilities.ToolInvokeContext{
-			ConflictResolution: capabilities.ToolConflictResolutionAllowDuplicate,
-		},
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !allowDuplicate {
-		t.Fatal("allowDuplicate control did not reach admind")
-	}
-	assertCalendarMutationEffect(t, response, response.Effects[0].ID, "created")
 }
 
 func TestCalendarEventListDefaultsToUpcomingWindow(t *testing.T) {

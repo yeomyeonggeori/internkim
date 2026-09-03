@@ -189,15 +189,12 @@ func (service *Service) createTask(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	task, payload, errorValue := service.taskAndPayloadFromRequest(request, members, definitions, "")
+	task, _, errorValue := service.taskAndPayloadFromRequest(request, members, definitions, "")
 	if errorValue != nil {
 		writeTaskRequestError(responseWriter, errorValue)
 		return
 	}
 	task.Business = firstNonEmpty(task.Business, defaultTaskBusiness(definitions))
-	if payload.IsCalendarEvent {
-		task.CalendarEventID = service.createPairedCalendarEventForTask(request, task, payload)
-	}
 	// The company holds the board, so the task is written there and the answer is
 	// what the company saved. A device that has no company writes its own store.
 	if saved, answered, saveError := service.saveCentralTask(request, task, service.taskPeopleByID(request.Context())); answered {
@@ -406,7 +403,6 @@ func (service *Service) deleteTask(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.deletePairedCalendarEventForTask(request.Context(), task)
 	service.writeJSON(responseWriter, map[string]any{
 		"status": "deleted",
 		"task":   task,

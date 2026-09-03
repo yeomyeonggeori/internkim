@@ -2,7 +2,6 @@ import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
 import { devAttendanceMockPlugin } from './dev-attendance-mock-plugin';
-import { devCalendarMockPlugin } from './dev-calendar-mock-plugin';
 import { devAdminOrganizationMockPlugin } from './dev-admin-organization-mock-plugin';
 import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
 import { devFilesMockPlugin } from './dev-files-mock-plugin';
@@ -57,10 +56,6 @@ export default defineConfig(({ mode }) => {
 				isEnabled: isAttendanceMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
-			devCalendarMockPlugin({
-				isEnabled: isAttendanceMockEnabled || env.VITE_MOCK_CALENDAR === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
-			}),
 			devFilesMockPlugin({
 				isEnabled: env.VITE_MOCK_FILES === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
@@ -88,7 +83,6 @@ export default defineConfig(({ mode }) => {
 		server: {
 			allowedHosts: env.VITE_ALLOWED_HOSTS ? env.VITE_ALLOWED_HOSTS.split(',') : undefined,
 			proxy: {
-				'/.well-known/caldav': admindProxy(admindTarget),
 				'/api/v1': admindProxy(admindTarget),
 				'/admin/api': admindProxy(admindTarget),
 				'/agent/api': admindProxy(admindTarget, devUserEmail),
@@ -96,9 +90,6 @@ export default defineConfig(({ mode }) => {
 				'/attendance/api': admindProxy(admindTarget),
 				'/auth': admindProxy(admindTarget, devUserEmail),
 				'/calendar/api': admindProxy(admindTarget),
-				'/calendar/dav': admindProxy(admindTarget),
-				'/calendar/ics': admindProxy(admindTarget),
-				'/calendar/oauth': admindProxy(admindTarget),
 				'/crm/api': admindProxy(admindTarget, devUserEmail),
 				'/task/api': admindProxy(admindTarget),
 				'/flow/api': admindProxy(admindTarget),

@@ -2,16 +2,12 @@ package admind
 
 import "net/http"
 
-const calendarBelongsToTheCompanyMessage = "this device keeps its calendar in the company's record, which this address does not reach"
+const calendarBelongsToTheCompanyMessage = "the company keeps the calendar, and this device names no company"
 
 func (service *Service) belongsToACompany() bool {
 	return service.centralPlane() != nil
 }
 
-func (service *Service) refuseACalendarBesideTheRecord(responseWriter http.ResponseWriter) bool {
-	if !service.belongsToACompany() {
-		return false
-	}
+func writeCalendarBelongsToTheCompany(responseWriter http.ResponseWriter) {
 	http.Error(responseWriter, calendarBelongsToTheCompanyMessage, http.StatusGone)
-	return true
 }

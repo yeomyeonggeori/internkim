@@ -55,7 +55,8 @@ func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 	}
 	defer database.Close()
 	var storedToken string
-	if errorValue := database.QueryRowContext(context.Background(), "SELECT value FROM calendar_settings WHERE key = 'ics_token'").Scan(&storedToken); errorValue != nil {
+	if errorValue := database.QueryRowContext(context.Background(),
+		"SELECT value FROM calendar_settings WHERE key = 'ics_token'").Scan(&storedToken); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if storedToken != "legacy-token" {
