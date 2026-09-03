@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { dayIn, instantWritten, weekWindow, windowHoldsDay } from '$lib/server/public-api/record/days';
+import { dayIn, instantWritten, weekWindow } from '$lib/server/public-api/record/days';
 import { labelOf, LabelUnresolved, labelsOfVocabulary } from '$lib/server/public-api/record/labels';
 
 describe('the day a moment falls on', () => {
@@ -23,13 +23,6 @@ describe('a window of weeks', () => {
 
 	test('reads a reversed pair the way it was meant', () => {
 		expect(weekWindow('Asia/Seoul', wednesday, 1, -1)).toEqual(weekWindow('Asia/Seoul', wednesday, -1, 1));
-	});
-
-	test('holds the days between its ends', () => {
-		const window = weekWindow('Asia/Seoul', wednesday, 0, 0);
-		expect(windowHoldsDay(window, '2026-08-24')).toBe(true);
-		expect(windowHoldsDay(window, '2026-08-30')).toBe(true);
-		expect(windowHoldsDay(window, '2026-08-31')).toBe(false);
 	});
 });
 

@@ -21,6 +21,16 @@ deletes take a `taskHint`: the exact task ID or exact current title from a
 `task_list` result. Dates are `yyyy-mm-dd`; the agent resolves "next Friday"
 before calling.
 
+`task_list` answers the current week when neither `weekFrom` nor `weekTo` is
+given. Which week a task falls in follows its status rather than its dates
+alone: planned or paused work that has not started yet rolls forward into the
+week being read, so nothing planned is ever out of sight, and completed,
+rejected or stopped work stays in the week it ended in. `query` matches the
+title, business, type, owner's name and status, ignoring case and spacing.
+
+Adding the same title for the same owner twice within ten minutes updates the
+first task rather than making a second, and answers with it.
+
 ## People [#person]
 
 <ToolCatalog namespace="person" />
