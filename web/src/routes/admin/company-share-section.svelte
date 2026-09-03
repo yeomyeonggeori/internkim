@@ -13,16 +13,14 @@
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import SendIcon from '@lucide/svelte/icons/send';
 	import { onMount } from 'svelte';
+	import { invokeTool } from '$lib/public-api-call';
 	import {
 		apiErrorMessage,
-		fetchCompanyDocuments,
-		fetchCompanyMetrics,
-		fetchCompanyRecords,
 		fetchCompanyShareSettings,
 		publishCompanyShare,
 		updateCompanyShareSettings
 	} from './admin-api';
-	import type { AdminPageText, CompanyDocument, CompanyRecord, CompanyShareMetricContext, CompanyShareNarrative, CompanyShareRecordContext, CompanyShareSettings, CompanyShareSettingsUpdate } from './admin-types';
+	import type { AdminPageText, CompanyDocument, CompanyDocumentListResult, CompanyMetricListResult, CompanyRecord, CompanyRecordListResult, CompanyShareMetricContext, CompanyShareNarrative, CompanyShareRecordContext, CompanyShareSettings, CompanyShareSettingsUpdate } from './admin-types';
 
 	type CompanyShareSectionProps = {
 		adminBaseURL: string;
@@ -107,11 +105,11 @@
 		isLoading = true;
 		message = '';
 		try {
-			const [loadedSettings, metricsResponse, recordsResponse, documentsResponse] = await Promise.all([
+			const [loadedSettings, listedMetrics, listedRecords, listedDocuments] = await Promise.all([
 				fetchCompanyShareSettings(adminBaseURL, text.companyShare.loadError),
-				fetchCompanyMetrics(adminBaseURL, text.companyShare.loadError),
-				fetchCompanyRecords(adminBaseURL, text.companyShare.loadError),
-				fetchCompanyDocuments(adminBaseURL, text.companyShare.loadError)
+				invokeTool<CompanyMetricListResult>('company_metric_list', {}),
+				invokeTool<CompanyRecordListResult>('company_record_list', {}),
+				invokeTool<CompanyDocumentListResult>('company_document_list', {})
 			]);
 			settings = loadedSettings;
 			const languages = loadedSettings.languages?.length ? [...loadedSettings.languages] : ['en'];
@@ -119,9 +117,9 @@
 			editingLanguage = languages.includes(editingLanguage) ? editingLanguage : 'en';
 			for (const metricName of draft.metricNames) draft.metricContexts[metricName] ??= emptyMetricContext();
 			for (const recordID of draft.recordIDs) draft.recordContexts[recordID] ??= emptyRecordContext();
-			metricNames = [...new Set((metricsResponse.metrics ?? []).map((metric) => metric.metric))].sort();
-			records = recordsResponse.records ?? [];
-			documents = documentsResponse.documents ?? [];
+			metricNames = [...new Set(listedMetrics.metrics.map((metric) => metric.metric))].sort();
+			records = listedRecords.records;
+			documents = listedDocuments.documents;
 		} catch (error) {
 			message = apiErrorMessage(error, text.companyShare.loadError);
 		} finally {
@@ -190,11 +188,9 @@
 	}
 
 	function recordAttributeEntries(record: CompanyRecord): Array<[string, string]> {
-		return Object.entries(record.attributes ?? {}).flatMap(([key, value]) => {
-			if (typeof value === 'string') return value.trim() ? [[key, value.trim()]] : [];
-			if (typeof value === 'number' || typeof value === 'boolean') return [[key, String(value)]];
-			return [];
-		});
+		return record.attributes
+			.map((attribute): [string, string] => [attribute.label, attribute.value.trim()])
+			.filter(([, value]) => value !== '');
 	}
 
 	function updateHighlights(language: string, value: string) {
@@ -462,11 +458,11 @@
 				{#if records.length === 0}
 					<p class="text-muted-foreground text-sm">{text.companyShare.emptyRecords}</p>
 				{:else}
-					{#each records as record (record.id)}
+					{#each records as record (record.recordID)}
 						<Field.Field orientation="horizontal">
-							<Checkbox checked={draft.recordIDs.includes(record.id)} onclick={() => toggleRecord(record.id)} disabled={isLoading || isSaving} id={`company-share-record-${record.id}`} />
+							<Checkbox checked={draft.recordIDs.includes(record.recordID)} onclick={() => toggleRecord(record.recordID)} disabled={isLoading || isSaving} id={`company-share-record-${record.recordID}`} />
 							<Field.Content>
-								<Field.Label for={`company-share-record-${record.id}`}>{record.title}</Field.Label>
+								<Field.Label for={`company-share-record-${record.recordID}`}>{record.title}</Field.Label>
 								<Field.Description>{[record.date, record.category].filter(Boolean).join(' · ')}</Field.Description>
 							</Field.Content>
 						</Field.Field>
@@ -485,11 +481,11 @@
 			{#if documents.length === 0}
 				<p class="text-muted-foreground text-sm">{text.companyShare.emptyDocuments}</p>
 			{:else}
-				{#each documents as document (document.id)}
+				{#each documents as document (document.documentID)}
 					<Field.Field orientation="horizontal" class="items-start">
-						<Checkbox checked={draft.documentIDs.includes(document.id)} onclick={() => toggleDocument(document.id)} disabled={isLoading || isSaving} id={`company-share-document-${document.id}`} />
+						<Checkbox checked={draft.documentIDs.includes(document.documentID)} onclick={() => toggleDocument(document.documentID)} disabled={isLoading || isSaving} id={`company-share-document-${document.documentID}`} />
 						<Field.Content>
-							<Field.Label for={`company-share-document-${document.id}`}>{document.title}</Field.Label>
+							<Field.Label for={`company-share-document-${document.documentID}`}>{document.title}</Field.Label>
 							<Field.Description>{[document.documentType, document.language, document.issuedAt?.slice(0, 10)].filter(Boolean).join(' · ')}</Field.Description>
 							{#if document.summary}<p class="text-muted-foreground mt-1 line-clamp-2 text-xs leading-5">{document.summary}</p>{/if}
 						</Field.Content>
@@ -507,7 +503,7 @@
 			</Card.Header>
 			<Card.Content class="grid gap-4">
 				{#each draft.recordIDs as recordID}
-					{@const record = records.find((candidate) => candidate.id === recordID)}
+					{@const record = records.find((candidate) => candidate.recordID === recordID)}
 					{@const context = draft.recordContexts[recordID]}
 					{#if record && context}
 						{@const attributeEntries = recordAttributeEntries(record)}

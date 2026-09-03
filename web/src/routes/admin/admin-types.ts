@@ -247,35 +247,48 @@ export type WifiProfilesResponse = {
 };
 
 export type CompanyMetric = {
+	metricID: string;
 	metric: string;
 	year: number;
-	quarter?: number;
-	month?: number;
+	quarter: number;
+	month: number;
 	value: number;
-	currency?: CompanyMetricCurrency;
-	valueUSD?: number;
-	unit?: string;
-	note?: string;
+	currency: CompanyMetricCurrency | null;
+	valueUSD: number | null;
+	unit: string | null;
+	note: string | null;
+	updatedAt: string;
 };
 
 export type CompanyMetricCurrency = 'USD' | 'KRW' | 'EUR' | 'JPY' | 'GBP' | 'CNY' | 'HKD' | 'SGD' | 'AUD' | 'CAD' | 'CHF' | 'INR';
 
+export type CompanyRecordAttribute = {
+	label: string;
+	value: string;
+};
+
 export type CompanyRecord = {
-	id: string;
+	recordID: string;
 	category: string;
-	date?: string;
+	date: string | null;
 	title: string;
-	detail?: string;
-	attributes?: Record<string, unknown>;
+	detail: string | null;
+	attributes: CompanyRecordAttribute[];
+	updatedAt: string;
 };
 
 export type CompanyDocument = {
-	id: string;
+	documentID: string;
+	documentNumber: string | null;
+	kind: string;
 	documentType: string;
 	title: string;
-	language?: string;
-	summary?: string;
-	issuedAt?: string;
+	counterpart: string | null;
+	language: string | null;
+	filePath: string | null;
+	summary: string | null;
+	requesterID: string | null;
+	issuedAt: string;
 };
 
 export type CompanyShareNarrative = {
@@ -327,14 +340,17 @@ export type CompanyShareSettingsUpdate = Omit<CompanyShareSettings, 'hasPassword
 	password: string;
 };
 
-export type CompanyMetricsResponse = {
-	metrics?: CompanyMetric[];
+export type CompanyMetricListResult = {
+	count: number;
+	metrics: CompanyMetric[];
 };
 
-export type CompanyRecordsResponse = {
-	records?: CompanyRecord[];
+export type CompanyRecordListResult = {
+	count: number;
+	records: CompanyRecord[];
 };
 
-export type CompanyDocumentsResponse = {
-	documents?: CompanyDocument[];
+export type CompanyDocumentListResult = {
+	count: number;
+	documents: CompanyDocument[];
 };

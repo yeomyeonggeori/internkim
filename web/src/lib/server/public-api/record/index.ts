@@ -35,6 +35,18 @@ import {
 	crmVocabularySet
 } from './crm-tools';
 import {
+	companyDocumentList,
+	companyDocumentRegister,
+	companyDocumentSearch,
+	companyDocumentUpdate,
+	companyMetricList,
+	companyMetricRecord,
+	companyRecordAdd,
+	companyRecordDelete,
+	companyRecordList,
+	companyRecordUpdate
+} from './company-ledger-tools';
+import {
 	CalendarEventDuplicate,
 	CalendarEventVersionConflict,
 	eventAdd,
@@ -103,6 +115,16 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	company_holiday_add: (context, input) => companyHolidayAdd(context, input),
 	company_holiday_update: (context, input) => companyHolidayUpdate(context, input),
 	company_holiday_delete: (context, input) => companyHolidayDelete(context, input),
+	company_metric_record: (context, input) => companyMetricRecord(context, input),
+	company_metric_list: (context, input) => companyMetricList(context, input),
+	company_record_add: (context, input) => companyRecordAdd(context, input),
+	company_record_list: (context, input) => companyRecordList(context, input),
+	company_record_update: (context, input) => companyRecordUpdate(context, input),
+	company_record_delete: (context, input) => companyRecordDelete(context, input),
+	company_document_register: (context, input) => companyDocumentRegister(context, input),
+	company_document_list: (context, input) => companyDocumentList(context, input),
+	company_document_search: (context, input) => companyDocumentSearch(context, input),
+	company_document_update: (context, input) => companyDocumentUpdate(context, input),
 	notification_settings_get: (context) => notificationSettingsGet(context),
 	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
 	conversation_mute: (context, input) => conversationMute(context, input),

@@ -88,7 +88,9 @@ const notFoundCodes = {
 	organization: 'organization_not_found',
 	crmOrganization: 'crm_organization_not_found',
 	crmContact: 'crm_contact_not_found',
-	crmOpportunity: 'crm_opportunity_not_found'
+	crmOpportunity: 'crm_opportunity_not_found',
+	record: 'company_record_not_found',
+	document: 'company_document_not_found'
 } as const;
 
 export type HintSubject = keyof typeof notFoundCodes;

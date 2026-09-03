@@ -498,6 +498,96 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"balanceTrackingMode":"unlimited"`)
 			},
 		},
+		"company_metric_record": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_record","result":{"metricID":"metric-1","metric":"annualRevenue","year":2025,"quarter":0,"month":0,"value":1200000000,"currency":"KRW","valueUSD":870000,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}}`)},
+			input:   `{"metric":"annualRevenue","year":2025,"value":1200000000,"currency":"KRW","valueUSD":870000}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"valueUSD":870000`)
+			},
+		},
+		"company_metric_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_metric_list","result":{"count":1,"metrics":[{"metricID":"metric-1","metric":"annualRevenue","year":2025,"quarter":0,"month":0,"value":1200000000,"currency":"KRW","valueUSD":870000,"unit":null,"note":null,"updatedAt":"2026-09-04T00:00:00Z"}]}}`)},
+			input:   `{"metric":"annualRevenue","fromYear":2024}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"metric":"annualRevenue"`)
+			},
+		},
+		"company_record_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_add","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Seed round closed","detail":null,"attributes":[{"label":"round","value":"Seed"}],"updatedAt":"2026-09-04T00:00:00Z"}}`)},
+			input:   `{"category":"funding","date":"2025-12-01","title":"Seed round closed","attributes":"{\"round\": \"Seed\"}"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"recordID":"record-1"`)
+			},
+		},
+		"company_record_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_list","result":{"count":1,"records":[{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Seed round closed","detail":null,"attributes":[],"updatedAt":"2026-09-04T00:00:00Z"}]}}`)},
+			input:   `{"category":"funding"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"category":"funding"`)
+			},
+		},
+		"company_record_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_update","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Pre-seed round closed","detail":null,"attributes":[],"updatedAt":"2026-09-04T01:00:00Z"}}`)},
+			input:   `{"recordHint":"Seed round closed","title":"Pre-seed round closed"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"title":"Pre-seed round closed"`)
+			},
+		},
+		"company_record_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_record_delete","result":{"recordID":"record-1","category":"funding","date":"2025-12-01","title":"Pre-seed round closed","detail":null,"attributes":[],"updatedAt":"2026-09-04T01:00:00Z"}}`)},
+			input:   `{"recordHint":"record-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"recordID":"record-1"`)
+			},
+		},
+		"company_document_register": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_register","result":{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","storageDirectory":"/workspace/circles/member/documents/quote"}}`)},
+			input:   `{"documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","summary":"A quote for the onboarding consulting."}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"documentNumber":"Q-2026-001"`)
+			},
+		},
+		"company_document_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_list","result":{"count":1,"documents":[{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z"}]}}`)},
+			input:   `{"type":"quote"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"documentType":"quote"`)
+			},
+		},
+		"company_document_search": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_search","result":{"count":1,"documents":[{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z"}]}}`)},
+			input:   `{"query":"what did we quote ABC Trading","limit":3}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"documentID":"document-1"`)
+			},
+		},
+		"company_document_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_update","result":{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":"shared/documents/quote/abc.md","summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z"}}`)},
+			input:   `{"documentHint":"Q-2026-001","filePath":"shared/documents/quote/abc.md"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"filePath":"shared/documents/quote/abc.md"`)
+			},
+		},
 		"attendance_delete": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_delete","result":{"status":"asked","eventID":null,"backdated":true}}`)},
@@ -668,61 +758,50 @@ func gateCases() map[string]catalogGateCase {
 // map nor gateCases fails the gate. It shrinks to empty as cases land —
 // internkim#1144.
 const (
-	implementedOnThePlaneToo    = "implemented twice, once in Go here and once on the plane; step 4 of internkim#1254 deletes the Go handler, and the case written then is as thin as leave's"
-	overTheCompanyRecordSurface = "answered over admind's company record surface, which no stand-in here speaks yet"
-	overIMAPAndSMTP             = "answered over IMAP and SMTP, which no stand-in here speaks yet"
-	throughAPairedCompanion     = "drives a browser session the companion holds, and this gate stands in for a command rather than for a paired companion"
-	throughTheModelRouter       = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
-	reachesLivePublicURLs       = "fetches live public URLs"
-	callsAnImageModel           = "calls an image model"
-	answeredOnlyOnThePlane      = "answered on the plane and nowhere else, so no backend this gate stands in for can answer it; step 3 of internkim#1306 puts admind's callers on it"
+	implementedOnThePlaneToo = "implemented twice, once in Go here and once on the plane; step 4 of internkim#1254 deletes the Go handler, and the case written then is as thin as leave's"
+	overIMAPAndSMTP          = "answered over IMAP and SMTP, which no stand-in here speaks yet"
+	throughAPairedCompanion  = "drives a browser session the companion holds, and this gate stands in for a command rather than for a paired companion"
+	throughTheModelRouter    = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
+	reachesLivePublicURLs    = "fetches live public URLs"
+	callsAnImageModel        = "calls an image model"
+	answeredOnlyOnThePlane   = "answered on the plane and nowhere else, so no backend this gate stands in for can answer it; step 3 of internkim#1306 puts admind's callers on it"
 )
 
 var toolsWithNoGateCaseYet = map[string]string{
-	"event_add":                 implementedOnThePlaneToo,
-	"event_delete":              implementedOnThePlaneToo,
-	"event_list":                implementedOnThePlaneToo,
-	"event_update":              implementedOnThePlaneToo,
-	"person_list":               implementedOnThePlaneToo,
-	"person_invite":             answeredOnlyOnThePlane,
-	"person_update":             answeredOnlyOnThePlane,
-	"team_add":                  answeredOnlyOnThePlane,
-	"team_delete":               answeredOnlyOnThePlane,
-	"team_list":                 answeredOnlyOnThePlane,
-	"team_update":               answeredOnlyOnThePlane,
-	"task_add":                  implementedOnThePlaneToo,
-	"task_delete":               implementedOnThePlaneToo,
-	"task_list":                 implementedOnThePlaneToo,
-	"task_update":               implementedOnThePlaneToo,
-	"company_document_list":     overTheCompanyRecordSurface,
-	"company_document_register": overTheCompanyRecordSurface,
-	"company_document_search":   overTheCompanyRecordSurface,
-	"company_document_update":   overTheCompanyRecordSurface,
-	"company_metric_list":       overTheCompanyRecordSurface,
-	"company_metric_record":     overTheCompanyRecordSurface,
-	"company_record_add":        overTheCompanyRecordSurface,
-	"company_record_delete":     overTheCompanyRecordSurface,
-	"company_record_list":       overTheCompanyRecordSurface,
-	"company_record_update":     overTheCompanyRecordSurface,
-	"mail_connection_start":     overIMAPAndSMTP,
-	"mail_connection_status":    overIMAPAndSMTP,
-	"mail_message_list":         overIMAPAndSMTP,
-	"mail_message_mark":         overIMAPAndSMTP,
-	"mail_message_move":         overIMAPAndSMTP,
-	"mail_message_read":         overIMAPAndSMTP,
-	"mail_message_search":       overIMAPAndSMTP,
-	"mail_message_send":         overIMAPAndSMTP,
-	"browser_fill":              throughAPairedCompanion,
-	"browser_handoff":           throughAPairedCompanion,
-	"browser_press":             throughAPairedCompanion,
-	"browser_select":            throughAPairedCompanion,
-	"browser_wait":              throughAPairedCompanion,
-	"attention_triage":          throughTheModelRouter,
-	"embedding_create":          throughTheModelRouter,
-	"llm_structured":            throughTheModelRouter,
-	"llm_text":                  throughTheModelRouter,
-	"web_fetch":                 reachesLivePublicURLs,
-	"image_generate":            callsAnImageModel,
+	"event_add":              implementedOnThePlaneToo,
+	"event_delete":           implementedOnThePlaneToo,
+	"event_list":             implementedOnThePlaneToo,
+	"event_update":           implementedOnThePlaneToo,
+	"person_list":            implementedOnThePlaneToo,
+	"person_invite":          answeredOnlyOnThePlane,
+	"person_update":          answeredOnlyOnThePlane,
+	"team_add":               answeredOnlyOnThePlane,
+	"team_delete":            answeredOnlyOnThePlane,
+	"team_list":              answeredOnlyOnThePlane,
+	"team_update":            answeredOnlyOnThePlane,
+	"task_add":               implementedOnThePlaneToo,
+	"task_delete":            implementedOnThePlaneToo,
+	"task_list":              implementedOnThePlaneToo,
+	"task_update":            implementedOnThePlaneToo,
+	"mail_connection_start":  overIMAPAndSMTP,
+	"mail_connection_status": overIMAPAndSMTP,
+	"mail_message_list":      overIMAPAndSMTP,
+	"mail_message_mark":      overIMAPAndSMTP,
+	"mail_message_move":      overIMAPAndSMTP,
+	"mail_message_read":      overIMAPAndSMTP,
+	"mail_message_search":    overIMAPAndSMTP,
+	"mail_message_send":      overIMAPAndSMTP,
+	"browser_fill":           throughAPairedCompanion,
+	"browser_handoff":        throughAPairedCompanion,
+	"browser_press":          throughAPairedCompanion,
+	"browser_select":         throughAPairedCompanion,
+	"browser_wait":           throughAPairedCompanion,
+	"attention_triage":       throughTheModelRouter,
+	"embedding_create":       throughTheModelRouter,
+	"llm_structured":         throughTheModelRouter,
+	"llm_text":               throughTheModelRouter,
+	"web_fetch":              reachesLivePublicURLs,
+	"image_generate":         callsAnImageModel,
 }
 
 func TestNoCatalogToolEscapesTheGateUnnoticed(t *testing.T) {
