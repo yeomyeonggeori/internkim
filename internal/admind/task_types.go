@@ -1,42 +1,8 @@
 package admind
 
-type taskSummaryResponse struct {
-	Week        taskWeek    `json:"week"`
-	CurrentWeek taskWeek    `json:"currentWeek"`
-	WeeklyTasks []Task      `json:"weeklyTasks"`
-	Metrics     taskMetrics `json:"metrics"`
-	Report      taskReport  `json:"report"`
-	Source      string      `json:"source"`
-}
 
-type taskStateResponse struct {
-	CurrentWeek      taskWeek        `json:"currentWeek"`
-	Members          []taskMember    `json:"members"`
-	Tasks            []Task          `json:"tasks"`
-	Metrics          taskMetrics     `json:"metrics"`
-	Definitions      taskDefinitions `json:"definitions"`
-	StatusOptions    []string        `json:"statusOptions"`
-	CurrentUserEmail string          `json:"currentUserEmail"`
-	CurrentUserName  string          `json:"currentUserName"`
-	IsAdmin          bool            `json:"isAdmin"`
-	Source           string          `json:"source"`
-}
 
-type taskStatusResponse struct {
-	DatabasePath string `json:"databasePath"`
-	Exists       bool   `json:"exists"`
-	Ready        bool   `json:"ready"`
-	Message      string `json:"message"`
-}
 
-type taskWeek struct {
-	Code      string `json:"code"`
-	StartISO  string `json:"startISO"`
-	EndISO    string `json:"endISO"`
-	Previous  string `json:"previous"`
-	Next      string `json:"next"`
-	IsCurrent bool   `json:"isCurrent"`
-}
 
 type taskMember struct {
 	ID                 string `json:"id"`
@@ -46,10 +12,6 @@ type taskMember struct {
 	HireDate           string `json:"hireDate,omitempty"`
 	Role               string `json:"role"`
 	MattermostStatus   string `json:"mattermostStatus"`
-	Distance           int    `json:"distance"`
-	Score              int    `json:"score"`
-	ActiveTaskCount    int    `json:"activeTaskCount"`
-	CompleteTaskCount  int    `json:"completeTaskCount"`
 }
 
 type Task struct {
@@ -73,43 +35,9 @@ type Task struct {
 	CreatedAt          string   `json:"createdAt,omitempty"`
 }
 
-type taskMetrics struct {
-	TotalTasks         int                            `json:"totalTasks"`
-	CompletedTasks     int                            `json:"completedTasks"`
-	RequestedTasks     int                            `json:"requestedTasks"`
-	PausedTasks        int                            `json:"pausedTasks"`
-	StoppedTasks       int                            `json:"stoppedTasks"`
-	TotalDistance      int                            `json:"totalDistance"`
-	TotalScore         int                            `json:"totalScore"`
-	StatusCounts       map[string]int                 `json:"statusCounts"`
-	BusinessCounts     map[string]int                 `json:"businessCounts"`
-	TypeCounts         map[string]int                 `json:"typeCounts"`
-	MemberDistances    map[string]int                 `json:"memberDistances"`
-	MemberScores       map[string]int                 `json:"memberScores"`
-	MemberScoreDetails map[string]taskMemberScoreItem `json:"memberScoreDetails"`
-}
 
-type taskMemberScoreItem struct {
-	WeeklyScore  int `json:"weeklyScore"`
-	MonthlyScore int `json:"monthlyScore"`
-	CurrentScore int `json:"currentScore"`
-}
 
-type taskReport struct {
-	WeeklyDistanceTrend  taskDistanceTrend `json:"weeklyDistanceTrend"`
-	MonthlyDistanceTrend taskDistanceTrend `json:"monthlyDistanceTrend"`
-}
 
-type taskDistanceTrend struct {
-	Labels         []string `json:"labels"`
-	CurrentLabel   string   `json:"currentLabel"`
-	PreviousLabel  string   `json:"previousLabel"`
-	CurrentValues  []int    `json:"currentValues"`
-	PreviousValues []int    `json:"previousValues"`
-	CurrentTotal   int      `json:"currentTotal"`
-	PreviousTotal  int      `json:"previousTotal"`
-	Unit           string   `json:"unit"`
-}
 
 type taskDefinitions struct {
 	Categories     []string             `json:"categories"`
@@ -151,11 +79,6 @@ type taskWriteRequest struct {
 	EventAllDay     bool     `json:"eventAllDay"`
 }
 
-type taskBoardMoveRequest struct {
-	TaskID       string  `json:"taskID"`
-	TargetStatus string  `json:"targetStatus"`
-	BeforeTaskID *string `json:"beforeTaskID"`
-}
 
 type taskQuickTaskRequest struct {
 	Prompt         string   `json:"prompt"`
@@ -169,13 +92,6 @@ type taskQuickTaskRequest struct {
 	AllowDuplicate bool     `json:"allowDuplicate"`
 }
 
-type taskDefinitionsWriteRequest struct {
-	Categories     []string             `json:"categories"`
-	CategoryColors map[string]string    `json:"categoryColors"`
-	Types          []string             `json:"types"`
-	TypeColors     map[string]string    `json:"typeColors"`
-	Sizes          []taskSizeDefinition `json:"sizes"`
-}
 
 type inferredTask struct {
 	Category       string   `json:"category"`

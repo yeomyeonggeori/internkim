@@ -22,16 +22,23 @@ func canonicalWeekCode(weekCode string) string {
 	return twoDigitNumber(yearValue%100) + "W" + twoDigitNumber(weekValue)
 }
 
-func buildTaskWeek(weekCode string, weekStart time.Time, now time.Time) taskWeek {
-	return taskWeek{
-		Code:      weekCode,
-		StartISO:  weekStart.Format("2006-01-02"),
-		EndISO:    weekStart.AddDate(0, 0, 6).Format("2006-01-02"),
-		Previous:  weekCodeForDate(weekStart.AddDate(0, 0, -7)),
-		Next:      weekCodeForDate(weekStart.AddDate(0, 0, 7)),
-		IsCurrent: weekCode == weekCodeForDate(now),
+// A week code has to name the week it claims: 26W99 parses and belongs to no
+// year, so the round trip through a week start is what decides.
+func canonicalTaskWeekCodeOfValue(value string, now time.Time) string {
+	if taskWeekCodePattern.FindString(value) != value {
+		return ""
 	}
+	weekCode := canonicalWeekCode(value)
+	if weekCode == "" {
+		return ""
+	}
+	year, week := weekStartForCode(weekCode, now).ISOWeek()
+	if twoDigitNumber(year%100)+"W"+twoDigitNumber(week) != weekCode {
+		return ""
+	}
+	return weekCode
 }
+
 
 func weekStartForCode(weekCode string, fallback time.Time) time.Time {
 	trimmedCode := strings.TrimSpace(strings.ToUpper(weekCode))

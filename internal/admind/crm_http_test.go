@@ -458,42 +458,24 @@ func TestCRMHTTPRejectsWhitespaceOnlyRequiredFields(t *testing.T) {
 	}
 }
 
-func TestCRMHTTPDefinitionsListsBusinessesAndRequiresAuthorization(t *testing.T) {
+func TestCRMHTTPDefinitionsAnswerTheCompanyAndRequireAuthorization(t *testing.T) {
 	service := newCRMHTTPTestService(t)
 
-	emptyResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "owner@example.com", nil)
-	requireCRMHTTPStatus(t, emptyResponse, http.StatusOK)
-	var emptyDocument struct {
+	unnamedResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "owner@example.com", nil)
+	requireCRMHTTPStatus(t, unnamedResponse, http.StatusInternalServerError)
+
+	useCompanyForTest(service, startCompanyHoldingATaskVocabulary(t).URL)
+
+	response := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "owner@example.com", nil)
+	requireCRMHTTPStatus(t, response, http.StatusOK)
+	var document struct {
 		Definitions struct {
 			Businesses []string `json:"businesses"`
 		} `json:"definitions"`
 	}
-	decodeCRMHTTPTestResponse(t, emptyResponse, &emptyDocument)
-	if emptyDocument.Definitions.Businesses == nil || len(emptyDocument.Definitions.Businesses) != 0 {
-		t.Fatalf("businesses with no categories = %#v", emptyDocument.Definitions.Businesses)
-	}
-
-	definitions, errorValue := service.readTaskDefinitions(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	definitions.Categories = []string{"제조업", "유통업"}
-	if errorValue := service.writeTaskDefinitions(context.Background(), definitions); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	populatedResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "owner@example.com", nil)
-	requireCRMHTTPStatus(t, populatedResponse, http.StatusOK)
-	var populatedDocument struct {
-		Definitions struct {
-			Businesses []string `json:"businesses"`
-		} `json:"definitions"`
-	}
-	decodeCRMHTTPTestResponse(t, populatedResponse, &populatedDocument)
-	if len(populatedDocument.Definitions.Businesses) != 2 ||
-		populatedDocument.Definitions.Businesses[0] != "제조업" ||
-		populatedDocument.Definitions.Businesses[1] != "유통업" {
-		t.Fatalf("populated businesses = %#v", populatedDocument.Definitions.Businesses)
+	decodeCRMHTTPTestResponse(t, response, &document)
+	if len(document.Definitions.Businesses) != 1 || document.Definitions.Businesses[0] != "신사업" {
+		t.Fatalf("businesses = %#v, want the company's own", document.Definitions.Businesses)
 	}
 
 	unauthorizedResponse := crmHTTPTestRequest(t, service, http.MethodGet, "/crm/api/definitions", "", nil)

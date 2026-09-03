@@ -22,7 +22,7 @@ func canonicalTaskWeekCode(weekCode string, now time.Time) (string, error) {
 	if trimmedWeekCode == "" {
 		return "", nil
 	}
-	canonicalWeekCode := canonicalTaskSummaryWeekCode(trimmedWeekCode, now)
+	canonicalWeekCode := canonicalTaskWeekCodeOfValue(trimmedWeekCode, now)
 	if canonicalWeekCode == "" {
 		return "", taskValidationError("weekCode must be a valid ISO week")
 	}

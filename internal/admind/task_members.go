@@ -133,18 +133,6 @@ func membersFromUserRecords(records []adminUserMutation) []taskMember {
 	return members
 }
 
-func resolveCurrentUserName(members []taskMember, email string) string {
-	normalized := strings.ToLower(strings.TrimSpace(email))
-	if normalized == "" {
-		return ""
-	}
-	for _, member := range members {
-		if strings.EqualFold(strings.TrimSpace(member.Email), normalized) {
-			return member.Name
-		}
-	}
-	return strings.TrimSuffix(normalized, "@"+emailDomain(normalized))
-}
 
 func memberIDs(members []taskMember) []string {
 	values := make([]string, 0, len(members))
@@ -160,28 +148,4 @@ func memberNames(members []taskMember) []string {
 		values = append(values, member.Name)
 	}
 	return values
-}
-
-func calculateTaskMemberDistances(members []taskMember, tasks []Task, definitions taskDefinitions) []taskMember {
-	result := append([]taskMember(nil), members...)
-	memberIndex := map[string]int{}
-	for index, member := range result {
-		memberIndex[member.ID] = index
-	}
-	for _, task := range tasks {
-		for _, memberID := range task.ParticipantIDs {
-			index, found := memberIndex[memberID]
-			if !found {
-				continue
-			}
-			if isTaskCompletedStatus(task.Status) {
-				result[index].CompleteTaskCount++
-			} else if !isTaskInactiveStatus(task.Status) {
-				result[index].ActiveTaskCount++
-			}
-			result[index].Distance += completedDistanceForTask(task, definitions)
-			result[index].Score = result[index].Distance
-		}
-	}
-	return result
 }
