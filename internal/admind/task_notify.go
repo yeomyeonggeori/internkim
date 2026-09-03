@@ -8,15 +8,15 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 const (
-	taskNotifyInterval    = time.Minute
-	taskNotifyBatch       = 200
-	taskNotifyMarkLife    = 30 * 24 * time.Hour
-	taskNotifyListPath    = "/admin/api/run?viewerIsAdmin=true&limit=200"
-	taskNotifyDetailPath  = "/admin/api/run/detail?viewerIsAdmin=true&taskRunID="
-	taskNotifyConfirmName = "confirmation.requested"
+	taskNotifyInterval   = time.Minute
+	taskNotifyBatch      = 200
+	taskNotifyMarkLife   = 30 * 24 * time.Hour
+	taskNotifyListPath   = "/admin/api/run?viewerIsAdmin=true&limit=200"
+	taskNotifyDetailPath = "/admin/api/run/detail?viewerIsAdmin=true&taskRunID="
 )
 
 func (service *Service) keepTaskRunsNotified(ctx context.Context) {
@@ -148,7 +148,7 @@ func (service *Service) taskNotifyConfirmationMessage(ctx context.Context, run t
 	}
 	message := ""
 	for _, event := range detail.TaskEvents {
-		if event.Name != taskNotifyConfirmName {
+		if event.Name != capabilityprotocol.TaskEventConfirmationRequested {
 			continue
 		}
 		var body struct {
