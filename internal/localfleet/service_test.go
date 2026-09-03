@@ -519,3 +519,33 @@ func TestBuzzDirectMessageScenarioReachesNothingThroughMattermost(t *testing.T) 
 		t.Fatalf("the company reads buzz, so this scenario must not need mattermost:\n%s", joinedPlans)
 	}
 }
+
+func TestEachFleetAsksForAKeyInItsOwnName(t *testing.T) {
+	ephemeral, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		RunID:              "test-run-1",
+		IsEphemeral:        true,
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	shared, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	ephemeralPlan := joinedPlanArguments([]CommandPlan{ephemeral.startCentralPlanePlan()})
+	sharedPlan := joinedPlanArguments([]CommandPlan{shared.startCentralPlanePlan()})
+	if !strings.Contains(ephemeralPlan, "--agent-name internkim-e2e-test-run-1") {
+		t.Fatalf("a run's plane must issue the key in that run's name:\n%s", ephemeralPlan)
+	}
+	if !strings.Contains(sharedPlan, "--agent-name "+DefaultVirtualMachineName) {
+		t.Fatalf("the shared fleet must issue the key in its own name:\n%s", sharedPlan)
+	}
+	if ephemeralPlan == sharedPlan {
+		t.Fatal("two fleets asking for the same name take each other's key away")
+	}
+}
