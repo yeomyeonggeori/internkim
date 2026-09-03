@@ -17,19 +17,14 @@ import (
 
 func (server *Server) CheckStatus(contextValue context.Context, target Target) TargetStatus {
 	var admin EndpointStatus
-	var mattermost EndpointStatus
 	var release releaseEndpointStatus
 	var recovery RecoveryStatus
 	var llm LLMModelStatus
 	waitGroup := sync.WaitGroup{}
-	waitGroup.Add(5)
+	waitGroup.Add(4)
 	go func() {
 		defer waitGroup.Done()
 		admin = server.checkJSONEndpoint(contextValue, target.AdminURL+"/admin/api/health")
-	}()
-	go func() {
-		defer waitGroup.Done()
-		mattermost = server.checkJSONEndpoint(contextValue, target.AdminURL+"/api/v4/system/ping")
 	}()
 	go func() {
 		defer waitGroup.Done()
@@ -45,14 +40,13 @@ func (server *Server) CheckStatus(contextValue context.Context, target Target) T
 	}()
 	waitGroup.Wait()
 	return TargetStatus{
-		TargetID:   target.ID,
-		CheckedAt:  time.Now(),
-		Admin:      admin,
-		Mattermost: mattermost,
-		Release:    release.Endpoint,
-		Recovery:   recovery,
-		LLM:        llm,
-		Versions:   buildVersionStatus(admin, release),
+		TargetID:  target.ID,
+		CheckedAt: time.Now(),
+		Admin:     admin,
+		Release:   release.Endpoint,
+		Recovery:  recovery,
+		LLM:       llm,
+		Versions:  buildVersionStatus(admin, release),
 	}
 }
 
@@ -314,9 +308,8 @@ func parseRecoveryServices(output string) map[string]string {
 
 func formatStatus(status TargetStatus) string {
 	return fmt.Sprintf(
-		"admin=%s mattermost=%s release=%s recovery=%s",
+		"admin=%s release=%s recovery=%s",
 		status.Admin.State,
-		status.Mattermost.State,
 		status.Release.State,
 		status.Recovery.State,
 	)

@@ -123,7 +123,6 @@ func TestOrganizationPeopleCacheExcludesForbiddenFields(t *testing.T) {
 		Handle:                 "user-one",
 		Name:                   "User One",
 		Email:                  "one@example.com",
-		Image:                  "/images/user-1.png",
 		HireDate:               "2026-01-01",
 		Note:                   "private note",
 		Role:                   "admin",

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -232,108 +231,6 @@ func (target verifyTarget) runRemoteVerificationWithTimeout(script string, timeo
 	return nil
 }
 
-type downloadedMattermostFile struct {
-	FileID        string `json:"fileID"`
-	Filename      string `json:"filename"`
-	ContentType   string `json:"contentType"`
-	ContentBase64 string `json:"contentBase64"`
-}
-
-type mattermostVerificationOutput struct {
-	DownloadedFiles           []downloadedMattermostFile `json:"downloadedFiles"`
-	SiteScreenshots           []downloadedMattermostFile `json:"siteScreenshots"`
-	BotMessage                string                     `json:"botMessage"`
-	FileIDs                   []string                   `json:"fileIDs"`
-	TaskRunID                 string                     `json:"taskRunID"`
-	TaskStatus                *string                    `json:"taskStatus"`
-	SitePublicURL             string                     `json:"sitePublicURL"`
-	SiteHTMLText              string                     `json:"siteHTMLText"`
-	SiteHTMLRaw               string                     `json:"siteHTMLRaw"`
-	SiteCSSRaw                string                     `json:"siteCSSRaw"`
-	SiteStyleMetrics          map[string]any             `json:"siteStyleMetrics"`
-	SiteScreenshotFiles       []string                   `json:"siteScreenshotFiles"`
-	IsSiteScreenshotsVerified bool                       `json:"siteScreenshotsVerified"`
-	IsAutoConfirmationSent    bool                       `json:"autoConfirmationSent"`
-	IsSuccessful              bool                       `json:"ok"`
-	FailureReason             string                     `json:"failureReason"`
-}
-
-func parseMattermostVerificationOutput(output string) (mattermostVerificationOutput, error) {
-	document, found := parseLastJSONDocument(output)
-	if !found {
-		return mattermostVerificationOutput{}, fmt.Errorf("remote verification did not return JSON output")
-	}
-	var verificationOutput mattermostVerificationOutput
-	if errorValue := json.Unmarshal(document, &verificationOutput); errorValue != nil {
-		return mattermostVerificationOutput{}, fmt.Errorf("parse remote verification JSON: %w", errorValue)
-	}
-	return verificationOutput, nil
-}
-
-func writeDownloadedMattermostFilesAllowEmpty(output string, downloadDirectory string) ([]string, error) {
-	return writeDownloadedMattermostFilesWithOption(output, downloadDirectory, true)
-}
-
-func writeDownloadedMattermostFilesWithOption(output string, downloadDirectory string, canBeEmpty bool) ([]string, error) {
-	verificationOutput, errorValue := parseMattermostVerificationOutput(output)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if len(verificationOutput.DownloadedFiles) == 0 {
-		if canBeEmpty {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("remote verification returned no downloaded Mattermost attachments")
-	}
-	if errorValue := os.MkdirAll(downloadDirectory, 0o755); errorValue != nil {
-		return nil, fmt.Errorf("create download directory: %w", errorValue)
-	}
-	downloadedFilePaths := []string{}
-	for _, downloadedFile := range verificationOutput.DownloadedFiles {
-		downloadedFilePath, errorValue := writeDownloadedMattermostFile(downloadedFile, downloadDirectory)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		downloadedFilePaths = append(downloadedFilePaths, downloadedFilePath)
-	}
-	return downloadedFilePaths, nil
-}
-
-func writeDownloadedMattermostFile(downloadedFile downloadedMattermostFile, downloadDirectory string) (string, error) {
-	filename := safeDownloadedMattermostFilename(downloadedFile)
-	return writeDownloadedMattermostFileToPath(downloadedFile, filepath.Join(downloadDirectory, filename))
-}
-
-func writeDownloadedMattermostFileToPath(downloadedFile downloadedMattermostFile, outputPath string) (string, error) {
-	content, errorValue := base64.StdEncoding.DecodeString(downloadedFile.ContentBase64)
-	if errorValue != nil {
-		return "", fmt.Errorf("decode Mattermost attachment %s: %w", downloadedFile.FileID, errorValue)
-	}
-	parentPath := filepath.Dir(outputPath)
-	if parentPath != "." {
-		if errorValue := os.MkdirAll(parentPath, 0o755); errorValue != nil {
-			return "", fmt.Errorf("create Mattermost attachment parent directory: %w", errorValue)
-		}
-	}
-	if errorValue := os.WriteFile(outputPath, content, 0o644); errorValue != nil {
-		return "", fmt.Errorf("write Mattermost attachment %s: %w", outputPath, errorValue)
-	}
-	fmt.Println("downloaded Mattermost attachment: " + outputPath)
-	return outputPath, nil
-}
-
-func safeDownloadedMattermostFilename(downloadedFile downloadedMattermostFile) string {
-	filename := strings.TrimSpace(filepath.Base(downloadedFile.Filename))
-	if filename != "" && filename != "." {
-		return filename
-	}
-	fileID := strings.TrimSpace(downloadedFile.FileID)
-	if fileID != "" {
-		return fileID
-	}
-	return "mattermost-attachment"
-}
-
 func redactBase64Attachments(payload map[string]any, fieldName string) {
 	files, isArray := payload[fieldName].([]any)
 	if !isArray {
@@ -388,9 +285,9 @@ func replaceLastJSONDocument(output string, replacement string) string {
 }
 
 func runPublicBrowserVerification(target verifyTarget) error {
-	publicURL := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/env/mattermost-url 2>/dev/null"))
+	publicURL := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/env/device-url 2>/dev/null"))
 	if publicURL == "" {
-		return errors.New("public Mattermost URL is empty")
+		return errors.New("public device URL is empty")
 	}
 	return runPlaywright("tests/e2e/public-url.spec.ts", map[string]string{
 		"INTERNKIM_PUBLIC_URL": publicURL,
@@ -431,7 +328,6 @@ func verifyAPIScript() string {
 	script := `set -euo pipefail
 
 echo "checking services"
-systemctl is-active mattermost | grep -q '^active$'
 systemctl is-active blueclaw | grep -q '^active$'
 systemctl is-active internkim-admind | grep -q '^active$'
 if systemctl cat cloudflared >/dev/null 2>&1; then
@@ -466,29 +362,8 @@ for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /file
   esac
 done
 
-echo "checking mattermost ping"
-curl --silent --show-error --fail http://localhost:8065/api/v4/system/ping | jq -e '.status == "OK"' >/dev/null
-
 echo "checking capabilityd health"
 curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock http://internkim/health | jq -e '.status == "ok"' >/dev/null
-
-echo "checking admin login"
-admin_password="$(cat /root/.internkim/secrets/mm-admin-pass)"
-login_headers="$(mktemp)"
-login_body="$(jq -cn --arg login_id admin --arg password "$admin_password" '{login_id:$login_id,password:$password}')"
-curl --silent --show-error --fail -D "$login_headers" -o /tmp/internkim-admin-login.json \
-  -H "Content-Type: application/json" \
-  -d "$login_body" \
-  http://localhost:8065/api/v4/users/login >/dev/null
-admin_token="$(awk 'tolower($1) == "token:" {print $2}' "$login_headers" | tr -d '\r')"
-test -n "$admin_token"
-
-echo "checking capability profile lookup"
-mattermost_token="$(cat /root/.internkim/secrets/mattermost-bot-token)"
-bot_user_id="$(curl --silent --show-error --fail -H "Authorization: Bearer $mattermost_token" http://localhost:8065/api/v4/users/me | jq -r '.id // empty')"
-test -n "$bot_user_id"
-lookup_body="$(jq -cn --arg senderID "$bot_user_id" '{senderID:$senderID}')"
-curl --silent --show-error --fail --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/mattermost/identity.resolve | jq -e '.email != null' >/dev/null
 
 echo "checking llm capability"
 model="$(jq -r '.languageModel.capability.model // "__DEFAULT_OPENROUTER_MODEL__"' /root/.blueclaw/config/runtime.json)"

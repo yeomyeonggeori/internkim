@@ -565,9 +565,6 @@ func (service *Service) handleCompanyShare(responseWriter http.ResponseWriter, r
 		service.unlockCompanyShare(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/content":
 		service.writeCompanyShareContent(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/team/") && strings.HasSuffix(path, "/image"):
-		seed := strings.TrimSuffix(strings.TrimPrefix(path, "/team/"), "/image")
-		service.serveCompanyShareMemberImage(responseWriter, request, seed)
 	case request.Method == http.MethodPost && path == "/logout":
 		http.SetCookie(responseWriter, expiredCompanyShareCookie())
 		service.writeJSON(responseWriter, map[string]bool{"ok": true})

@@ -35,7 +35,6 @@ func newOrganizationDirectoryRecord(record adminUserMutation) organizationDirect
 		Handle:       record.Handle,
 		Name:         record.Name,
 		Email:        record.Email,
-		Image:        record.Image,
 		HireDate:     record.HireDate,
 		JobTitle:     record.JobTitle,
 		GroupID:      record.GroupID,

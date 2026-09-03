@@ -246,7 +246,6 @@ type companionReleaseResponse struct {
 
 type adminSessionResponse struct {
 	Email                  string `json:"email"`
-	Image                  string `json:"image,omitempty"`
 	ClaimedAdminEmail      string `json:"claimedAdminEmail"`
 	IsAdmin                bool   `json:"isAdmin"`
 	Role                   string `json:"role"`
@@ -485,8 +484,6 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-invite", service.handleBuzzInviteEmail)
 	multiplexer.HandleFunc("/agent/api/buzz-relay-config", service.handleBuzzRelayConfig)
 	multiplexer.HandleFunc(mediaProxyPrefix, service.handleBuzzMediaProxy)
-	multiplexer.HandleFunc("/agent/api/custom-emoji", service.handleCustomEmojiList)
-	multiplexer.HandleFunc(customEmojiProxyPrefix, service.handleCustomEmojiImage)
 	multiplexer.HandleFunc("/agent/api/buzz-mm-pending", service.handleBuzzMMPending)
 	multiplexer.HandleFunc("/agent/api/buzz-mm-mirrored", service.handleBuzzMMMirrored)
 	multiplexer.HandleFunc("/agent/api/buzz-admin-wipe", service.handleBuzzAdminWipe)
@@ -503,7 +500,6 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", service.handleBuzzChannelVisibilityRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)
-	multiplexer.HandleFunc("/agent/api/circle-membership-reconcile", service.handleCircleMembershipReconcile)
 	multiplexer.HandleFunc("/agent/api/circle-room-membership", service.handleCircleRoomMembership)
 	multiplexer.HandleFunc("/agent/api/buzz-whose-key", service.handleBuzzWhoseKey)
 	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
@@ -748,10 +744,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.handleAttachmentCleanup(responseWriter, request, false)
 	case request.Method == http.MethodPost && path == "/maintenance/attachment-cleanup":
 		service.handleAttachmentCleanup(responseWriter, request, true)
-	case request.Method == http.MethodGet && path == "/maintenance/attachment-migration":
-		service.handleAttachmentMigration(responseWriter, request, false)
-	case request.Method == http.MethodPost && path == "/maintenance/attachment-migration":
-		service.handleAttachmentMigration(responseWriter, request, true)
 	case request.Method == http.MethodGet && path == "/diagnostics/service-logs":
 		service.writeServiceLogs(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
@@ -896,10 +888,8 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	consoleEmail := service.adminConsoleActorEmail(request)
 	role := service.adminSessionRole(request.Context(), consoleEmail)
 	canViewTasks := role == adminUserRoleAdmin || role == adminUserRoleOperationsAdmin
-	sessionImageEmail := firstNonEmpty(consoleEmail, claimedAdminEmail)
 	response := adminSessionResponse{
 		Email:             consoleEmail,
-		Image:             profileImagePathForEmail(sessionImageEmail),
 		ClaimedAdminEmail: claimedAdminEmail,
 		IsAdmin:           role == adminUserRoleAdmin,
 		Role:              role,
@@ -1259,7 +1249,7 @@ func (service *Service) lookupUserRecords(ctx context.Context, fleetID string, f
 	if errorValue := json.NewDecoder(response.Body).Decode(&usersResponse); errorValue != nil {
 		return nil, errorValue
 	}
-	return adminUserRecordsWithProfileImages(usersResponse.Records), nil
+	return usersResponse.Records, nil
 }
 
 func (service *Service) createRestoreUpload(responseWriter http.ResponseWriter, request *http.Request) {

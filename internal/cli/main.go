@@ -34,7 +34,6 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
-	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
@@ -65,7 +64,6 @@ var (
 )
 
 const jetsonDefaultUser = "internkim"
-const mattermostDefaultPushNotificationServer = "https://push-test.mattermost.com"
 
 type config struct {
 	APIBaseURL     string
@@ -301,7 +299,7 @@ func printUsage() {
 	fmt.Println("  update   Deploy current build to device")
 	fmt.Println("  deploy   Build and apply a signed release over Admin HTTPS")
 	fmt.Println("  doctor   Check host dependencies")
-	fmt.Println("  verify   Run API, Mattermost, and browser verification")
+	fmt.Println("  verify   Run API and browser verification")
 	fmt.Println("  test     Run a prompt through disposable Local Fleet; use -o <file> for one returned attachment")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
 	fmt.Println("  ops      Serve the local personal fleet console")
@@ -1145,7 +1143,6 @@ func printBoardStatus(m *msg, target commandTarget, sshClient *sshClient) {
 
 	// Services
 	services := []struct{ name, label string }{
-		{"mattermost", "Mattermost"},
 		{blueclaw.BlueclawServiceName, "Blueclaw"},
 		{blueclaw.GraphitiMemorydServiceName, "Graphiti Memory"},
 		{"cloudflared", "Cloudflared"},
@@ -1229,7 +1226,6 @@ type publicEndpointStatus struct {
 
 func publicEndpointStatuses(m *msg, deviceURL string) []publicEndpointStatus {
 	return []publicEndpointStatus{
-		publicEndpointStatusFor(m.t("Mattermost 공개 URL", "Mattermost public URL"), deviceURL, "/api/v4/system/ping", `"status":"OK"`),
 		publicEndpointStatusFor(m.t("Admin 공개 URL", "Admin public URL"), deviceURL, "/admin/api/health", `"status":"ok"`),
 	}
 }
@@ -1345,15 +1341,6 @@ func backupFromExt4(disk, backupDir string, messenger *msg) {
 	entries, _ := os.ReadDir(wsBackupDir)
 	if len(entries) > 0 {
 		fmt.Printf("    %s (%d files)\n", messenger.t("워크스페이스 백업 완료", "Workspace backed up"), len(entries))
-	}
-	// DB dump (written by watchdog to ext4)
-	dbDumpDest := filepath.Join(backupDir, "mattermost-db.sql")
-	dumpCommand := exec.Command("sudo", debugfsBin, "-R",
-		"dump /var/cache/internkim/mattermost-db.sql "+dbDumpDest, partDevice)
-	if err := dumpCommand.Run(); err == nil {
-		if info, err := os.Stat(dbDumpDest); err == nil && info.Size() > 0 {
-			fmt.Printf("    %s (%dMB)\n", messenger.t("DB 백업 완료", "DB backed up"), info.Size()/1024/1024)
-		}
 	}
 }
 
@@ -1542,10 +1529,6 @@ APT_SOURCES_EOF
   fi
 fi
 `
-}
-
-func mattermostManagedResourcePathSetting() string {
-	return mattermostdefaults.ManagedResourcePathSetting()
 }
 
 func runLab() {
@@ -1938,7 +1921,6 @@ type registerResponse struct {
 	TunnelToken       string `json:"tunnel_token"`
 	NodeTunnelToken   string `json:"node_tunnel_token"`
 	URL               string `json:"url"`
-	MattermostURL     string `json:"mattermost_url"`
 	AliasURL          string `json:"alias_url"`
 	SSHHostname       string `json:"ssh_hostname"`
 	TLSStatus         string `json:"tls_certificate_status"`
@@ -1958,9 +1940,6 @@ func (registrationError *registrationHTTPError) Error() string {
 }
 
 func (response *registerResponse) publicURL() string {
-	if response.MattermostURL != "" {
-		return response.MattermostURL
-	}
 	return response.URL
 }
 
@@ -2607,26 +2586,6 @@ func runSetupSD(m *msg) {
 	// The image is not reflashed when the SD card already carries it.
 	step(6, totalSteps, m.t("이미지 굽기...", "Flashing image..."))
 
-	// Pre-download Mattermost tar.gz to cache
-	mmCachePath := filepath.Join(cacheDir, "mattermost.tar.gz")
-	if _, err := os.Stat(mmCachePath); os.IsNotExist(err) {
-		fmt.Printf("  %s... ", m.t("Mattermost 다운로드", "Downloading Mattermost"))
-		mmVer := "10.9.1"
-		if out, err := exec.Command("sh", "-c", `curl -sf https://api.github.com/repos/mattermost/mattermost/releases/latest | grep '"tag_name"' | head -1 | sed 's/.*"v//;s/".*//'`).Output(); err == nil {
-			if v := strings.TrimSpace(string(out)); v != "" {
-				mmVer = v
-			}
-		}
-		mmURL := fmt.Sprintf("https://releases.mattermost.com/%s/mattermost-%s-linux-arm64.tar.gz", mmVer, mmVer)
-		if err := downloadBinary(mmURL, mmCachePath, ""); err != nil {
-			fmt.Printf("FAILED: %v\n", err)
-		} else {
-			fmt.Printf("ok (%s)\n", mmVer)
-		}
-	} else {
-		fmt.Printf("  %s\n", m.t("Mattermost 캐시 사용", "Using cached Mattermost"))
-	}
-
 	imgBase := fmt.Sprintf("armbian-%s-trixie", boardType)
 	imgXZ := filepath.Join(cacheDir, imgBase+".img.xz")
 	imgRaw := filepath.Join(cacheDir, imgBase+".img")
@@ -2696,18 +2655,6 @@ func runSetupSD(m *msg) {
 		backupDir := filepath.Join(stateDir, "backup")
 		if !hardReset {
 			os.MkdirAll(backupDir, 0700)
-			// Secrets from boot partition (FAT32, macOS-readable)
-			for _, vol := range []string{"/Volumes/RPICFG", "/Volumes/bootfs", "/Volumes/boot"} {
-				secretsDir := filepath.Join(vol, "internkim", "secrets")
-				if _, err := os.Stat(secretsDir); err == nil {
-					for _, name := range []string{"mm-admin-pass", "mm-db-pass"} {
-						if data, err := os.ReadFile(filepath.Join(secretsDir, name)); err == nil {
-							os.WriteFile(filepath.Join(backupDir, name), data, 0600)
-						}
-					}
-					break
-				}
-			}
 			// Workspace + DB from ext4 via debugfs (file-by-file, no full dd)
 			backupFromExt4(disk, backupDir, m)
 			fmt.Printf("  %s\n", m.t("백업 완료", "Backup complete"))
@@ -2814,15 +2761,9 @@ func runSetupSD(m *msg) {
 		"  1. Insert SD card into Raspberry Pi 5\n  2. Connect power\n  3. First boot auto-setup (takes ~5-10 min)",
 	))
 	deviceURL := loadState(stateDir, "device_url")
-	adminEmail := remoteSetupAdminEmail(stateDir)
-	adminPassBytes, _ := os.ReadFile(filepath.Join(stageDir, "secrets", "mm-admin-pass"))
-	adminPass := strings.TrimSpace(string(adminPassBytes))
 	if deviceURL != "" {
-		fmt.Printf("\n  Mattermost: %s\n", deviceURL)
+		fmt.Printf("\n  %s: %s\n", m.t("주소", "Address"), deviceURL)
 	}
-	fmt.Printf("\n  %s:\n", m.t("로그인 정보", "Login"))
-	fmt.Printf("    %s: %s\n", m.t("이메일", "Email"), adminEmail)
-	fmt.Printf("    %s: %s\n", m.t("비밀번호", "Password"), adminPass)
 	fmt.Println()
 }
 
@@ -3058,7 +2999,7 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 	}
 	defer os.Remove(partFile)
 
-	// Expand ext4 partition to fit injected files (mattermost + debs)
+	// Expand ext4 partition to fit injected files
 	expandMB := int64(1024) // 1GB extra space
 	f2, _ := os.OpenFile(partFile, os.O_WRONLY, 0)
 	if f2 != nil {
@@ -3183,15 +3124,6 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 	mkSymlink("/etc/systemd/system/multi-user.target.wants/internkim-firstboot.service",
 		"/etc/systemd/system/internkim-firstboot.service")
 
-	// ── 5. Mattermost tar.gz ──
-	mmCachePath := filepath.Join(filepath.Dir(stageDir), "mattermost.tar.gz")
-	if _, err := os.Stat(mmCachePath); err == nil {
-		fmt.Println("    mattermost.tar.gz")
-		if err := writeFile(mmCachePath, "/var/cache/internkim/mattermost.tar.gz", "0100644"); err != nil {
-			return fmt.Errorf("inject mattermost.tar.gz: %w", err)
-		}
-	}
-
 	// ── 5b. Pre-downloaded .deb packages ──
 	debsTarPath := filepath.Join(filepath.Dir(stageDir), "debs.tar")
 	if _, err := os.Stat(debsTarPath); err == nil {
@@ -3260,10 +3192,6 @@ if [ -n "$CURRENT_IP" ]; then
   mountpoint -q /boot/firmware || mount /boot/firmware 2>/dev/null
   mkdir -p /boot/firmware/internkim
   echo "$CURRENT_IP" > /boot/firmware/internkim/board-ip
-fi
-# Dump Mattermost DB for backup recovery
-if systemctl is-active --quiet postgresql 2>/dev/null; then
-  su - postgres -c "pg_dump mattermost" > /var/cache/internkim/mattermost-db.sql 2>/dev/null || true
 fi
 # LED heartbeat
 if [ -f /sys/class/leds/ACT/trigger ]; then
@@ -3725,8 +3653,8 @@ func (s *sshClient) scpDirDirect(localDir, remoteDir string) error {
 
 // --- Config builders ---
 
-func generateFirstbootScript(deviceURL, adminEmail string, isLocalLlamaProvisioned bool) string {
-	return buildFirstbootScript(deviceURL, adminEmail, isLocalLlamaProvisioned)
+func generateFirstbootScript(isLocalLlamaProvisioned bool) string {
+	return buildFirstbootScript(isLocalLlamaProvisioned)
 }
 
 // --- UI helpers ---
@@ -3943,7 +3871,6 @@ func updateRemoteDeviceRegistration(connection *sshClient, configuration config,
 	connection.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
 printf '%%s' %s > /root/.internkim/env/fleet-id
 printf '%%s' %s > /root/.internkim/env/device-url
-printf '%%s' %s > /root/.internkim/env/mattermost-url
 printf '%%s' %s > /root/.internkim/secrets/tunnel-token
 printf '%%s' %s > /root/.internkim/secrets/node-tunnel-token
 printf '%%s' %s > /root/.internkim/env/tunnel-origin
@@ -3952,8 +3879,8 @@ printf '%%s' %s > /root/.internkim/env/api-url
 printf '%%s' %s > /root/.internkim/env/tls-certificate-status
 chown root:root /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
 chmod 600 /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
-chown root:blueclaw /root/.internkim/env/fleet-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url /root/.internkim/env/tls-certificate-status
-chmod 640 /root/.internkim/env/fleet-id /root/.internkim/env/device-url /root/.internkim/env/mattermost-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url /root/.internkim/env/tls-certificate-status
+chown root:blueclaw /root/.internkim/env/fleet-id /root/.internkim/env/device-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url /root/.internkim/env/tls-certificate-status
+chmod 640 /root/.internkim/env/fleet-id /root/.internkim/env/device-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url /root/.internkim/env/tls-certificate-status
 cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
 [Unit]
 Description=Cloudflare Tunnel
@@ -3994,10 +3921,9 @@ systemctl enable cloudflared cloudflared-node-ssh
 systemctl restart cloudflared cloudflared-node-ssh`,
 		quoteShellValue(response.registeredFleetID()),
 		quoteShellValue(response.publicURL()),
-		quoteShellValue(response.publicURL()),
 		quoteShellValue(response.TunnelToken),
 		quoteShellValue(nodeTunnelToken),
-		quoteShellValue(setup.MattermostTunnelOrigin),
+		quoteShellValue(setup.AdminGatewayTunnelOrigin),
 		quoteShellValue(setup.TunnelConfigurationRevision),
 		quoteShellValue(configuration.APIBaseURL),
 		quoteShellValue(response.TLSStatus),

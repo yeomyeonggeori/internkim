@@ -54,13 +54,8 @@ var StepServices = Step{
 			"kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
 
 		connection.Run(`mkdir -p /root/.internkim/secrets
-if [ ! -s /root/.internkim/secrets/mattermost-bot-token ] && [ -s /root/.internkim/env/bot-token ]; then
-  cp /root/.internkim/env/bot-token /root/.internkim/secrets/mattermost-bot-token
-fi
-chown root:root /root/.internkim/secrets /root/.internkim/secrets/mattermost-bot-token 2>/dev/null || true
-chmod 700 /root/.internkim/secrets 2>/dev/null || true
-chmod 600 /root/.internkim/secrets/mattermost-bot-token 2>/dev/null || true
-rm -f /root/.internkim/env/bot-token`)
+chown root:root /root/.internkim/secrets
+chmod 700 /root/.internkim/secrets`)
 
 		connection.Run(blueclaw.RetireLLMDLeftByEarlierReleasesCommand())
 

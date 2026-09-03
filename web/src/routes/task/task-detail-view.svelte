@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { personProfileImagePath } from '$lib/person-profile-image';
 	import TaskEditorSummary from './task-editor-summary.svelte';
 	import TaskPersonChip from './task-person-chip.svelte';
 	import { hasTaskRequestProvenance } from './task-options';
@@ -37,7 +36,7 @@
 						name={task.requesterName || memberEmail(task.requesterID || '') || task.requesterID || text.requesterUnavailable}
 						email={memberEmail(task.requesterID || '')}
 						seed={task.requesterID || task.requesterName || text.requesterUnavailable}
-						image={personProfileImagePath(task.requesterID || '')}
+						
 					/>
 				</div>
 			</div>
@@ -51,7 +50,7 @@
 								name={task.participantNames[index] ?? participantID}
 								email={memberEmail(participantID)}
 								seed={participantID}
-								image={personProfileImagePath(participantID)}
+								
 							/>
 					{/each}
 				</div>

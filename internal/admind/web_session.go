@@ -44,7 +44,6 @@ type webSessionResponse struct {
 	Email         string `json:"email,omitempty"`
 	IdentityEmail string `json:"identityEmail,omitempty"`
 	NotInvited    bool   `json:"notInvited,omitempty"`
-	Image         string `json:"image,omitempty"`
 	SignupURL     string `json:"signupURL,omitempty"`
 	IsAdmin       bool   `json:"isAdmin"`
 	CanViewTasks  bool   `json:"canViewTasks"`
@@ -83,7 +82,6 @@ func (service *Service) handleWebSession(responseWriter http.ResponseWriter, req
 	service.writeJSON(responseWriter, webSessionResponse{
 		Authenticated: true,
 		Email:         email,
-		Image:         profileImagePathForEmail(email),
 		IsAdmin:       isTaskRunAdmin || service.isTaskAdminEmail(request.Context(), email),
 		CanViewTasks:  service.canViewTaskRuns(request.Context(), email),
 	})

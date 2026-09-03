@@ -47,5 +47,5 @@ func (service *Service) getCalendarEvent(responseWriter http.ResponseWriter, req
 		http.NotFound(responseWriter, request)
 		return
 	}
-	service.writeJSON(responseWriter, service.calendarEventWithParticipantImages(request, event))
+	service.writeJSON(responseWriter, calendarEventWithNormalizedParticipants(event))
 }

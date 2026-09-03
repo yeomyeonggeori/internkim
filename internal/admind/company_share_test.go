@@ -390,7 +390,7 @@ func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testin
 		t.Fatal(errorValue)
 	}
 	serialized := string(document)
-	for _, publicValue := range []string{"김", "이", "고객 대시보드 개선", "/company/api/team/"} {
+	for _, publicValue := range []string{"김", "이", "고객 대시보드 개선"} {
 		if !strings.Contains(serialized, publicValue) {
 			t.Fatalf("activity omitted %q: %s", publicValue, serialized)
 		}

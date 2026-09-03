@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
-	import { personProfileImagePath } from '$lib/person-profile-image';
 	import type { TaskMember } from '../task-types';
 	import type { TaskMemberScoreSection } from './task-report-data';
 	import { memberScoreScale, memberScoreWidth } from './task-member-score-scale';
@@ -73,7 +72,7 @@
 						name={row.label}
 						email={member?.email ?? ''}
 						seed={member?.id ?? row.label}
-						image={personProfileImagePath(member?.id)}
+						
 						class="size-7 shrink-0"
 					/>
 					<div class="min-w-0 flex-1 space-y-1">
