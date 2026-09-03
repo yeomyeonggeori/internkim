@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+"""Render the relay's and the plane's settings, as `docs/internal/environment.json`
+declares them, into the documents that list them by hand: the launchagent
+template's environment block, host/docker-compose.yml's environment list, and
+a settings table in host/README.md. Each generated region sits between a
+`BEGIN GENERATED` / `END GENERATED` marker; everything outside a marker pair
+is the file's own hand-maintained content and is left untouched.
+
+Run with --check to fail when a file's generated region does not match what
+regeneration would produce, instead of writing it. tools/verify runs --check;
+run this script with no arguments after editing docs/internal/environment.json
+to bring the documents back in line.
+"""
+
+import json
+import pathlib
+import re
+import sys
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+DECLARATIONS_PATH = REPOSITORY_ROOT / "docs" / "internal" / "environment.json"
+
+LAUNCHAGENT_PATH = REPOSITORY_ROOT / "host" / "relay" / "launchagent.plist.template"
+DOCKER_COMPOSE_PATH = REPOSITORY_ROOT / "host" / "docker-compose.yml"
+README_PATH = REPOSITORY_ROOT / "host" / "README.md"
+ENV_EXAMPLE_PATH = REPOSITORY_ROOT / ".env.example"
+
+# .env.example is the repository-root `.env` the CLI loads and a bun script or
+# a wrangler deploy is handed — not `web/.env`/`web/.dev.vars` (their own
+# files), not a device's or a host box's settings (host/README.md covers
+# those), and not a test harness's own e2e/tools knobs. No single `process`
+# value draws that line — SUPABASE_URL alone is "relay, host, web, connection-
+# gateway worker, web scripts" — so this is the one place in this script that
+# groups by hand instead of by the declaration's `process` field. Every name
+# below is still checked against the declaration file, so a removed or
+# renamed one is still caught; only the section title is curated here rather
+# than derived — what each variable is comes from the declaration file, one
+# comment line per variable, so it cannot say something the declaration does
+# not.
+ENV_EXAMPLE_GROUPS = [
+    ("Central plane", ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY"]),
+    (
+        "Web app runtime",
+        ["CLOUDFLARE_DOMAIN", "GATEWAY_URL", "GATEWAY_ADMIN_TOKEN", "VAPID_PUBLIC_KEY", "INTERNKIM_REGISTER_SECRET"],
+    ),
+    ("Cloudflare", ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"]),
+    (
+        "Release publishing",
+        [
+            "INTERNKIM_RELEASE_R2_BUCKET",
+            "INTERNKIM_RELEASE_R2_PUBLISHER",
+            "INTERNKIM_RELEASE_PUBLIC_BASE_URL",
+            "INTERNKIM_RELEASE_R2_ACCESS_KEY_ID",
+            "INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY",
+            "INTERNKIM_RELEASE_DOWNLOAD_TOKEN",
+            "INTERNKIM_RELEASE_SIGNING_KEY",
+        ],
+    ),
+    (
+        "Fleet and devices",
+        ["INTERNKIM_DOMAIN", "INTERNKIM_API_URL", "INTERNKIM_FLEET_SECRET", "INTERNKIM_CONSOLE_PASSWORD", "INTERNKIM_ADMIN_EMAIL"],
+    ),
+    ("Models", ["OPENROUTER_API_KEY"]),
+    (
+        "Messenger connectors",
+        ["INTERNKIM_SLACK_BOT_TOKEN", "INTERNKIM_SLACK_APP_TOKEN", "INTERNKIM_SIGNAL_ACCOUNT", "INTERNKIM_SIGNAL_JSONRPC_URL"],
+    ),
+]
+
+ENV_EXAMPLE_HEADER = """# Copy to .env at the repository root. Every value here is fake.
+#
+# The internkim CLI loads ./.env then ../.env by itself. Everything else is
+# handed the file:
+#
+#   set -a && . .env && set +a
+#
+# which is what a bun script under web/ and a wrangler deploy both need.
+#
+# Device and host settings are not here. A device gets them from provisioning,
+# and a company's own host box is documented in host/README.md.
+"""
+
+
+def comment(comment_start, comment_end, body):
+    return f"{comment_start} {body} {comment_end}".rstrip() if comment_end else f"{comment_start} {body}"
+
+
+def markers(comment_start, comment_end):
+    start = comment(
+        comment_start,
+        comment_end,
+        "BEGIN GENERATED from docs/internal/environment.json — edit that file, then run tools/render-environment-documents",
+    )
+    end = comment(comment_start, comment_end, "END GENERATED")
+    return start, end
+
+
+# The company agent key is never a plain setting: host/entrypoint.sh always
+# hands the relay a fixed /secrets/agent-key path, and docker-compose and the
+# launchagent template both mount or fill in that path by hand, not through
+# this generated block. DATABASE_URL is composed from the compose file's own
+# HOST_POSTGRES_* variables, not read directly by anything this repository's
+# scan declares.
+DOCKER_COMPOSE_EXCLUDED = {"AGENT_API_KEY", "AGENT_API_KEY_PATH", "DATABASE_URL"}
+LAUNCHAGENT_EXCLUDED = {"AGENT_API_KEY"}
+
+
+def load_declarations():
+    return json.loads(DECLARATIONS_PATH.read_text(encoding="utf-8"))
+
+
+def process_tokens(process_field):
+    return {token.strip() for token in process_field.split(",")}
+
+
+def names_for(declarations, *wanted_processes):
+    wanted = set(wanted_processes)
+    return sorted(
+        name
+        for name, meta in declarations.items()
+        if process_tokens(meta["process"]) & wanted
+    )
+
+
+def replace_marked_region(text, comment_start, comment_end, new_body, end_indent=""):
+    start_marker, end_marker = markers(comment_start, comment_end)
+    pattern = re.compile(re.escape(start_marker) + r".*?" + re.escape(end_marker), re.DOTALL)
+    if not pattern.search(text):
+        raise SystemExit(f"no {start_marker!r} … {end_marker!r} region found")
+    replacement = f"{start_marker}\n{new_body}{end_indent}{end_marker}"
+    return pattern.sub(replacement, text, count=1)
+
+
+def render_launchagent(declarations):
+    names = [name for name in names_for(declarations, "relay") if name not in LAUNCHAGENT_EXCLUDED]
+    lines = []
+    for name in names:
+        lines.append(f"        <key>{name}</key>")
+        lines.append(f"        <string>{name}_VALUE</string>")
+    body = "\n".join(lines) + "\n"
+    text = LAUNCHAGENT_PATH.read_text(encoding="utf-8")
+    return replace_marked_region(text, "<!--", "-->", body, end_indent="        ")
+
+
+def existing_docker_compose_expressions(text):
+    expressions = {}
+    for match in re.finditer(r"^ {6}([A-Z_][A-Z0-9_]*): (.+)$", text, re.MULTILINE):
+        expressions[match.group(1)] = match.group(2)
+    return expressions
+
+
+def render_docker_compose(declarations):
+    names = [name for name in names_for(declarations, "relay", "host") if name not in DOCKER_COMPOSE_EXCLUDED]
+    text = DOCKER_COMPOSE_PATH.read_text(encoding="utf-8")
+    known = existing_docker_compose_expressions(text)
+    lines = []
+    for name in names:
+        expression = known.get(name, "${" + name + ":-}")
+        lines.append(f"      {name}: {expression}")
+    body = "\n".join(lines) + "\n"
+    return replace_marked_region(text, "#", "", body, end_indent="      ")
+
+
+def render_readme_table(declarations):
+    names = names_for(declarations, "relay", "host")
+    lines = ["| Name | Used by | What it is |", "| --- | --- | --- |"]
+    for name in names:
+        meta = declarations[name]
+        tokens = process_tokens(meta["process"])
+        used_by = " + ".join(label for label in ("relay", "host") if label in tokens)
+        description = meta["description"].replace("|", "\\|")
+        lines.append(f"| `{name}` | {used_by} | {description} |")
+    body = "\n".join(lines) + "\n\n"
+    text = README_PATH.read_text(encoding="utf-8")
+    return replace_marked_region(text, "<!--", "-->", body)
+
+
+def existing_env_example_values(text):
+    values = {}
+    for match in re.finditer(r"^([A-Z_][A-Z0-9_]*)=(.*)$", text, re.MULTILINE):
+        values[match.group(1)] = match.group(2)
+    return values
+
+
+def placeholder_value(name):
+    if name.endswith(("_URL", "_JSONRPC_URL")):
+        return "https://example.test"
+    if name.endswith(("_EMAIL",)):
+        return "ops@example.test"
+    return f"{name.lower().replace('_', '-')}-0000"
+
+
+def render_env_example(declarations):
+    declared_names = {name for _, names in ENV_EXAMPLE_GROUPS for name in names}
+    missing = declared_names - set(declarations)
+    if missing:
+        raise SystemExit(f".env.example names undeclared: {', '.join(sorted(missing))}")
+
+    text = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
+    known_values = existing_env_example_values(text)
+
+    sections = []
+    for title, names in ENV_EXAMPLE_GROUPS:
+        lines = [f"# --- {title} " + "-" * max(1, 76 - len(title))]
+        for name in names:
+            value = known_values.get(name, placeholder_value(name))
+            lines.append(f"# {declarations[name]['description']}")
+            lines.append(f"{name}={value}")
+        sections.append("\n".join(lines))
+    body = "\n\n".join(sections) + "\n"
+    return ENV_EXAMPLE_HEADER + "\n" + body
+
+
+TARGETS = [
+    ("host/relay/launchagent.plist.template", LAUNCHAGENT_PATH, render_launchagent),
+    ("host/docker-compose.yml", DOCKER_COMPOSE_PATH, render_docker_compose),
+    ("host/README.md", README_PATH, render_readme_table),
+    (".env.example", ENV_EXAMPLE_PATH, render_env_example),
+]
+
+
+def main():
+    check_only = "--check" in sys.argv[1:]
+    declarations = load_declarations()
+    drifted = []
+    for label, path, render in TARGETS:
+        rendered = render(declarations)
+        current = path.read_text(encoding="utf-8")
+        if rendered == current:
+            print(f"ok   {label}")
+            continue
+        if check_only:
+            drifted.append(label)
+            print(f"FAIL {label}: out of date with {DECLARATIONS_PATH.relative_to(REPOSITORY_ROOT)}", file=sys.stderr)
+        else:
+            path.write_text(rendered, encoding="utf-8")
+            print(f"wrote {label}")
+    if drifted:
+        print(
+            "\nRun tools/render-environment-documents (no arguments) to regenerate.",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

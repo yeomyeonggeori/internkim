@@ -94,12 +94,35 @@ messenger being read at all.
 `make build-relay` compiles it into a single
 `internkim-relay` executable, so the box needs no Bun and no
 `node_modules`. It requires five settings, plus the optional
-`ANSWER_BYTE_CEILING` above:
+`ANSWER_BYTE_CEILING` above. Every setting the relay and the host bundle
+read, whether required or optional, in one table:
 
-```
-SUPABASE_URL  SUPABASE_PUBLISHABLE_KEY  INTERNKIM_APP_URL  AGENT_API_KEY_PATH
-MESSENGER_PLATFORM
-```
+<!-- BEGIN GENERATED from docs/internal/environment.json — edit that file, then run tools/render-environment-documents -->
+| Name | Used by | What it is |
+| --- | --- | --- |
+| `ADMIND_BASE_URL` | relay | admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080 |
+| `ADMIND_PORT` | host | the loopback port host/entrypoint.sh starts admind on; defaults to 18080 |
+| `ADMIND_SOCKET_PATH` | relay | the admind Unix socket the relay calls for workspace screens; defaults to /run/internkim/admind.sock |
+| `AGENT_API_KEY` | relay | the company agent key as a value, read only when AGENT_API_KEY_PATH is unset; for a shell driven by hand, never a deployment |
+| `AGENT_API_KEY_PATH` | relay | the path to the file holding the company agent key, so the key never lands in the process environment (ps eww) |
+| `ANSWER_BYTE_CEILING` | relay | maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit |
+| `ARRIVALS_PORT` | relay | the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091 |
+| `BLUECLAW_BUNDLED_SKILLS_PATH` | host | where host/entrypoint.sh and blueclaw look for the bundled skills directory; defaults to /opt/internkim/skills |
+| `CHATD_BASE_URL` | relay | chatd's base URL the relay calls; defaults to http://127.0.0.1:18090 |
+| `CHATD_BOT_USER_NAME` | host | the messenger bot's display name, required by host/entrypoint.sh |
+| `CHATD_LISTEN_PORT` | host | the loopback port host/entrypoint.sh starts chatd on; defaults to 18090 |
+| `DATABASE_URL` | host | the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime) |
+| `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |
+| `GATEWAY_URL` | relay | the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway |
+| `INTERNKIM_APP_URL` | relay + host | where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh |
+| `LARGEST_FILE_BYTES` | relay | the largest attachment the relay holds in memory while copying it into the asset bucket; defaults to 200,000,000 |
+| `MAILD_BASE_URL` | relay | maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092 |
+| `MAILD_PORT` | host | the loopback port host/entrypoint.sh starts maild on; defaults to 18092 |
+| `MESSENGER_PLATFORM` | relay + host | which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it |
+| `SUPABASE_PUBLISHABLE_KEY` | relay + host | the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
+| `SUPABASE_URL` | relay + host | the Supabase project URL; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
+
+<!-- END GENERATED -->
 
 `ADMIND_SOCKET_PATH` names the socket that carries the workspace screens and
 the tools the central plane cannot run itself; it defaults to
