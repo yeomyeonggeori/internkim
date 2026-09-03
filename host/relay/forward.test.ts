@@ -633,6 +633,21 @@ describe('every capability the workspace family names', () => {
 		});
 		expect(call?.requester).toBe('sample@example.test');
 	});
+
+	test('an approval decision is posted to the workspace as the person who signed in', () => {
+		expect(isWorkspaceCapability('person.runs.approve')).toBe(true);
+		const call = workspaceCallOf(
+			'person.runs.approve',
+			{ taskRunID: 'run-1', decision: 'confirm', actor: { kind: 'buzz' } },
+			'sample@example.test'
+		);
+
+		expect(call?.method).toBe('POST');
+		expect(call?.url).toBe('http://internkim/runs/api/approve');
+		expect(call?.contentType).toBe('application/json');
+		expect(JSON.parse(String(call?.body))).toEqual({ taskRunID: 'run-1', decision: 'confirm' });
+		expect(call?.requester).toBe('sample@example.test');
+	});
 });
 
 type ArrivedRequest = {

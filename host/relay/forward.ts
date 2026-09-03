@@ -539,7 +539,8 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 };
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
-	'person.task.quick_task': '/task/api/tasks/quick'
+	'person.task.quick_task': '/task/api/tasks/quick',
+	'person.runs.approve': '/runs/api/approve'
 };
 
 export function workspaceCallOf(
