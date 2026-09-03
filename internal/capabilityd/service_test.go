@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
@@ -309,7 +310,84 @@ func TestTextEndpointReturnsPlainContent(t *testing.T) {
 
 func TestHealthIncludesLiteRTProviderAvailability(t *testing.T) {
 	setLiteRTConstrainedRunnerPath(t, filepath.Join(t.TempDir(), "missing-constrained-runner"))
-	service := Service{Configuration: DefaultConfiguration()}
+	configuration := DefaultConfiguration()
+	configuration.LocalBackendOrder = []string{"litert"}
+	service := Service{Configuration: configuration}
+
+	liteRT := healthProvider(t, service, "litert")
+	if liteRT["configured"] != true {
+		t.Fatalf("expected LiteRT to be configured, got %+v", liteRT)
+	}
+	if liteRT["available"] != false {
+		t.Fatalf("expected LiteRT to be unavailable, got %+v", liteRT)
+	}
+	if liteRT["reason"] != "constrained runner not installed" {
+		t.Fatalf("expected constrained runner reason, got %+v", liteRT)
+	}
+}
+
+func TestHealthReportsLiteRTUnconfiguredWhenAnotherLocalBackendIsOrdered(t *testing.T) {
+	setLiteRTConstrainedRunnerPath(t, filepath.Join(t.TempDir(), "missing-constrained-runner"))
+	configuration := DefaultConfiguration()
+	configuration.LocalBackendOrder = []string{"llamacpp"}
+	service := Service{Configuration: configuration}
+
+	liteRT := healthProvider(t, service, "litert")
+	if liteRT["configured"] != false {
+		t.Fatalf("expected LiteRT to be reported as unconfigured, got %+v", liteRT)
+	}
+}
+
+func TestHealthReportsConfiguredChatdAsReadyWhenItAnswers(t *testing.T) {
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != blueclaw.ChatdHealthPath {
+			responseWriter.WriteHeader(http.StatusNotFound)
+			return
+		}
+		responseWriter.WriteHeader(http.StatusOK)
+	}))
+	defer chatdServer.Close()
+	service := Service{
+		Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"},
+		HTTPClient:    chatdServer.Client(),
+	}
+
+	chatd := healthProvider(t, service, "chatd")
+	if chatd["configured"] != true || chatd["available"] != true {
+		t.Fatalf("expected chatd to be configured and available, got %+v", chatd)
+	}
+}
+
+func TestHealthReportsConfiguredChatdAsUnreadyWhenItDoesNotAnswer(t *testing.T) {
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer chatdServer.Close()
+	service := Service{
+		Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"},
+		HTTPClient:    chatdServer.Client(),
+	}
+
+	chatd := healthProvider(t, service, "chatd")
+	if chatd["configured"] != true {
+		t.Fatalf("expected chatd to be configured, got %+v", chatd)
+	}
+	if chatd["available"] != false {
+		t.Fatalf("expected chatd to be unavailable, got %+v", chatd)
+	}
+}
+
+func TestHealthReportsChatdUnconfiguredWithoutAnEndpoint(t *testing.T) {
+	service := Service{Configuration: Configuration{}}
+
+	chatd := healthProvider(t, service, "chatd")
+	if chatd["configured"] != false {
+		t.Fatalf("expected chatd to be reported as unconfigured, got %+v", chatd)
+	}
+}
+
+func healthProvider(t *testing.T, service Service, providerName string) map[string]any {
+	t.Helper()
 	request := httptest.NewRequest(http.MethodGet, "/health", nil)
 	responseRecorder := httptest.NewRecorder()
 
@@ -323,16 +401,11 @@ func TestHealthIncludesLiteRTProviderAvailability(t *testing.T) {
 	if !hasProviders {
 		t.Fatalf("expected providers health section, got %+v", response)
 	}
-	liteRT, hasLiteRT := providers["litert"].(map[string]any)
-	if !hasLiteRT {
-		t.Fatalf("expected LiteRT health section, got %+v", providers)
+	provider, hasProvider := providers[providerName].(map[string]any)
+	if !hasProvider {
+		t.Fatalf("expected %s health section, got %+v", providerName, providers)
 	}
-	if liteRT["available"] != false {
-		t.Fatalf("expected LiteRT to be unavailable, got %+v", liteRT)
-	}
-	if liteRT["reason"] != "constrained runner not installed" {
-		t.Fatalf("expected constrained runner reason, got %+v", liteRT)
-	}
+	return provider
 }
 
 func TestToolInvokeDoesNotExposeSecretsForUnconfiguredTool(t *testing.T) {
