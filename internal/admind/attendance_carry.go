@@ -3,10 +3,14 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -131,10 +135,16 @@ WHERE events.canceled_at = ''
 ORDER BY events.occurred_at ASC`
 
 func (service *Service) uncarriedClocks(ctx context.Context, database *sql.DB) ([]deviceClock, error) {
-	alreadyCarried := carriedRowIDs(ctx, database)
+	alreadyCarried, errorValue := carriedRowIDs(ctx, database)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if _, held := countRowsInAttendanceTable(ctx, database, "attendance_events"); !held {
+		return nil, nil
+	}
 	rows, errorValue := database.QueryContext(ctx, deviceClockQuery)
 	if errorValue != nil {
-		return nil, nil
+		return nil, errorValue
 	}
 	defer rows.Close()
 	clocks := []deviceClock{}
@@ -158,36 +168,43 @@ func (service *Service) uncarriedClocks(ctx context.Context, database *sql.DB) (
 }
 
 type deviceLeave struct {
-	ID        string
-	Email     string
-	Kind      string
-	Status    string
-	StartDate string
-	EndDate   string
-	Days      float64
-	Note      string
+	ID          string
+	Email       string
+	Kind        string
+	BalanceMode string
+	Status      string
+	StartDate   string
+	EndDate     string
+	Days        float64
+	Note        string
 }
 
 const deviceLeaveQuery = `
-SELECT id, employee_email, leave_type_id, status, start_date, end_date,
+SELECT id, employee_email, leave_type_id, balance_mode, status, start_date, end_date,
 	total_deduction_milli_days, reason
 FROM attendance_leave_requests
 WHERE status IN ('pending', 'approved', 'rejected')
 ORDER BY start_date ASC`
 
 func (service *Service) uncarriedLeaves(ctx context.Context, database *sql.DB) ([]deviceLeave, error) {
-	alreadyCarried := carriedRowIDs(ctx, database)
+	alreadyCarried, errorValue := carriedRowIDs(ctx, database)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if _, held := countRowsInAttendanceTable(ctx, database, "attendance_leave_requests"); !held {
+		return nil, nil
+	}
 	rows, errorValue := database.QueryContext(ctx, deviceLeaveQuery)
 	if errorValue != nil {
-		return nil, nil
+		return nil, errorValue
 	}
 	defer rows.Close()
 	leaves := []deviceLeave{}
 	for rows.Next() {
 		var leave deviceLeave
 		var milliDays int
-		if errorValue := rows.Scan(&leave.ID, &leave.Email, &leave.Kind, &leave.Status,
-			&leave.StartDate, &leave.EndDate, &milliDays, &leave.Note); errorValue != nil {
+		if errorValue := rows.Scan(&leave.ID, &leave.Email, &leave.Kind, &leave.BalanceMode,
+			&leave.Status, &leave.StartDate, &leave.EndDate, &milliDays, &leave.Note); errorValue != nil {
 			return nil, errorValue
 		}
 		if strings.TrimSpace(leave.Email) == "" {
@@ -243,13 +260,26 @@ func (service *Service) carryAttendanceIntoTheRecord(ctx context.Context) (atten
 		report.Clocks++
 	}
 
+	administratorEmail := service.claimedAdminEmail()
+	paidByLeaveType, errorValue := service.paidByLeaveType()
+	if errorValue != nil {
+		return report, errorValue
+	}
 	leaves, errorValue := service.uncarriedLeaves(ctx, database)
 	if errorValue != nil {
 		return report, errorValue
 	}
+	if len(leaves) > 0 && administratorEmail == "" {
+		return report, fmt.Errorf("no administrator is claimed here, and a decided leave is an administrator's to record")
+	}
 	for _, leave := range leaves {
+		carried, errorValue := carriedLeaveOf(leave, paidByLeaveType)
+		if errorValue != nil {
+			report.Refused = append(report.Refused, leave.ID+": "+errorValue.Error())
+			continue
+		}
 		carryContext, cancel := context.WithTimeout(ctx, attendanceCarryTimeout)
-		errorValue := client.CarryLeave(carryContext, carriedLeaveOf(leave))
+		errorValue = client.CarryLeave(carryContext, administratorEmail, carried)
 		cancel()
 		if errorValue != nil {
 			report.Refused = append(report.Refused, leave.ID+": "+errorValue.Error())
@@ -264,21 +294,24 @@ func (service *Service) carryAttendanceIntoTheRecord(ctx context.Context) (atten
 // What the record took, kept against the local id so a second sweep does not
 // count a carried row as still missing. The table is retired with the store it
 // describes, so it never outlives what it is about.
-func carriedRowIDs(ctx context.Context, database *sql.DB) map[string]struct{} {
+func carriedRowIDs(ctx context.Context, database *sql.DB) (map[string]struct{}, error) {
 	carried := map[string]struct{}{}
+	if _, held := countRowsInAttendanceTable(ctx, database, "attendance_carried_rows"); !held {
+		return carried, nil
+	}
 	rows, errorValue := database.QueryContext(ctx, "SELECT id FROM attendance_carried_rows")
 	if errorValue != nil {
-		return carried
+		return nil, errorValue
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var id string
 		if errorValue := rows.Scan(&id); errorValue != nil {
-			return carried
+			return nil, errorValue
 		}
 		carried[id] = struct{}{}
 	}
-	return carried
+	return carried, rows.Err()
 }
 
 func rememberCarriedRow(ctx context.Context, database *sql.DB, id string) {
@@ -295,24 +328,38 @@ var recordLeaveStatus = map[string]string{
 	"rejected": "rejected",
 }
 
-func carriedLeaveOf(leave deviceLeave) centralplane.CarriedLeave {
-	startsAt, _ := time.Parse(time.DateOnly, leave.StartDate)
+func carriedLeaveOf(leave deviceLeave, paidByLeaveType map[string]bool) (centralplane.CarriedLeave, error) {
+	startsAt, errorValue := time.Parse(time.DateOnly, leave.StartDate)
+	if errorValue != nil {
+		return centralplane.CarriedLeave{}, fmt.Errorf("start date %q is not a date", leave.StartDate)
+	}
 	lastDay := leave.EndDate
 	if strings.TrimSpace(lastDay) == "" {
 		lastDay = leave.StartDate
 	}
-	endsAt, _ := time.Parse(time.DateOnly, lastDay)
+	endsAt, errorValue := time.Parse(time.DateOnly, lastDay)
+	if errorValue != nil {
+		return centralplane.CarriedLeave{}, fmt.Errorf("end date %q is not a date", lastDay)
+	}
+	status, known := recordLeaveStatus[leave.Status]
+	if !known {
+		return centralplane.CarriedLeave{}, fmt.Errorf("status %q is not one the record keeps", leave.Status)
+	}
+	isPaid, described := paidByLeaveType[leave.Kind]
+	if !described {
+		return centralplane.CarriedLeave{}, fmt.Errorf("this device's leave policy does not describe %q, so whether it was paid is not known here", leave.Kind)
+	}
 	return centralplane.CarriedLeave{
 		Email:      leave.Email,
 		Kind:       leave.Kind,
-		IsPaid:     leave.Kind != "unpaid",
-		IsDeducted: leave.Kind == "annual",
+		IsPaid:     isPaid,
+		IsDeducted: leave.BalanceMode == "annual",
 		Days:       leave.Days,
-		Status:     recordLeaveStatus[leave.Status],
+		Status:     status,
 		StartsAt:   startsAt,
 		EndsAt:     endsAt.AddDate(0, 0, 1),
 		Note:       leave.Note,
-	}
+	}, nil
 }
 
 type attendanceRecordCoverage struct {
@@ -368,4 +415,31 @@ func (service *Service) attendanceCoverageOfTheRecord(request *http.Request) (at
 	coverage.Carried = report.Clocks + report.Leaves
 	coverage.Refused = report.Refused
 	return coverage, nil
+}
+
+func (service *Service) paidByLeaveType() (map[string]bool, error) {
+	path := filepath.Join(service.Configuration.StateDirectory, "attendance-settings.json")
+	document, errorValue := os.ReadFile(path)
+	if errors.Is(errorValue, os.ErrNotExist) {
+		return map[string]bool{}, nil
+	}
+	if errorValue != nil {
+		return nil, fmt.Errorf("read attendance settings %q: %w", path, errorValue)
+	}
+	var settings struct {
+		LeavePolicy struct {
+			LeaveTypes []struct {
+				ID   string `json:"id"`
+				Paid bool   `json:"paid"`
+			} `json:"leaveTypes"`
+		} `json:"leavePolicy"`
+	}
+	if errorValue := json.Unmarshal(document, &settings); errorValue != nil {
+		return nil, fmt.Errorf("decode attendance settings %q: %w", path, errorValue)
+	}
+	paid := map[string]bool{}
+	for _, leaveType := range settings.LeavePolicy.LeaveTypes {
+		paid[leaveType.ID] = leaveType.Paid
+	}
+	return paid, nil
 }

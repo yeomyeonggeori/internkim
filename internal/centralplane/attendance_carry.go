@@ -44,7 +44,9 @@ func (client *Client) CarryClock(ctx context.Context, clock CarriedClock) error 
 	return client.carry(ctx, clock.Email, "attendance", body)
 }
 
-func (client *Client) CarryLeave(ctx context.Context, leave CarriedLeave) error {
+// leave_requestable_by_owner admits only status 'requested' from the member;
+// leave_recordable_by_admin admits any status from a company administrator.
+func (client *Client) CarryLeave(ctx context.Context, administratorEmail string, leave CarriedLeave) error {
 	body := map[string]any{
 		"kind":        leave.Kind,
 		"is_paid":     leave.IsPaid,
@@ -57,17 +59,29 @@ func (client *Client) CarryLeave(ctx context.Context, leave CarriedLeave) error 
 	if strings.TrimSpace(leave.Note) != "" {
 		body["note"] = leave.Note
 	}
-	return client.carry(ctx, leave.Email, "leave", body)
+	session, errorValue := client.sessionFor(ctx, "email", leave.Email)
+	if errorValue != nil {
+		return errorValue
+	}
+	body["member_id"] = session.memberID
+	return client.write(ctx, administratorEmail, "leave", body)
 }
 
-// The row is written as the person it belongs to, so the record keeps the
-// history as it happened rather than as an administrator's later entry.
+// attendance_writable_by_owner is the only insert policy on that table.
 func (client *Client) carry(ctx context.Context, email string, table string, body map[string]any) error {
 	session, errorValue := client.sessionFor(ctx, "email", email)
 	if errorValue != nil {
 		return errorValue
 	}
 	body["member_id"] = session.memberID
+	return client.write(ctx, email, table, body)
+}
+
+func (client *Client) write(ctx context.Context, signerEmail string, table string, body map[string]any) error {
+	session, errorValue := client.sessionFor(ctx, "email", signerEmail)
+	if errorValue != nil {
+		return errorValue
+	}
 	payload, errorValue := json.Marshal(body)
 	if errorValue != nil {
 		return errorValue

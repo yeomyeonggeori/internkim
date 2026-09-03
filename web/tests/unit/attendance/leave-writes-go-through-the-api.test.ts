@@ -38,7 +38,7 @@ mock.module('../../../src/lib/supabase', () => ({
 	})
 }));
 
-const { cancelSupabaseLeaveRequest, createSupabaseLeaveRequest } = await import(
+const { cancelSupabaseLeaveRequest, createSupabaseLeaveRequest, leaveSpanAsked } = await import(
 	'../../../src/lib/attendance/supabase-leave'
 );
 
@@ -87,6 +87,36 @@ describe('a leave the browser files', () => {
 		expect(input.days).toBe(0.25);
 		expect(new Date(String(input.startsAt)).toISOString()).toBe('2026-08-03T05:00:00.000Z');
 		expect(new Date(String(input.endsAt)).toISOString()).toBe('2026-08-03T07:00:00.000Z');
+	});
+
+	// The span follows the unit, never the deduction. A whole day of a kind
+	// that deducts nothing still covers whole days, and reading the deduction
+	// instead would send it as timestamps the moment a policy stops charging
+	// for it.
+	test('names a whole day by its dates whatever the leave deducts', async () => {
+		for (const days of [0, 0.5, 3]) {
+			const span = await leaveSpanAsked({
+				leaveTypeID: 'unpaid',
+				unit: 'fullDay',
+				startDate: '2026-08-03',
+				endDate: '2026-08-05',
+				days
+			} as never);
+			expect(span).toEqual({ startsAt: '2026-08-03', endsAt: '2026-08-05' });
+		}
+	});
+
+	test('names a part of a day by its moments whatever the leave deducts', async () => {
+		const span = await leaveSpanAsked({
+			leaveTypeID: 'annual',
+			unit: 'quarterDay',
+			startDate: '2026-08-03',
+			partialPeriod: 'custom',
+			startTime: '14:00',
+			days: 3
+		} as never);
+		expect(new Date(span.startsAt).toISOString()).toBe('2026-08-03T05:00:00.000Z');
+		expect(new Date(span.endsAt).toISOString()).toBe('2026-08-03T07:00:00.000Z');
 	});
 
 	test('withdraws by the exact leave id the screen already holds', async () => {
