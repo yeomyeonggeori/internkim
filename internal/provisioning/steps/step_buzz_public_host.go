@@ -2,6 +2,7 @@ package setup
 
 import (
 	"fmt"
+	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -66,7 +67,9 @@ var StepBuzzPublicHost = Step{
 		connection := context.SSH
 		connection.Run(buzzHostsAliasCommand(publicHost))
 		connection.Run(buzzRelayCertificateCommand(publicHost))
-		connection.Run(buzzRelayStunnelCommand())
+		if errorValue := installBuzzRelayStunnel(connection); errorValue != nil {
+			return errorValue
+		}
 		connection.Run("systemctl stop " + blueclaw.BuzzRelayServiceName)
 		connection.Run(buzzCommunityRekeyCommand(publicHost, previousHost))
 		connection.Run(buzzRelayPublicURLDropInCommand(publicHost))
@@ -102,8 +105,16 @@ elif [ ! -f ` + buzzRelayTrustStorePath + ` ]; then
 fi`
 }
 
+func installBuzzRelayStunnel(connection BoardConnection) error {
+	output := connection.Run(withPackageWorkSettled(buzzRelayStunnelCommand()))
+	if strings.TrimSpace(connection.Run("command -v stunnel4 >/dev/null 2>&1 && echo installed || echo missing")) == "installed" {
+		return nil
+	}
+	return fmt.Errorf("stunnel4 is not installed, so the TLS terminator the relay is reached through cannot exec: %s", strings.TrimSpace(output))
+}
+
 func buzzRelayStunnelCommand() string {
-	return `command -v stunnel4 >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y stunnel4
+	return `command -v stunnel4 >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq stunnel4 2>&1 | tail -5
 systemctl disable --now stunnel4 2>/dev/null || true
 pkill -x stunnel4 2>/dev/null || true
 cat > ` + buzzRelayStunnelConfigurationPath + ` <<'STUNNELCONFEOF'
