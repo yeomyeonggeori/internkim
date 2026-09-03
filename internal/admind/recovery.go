@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -134,6 +135,8 @@ var SSHRecoveryActions = []string{
 	"circle-room-read",
 	"circle-room-reconcile",
 	"buzz-whose-key",
+	"buzz-show-out-keys",
+	"buzz-show-out-keys-apply",
 	"buzz-snapshot",
 	"buzz-membership-recover",
 	"buzz-membership-close",
@@ -244,6 +247,14 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		stopContext, cancelStop := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(stopContext, "stop Mattermost and leave it stopped", "sh", "-lc", mattermostStopCommand()))
 		cancelStop()
+	case "buzz-show-out-keys":
+		showOutContext, cancelShowOut := context.WithTimeout(context.Background(), 300*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(showOutContext, "take named keys out of the messenger entirely", "sh", "-lc", buzzShowOutKeysCommand(actionTarget, false)))
+		cancelShowOut()
+	case "buzz-show-out-keys-apply":
+		showOutApplyContext, cancelShowOutApply := context.WithTimeout(context.Background(), 300*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(showOutApplyContext, "take named keys out of the messenger entirely", "sh", "-lc", buzzShowOutKeysCommand(actionTarget, true)))
+		cancelShowOutApply()
 	case "buzz-whose-key":
 		whoseKeyContext, cancelWhoseKey := context.WithTimeout(context.Background(), 300*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(whoseKeyContext, "name whose key this is, or say nothing here made it", "sh", "-lc", buzzWhoseKeyCommand(actionTarget)))
@@ -1564,6 +1575,50 @@ journalctl -u ` + blueclaw.ChatdServiceName + ` -n 10 --no-pager 2>&1 | tail -10
 // and nothing will ever replace it: kind 0 is replaceable per key, so a key
 // nobody writes as keeps its last profile forever. Counting first, deleting
 // second, because this is the company's own relay.
+// The sweep leaves a key that has said something for a person to judge, and
+// buzz-probe-profile-purge only knows the addresses a Mattermost probe made.
+// Neither reaches a demo identity that shipped with the messenger and now sits
+// in the mention list: the picker offers whoever has a profile, so a key with
+// no room and no membership is still a name somebody can type.
+//
+// The keys are named by hand, in full, because this takes their messages with
+// them. Nothing here decides which key is meant.
+func buzzShowOutKeysCommand(pubkeys string, apply bool) string {
+	named := []string{}
+	for _, candidate := range strings.Split(pubkeys, ",") {
+		candidate = strings.ToLower(strings.TrimSpace(candidate))
+		if len(candidate) != 64 {
+			continue
+		}
+		if _, errorValue := hex.DecodeString(candidate); errorValue != nil {
+			continue
+		}
+		named = append(named, "'"+candidate+"'")
+	}
+	if len(named) == 0 {
+		return "echo 'name the keys in full, comma separated: --action-target <64-hex>[,<64-hex>]'"
+	}
+	list := strings.Join(named, ",")
+	asBytea := "(SELECT decode(unnest(ARRAY[" + list + "]::text[]), 'hex'))"
+	steps := `
+q "SELECT coalesce(content::json->>'display_name', '(unnamed)') || '  ' || left(encode(pubkey,'hex'),16) FROM (SELECT DISTINCT ON (pubkey) pubkey, content FROM events WHERE kind=0 AND pubkey IN ` + asBytea + ` ORDER BY pubkey, created_at DESC) newest" | sed 's/^/naming: /'
+q "SELECT count(*) FROM events WHERE kind=9 AND pubkey IN ` + asBytea + `" | sed 's/^/messages they wrote: /'
+q "SELECT count(*) FROM channel_members WHERE pubkey IN ` + asBytea + `" | sed 's/^/room seats: /'
+q "SELECT count(*) FROM relay_members WHERE lower(pubkey) = ANY(ARRAY[` + list + `]::text[])" | sed 's/^/community places: /'
+`
+	if apply {
+		steps += `
+q "DELETE FROM channel_members WHERE pubkey IN ` + asBytea + `" | sed 's/^/seats gone: /'
+q "DELETE FROM relay_members WHERE lower(pubkey) = ANY(ARRAY[` + list + `]::text[]) AND role <> 'owner'" | sed 's/^/community places gone: /'
+q "DELETE FROM events WHERE pubkey IN ` + asBytea + `" | sed 's/^/events gone: /'
+`
+	}
+	return strings.TrimSpace(`
+set +e
+q() { su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"$1\"" 2>&1; }
+` + steps)
+}
+
 func buzzProbeProfilePurgeCommand(apply bool) string {
 	probes := `WITH newest AS (SELECT DISTINCT ON (pubkey) pubkey, content FROM events WHERE kind=0 AND content LIKE '{%' ORDER BY pubkey, created_at DESC), probes AS (SELECT pubkey FROM newest WHERE content::json->>'display_name' LIKE 'probemm%')`
 	action := `SELECT count(*) FROM events WHERE kind=0 AND pubkey IN (SELECT pubkey FROM probes)`
@@ -1687,7 +1742,7 @@ q "SELECT count(*) FROM events WHERE kind=0" | sed 's/^/profile events, all vers
 q "SELECT count(*) FROM (SELECT DISTINCT ON (pubkey) content FROM events WHERE kind=0 ORDER BY pubkey, created_at DESC) newest WHERE content LIKE '%storage/v1/object%'" | sed 's/^/pointing at the closed bucket: /'
 q "SELECT count(*) FROM (SELECT DISTINCT ON (pubkey) content FROM events WHERE kind=0 ORDER BY pubkey, created_at DESC) newest WHERE content LIKE '%\"picture\"%'" | sed 's/^/carrying a picture: /'
 printf '== who they are ==\n'
-q "SELECT left(encode(pubkey, 'hex'), 8) || '  ' || coalesce(content::json->>'display_name', content::json->>'name', '(unnamed)') FROM (SELECT DISTINCT ON (pubkey) pubkey, content FROM events WHERE kind=0 ORDER BY pubkey, created_at DESC) newest WHERE content LIKE '{%' ORDER BY 1"
+q "SELECT encode(pubkey, 'hex') || '  ' || coalesce(content::json->>'display_name', content::json->>'name', '(unnamed)') FROM (SELECT DISTINCT ON (pubkey) pubkey, content FROM events WHERE kind=0 ORDER BY pubkey, created_at DESC) newest WHERE content LIKE '{%' ORDER BY 1"
 `)
 }
 
