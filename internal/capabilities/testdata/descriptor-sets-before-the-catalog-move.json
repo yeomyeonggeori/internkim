@@ -11813,7 +11813,7 @@
             "type": "string"
           },
           "channelName": {
-            "description": "Exact Mattermost channel name without the # prefix.",
+            "description": "Exact channel name as the messenger shows it.",
             "type": "string"
           },
           "cursor": {
@@ -11851,7 +11851,7 @@
             "type": "array"
           },
           "scope": {
-            "description": "Where to search. Current conversation scopes use the active Mattermost context.",
+            "description": "Where to search. Current conversation scopes use the channel or thread this request is running in.",
             "enum": [
               "currentThread",
               "currentChannel",
@@ -12137,12 +12137,11 @@
         "additionalProperties": false,
         "properties": {
           "attachments": {
-            "description": "Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target. Mattermost accepts at most five files per message.",
+            "description": "Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target.",
             "items": {
               "minLength": 1,
               "type": "string"
             },
-            "maxItems": 5,
             "type": "array"
           },
           "channelID": {
@@ -12152,7 +12151,7 @@
             "type": "string"
           },
           "channelName": {
-            "description": "Exact Mattermost channel name without the # prefix.",
+            "description": "Exact channel name as the messenger shows it.",
             "type": "string"
           },
           "message": {
@@ -12199,12 +12198,11 @@
         "additionalProperties": false,
         "properties": {
           "attachments": {
-            "description": "Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target. Mattermost accepts at most five files per message.",
+            "description": "Workspace file paths to upload with the message, copied exactly from the attachment catalog or a file tool result. Use this to deliver an original file, such as an inbound image, to the target.",
             "items": {
               "minLength": 1,
               "type": "string"
             },
-            "maxItems": 5,
             "type": "array"
           },
           "channelID": {
@@ -12214,7 +12212,7 @@
             "type": "string"
           },
           "channelName": {
-            "description": "Exact Mattermost channel name without the # prefix.",
+            "description": "Exact channel name as the messenger shows it.",
             "type": "string"
           },
           "message": {
@@ -12420,7 +12418,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "maxItems": 5,
             "type": "array"
           },
           "isPinned": {
@@ -12457,7 +12454,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "maxItems": 5,
             "type": "array"
           },
           "isPinned": {
