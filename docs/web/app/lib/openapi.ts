@@ -43,7 +43,9 @@ type ApiCopy = {
 		| 'listTools'
 		| 'readTool'
 		| 'invokeTool'
-	| 'previewTool',
+	| 'previewTool'
+		| 'saveCompanyPicture'
+		| 'forgetCompanyPicture',
 		EndpointCopy
 	>;
 	errors: Record<
@@ -126,6 +128,15 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 					'`input`은 그 도구의 입력 스키마를 따릅니다. `toolName`, `actor`, `context`는 토큰과 도구 명세에서 정해지므로 본문에 담아도 무시됩니다.',
 				idempotency:
 					'같은 키로 다시 부르면 이 도구는 같은 일을 두 번 하지 않습니다. 이 필드는 그것을 지원하는 도구에만 있습니다.'
+			},
+			saveCompanyPicture: {
+				summary: '회사 사진 올리기',
+				description:
+					'회사 로고나 대표 이미지를 `multipart/form-data`의 `file` 필드로 올립니다. 사진은 바이트로 도착하고 이 API의 나머지는 JSON을 받으므로, 이것만 도구가 아니라 엔드포인트입니다. 답의 `profileImageURL`은 한 시간 동안 유효한 주소이고, `company_settings_get`도 같은 주소를 답합니다. 관리자만 바꿀 수 있습니다.'
+			},
+			forgetCompanyPicture: {
+				summary: '회사 사진 내리기',
+				description: '회사 사진을 지웁니다. 관리자만 내릴 수 있고, 답의 `profileImageURL`은 `null`입니다.'
 			},
 			previewTool: {
 				summary: '무엇을 건드릴지 미리 보기',
@@ -226,6 +237,16 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 					'`input` follows that tool\'s own input schema. `toolName`, `actor` and `context` come from the token and the descriptor, so a body that carries them is ignored.',
 				idempotency:
 					'Calling again with the same key makes this tool do the same work once. Only tools that support it carry this field.'
+			},
+			saveCompanyPicture: {
+				summary: "Upload the company's picture",
+				description:
+					"The company's logo or portrait, sent as `multipart/form-data` in a `file` field. A picture arrives as bytes and the rest of this API takes JSON, which is why this one is an endpoint rather than a tool. The answer's `profileImageURL` is readable for an hour, and `company_settings_get` answers the same address. Only an administrator may change it."
+			},
+			forgetCompanyPicture: {
+				summary: "Take the company's picture down",
+				description:
+					"Removes the company's picture. Only an administrator may take it down, and the answer's `profileImageURL` is `null`."
 			},
 			previewTool: {
 				summary: 'Look at what a call would touch',
@@ -381,6 +402,55 @@ function uploadFilePath(copy: ApiCopy) {
 				'401': errorResponse(copy.errors.unauthorized),
 				'403': errorResponse(copy.errors.forbidden),
 				'413': errorResponse(copy.errors.tooLarge)
+			}
+		}
+	};
+}
+
+function companyPicturePath(copy: ApiCopy) {
+	const pictureResponse = {
+		description: copy.endpoints.saveCompanyPicture.summary,
+		content: {
+			'application/json': {
+				schema: { $ref: '#/components/schemas/CompanyPicture' }
+			}
+		}
+	};
+	return {
+		post: {
+			tags: [copy.tags.token],
+			operationId: 'saveCompanyPicture',
+			summary: copy.endpoints.saveCompanyPicture.summary,
+			description: copy.endpoints.saveCompanyPicture.description,
+			requestBody: {
+				required: true,
+				content: {
+					'multipart/form-data': {
+						schema: {
+							type: 'object',
+							required: ['file'],
+							properties: { file: { type: 'string', format: 'binary' } }
+						}
+					}
+				}
+			},
+			responses: {
+				'200': pictureResponse,
+				'400': errorResponse(copy.errors.badRequest),
+				'401': errorResponse(copy.errors.unauthorized),
+				'403': errorResponse(copy.errors.forbidden),
+				'413': errorResponse(copy.errors.tooLarge)
+			}
+		},
+		delete: {
+			tags: [copy.tags.token],
+			operationId: 'forgetCompanyPicture',
+			summary: copy.endpoints.forgetCompanyPicture.summary,
+			description: copy.endpoints.forgetCompanyPicture.description,
+			responses: {
+				'200': pictureResponse,
+				'401': errorResponse(copy.errors.unauthorized),
+				'403': errorResponse(copy.errors.forbidden)
 			}
 		}
 	};
@@ -654,6 +724,7 @@ function createPaths(copy: ApiCopy) {
 		'/tokens': listTokensPath(copy),
 		'/token': tokenPath(copy),
 		'/files': uploadFilePath(copy),
+		'/company/profile-image': companyPicturePath(copy),
 		'/agent/messages': agentMessagePath(copy),
 		'/agent/replies': agentRepliesPath(copy),
 		'/tools': listToolsPath(copy),
@@ -714,6 +785,11 @@ function createComponents(copy: ApiCopy) {
 						}
 					}
 				}
+			},
+			CompanyPicture: {
+				type: 'object',
+				required: ['profileImageURL'],
+				properties: { profileImageURL: { type: 'string', nullable: true } }
 			},
 			TokenRevoked: {
 				type: 'object',

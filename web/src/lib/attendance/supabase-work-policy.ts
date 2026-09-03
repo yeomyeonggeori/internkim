@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { answeredWorkPolicy, type AnsweredWorkPolicy } from './supabase-work-policy-settings';
 import {
 	currentAttendanceWorkPolicy,
 	type CurrentAttendanceWorkPolicy
@@ -19,12 +19,22 @@ export type SupabaseWorkPolicy = {
 	currentPolicy: CurrentAttendanceWorkPolicy;
 };
 
-export async function supabaseWorkPolicies(
-	client: SupabaseClient
-): Promise<Map<string, SupabaseWorkPolicy>> {
-	const response = await client.rpc('attendance_work_policies');
-	if (response.error) throw new Error(response.error.message);
-	return parseSupabaseWorkPolicies(response.data);
+export async function supabaseWorkPolicies(): Promise<Map<string, SupabaseWorkPolicy>> {
+	return workPoliciesByMember(await answeredWorkPolicy());
+}
+
+export function workPoliciesByMember(
+	answered: AnsweredWorkPolicy
+): Map<string, SupabaseWorkPolicy> {
+	return parseSupabaseWorkPolicies(
+		answered.people.map((person) => ({
+			member_id: person.personID,
+			work_hours: person.workHours,
+			minimum_daily_minutes: person.minimumDailyMinutes,
+			work_mode: answered.workMode,
+			work_policy: answered.policy
+		}))
+	);
 }
 
 export function parseSupabaseWorkPolicies(value: unknown): Map<string, SupabaseWorkPolicy> {

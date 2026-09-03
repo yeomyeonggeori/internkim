@@ -1,5 +1,5 @@
 import { companyDateOf } from '$lib/company-time';
-import { companySettings } from '$lib/company/company-settings';
+import { companyTimeZone } from '$lib/company/company-settings';
 import { supabase } from '$lib/supabase';
 import type { CalendarHoliday, CalendarHolidayLocale } from './holiday';
 
@@ -27,7 +27,7 @@ export async function supabaseCalendarHolidays(
 	endDate: Date,
 	locale: CalendarHolidayLocale
 ): Promise<SupabaseCalendarHolidays> {
-	const timeZone = (await companySettings()).timeZone;
+	const timeZone = await companyTimeZone();
 	const query = new URLSearchParams({
 		from: companyDateOf(startDate, timeZone),
 		to: companyDateOf(endDate, timeZone),

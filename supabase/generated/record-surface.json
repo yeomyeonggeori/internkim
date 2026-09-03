@@ -373,6 +373,17 @@
       ]
     },
     {
+      "name": "is_company_profile",
+      "arguments": "profile jsonb",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "is_in_circle",
       "arguments": "target_circle uuid",
       "returns": "boolean",
