@@ -1,6 +1,8 @@
 import { announceToTheCompany } from './announce-attendance';
+import { invokeTool, ToolRefused } from '$lib/public-api-call';
 import { supabase } from '$lib/supabase';
 import type {
+	EmployeeLeaveErrorCode,
 	EmployeeLeavePayload,
 	EmployeeLeavePreview,
 	EmployeeLeavePreviewRequest,
@@ -28,6 +30,8 @@ import {
 } from './supabase-leave-types';
 
 type LeaveStatus = 'requested' | 'approved' | 'rejected';
+
+const halfADay = 0.5;
 
 type MemberDirectory = {
 	emailOf: (memberID: string) => string;
@@ -107,34 +111,35 @@ export async function supabaseLeavePreview(request: EmployeeLeavePreviewRequest)
 	};
 }
 
+// A whole day is named by its dates and the record decides the moments it
+// covers; a part of a day is the moments themselves, because no date can say
+// which quarter of the day was taken.
+export async function leaveSpanAsked(
+	request: EmployeeLeavePreviewRequest,
+	days: number
+): Promise<{ startsAt: string; endsAt: string }> {
+	if (days > halfADay) {
+		return { startsAt: request.startDate, endsAt: request.endDate || request.startDate };
+	}
+	return leaveTimestampRange(request, await companyTimeZone());
+}
+
 export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmission): Promise<void> {
-	const directory = await supabaseLeaveTypeDirectory();
 	const preview = await supabaseLeavePreview(request);
-	const range = leaveTimestampRange(request, await companyTimeZone());
-	const { error } = await supabase().from('leave').insert({
-		member_id: await myMemberID(),
+	const days = preview.totalDeductionMilliDays / 1000;
+	const span = await leaveSpanAsked(request, days);
+	await askTheRecord('leave_request', {
 		kind: request.leaveTypeID,
-		is_paid: directory.isPaid(request.leaveTypeID),
-		is_deducted: directory.deductsAnnualBalance(request.leaveTypeID),
-		days: preview.totalDeductionMilliDays / 1000,
-		status: 'requested',
-		starts_at: range.startsAt,
-		ends_at: range.endsAt,
+		startsAt: span.startsAt,
+		endsAt: span.endsAt,
+		days,
 		note: request.reason
 	});
-	if (error) throw new Error(error.message);
 	void announceToTheCompany('leave');
 }
 
 export async function cancelSupabaseLeaveRequest(requestID: string): Promise<void> {
-	const withdrawn = await supabase()
-		.from('leave')
-		.delete()
-		.eq('id', requestID)
-		.select('id')
-		.returns<{ id: string }[]>();
-	if (withdrawn.error) throw new Error(withdrawn.error.message);
-	if (withdrawn.data.length === 0) throw new EmployeeLeaveAPIError('invalidStatus', 409);
+	await askTheRecord('leave_delete', { leaveHint: requestID });
 }
 
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
@@ -152,13 +157,10 @@ export async function decideSupabaseLeave(
 	requestID: string,
 	decision: LeaveApprovalDecision
 ): Promise<LeaveApprovalRequest> {
-	const decided = await supabase()
-		.from('leave')
-		.update({ status: decision.action === 'approve' ? 'approved' : 'rejected' })
-		.eq('id', requestID)
-		.select('id')
-		.single<{ id: string }>();
-	if (decided.error) throw new Error(decided.error.message);
+	await askTheRecord('leave_decide', {
+		leaveHint: requestID,
+		decision: decision.action === 'approve' ? 'approved' : 'rejected'
+	});
 	const row = (await leaveInFull()).find((each) => each.id === requestID);
 	if (!row) throw new EmployeeLeaveAPIError('requestNotFound', 404);
 	return approvalOf(row, await memberDirectory(), await supabaseLeaveTypeDirectory());
@@ -283,4 +285,25 @@ async function memberDirectory(): Promise<MemberDirectory> {
 		emailOf: (memberID) => emails.get(memberID) ?? '',
 		timeZoneOf: (memberID) => timeZones.get(memberID) || companyZone
 	};
+}
+
+// The record refuses through the public API, and the leave screens speak one
+// error type. A refusal keeps its status so the screen can tell a leave that
+// may no longer be touched from one the caller may not touch at all.
+async function askTheRecord(name: string, input: Record<string, unknown>): Promise<void> {
+	try {
+		await invokeTool(name, input);
+	} catch (refusal) {
+		if (refusal instanceof ToolRefused) {
+			throw new EmployeeLeaveAPIError(refusalCode(refusal.status), refusal.status);
+		}
+		throw refusal;
+	}
+}
+
+function refusalCode(status: number): EmployeeLeaveErrorCode | null {
+	if (status === 404) return 'requestNotFound';
+	if (status === 403 || status === 409) return 'invalidStatus';
+	if (status === 400) return 'invalidInput';
+	return null;
 }
