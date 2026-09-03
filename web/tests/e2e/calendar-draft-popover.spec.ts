@@ -1,39 +1,29 @@
 import { expect, test } from '@playwright/test';
+import { cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
 import {
 	clickOutsideDraftPopover,
-	draftPopoverEvent,
 	dragBetweenCells,
-	routeCalendarAPI,
-	routeDraftPopoverEvents,
-	routeDraftPopoverEventUpdate,
+	routeCalendarHolidays,
+	routeEventAdd,
+	routeEventUpdate,
 	waitForClientHydration
 } from './calendar-draft-popover-test-utils';
 
 test.describe('calendar draft popover', () => {
+	test.use({ locale: 'ko-KR' });
+
 	test.beforeEach(async ({ page }) => {
-		await routeCalendarAPI(page);
-	});
-
-	test('opens a custom draft popover from the New button without posting a default title event', async ({ page }) => {
-		let eventCreateCount = 0;
-		await page.route('**/calendar/api/events', async (route) => {
-			if (route.request().method() === 'POST') eventCreateCount += 1;
-			await route.fulfill({
-				json: {
-					id: 'created-event',
-					title: 'Created event',
-					startISO: '2026-06-08T09:00:00.000Z',
-					endISO: '2026-06-08T10:00:00.000Z',
-					isAllDay: false
-				}
-			});
-		});
-
+		await routeCalendarHolidays(page);
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await signInToCalendar(page);
 		await page.goto('/calendar/embed');
 		await waitForClientHydration(page);
+	});
 
-		await page.getByRole('button', { name: '새로 만들기' }).click();
+	test('opens a draft popover from an empty day cell without posting a default title event', async ({ page }) => {
+		const addedPayloads = await routeEventAdd(page);
+
+		await page.locator('[data-calendar-date="2026-06-09"]').dblclick();
 
 		const popover = page.locator('.calendar-draft-popover');
 		await expect(popover).toBeVisible();
@@ -41,296 +31,158 @@ test.describe('calendar draft popover', () => {
 		await expect(popover.getByLabel('제목')).toBeFocused();
 		await expect(popover.getByLabel('종일')).toBeVisible();
 		await expect(popover.locator('.event-audit-card')).toHaveCount(0);
-		expect(eventCreateCount).toBe(0);
+		expect(addedPayloads).toHaveLength(0);
 	});
 
-	test('uses compact date time summaries and an accessible picker', async ({ page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
+	test('posts the draft only after the popover is dismissed with a title', async ({ page }) => {
+		const addedPayloads = await routeEventAdd(page);
 
-		await page.getByRole('button', { name: '새로 만들기' }).click();
+		await page.locator('[data-calendar-date="2026-06-09"]').dblclick();
 		const popover = page.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
+		await popover.getByLabel('제목').fill('디자인 리뷰');
+		await popover.getByLabel('장소').fill('회의실 A');
+		await popover.getByLabel('설명').fill('월간 디자인 점검');
+		expect(addedPayloads).toHaveLength(0);
 
-		await expect(popover.getByRole('button', { name: /시작 날짜 2026\.06\.08 09:00/ })).toBeVisible();
-		await expect(popover.getByRole('button', { name: /종료 날짜 2026\.06\.08 10:00/ })).toBeVisible();
-		await expect(popover.locator('input[type="date"]')).toHaveCount(0);
-		await expect(popover.locator('input[type="time"]')).toHaveCount(0);
+		await clickOutsideDraftPopover(page);
 
-		await popover.getByRole('button', { name: /시작 날짜 2026\.06\.08 09:00/ }).click();
-		const picker = page.locator('.draft-date-time-picker');
-		await expect(picker).toBeVisible();
-		await expect(picker).toHaveAttribute('aria-label', '시작 날짜 및 시간 수정');
-		await picker.getByRole('button', { name: '2026년 6월 17일' }).click();
-		await picker.getByLabel('시').selectOption('14');
-		await picker.getByLabel('분').selectOption('50');
-		await picker.getByRole('button', { name: '저장하기' }).click();
-
-		await expect(popover.getByRole('button', { name: /시작 날짜 2026\.06\.17 14:50/ })).toBeVisible();
-		await expect(popover.getByRole('button', { name: /종료 날짜 2026\.06\.17 15:50/ })).toBeVisible();
-	});
-
-	test('posts the draft only after the popover is completed', async ({ page }) => {
-		const postedPayloads: unknown[] = [];
-		await page.route('**/calendar/api/events', async (route) => {
-			const payload = route.request().postDataJSON() as Record<string, unknown>;
-			postedPayloads.push(payload);
-			await route.fulfill({
-				json: {
-					id: String(payload.eventID),
-					title: String(payload.title),
-					description: String(payload.description ?? ''),
-					location: String(payload.location ?? ''),
-					startISO: String(payload.startISO),
-					endISO: String(payload.endISO),
-					isAllDay: Boolean(payload.isAllDay),
-					updatedAt: '2026-06-08T12:00:00.000Z'
-				}
-			});
-		});
-
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
-
-		await page.getByRole('button', { name: '새로 만들기' }).click();
-		await page.getByLabel('제목').fill('디자인 리뷰');
-		await page.getByLabel('장소').fill('회의실 A');
-		await page.getByLabel('설명').fill('월간 디자인 점검');
-		expect(postedPayloads).toHaveLength(0);
-
-		await page.getByRole('button', { name: '완료' }).click();
-
-		await expect.poll(() => postedPayloads.length).toBe(1);
-		expect(postedPayloads[0]).toMatchObject({
+		await expect.poll(() => addedPayloads.length).toBe(1);
+		expect(addedPayloads[0]).toMatchObject({
 			title: '디자인 리뷰',
 			location: '회의실 A',
-			description: '월간 디자인 점검',
-			isAllDay: false
+			note: '월간 디자인 점검',
+			isWholeDay: false
 		});
 		await expect(page.locator('.calendar-draft-popover')).toBeHidden();
 	});
 
-	test('saves titled drafts and cancels untitled drafts when clicking outside the popover', async ({ page }) => {
-		const postedPayloads: unknown[] = [];
-		await page.route('**/calendar/api/events', async (route) => {
-			const payload = route.request().postDataJSON() as Record<string, unknown>;
-			postedPayloads.push(payload);
-			await route.fulfill({
-				json: {
-					id: String(payload.eventID),
-					title: String(payload.title),
-					description: String(payload.description ?? ''),
-					location: String(payload.location ?? ''),
-					startISO: String(payload.startISO),
-					endISO: String(payload.endISO),
-					isAllDay: Boolean(payload.isAllDay),
-					updatedAt: '2026-06-08T12:00:00.000Z'
-				}
-			});
-		});
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
+	test('saves a titled draft when dismissed and discards an untitled draft on escape', async ({ page }) => {
+		const addedPayloads = await routeEventAdd(page);
 
-		for (const viewLabel of ['일', '주', '월']) {
-			await page.getByRole('button', { name: viewLabel, exact: true }).click();
-			await page.getByRole('button', { name: '새로 만들기' }).click();
-			await page.getByLabel('제목').fill(`${viewLabel} 바깥 저장`);
-			await clickOutsideDraftPopover(page);
-			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		}
+		await page.locator('[data-calendar-date="2026-06-09"]').dblclick();
+		await page.getByLabel('제목').fill('바깥 저장');
+		await clickOutsideDraftPopover(page);
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect.poll(() => addedPayloads.length).toBe(1);
+		expect(addedPayloads[0]).toMatchObject({ title: '바깥 저장' });
 
-		await expect.poll(() => postedPayloads.length).toBe(3);
-		expect(postedPayloads.map((payload) => (payload as { title?: string }).title)).toEqual([
-			'일 바깥 저장',
-			'주 바깥 저장',
-			'월 바깥 저장'
-		]);
+		const chipCountBeforeSecondDraft = await page.locator('[data-calendar-event-id]').count();
 
-		for (const viewLabel of ['일', '주', '월']) {
-			await page.getByRole('button', { name: viewLabel, exact: true }).click();
-			await page.getByRole('button', { name: '새로 만들기' }).click();
-			await clickOutsideDraftPopover(page);
-			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		}
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:01'));
+		await page.locator('[data-calendar-date="2026-06-11"]').dblclick();
+		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+		await expect(page.locator('[data-calendar-event-id]')).toHaveCount(chipCountBeforeSecondDraft + 1);
 
-		await expect.poll(() => postedPayloads.length).toBe(3);
+		await page.keyboard.press('Escape');
+
+		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		await expect(page.locator('[data-calendar-event-id]')).toHaveCount(chipCountBeforeSecondDraft);
+		expect(addedPayloads).toHaveLength(1);
 	});
 
 	test('does not save an unchanged existing event when dismissing the edit popover', async ({ page }) => {
-		const existingEvent = draftPopoverEvent({ id: 'unchanged-edit-event', title: '그대로인 일정' });
-		await routeDraftPopoverEvents(page, [existingEvent]);
-		const updatedPayloads = await routeDraftPopoverEventUpdate(page, existingEvent);
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
+		const updatedPayloads = await routeEventUpdate(page);
+		const [eventID] = await seedCalendarEvents([
+			{ title: '그대로인 일정', startISO: '2026-06-10T09:00:00+09:00', endISO: '2026-06-10T10:00:00+09:00' }
+		]);
+		try {
+			await page.reload();
+			await waitForClientHydration(page);
+			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
+			await expect(chip).toBeVisible();
+			await chip.click();
+			await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 
-		await page.locator('.calendar-month-direct-event[data-event-id="unchanged-edit-event"]').click();
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		const unexpectedUpdate = page
-			.waitForRequest(
-				(request) => request.method() === 'PUT' && request.url().includes('/calendar/api/events/unchanged-edit-event'),
-				{ timeout: 500 }
-			)
-			.then(() => true, () => false);
+			await clickOutsideDraftPopover(page);
 
-		await clickOutsideDraftPopover(page);
-
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await expect(unexpectedUpdate).resolves.toBe(false);
-		expect(updatedPayloads).toHaveLength(0);
+			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+			expect(updatedPayloads).toHaveLength(0);
+		} finally {
+			await cleanupCalendarEvents([eventID]);
+		}
 	});
 
 	test('saves a changed existing event when dismissing the edit popover', async ({ page }) => {
-		const existingEvent = draftPopoverEvent({ id: 'changed-edit-event', title: '수정 전 일정' });
-		await routeDraftPopoverEvents(page, [existingEvent]);
-		const updatedPayloads = await routeDraftPopoverEventUpdate(page, existingEvent);
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
+		const updatedPayloads = await routeEventUpdate(page);
+		const [eventID] = await seedCalendarEvents([
+			{ title: '수정 전 일정', startISO: '2026-06-10T09:00:00+09:00', endISO: '2026-06-10T10:00:00+09:00' }
+		]);
+		try {
+			await page.reload();
+			await waitForClientHydration(page);
+			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
+			await expect(chip).toBeVisible();
+			await chip.click();
+			await expect(page.locator('.calendar-draft-popover')).toBeVisible();
+			await page.getByLabel('제목').fill('수정 후 일정');
+			await page.getByLabel('장소').fill('회의실 B');
 
-		await page.locator('.calendar-month-direct-event[data-event-id="changed-edit-event"]').click();
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await page.getByLabel('제목').fill('수정 후 일정');
-		await page.getByLabel('장소').fill('회의실 B');
+			await clickOutsideDraftPopover(page);
+
+			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+			await expect.poll(() => updatedPayloads.length).toBe(1);
+			expect(updatedPayloads[0]).toMatchObject({
+				eventHint: eventID,
+				title: '수정 후 일정',
+				location: '회의실 B'
+			});
+		} finally {
+			await cleanupCalendarEvents([eventID]);
+		}
+	});
+
+	test('discards a timed draft when the end is not after the start', async ({ page }) => {
+		const addedPayloads = await routeEventAdd(page);
+
+		await page.locator('[data-calendar-date="2026-06-09"]').dblclick();
+		const popover = page.locator('.calendar-draft-popover');
+		await popover.getByLabel('제목').fill('시간 검증');
+		await popover.getByLabel('종료 시간').fill('09:00');
 
 		await clickOutsideDraftPopover(page);
 
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await expect.poll(() => updatedPayloads.length).toBe(1);
-		expect(updatedPayloads[0]).toMatchObject({
-			title: '수정 후 일정',
-			location: '회의실 B'
-		});
+		expect(addedPayloads).toHaveLength(0);
+		await expect(page.locator('[data-calendar-event-id^="month-"]')).toHaveCount(0);
 	});
 
-	test('disables completion when a timed draft end is not after the start', async ({ page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
+	test('opens a draft popover for a day cell on double-click', async ({ page }) => {
+		const dateCell = page.locator('[data-calendar-date="2026-06-10"]');
+		await dateCell.dblclick();
 
-		await page.getByRole('button', { name: '새로 만들기' }).click();
-		const popover = page.locator('.calendar-draft-popover');
-		await page.getByLabel('제목').fill('시간 검증');
-		await expect(popover.getByRole('button', { name: '완료' })).toBeEnabled();
-
-		await popover.getByRole('button', { name: /종료 날짜 2026\.06\.08 10:00/ }).click();
-		const picker = page.locator('.draft-date-time-picker');
-		await picker.getByLabel('시').selectOption('09');
-		await picker.getByLabel('분').selectOption('00');
-		await picker.getByRole('button', { name: '저장하기' }).click();
-
-		await expect(popover.getByRole('button', { name: '완료' })).toBeDisabled();
-	});
-
-	test('opens a month draft popover on a single click', async ({ page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
-
-		const dateCell = page.locator('.df-month-day-cell[data-date="2026-06-10"]');
-		await dateCell.click();
-		await expect(dateCell).toHaveClass(/month-selected-date/);
+		await expect(dateCell).toHaveAttribute('data-selected', '');
 		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 		await expect(page.getByLabel('제목')).toBeVisible();
 	});
 
 	test('cancels a new draft without leaving a local event behind', async ({ page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
+		await page.locator('[data-calendar-date="2026-06-09"]').dblclick();
+		await expect(page.locator('[data-calendar-event-id^="month-"]')).toHaveCount(1);
 
-		await page.getByRole('button', { name: '새로 만들기' }).click();
-		await expect(page.locator('[data-event-id^="quick-"]')).toHaveCount(1);
-
-		await page.locator('.draft-popover-footer').getByRole('button', { name: '취소' }).click();
+		await page.keyboard.press('Escape');
 
 		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await expect(page.locator('[data-event-id^="quick-"]')).toHaveCount(0);
+		await expect(page.locator('[data-calendar-event-id^="month-"]')).toHaveCount(0);
 	});
 
 	test('opens one all-day draft popover for a dragged month range', async ({ page }) => {
-		const postedPayloads: unknown[] = [];
-		await page.route('**/calendar/api/events', async (route) => {
-			const payload = route.request().postDataJSON() as Record<string, unknown>;
-			postedPayloads.push(payload);
-			await route.fulfill({
-				json: {
-					id: String(payload.eventID),
-					title: String(payload.title),
-					description: String(payload.description ?? ''),
-					location: String(payload.location ?? ''),
-					startISO: String(payload.startISO),
-					endISO: String(payload.endISO),
-					isAllDay: Boolean(payload.isAllDay),
-					updatedAt: '2026-06-08T12:00:00.000Z'
-				}
-			});
-		});
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
+		const addedPayloads = await routeEventAdd(page);
 
 		await dragBetweenCells(page, '2026-06-10', '2026-06-12');
 
 		const popover = page.locator('.calendar-draft-popover');
 		await expect(popover).toBeVisible();
 		await expect(popover.getByLabel('종일')).toBeChecked();
-		await page.getByLabel('제목').fill('워크숍');
-		await page.getByRole('button', { name: '완료' }).click();
+		await popover.getByLabel('제목').fill('워크숍');
+		await popover.getByLabel('제목').press('Enter');
 
-		await expect.poll(() => postedPayloads.length).toBe(1);
-		expect(postedPayloads[0]).toMatchObject({
+		await expect.poll(() => addedPayloads.length).toBe(1);
+		expect(addedPayloads[0]).toMatchObject({
 			title: '워크숍',
-			isAllDay: true,
-			startISO: '2026-06-10T00:00:00.000Z',
-			endISO: '2026-06-13T00:00:00.000Z'
+			isWholeDay: true,
+			startsAt: '2026-06-10T00:00:00.000Z',
+			endsAt: '2026-06-13T00:00:00.000Z'
 		});
 	});
-
-	test('places month creation popovers beside the rendered draft event block', async ({ page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
-
-		await page.locator('.calendar-stage .df-month-day-cell[data-date="2026-06-20"]').click();
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expect(page.locator('.calendar-month-direct-event.draft-empty-title-event')).toBeVisible();
-
-		await expect
-			.poll(async () =>
-				page.evaluate(() => {
-					const draftEvent = document.querySelector<HTMLElement>('.calendar-month-direct-event.draft-empty-title-event');
-					const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
-					if (!draftEvent || !popover) return false;
-					const draftRectangle = draftEvent.getBoundingClientRect();
-					const popoverRectangle = popover.getBoundingClientRect();
-					return popover.classList.contains('popover-arrow-right') && popoverRectangle.right <= draftRectangle.left - 8;
-				})
-			)
-			.toBe(true);
-	});
-
-	test('does not visibly flash month creation popovers before the draft event block is ready', async ({ page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/embed');
-		await waitForClientHydration(page);
-
-		await page.locator('.calendar-stage .df-month-day-cell[data-date="2026-06-20"]').click();
-
-		const showedPopoverBeforeDraftEvent = await page.evaluate(() => {
-			const popover = document.querySelector<HTMLElement>('.calendar-draft-popover');
-			const draftEvent = document.querySelector<HTMLElement>('.calendar-month-direct-event.draft-empty-title-event');
-			if (!popover || draftEvent) return false;
-			const rectangle = popover.getBoundingClientRect();
-			const style = window.getComputedStyle(popover);
-			return rectangle.width > 0 && rectangle.height > 0 && style.visibility !== 'hidden' && style.opacity !== '0';
-		});
-
-		expect(showedPopoverBeforeDraftEvent).toBe(false);
-		await expect(page.locator('.calendar-month-direct-event.draft-empty-title-event')).toBeVisible();
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-	});
-
 });
