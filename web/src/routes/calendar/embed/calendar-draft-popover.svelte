@@ -11,7 +11,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
 	import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
-	import { isDraftPopoverValid, type DraftPopoverState } from './calendar-draft-popover-state';
+	import { draftPopoverAllDayChanges, isDraftPopoverValid, type DraftPopoverState } from './calendar-draft-popover-state';
 	import type { DraftPopoverText } from './calendar-draft-popover-text';
 	import CalendarParticipantSelector from './calendar-participant-selector.svelte';
 	import type { CalendarParticipant } from './calendar-participants';
@@ -185,7 +185,7 @@
 					id="draft-all-day"
 					class="ml-auto"
 					checked={popover.allDay}
-					onCheckedChange={(allDay) => updatePopover({ allDay })}
+					onCheckedChange={(allDay) => updatePopover(draftPopoverAllDayChanges(popover, allDay))}
 				/>
 			</div>
 
