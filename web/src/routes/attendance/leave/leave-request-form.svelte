@@ -7,7 +7,6 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
-	import { getAttendanceViewState } from '../attendance-view-state.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
 	import type {
@@ -16,7 +15,6 @@
 		EmployeeLeaveUnit
 	} from './employee-leave-types';
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
-	import LeaveEvidencePicker from './leave-evidence-picker.svelte';
 	import { milliDaysValue } from './leave-history-model';
 	import LeavePartialTimeFields from './leave-partial-time-fields.svelte';
 	import type { LeaveRequestDraft } from './leave-request-draft.svelte';
@@ -32,20 +30,13 @@
 
 	const text = createPageText(attendanceText);
 	const attendance = getAttendanceState();
-	const attendanceView = getAttendanceViewState();
 	const employeeLeave = getEmployeeLeaveState();
 	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
 	const selectableLeaveTypes = $derived(
-		(employeeLeave.payload?.leaveTypes ?? []).filter(
-			(leaveType) => leaveType.isActive || (draft.requestID && leaveType.id === draft.leaveTypeID)
-		)
+		(employeeLeave.payload?.leaveTypes ?? []).filter((leaveType) => leaveType.isActive)
 	);
 	const selectedLeaveType = $derived(
 		selectableLeaveTypes.find((leaveType) => leaveType.id === draft.leaveTypeID)
-	);
-	const isHireDateRequired = $derived(
-		employeeLeave.payload?.hireDateRequired === true &&
-			selectedLeaveType?.requiresHireDate === true
 	);
 	let preview = $state<EmployeeLeavePreview | null>(null);
 	let isPreviewLoading = $state(false);
@@ -60,7 +51,7 @@
 	$effect(() => {
 		const request = draft.previewRequest();
 		const requestKey = request ? JSON.stringify(request) : '';
-		if (!requestKey || isHireDateRequired) {
+		if (!requestKey) {
 			previewSequence++;
 			preview = null;
 			previewErrorMessage = '';
@@ -124,30 +115,16 @@
 
 	async function submit(): Promise<void> {
 		const submission = draft.submission();
-		if (!submission || !preview || employeeLeave.isMutating || isHireDateRequired) return;
+		if (!submission || !preview || employeeLeave.isMutating) return;
 		try {
-			switch (submission.mode) {
-				case 'create':
-					await employeeLeave.create(submission.request, draft.attachments);
-					break;
-				case 'edit':
-					await employeeLeave.update(draft.requestID, submission.request, draft.attachments);
-					break;
-				case 'resubmit':
-					await employeeLeave.resubmit(draft.requestID, submission.request, draft.attachments);
-					break;
-			}
-			draft.reset(employeeLeave.payload?.leaveTypes ?? [], today);
-			preview = null;
-			previewRequestKey = '';
-			onSubmitted();
+			await employeeLeave.create(submission);
 		} catch {
-			if (employeeLeave.requestMutationConflict) {
-				attendanceView.select('leaveHistory');
-				onClose();
-			}
 			return;
 		}
+		draft.reset(employeeLeave.payload?.leaveTypes ?? [], today);
+		preview = null;
+		previewRequestKey = '';
+		onSubmitted();
 	}
 </script>
 
@@ -160,29 +137,6 @@
 	}}
 >
 	<div class="grid gap-5 px-4 py-5 sm:px-6">
-		{#if draft.mode !== 'create'}
-			<div class="rounded-lg bg-info/10 px-4 py-3 text-sm text-info">
-				<p class="font-medium">
-					{draft.mode === 'edit' ? text.leave.editTitle : text.leave.resubmitTitle}
-				</p>
-				<p class="mt-1 text-xs opacity-80">
-					{draft.mode === 'edit' ? text.leave.editDescription : text.leave.resubmitDescription}
-				</p>
-			</div>
-		{/if}
-
-		{#if isHireDateRequired}
-			<div
-				class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-				data-testid="leave-hire-date-required"
-			>
-				<p class="font-medium">{text.leave.hireDateRequiredTitle}</p>
-				<p class="mt-1 text-xs text-muted-foreground">
-					{text.leave.hireDateRequiredDescription}
-				</p>
-			</div>
-		{/if}
-
 		<div class="grid gap-4 lg:grid-cols-2">
 			<label class="grid gap-1.5 text-sm font-medium">
 				<span>{text.leave.leaveTypeLabel}</span>
@@ -300,31 +254,6 @@
 			</span>
 		</label>
 
-		{#if draft.mode === 'resubmit'}
-			<label class="grid gap-1.5 text-sm font-medium">
-				<span>{text.leave.responseLabel}</span>
-				<Textarea
-					class="min-h-20 resize-none"
-					bind:value={draft.response}
-					placeholder={text.leave.responsePlaceholder}
-					disabled={employeeLeave.isMutating}
-				/>
-			</label>
-		{/if}
-
-		<LeaveEvidencePicker
-			files={draft.attachments}
-			onFilesChange={(files) => draft.setAttachments(files)}
-			existingAttachments={draft.existingAttachments}
-			onExistingAttachmentRemove={
-				draft.mode === 'edit'
-					? (attachmentID) => draft.removeExistingAttachment(attachmentID)
-					: undefined
-			}
-			disabled={employeeLeave.isMutating}
-			text={text.leave}
-		/>
-
 		<LeaveRequestPreview
 			{preview}
 			isLoading={isPreviewLoading}
@@ -350,19 +279,12 @@
 			class="sm:min-w-36"
 			disabled={
 				employeeLeave.isMutating ||
-				isHireDateRequired ||
 				isPreviewLoading ||
 				!preview ||
 				preview.totalDeductionMilliDays <= 0
 			}
 		>
-			{employeeLeave.isMutating
-				? text.leave.submitting
-				: draft.mode === 'edit'
-					? text.leave.editAction
-					: draft.mode === 'resubmit'
-						? text.leave.resubmitAction
-						: text.leave.submitAction}
+			{employeeLeave.isMutating ? text.leave.submitting : text.leave.submitAction}
 		</Button>
 	</div>
 </form>

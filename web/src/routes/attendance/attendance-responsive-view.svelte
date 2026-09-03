@@ -8,7 +8,6 @@
 	import { getAttendanceViewState } from './attendance-view-state.svelte';
 	import LeaveApprovalView from './approval/leave-approval-view.svelte';
 	import { getLeaveApprovalState } from './approval/leave-approval-state.svelte';
-	import { getEmployeeLeaveState } from './leave/employee-leave-state.svelte';
 	import LeaveHistoryView from './leave/leave-history-view.svelte';
 	import LeaveManagementView from './management/leave-management-view.svelte';
 	import PersonalToolsPanel from './personal/personal-tools-panel.svelte';
@@ -19,11 +18,7 @@
 	const attendance = getAttendanceState();
 	const attendanceView = getAttendanceViewState();
 	const leaveApproval = getLeaveApprovalState();
-	const employeeLeave = getEmployeeLeaveState();
 	const isMobile = new IsMobile();
-	const needsChangesCount = $derived(
-		employeeLeave.payload?.requests.filter((request) => request.status === 'needsChanges').length ?? 0
-	);
 
 	$effect(() => {
 		if (
@@ -67,11 +62,6 @@
 			class="h-7 flex-none gap-1.5 rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
 		>
 			{text.leave.historyTab}
-			{#if needsChangesCount > 0}
-				<Badge variant="secondary" data-testid="mobile-leave-history-needs-changes-count">
-					{needsChangesCount}
-				</Badge>
-			{/if}
 		</Tabs.Trigger>
 		{#if attendance.summary?.isAdmin}
 			<Tabs.Trigger

@@ -6,18 +6,16 @@
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
-	import type { EmployeeLeaveRequest } from './employee-leave-types';
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import LeaveRequestForm from './leave-request-form.svelte';
 	import { LeaveRequestDraft as LeaveRequestDraftState } from './leave-request-draft.svelte';
 
 	type Props = {
-		request?: EmployeeLeaveRequest;
 		showTrigger?: boolean;
 		onClosed?: () => void;
 	};
 
-	let { request, showTrigger = true, onClosed = () => undefined }: Props = $props();
+	let { showTrigger = true, onClosed = () => undefined }: Props = $props();
 
 	const text = createPageText(attendanceText);
 	const attendance = getAttendanceState();
@@ -48,22 +46,6 @@
 		onClosed();
 	}
 
-	$effect(() => {
-		if (!request) return;
-		draft.loadRequest(request);
-		employeeLeave.mutationErrorMessage = '';
-		isOpen = true;
-	});
-
-	function title(): string {
-		if (!request) return text.leave.dialogTitle;
-		return request.canEdit ? text.leave.editTitle : text.leave.resubmitTitle;
-	}
-
-	function description(): string {
-		if (!request) return text.leave.dialogDescription;
-		return request.canEdit ? text.leave.editDescription : text.leave.resubmitDescription;
-	}
 </script>
 
 <Dialog.Root open={isOpen} onOpenChange={handleOpenChange}>
@@ -80,10 +62,10 @@
 		<div class="border-b bg-popover px-4 py-5 sm:px-6">
 			<Dialog.Header class="pr-10">
 				<Dialog.Title class="text-xl">
-					{title()}
+					{text.leave.dialogTitle}
 				</Dialog.Title>
 				<Dialog.Description>
-					{description()}
+					{text.leave.dialogDescription}
 				</Dialog.Description>
 			</Dialog.Header>
 		</div>

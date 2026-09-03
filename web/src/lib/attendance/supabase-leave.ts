@@ -88,9 +88,7 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		balanceTrackingMode: balance.trackingMode,
 		leaveTypes: withAnnualBalance(directory.offered, directory, balance.summary),
 		summary: balance.summary,
-		requests,
-		ledgerEntries: [],
-		hireDateRequired: false
+		requests
 	};
 }
 
@@ -147,7 +145,7 @@ export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> 
 
 	const members = await memberDirectory();
 	const pending = rows.map((row) => approvalOf(row, members, directory));
-	return { pendingCount: pending.length, pending, recentChanges: [] };
+	return { pendingCount: pending.length, pending };
 }
 
 export async function decideSupabaseLeave(
@@ -182,11 +180,7 @@ export function employeeLeaveRequestOfRow(
 		...range,
 		deductionMilliDays: Math.round(row.days * 1000),
 		reason: row.note ?? '',
-		attachments: [],
 		canCancel: status === 'pending',
-		canEdit: false,
-		canResubmit: false,
-		revision: 0,
 		createdAt: row.starts_at
 	};
 }
@@ -208,8 +202,6 @@ function approvalOf(
 		...leaveDisplayRange(row.starts_at, row.ends_at, row.days, timeZone),
 		deductionMilliDays: Math.round(row.days * 1000),
 		reason: row.note ?? '',
-		attachments: [],
-		balance: { usedMilliDays: 0, reservedMilliDays: 0, availableMilliDays: 0 },
 		createdAt: row.starts_at,
 		updatedAt: row.starts_at
 	};

@@ -6,7 +6,6 @@
 	import type { EmployeeLeaveRequest } from '../leave/employee-leave-types';
 	import { attendanceText } from '../text';
 	import { getLeaveManagementState } from './leave-management-state.svelte';
-	import { isSupabaseConfigured } from '$lib/supabase';
 
 	type Props = {
 		request: EmployeeLeaveRequest;
@@ -16,28 +15,20 @@
 
 	const text = createPageText(attendanceText);
 	const management = getLeaveManagementState();
-	const keepsACorrectionReason = !isSupabaseConfigured();
 	let isOpen = $state(false);
 	let startTime = $state('');
 	let endTime = $state('');
-	let reason = $state('');
 
 	function handleOpenChange(open: boolean): void {
 		isOpen = open;
 		if (!open) return;
 		startTime = request.startTime ?? '';
 		endTime = request.endTime ?? '';
-		reason = '';
 	}
 
 	async function submit(): Promise<void> {
 		if (!startTime || !endTime) return;
-		if (keepsACorrectionReason && !reason.trim()) return;
-		await management.correctTime(request.id, {
-			startTime,
-			endTime,
-			reason: reason.trim()
-		});
+		await management.correctTime(request.id, { startTime, endTime });
 		isOpen = false;
 	}
 </script>
@@ -65,12 +56,6 @@
 					<Input type="time" bind:value={endTime} />
 				</label>
 			</div>
-			{#if keepsACorrectionReason}
-				<label class="grid gap-1.5 text-sm font-medium">
-					{text.management.reason}
-					<Input bind:value={reason} placeholder={text.management.correctTimeReasonPlaceholder} />
-				</label>
-			{/if}
 		</div>
 		<Dialog.Footer>
 			<Dialog.Close>
@@ -78,7 +63,7 @@
 			</Dialog.Close>
 			<Button
 				onclick={submit}
-				disabled={management.isMutating || !startTime || !endTime || !reason.trim()}
+				disabled={management.isMutating || !startTime || !endTime}
 			>
 				{text.management.saveTimeCorrection}
 			</Button>

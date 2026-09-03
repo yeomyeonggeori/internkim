@@ -1,7 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
-import { devAttendanceMockPlugin } from './dev-attendance-mock-plugin';
 import { devAdminOrganizationMockPlugin } from './dev-admin-organization-mock-plugin';
 import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
 import { devFilesMockPlugin } from './dev-files-mock-plugin';
@@ -36,7 +35,6 @@ export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
 	const admindTarget = env.VITE_ADMIND_TARGET || 'http://127.0.0.1:18080';
 	const devUserRole = devUserRoleFromEnv(env.VITE_DEV_USER_ROLE);
-	const isAttendanceMockEnabled = env.VITE_MOCK_ATTENDANCE === '1';
 	const isTaskMockEnabled = env.VITE_MOCK_TASK === '1';
 	const isAdminMockEnabled = env.VITE_MOCK_ADMIN === '1' || env.VITE_MOCK_CRM === '1';
 	const devUserEmail = env.VITE_DEV_USER_EMAIL;
@@ -51,16 +49,12 @@ export default defineConfig(({ mode }) => {
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com',
 				userRole: devUserRole
 			}),
-			devAttendanceMockPlugin({
-				isEnabled: isAttendanceMockEnabled,
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
-			}),
 			devFilesMockPlugin({
 				isEnabled: env.VITE_MOCK_FILES === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 				devTaskMockPlugin({
-				isEnabled: isAttendanceMockEnabled || isTaskMockEnabled,
+				isEnabled: isTaskMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
 			devTasksMockPlugin({
