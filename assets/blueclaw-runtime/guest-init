@@ -210,9 +210,8 @@ log_guest_init "loopback ready"
 configure_outbound_network
 log_guest_init "network configured"
 
-# Firecracker emulates no virtio-fs, so a guest under it finds no device here and reads
-# its configuration from the workspace image as it always has. A guest offered the share
-# reads from it instead, and cannot write it.
+# A guest offered no share finds no device here and reads its configuration from the
+# workspace image. A guest offered the share reads from it instead, and cannot write it.
 format_workspace_disk_if_blank() {
   if blkid -o value -s TYPE /dev/vdb 2>/dev/null | grep -qx ext4; then
     return 0

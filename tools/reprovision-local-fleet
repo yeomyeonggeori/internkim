@@ -2,7 +2,7 @@
 # Reprovision the local fleet VM in place from the current working tree.
 #
 # This is the only way Blueclaw, skill, prompt, and runtime changes reach the
-# Firecracker guest: the guest runs from a baked rootfs, so copying files onto the
+# Cloud Hypervisor guest: the guest runs from a baked rootfs, so copying files onto the
 # host and restarting the service does not update it (and breaks the guest). Only
 # capabilityd/admind are host binaries that can be scp'd and restarted directly.
 #

@@ -335,8 +335,8 @@ if systemctl cat cloudflared >/dev/null 2>&1; then
 fi
 grep -q 'blueclaw-supervisor' /etc/systemd/system/blueclaw.service
 ! grep -q 'ExecStart=/usr/local/bin/blueclaw ' /etc/systemd/system/blueclaw.service
-test -x /usr/local/bin/firecracker
-test -x /usr/local/bin/jailer
+test -x /usr/local/bin/cloud-hypervisor
+test -x /usr/local/bin/virtiofsd
 test -s /opt/internkim/blueclaw-runtime/manifest.json
 test -s /opt/internkim/blueclaw-runtime/payload-manifest.json
 test -s /opt/internkim/blueclaw-runtime/vmlinux.bin

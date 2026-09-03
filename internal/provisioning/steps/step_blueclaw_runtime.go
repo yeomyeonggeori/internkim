@@ -28,8 +28,6 @@ var StepBlueclawRuntimeBase = Step{
 			}
 		}
 		return trimmedRun(context, "test -x "+shellQuote(blueclaw.BlueclawSupervisorBinaryPath)+" && "+
-			"test -x "+shellQuote(blueclaw.BlueclawFirecrackerPath)+" && "+
-			"test -x "+shellQuote(blueclaw.BlueclawJailerPath)+" && "+
 			"test -x "+shellQuote(blueclaw.BlueclawCloudHypervisorPath)+" && "+
 			"test -x "+shellQuote(blueclaw.BlueclawVirtiofsdPath)+" && "+
 			"test -s "+shellQuote(blueclaw.BlueclawKernelImagePath)+" && "+

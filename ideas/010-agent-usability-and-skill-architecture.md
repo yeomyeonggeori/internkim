@@ -106,7 +106,7 @@ MCP should behave like a real Blueclaw tool catalog:
 - expose only profile-allowed tools
 - route all calls through policy and task audit
 
-MCP must not bypass Blueclaw policy, task events, Firecracker boundaries, workspace path guards, or connector reply rules.
+MCP must not bypass Blueclaw policy, task events, guest boundaries, workspace path guards, or connector reply rules.
 
 ## Hermes Ideas To Adapt Carefully
 
@@ -149,7 +149,7 @@ After that slice lands, add task-shape planning, memory ranking, and MCP schema 
 - Do not copy Hermes structure wholesale.
 - Do not turn skills into a chaotic plugin marketplace.
 - Do not inject every skill into every prompt.
-- Do not let MCP bypass Blueclaw policy, task audit, or Firecracker/workspace boundaries.
+- Do not let MCP bypass Blueclaw policy, task audit, or guest/workspace boundaries.
 - Do not make the main computer the primary execution environment. It remains for browser handoff, approval, login, and local credential transfer.
 
 ## Assumptions

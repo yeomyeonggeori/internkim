@@ -37,7 +37,7 @@ func TestASealedShareCanStillBeRefreshed(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = UnsealDeliveryDirectory(layout) })
 
-	sources.RuntimeConfigurationJSON = `{"firecracker":{"refreshed":true}}`
+	sources.RuntimeConfigurationJSON = `{"guest":{"refreshed":true}}`
 	if errorValue := WriteDeliveryDirectory(layout, sources); errorValue != nil {
 		t.Fatalf("a seal that cannot be lifted turns every payload update into a reinstall: %v", errorValue)
 	}
