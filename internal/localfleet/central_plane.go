@@ -16,6 +16,7 @@ func (service Service) startCentralPlanePlan() CommandPlan {
 		filepath.Join(service.options.RepositoryRootPath, "tools", "start-local-fleet-central-plane"),
 		"--state-root", service.options.StateRootPath,
 		"--app-port", strconv.Itoa(service.options.CompanyAppPort),
+		"--agent-name", service.options.VirtualMachineName,
 	)
 }
 
