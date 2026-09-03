@@ -103,7 +103,7 @@ const (
 	BlueclawSupervisorLogDirectoryPath    = "/var/log/blueclaw-supervisor"
 	BlueclawBridgeAuthorizedKeysPath      = "/var/lib/blueclaw/authorized_companions"
 	BlueclawBridgeListenAddress           = "127.0.0.1:7778"
-	BlueclawSlackAPIBaseURL               = "https://slack.com/api"
+	BlueclawMessengerPlatform             = "buzz"
 	BuzzRelayName                         = "buzz-relay"
 	BuzzAdminName                         = "buzz-admin"
 	BuzzRelayServiceName                  = "buzz-relay"

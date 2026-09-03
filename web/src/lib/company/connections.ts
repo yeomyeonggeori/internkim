@@ -1,6 +1,6 @@
 import { supabase } from '$lib/supabase';
 
-export const companyConnectionKinds = ['mattermost'] as const;
+export const companyConnectionKinds = ['buzz'] as const;
 
 export type CompanyConnectionKind = (typeof companyConnectionKinds)[number];
 
