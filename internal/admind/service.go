@@ -489,6 +489,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/task-record-coverage", service.handleTaskRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/organization-record-coverage", service.handleOrganizationRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/company-profile-carry", service.handleCompanyProfileCarry)
+	multiplexer.HandleFunc("/agent/api/crm-record-coverage", service.handleCRMRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/company-ledger-coverage", service.handleCompanyLedgerCoverage)
 	multiplexer.HandleFunc("/agent/api/mail-account-carry", service.handleMailAccountCarry)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", service.handleBuzzChannelVisibilityRepair)
