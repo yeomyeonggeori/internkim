@@ -131,7 +131,7 @@ func TestCompanyShareSettingsNeverExposePasswordHash(t *testing.T) {
 
 func TestCompanyShareSnapshotContainsOnlyPublishedProjection(t *testing.T) {
 	service := newCompanyShareProfileService(t, map[string]string{
-		"ko": `{"name":"테스트 회사","description":"한국어 소개","bankAccount":"민감한 계좌","legalAttributes":{"사업자번호":"000-00-00000"},"email":"company@example.com"}`,
+		"ko": `{"name":"테스트 회사","description":"한국어 소개","bankAccount":"민감한 계좌","legalAttributes":[{"label":"사업자번호","value":"000-00-00000"}],"email":"company@example.com"}`,
 		"en": `{"name":"Test Company","description":"English profile","email":"company@example.com"}`,
 	})
 	insertCompanyShareTestData(t, service)

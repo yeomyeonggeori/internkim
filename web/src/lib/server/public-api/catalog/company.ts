@@ -109,6 +109,11 @@ const companyRecordUpdateInputSchema = z.strictObject({
   title: z.string().describe("New title. Omit to keep unchanged.").optional(),
 });
 
+export const companyProfileLegalAttributeSchema = z.strictObject({
+  label: z.string(),
+  value: z.string(),
+});
+
 export const companyProfileResultSchema = z.strictObject({
   language: z.string(),
   name: z.string(),
@@ -121,7 +126,7 @@ export const companyProfileResultSchema = z.strictObject({
   officeAddress: z.string(),
   jurisdiction: z.string(),
   bankAccount: z.string(),
-  legalAttributes: z.record(z.string(), z.string()),
+  legalAttributes: z.array(companyProfileLegalAttributeSchema),
   foundedDate: z.string(),
   capital: z.string(),
   fiscalYearEnd: z.string(),
@@ -312,4 +317,5 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
 
 export type CompanyInfoGetInput = z.infer<typeof companyInfoGetInputSchema>;
 export type CompanyInfoSetInput = z.infer<typeof companyInfoSetInputSchema>;
+export type CompanyProfileLegalAttribute = z.infer<typeof companyProfileLegalAttributeSchema>;
 export type CompanyProfileResult = z.infer<typeof companyProfileResultSchema>;
