@@ -37,24 +37,6 @@
 		return `${milliDaysValue(value)}${text.management.dayUnit}`;
 	}
 
-	function signedDayValue(value: number): string {
-		return `${value > 0 ? '+' : ''}${dayValue(value)}`;
-	}
-
-	function operationLabel(operationType: string): string {
-		if (operationType === 'legalCorrection' || operationType === 'adjustment') {
-			return text.management.manualAdjustment;
-		}
-		if (operationType === 'grant') return text.management.grant;
-		if (operationType === 'reserve') return text.management.reserve;
-		if (operationType === 'release') return text.management.release;
-		if (operationType === 'use' || operationType === 'untrackedUse') {
-			return text.management.use;
-		}
-		if (operationType === 'expire') return text.management.expire;
-		return text.management.otherChange;
-	}
-
 	function requestStatus(status: string): string {
 		if (status === 'pending') return text.management.pending;
 		if (status === 'approved') return text.management.approved;
@@ -236,45 +218,6 @@
 						{/each}
 					</Card.Content>
 				</Card.Root>
-
-				{#if !isUnlimited}
-					<Card.Root>
-						<Card.Header>
-							<Card.Title>{text.management.ledgerTitle}</Card.Title>
-							<Card.Description>{text.management.ledgerDescription}</Card.Description>
-						</Card.Header>
-						<Card.Content class="space-y-3">
-							{#each detail.ledgerEntries as entry (entry.id)}
-							<div class="flex flex-wrap items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0">
-								<div class="min-w-0">
-									<div class="flex flex-wrap items-center gap-2">
-										<p class="font-medium">
-											{leaveTypeName(entry.leaveTypeID, entry.leaveTypeName)}
-										</p>
-										<Badge variant="outline">{operationLabel(entry.operationType)}</Badge>
-									</div>
-									<p class="mt-1 text-xs text-muted-foreground">
-										{entry.effectiveOn}
-										{#if entry.reason} · {entry.reason}{/if}
-									</p>
-								</div>
-								<div class="text-right tabular-nums">
-									<p class={entry.deltaMilliDays < 0 ? 'text-destructive' : 'text-foreground'}>
-										{signedDayValue(entry.deltaMilliDays)}
-									</p>
-									<p class="text-xs text-muted-foreground">
-										{text.management.balanceAfter} {dayValue(entry.balanceAfterMilliDays)}
-									</p>
-								</div>
-							</div>
-							{:else}
-								<p class="py-8 text-center text-sm text-muted-foreground">
-									{text.management.noLedger}
-								</p>
-							{/each}
-						</Card.Content>
-					</Card.Root>
-				{/if}
 
 				<Card.Root>
 					<Card.Header>

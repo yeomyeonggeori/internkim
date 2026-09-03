@@ -88,13 +88,8 @@ export class CompanyHolidaySettingsState {
 		};
 		try {
 			const saved = this.draft.id
-				? await updateCompanyHoliday(
-						this.adminBaseURL,
-						this.draft.id,
-						input,
-						this.text.saveError
-					)
-				: await createCompanyHoliday(this.adminBaseURL, input, this.text.saveError);
+				? await updateCompanyHoliday(this.draft.id, input)
+				: await createCompanyHoliday(input);
 			this.holidays = sortCompanyHolidays([
 				...this.holidays.filter((holiday) => holiday.id !== saved.id),
 				saved
@@ -116,7 +111,7 @@ export class CompanyHolidaySettingsState {
 		this.isSaving = true;
 		this.message = '';
 		try {
-			await deleteCompanyHoliday(this.adminBaseURL, this.draft.id, this.text.removeError);
+			await deleteCompanyHoliday(this.draft.id);
 			this.holidays = this.holidays.filter((holiday) => holiday.id !== this.draft?.id);
 			this.draft = null;
 			this.validationAttempted = false;
@@ -135,7 +130,7 @@ export class CompanyHolidaySettingsState {
 		this.isLoading = true;
 		this.message = '';
 		try {
-			const response = await fetchCompanyHolidays(this.adminBaseURL, this.text.loadError);
+			const response = await fetchCompanyHolidays();
 			this.holidays = sortCompanyHolidays(response.holidays ?? []);
 		} catch (error) {
 			this.message = apiErrorMessage(error, this.text.loadError);

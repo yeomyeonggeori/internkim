@@ -53,10 +53,7 @@
 		isLoading = true;
 		message = '';
 		try {
-			policy = await fetchAttendanceLeavePolicy(
-				adminBaseURL,
-				text.attendanceSettings.loadError
-			);
+			policy = await fetchAttendanceLeavePolicy();
 			balanceTrackingMode = policy.balanceTrackingMode;
 			draft = policy.leaveTypes[0] ? copyLeaveType(policy.leaveTypes[0]) : null;
 			previousSelectedID = draft?.id ?? '';
@@ -73,9 +70,7 @@
 		message = '';
 		try {
 			policy = await updateAttendanceLeavePolicy(
-				adminBaseURL,
 				{ ...policy, balanceTrackingMode },
-				text.attendanceSettings.saveError
 			);
 			balanceTrackingMode = policy.balanceTrackingMode;
 			message = text.attendanceSettings.saveSuccess;
@@ -163,9 +158,7 @@
 		message = '';
 		try {
 			policy = await updateAttendanceLeavePolicy(
-				adminBaseURL,
 				{ ...policy, leaveTypes },
-				text.attendanceSettings.saveError
 			);
 			const savedLeaveType = draftToSave.id
 				? policy.leaveTypes.find((leaveType) => leaveType.id === draftToSave.id)
@@ -188,12 +181,10 @@
 		message = '';
 		try {
 			policy = await updateAttendanceLeavePolicy(
-				adminBaseURL,
 				{
 					...policy,
 					leaveTypes: policy.leaveTypes.filter((leaveType) => leaveType.id !== removedID)
 				},
-				text.attendanceSettings.removeError
 			);
 			const nextLeaveType = policy.leaveTypes.find((leaveType) => leaveType.isActive);
 			draft = nextLeaveType ? copyLeaveType(nextLeaveType) : null;

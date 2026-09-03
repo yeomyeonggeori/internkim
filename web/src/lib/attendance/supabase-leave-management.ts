@@ -73,8 +73,7 @@ export async function supabaseLeaveManagement(employeeEmail = ''): Promise<Leave
 				.sort((left, right) => right.starts_at.localeCompare(left.starts_at))
 				.map((leave) =>
 					employeeLeaveRequestOfRow(leave, timeZoneOf(selected, source), source.leaveTypes.nameOf)
-				),
-			ledgerEntries: []
+				)
 		}
 	};
 }
