@@ -1,5 +1,5 @@
 import type { UserRecord } from '../../lib/organization/types';
-import type { OrgProfileUpdate } from './admin-api';
+import type { OrgProfileUpdate } from '$lib/organization/types';
 
 export type OrgProfileSnapshot = {
 	jobTitle: string;
@@ -40,7 +40,6 @@ export function orgProfileUpdate(record: UserRecord): OrgProfileUpdate {
 	const snapshot = orgProfileSnapshot(record);
 	return {
 		memberID: record.memberID,
-		email: record.email,
 		jobTitle: snapshot.jobTitle,
 		groupID: snapshot.groupID,
 		hireDate: snapshot.hireDate,
