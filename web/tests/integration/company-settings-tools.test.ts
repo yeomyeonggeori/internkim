@@ -173,7 +173,9 @@ describe('the company master profile', () => {
 
 		expect(written.status).toBe(200);
 		expect(resultOf(written).missingFields).toEqual([]);
-		expect(resultOf(written).legalAttributes).toEqual({ 사업자등록번호: '123-45-67890' });
+		expect(resultOf(written).legalAttributes).toEqual([
+			{ label: '사업자등록번호', value: '123-45-67890' }
+		]);
 
 		const english = await asAdmin('company_info_get', { language: 'en' });
 		expect(resultOf(english).name).toBe('주식회사 예시');

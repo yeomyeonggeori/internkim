@@ -9,28 +9,33 @@ import (
 // CompanyProfile is the master profile a document prints from, resolved for one
 // language. It is the record's own answer, passed through unchanged.
 type CompanyProfile struct {
-	Language            string            `json:"language"`
-	Name                string            `json:"name"`
-	BrandName           string            `json:"brandName"`
-	Slogan              string            `json:"slogan"`
-	Description         string            `json:"description"`
-	Representative      string            `json:"representative"`
-	RepresentativeTitle string            `json:"representativeTitle"`
-	Address             string            `json:"address"`
-	OfficeAddress       string            `json:"officeAddress"`
-	Jurisdiction        string            `json:"jurisdiction"`
-	BankAccount         string            `json:"bankAccount"`
-	LegalAttributes     map[string]string `json:"legalAttributes"`
-	FoundedDate         string            `json:"foundedDate"`
-	Capital             string            `json:"capital"`
-	FiscalYearEnd       string            `json:"fiscalYearEnd"`
-	EmployeeCount       int               `json:"employeeCount"`
-	Phone               string            `json:"phone"`
-	Fax                 string            `json:"fax"`
-	Email               string            `json:"email"`
-	Website             string            `json:"website"`
-	MissingFields       []string          `json:"missingFields"`
-	UpdatedAt           string            `json:"updatedAt"`
+	Language            string                         `json:"language"`
+	Name                string                         `json:"name"`
+	BrandName           string                         `json:"brandName"`
+	Slogan              string                         `json:"slogan"`
+	Description         string                         `json:"description"`
+	Representative      string                         `json:"representative"`
+	RepresentativeTitle string                         `json:"representativeTitle"`
+	Address             string                         `json:"address"`
+	OfficeAddress       string                         `json:"officeAddress"`
+	Jurisdiction        string                         `json:"jurisdiction"`
+	BankAccount         string                         `json:"bankAccount"`
+	LegalAttributes     []CompanyProfileLegalAttribute `json:"legalAttributes"`
+	FoundedDate         string                         `json:"foundedDate"`
+	Capital             string                         `json:"capital"`
+	FiscalYearEnd       string                         `json:"fiscalYearEnd"`
+	EmployeeCount       int                            `json:"employeeCount"`
+	Phone               string                         `json:"phone"`
+	Fax                 string                         `json:"fax"`
+	Email               string                         `json:"email"`
+	Website             string                         `json:"website"`
+	MissingFields       []string                       `json:"missingFields"`
+	UpdatedAt           string                         `json:"updatedAt"`
+}
+
+type CompanyProfileLegalAttribute struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 func (client *Client) CompanyProfile(ctx context.Context, requesterEmail string, language string) (CompanyProfile, error) {

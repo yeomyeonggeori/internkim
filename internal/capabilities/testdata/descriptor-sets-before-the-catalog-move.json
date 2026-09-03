@@ -6370,18 +6370,19 @@
       "worksOffline": true
     },
     "company_info_get": {
-      "answeredBy": "record",
-      "availability": {
-        "state": "ok"
-      },
+      "name": "company_info_get",
       "canonicalName": "company_info_get",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_info_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
       "description": "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
+      "version": "1",
+      "privacyClass": "workspace_company",
       "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6393,12 +6394,6 @@
         },
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_info_get",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_info_get",
-      "namespace": "company",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6442,13 +6437,23 @@
             "type": "string"
           },
           "legalAttributes": {
-            "additionalProperties": {
-              "type": "string"
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ],
+              "type": "object"
             },
-            "propertyNames": {
-              "type": "string"
-            },
-            "type": "object"
+            "type": "array"
           },
           "missingFields": {
             "items": {
@@ -6507,16 +6512,9 @@
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
-      "policyResource": "tool:company_info_get",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "read",
-      "sideEffectClass": "read",
-      "version": "1",
-      "worksOffline": false,
       "resultContract": {
-        "effects": [],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -6560,13 +6558,23 @@
               "type": "string"
             },
             "legalAttributes": {
-              "additionalProperties": {
-                "type": "string"
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
               },
-              "propertyNames": {
-                "type": "string"
-              },
-              "type": "object"
+              "type": "array"
             },
             "missingFields": {
               "items": {
@@ -6625,26 +6633,33 @@
           ],
           "type": "object"
         }
-      }
-    },
-    "company_info_set": {
-      "answeredBy": "record",
+      },
+      "policyResource": "tool:company_info_get",
+      "sideEffectClass": "read",
+      "sideEffect": "read",
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "company_info_set",
-      "completionEvidence": {
-        "action": "write_company",
-        "mode": "success",
-        "targetKind": "company"
-      },
-      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN \u2026) into legalAttributes as a label-to-value JSON object string.",
-      "estimatedLatency": "low",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "company_info_set": {
+      "name": "company_info_set",
+      "canonicalName": "company_info_set",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_info_set",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN \u2026) into legalAttributes as a label-to-value JSON object string.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "low",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6737,12 +6752,6 @@
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_info_set",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_info_set",
-      "namespace": "company",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6786,13 +6795,23 @@
             "type": "string"
           },
           "legalAttributes": {
-            "additionalProperties": {
-              "type": "string"
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ],
+              "type": "object"
             },
-            "propertyNames": {
-              "type": "string"
-            },
-            "type": "object"
+            "type": "array"
           },
           "missingFields": {
             "items": {
@@ -6851,16 +6870,9 @@
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
-      "policyResource": "tool:company_info_set",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": false,
       "resultContract": {
-        "effects": [],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -6904,13 +6916,23 @@
               "type": "string"
             },
             "legalAttributes": {
-              "additionalProperties": {
-                "type": "string"
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
               },
-              "propertyNames": {
-                "type": "string"
-              },
-              "type": "object"
+              "type": "array"
             },
             "missingFields": {
               "items": {
@@ -6969,6 +6991,22 @@
           ],
           "type": "object"
         }
+      },
+      "policyResource": "tool:company_info_set",
+      "sideEffectClass": "workspace_write",
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_company",
+        "targetKind": "company"
+      },
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
       }
     },
     "company_metric_list": {

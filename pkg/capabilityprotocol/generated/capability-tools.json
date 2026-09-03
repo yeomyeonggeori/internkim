@@ -10168,13 +10168,23 @@
             "type": "string"
           },
           "legalAttributes": {
-            "additionalProperties": {
-              "type": "string"
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ],
+              "type": "object"
             },
-            "propertyNames": {
-              "type": "string"
-            },
-            "type": "object"
+            "type": "array"
           },
           "missingFields": {
             "items": {
@@ -10282,13 +10292,23 @@
               "type": "string"
             },
             "legalAttributes": {
-              "additionalProperties": {
-                "type": "string"
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
               },
-              "propertyNames": {
-                "type": "string"
-              },
-              "type": "object"
+              "type": "array"
             },
             "missingFields": {
               "items": {
@@ -10512,13 +10532,23 @@
             "type": "string"
           },
           "legalAttributes": {
-            "additionalProperties": {
-              "type": "string"
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "value"
+              ],
+              "type": "object"
             },
-            "propertyNames": {
-              "type": "string"
-            },
-            "type": "object"
+            "type": "array"
           },
           "missingFields": {
             "items": {
@@ -10626,13 +10656,23 @@
               "type": "string"
             },
             "legalAttributes": {
-              "additionalProperties": {
-                "type": "string"
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
               },
-              "propertyNames": {
-                "type": "string"
-              },
-              "type": "object"
+              "type": "array"
             },
             "missingFields": {
               "items": {
