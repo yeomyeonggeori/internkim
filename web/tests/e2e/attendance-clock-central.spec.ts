@@ -24,14 +24,28 @@ function quickActions(page: Page) {
 	return page.getByTestId('personal-tools-panel');
 }
 
-async function openCommandPalette(page: Page): Promise<void> {
+function paletteItem(page: Page, value: string) {
+	return page.locator(`[role="option"][data-value="${value}"]`);
+}
+
+async function openCommandPalette(page: Page, offersClockOut: boolean): Promise<void> {
 	await page.keyboard.press('Slash');
-	await page.getByRole('dialog').getByRole('textbox').waitFor({ state: 'visible' });
+	await page.locator('[data-slot="command-input"]').waitFor({ state: 'visible' });
+	const clockOut = paletteItem(page, 'clock-out');
+	if (offersClockOut) {
+		await expect(clockOut).not.toHaveAttribute('aria-disabled', 'true', { timeout: 20000 });
+		return;
+	}
+	await expect(clockOut).toHaveAttribute('aria-disabled', 'true', { timeout: 20000 });
 }
 
 async function openClockMenu(page: Page): Promise<void> {
 	await page.keyboard.press('Period');
-	await page.locator('[data-app-rail-profile-menu]').waitFor({ state: 'visible' });
+	const menu = page.locator('[data-app-rail-profile-menu]');
+	await menu.waitFor({ state: 'visible' });
+	await menu
+		.getByRole('menuitem', { name: '퇴근', exact: true })
+		.waitFor({ state: 'visible', timeout: 20000 });
 }
 
 async function recordedClockKinds(): Promise<string[]> {
@@ -46,8 +60,8 @@ test('the command palette clocks in at the location it names', async ({ page }) 
 	await signInToAttendance(page);
 	await expect(quickActions(page).getByRole('button', { name: '출근', exact: true })).toBeVisible();
 
-	await openCommandPalette(page);
-	await page.locator(`[data-value="clock-in-${home}"]`).click();
+	await openCommandPalette(page, false);
+	await paletteItem(page, `clock-in-${home}`).click();
 
 	await expect.poll(recordedClockKinds, { timeout: 20000 }).toEqual(['clock_in']);
 	await expect.poll(recordedLocations).toEqual([home]);
@@ -87,7 +101,7 @@ test('the clock rail clocks in at the location the menu offers', async ({ page }
 test('the command palette clock-out shortcut records the clock-out', async ({ page }) => {
 	await signInToAttendance(page);
 
-	await openCommandPalette(page);
+	await openCommandPalette(page, true);
 	await page.keyboard.press('0');
 
 	await expect.poll(recordedClockKinds, { timeout: 20000 }).toEqual([
@@ -104,8 +118,8 @@ test('the command palette clock-out shortcut records the clock-out', async ({ pa
 test('the command palette offers no clock-out while nobody is clocked in', async ({ page }) => {
 	await signInToAttendance(page);
 
-	await openCommandPalette(page);
+	await openCommandPalette(page, false);
 
-	await expect(page.locator('[data-value="clock-out"]')).toHaveAttribute('data-disabled', 'true');
-	await expect(page.locator(`[data-value="clock-in-${office}"]`)).toBeVisible();
+	await expect(paletteItem(page, 'clock-out')).toHaveAttribute('aria-disabled', 'true');
+	await expect(paletteItem(page, `clock-in-${office}`)).toBeVisible();
 });

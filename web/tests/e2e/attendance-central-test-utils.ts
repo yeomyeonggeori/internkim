@@ -34,7 +34,10 @@ const seoulOffset = '+09:00';
 
 export async function signInToAttendance(page: Page, path = '/example-co/attendance'): Promise<void> {
 	await signInToTheCentralPlane(page, path);
-	await page.getByTestId('personal-tools-panel').waitFor({ state: 'visible', timeout: 30000 });
+	await page
+		.locator('[data-testid="personal-tools-panel"]:visible')
+		.first()
+		.waitFor({ state: 'visible', timeout: 30000 });
 }
 
 export function seoulDateToday(): string {
@@ -79,6 +82,7 @@ export async function seedAttendanceEvents(events: AttendanceCentralEvent[]): Pr
 			.select('id')
 			.single<{ id: string }>();
 		if (inserted.error) {
+			await cleanupAttendanceEvents(identifiers);
 			throw new Error(`Failed to seed an attendance event: ${inserted.error.message}`);
 		}
 		identifiers.push(inserted.data.id);

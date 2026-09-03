@@ -1,11 +1,41 @@
 import { expect, test, type Page } from '@playwright/test';
 import { signInToTheCentralPlane } from './central-plane-sign-in';
+import {
+	cleanupAttendanceEvents,
+	dayOfMonth,
+	monthBefore,
+	removeAttendanceOf,
+	seedAttendanceEvents,
+	seoulInstant,
+	seoulMonthToday
+} from './attendance-central-test-utils';
+import { member1ID } from './central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 test.use({ locale: 'ko-KR' });
 
 const wholeDayStart = '00:01';
 const wholeDayEnd = '23:59';
+const workedDate = dayOfMonth(monthBefore(seoulMonthToday()), 15);
+
+let seededEventIDs: string[] = [];
+
+test.beforeAll(async () => {
+	await removeAttendanceOf(member1ID);
+	seededEventIDs = await seedAttendanceEvents([
+		{
+			memberID: member1ID,
+			kind: 'clock_in',
+			location: '사무실',
+			occurredAtISO: seoulInstant(workedDate, '09:00')
+		},
+		{ memberID: member1ID, kind: 'clock_out', occurredAtISO: seoulInstant(workedDate, '18:00') }
+	]);
+});
+
+test.afterAll(async () => {
+	await cleanupAttendanceEvents(seededEventIDs);
+});
 
 async function openSettings(page: Page): Promise<void> {
 	await signInToTheCentralPlane(page, '/example-co/settings');

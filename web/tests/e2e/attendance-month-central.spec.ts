@@ -4,6 +4,7 @@ import {
 	cleanupAttendanceEvents,
 	dayOfMonth,
 	monthBefore,
+	removeAttendanceOf,
 	seedAttendanceEvents,
 	seoulInstant,
 	seoulMonthToday,
@@ -22,6 +23,8 @@ const home = '재택';
 let seededEventIDs: string[] = [];
 
 test.beforeAll(async () => {
+	await removeAttendanceOf(member1ID);
+	await removeAttendanceOf(member3ID);
 	seededEventIDs = await seedAttendanceEvents([
 		{ memberID: member1ID, kind: 'clock_in', location: office, occurredAtISO: seoulInstant(seededDate, '09:00') },
 		{ memberID: member1ID, kind: 'clock_out', occurredAtISO: seoulInstant(seededDate, '12:00') },
