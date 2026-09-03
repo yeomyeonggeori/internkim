@@ -361,7 +361,6 @@ func (service *Service) Run(ctx context.Context) error {
 	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
 	go service.keepUsersSyncInstalled(ctx)
-	go service.keepOrganizationProfilesReadBack(ctx)
 	if service.Configuration.TaskRunNotifyEnabled {
 		go service.keepTaskRunsNotified(ctx)
 	}
@@ -371,11 +370,11 @@ func (service *Service) Run(ctx context.Context) error {
 	service.reconcileSiteSourcesToMemberCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	service.sweepUpdateLeftovers()
-	service.adoptAccountHireDates(ctx)
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarSweep(ctx)
+	service.startOrganizationSweep(ctx)
 	service.startAttendanceSweep(ctx)
 	service.startTaskSweep(ctx)
 	service.startSiteRuntimeJanitor(ctx)
@@ -479,7 +478,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/calendar-record-coverage", service.handleCalendarRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/attendance-record-coverage", service.handleAttendanceRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/task-record-coverage", service.handleTaskRecordCoverage)
-	multiplexer.HandleFunc("/agent/api/organization-directory-coverage", service.handleOrganizationDirectoryCoverage)
+	multiplexer.HandleFunc("/agent/api/organization-record-coverage", service.handleOrganizationRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", service.handleBuzzChannelVisibilityRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)
@@ -726,10 +725,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.updateAdminLocale(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/users":
 		service.proxyUsers(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/users/org-profiles":
-		service.localUpdateOrgProfiles(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/org-groups":
-		service.localSetOrgGroups(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users/batch":
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":
@@ -897,19 +892,6 @@ func companionReleases() []companionRelease {
 			Status:       "coming_soon",
 		},
 	}
-}
-
-func userIDFromAdminUsersResponse(responseBody []byte, email string) string {
-	var responseDocument pagesUsersResponse
-	if json.Unmarshal(responseBody, &responseDocument) != nil {
-		return ""
-	}
-	for _, record := range responseDocument.Records {
-		if strings.EqualFold(record.Email, email) {
-			return strings.TrimSpace(record.MemberID)
-		}
-	}
-	return ""
 }
 
 const (
@@ -1926,14 +1908,6 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 		emails = append(emails, normalizedEmail)
 	}
 	return emails
-}
-
-func (service *Service) localUpdateOrgProfiles(responseWriter http.ResponseWriter, request *http.Request) {
-	service.handleOrganizationProfileUpdate(responseWriter, request)
-}
-
-func (service *Service) localSetOrgGroups(responseWriter http.ResponseWriter, request *http.Request) {
-	service.handleOrganizationGroupsUpdate(responseWriter, request)
 }
 
 // After an organization change the caller gets the directory back, so the

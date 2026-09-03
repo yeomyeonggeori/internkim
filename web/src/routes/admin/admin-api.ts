@@ -192,26 +192,6 @@ export async function saveUsers(adminBaseURL: string, users: UserSaveRequest[], 
 	return readJSON<UsersResponse>(response, fallbackMessage);
 }
 
-export async function saveOrgProfiles(adminBaseURL: string, profiles: OrgProfileUpdate[], fallbackMessage: string): Promise<UsersResponse> {
-	const response = await fetch(`${adminBaseURL}/users/org-profiles?includePolicy=true`, {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ profiles })
-	});
-	return readJSON<UsersResponse>(response, fallbackMessage);
-}
-
-export async function saveOrgGroups(adminBaseURL: string, groups: OrgGroup[], fallbackMessage: string): Promise<UsersResponse> {
-	const response = await fetch(`${adminBaseURL}/org-groups?includePolicy=true`, {
-		method: 'PUT',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ groups })
-	});
-	return readJSON<UsersResponse>(response, fallbackMessage);
-}
-
 export async function removeUser(adminBaseURL: string, email: string, fallbackMessage: string): Promise<UsersResponse> {
 	const response = await fetch(`${adminBaseURL}/users/${encodeURIComponent(email)}?includePolicy=true`, {
 		method: 'DELETE',
@@ -348,16 +328,6 @@ export type UserSaveRequest = Pick<UserRecord, 'memberID' | 'handle' | 'email' |
 	note: string;
 	role: UserRole;
 	circles: string[];
-};
-
-export type OrgProfileUpdate = {
-	memberID: string;
-	email: string;
-	jobTitle: string;
-	groupID?: string;
-	hireDate?: string;
-	phoneNumber?: string;
-	supervisorID?: string;
 };
 
 export type RestoreCompletionRequest = {

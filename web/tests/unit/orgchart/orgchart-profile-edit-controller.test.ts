@@ -49,7 +49,6 @@ describe('organization profile edit controller', () => {
 		expect(hasUnsavedOrganizationProfileEdits(editingRecords, originalProfiles)).toBe(true);
 		expect(organizationProfileSavePayload(editingRecords.dabin)).toEqual({
 			memberID: 'dabin',
-			email: 'dabin@example.com',
 			jobTitle: '제품 개발자',
 			groupID: 'product',
 			hireDate: '',

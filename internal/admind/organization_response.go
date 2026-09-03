@@ -6,30 +6,37 @@ import (
 	"strings"
 )
 
-type organizationMetadataResponse struct {
-	response         pagesUsersResponse
-	profilesByUserID map[string]organizationProfile
-	profilesByEmail  map[string]organizationProfile
-}
-
 func (service *Service) withOrganizationMetadata(ctx context.Context, responseBody []byte) ([]byte, error) {
-	metadataResponse, errorValue := service.organizationMetadataResponse(ctx, responseBody)
+	var usersResponse pagesUsersResponse
+	if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue != nil {
+		return nil, errorValue
+	}
+	described, errorValue := service.organizationMetadataUsersResponse(ctx, usersResponse)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	return json.Marshal(metadataResponse.response)
+	return json.Marshal(described)
 }
 
-func (service *Service) organizationMetadataResponse(ctx context.Context, responseBody []byte) (organizationMetadataResponse, error) {
-	var usersResponse pagesUsersResponse
-	if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue != nil {
-		return organizationMetadataResponse{}, errorValue
+func (service *Service) organizationMetadataUsersResponse(ctx context.Context, usersResponse pagesUsersResponse) (pagesUsersResponse, error) {
+	profiles, errorValue := service.organizationProfilesOfTheCompany(ctx)
+	if errorValue != nil {
+		return pagesUsersResponse{}, errorValue
 	}
-	return service.organizationMetadataUsersResponse(ctx, usersResponse)
-}
-
-func (service *Service) organizationMetadataUsersResponse(ctx context.Context, usersResponse pagesUsersResponse) (organizationMetadataResponse, error) {
-	return service.applyCachedOrganizationPeople(ctx, usersResponse)
+	groups, errorValue := service.organizationGroupsOfTheCompany(ctx, service.claimedAdminEmail())
+	if errorValue != nil {
+		return pagesUsersResponse{}, errorValue
+	}
+	profilesByUserID, profilesByEmail := organizationProfileIndexes(profiles)
+	for index := range usersResponse.Records {
+		profile, found := organizationProfileForUser(usersResponse.Records[index], profilesByUserID, profilesByEmail)
+		if !found {
+			continue
+		}
+		applyOrganizationProfile(&usersResponse.Records[index], profile)
+	}
+	usersResponse.AvailableGroups = groups
+	return usersResponse, nil
 }
 
 func organizationProfileIndexes(profiles []organizationProfile) (map[string]organizationProfile, map[string]organizationProfile) {

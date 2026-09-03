@@ -12,11 +12,11 @@ func (service *Service) taskMembers(request *http.Request) []taskMember {
 }
 
 func (service *Service) organizationChartUserRecords(request *http.Request) []adminUserMutation {
-	metadataResponse, errorValue := service.organizationUsersMetadataResponse(request)
+	records, errorValue := service.organizationRecordsOfTheCompany(request.Context())
 	if errorValue != nil {
 		return service.accountDirectoryUserRecords(request)
 	}
-	return visibleOrganizationUsersResponse(metadataResponse.response, metadataResponse.profilesByUserID, metadataResponse.profilesByEmail).Records
+	return records
 }
 
 func (service *Service) accountDirectoryUserRecords(request *http.Request) []adminUserMutation {

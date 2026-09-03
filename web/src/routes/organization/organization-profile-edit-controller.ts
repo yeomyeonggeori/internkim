@@ -1,4 +1,4 @@
-import type { OrgProfileUpdate } from '../admin/admin-api';
+import type { OrgProfileUpdate } from '$lib/organization/types';
 import { copyUserRecord, reconcileEditingRecords } from '../admin/organization-editing-records';
 import {
 	isOrgProfileChanged,
