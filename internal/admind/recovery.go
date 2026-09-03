@@ -113,6 +113,8 @@ var SSHRecoveryActions = []string{
 	"organization-record-coverage",
 	"organization-carry-into-the-record",
 	"company-profile-carry-into-the-record",
+	"company-ledger-record-coverage",
+	"company-ledger-carry-into-the-record",
 	"buzz-device-link-count",
 	"buzz-rewrite-old-links",
 	"buzz-rewrite-old-links-dryrun",
@@ -332,6 +334,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		companyProfileCarryContext, cancelCompanyProfileCarry := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(companyProfileCarryContext, "carry the master profile the record never took", "sh", "-lc", companyProfileCarryCommand()))
 		cancelCompanyProfileCarry()
+	case "company-ledger-record-coverage":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the company ledger the record has not taken", "sh", "-lc", companyLedgerCoverageCommand(false)))
+	case "company-ledger-carry-into-the-record":
+		companyLedgerCarryContext, cancelCompanyLedgerCarry := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(companyLedgerCarryContext, "carry the company ledger the record never took", "sh", "-lc", companyLedgerCoverageCommand(true)))
+		cancelCompanyLedgerCarry()
 	case "organization-carry-into-the-record":
 		organizationCarryContext, cancelOrganizationCarry := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(organizationCarryContext, "carry the organization profiles the record never took", "sh", "-lc", organizationRecordCoverageCommand(true)))
@@ -1684,6 +1692,17 @@ printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 func companyProfileCarryCommand() string {
 	return strings.TrimSpace(`
 body=$(curl -sS -X POST "` + blueclaw.AdmindBaseURL + `/agent/api/company-profile-carry")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
+`)
+}
+
+func companyLedgerCoverageCommand(carry bool) string {
+	carryValue := "false"
+	if carry {
+		carryValue = "true"
+	}
+	return strings.TrimSpace(`
+body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/company-ledger-coverage?carry=` + carryValue + `")
 printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }

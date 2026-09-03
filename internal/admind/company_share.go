@@ -170,15 +170,15 @@ type companyShareProfile struct {
 }
 
 type companyShareMetric struct {
-	Metric   string                `json:"metric"`
-	Year     int                   `json:"year"`
-	Quarter  int                   `json:"quarter,omitempty"`
-	Month    int                   `json:"month,omitempty"`
-	Value    float64               `json:"value"`
-	Currency companyMetricCurrency `json:"currency,omitempty"`
-	ValueUSD *float64              `json:"valueUSD,omitempty"`
-	Unit     string                `json:"unit,omitempty"`
-	Source   string                `json:"source,omitempty"`
+	Metric   string   `json:"metric"`
+	Year     int      `json:"year"`
+	Quarter  int      `json:"quarter,omitempty"`
+	Month    int      `json:"month,omitempty"`
+	Value    float64  `json:"value"`
+	Currency string   `json:"currency,omitempty"`
+	ValueUSD *float64 `json:"valueUSD,omitempty"`
+	Unit     string   `json:"unit,omitempty"`
+	Source   string   `json:"source,omitempty"`
 }
 
 type companyShareRecord struct {
@@ -485,7 +485,7 @@ func (service *Service) readCompanyShareMetrics(ctx context.Context, metricNames
 			Quarter:  held.Quarter,
 			Month:    held.Month,
 			Value:    held.Value,
-			Currency: companyMetricCurrency(held.Currency),
+			Currency: held.Currency,
 			ValueUSD: held.ValueUSD,
 			Unit:     strings.TrimSpace(held.Unit),
 		}
