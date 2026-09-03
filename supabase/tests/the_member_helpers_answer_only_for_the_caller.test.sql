@@ -182,8 +182,10 @@ begin
   reset role;
 end $$;$block$, 'the company helpers name only the caller own company');
 
--- anon holds the same execute grant and has no member, so it is told nothing
--- even about an id somebody handed it.
+-- anon holds the same execute grant on the member helpers and has no member,
+-- so it is told nothing even about an id somebody handed it. company_of_member
+-- is no longer anon's to call at all; anon_loses_the_internal_readers.test.sql
+-- holds that.
 select lives_ok($block$do $$
 declare
   colleague uuid := '79000000-0000-0000-0000-0000000000a2';
@@ -195,8 +197,6 @@ begin
     'a signed-out caller is not told a leave balance';
   assert public.member_timezone(colleague) is null,
     'a signed-out caller is not told a timezone';
-  assert public.company_of_member(colleague) is null,
-    'a signed-out caller is not told a company';
 
   reset role;
 end $$;$block$, 'a caller with no member is told nothing');
