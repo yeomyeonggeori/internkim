@@ -15,7 +15,6 @@ var StepStaging = Step{
 				stagedFileExists(context, "config/runtime.json") &&
 				stagedFileExists(context, "config/policy.json") &&
 				stagedFileExists(context, "authorized_keys") &&
-				stagedFileExists(context, "secrets/mm-admin-pass") &&
 				stagedFileExists(context, "setup-build-id")
 		case BackendSSH:
 			return true

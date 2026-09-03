@@ -24,7 +24,7 @@ func osArgsTail() []string {
 
 func runResetArguments(arguments []string) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: internkim reset blueclaw-history [--node <nodeID>] [--host <ip>] [--user <user>] [--password <password>] [--confirm <fleetID>] [--keep-mattermost-posts]")
+		return errors.New("usage: internkim reset blueclaw-history [--node <nodeID>] [--host <ip>] [--user <user>] [--password <password>] [--confirm <fleetID>]")
 	}
 
 	switch arguments[0] {
@@ -42,7 +42,6 @@ func runResetBlueclawHistory(arguments []string) error {
 	confirmNodeID := flagSet.String("confirm-node", "", "Node ID required for --node-local reset")
 	isNodeLocal := flagSet.Bool("node-local", false, "Confirm that the reset is scoped to one node")
 	isPlanOnly := flagSet.Bool("plan", false, "Print the reset plan without changing the board")
-	keepMattermostPosts := flagSet.Bool("keep-mattermost-posts", false, "Keep visible Mattermost posts")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -59,7 +58,7 @@ func runResetBlueclawHistory(arguments []string) error {
 
 	fmt.Printf("Target: %s@%s\n", verifyTarget.user, verifyTarget.host)
 	fmt.Printf("Fleet ID: %s\n", fleetID)
-	printBlueclawHistoryResetPlan(*keepMattermostPosts)
+	printBlueclawHistoryResetPlan()
 
 	if *isPlanOnly {
 		return nil
@@ -77,7 +76,7 @@ func runResetBlueclawHistory(arguments []string) error {
 		}
 	}
 
-	output, errorValue := verifyTarget.sshClient.runResult(blueclawHistoryResetScript(*keepMattermostPosts))
+	output, errorValue := verifyTarget.sshClient.runResult(blueclawHistoryResetScript())
 	if strings.TrimSpace(output) != "" {
 		fmt.Print(output)
 		if !strings.HasSuffix(output, "\n") {
@@ -90,7 +89,7 @@ func runResetBlueclawHistory(arguments []string) error {
 	return nil
 }
 
-func printBlueclawHistoryResetPlan(keepMattermostPosts bool) {
+func printBlueclawHistoryResetPlan() {
 	fmt.Println("This will delete Blueclaw conversation/runtime data:")
 	fmt.Println("  - task runs, task events, task steps, task artifacts, waits, sessions, schedules")
 	fmt.Println("  - raw events, attachments, content segments, conversations")
@@ -98,16 +97,11 @@ func printBlueclawHistoryResetPlan(keepMattermostPosts bool) {
 	fmt.Println("  - Graphiti episode/namespace mirror rows")
 	fmt.Println("  - Graphiti Kuzu files under /root/.blueclaw/workspace/.blueclaw/graphiti/kuzu*")
 	fmt.Println("  - guest workspace Postgres/Kuzu runtime state when /var/lib/blueclaw/workspace.ext4 exists")
-	if keepMattermostPosts {
-		fmt.Println("This will keep Mattermost visible posts.")
-		return
-	}
-	fmt.Println("This will also delete visible Mattermost posts while keeping Mattermost users, teams, channels, and secrets.")
 	fmt.Println("This will keep host policy and secrets. Guest runtime mirrors are rebuilt from policy on restart.")
 }
 
-func blueclawHistoryResetScript(keepMattermostPosts bool) string {
-	script := `set -euo pipefail
+func blueclawHistoryResetScript() string {
+	return `set -euo pipefail
 echo "stopping blueclaw services"
 systemctl stop blueclaw graphiti-memoryd 2>/dev/null || true
 
@@ -160,11 +154,7 @@ mkdir -p /root/.blueclaw/workspace/.blueclaw/graphiti
 find /root/.blueclaw/workspace/.blueclaw/graphiti -maxdepth 1 -name 'kuzu*' -exec rm -rf -- {} +
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.blueclaw/graphiti
 
-`
-	if !keepMattermostPosts {
-		script += mattermostVisiblePostsResetScript()
-	}
-	script += `echo "starting blueclaw services"
+echo "starting blueclaw services"
 systemctl start graphiti-memoryd 2>/dev/null || true
 systemctl start blueclaw
 
@@ -180,42 +170,4 @@ done
 
 echo "blueclaw: failed"
 exit 1`
-	return script
-}
-
-func mattermostVisiblePostsResetScript() string {
-	return `echo "stopping mattermost"
-systemctl stop mattermost || true
-
-echo "resetting Mattermost visible posts"
-su -s /bin/bash postgres -c "psql -d mattermost" <<'SQL'
-DO $$
-DECLARE
-  reset_time bigint := (extract(epoch from now()) * 1000)::bigint;
-BEGIN
-  IF to_regclass('public.posts') IS NOT NULL THEN
-    UPDATE posts
-    SET deleteat = reset_time,
-        updateat = reset_time
-    WHERE deleteat = 0;
-  END IF;
-
-  IF to_regclass('public.reactions') IS NOT NULL THEN
-    DELETE FROM reactions;
-  END IF;
-
-  IF to_regclass('public.threadmemberships') IS NOT NULL THEN
-    DELETE FROM threadmemberships;
-  END IF;
-
-  IF to_regclass('public.threads') IS NOT NULL THEN
-    DELETE FROM threads;
-  END IF;
-END $$;
-SQL
-
-echo "starting mattermost"
-systemctl start mattermost
-
-`
 }

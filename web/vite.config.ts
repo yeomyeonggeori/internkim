@@ -8,7 +8,6 @@ import { devFilesMockPlugin } from './dev-files-mock-plugin';
 import { devTaskMockPlugin } from './dev-task-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
-import { devPersonProfileImageMockPlugin } from './dev-person-profile-image-mock-plugin';
 import { devTasksMockPlugin } from './dev-tasks-mock-plugin';
 import type { DevAdminMockUserRole } from './dev-admin-mock';
 
@@ -60,8 +59,7 @@ export default defineConfig(({ mode }) => {
 				isEnabled: env.VITE_MOCK_FILES === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),
-			devPersonProfileImageMockPlugin({ isEnabled: isTaskMockEnabled }),
-			devTaskMockPlugin({
+				devTaskMockPlugin({
 				isEnabled: isAttendanceMockEnabled || isTaskMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
 			}),

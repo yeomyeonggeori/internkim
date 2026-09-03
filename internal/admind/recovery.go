@@ -129,8 +129,6 @@ var SSHRecoveryActions = []string{
 	"buzz-rooms-nobody-is-in",
 	"buzz-retire-rooms-nobody-is-in",
 	"buzz-retire-room",
-	"circle-membership-read",
-	"circle-membership-reconcile",
 	"circle-room-read",
 	"circle-room-reconcile",
 	"buzz-whose-key",
@@ -253,12 +251,6 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		circleRoomContext, cancelCircleRoom := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(circleRoomContext, "make each circle room hold exactly its circle", "sh", "-lc", circleRoomMembershipCommand(true)))
 		cancelCircleRoom()
-	case "circle-membership-read":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read the circles this person carries", "sh", "-lc", circleMembershipReconcileCommand(actionTarget, false)))
-	case "circle-membership-reconcile":
-		circleContext, cancelCircle := context.WithTimeout(context.Background(), 300*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(circleContext, "make the messenger hold the circles this person carries", "sh", "-lc", circleMembershipReconcileCommand(actionTarget, true)))
-		cancelCircle()
 	case "buzz-retire-room":
 		namedContext, cancelNamed := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(namedContext, "retire the room this action names and its buzz mirror", "sh", "-lc", buzzRetireNamedRoomCommand(actionTarget)))
@@ -1753,17 +1745,6 @@ func circleRoomMembershipCommand(shouldApply bool) string {
 	}
 	return strings.TrimSpace(`
 body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/circle-room-membership?apply=` + applyValue + `")
-printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
-`)
-}
-
-func circleMembershipReconcileCommand(email string, shouldApply bool) string {
-	applyValue := "false"
-	if shouldApply {
-		applyValue = "true"
-	}
-	return strings.TrimSpace(`
-body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/circle-membership-reconcile?apply=` + applyValue + `&email=` + url.QueryEscape(strings.TrimSpace(email)) + `")
 printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }

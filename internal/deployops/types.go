@@ -38,15 +38,14 @@ type TargetRegistry struct {
 }
 
 type TargetStatus struct {
-	TargetID   string            `json:"targetID"`
-	CheckedAt  time.Time         `json:"checkedAt"`
-	Admin      EndpointStatus    `json:"admin"`
-	Mattermost EndpointStatus    `json:"mattermost"`
-	Release    EndpointStatus    `json:"release"`
-	Recovery   RecoveryStatus    `json:"recovery"`
-	LLM        LLMModelStatus    `json:"llm"`
-	Versions   VersionStatus     `json:"versions"`
-	Services   map[string]string `json:"services,omitempty"`
+	TargetID  string            `json:"targetID"`
+	CheckedAt time.Time         `json:"checkedAt"`
+	Admin     EndpointStatus    `json:"admin"`
+	Release   EndpointStatus    `json:"release"`
+	Recovery  RecoveryStatus    `json:"recovery"`
+	LLM       LLMModelStatus    `json:"llm"`
+	Versions  VersionStatus     `json:"versions"`
+	Services  map[string]string `json:"services,omitempty"`
 }
 
 type EndpointStatus struct {

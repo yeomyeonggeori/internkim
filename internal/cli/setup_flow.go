@@ -2440,7 +2440,7 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 		saveState(state.stateDir, "node_tunnel_token", state.nodeTunnelToken)
 		saveState(state.stateDir, "device_url", state.deviceURL)
 		saveState(state.stateDir, "ssh_hostname", sshHostname)
-		saveState(state.stateDir, "tunnel_origin", setup.MattermostTunnelOrigin)
+		saveState(state.stateDir, "tunnel_origin", setup.AdminGatewayTunnelOrigin)
 		saveState(state.stateDir, "tunnel_revision", setup.TunnelConfigurationRevision)
 		saveDefaultFleetNode(state.stateDir, registrationResponse)
 		if state.adminEmail != "" {
@@ -2561,10 +2561,7 @@ func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
 	if err := context.SD.WriteFile("device-url", []byte(state.deviceURL), 0o644); err != nil {
 		return err
 	}
-	if err := context.SD.WriteFile("mattermost-url", []byte(state.deviceURL), 0o644); err != nil {
-		return err
-	}
-	if err := context.SD.WriteFile("tunnel-origin", []byte(setup.MattermostTunnelOrigin), 0o644); err != nil {
+	if err := context.SD.WriteFile("tunnel-origin", []byte(setup.AdminGatewayTunnelOrigin), 0o644); err != nil {
 		return err
 	}
 	if err := context.SD.WriteFile("tunnel-revision", []byte(setup.TunnelConfigurationRevision), 0o644); err != nil {
@@ -2785,25 +2782,9 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 
-	adminPassword := state.restorePasswordFromBackup("mm-admin-pass")
-	if adminPassword == "" {
-		adminPassword = generatePassword(20)
-	}
-	if err := context.SD.WriteFile("secrets/mm-admin-pass", []byte(adminPassword), 0o644); err != nil {
-		return err
-	}
-
-	databasePassword := state.restorePasswordFromBackup("mm-db-pass")
-	if databasePassword == "" {
-		databasePassword = generatePassword(20)
-	}
-	if err := context.SD.WriteFile("secrets/mm-db-pass", []byte(databasePassword), 0o644); err != nil {
-		return err
-	}
-
 	if err := context.SD.WriteFile(
 		"internkim-firstboot.sh",
-		[]byte(generateFirstbootScript(state.deviceURL, state.adminEmail, localLLMIsPlanned(context))),
+		[]byte(generateFirstbootScript(localLLMIsPlanned(context))),
 		0o755,
 	); err != nil {
 		return err
@@ -2861,11 +2842,9 @@ func (state *setupFlowState) stageBlueclawMigrationsSD(stageRoot string) error {
 
 func (state *setupFlowState) stageBackupArtifacts(stageRoot string) error {
 	workspaceTarget := filepath.Join(stageRoot, "workspace-restore")
-	databaseTarget := filepath.Join(stageRoot, "mattermost-db.sql")
 	blueclawDatabaseTarget := filepath.Join(stageRoot, "blueclaw-db.sql")
 
 	_ = os.RemoveAll(workspaceTarget)
-	_ = os.Remove(databaseTarget)
 	_ = os.Remove(blueclawDatabaseTarget)
 
 	workspaceSource := filepath.Join(state.stateDir, "backup", "workspace")
@@ -2876,13 +2855,6 @@ func (state *setupFlowState) stageBackupArtifacts(stageRoot string) error {
 		fmt.Printf("  %s\n", state.messenger.t("워크스페이스 백업 복원", "Workspace restored from backup"))
 	}
 
-	databaseSource := filepath.Join(state.stateDir, "backup", "mattermost-db.sql")
-	if info, err := os.Stat(databaseSource); err == nil && info.Mode().IsRegular() {
-		if err := copyRegularFile(databaseSource, databaseTarget, 0o644); err != nil {
-			return err
-		}
-		fmt.Printf("  %s\n", state.messenger.t("DB 백업 복원", "DB backup restored"))
-	}
 	blueclawDatabaseSource := filepath.Join(state.stateDir, "backup", "blueclaw-db.sql")
 	if info, err := os.Stat(blueclawDatabaseSource); err == nil && info.Mode().IsRegular() {
 		if err := copyRegularFile(blueclawDatabaseSource, blueclawDatabaseTarget, 0o644); err != nil {

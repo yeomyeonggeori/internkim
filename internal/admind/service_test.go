@@ -19,7 +19,6 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
-	"gitlab.com/eastriver/internkim/internal/mattermostdefaults"
 )
 
 func TestGatewayRoutesAdminAndMattermost(t *testing.T) {
@@ -502,9 +501,6 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","roles":"system_user"}`, nil), nil
 		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusCreated, `{"id":"dm-1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/preferences" && request.Method == http.MethodPut:
-			assertBotDirectChannelShown(t, request, "user-1", "bot-1")
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
 		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
@@ -1836,103 +1832,17 @@ func mattermostTaskSetupResponse(t *testing.T, request *http.Request) *http.Resp
 	}
 }
 
-func isMattermostConnectCommandSetupRequest(request *http.Request) bool {
-	return request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim" ||
-		request.URL.String() == "http://mattermost.local/api/v4/commands?team_id=team-1" ||
-		request.URL.String() == "http://mattermost.local/api/v4/commands"
-}
-
-func newWorkspaceSettingsMattermostTestService(t *testing.T, isAnnouncementsMissing bool) (*Service, map[string]string, map[string]string) {
+func newWorkspaceSettingsTestService(t *testing.T) *Service {
 	t.Helper()
-	adminPasswordPath := filepath.Join(t.TempDir(), "admin-pass")
-	writeFile(t, adminPasswordPath, "admin-pass")
 	service := NewService(Configuration{
-		StateDirectory:              t.TempDir(),
-		AdminEmailPath:              writeTestFile(t, "admin@example.com"),
-		MattermostBaseURL:           "http://mattermost.local",
-		MattermostAdminPasswordPath: adminPasswordPath,
+		StateDirectory: t.TempDir(),
+		AdminEmailPath: writeTestFile(t, "admin@example.com"),
 	})
-	patchedDisplayNames := map[string]string{}
-	createdChannels := map[string]string{}
-	channelNamesByID := map[string]string{
-		"town-square-channel":   mattermostdefaults.TownSquareChannelName,
-		"off-topic-channel":     mattermostdefaults.OffTopicChannelName,
-		"announcements-channel": "announcements",
-	}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
-			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
-			return jsonResponse(http.StatusOK, `{"id":"flow-channel"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/town-square":
-			return jsonResponse(http.StatusOK, `{"id":"town-square-channel"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/town-square-channel/posts?per_page=100":
-			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/off-topic":
-			return jsonResponse(http.StatusOK, `{"id":"off-topic-channel"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/posts?per_page=100":
-			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/members" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
-			return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/attendance":
-			return jsonResponse(http.StatusOK, `{"id":"attendance-channel"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/announcements" && isAnnouncementsMissing:
-			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/announcements":
-			return jsonResponse(http.StatusOK, `{"id":"announcements-channel"}`, nil), nil
-		case strings.HasPrefix(request.URL.String(), "http://mattermost.local/api/v4/channels/") && strings.HasSuffix(request.URL.String(), "/patch"):
-			channelID := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/api/v4/channels/"), "/patch")
-			channelName := channelNamesByID[channelID]
-			patchedDisplayNames[channelName] = assertMattermostDisplayNamePatch(t, request)
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case strings.HasPrefix(request.URL.String(), "http://mattermost.local/api/v4/channels/") && strings.HasSuffix(request.URL.String(), "/posts?per_page=100"):
-			return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels" && request.Method == http.MethodPost:
-			channelName, displayName := assertMattermostPublicChannelCreate(t, request)
-			createdChannels[channelName] = displayName
-			return jsonResponse(http.StatusCreated, `{"id":"created-channel"}`, nil), nil
-		default:
-			t.Fatalf("unexpected workspace settings Mattermost request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
+		t.Fatalf("unexpected workspace settings request %s %s", request.Method, request.URL.String())
+		return nil, nil
 	})}
-	return service, patchedDisplayNames, createdChannels
-}
-
-func assertMattermostDisplayNamePatch(t *testing.T, request *http.Request) string {
-	t.Helper()
-	var payload map[string]string
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if _, found := payload["name"]; found {
-		t.Fatalf("display name patch must not change channel name: %#v", payload)
-	}
-	displayName := strings.TrimSpace(payload["display_name"])
-	if displayName == "" {
-		t.Fatalf("display name patch = %#v", payload)
-	}
-	return displayName
-}
-
-func assertMattermostPublicChannelCreate(t *testing.T, request *http.Request) (string, string) {
-	t.Helper()
-	var payload map[string]string
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if payload["team_id"] != "team-1" || payload["type"] != "O" {
-		t.Fatalf("public channel create = %#v", payload)
-	}
-	if payload["name"] == "" || payload["display_name"] == "" {
-		t.Fatalf("public channel create = %#v", payload)
-	}
-	return payload["name"], payload["display_name"]
+	return service
 }
 
 func assertMattermostChannelSchemeRoles(t *testing.T, request *http.Request) {
@@ -1969,31 +1879,6 @@ func assertMattermostTaskChannelModerationPatch(t *testing.T, request *http.Requ
 		if !found || !reflect.DeepEqual(patch.Roles, expectedRoles) {
 			t.Fatalf("flow moderation patch = %#v", payload)
 		}
-	}
-}
-
-func TestMattermostManagedChannelSystemPostCleanupDeletesMetadataPostsOnly(t *testing.T) {
-	deletedPostIDs := []string{}
-	service := NewService(Configuration{MattermostBaseURL: "http://mattermost.local"})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/posts?per_page=100":
-			return jsonResponse(http.StatusOK, `{"order":["header","display","purpose","user","entry"],"posts":{"header":{"id":"header","type":"system_header_change"},"display":{"id":"display","type":"system_displayname_change"},"purpose":{"id":"purpose","type":"system_purpose_change"},"user":{"id":"user","type":""},"entry":{"id":"entry","type":"","props":{"internkim_flow_entry":true}}}}`, nil), nil
-		case request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/api/v4/posts/"):
-			deletedPostIDs = append(deletedPostIDs, strings.TrimPrefix(request.URL.Path, "/api/v4/posts/"))
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		default:
-			t.Fatalf("unexpected cleanup request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-
-	if errorValue := service.cleanupMattermostManagedChannelSystemPosts(context.Background(), "admin-token", "channel-1"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	expectedPostIDs := []string{"header", "display", "purpose"}
-	if strings.Join(deletedPostIDs, ",") != strings.Join(expectedPostIDs, ",") {
-		t.Fatalf("deleted post IDs = %#v", deletedPostIDs)
 	}
 }
 
@@ -3343,7 +3228,6 @@ func assertFirstAdminPasswordPolicyPatch(t *testing.T, request *http.Request) {
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	assertMattermostManagedResourcePathPatch(t, payload)
 	passwordSettings := payload["PasswordSettings"]
 	if passwordSettings["MinimumLength"] != float64(5) {
 		t.Fatalf("minimum password length = %#v", passwordSettings["MinimumLength"])
@@ -3352,73 +3236,6 @@ func assertFirstAdminPasswordPolicyPatch(t *testing.T, request *http.Request) {
 		if passwordSettings[key] != false {
 			t.Fatalf("password setting %s = %#v", key, passwordSettings[key])
 		}
-	}
-}
-
-func assertMattermostNicknameDisplayPatch(t *testing.T, request *http.Request) {
-	t.Helper()
-	var payload map[string]map[string]any
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	assertMattermostManagedResourcePathPatch(t, payload)
-	teamSettings := payload["TeamSettings"]
-	if teamSettings["TeammateNameDisplay"] != "nickname_full_name" {
-		t.Fatalf("teammate name display = %#v", teamSettings["TeammateNameDisplay"])
-	}
-}
-
-func assertMattermostManagedResourcePathPatch(t *testing.T, payload map[string]map[string]any) {
-	t.Helper()
-	serviceSettings := payload["ServiceSettings"]
-	if serviceSettings["ManagedResourcePaths"] != mattermostdefaults.ManagedResourcePathSetting() {
-		t.Fatalf("managed resource paths = %#v", serviceSettings["ManagedResourcePaths"])
-	}
-	if serviceSettings["AllowedUntrustedInternalConnections"] != "127.0.0.1 localhost" {
-		t.Fatalf("allowed internal connections = %#v", serviceSettings["AllowedUntrustedInternalConnections"])
-	}
-	if serviceSettings["EnableUserAccessTokens"] != true {
-		t.Fatalf("user access tokens = %#v", serviceSettings["EnableUserAccessTokens"])
-	}
-	if serviceSettings["EnableBotAccountCreation"] != true {
-		t.Fatalf("bot account creation = %#v", serviceSettings["EnableBotAccountCreation"])
-	}
-}
-
-func assertMattermostRuntimeSettingsPatch(t *testing.T, request *http.Request, siteURL string) {
-	t.Helper()
-	var payload map[string]map[string]any
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	assertMattermostManagedResourcePathPatch(t, payload)
-	serviceSettings := payload["ServiceSettings"]
-	if serviceSettings["SiteURL"] != siteURL {
-		t.Fatalf("site url = %#v", serviceSettings["SiteURL"])
-	}
-	if serviceSettings["AllowCorsFrom"] != siteURL {
-		t.Fatalf("allow cors from = %#v", serviceSettings["AllowCorsFrom"])
-	}
-	if serviceSettings["CorsAllowCredentials"] != true {
-		t.Fatalf("cors allow credentials = %#v", serviceSettings["CorsAllowCredentials"])
-	}
-	if serviceSettings["EnableOAuthServiceProvider"] != true {
-		t.Fatalf("oauth service provider = %#v", serviceSettings["EnableOAuthServiceProvider"])
-	}
-}
-
-func assertBotDirectChannelShown(t *testing.T, request *http.Request, userID string, botID string) {
-	t.Helper()
-	var preferences []mattermostPreferenceRecord
-	if errorValue := json.NewDecoder(request.Body).Decode(&preferences); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(preferences) != 1 {
-		t.Fatalf("preferences = %#v", preferences)
-	}
-	preference := preferences[0]
-	if preference.UserID != userID || preference.Category != "direct_channel_show" || preference.Name != botID || preference.Value != "true" {
-		t.Fatalf("direct channel preference = %#v", preference)
 	}
 }
 

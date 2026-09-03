@@ -169,7 +169,7 @@ func TestWorkspaceCountryUpdateRefreshesHolidaysWithoutMattermost(t *testing.T) 
 }
 
 func TestWorkspaceSettingsUpdateDoesNotRequireHolidayAPIWhenCountryIsUnchanged(t *testing.T) {
-	service, _, _ := newWorkspaceSettingsMattermostTestService(t, false)
+	service := newWorkspaceSettingsTestService(t)
 	originalTransport := service.HTTPClient.Transport
 	var holidayRequestCount atomic.Int64
 	service.HTTPClient.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {

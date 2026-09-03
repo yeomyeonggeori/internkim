@@ -5,19 +5,6 @@ import (
 	"testing"
 )
 
-func TestParseMattermostVerificationOutputAllowsTrailingCleanupLogs(t *testing.T) {
-	output := `{"ok":true,"botMessage":"done","downloadedFiles":[],"fileIDs":[]}` + "\n" +
-		"curl: (22) The requested URL returned error: 401\n" +
-		"jq: parse error: Invalid numeric literal at line 1, column 9\n"
-	verificationOutput, errorValue := parseMattermostVerificationOutput(output)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if verificationOutput.BotMessage != "done" {
-		t.Fatalf("unexpected bot message: %q", verificationOutput.BotMessage)
-	}
-}
-
 func TestVerifyAPIScriptChecksLiteRTWithCPUAccelerator(t *testing.T) {
 	script := verifyAPIScript()
 	requiredFragments := []string{

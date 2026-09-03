@@ -19,7 +19,6 @@ func newOrganizationCachedUserRecord(record adminUserMutation) organizationCache
 		Handle:       record.Handle,
 		Name:         record.Name,
 		Email:        record.Email,
-		Image:        record.Image,
 		HireDate:     record.HireDate,
 		JobTitle:     record.JobTitle,
 		GroupID:      record.GroupID,
@@ -33,7 +32,6 @@ func applyOrganizationCachedUserRecord(record adminUserMutation, cachedRecord or
 	record.Handle = cachedRecord.Handle
 	record.Name = cachedRecord.Name
 	record.Email = cachedRecord.Email
-	record.Image = cachedRecord.Image
 	record.HireDate = cachedRecord.HireDate
 	record.JobTitle = cachedRecord.JobTitle
 	record.GroupID = cachedRecord.GroupID

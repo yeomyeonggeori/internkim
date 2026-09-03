@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { personProfileImagePath } from '$lib/person-profile-image';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import TaskPersonChip from './task-person-chip.svelte';
@@ -76,7 +75,7 @@
 					name={taskDraft.requesterName || memberEmail(taskDraft.requesterID || '') || taskDraft.requesterID || text.requesterUnavailable}
 					email={memberEmail(taskDraft.requesterID || '')}
 					seed={taskDraft.requesterID || taskDraft.requesterName || text.requesterUnavailable}
-					image={personProfileImagePath(taskDraft.requesterID || '')}
+					
 				/>
 			</div>
 		</div>
