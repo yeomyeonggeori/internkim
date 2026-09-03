@@ -55,7 +55,7 @@ func (service *Service) handleOrganization(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	groups, errorValue := service.organizationGroupsOfTheCompany(request.Context(), service.organizationReaderEmail(request))
+	groups, errorValue := service.organizationGroupsOfTheCompany(request.Context(), service.recordReaderEmail(request))
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return

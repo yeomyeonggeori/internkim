@@ -19,18 +19,13 @@ func (service *Service) workspaceTimeLocation() (*time.Location, string) {
 }
 
 func (service *Service) workspaceTimeZone() resolvedTimeZone {
-	settings, errorValue := service.readWorkspaceSettings()
-	return resolveWorkspaceTimeZone(settings, errorValue, systemTimeZone)
+	return resolveWorkspaceTimeZone(service.readWorkspaceSettings(), systemTimeZone)
 }
 
 func resolveWorkspaceTimeZone(
 	settings workspaceSettings,
-	settingsError error,
 	resolveSystemTimeZone func() resolvedTimeZone,
 ) resolvedTimeZone {
-	if settingsError != nil {
-		return nonAuthoritativeTimeZone(resolveSystemTimeZone())
-	}
 	timeZone := strings.TrimSpace(settings.TimeZone)
 	if timeZone == "" || timeZone == workspaceSystemTimeZone {
 		return resolveSystemTimeZone()

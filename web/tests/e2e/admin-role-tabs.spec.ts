@@ -50,7 +50,7 @@ async function mockAdminPage(page: Page, role: MockAdminRole): Promise<void> {
 		});
 	});
 	await page.route('**/admin/api/workspace-settings', async (route) => {
-		await route.fulfill({ json: { timeZone: 'Asia/Seoul', language: 'ko', callingCode: '82' } });
+		await route.fulfill({ json: { timeZone: 'Asia/Seoul', language: 'ko' } });
 	});
 }
 

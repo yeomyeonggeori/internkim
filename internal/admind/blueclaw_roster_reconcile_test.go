@@ -257,7 +257,7 @@ func TestTheSeedAdminStaysEvenWhenTheDirectoryDoesNotNameThem(t *testing.T) {
 	}
 }
 
-func TestTheReconcileCarriesTheCompanyTimeZoneOntoTheDevice(t *testing.T) {
+func TestTheDeviceReadsTheTimeZoneTheCompanyKeeps(t *testing.T) {
 	service := NewService(Configuration{
 		CentralPlaneAppURL:         "https://company.example.test",
 		CentralPlaneProjectURL:     "https://project.example.test",
@@ -265,23 +265,25 @@ func TestTheReconcileCarriesTheCompanyTimeZoneOntoTheDevice(t *testing.T) {
 		CentralPlaneAgentKeyPath:   writeTestFile(t, "agent-key"),
 		BlueclawBaseURL:            "http://blueclaw.local",
 		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
+		ClaimedAdminEmailPath:      writeTestFile(t, "owner@example.com"),
 		StateDirectory:             t.TempDir(),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":
-			return jsonResponse(http.StatusOK, `{"company":{"name":"예시회사","profileImage":"","timezone":"America/Los_Angeles"}}`, nil), nil
+		case request.URL.Path == "/api/agent/session":
+			return jsonResponse(http.StatusOK, `{"memberID":"member-admin","accessToken":"token","expiresAt":4102444800}`, nil), nil
+		case request.URL.Path == "/api/v1/tools/company_settings_get/invoke":
+			return jsonResponse(http.StatusOK, `{"tool":"company_settings_get","result":{"timeZone":"America/Los_Angeles","locale":"en"}}`, nil), nil
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
 		}
 	})}
 
-	if errorValue := service.reconcileCompanyTimeZone(context.Background(), service.centralPlane()); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
 	if resolved := service.workspaceTimeZone(); resolved.name != "America/Los_Angeles" {
 		t.Fatalf("the device reads the zone the company keeps, got %+v", resolved)
+	}
+	if language := service.workspaceLanguage(); language != workspaceLanguageEnglish {
+		t.Fatalf("the device works in the language the company keeps, got %q", language)
 	}
 }
