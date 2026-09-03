@@ -689,12 +689,7 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		return
 	}
 	if !service.isAuthorized(request) {
-		if !service.isOperationsAdminRequest(request, path) {
-			http.Error(responseWriter, "admin access required", http.StatusForbidden)
-			return
-		}
-	}
-	if service.rejectOperationsAdminRestrictedMutation(responseWriter, request, path) {
+		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
 	}
 
@@ -845,7 +840,7 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 	isClaimedAdmin := callerEmail != "" && strings.EqualFold(callerEmail, claimedAdminEmail)
 	consoleEmail := service.adminConsoleActorEmail(request)
 	role := service.adminSessionRole(request.Context(), consoleEmail)
-	canViewTasks := role == adminUserRoleAdmin || role == adminUserRoleOperationsAdmin
+	canViewTasks := role == adminUserRoleAdmin
 	response := adminSessionResponse{
 		Email:             consoleEmail,
 		ClaimedAdminEmail: claimedAdminEmail,
@@ -918,19 +913,12 @@ func userIDFromAdminUsersResponse(responseBody []byte, email string) string {
 }
 
 const (
-	adminUserRoleAdmin           = "admin"
-	adminUserRoleMember          = "member"
-	adminUserRoleOperationsAdmin = "operationsAdmin"
+	adminUserRoleAdmin  = centralplane.MemberRoleAdmin
+	adminUserRoleMember = centralplane.MemberRoleMember
 )
 
 func normalizeAdminUserRole(role string) string {
-	switch strings.ToLower(strings.TrimSpace(role)) {
-	case "admin":
-		return adminUserRoleAdmin
-	case "operationsadmin":
-		return adminUserRoleOperationsAdmin
-	}
-	return adminUserRoleMember
+	return centralplane.NormalizeMemberRole(role)
 }
 
 func (service *Service) saveBlueclawCircle(responseWriter http.ResponseWriter, request *http.Request) {

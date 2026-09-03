@@ -8,11 +8,10 @@ import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
 import { devTasksMockPlugin } from './dev-tasks-mock-plugin';
 import type { DevAdminMockUserRole } from './dev-admin-mock';
-
-const devUserRoles = new Set(['admin', 'operationsAdmin', 'member']);
+import { isMemberRole } from './src/lib/member-vocabulary';
 
 function devUserRoleFromEnv(value: string | undefined): DevAdminMockUserRole {
-	return devUserRoles.has(value ?? '') ? (value as DevAdminMockUserRole) : 'admin';
+	return isMemberRole(value) ? value : 'admin';
 }
 
 function admindProxy(target: string, devUserEmail?: string): ProxyOptions {
