@@ -6,7 +6,7 @@
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
-	import { ConfirmDeleteDialog, confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
@@ -431,5 +431,3 @@
 		</div>
 	{/if}
 </main>
-
-<ConfirmDeleteDialog />
