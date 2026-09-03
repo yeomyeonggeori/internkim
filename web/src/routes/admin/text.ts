@@ -117,16 +117,20 @@ export const adminText = {
 			}
 		},
 		bot: {
-			title: '봇 프로필',
-			description: '사용자에게 보이는 이름과 공개 설명을 바꿉니다. 내부 username은 internkim으로 유지됩니다.',
-			identityNotice: 'identity extension은 Blueclaw 프롬프트에만 들어가고 Mattermost 설명에는 노출되지 않습니다.',
-			displayNamePlaceholder: '표시 이름',
-			englishDisplayNamePlaceholder: '영문 표시 이름',
-			publicDescriptionPlaceholder: '공개 설명',
-			aliasesLabel: '별칭',
-			aliasesPlaceholder: '별칭, 한 줄에 하나씩',
-			identityExtensionPlaceholder: '프롬프트 전용 identity extension',
-			save: '프로필 저장'
+			title: '김인턴의 성격',
+			description: '김인턴이 무엇을 지키고, 무엇을 하지 않고, 어떻게 일하는지를 정합니다. 한 줄에 한 문장씩, 각 항목은 여덟 줄까지입니다. 저장하면 다음 턴부터 그대로 읽습니다.',
+			valuesLabel: '지키는 것',
+			boundariesLabel: '하지 않는 것',
+			workingStyleLabel: '일하는 방식',
+			linesPlaceholder: '한 줄에 한 문장',
+			toneRegisterLabel: '말투',
+			toneRegisterUnset: '정하지 않음',
+			toneRegisters: { formal: '격식체', polite: '공손한 말투', casual: '편한 말투' },
+			traitsLabel: '어조',
+			traitsPlaceholder: '따뜻한\n간결한',
+			languageLabel: '기본 언어',
+			matchRequesterLabel: '요청한 사람의 언어로 답하기',
+			save: '저장'
 		},
 		credentials: {
 			title: '인증 정보',
@@ -471,16 +475,20 @@ export const adminText = {
 			}
 		},
 		bot: {
-			title: 'Bot Profile',
-			description: 'Change the user-facing name and public description. The internal username stays internkim.',
-			identityNotice: 'The identity extension is only added to the Blueclaw prompt and is not exposed in the Mattermost description.',
-			displayNamePlaceholder: 'display name',
-			englishDisplayNamePlaceholder: 'English display name',
-			publicDescriptionPlaceholder: 'public description',
-			aliasesLabel: 'Aliases',
-			aliasesPlaceholder: 'aliases, one per line',
-			identityExtensionPlaceholder: 'prompt-only identity extension',
-			save: 'Save profile'
+			title: "Intern Kim's soul",
+			description: 'What Intern Kim holds to, never does, and how it works. One sentence per line, up to eight lines each. The agent reads it as saved from its next turn on.',
+			valuesLabel: 'What it holds to',
+			boundariesLabel: 'What it never does',
+			workingStyleLabel: 'How it works',
+			linesPlaceholder: 'one sentence per line',
+			toneRegisterLabel: 'Register',
+			toneRegisterUnset: 'not set',
+			toneRegisters: { formal: 'formal', polite: 'polite', casual: 'casual' },
+			traitsLabel: 'Traits',
+			traitsPlaceholder: 'warm\nbrief',
+			languageLabel: 'Default language',
+			matchRequesterLabel: 'Answer in the requester\'s language',
+			save: 'Save'
 		},
 		credentials: {
 			title: 'Credentials',

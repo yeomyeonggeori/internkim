@@ -55,8 +55,8 @@ Mattermost API, Blueclaw API, 내부 업무 API 호출은 사용자 브라우저
 │   └── policy.json
 └── workspace/
     ├── AGENTS.md
-    ├── SOUL.md
-    ├── IDENTITY.md
+    ├── identity.json
+    ├── soul.json
     ├── bin/
     ├── private/
     │   └── people/

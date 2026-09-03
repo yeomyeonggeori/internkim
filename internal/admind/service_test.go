@@ -227,8 +227,8 @@ func TestDefaultConfigurationUsesCanonicalHostPaths(t *testing.T) {
 	if configuration.ClaimedAdminEmailPath != "/root/.internkim/state/admin/claimed-admin-email" {
 		t.Fatalf("claimed admin email path = %q", configuration.ClaimedAdminEmailPath)
 	}
-	if configuration.BotProfilePath != "/root/.internkim/config/bot-profile.yaml" {
-		t.Fatalf("bot profile path = %q", configuration.BotProfilePath)
+	if configuration.IdentityDocumentPath != "/root/.internkim/config/identity.json" || configuration.SoulDocumentPath != "/root/.internkim/config/soul.json" {
+		t.Fatalf("persona paths = %q %q", configuration.IdentityDocumentPath, configuration.SoulDocumentPath)
 	}
 	if configuration.MattermostTokenPath != "/root/.internkim/secrets/mattermost-bot-token" {
 		t.Fatalf("Mattermost token path = %q", configuration.MattermostTokenPath)
@@ -649,70 +649,6 @@ func TestAdminCompanionReleasesAreSameOrigin(t *testing.T) {
 	}
 	if document.Platforms[0].Platform != "macos" {
 		t.Fatalf("first companion release platform = %q", document.Platforms[0].Platform)
-	}
-}
-
-func TestBotProfileMigratesLegacyJSONStateToYAML(t *testing.T) {
-	stateDirectory := t.TempDir()
-	profilePath := filepath.Join(stateDirectory, "bot-profile.yaml")
-	legacyPath := filepath.Join(stateDirectory, "bot-profile.json")
-	writeFile(t, legacyPath, `{"displayName":"김비서","englishDisplayName":"Kim Secretary","aliases":["비서"],"identityExtension":"Be crisp."}`)
-	service := NewService(Configuration{
-		BotProfilePath:        profilePath,
-		BlueclawWorkspacePath: t.TempDir(),
-		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
-	})
-
-	profile, found := service.loadBotProfile()
-
-	if !found {
-		t.Fatal("expected legacy bot profile to load")
-	}
-	if profile.DisplayName != "김비서" {
-		t.Fatalf("display name = %q", profile.DisplayName)
-	}
-	document, errorValue := os.ReadFile(profilePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !strings.Contains(string(document), `displayName: "김비서"`) {
-		t.Fatalf("expected yaml profile, got %s", string(document))
-	}
-}
-
-func TestBotProfileMigratesLegacyStateProfileToCanonicalConfiguration(t *testing.T) {
-	rootPath := t.TempDir()
-	profilePath := filepath.Join(rootPath, "config", "bot-profile.yaml")
-	legacyPath := filepath.Join(rootPath, "state", "bot-profile.yaml")
-	if errorValue := os.MkdirAll(filepath.Dir(legacyPath), 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	writeFile(t, legacyPath, `displayName: "김비서"
-englishDisplayName: "Kim Secretary"
-aliases:
-  - "비서"
-identityExtension: "Be crisp."
-`)
-	service := NewService(Configuration{
-		BotProfilePath:        profilePath,
-		BlueclawWorkspacePath: t.TempDir(),
-		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
-	})
-
-	profile, found := service.loadBotProfile()
-
-	if !found {
-		t.Fatal("expected legacy state bot profile to load")
-	}
-	if profile.DisplayName != "김비서" {
-		t.Fatalf("display name = %q", profile.DisplayName)
-	}
-	document, errorValue := os.ReadFile(profilePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !strings.Contains(string(document), `displayName: "김비서"`) {
-		t.Fatalf("expected canonical yaml profile, got %s", string(document))
 	}
 }
 
@@ -1261,16 +1197,6 @@ func newTaskDefinitionsRequest(callerEmail string) *http.Request {
 	request.RemoteAddr = "198.51.100.10:443"
 	request.Header.Set("Cf-Access-Authenticated-User-Email", callerEmail)
 	return request
-}
-
-func TestBotProfileDoesNotKeepLegacyDefaultPublicDescription(t *testing.T) {
-	profile := normalizeBotProfile(botProfile{
-		DisplayName:       "김인턴",
-		PublicDescription: string([]byte{237, 154, 140, 236, 130, 172, 32, 236, 157, 188, 236, 157, 132, 32, 235, 185, 160, 235, 165, 180, 234, 178, 140, 32, 235, 143, 149, 235, 138, 148, 32, 65, 73, 32, 116, 101, 97, 109, 109, 97, 116, 101}),
-	})
-	if profile.PublicDescription != "" {
-		t.Fatalf("public description = %q", profile.PublicDescription)
-	}
 }
 
 func writeFile(t *testing.T, path string, document string) {

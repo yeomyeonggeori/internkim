@@ -6,7 +6,7 @@ import type {
 	AttendanceWorkPolicyResponse,
 	AttendanceWorkPolicyRevision,
 	BlueclawUpdateStatus,
-	BotProfile,
+	AgentSoul,
 	CircleRecord,
 	CompanyDocumentsResponse,
 	CompanyHoliday,
@@ -47,19 +47,19 @@ export async function fetchAdminSession(adminBaseURL: string, fallbackMessage: s
 	return readJSON<AdminSession>(response, fallbackMessage);
 }
 
-export async function fetchBotProfile(adminBaseURL: string, fallbackMessage: string): Promise<BotProfile> {
-	const response = await fetch(`${adminBaseURL}/bot-profile`, { credentials: 'include' });
-	return readJSON<BotProfile>(response, fallbackMessage);
+export async function fetchSoul(adminBaseURL: string, fallbackMessage: string): Promise<AgentSoul> {
+	const response = await fetch(`${adminBaseURL}/soul`, { credentials: 'include' });
+	return readJSON<AgentSoul>(response, fallbackMessage);
 }
 
-export async function updateBotProfile(adminBaseURL: string, profile: BotProfile, fallbackMessage: string): Promise<BotProfile> {
-	const response = await fetch(`${adminBaseURL}/bot-profile`, {
+export async function updateSoul(adminBaseURL: string, soul: AgentSoul, fallbackMessage: string): Promise<AgentSoul> {
+	const response = await fetch(`${adminBaseURL}/soul`, {
 		method: 'PUT',
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(profile)
+		body: JSON.stringify(soul)
 	});
-	return readJSON<BotProfile>(response, fallbackMessage);
+	return readJSON<AgentSoul>(response, fallbackMessage);
 }
 
 export async function fetchCredentialProviders(adminBaseURL: string, fallbackMessage: string): Promise<CredentialProvidersResponse> {
