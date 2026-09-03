@@ -142,7 +142,7 @@ A tool carried to the company's computer answers the fuller shape below —
 
 `POST /v1/tools/<name>/target` answers what a call would touch, without making
 it. It takes the same `input` the call takes, and it is refused for a tool whose
-`sideEffectClass` is not `destructive` — there is nothing to look at first.
+`sideEffectClass` is not `destructive`. There is nothing to look at first.
 
 ```bash
 curl https://api.intern.kim/v1/tools/event_delete/target \
@@ -169,8 +169,8 @@ exactly what it would answer there — the same `409`, the same candidates.
 
 This is what a client asks before putting an irreversible action to a person.
 Replace the hint with the answer's `target.id` under `target.inputField` and the
-approved call acts on the row that was shown, rather than resolving the hint a
-second time against a record that may have moved. The agent's own approval
+approved call acts on the row that was shown; resolving the hint a second time
+could land on a record that has moved. The agent's own approval
 prompt is built this way.
 
 A destructive tool with nothing to resolve ahead answers `"target": null`.
@@ -183,7 +183,7 @@ the tool's result contract. Each entry names an `objectType`, an `effect`
 or a `url`. Some entries add `visibility`, `durability`, `filename`,
 `contentType`, or a `summary`.
 
-Where a call carries `effects`, verify through it instead of the result text:
+Where a call carries `effects`, verify through it and not the result text:
 an empty list means nothing changed. A record tool carries none, and its
 `result` is the whole answer.
 
@@ -220,12 +220,11 @@ in one direction: towards the task the caller owns, never towards somebody
 else's. A hint that leaves two of anyone else's rows standing is a question.
 
 An identifier is never approximated: an ID one character off was invented
-rather than mistyped. An identifier several rows hold — two addresses that
-share a local part, so one `@handle` — is a question rather than the first of
-them. Nearness is measured the way that kind of value is actually got wrong: a
+rather than mistyped. An identifier several rows hold, such as two addresses sharing a local part and
+so one `@handle`, is a question. Nearness is measured the way that kind of value is actually got wrong: a
 name or a handle by a character or two, an address by its local part or its
-domain, a title by how much of it is shared, so a misspelling comes back with
-the nearest names rather than with nothing.
+domain, a title by how much of it is shared, so a misspelling comes back with the
+nearest names.
 
 An unresolved hint answers `409`:
 
@@ -271,7 +270,7 @@ curl https://api.intern.kim/v1/tools/task_update/invoke \
 
 The first response's `result` carries the new `taskID` and
 `"status":"planned"`; the second answers the same `taskID` with
-`"status":"in_progress"` — a record tool carries no `effects`, so the task
+`"status":"in_progress"`. A record tool carries no `effects`, so the task
 itself, read back through `result`, is the confirmation. Deleting it takes a
 `delete` token:
 

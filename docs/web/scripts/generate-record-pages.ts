@@ -29,8 +29,8 @@ const words = {
     rpcTitle: 'Every RPC',
     rpcDescription: 'Every function PostgREST exposes at /rest/v1/rpc, and who may call it.',
     rpcLead:
-      'The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<name>` on the company\'s Supabase, running as whichever role its key carries. Row level security still applies to everything a function touches, and a `definer` function additionally runs with its owner\'s privileges, so its own body is the only thing deciding what the caller may see.',
-    triggerLead: 'These run when a row changes rather than when somebody calls them.',
+      'The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<name>` on the company\'s Supabase, running as whichever role its key carries. Row level security still applies to everything a function touches. A `definer` function also runs with its owner\'s privileges, so its own body is what decides what the caller may see.',
+    triggerLead: 'These run when a row changes. Nobody calls them.',
     edgeTitle: 'Edge functions',
     edgeDescription: 'The Deno functions deployed beside the record, and whether each verifies a JWT.',
     edgeLead:

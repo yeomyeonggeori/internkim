@@ -51,8 +51,7 @@ the company's computer, because that is where a tool runs.
 The Cloudflare Worker at `workers/connection-gateway/` that passes calls to
 the host. One Durable Object per company holds the browser sockets and the
 host's one standing connection, and routes calls one way and answers the
-other. The public API's invocations go the same way, as one authorized call
-rather than a socket. Neither end ever connects to the other directly.
+other. The public API's invocations go the same way, as one authorized call. Neither end ever connects to the other directly.
 
 ## The chat screen
 

@@ -15,7 +15,7 @@ happened: the tool schema demanded a reason `public.attendance_add` does not,
 and the attendance screen was refused before the record ever saw the call.
 
 These pages are generated from a database with every migration applied, so they
-say what is actually there rather than what somebody remembered to write down.
+say what is actually there.
 
 <Cards>
   <Card title="Every RPC" href="/docs/record/rpc" description="Every function PostgREST exposes, and who may call it" />
@@ -25,16 +25,20 @@ say what is actually there rather than what somebody remembered to write down.
 
 ## Reading the tables [#reading-the-tables]
 
-**Callable by** is the EXECUTE privilege, not the whole answer. Row level
-security still applies to every table a function touches, and most functions
-gate themselves besides: `member_leave_days_set` raises unless
-`public.is_company_admin()` holds, whoever called it.
+### Callable by
 
-**Security** is `definer` or `invoker`. An `invoker` function runs as the
-caller, so row level security answers for it. A `definer` function runs as its
-owner and can see past those policies, which is how a function returns one
-person's leave balance without opening the whole table — and which means its own
-body is the only thing standing between a caller and everything it can reach.
+The EXECUTE privilege, which is only the first gate. Row level security still
+applies to every table a function touches, and most functions gate themselves
+besides: `member_leave_days_set` raises unless `public.is_company_admin()`
+holds, whoever called it.
+
+### Security
+
+An `invoker` function runs as the caller, so row level security answers for it.
+A `definer` function runs as its owner and can see past those policies. That is
+how a function returns one person's leave balance without opening the whole
+table, and it means the function's own body is all that stands between a caller
+and everything it can reach.
 
 The schema of record is `supabase/migrations`, and
 [docs/internal/core-schema.md](https://github.com/yeomyeonggeori/internkim/blob/main/docs/internal/core-schema.md)

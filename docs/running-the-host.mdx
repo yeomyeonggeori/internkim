@@ -105,7 +105,7 @@ forever, so the relay measures every answer first and replies `413` with the
 byte count, which does reach them. The default ceiling is 3,000,000 bytes
 (decimal — a Supabase figure, so `3 * 1024 * 1024` lands 145 KB over), and
 `ANSWER_BYTE_CEILING` overrides it. Anything that is not a positive number
-stops the boot rather than silently refusing every answer. The
+stops the boot, so a bad value cannot quietly refuse every answer. The
 profile-picture limit is derived from the ceiling, since base64 inflates by a
 third. `host/relay/measure-broadcast-ceiling.ts` settles the real ceiling
 against a project by binary search.
