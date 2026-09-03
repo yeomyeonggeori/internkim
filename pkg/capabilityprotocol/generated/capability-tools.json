@@ -14180,6 +14180,781 @@
       "worksOffline": false
     },
     {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "notification_settings_get",
+      "description": "What the requester is told about, category by category, and the conversations they have muted. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox. A category the requester may not choose is answered with isChoosable false, so a change to it would be refused.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "notification_settings_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "notification_settings_get",
+      "namespace": "notification",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "categories": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "isChoosable": {
+                  "type": "boolean"
+                },
+                "isOn": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "category",
+                "isOn",
+                "isChoosable"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "mutedConversationIDs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories",
+          "mutedConversationIDs"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:notification_settings_get",
+      "privacyClass": "user_notification",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "categories": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "category": {
+                    "type": "string"
+                  },
+                  "isChoosable": {
+                    "type": "boolean"
+                  },
+                  "isOn": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "category",
+                  "isOn",
+                  "isChoosable"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "mutedConversationIDs": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "categories",
+            "mutedConversationIDs"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "notification_settings_set",
+      "description": "Change what the requester is told about. Only the categories the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "turnOff": {
+            "description": "The categories to stop being told about. A category named in neither list keeps the setting it has.",
+            "items": {
+              "enum": [
+                "message",
+                "task",
+                "approval",
+                "attendance",
+                "leave",
+                "calendar",
+                "mail"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "turnOn": {
+            "description": "The categories to start being told about. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox.",
+            "items": {
+              "enum": [
+                "message",
+                "task",
+                "approval",
+                "attendance",
+                "leave",
+                "calendar",
+                "mail"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "turnOff": {
+            "description": "The categories to stop being told about. A category named in neither list keeps the setting it has.",
+            "items": {
+              "enum": [
+                "message",
+                "task",
+                "approval",
+                "attendance",
+                "leave",
+                "calendar",
+                "mail"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "turnOn": {
+            "description": "The categories to start being told about. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox.",
+            "items": {
+              "enum": [
+                "message",
+                "task",
+                "approval",
+                "attendance",
+                "leave",
+                "calendar",
+                "mail"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "notification_settings_set",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "notification_settings_set",
+      "namespace": "notification",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "categories": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "isChoosable": {
+                  "type": "boolean"
+                },
+                "isOn": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "category",
+                "isOn",
+                "isChoosable"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "mutedConversationIDs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories",
+          "mutedConversationIDs"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:notification_settings_set",
+      "privacyClass": "user_notification",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "categories": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "category": {
+                    "type": "string"
+                  },
+                  "isChoosable": {
+                    "type": "boolean"
+                  },
+                  "isOn": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "category",
+                  "isOn",
+                  "isChoosable"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "mutedConversationIDs": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "categories",
+            "mutedConversationIDs"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "conversation_mute",
+      "description": "Stop telling the requester about a conversation. The messages keep arriving; the requester is not notified of them. This is the requester's own, and it changes nothing for anybody else in the conversation.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "conversationID": {
+            "description": "The exact id of the conversation, as a message tool answers it. A conversation has no name to approximate, so this is the id itself and nothing else.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationID"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "conversation_mute",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "conversation_mute",
+      "namespace": "notification",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "conversationID": {
+            "type": "string"
+          },
+          "isMuted": {
+            "type": "boolean"
+          },
+          "mutedConversationIDs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "conversationID",
+          "isMuted",
+          "mutedConversationIDs"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:conversation_mute",
+      "privacyClass": "user_notification",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "conversationID": {
+              "type": "string"
+            },
+            "isMuted": {
+              "type": "boolean"
+            },
+            "mutedConversationIDs": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "conversationID",
+            "isMuted",
+            "mutedConversationIDs"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "conversation_unmute",
+      "description": "Tell the requester about a conversation again. Read notification_settings_get for the conversations that are muted now.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "conversationID": {
+            "description": "The exact id of the conversation, as a message tool answers it. A conversation has no name to approximate, so this is the id itself and nothing else.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationID"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "conversation_unmute",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "conversation_unmute",
+      "namespace": "notification",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "conversationID": {
+            "type": "string"
+          },
+          "isMuted": {
+            "type": "boolean"
+          },
+          "mutedConversationIDs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "conversationID",
+          "isMuted",
+          "mutedConversationIDs"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:conversation_unmute",
+      "privacyClass": "user_notification",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "conversationID": {
+              "type": "string"
+            },
+            "isMuted": {
+              "type": "boolean"
+            },
+            "mutedConversationIDs": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "conversationID",
+            "isMuted",
+            "mutedConversationIDs"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "push_reachability_get",
+      "description": "The key a browser subscribes to push with, and whether the requester already has a device claimed. An empty serverKey means this company has no push keys, so nothing can be delivered.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "push_reachability_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "push_reachability_get",
+      "namespace": "notification",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "hasClaimedDevice": {
+            "type": "boolean"
+          },
+          "isServerKeyVaulted": {
+            "type": "boolean"
+          },
+          "serverKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverKey",
+          "isServerKeyVaulted",
+          "hasClaimedDevice"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:push_reachability_get",
+      "privacyClass": "user_notification",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "hasClaimedDevice": {
+              "type": "boolean"
+            },
+            "isServerKeyVaulted": {
+              "type": "boolean"
+            },
+            "serverKey": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "serverKey",
+            "isServerKeyVaulted",
+            "hasClaimedDevice"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "push_device_claim",
+      "description": "Take the browser subscription this call carries for the requester, so push arrives at it. A subscription somebody else claimed moves to the requester, which is what a shared browser signed into a second account is.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "authenticationSecret": {
+            "description": "The subscription's auth secret, base64url encoded.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "endpoint": {
+            "description": "The address the push service delivers to, as the browser subscription answers it.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "publicKey": {
+            "description": "The subscription's p256dh key, base64url encoded.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "publicKey",
+          "authenticationSecret"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "push_device_claim",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "push_device_claim",
+      "namespace": "notification",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "hasClaimedDevice": {
+            "type": "boolean"
+          },
+          "isServerKeyVaulted": {
+            "type": "boolean"
+          },
+          "serverKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverKey",
+          "isServerKeyVaulted",
+          "hasClaimedDevice"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:push_device_claim",
+      "privacyClass": "user_notification",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "hasClaimedDevice": {
+              "type": "boolean"
+            },
+            "isServerKeyVaulted": {
+              "type": "boolean"
+            },
+            "serverKey": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "serverKey",
+            "isServerKeyVaulted",
+            "hasClaimedDevice"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "push_device_release",
+      "description": "Stop delivering push to a browser subscription of the requester. A subscription the requester does not hold is left alone.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "endpoint": {
+            "description": "The address to stop delivering to.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "push_device_release",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "push_device_release",
+      "namespace": "notification",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "hasClaimedDevice": {
+            "type": "boolean"
+          },
+          "isServerKeyVaulted": {
+            "type": "boolean"
+          },
+          "serverKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverKey",
+          "isServerKeyVaulted",
+          "hasClaimedDevice"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:push_device_release",
+      "privacyClass": "user_notification",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "hasClaimedDevice": {
+              "type": "boolean"
+            },
+            "isServerKeyVaulted": {
+              "type": "boolean"
+            },
+            "serverKey": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "serverKey",
+            "isServerKeyVaulted",
+            "hasClaimedDevice"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
       "answeredBy": "company",
       "availability": {
         "state": "ok"

@@ -86,7 +86,20 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, MailDescriptors()...)
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, CompanyDescriptors()...)
+	descriptors = append(descriptors, NotificationDescriptors()...)
 	return canonicalizeDescriptors(descriptors)
+}
+
+func NotificationDescriptors() []Descriptor {
+	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
+		"notification_settings_get",
+		"notification_settings_set",
+		"conversation_mute",
+		"conversation_unmute",
+		"push_reachability_get",
+		"push_device_claim",
+		"push_device_release",
+	))
 }
 
 func CompanyDescriptors() []Descriptor {
@@ -215,6 +228,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, ArtifactDescriptors()...)
 	descriptors = append(descriptors, CompanyDescriptors()...)
+	descriptors = append(descriptors, NotificationDescriptors()...)
 	return canonicalizeDescriptors(descriptors)
 }
 

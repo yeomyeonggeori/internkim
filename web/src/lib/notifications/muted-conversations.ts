@@ -1,21 +1,18 @@
-import { supabase } from '$lib/supabase';
+import { invokeTool } from '$lib/public-api-call';
+import { myNotificationSettings } from './settings';
+
+type MutingAnswer = { mutedConversationIDs: string[] };
 
 export async function mutedConversations(): Promise<Set<string>> {
-	const { data, error } = await supabase()
-		.from('notification')
-		.select('conversation_id')
-		.eq('is_muted', true)
-		.returns<{ conversation_id: string }[]>();
-	if (error) throw new Error(error.message);
-	return new Set((data ?? []).map((row) => row.conversation_id));
+	return new Set((await myNotificationSettings()).mutedConversationIDs);
 }
 
-export async function muteConversation(conversationID: string): Promise<void> {
-	const { error } = await supabase().rpc('conversation_mute', { conversation: conversationID });
-	if (error) throw new Error(error.message);
+export async function muteConversation(conversationID: string): Promise<Set<string>> {
+	const answered = await invokeTool<MutingAnswer>('conversation_mute', { conversationID });
+	return new Set(answered.mutedConversationIDs);
 }
 
-export async function unmuteConversation(conversationID: string): Promise<void> {
-	const { error } = await supabase().rpc('conversation_unmute', { conversation: conversationID });
-	if (error) throw new Error(error.message);
+export async function unmuteConversation(conversationID: string): Promise<Set<string>> {
+	const answered = await invokeTool<MutingAnswer>('conversation_unmute', { conversationID });
+	return new Set(answered.mutedConversationIDs);
 }

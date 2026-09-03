@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { notificationCategories } from '../../src/lib/notifications/categories';
-import { categoriesChoosableBy } from '../../src/lib/notifications/choosable-categories';
+import { categoriesChoosableBy } from '../../src/lib/server/public-api/record/notifications';
 
 describe('categoriesChoosableBy', () => {
 	test('an administrator chooses every category', () => {
