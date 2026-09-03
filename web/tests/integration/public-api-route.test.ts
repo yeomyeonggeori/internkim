@@ -134,6 +134,14 @@ function invoke(name: string, token: string, input: unknown): Promise<RouteAnswe
 	});
 }
 
+function preview(name: string, token: string, input: unknown): Promise<RouteAnswer> {
+	return reach(`/tools/${name}/target`, token, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ input })
+	});
+}
+
 function messageOf(answered: RouteAnswer): string {
 	return (answered.body as { message?: string; error?: string }).message ?? '';
 }
@@ -272,6 +280,25 @@ describe('a tool the company machine runs', () => {
 	});
 });
 
+describe('looking at what a destructive call would touch', () => {
+	test('is refused for a tool that destroys nothing', async () => {
+		const answered = await preview('task_list', holdersToken, {});
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('destroys nothing');
+	});
+
+	test('is refused by rung before it resolves anything', async () => {
+		const answered = await preview('task_delete', readersToken, { taskHint: 'anything' });
+		expect(answered.status).toBe(403);
+	});
+
+	test('reads the input against the same schema the call is held to', async () => {
+		const answered = await preview('task_delete', holdersToken, { colour: 'red' });
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('input.colour');
+	});
+});
+
 describe('input the catalog does not publish', () => {
 	test('is refused for a value outside the enum, naming the field', async () => {
 		const answered = await invoke('task_add', holdersToken, { title: 'a task', size: 'huge' });
@@ -354,6 +381,7 @@ describe('the documented endpoints', () => {
 			'get /tools',
 			'get /tools/{name}',
 			'post /tools/{name}/invoke',
+			'post /tools/{name}/target',
 			'get /tokens',
 			'post /token',
 			'delete /token',

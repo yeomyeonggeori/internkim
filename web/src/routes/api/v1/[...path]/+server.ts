@@ -15,8 +15,12 @@ import {
 	oversizeRefusal,
 	sizeTheHeaderClaims,
 } from '$lib/server/public-api/files';
-import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
-import { answererOfTool, permissionForTool } from '$lib/server/public-api/catalog';
+import {
+	previewToolOverTheRecord,
+	recordRunsTheTool,
+	runToolOverTheRecord
+} from '$lib/server/public-api/record';
+import { answererOfTool, destroysSomething, permissionForTool } from '$lib/server/public-api/catalog';
 import { refusalOfToolInput } from '$lib/server/public-api/tool-input';
 import { reachesPermission } from '$lib/public-api-permission';
 import { error, json } from '@sveltejs/kit';
@@ -38,6 +42,9 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 		const answered = discoveryAnswer(path, member);
 		if (answered) return answered;
 	}
+	const previewed = previewedToolName(request.method, path);
+	if (previewed) return previewHere(request, member, previewed);
+
 	const invoked = invokedToolName(request.method, path);
 	if (invoked) {
 		const refusal = refusalToCarry(invoked);
@@ -57,6 +64,19 @@ function refusalToCarry(name: string): Response | null {
 	);
 }
 
+function descriptorTheTokenReaches(name: string, member: CallingMember) {
+	const descriptor = toolReachableBy(name, member.permission);
+	if (!descriptor) {
+		const known = toolReachableBy(name, fullPublicAPIPermission);
+		if (!known) error(404, `no tool here goes by ${name}`);
+		error(403, `this token may only ${member.permission}, and ${name} ${permissionForTool(known)}s`);
+	}
+	if (!reachesPermission(member.permission, permissionForTool(descriptor))) {
+		error(403, `this token may not ${permissionForTool(descriptor)}`);
+	}
+	return descriptor;
+}
+
 function refuseInputTheToolDoesNotTake(name: string, input: unknown): void {
 	if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
 		error(400, 'input is the object the tool reads');
@@ -71,21 +91,43 @@ function invokedToolName(method: string, path: string): string | null {
 	return named ? named[1] : null;
 }
 
+function previewedToolName(method: string, path: string): string | null {
+	if (method !== 'POST') return null;
+	const named = path.match(/^\/tools\/([^/]+)\/target$/);
+	return named ? named[1] : null;
+}
+
+async function previewHere(request: Request, member: CallingMember, name: string): Promise<Response> {
+	const descriptor = descriptorTheTokenReaches(name, member);
+	if (!destroysSomething(descriptor)) {
+		error(400, `${name} destroys nothing, so there is nothing to look at before calling it`);
+	}
+	if (!recordRunsTheTool(name)) {
+		error(400, `${name} is answered on the company machine, which is where a preview of it lives`);
+	}
+
+	const payload = await payloadOf(request);
+	if (!payload) error(400, 'this call carried a body that is not a json object');
+	const input = payload.input;
+	refuseInputTheToolDoesNotTake(name, input);
+
+	const answered = await previewToolOverTheRecord(
+		member.caller,
+		member.memberID,
+		name,
+		(input as Record<string, unknown>) ?? {},
+		new Date()
+	);
+	return json(answered.body, { status: answered.status });
+}
+
 async function runHere(
 	request: Request,
 	environment: Environment,
 	member: CallingMember,
 	name: string
 ): Promise<Response> {
-	const descriptor = toolReachableBy(name, member.permission);
-	if (!descriptor) {
-		const known = toolReachableBy(name, fullPublicAPIPermission);
-		if (!known) error(404, `no tool here goes by ${name}`);
-		error(403, `this token may only ${member.permission}, and ${name} ${permissionForTool(known)}s`);
-	}
-	if (!reachesPermission(member.permission, permissionForTool(descriptor))) {
-		error(403, `this token may not ${permissionForTool(descriptor)}`);
-	}
+	descriptorTheTokenReaches(name, member);
 
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');

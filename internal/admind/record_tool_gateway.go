@@ -17,7 +17,7 @@ func (service *Service) handleRecordTool(responseWriter http.ResponseWriter, req
 		http.Error(responseWriter, "a record tool is invoked with POST", http.StatusMethodNotAllowed)
 		return
 	}
-	toolName := recordToolNameOf(request.URL.Path)
+	toolName, verb := recordToolCallOf(request.URL.Path)
 	if toolName == "" {
 		http.Error(responseWriter, "this path names no tool", http.StatusNotFound)
 		return
@@ -39,7 +39,7 @@ func (service *Service) handleRecordTool(responseWriter http.ResponseWriter, req
 		return
 	}
 
-	answer, errorValue := client.InvokeRecordTool(request.Context(), requesterEmail, toolName, json.RawMessage(input))
+	answer, errorValue := client.InvokeRecordTool(request.Context(), requesterEmail, toolName, verb, json.RawMessage(input))
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
@@ -52,14 +52,16 @@ func (service *Service) handleRecordTool(responseWriter http.ResponseWriter, req
 
 const recordToolInputCeiling = 1 << 20
 
-func recordToolNameOf(path string) string {
+var recordToolVerbs = map[string]bool{"invoke": true, "target": true}
+
+func recordToolCallOf(path string) (string, string) {
 	rest := strings.TrimPrefix(path, recordToolPathPrefix)
 	if rest == path {
-		return ""
+		return "", ""
 	}
-	name, suffix, found := strings.Cut(rest, "/")
-	if !found || suffix != "invoke" {
-		return ""
+	name, verb, found := strings.Cut(rest, "/")
+	if !found || !recordToolVerbs[verb] {
+		return "", ""
 	}
-	return strings.TrimSpace(name)
+	return strings.TrimSpace(name), verb
 }

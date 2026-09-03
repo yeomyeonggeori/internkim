@@ -23,6 +23,7 @@ func (client *Client) InvokeRecordTool(
 	ctx context.Context,
 	requesterEmail string,
 	toolName string,
+	verb string,
 	input json.RawMessage,
 ) (RecordToolAnswer, error) {
 	email := strings.ToLower(strings.TrimSpace(requesterEmail))
@@ -40,7 +41,7 @@ func (client *Client) InvokeRecordTool(
 		return RecordToolAnswer{}, errorValue
 	}
 
-	address := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/v1/tools/" + toolName + "/invoke"
+	address := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/v1/tools/" + toolName + "/" + verb
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, address, bytes.NewReader(payload))
 	if errorValue != nil {
 		return RecordToolAnswer{}, errorValue

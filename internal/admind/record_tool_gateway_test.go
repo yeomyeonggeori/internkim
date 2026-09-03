@@ -12,11 +12,12 @@ func TestARecordToolPathNamesItsTool(t *testing.T) {
 		"/record/api/tools/leave_list/invoke":   "leave_list",
 		"/record/api/tools/leave_decide/invoke": "leave_decide",
 		"/record/api/tools/leave_list":          "",
+		"/record/api/tools/task_delete/target":  "task_delete",
 		"/record/api/tools//invoke":             "",
 		"/record/api/tools/leave_list/read":     "",
 		"/task/api/state":                       "",
 	} {
-		if named := recordToolNameOf(path); named != expected {
+		if named, _ := recordToolCallOf(path); named != expected {
 			t.Errorf("%s named %q, wanted %q", path, named, expected)
 		}
 	}
