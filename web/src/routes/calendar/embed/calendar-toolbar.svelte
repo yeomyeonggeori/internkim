@@ -77,7 +77,7 @@
 	<Popover.Root bind:open={isDatePickerOpen}>
 		<Popover.Trigger>
 			{#snippet child({ props })}
-				<Button {...props} variant="ghost" class="-ml-2 gap-1.5 px-2 text-[22px] leading-none font-extrabold tabular-nums">
+				<Button {...props} variant="ghost" class="calendar-toolbar-title -ml-2 gap-1.5 px-2 text-[22px] leading-none font-extrabold tabular-nums">
 					{currentMonthTitle}
 					<ChevronDownIcon class="text-muted-foreground size-4" />
 				</Button>
