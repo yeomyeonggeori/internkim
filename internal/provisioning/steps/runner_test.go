@@ -280,6 +280,25 @@ func TestSkillsRunAfterBlueclawRuntimeBase(t *testing.T) {
 	}
 }
 
+func TestBuzzBackingServicesAreInstalledBeforeTheDaemonsStart(t *testing.T) {
+	context := &Context{Backend: BackendSSH}
+	plan, err := DefaultRegistry().resolve(context, Selector{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	relayIndex := setupPlanIndex(plan, "buzz-relay")
+	mediaIndex := setupPlanIndex(plan, "buzz-media")
+	for _, daemonName := range []string{"admind", "capabilityd", "services"} {
+		daemonIndex := setupPlanIndex(plan, daemonName)
+		if daemonIndex < 0 {
+			t.Fatalf("expected %s in the plan, got %s", daemonName, strings.Join(plan, ","))
+		}
+		if relayIndex < 0 || relayIndex > daemonIndex || mediaIndex < 0 || mediaIndex > daemonIndex {
+			t.Fatalf("the packages that add accounts must be installed before %s serves, got %s", daemonName, strings.Join(plan, ","))
+		}
+	}
+}
+
 func TestAdminWebAliasIsNotSupported(t *testing.T) {
 	names := ParseNames("admin-web,binaries")
 	if strings.Join(names, ",") != "admin-web,binaries" {

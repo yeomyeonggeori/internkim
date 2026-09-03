@@ -8,8 +8,9 @@ import (
 )
 
 type buzzPublicHostConnection struct {
-	recordedPublicURL string
-	commands          []string
+	recordedPublicURL     string
+	terminatorStaysAbsent bool
+	commands              []string
 }
 
 // A device that is configured answers yes to everything the step checks, so a
@@ -19,6 +20,11 @@ func (connection *buzzPublicHostConnection) Run(command string) string {
 	switch {
 	case strings.HasPrefix(command, "cat ") && strings.Contains(command, blueclaw.BuzzRelayPublicURLFilePath):
 		return connection.recordedPublicURL
+	case strings.Contains(command, "echo installed || echo missing"):
+		if connection.terminatorStaysAbsent {
+			return "missing"
+		}
+		return "installed"
 	case strings.Contains(command, "echo y || echo n"):
 		return "y"
 	case strings.HasPrefix(command, "systemctl is-active"):
@@ -29,6 +35,20 @@ func (connection *buzzPublicHostConnection) Run(command string) string {
 
 func (connection *buzzPublicHostConnection) SCP(localPath, remotePath string) error {
 	return nil
+}
+
+func TestBuzzPublicHostFailsWhenTheTLSTerminatorIsNotInstalled(t *testing.T) {
+	connection := &buzzPublicHostConnection{terminatorStaysAbsent: true}
+	context := &Context{Backend: BackendSSH, SSH: connection, RelayDomain: "new.example.test"}
+
+	errorValue := StepBuzzPublicHost.Run(context)
+
+	if errorValue == nil {
+		t.Fatal("a unit whose ExecStart is missing must fail the step rather than loop on 203/EXEC forever")
+	}
+	if !strings.Contains(errorValue.Error(), "stunnel4") {
+		t.Fatalf("the failure must name what is missing, got %v", errorValue)
+	}
 }
 
 func TestBuzzPublicHostLeavesTheRelayOnLoopbackWithoutADomain(t *testing.T) {

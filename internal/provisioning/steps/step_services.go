@@ -48,7 +48,7 @@ var StepServices = Step{
 			return fmt.Errorf("blueclaw rootfs base contract drift: %s", baseCheck)
 		}
 
-		connection.Run(blueclawHostNetworkDependencyInstallCommand())
+		connection.Run(withPackageWorkSettled(blueclawHostNetworkDependencyInstallCommand()))
 
 		connection.Run("rm -f /etc/init.d/S97httpd; killall board-bridge 2>/dev/null; " +
 			"kill $(ps | grep 'python3 -m http.server' | grep -v grep | awk '{print $1}') 2>/dev/null || true")
