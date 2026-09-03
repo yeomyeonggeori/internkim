@@ -100,6 +100,7 @@ func (service *Service) startBuzzCredentialSweep(ctx context.Context) {
 				if len(recording.Refusals) > 0 {
 					log.Printf("buzz credential sweep: %s", recording)
 				}
+				service.showOutWhoeverNobodyNames(ctx)
 			}
 		}
 	}()
