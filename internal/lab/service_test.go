@@ -571,9 +571,6 @@ func buildTestConfiguration() Configuration {
 				CPUCount:  6,
 				MemoryMiB: 8192,
 			},
-			Mattermost: MattermostConfiguration{
-				ListenAddress: "127.0.0.1:8065",
-			},
 			SharedWorkspacePath: "/Users/test/workspace",
 			MountDirectoryPath:  "/mnt/shared",
 			SSHUsername:         "admin",

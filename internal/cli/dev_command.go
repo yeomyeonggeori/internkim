@@ -300,11 +300,10 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 	scenario := flagSet.String("scenario", "", "Local fleet scenario to run")
 	ephemeral := flagSet.Bool("ephemeral", false, "Deprecated; disposable local fleet runs are now the default")
 	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared local fleet instead of creating a disposable run")
-	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM and Mattermost test artifacts; run evidence is kept by default")
-	withoutMattermost := flagSet.Bool("without-mattermost", false, "Run the scenario inside Linux without starting or using Mattermost")
+	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM test artifacts; run evidence is kept by default")
+	virtualSession := flagSet.Bool("virtual-session", false, "Run the scenario as a scripted Linux virtual session instead of the full local fleet")
 	runID := flagSet.String("run-id", "", "Optional disposable run identifier")
 	adminHostPort := flagSet.Int("admin-port", 0, "Host port for the local admind tunnel")
-	mattermostHostPort := flagSet.Int("mattermost-port", 0, "Host port for the local Mattermost tunnel")
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	upgradeGate := flagSet.Bool("upgrade-gate", false, "Regress persisted fleet state to the previous generation, apply the current release over OTA, then run the scenario")
 	flagSet.Usage = func() {
@@ -319,8 +318,8 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 		return devFleetRunConfiguration{}, errorValue
 	}
 	trimmedScenario := strings.TrimSpace(*scenario)
-	if *withoutMattermost && trimmedScenario == "" {
-		return devFleetRunConfiguration{}, errors.New("without-mattermost mode requires --scenario")
+	if *virtualSession && trimmedScenario == "" {
+		return devFleetRunConfiguration{}, errors.New("virtual session mode requires --scenario")
 	}
 	if *upgradeGate && trimmedScenario == "" {
 		return devFleetRunConfiguration{}, errors.New("upgrade gate requires --scenario")
@@ -335,12 +334,11 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 		IsEphemeral:         !*reuseFleet,
 		RunID:               strings.TrimSpace(*runID),
 		AdminHostPort:       *adminHostPort,
-		MattermostHostPort:  *mattermostHostPort,
 		ShouldUseRealModels: *useRealModels,
 	}
 	request := localfleet.JobRequest{
-		KeepArtifacts:     *keepArtifacts,
-		WithoutMattermost: *withoutMattermost,
+		KeepArtifacts:  *keepArtifacts,
+		VirtualSession: *virtualSession,
 	}
 	switch {
 	case *upgradeGate:
@@ -390,7 +388,6 @@ func newLocalFleetServiceWithOptions(options localfleet.Options) (localfleet.Ser
 		VirtualMachineName:    options.VirtualMachineName,
 		RunID:                 options.RunID,
 		AdminHostPort:         options.AdminHostPort,
-		MattermostHostPort:    options.MattermostHostPort,
 		GenerationSeed:        options.GenerationSeed,
 		GenerationTemperature: options.GenerationTemperature,
 		MaximumModelTier:      options.MaximumModelTier,
@@ -404,12 +401,8 @@ func printLocalFleetStatus(service localfleet.Service) error {
 	fmt.Printf("VM: %s %s\n", status.VirtualMachine.State, status.VirtualMachine.Message)
 	fmt.Printf("SSH: %s %s\n", status.SSH.State, status.SSH.Message)
 	fmt.Printf("Admin: %s %s\n", status.Admin.State, status.Admin.Message)
-	fmt.Printf("Mattermost: %s %s\n", status.Mattermost.State, status.Mattermost.Message)
 	if status.AdminURL != "" {
 		fmt.Println("Admin URL: " + status.AdminURL)
-	}
-	if status.MattermostURL != "" {
-		fmt.Println("Mattermost URL: " + status.MattermostURL)
 	}
 	if status.LastResult != "" {
 		fmt.Println("Last result: " + status.LastResult)
