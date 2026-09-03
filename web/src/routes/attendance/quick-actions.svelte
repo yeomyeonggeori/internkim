@@ -69,6 +69,27 @@
 
 	let isToggling = $state(false);
 	let errorMessage = $state('');
+	let closeTime = $state('');
+	let isCloseOpen = $state(false);
+	const fieldID = $props.id();
+
+	const stillOpen = $derived(myAttendanceToday.clockInNobodyClosed);
+
+	async function handleCloseAndClockIn() {
+		if (isToggling || !closeTime) return;
+		isToggling = true;
+		errorMessage = '';
+		try {
+			await myAttendanceToday.closeAndClockIn(closeTime, selectedLocationID);
+			await attendance.load();
+			closeTime = '';
+			isCloseOpen = false;
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : text.processingFailed;
+		} finally {
+			isToggling = false;
+		}
+	}
 
 	async function handleToggle(confirmedEarlyReturn = false) {
 		if (isToggling) return;
@@ -234,6 +255,43 @@
 						<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
 						<AlertDialog.Action onclick={() => handleToggle(true)}>
 							{text.earlyReturnConfirmAction}
+						</AlertDialog.Action>
+					</AlertDialog.Footer>
+				</AlertDialog.Content>
+			</AlertDialog.Root>
+		{:else if stillOpen}
+			<AlertDialog.Root bind:open={isCloseOpen}>
+				<AlertDialog.Trigger class={cn(buttonVariants(), 'w-full')} disabled={isToggling}>
+					{#if isToggling}
+						<LoaderIcon class="size-3.5 animate-spin" />
+					{:else}
+						<LogInIcon class="size-3.5" />
+					{/if}
+					{actionLabel}
+				</AlertDialog.Trigger>
+				<AlertDialog.Content>
+					<AlertDialog.Header>
+						<AlertDialog.Title>{text.clockOutNobodyRecordedTitle}</AlertDialog.Title>
+						<AlertDialog.Description>
+							{text.clockOutNobodyRecordedDescriptionTemplate
+								.replace('{date}', stillOpen.localDate)
+								.replace('{time}', formatDisplayTime(stillOpen.localTime))}
+						</AlertDialog.Description>
+					</AlertDialog.Header>
+					<label class="grid gap-1.5 text-sm" for="{fieldID}-close">
+						<span class="text-muted-foreground">{text.clockOutNobodyRecordedLabel}</span>
+						<input
+							id="{fieldID}-close"
+							class="h-9 rounded-md border bg-background px-3 text-base"
+							type="time"
+							bind:value={closeTime}
+							required
+						/>
+					</label>
+					<AlertDialog.Footer>
+						<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
+						<AlertDialog.Action disabled={!closeTime} onclick={handleCloseAndClockIn}>
+							{text.clockOutNobodyRecordedAction}
 						</AlertDialog.Action>
 					</AlertDialog.Footer>
 				</AlertDialog.Content>

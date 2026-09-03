@@ -2,12 +2,13 @@ import { toast } from 'svelte-sonner';
 import { isPlainShortcut } from '$lib/keyboard-shortcut';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import { attendanceText } from '../../routes/attendance/text';
-import { fetchAttendanceSummary, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
+import { addAttendanceEvent, fetchAttendanceSummary, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
 import type {
 	AttendanceKind,
 	AttendanceSummary
 } from '../../routes/attendance/attendance-context.svelte';
 import { computeDayEvents, statusForDay } from '../../routes/attendance/shared/attendance-aggregation';
+import { clockInNobodyClosed } from '../../routes/attendance/shared/attendance-work-segments';
 import {
 	currentMonthInTimeZone,
 	todayDateInTimeZone
@@ -43,6 +44,12 @@ class MyAttendanceToday {
 	nextKind = $derived<AttendanceKind>(
 		this.activeLeave ? 'clock_in' : this.status === 'working' ? 'clock_out' : 'clock_in'
 	);
+	// The record refuses a clock-in while an earlier one is still open, and that
+	// one is invisible here once its day has passed. Clocking in has to close it
+	// first, so the screen has to know it is there.
+	clockInNobodyClosed = $derived(
+		this.nextKind === 'clock_in' ? clockInNobodyClosed(this.myEvents) : undefined
+	);
 
 	adoptSummary = (summary: AttendanceSummary | null) => {
 		if (summary) this.summary = summary;
@@ -69,6 +76,36 @@ class MyAttendanceToday {
 			await toggleAttendanceOnServer(kind, locationID, confirmedEarlyReturn);
 			await this.load();
 			toast.success(this.recordedClockMessage(kind));
+		} catch (failure) {
+			this.clockFailure = failure instanceof Error ? failure.message : String(failure);
+			toast.error(text.clockFailed, { description: this.clockFailure });
+			throw failure;
+		} finally {
+			this.isSubmitting = false;
+		}
+	};
+
+	// Closing the older day and clocking in are one act to the person doing it,
+	// so a clock-in that never got its clock-out cannot leave them recorded as
+	// still at work yesterday. The close goes first: the record refuses today's
+	// clock-in until it lands.
+	closeAndClockIn = async (clockOutTime: string, locationID: string) => {
+		const stillOpen = this.clockInNobodyClosed;
+		if (!stillOpen || this.isSubmitting) return;
+		this.isSubmitting = true;
+		this.clockFailure = '';
+		try {
+			await addAttendanceEvent({
+				email: this.summary?.currentUserEmail ?? '',
+				kind: 'clock_out',
+				localDate: stillOpen.localDate,
+				localTime: clockOutTime,
+				locationID: '',
+				reason: text.clockOutNobodyRecordedReason
+			});
+			await toggleAttendanceOnServer('clock_in', locationID, false);
+			await this.load();
+			toast.success(this.recordedClockMessage('clock_in'));
 		} catch (failure) {
 			this.clockFailure = failure instanceof Error ? failure.message : String(failure);
 			toast.error(text.clockFailed, { description: this.clockFailure });
