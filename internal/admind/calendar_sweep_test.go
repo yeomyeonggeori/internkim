@@ -29,8 +29,8 @@ func TestCalendarSweepDropsWhatTheCompanyNowHolds(t *testing.T) {
 			t.Fatalf("%s survived the sweep", tableName)
 		}
 	}
-	if countCalendarTablesNamed(t, database, "calendar_holidays") != 1 {
-		t.Fatal("the holidays this device still answers were swept away with the calendar")
+	if countCalendarTablesNamed(t, database, "calendar_holidays") != 0 {
+		t.Fatal("the company answers holidays now, so this device keeps no cache of them")
 	}
 }
 

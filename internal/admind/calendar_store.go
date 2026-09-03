@@ -22,6 +22,10 @@ var orphanedCalendarSyncTables = []string{
 // The device's own calendar. These hold what a device recorded before the
 // company did, so they are dropped only once the record holds all of it.
 var retiredCalendarStoreTables = []string{
+	"calendar_company_holidays",
+	"calendar_holidays",
+	"calendar_holiday_countries",
+	"calendar_holiday_sources",
 	"calendar_events",
 	"calendar_event_participants",
 	"calendar_event_notifications",
@@ -42,10 +46,7 @@ func (service *Service) openCalendarDatabase(ctx context.Context) (*sql.DB, erro
 }
 
 func ensureCalendarSchema(ctx context.Context, database *sql.DB) error {
-	if errorValue := dropCalendarTables(ctx, database, orphanedCalendarSyncTables); errorValue != nil {
-		return errorValue
-	}
-	return ensureCalendarHolidaySchema(ctx, database)
+	return dropCalendarTables(ctx, database, orphanedCalendarSyncTables)
 }
 
 func (service *Service) startCalendarSweep(ctx context.Context) {

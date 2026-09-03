@@ -124,51 +124,43 @@ type Service struct {
 	HTTPClient    *http.Client
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
-	mutex                              sync.Mutex
-	centralPlaneOnce                   sync.Once
-	siteScaffoldOnce                   sync.Once
-	siteScaffoldDocuments              []siteScaffoldDocument
-	siteScaffoldError                  error
-	centralPlaneClient                 *centralplane.Client
-	mattermostAdminOnce                sync.Once
-	mattermostAdminClient              *mattermostadmin.Client
-	jobs                               map[string]*Job
-	uploads                            map[string]*RestoreUpload
-	blueclawUpdateUploads              map[string]*BlueclawUpdateUpload
-	pairingCodes                       map[string]*CompanionPairingCode
-	companions                         map[string]*CompanionRecord
-	companionJobs                      map[string]*CompanionJob
-	companionFileUploads               map[string]*CompanionFileUpload
-	buzzInviteStore                    *buzzInviteStore
-	buzzInviteStoreOnce                sync.Once
-	buzzKeySeedOnce                    sync.Once
-	buzzKeySeedValue                   string
-	cloudflareAccessOnce               sync.Once
-	cloudflareAccessCheck              *cloudflareAccessVerifier
-	sites                              map[string]*SiteRecord
-	siteRuntimeMutex                   sync.Mutex
-	siteRuntimeActivities              map[string]*siteRuntimeActivity
-	mailBackend                        mail.Backend
-	calendarDeleteIntentWakeUp         chan struct{}
-	calendarStoreWriteMutex            sync.Mutex
-	calendarHolidayCacheMutex          sync.RWMutex
-	calendarHolidayLoadMutex           sync.Mutex
-	calendarHolidayCache               map[calendarHolidayCacheKey][]calendarHoliday
-	calendarHolidayRetryMutex          sync.RWMutex
-	calendarHolidayRetryStates         map[calendarHolidayRetryKey]calendarHolidayRetryState
-	calendarHolidayRetryLoadError      error
-	holidayCheckedMonth                string
-	companyShareMutex                  sync.Mutex
-	companyShareAttempts               map[string]companyShareAttempt
-	attendanceLeavePolicyMutationMutex sync.Mutex
-	policyRecordCacheMutex             sync.Mutex
-	policyRecordCache                  []adminUserMutation
-	requestMetrics                     *adminRequestMetrics
-	databaseSchemas                    *adminDatabaseSchemas
-	legacyDatabaseMigration            sync.Once
-	removeTokenQuarantineFile          func(string) error
-	promoteCalendarTokenFile           func(string, string) error
-	startedAt                          time.Time
+	mutex                      sync.Mutex
+	centralPlaneOnce           sync.Once
+	siteScaffoldOnce           sync.Once
+	siteScaffoldDocuments      []siteScaffoldDocument
+	siteScaffoldError          error
+	centralPlaneClient         *centralplane.Client
+	mattermostAdminOnce        sync.Once
+	mattermostAdminClient      *mattermostadmin.Client
+	jobs                       map[string]*Job
+	uploads                    map[string]*RestoreUpload
+	blueclawUpdateUploads      map[string]*BlueclawUpdateUpload
+	pairingCodes               map[string]*CompanionPairingCode
+	companions                 map[string]*CompanionRecord
+	companionJobs              map[string]*CompanionJob
+	companionFileUploads       map[string]*CompanionFileUpload
+	buzzInviteStore            *buzzInviteStore
+	buzzInviteStoreOnce        sync.Once
+	buzzKeySeedOnce            sync.Once
+	buzzKeySeedValue           string
+	cloudflareAccessOnce       sync.Once
+	cloudflareAccessCheck      *cloudflareAccessVerifier
+	sites                      map[string]*SiteRecord
+	siteRuntimeMutex           sync.Mutex
+	siteRuntimeActivities      map[string]*siteRuntimeActivity
+	mailBackend                mail.Backend
+	calendarDeleteIntentWakeUp chan struct{}
+	calendarStoreWriteMutex    sync.Mutex
+	companyShareMutex          sync.Mutex
+	companyShareAttempts       map[string]companyShareAttempt
+	policyRecordCacheMutex     sync.Mutex
+	policyRecordCache          []adminUserMutation
+	requestMetrics             *adminRequestMetrics
+	databaseSchemas            *adminDatabaseSchemas
+	legacyDatabaseMigration    sync.Once
+	removeTokenQuarantineFile  func(string) error
+	promoteCalendarTokenFile   func(string, string) error
+	startedAt                  time.Time
 }
 
 type Job struct {
@@ -344,24 +336,21 @@ func DefaultConfiguration() Configuration {
 func NewService(configuration Configuration) *Service {
 	configuration = configuration.withDefaults()
 	service := &Service{
-		Configuration:              configuration,
-		jobs:                       map[string]*Job{},
-		uploads:                    map[string]*RestoreUpload{},
-		blueclawUpdateUploads:      map[string]*BlueclawUpdateUpload{},
-		pairingCodes:               map[string]*CompanionPairingCode{},
-		companions:                 map[string]*CompanionRecord{},
-		companionJobs:              map[string]*CompanionJob{},
-		companionFileUploads:       map[string]*CompanionFileUpload{},
-		sites:                      map[string]*SiteRecord{},
-		mailBackend:                mail.StandardBackend{},
-		calendarHolidayCache:       map[calendarHolidayCacheKey][]calendarHoliday{},
-		calendarHolidayRetryStates: map[calendarHolidayRetryKey]calendarHolidayRetryState{},
-		companyShareAttempts:       map[string]companyShareAttempt{},
-		requestMetrics:             newAdminRequestMetrics(),
-		databaseSchemas:            newAdminDatabaseSchemas(),
-		startedAt:                  time.Now().UTC(),
+		Configuration:         configuration,
+		jobs:                  map[string]*Job{},
+		uploads:               map[string]*RestoreUpload{},
+		blueclawUpdateUploads: map[string]*BlueclawUpdateUpload{},
+		pairingCodes:          map[string]*CompanionPairingCode{},
+		companions:            map[string]*CompanionRecord{},
+		companionJobs:         map[string]*CompanionJob{},
+		companionFileUploads:  map[string]*CompanionFileUpload{},
+		sites:                 map[string]*SiteRecord{},
+		mailBackend:           mail.StandardBackend{},
+		companyShareAttempts:  map[string]companyShareAttempt{},
+		requestMetrics:        newAdminRequestMetrics(),
+		databaseSchemas:       newAdminDatabaseSchemas(),
+		startedAt:             time.Now().UTC(),
 	}
-	service.calendarHolidayRetryLoadError = service.loadCalendarHolidayRetryStates()
 	service.loadCompanions()
 	service.loadCompanionJobs()
 	service.loadSites()
@@ -381,20 +370,13 @@ func (service *Service) Run(ctx context.Context) error {
 	}
 	service.reconcileSiteSourcesToMemberCircle()
 	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
-	if errorValue := service.repairFutureAttendanceEvents(ctx, time.Now().UTC()); errorValue != nil {
-		log.Printf("attendance future event repair failed: %v", errorValue)
-	}
-	if repairedCount, errorValue := service.repairAttendanceClockOutDates(ctx); errorValue != nil {
-		log.Printf("attendance clock-out date repair failed: %v", errorValue)
-	} else if repairedCount > 0 {
-		log.Printf("attendance clock-out date repair completed: repaired=%d", repairedCount)
-	}
 	service.sweepUpdateLeftovers()
 	service.adoptAccountHireDates(ctx)
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarSweep(ctx)
+	service.startAttendanceSweep(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
 	service.startBuzzMemberLinker(ctx)
@@ -495,6 +477,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/person-pictures", service.handlePersonPictures)
 	multiplexer.HandleFunc("/agent/api/buzz-rewrite-old-links", service.handleBuzzRewriteOldLinks)
 	multiplexer.HandleFunc("/agent/api/calendar-record-coverage", service.handleCalendarRecordCoverage)
+	multiplexer.HandleFunc("/agent/api/attendance-record-coverage", service.handleAttendanceRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/organization-directory-coverage", service.handleOrganizationDirectoryCoverage)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", service.handleBuzzChannelVisibilityRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
@@ -516,9 +499,6 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)
 	multiplexer.HandleFunc("/mail/", service.serveMailPage)
-	multiplexer.HandleFunc("/attendance", service.serveAttendancePage)
-	multiplexer.HandleFunc("/attendance/api/", service.handleAttendance)
-	multiplexer.HandleFunc("/attendance/", service.serveAttendancePage)
 	multiplexer.HandleFunc("/organization", service.serveOrganizationPage)
 	multiplexer.HandleFunc("/organization/api/", service.handleOrganization)
 	multiplexer.HandleFunc("/organization/", service.serveOrganizationPage)
@@ -787,15 +767,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeWorkspaceSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/holiday-countries":
-		service.serveCalendarHolidayCountries(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/calendar-holidays/status":
-		service.writeCalendarHolidayStatus(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/calendar-holidays/refresh":
-		service.refreshCalendarHolidayStatus(responseWriter, request)
-	case path == calendarCompanyHolidaysAdminPath ||
-		strings.HasPrefix(path, calendarCompanyHolidaysAdminPath+"/"):
-		service.handleCalendarCompanyHolidays(responseWriter, request, path)
 	case request.Method == http.MethodGet && path == "/company-share":
 		service.writeCompanyShareSettings(responseWriter)
 	case request.Method == http.MethodPut && path == "/company-share":
@@ -826,14 +797,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.searchCompanyDocuments(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/company-documents":
 		service.updateCompanyDocument(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/attendance-locations":
-		service.writeAttendanceLocations(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/attendance-locations":
-		service.updateAttendanceLocations(responseWriter, request)
-	case (request.Method == http.MethodGet || request.Method == http.MethodPut) && path == "/attendance-leave-policy":
-		service.handleAttendanceLeavePolicy(responseWriter, request)
-	case (request.Method == http.MethodGet || request.Method == http.MethodPut) && path == "/attendance-work-policy":
-		service.handleAttendanceWorkPolicy(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/wifi-profiles":
 		service.writeWifiProfiles(responseWriter)
 	case request.Method == http.MethodPost && path == "/wifi-profiles":
