@@ -113,6 +113,23 @@ func (service Service) checkSharedArtifactsCommand() string {
 	}, " && ")
 }
 
+func (service Service) checkMessengerArtifactCommand() string {
+	blueclawPath := filepath.Join(service.options.RepositoryRootPath, ".dependency", "blueclaw")
+	chatdRevisionPath := filepath.Join(service.options.RepositoryRootPath, ".dependency", "buzz-relay", "CHATD_REVISION")
+	advice := "echo 'run make prepare-buzz-relay and try again' >&2; exit 1; fi"
+	return strings.Join([]string{
+		"pointerRevision=\"$(git -C " + quoteShell(blueclawPath) + " rev-parse HEAD 2>/dev/null || true)\"",
+		"if [ -z \"$pointerRevision\" ]; then echo 'the blueclaw submodule has no revision to build chatd from' >&2; exit 1; fi",
+		"builtRevision=\"$(cat " + quoteShell(chatdRevisionPath) + " 2>/dev/null || true)\"",
+		"if [ -z \"$builtRevision\" ]; then " +
+			"echo 'the chatd in .dependency/buzz-relay records no revision, so it was never built for this checkout' >&2; " +
+			advice,
+		"if [ \"$builtRevision\" != \"$pointerRevision\" ]; then " +
+			"echo \"the chatd in .dependency/buzz-relay was built from $builtRevision and .dependency/blueclaw points at $pointerRevision\" >&2; " +
+			advice,
+	}, " && ")
+}
+
 func (service Service) preparedFleetPlans() []CommandPlan {
 	return []CommandPlan{
 		service.startCentralPlanePlan(),
@@ -126,6 +143,7 @@ func (service Service) preparedFleetPlans() []CommandPlan {
 func (service Service) upPlansThroughSetup(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
 	plans := []CommandPlan{
 		service.shellPlan("check the guest can see the shared artifacts", service.checkSharedArtifactsCommand()),
+		service.shellPlan("check the messenger binary was built for this checkout", service.checkMessengerArtifactCommand()),
 		service.prepareContainerKernelPlan(),
 		service.prepareLocalEmbeddingPlan(),
 		service.startCentralPlanePlan(),
