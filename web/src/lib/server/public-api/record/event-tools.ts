@@ -1,5 +1,5 @@
 import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
-import { dayIn, instantOfDay, instantWritten, momentIn, weekWindow } from './days';
+import { dayIn, instantOfDay, instantWritten, isTheSameMoment, momentIn, weekWindow } from './days';
 import { peopleOfHints } from './people';
 import type { RecordContext } from './company';
 import {
@@ -225,19 +225,17 @@ async function eventAlreadyHeld(
 	const attendees = new Set(writeArguments.target_participant_ids as string[]);
 	const clashing = (data ?? []).find(
 		(row) =>
-			isTheSameMoment(row.starts_at, writeArguments.target_starts_at) &&
-			isTheSameMoment(row.ends_at, writeArguments.target_ends_at) &&
+			isTheSameHeldMoment(row.starts_at, writeArguments.target_starts_at) &&
+			isTheSameHeldMoment(row.ends_at, writeArguments.target_ends_at) &&
 			row.task_participant.length === attendees.size &&
 			row.task_participant.every(({ member_id }) => attendees.has(member_id))
 	);
 	return clashing?.id ?? '';
 }
 
-// PostgREST spells a timestamp its own way, so instants are compared as
-// instants rather than as the strings carrying them.
-function isTheSameMoment(held: string | null, written: unknown): boolean {
+function isTheSameHeldMoment(held: string | null, written: unknown): boolean {
 	if (!held || typeof written !== 'string') return false;
-	return Date.parse(held) === Date.parse(written);
+	return isTheSameMoment(held, written);
 }
 
 export async function eventAdd(context: RecordContext, input: EventWritten): Promise<AnsweredEvent> {

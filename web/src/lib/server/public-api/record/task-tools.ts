@@ -1,7 +1,7 @@
 import { compatibilityOwnerOf } from '$lib/task/central-task';
 import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
 import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
-import { dayOfInstant, instantWritten, weekWindow } from './days';
+import { dayOfInstant, instantWritten, isTheSameMoment, weekWindow } from './days';
 import { labelOf } from './labels';
 import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
 import type { RecordContext } from './company';
@@ -189,13 +189,18 @@ function carriesSomethingNew(written: WrittenTaskFields, row: TaskRow): boolean 
 		isNewValue(written.size, row.size) ||
 		isNewValue(written.business, row.business) ||
 		isNewValue(written.type, row.type) ||
-		isNewValue(written.startsAt, row.starts_at) ||
-		isNewValue(written.endsAt, row.ends_at)
+		isNewMoment(written.startsAt, row.starts_at) ||
+		isNewMoment(written.endsAt, row.ends_at)
 	);
 }
 
 function isNewValue(written: string | null | undefined, held: string | null): boolean {
 	return written !== undefined && written !== null && written !== held;
+}
+
+function isNewMoment(written: string | null | undefined, held: string | null): boolean {
+	if (written === undefined || written === null) return false;
+	return held === null || !isTheSameMoment(held, written);
 }
 
 export async function taskUpdate(
@@ -211,15 +216,15 @@ export async function taskUpdate(
 	return answeredTask(context, patched);
 }
 
+// supabase/migrations/20260831000011_dates_drive_the_status_and_guard_it.sql
+// derives status from the days a task spans and pulls a completed task's end
+// back to today, so status, starts_at and ends_at are the record's to settle.
 function refuseUnlessPatched(written: WrittenTaskFields, row: TaskRow): void {
 	const unwritten = [
 		unwrittenField('title', written.title, row.title),
-		unwrittenField('status', written.status, row.status),
 		unwrittenField('size', written.size, row.size),
 		unwrittenField('business', written.business, row.business),
 		unwrittenField('type', written.type, row.type),
-		unwrittenField('startsAt', written.startsAt, row.starts_at),
-		unwrittenField('endsAt', written.endsAt, row.ends_at),
 		unwrittenParticipants(written.participantIDs, row)
 	].filter((field): field is string => field !== null);
 	if (unwritten.length === 0) return;
@@ -234,6 +239,7 @@ function unwrittenField(name: string, written: string | null | undefined, held: 
 	if (written === undefined) return null;
 	return written === held ? null : name;
 }
+
 
 function unwrittenParticipants(written: string[] | undefined, row: TaskRow): string | null {
 	if (written === undefined) return null;
