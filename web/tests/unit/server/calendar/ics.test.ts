@@ -83,7 +83,7 @@ describe('a whole-day event', () => {
 				event({
 					isAllDay: true,
 					startISO: '2026-08-31T15:00:00.000Z',
-					endISO: '2026-09-01T14:59:59.999Z'
+					endISO: '2026-09-01T15:00:00.000Z'
 				})
 			],
 			'c',
@@ -100,7 +100,7 @@ describe('a whole-day event', () => {
 				event({
 					isAllDay: true,
 					startISO: '2026-08-31T15:00:00.000Z',
-					endISO: '2026-09-03T14:59:59.999Z'
+					endISO: '2026-09-03T15:00:00.000Z'
 				})
 			],
 			'c',
@@ -134,7 +134,7 @@ describe('what an entry carries beyond its title', () => {
 		const inSeoul = event({
 			isAllDay: true,
 			startISO: '2026-08-31T15:00:00.000Z',
-			endISO: '2026-09-01T14:59:59.999Z',
+			endISO: '2026-09-01T15:00:00.000Z',
 			timeZone: 'Asia/Seoul'
 		});
 

@@ -67,8 +67,10 @@ There is no `event` table. An event *is* a task you have to show up for.
 
 - `is_event` — you must attend, so it can be reminded about.
   `check (not is_event or starts_at is not null)`.
-- `is_whole_day` — read the range as dates rather than times. Applies to plain
-  work too: a multi-day work span is a date range.
+- `is_whole_day` — read the range as dates rather than times, where the company
+  is: `starts_at` is the first day's midnight there and `ends_at` the midnight
+  that ends the last day. Applies to plain work too: a multi-day work span is a
+  date range.
 - `notify_minutes_before` — lead time, requires a start.
 
 A sixteen-day migration task has `starts_at`/`ends_at` and is **not** an event.

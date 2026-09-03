@@ -43,6 +43,25 @@ export async function seedCalendarEvents(events: CalendarCentralEvent[]): Promis
 	return inserted.data.map((row) => row.id as string);
 }
 
+export type CalendarEventRow = {
+	id: string;
+	starts_at: string;
+	ends_at: string;
+	is_whole_day: boolean;
+};
+
+export async function calendarEventRowsTitled(title: string): Promise<CalendarEventRow[]> {
+	const admin = centralPlaneAdminClient();
+	const found = await admin
+		.from('task')
+		.select('id, starts_at, ends_at, is_whole_day')
+		.eq('company_id', exampleCompanyID)
+		.eq('title', title)
+		.returns<CalendarEventRow[]>();
+	if (found.error) throw new Error(`Failed to read calendar events titled ${title}: ${found.error.message}`);
+	return found.data;
+}
+
 export async function cleanupCalendarEvents(eventIDs: string[]): Promise<void> {
 	if (eventIDs.length === 0) return;
 	const admin = centralPlaneAdminClient();
