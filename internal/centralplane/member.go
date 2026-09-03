@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 )
 
@@ -116,6 +117,33 @@ func (client *Client) MemberByEmail(ctx context.Context, email string) (Member, 
 	return *answer.Member, true, nil
 }
 
+// A directory write belongs to an administrator, and a sync no person asked
+// for has none to name. The roster the plane already answers with says who
+// administers this company, so a write with no requester runs as one of them.
+func (client *Client) anAdministratorEmail(ctx context.Context) (string, error) {
+	members, errorValue := client.Members(ctx)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	emails := []string{}
+	for _, member := range members {
+		if NormalizeMemberRole(member.Role) != MemberRoleAdmin || member.HasLeftTheCompany() {
+			continue
+		}
+		if email := strings.ToLower(strings.TrimSpace(member.Email)); email != "" {
+			emails = append(emails, email)
+		}
+	}
+	if len(emails) == 0 {
+		return "", fmt.Errorf("this company has no administrator to write its directory as")
+	}
+	sort.Strings(emails)
+	return emails[0], nil
+}
+
+// Seating somebody goes through person_invite, which is the plane's own invite
+// path: it creates their account and their sign-in rather than writing a member
+// row nobody can use. Somebody already seated keeps the seat they have.
 func (client *Client) EnsureMember(ctx context.Context, email string, name string) (Member, error) {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	if normalizedEmail == "" {
@@ -124,43 +152,74 @@ func (client *Client) EnsureMember(ctx context.Context, email string, name strin
 	if client == nil || !client.settings.Configured() {
 		return Member{}, fmt.Errorf("central plane is not configured")
 	}
-	body, errorValue := json.Marshal(map[string]string{"email": normalizedEmail, "name": strings.TrimSpace(name)})
+	administratorEmail, errorValue := client.anAdministratorEmail(ctx)
 	if errorValue != nil {
 		return Member{}, errorValue
-	}
-	requestURL := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/agent/member"
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
-	if errorValue != nil {
-		return Member{}, errorValue
-	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
-	request.Header.Set("Content-Type", "application/json")
-
-	response, errorValue := client.httpClient.Do(request)
-	if errorValue != nil {
-		return Member{}, errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode >= 300 {
-		return Member{}, fmt.Errorf("the central plane refused to seat %s: %s", normalizedEmail, response.Status)
 	}
 
-	var answer struct {
-		Member *Member `json:"member"`
-	}
-	if errorValue := json.NewDecoder(response.Body).Decode(&answer); errorValue != nil {
+	seated, isSeated, errorValue := client.MemberByEmail(ctx, normalizedEmail)
+	if errorValue != nil {
 		return Member{}, errorValue
 	}
-	if answer.Member == nil || strings.TrimSpace(answer.Member.MemberID) == "" {
-		return Member{}, fmt.Errorf("the central plane seated %s without a member id", normalizedEmail)
+	if isSeated {
+		return client.renamedMember(ctx, administratorEmail, seated, name)
 	}
-	return *answer.Member, nil
+	return client.invitedMember(ctx, administratorEmail, normalizedEmail, name)
 }
 
-// KeepMessengerCredential writes the credential a person signs into the
-// messenger with. The machine derives it from a seed; the record has to hold it,
-// or the web messenger - which never sees a seed - is handed whatever credential
-// that person had before.
+func (client *Client) renamedMember(
+	ctx context.Context,
+	administratorEmail string,
+	seated Member,
+	name string,
+) (Member, error) {
+	wanted := strings.TrimSpace(name)
+	if wanted == "" || wanted == strings.TrimSpace(seated.Name) {
+		return seated, nil
+	}
+	var written struct {
+		Name string `json:"name"`
+	}
+	errorValue := client.runRecordTool(ctx, administratorEmail, "person_update",
+		map[string]string{"personHint": seated.MemberID, "name": wanted}, &written)
+	if errorValue != nil {
+		return Member{}, errorValue
+	}
+	seated.Name = written.Name
+	return seated, nil
+}
+
+func (client *Client) invitedMember(
+	ctx context.Context,
+	administratorEmail string,
+	email string,
+	name string,
+) (Member, error) {
+	invitation := map[string]string{"email": email, "name": strings.TrimSpace(name)}
+	if invitation["name"] == "" {
+		invitation["name"] = email
+	}
+	var invited struct {
+		PersonID         string `json:"personID"`
+		Email            string `json:"email"`
+		Name             string `json:"name"`
+		EmploymentStatus string `json:"employmentStatus"`
+	}
+	if errorValue := client.runRecordTool(ctx, administratorEmail, "person_invite", invitation, &invited); errorValue != nil {
+		return Member{}, errorValue
+	}
+	if strings.TrimSpace(invited.PersonID) == "" {
+		return Member{}, fmt.Errorf("the central plane seated %s without a member id", email)
+	}
+	return Member{
+		MemberID: invited.PersonID,
+		Email:    invited.Email,
+		Name:     invited.Name,
+		Role:     MemberRoleMember,
+		Status:   invited.EmploymentStatus,
+	}, nil
+}
+
 func (client *Client) KeepMessengerCredential(ctx context.Context, memberID string, kind string, externalID string, secret string) error {
 	if client == nil || !client.settings.Configured() {
 		return fmt.Errorf("central plane is not configured")

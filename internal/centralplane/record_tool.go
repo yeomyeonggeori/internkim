@@ -68,3 +68,38 @@ func inputOrEmptyObject(input json.RawMessage) json.RawMessage {
 	}
 	return input
 }
+
+// The record answers a tool call in an envelope, and every caller here wants
+// the result inside it or a refusal that names the tool.
+func (client *Client) runRecordTool(
+	ctx context.Context,
+	requesterEmail string,
+	toolName string,
+	input any,
+	result any,
+) error {
+	payload, errorValue := json.Marshal(input)
+	if errorValue != nil {
+		return errorValue
+	}
+	answer, errorValue := client.InvokeRecordTool(ctx, requesterEmail, toolName, "invoke", payload)
+	if errorValue != nil {
+		return errorValue
+	}
+	if answer.Status < 200 || answer.Status >= 300 {
+		return fmt.Errorf("the record refused %s with %d: %s", toolName, answer.Status, string(answer.Body))
+	}
+	if result == nil {
+		return nil
+	}
+	var envelope struct {
+		Result json.RawMessage `json:"result"`
+	}
+	if errorValue := json.Unmarshal(answer.Body, &envelope); errorValue != nil {
+		return fmt.Errorf("the record's %s answer could not be read: %w", toolName, errorValue)
+	}
+	if errorValue := json.Unmarshal(envelope.Result, result); errorValue != nil {
+		return fmt.Errorf("the record's %s result could not be read: %w", toolName, errorValue)
+	}
+	return nil
+}
