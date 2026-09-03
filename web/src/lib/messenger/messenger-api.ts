@@ -151,8 +151,10 @@ export async function fetchChannels(): Promise<MessengerChannel[]> {
 	return answer.conversations.map(asChannel);
 }
 
-export async function fetchPeople(): Promise<{ externalID: string; name: string }[]> {
-	const answer = await ask<{ people: { externalID: string; name: string }[] }>('person.people.list');
+export type MessengerDirectoryPerson = { externalID: string; name: string; avatarURL?: string };
+
+export async function fetchPeople(): Promise<MessengerDirectoryPerson[]> {
+	const answer = await ask<{ people: MessengerDirectoryPerson[] }>('person.people.list');
 	return answer.people;
 }
 
