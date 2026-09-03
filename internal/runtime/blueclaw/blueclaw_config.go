@@ -48,7 +48,6 @@ type RuntimeConfigOptions struct {
 	CapabilitySocketPath       string
 	CapabilityVSockPort        int
 	GraphitiEndpoint           string
-	MattermostBaseURL          string
 	HostWorkspacePath          string
 	RootFilesystemImagePath    string
 	WorkspaceImagePath         string
@@ -203,7 +202,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	if options.DirectExecution && strings.TrimSpace(options.GraphitiEndpoint) == "" {
 		graphitiEndpoint = ""
 	}
-	mattermostBaseURL := firstNonEmptyString(options.MattermostBaseURL, "http://localhost:8065")
 	hostWorkspacePath := firstNonEmptyString(options.HostWorkspacePath, BlueclawWorkspacePath)
 	rootFilesystemImagePath := firstNonEmptyString(options.RootFilesystemImagePath, BlueclawRootFilesystemImagePath)
 	workspaceImagePath := firstNonEmptyString(options.WorkspaceImagePath, BlueclawWorkspaceImagePath)
@@ -337,18 +335,12 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		},
 		"agent": agentConfiguration,
 		"connectors": map[string]any{
-			"mattermost": map[string]any{
-				"baseURL": mattermostBaseURL,
-			},
-			"slack": map[string]any{
-				"baseURL": BlueclawSlackAPIBaseURL,
-			},
 			// The agent runs in the guest, where the loopback it would otherwise
 			// fall back to is its own, so chatd is named at the address the guest
 			// reaches this machine on.
 			"chatd": map[string]any{
 				"endpoint":         "http://" + outboundGuestGateway + ":" + ChatdListenPort,
-				"enabledPlatforms": []string{"buzz"},
+				"enabledPlatforms": []string{BlueclawMessengerPlatform},
 			},
 		},
 		"agentProfiles": blueclawAgentProfiles(options.AllowAdminTaskDiagnostic),
