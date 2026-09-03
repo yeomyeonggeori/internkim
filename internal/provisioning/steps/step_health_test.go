@@ -1,8 +1,11 @@
 package setup
 
 import (
+	"io"
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBlueclawGuestHealthSkipsRootfsMountCheckWhenServiceIsActive(t *testing.T) {
@@ -58,7 +61,7 @@ func TestBlueclawUsersPolicyHealthReportsMissingAPIUser(t *testing.T) {
 	context := &Context{SSH: connection}
 	failedChecks := []string{}
 
-	checkBlueclawUsersPolicy(context, &failedChecks)
+	checkBlueclawUsersPolicyWithin(context, time.Millisecond, time.Millisecond, &failedChecks)
 
 	if len(failedChecks) != 1 || failedChecks[0] != "blueclaw-users-policy" {
 		t.Fatalf("expected missing API user to fail policy health, got %+v", failedChecks)
@@ -70,16 +73,77 @@ func TestBlueclawUsersPolicyHealthReportsUnavailableAPI(t *testing.T) {
 	context := &Context{SSH: connection}
 	failedChecks := []string{}
 
-	checkBlueclawUsersPolicy(context, &failedChecks)
+	checkBlueclawUsersPolicyWithin(context, time.Millisecond, time.Millisecond, &failedChecks)
 
 	if len(failedChecks) != 1 || failedChecks[0] != "blueclaw-users-policy" {
 		t.Fatalf("expected unavailable API to fail policy health, got %+v", failedChecks)
 	}
 }
 
+func TestBlueclawUsersPolicyHealthWaitsForTheRosterToArrive(t *testing.T) {
+	connection := &blueclawUsersPolicyHealthBoardConnection{outputs: []string{
+		"member1@example.com,member2@example.com",
+		"member1@example.com,member2@example.com",
+		"ok",
+	}}
+	context := &Context{SSH: connection}
+	failedChecks := []string{}
+
+	checkBlueclawUsersPolicyWithin(context, time.Second, time.Millisecond, &failedChecks)
+
+	if len(failedChecks) != 0 {
+		t.Fatalf("expected a roster that arrives on the third read to pass, got %+v", failedChecks)
+	}
+	if connection.runCount != 3 {
+		t.Fatalf("expected health to read the policy until the roster arrived, got %d reads", connection.runCount)
+	}
+}
+
+func TestBlueclawUsersPolicyHealthNamesTheEmailsThatNeverArrived(t *testing.T) {
+	connection := &blueclawUsersPolicyHealthBoardConnection{output: "member1@example.com,member2@example.com,member3@example.com"}
+	context := &Context{SSH: connection}
+	failedChecks := []string{}
+
+	output := captureStandardOutput(t, func() {
+		checkBlueclawUsersPolicyWithin(context, 10*time.Millisecond, time.Millisecond, &failedChecks)
+	})
+
+	if len(failedChecks) != 1 || failedChecks[0] != "blueclaw-users-policy" {
+		t.Fatalf("expected a roster that never arrives to fail policy health, got %+v", failedChecks)
+	}
+	if connection.runCount < 2 {
+		t.Fatalf("expected health to have waited and read again, got %d reads", connection.runCount)
+	}
+	if !strings.Contains(output, "member3@example.com") {
+		t.Fatalf("expected the failure to name the missing emails, got %s", output)
+	}
+}
+
+func captureStandardOutput(t *testing.T, run func()) string {
+	t.Helper()
+	readEnd, writeEnd, errorValue := os.Pipe()
+	if errorValue != nil {
+		t.Fatalf("pipe: %v", errorValue)
+	}
+	previousStandardOutput := os.Stdout
+	os.Stdout = writeEnd
+	run()
+	os.Stdout = previousStandardOutput
+	if errorValue := writeEnd.Close(); errorValue != nil {
+		t.Fatalf("close: %v", errorValue)
+	}
+	captured, errorValue := io.ReadAll(readEnd)
+	if errorValue != nil {
+		t.Fatalf("read: %v", errorValue)
+	}
+	return string(captured)
+}
+
 type blueclawUsersPolicyHealthBoardConnection struct {
-	output  string
-	command string
+	output   string
+	outputs  []string
+	command  string
+	runCount int
 }
 
 func containsString(values []string, expectedValue string) bool {
@@ -93,7 +157,14 @@ func containsString(values []string, expectedValue string) bool {
 
 func (connection *blueclawUsersPolicyHealthBoardConnection) Run(command string) string {
 	connection.command = command
-	return connection.output
+	connection.runCount++
+	if len(connection.outputs) == 0 {
+		return connection.output
+	}
+	if connection.runCount > len(connection.outputs) {
+		return connection.outputs[len(connection.outputs)-1]
+	}
+	return connection.outputs[connection.runCount-1]
 }
 
 func (connection *blueclawUsersPolicyHealthBoardConnection) SCP(localPath string, remotePath string) error {
