@@ -37,7 +37,9 @@ var StepBuzzRelay = Step{
 		}
 
 		connection := context.SSH
-		connection.Run("DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server >/dev/null 2>&1; systemctl enable --now redis-server 2>/dev/null")
+		if errorValue := startRelayCache(connection); errorValue != nil {
+			return errorValue
+		}
 		if errorValue := startRelayDatabase(connection); errorValue != nil {
 			return errorValue
 		}
@@ -52,8 +54,25 @@ var StepBuzzRelay = Step{
 	},
 }
 
+func startRelayCache(connection BoardConnection) error {
+	output := connection.Run(withPackageWorkSettled(relayCacheInstallCommand()))
+	state := strings.TrimSpace(connection.Run("systemctl is-active redis-server"))
+	if state == "active" {
+		return nil
+	}
+	return fmt.Errorf("redis-server is %s after installing it, so the buzz relay that queues through it cannot start: %s",
+		state, strings.TrimSpace(output))
+}
+
+func relayCacheInstallCommand() string {
+	return `if systemctl is-active --quiet redis-server; then exit 0; fi
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y -qq redis-server 2>&1 | tail -5
+systemctl enable --now redis-server 2>&1 | tail -5`
+}
+
 func startRelayDatabase(connection BoardConnection) error {
-	output := connection.Run(relayDatabaseInstallCommand())
+	output := connection.Run(withPackageWorkSettled(relayDatabaseInstallCommand()))
 	state := strings.TrimSpace(connection.Run("systemctl is-active postgresql"))
 	if state == "active" {
 		return nil
