@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -418,6 +419,26 @@ func TestUnsupportedScenarioFails(t *testing.T) {
 	errorValue = service.RunScenario(context.Background(), &recordingLogger{}, "unknown", false, false)
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "unsupported local fleet scenario") {
 		t.Fatalf("expected unsupported scenario error, got %v", errorValue)
+	}
+}
+
+func TestScenarioNamesMatchTheRegistryEverySortedAndAccepted(t *testing.T) {
+	names := ScenarioNames()
+	if !sort.StringsAreSorted(names) {
+		t.Fatalf("scenario names are not sorted: %v", names)
+	}
+	service, errorValue := NewService(Options{RepositoryRootPath: t.TempDir(), ExecutablePath: "/bin/echo"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	builders := service.scenarioPlanBuilders()
+	if len(names) != len(builders) {
+		t.Fatalf("ScenarioNames returned %d names, scenarioPlanBuilders has %d entries", len(names), len(builders))
+	}
+	for _, name := range names {
+		if _, isKnown := builders[name]; !isKnown {
+			t.Fatalf("ScenarioNames listed %q, which scenarioPlanBuilders does not accept", name)
+		}
 	}
 }
 
