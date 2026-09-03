@@ -1620,8 +1620,8 @@ func (state *setupFlowState) installBlueclawRuntimeSSH(context *setup.Context) e
 	}
 	output, errorValue := state.sshClient.runResult(`set -eu
 test -x /usr/local/bin/blueclaw-supervisor
-test -x /usr/local/bin/firecracker
-test -x /usr/local/bin/jailer
+test -x /usr/local/bin/cloud-hypervisor
+test -x /usr/local/bin/virtiofsd
 test -s /opt/internkim/blueclaw-runtime/vmlinux.bin
 test -s /opt/internkim/blueclaw-runtime/rootfs.ext4
 minimum_workspace_bytes=34359738368

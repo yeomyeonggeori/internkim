@@ -113,7 +113,7 @@ func deliverySourcesForTest(t *testing.T) (Layout, DeliverySources) {
 	return NewLayout(filepath.Join(t.TempDir(), "install"), "/tmp/bc"), DeliverySources{
 		PayloadRuntimePath:       payloadRuntimePath,
 		SkillPaths:               []string{skillsPath},
-		RuntimeConfigurationJSON: `{"firecracker":{}}`,
+		RuntimeConfigurationJSON: `{"guest":{}}`,
 		PolicyJSON:               `{"people":[]}`,
 	}
 }

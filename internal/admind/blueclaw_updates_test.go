@@ -103,8 +103,8 @@ func TestBlueclawPayloadTenantInstallTargetsReadRuntimeConfiguration(t *testing.
 		t.Fatal(errorValue)
 	}
 	runtimeConfiguration := blueclawPayloadRuntimeConfiguration{}
-	runtimeConfiguration.Firecracker.HostWorkspacePath = filepath.Join(tenantBasePath, "pilot-01", "blueclaw", "workspace")
-	runtimeConfiguration.Firecracker.WorkspaceImagePath = filepath.Join(tenantBasePath, "pilot-01", "blueclaw", "firecracker", "workspace.ext4")
+	runtimeConfiguration.Guest.HostWorkspacePath = filepath.Join(tenantBasePath, "pilot-01", "blueclaw", "workspace")
+	runtimeConfiguration.Guest.WorkspaceImagePath = filepath.Join(tenantBasePath, "pilot-01", "blueclaw", "guest", "workspace.ext4")
 	document, errorValue := json.Marshal(runtimeConfiguration)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -122,16 +122,16 @@ func TestBlueclawPayloadTenantInstallTargetsReadRuntimeConfiguration(t *testing.
 	if target.Name != "pilot-01" || target.ServiceName != "internkim-tenant-blueclaw-pilot-01.service" {
 		t.Fatalf("unexpected tenant target identity: %+v", target)
 	}
-	if target.HostWorkspacePath != runtimeConfiguration.Firecracker.HostWorkspacePath {
+	if target.HostWorkspacePath != runtimeConfiguration.Guest.HostWorkspacePath {
 		t.Fatalf("unexpected host workspace path: %+v", target)
 	}
-	if target.WorkspaceImagePath != runtimeConfiguration.Firecracker.WorkspaceImagePath {
+	if target.WorkspaceImagePath != runtimeConfiguration.Guest.WorkspaceImagePath {
 		t.Fatalf("unexpected workspace image path: %+v", target)
 	}
 	if target.RuntimeConfigurationPath != runtimeConfigurationPath {
 		t.Fatalf("unexpected runtime configuration path: %+v", target)
 	}
-	if target.WorkspaceRuntimeConfigurationPath != filepath.Join(runtimeConfiguration.Firecracker.HostWorkspacePath, ".blueclaw", "config", "runtime.json") {
+	if target.WorkspaceRuntimeConfigurationPath != filepath.Join(runtimeConfiguration.Guest.HostWorkspacePath, ".blueclaw", "config", "runtime.json") {
 		t.Fatalf("unexpected workspace runtime configuration path: %+v", target)
 	}
 	if target.PayloadManifestPath != filepath.Join(tenantBasePath, "pilot-01", "blueclaw", "payload-manifest.json") {
@@ -414,8 +414,8 @@ func writeBlueclawPayloadTenantRuntimeConfiguration(t *testing.T, tenantBasePath
 		t.Fatal(errorValue)
 	}
 	runtimeConfiguration := blueclawPayloadRuntimeConfiguration{}
-	runtimeConfiguration.Firecracker.HostWorkspacePath = filepath.Join(tenantBasePath, tenantID, "blueclaw", "workspace")
-	runtimeConfiguration.Firecracker.WorkspaceImagePath = filepath.Join(tenantBasePath, tenantID, "blueclaw", "firecracker", "workspace.ext4")
+	runtimeConfiguration.Guest.HostWorkspacePath = filepath.Join(tenantBasePath, tenantID, "blueclaw", "workspace")
+	runtimeConfiguration.Guest.WorkspaceImagePath = filepath.Join(tenantBasePath, tenantID, "blueclaw", "guest", "workspace.ext4")
 	document, errorValue := json.Marshal(runtimeConfiguration)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -436,7 +436,7 @@ func TestRefreshBlueclawCapabilityContractReplacesStaleOperationNames(t *testing
     "routing": {"candidates": ["flow.task.add"], "localOnly": false}
   },
   "languageModel": {"capability": {"model": "preserve-me"}},
-  "firecracker": {"hostWorkspacePath": "/srv/keep/this"}
+  "guest": {"hostWorkspacePath": "/srv/keep/this"}
 }`
 
 	refreshed, errorValue := refreshBlueclawCapabilityContract(staleDocument, blueclawruntime.CurrentCapabilityContract())
@@ -576,7 +576,7 @@ func TestWaitForBlueclawWorkspaceImageReleaseWaitsForTheHolderToExit(t *testing.
 	blueclawWorkspaceImageHolderProbe = func(string) (string, bool) {
 		if remainingHeldProbes > 0 {
 			remainingHeldProbes--
-			return "process 123 (firecracker)", true
+			return "process 123 (cloud-hypervisor)", true
 		}
 		return "", false
 	}
@@ -596,7 +596,7 @@ func TestWaitForBlueclawWorkspaceImageReleaseNamesAPersistentHolder(t *testing.T
 	originalProbe := blueclawWorkspaceImageHolderProbe
 	blueclawWorkspaceImageReleaseWait = 10 * time.Millisecond
 	blueclawWorkspaceImageHolderProbe = func(string) (string, bool) {
-		return "process 123 (firecracker)", true
+		return "process 123 (cloud-hypervisor)", true
 	}
 	t.Cleanup(func() {
 		blueclawWorkspaceImageReleaseWait = originalWait
@@ -605,7 +605,7 @@ func TestWaitForBlueclawWorkspaceImageReleaseNamesAPersistentHolder(t *testing.T
 
 	service := &Service{}
 	errorValue := service.waitForBlueclawWorkspaceImageRelease(context.Background(), "/tmp/workspace.ext4")
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "process 123 (firecracker)") {
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "process 123 (cloud-hypervisor)") {
 		t.Fatalf("expected a holder-naming error, got %v", errorValue)
 	}
 }

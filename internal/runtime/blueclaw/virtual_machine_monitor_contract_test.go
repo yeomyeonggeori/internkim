@@ -9,14 +9,13 @@ import (
 
 func TestVirtualMachineMonitorNamesMatchBlueclaw(t *testing.T) {
 	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
-	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, BlueclawSubmodulePath, "internal", "firecracker", "virtual_machine_monitor.go"))
+	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, BlueclawSubmodulePath, "internal", "guest", "virtual_machine_monitor.go"))
 	if errorValue != nil {
 		t.Fatalf("expected the blueclaw monitor source: %v", errorValue)
 	}
 	source := strings.Join(strings.Fields(string(document)), " ")
 
 	for constantName, expectedValue := range map[string]string{
-		"FirecrackerMonitorName":     FirecrackerMonitorName,
 		"CloudHypervisorMonitorName": CloudHypervisorMonitorName,
 	} {
 		declaration := constantName + " = \"" + expectedValue + "\""
@@ -26,18 +25,10 @@ func TestVirtualMachineMonitorNamesMatchBlueclaw(t *testing.T) {
 	}
 }
 
-func TestServiceUnitConfinesTheFilesystemOnlyWithoutTheJailer(t *testing.T) {
+func TestServiceUnitConfinesTheFilesystem(t *testing.T) {
 	unitDocument := BlueclawServiceUnit()
-	carriesConfinement := strings.Contains(unitDocument, "ProtectSystem=strict")
-
-	if BlueclawVirtualMachineMonitor == FirecrackerMonitorName && carriesConfinement {
-		t.Fatal("the jailer hard links the runtime assets into its chroot, which ProtectSystem= breaks with a cross-device link")
-	}
-	if BlueclawVirtualMachineMonitor == CloudHypervisorMonitorName && !carriesConfinement {
-		t.Fatal("dropping the jailer without confining the unit loses the chroot with nothing in its place")
-	}
-	if !carriesConfinement {
-		return
+	if !strings.Contains(unitDocument, "ProtectSystem=strict") {
+		t.Fatal("the monitor runs with no chroot of its own, so the unit must confine the filesystem")
 	}
 	for _, writablePath := range []string{
 		BlueclawRuntimeInstanceDirectoryPath,
