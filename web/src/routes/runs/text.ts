@@ -78,7 +78,19 @@ export const tasksText = {
 		allEvents: '전체',
 		visibleEvents: '{total}개 중 {count}개 표시',
 		searchEvents: '이벤트 검색',
-		noMatchingEvents: '조건에 맞는 이벤트가 없습니다.'
+		noMatchingEvents: '조건에 맞는 이벤트가 없습니다.',
+		approvalsPageTitle: '승인 대기 · 김인턴',
+		approvalsTitle: '승인 대기',
+		approvalsDescription: '에이전트가 답을 기다리는 작업을 확인하고 결정합니다.',
+		approvalsEmpty: '승인을 기다리는 작업이 없습니다.',
+		approvalsLoadError: '승인 대기 목록을 불러오지 못했습니다.',
+		approvalQuestionLabel: '에이전트의 질문',
+		approvalQuestionMissing: '질문 내용이 원장에 남아 있지 않습니다. 이벤트 타임라인을 확인하세요.',
+		approveOnce: '이번만 승인',
+		approveWholeTask: '이 작업 전체 승인',
+		rejectApproval: '거절',
+		approvalDecisionError: '결정을 전달하지 못했습니다.',
+		openLedger: '원장 보기'
 	},
 	en: {
 		pageTitle: 'Task Runs · internkim',
@@ -157,7 +169,19 @@ export const tasksText = {
 		allEvents: 'All',
 		visibleEvents: 'Showing {count} of {total}',
 		searchEvents: 'Search events',
-		noMatchingEvents: 'No events match these filters.'
+		noMatchingEvents: 'No events match these filters.',
+		approvalsPageTitle: 'Waiting for approval · internkim',
+		approvalsTitle: 'Waiting for approval',
+		approvalsDescription: 'Read what the agent is waiting on, and decide it.',
+		approvalsEmpty: 'Nothing is waiting for approval.',
+		approvalsLoadError: 'Could not load what is waiting for approval.',
+		approvalQuestionLabel: "The agent's question",
+		approvalQuestionMissing: 'The ledger kept no question text. Read the event timeline.',
+		approveOnce: 'Approve once',
+		approveWholeTask: 'Approve this whole task',
+		rejectApproval: 'Reject',
+		approvalDecisionError: 'The decision did not reach the agent.',
+		openLedger: 'Open ledger'
 	}
 };
 

@@ -42,6 +42,14 @@ export function taskListPathOf(pathname: string): string {
 	return companyPathOf(companySlugOf(pathname), '/runs');
 }
 
+export function taskRunDetailPathOf(pathname: string, taskRunID: string): string {
+	return companyPathOf(companySlugOf(pathname), `/runs/${encodeURIComponent(taskRunID)}`);
+}
+
+export function pendingApprovalsPathOf(pathname: string): string {
+	return companyPathOf(companySlugOf(pathname), '/runs/approvals');
+}
+
 export function appSectionPathOf(pathname: string): string {
 	const [, section = ''] = routePathOf(pathname).split('/');
 	return companyPathOf(companySlugOf(pathname), `/${section}/`);
