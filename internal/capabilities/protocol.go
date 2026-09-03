@@ -27,7 +27,6 @@ const (
 	ToolOutcomeSucceeded = capabilityprotocol.ToolOutcomeSucceeded
 	ToolOutcomeFailed    = capabilityprotocol.ToolOutcomeFailed
 	ToolOutcomeDenied    = capabilityprotocol.ToolOutcomeDenied
-
 )
 
 type Descriptor = capabilityprotocol.Descriptor
@@ -48,6 +47,7 @@ type SiteSourceBundle = capabilityprotocol.SiteSourceBundle
 type WorkspaceFile = capabilityprotocol.WorkspaceFile
 type ActorContext = capabilityprotocol.ActorContext
 type ToolInvokeResponse = capabilityprotocol.ToolInvokeResponse
+type ApprovalTarget = capabilityprotocol.ApprovalTarget
 type ResourceScope = capabilityprotocol.ResourceScope
 type CompanionJobEnvelope = capabilityprotocol.CompanionJobEnvelope
 type DenialResult = capabilityprotocol.DenialResult

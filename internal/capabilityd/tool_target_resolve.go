@@ -11,14 +11,6 @@ import (
 	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
-type capabilityToolTarget struct {
-	InputField string `json:"inputField,omitempty"`
-	ID         string `json:"id,omitempty"`
-	Title      string `json:"title,omitempty"`
-	StartsAt   string `json:"startsAt,omitempty"`
-	Preview    string `json:"preview,omitempty"`
-}
-
 type capabilityToolTargetRoute struct {
 	ToolName string
 	Resolver capabilityToolHandler
@@ -57,7 +49,7 @@ func (service Service) resolveCapabilityToolTarget(ctx context.Context, toolName
 	return targetRoute.Resolver(service, ctx, request)
 }
 
-func capabilityToolTargetResponse(toolName string, target capabilityToolTarget) capabilities.ToolInvokeResponse {
+func capabilityToolTargetResponse(toolName string, target capabilities.ApprovalTarget) capabilities.ToolInvokeResponse {
 	result, _ := json.Marshal(target)
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
@@ -97,7 +89,7 @@ func (service Service) resolveMessageDeleteTarget(ctx context.Context, request c
 	if len(messageTexts) == 0 {
 		return capabilityToolWithoutTargetResponse(request.ToolName), nil
 	}
-	return capabilityToolTargetResponse(request.ToolName, capabilityToolTarget{
+	return capabilityToolTargetResponse(request.ToolName, capabilities.ApprovalTarget{
 		Preview: messageDeletePreview(messageTexts, len(input.MessageIDs)),
 	}), nil
 }
