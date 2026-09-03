@@ -233,13 +233,9 @@ func (service Service) ephemeralCleanupPlans() []CommandPlan {
 func (service Service) predeployGatePlans() []CommandPlan {
 	return append(service.upPlans(false),
 		service.shellPlan("verify api", service.verifyCommand("api")),
-		service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"),
+		service.blueclawLabScenarioScriptPlan("buzz-direct-message"),
 		service.companyBrowserVerificationPlan(),
 	)
-}
-
-func (service Service) dmRecipientResolveScenarioPlans() []CommandPlan {
-	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"))
 }
 
 // The fleet already provisions the relay and chatd, so this one only needed a
