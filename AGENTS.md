@@ -396,7 +396,7 @@ and delete the duplicates.
   calendar code, never a side effect of checking the web app (#1381).
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: `supabase db reset` then `bun run dev`, and hand over a real
-  sign-in. A mock flag (`VITE_MOCK_TASK=1` or `VITE_MOCK_ADMIN=1`, with an
+  sign-in. A mock flag (`VITE_MOCK_TASKS=1` or `VITE_MOCK_ADMIN=1`, with an
   explicit `VITE_DEV_USER_EMAIL`) is for device-backed screens that have no
   Supabase path yet; with those, verify `/auth/session` returns
   `authenticated: true` before giving the URL.
