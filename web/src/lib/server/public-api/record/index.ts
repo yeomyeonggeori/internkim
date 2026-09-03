@@ -25,6 +25,15 @@ import {
 	eventUpdate
 } from './event-tools';
 import { HintRefused } from './hint-resolution';
+import {
+	conversationMute,
+	conversationUnmute,
+	notificationSettingsGet,
+	notificationSettingsSet,
+	pushDeviceClaim,
+	pushDeviceRelease,
+	pushReachabilityGet
+} from './notification-tools';
 import { LabelUnresolved } from './labels';
 import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
@@ -75,7 +84,14 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	company_holiday_list: (context, input) => companyHolidayList(context, input),
 	company_holiday_add: (context, input) => companyHolidayAdd(context, input),
 	company_holiday_update: (context, input) => companyHolidayUpdate(context, input),
-	company_holiday_delete: (context, input) => companyHolidayDelete(context, input)
+	company_holiday_delete: (context, input) => companyHolidayDelete(context, input),
+	notification_settings_get: (context) => notificationSettingsGet(context),
+	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
+	conversation_mute: (context, input) => conversationMute(context, input),
+	conversation_unmute: (context, input) => conversationUnmute(context, input),
+	push_reachability_get: (context) => pushReachabilityGet(context),
+	push_device_claim: (context, input) => pushDeviceClaim(context, input),
+	push_device_release: (context, input) => pushDeviceRelease(context, input)
 };
 
 export function recordRunsTheTool(name: string): boolean {

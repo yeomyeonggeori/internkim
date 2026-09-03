@@ -116,6 +116,8 @@ describe('canonical capability tools', () => {
       'company_record_update',
       'company_settings_get',
       'company_settings_update',
+      'conversation_mute',
+      'conversation_unmute',
       'document_read',
       'embedding_create',
       'event_add',
@@ -145,9 +147,14 @@ describe('canonical capability tools', () => {
       'message_search',
       'message_send',
       'message_update',
+      'notification_settings_get',
+      'notification_settings_set',
       'person_invite',
       'person_list',
       'person_update',
+      'push_device_claim',
+      'push_device_release',
+      'push_reachability_get',
       'site_list',
       'site_serve',
       'site_unserve',
@@ -251,6 +258,9 @@ describe('canonical capability tools', () => {
       'company_holiday_add',
       'company_holiday_update',
       'company_holiday_delete',
+      'notification_settings_set',
+      'conversation_mute',
+      'conversation_unmute',
     ]);
 
     for (const tool of stateChangingTools) {

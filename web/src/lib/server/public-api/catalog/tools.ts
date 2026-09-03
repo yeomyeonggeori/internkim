@@ -17,6 +17,7 @@ import {
   type CapabilityToolDefinition,
 } from './definition';
 import { mailToolDefinitions } from './mail';
+import { notificationToolDefinitions } from './notifications';
 import { peopleToolDefinitions } from './people';
 import { modelToolDefinitions } from './model';
 import { settingsToolDefinitions } from './settings';
@@ -1667,6 +1668,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
   ...settingsToolDefinitions,
+  ...notificationToolDefinitions,
   ...mailToolDefinitions,
   ...modelToolDefinitions,
 ];
