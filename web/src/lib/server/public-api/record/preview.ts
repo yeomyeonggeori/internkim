@@ -37,10 +37,6 @@ const previewsOverTheRecord: Record<string, Preview> = {
 	crm_opportunity_archive: async (context, input) => {
 		const opportunity = await opportunityOfCRMHint(context, hintOf(input, 'opportunityHint'));
 		return { inputField: 'opportunityHint', id: opportunity.id, title: opportunity.name };
-	},
-	crm_opportunity_move: async (context, input) => {
-		const opportunity = await opportunityOfCRMHint(context, hintOf(input, 'opportunityHint'));
-		return { inputField: 'opportunityHint', id: opportunity.id, title: opportunity.name };
 	}
 };
 

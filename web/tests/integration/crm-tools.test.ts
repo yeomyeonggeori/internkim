@@ -400,10 +400,10 @@ describe('the activities recorded against a deal', () => {
 	test('are listed for the board with the colours the company gave its labels', async () => {
 		const listed = await asSample('crm_activity_list', { opportunityHint: 'ABC상사 도입' });
 
-		expect(activitiesOf(listed).map((activity) => activity.title).sort()).toEqual([
-			'2차 미팅',
-			'킥오프 미팅'
-		]);
+		const titles = activitiesOf(listed).map((activity) => activity.title);
+		expect(titles).toContain('킥오프 미팅');
+		expect(titles).toContain('2차 미팅');
+		expect(activitiesOf(listed).map((activity) => activity.kind)).toContain('stage_change');
 		expect((resultOf(listed).registeredLabels as { businesses: unknown[] }).businesses).toEqual([
 			{ name: '영업', color: '#2563eb' }
 		]);

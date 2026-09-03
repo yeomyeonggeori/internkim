@@ -19641,8 +19641,8 @@
           "type": "object"
         }
       },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
       "version": "1",
       "worksOffline": false
     },
@@ -20579,8 +20579,8 @@
           "type": "object"
         }
       },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
       "version": "1",
       "worksOffline": false
     },
@@ -22505,8 +22505,8 @@
           "type": "object"
         }
       },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
       "version": "1",
       "worksOffline": false
     },

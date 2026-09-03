@@ -349,6 +349,168 @@ describe('input the catalog does not publish', () => {
 	});
 });
 
+function resultOf(answered: RouteAnswer): Record<string, unknown> {
+	return (answered.body as { result: Record<string, unknown> }).result;
+}
+
+function descriptorOf(answered: RouteAnswer): Record<string, unknown> {
+	return answered.body as Record<string, unknown>;
+}
+
+describe('the CRM this company keeps', () => {
+	test('is opened through the route: the words it runs in, an organization, a person and a deal', async () => {
+		const words = await invoke('crm_vocabulary_set', administratorsToken, {
+			organizationTypes: [{ id: 'customer', name: '고객' }],
+			pipelines: [{ id: 'partnership', name: '파트너십' }]
+		});
+		expect(words.status).toBe(200);
+
+		const organization = await invoke('crm_organization_add', holdersToken, {
+			name: 'ABC상사',
+			types: ['customer'],
+			importance: 'high'
+		});
+		expect(organization.status).toBe(200);
+		expect(resultOf(organization).name).toBe('ABC상사');
+
+		const contact = await invoke('crm_contact_add', holdersToken, {
+			organizationHint: 'ABC상사',
+			name: '박예시',
+			email: 'yesi@example.com'
+		});
+		expect(contact.status).toBe(200);
+
+		const deal = await invoke('crm_opportunity_add', holdersToken, {
+			organizationHint: 'ABC상사',
+			title: 'ABC상사 도입',
+			contactHint: 'yesi',
+			amountMinor: 18000000,
+			currencyCode: 'KRW'
+		});
+		expect(deal.status).toBe(200);
+		expect(resultOf(deal).stage).toBe('waiting');
+		expect(resultOf(deal).pipeline).toBe('partnership');
+	});
+
+	test('is read by a signed-in session and by a token alike', async () => {
+		const throughASession = await invoke('crm_organization_list', sessionToken, { query: 'ABC' });
+		const throughAToken = await invoke('crm_opportunity_list', holdersToken, { stage: 'waiting' });
+
+		expect((resultOf(throughASession).organizations as unknown[]).length).toBe(1);
+		expect((resultOf(throughAToken).opportunities as unknown[]).length).toBe(1);
+		expect((resultOf(await invoke('crm_contact_list', sessionToken, {})).contacts as unknown[]).length).toBe(1);
+	});
+
+	test('changes a deal, then moves it, and the closing move settles what it was worth', async () => {
+		const changed = await invoke('crm_opportunity_update', holdersToken, {
+			opportunityHint: 'ABC상사 도입',
+			amountMinor: 20000000,
+			expectedCloseDate: '2026-09-30'
+		});
+		expect(changed.status).toBe(200);
+		expect(resultOf(changed).amountMinor).toBe(20000000);
+		expect(resultOf(changed).expectedCloseTimeZone).toBe('Asia/Seoul');
+
+		const moved = await invoke('crm_opportunity_move', holdersToken, {
+			opportunityHint: 'ABC상사 도입',
+			stage: 'review',
+			position: 1
+		});
+		expect(resultOf(moved).stage).toBe('review');
+
+		const closed = await invoke('crm_opportunity_move', holdersToken, {
+			opportunityHint: 'ABC상사 도입',
+			stage: 'done'
+		});
+		expect(resultOf(closed).stage).toBe('done');
+		expect(resultOf(closed).baseAmountMinor).toBe(20000000);
+		expect(resultOf(closed).baseCurrencyCode).toBe('KRW');
+	});
+
+	test('says which of its tools pause for approval and which do not', async () => {
+		const move = await reach('/tools/crm_opportunity_move', holdersToken);
+		const update = await reach('/tools/crm_opportunity_update', holdersToken);
+		const archive = await reach('/tools/crm_opportunity_archive', holdersToken);
+
+		expect(descriptorOf(move).requiresApproval).toBe(true);
+		expect(descriptorOf(archive).requiresApproval).toBe(true);
+		expect(descriptorOf(update).requiresApproval).toBeUndefined();
+		expect(descriptorOf(archive).sideEffectClass).toBe('destructive');
+	});
+
+	test('refuses a stage the record does not name, before anything is carried', async () => {
+		const answered = await invoke('crm_opportunity_move', holdersToken, {
+			opportunityHint: 'ABC상사 도입',
+			stage: 'negotiating'
+		});
+
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('input.stage');
+	});
+
+	test('refuses a hint that names nothing, with the candidates to name instead', async () => {
+		const answered = await invoke('crm_organization_update', holdersToken, {
+			organizationHint: '없는회사',
+			importance: 'low'
+		});
+
+		expect(answered.status).toBe(409);
+		expect((answered.body as { errorCode: string }).errorCode).toBe('crm_organization_not_found');
+	});
+
+	test('refuses a token that may only read, and one whose owner has left', async () => {
+		const readOnly = await invoke('crm_organization_add', readersToken, { name: '읽기만' });
+		expect(readOnly.status).toBe(403);
+
+		const departed = await invoke('crm_organization_list', departedToken, {});
+		expect(departed.status).toBe(403);
+		expect(messageOf(departed)).toBe('token owner is not active member');
+	});
+
+	test('records an activity through tools the model is not offered', async () => {
+		const recorded = await invoke('crm_activity_save', holdersToken, {
+			organizationHint: 'ABC상사',
+			opportunityHint: 'ABC상사 도입',
+			title: '킥오프 미팅',
+			kind: 'meeting',
+			note: '요구사항을 들었다',
+			occurredAt: '2026-09-02T09:00:00+09:00'
+		});
+		expect(recorded.status).toBe(200);
+		expect(resultOf(recorded).content).toBe('요구사항을 들었다');
+
+		const listed = await invoke('crm_activity_list', holdersToken, { opportunityHint: 'ABC상사 도입' });
+		const kept = resultOf(listed).activities as { title: string; kind: string }[];
+		expect(kept.map((activity) => activity.title)).toContain('킥오프 미팅');
+		expect(kept.map((activity) => activity.kind)).toContain('stage_change');
+
+		const save = await reach('/tools/crm_activity_save', holdersToken);
+		expect(save.status).toBe(200);
+		expect(descriptorOf(save).modelVisible).toBe(false);
+		expect(descriptorOf(await reach('/tools/crm_opportunity_add', holdersToken)).modelVisible).toBe(true);
+	});
+
+	test('says what an archive would take away, then takes it away', async () => {
+		const target = await preview('crm_opportunity_archive', holdersToken, {
+			opportunityHint: 'ABC상사 도입'
+		});
+		expect(target.status).toBe(200);
+		expect((target.body as { target: { title: string } }).target.title).toBe('ABC상사 도입');
+
+		const archived = await invoke('crm_opportunity_archive', holdersToken, {
+			opportunityHint: 'ABC상사 도입'
+		});
+		expect(archived.status).toBe(200);
+
+		const left = await invoke('crm_opportunity_list', holdersToken, {});
+		expect((resultOf(left).opportunities as unknown[]).length).toBe(0);
+		expect(
+			(resultOf(await invoke('crm_opportunity_list', holdersToken, { includeArchived: true }))
+				.opportunities as unknown[]).length
+		).toBe(1);
+	});
+});
+
 function pictureCall(token: string, picture?: File): Promise<RouteAnswer> {
 	const carried = new FormData();
 	if (picture) carried.set('file', picture);
