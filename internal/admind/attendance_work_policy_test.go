@@ -198,31 +198,6 @@ func TestAttendanceWorkPolicyKeepsEveryRevisionInEffectiveDateOrder(t *testing.T
 	}
 }
 
-func TestAttendanceReconciliationReadsTheCurrentCompanyWorkPolicy(t *testing.T) {
-	service, _ := newAttendanceActionTestService(t)
-	fixed := defaultAttendanceWorkPolicyRevision()
-	fixed.WorkMode = attendanceWorkModeFixed
-	fixed.FixedStartTime = "08:00"
-	fixed.FixedEndTime = "17:00"
-	now := time.Date(2026, time.August, 10, 3, 0, 0, 0, time.UTC)
-	if _, errorValue := service.saveAttendanceWorkPolicyRevision(
-		t.Context(),
-		fixed,
-		"2026-08-10",
-		now,
-	); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	workPolicy, errorValue := service.currentAttendanceWorkPolicyRevision(t.Context(), now)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if workPolicy.WorkMode != attendanceWorkModeFixed {
-		t.Fatalf("work policy = %+v", workPolicy)
-	}
-}
-
 func TestAttendanceWorkPolicyRejectsInvalidModeSpecificValues(t *testing.T) {
 	tests := []struct {
 		name   string

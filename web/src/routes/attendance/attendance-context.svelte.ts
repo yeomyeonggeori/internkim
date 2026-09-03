@@ -2,9 +2,6 @@ import { getContext, setContext } from 'svelte';
 import {
 	addAttendanceEvent,
 	type AddAttendanceEventRequest,
-	createAttendanceAbsence,
-	type CreateAttendanceAbsenceRequest,
-	deleteAttendanceAbsence,
 	fetchAttendanceSummary,
 	removeAttendanceEvent,
 	type RemoveAttendanceEventRequest,
@@ -304,17 +301,6 @@ export class AttendanceState {
 		} catch {
 			this.currentMonthSummary = null;
 		}
-	}
-
-	async createAbsence(request: CreateAttendanceAbsenceRequest) {
-		const absences = await createAttendanceAbsence(request);
-		await this.load();
-		return absences;
-	}
-
-	async deleteAbsence(absenceID: string) {
-		await deleteAttendanceAbsence(absenceID);
-		await this.load();
 	}
 
 	async updateEvent(eventID: string, request: UpdateAttendanceEventRequest) {

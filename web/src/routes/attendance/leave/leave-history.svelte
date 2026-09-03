@@ -8,21 +8,13 @@
 
 	type Props = {
 		text: AttendanceText['leave'];
-		onEdit: (request: EmployeeLeaveRequest) => void;
-		onResubmit: (request: EmployeeLeaveRequest) => void;
 	};
 
-	let { text, onEdit, onResubmit }: Props = $props();
+	let { text }: Props = $props();
 	const employeeLeave = getEmployeeLeaveState();
 	const pageSize = 3;
 	let pageIndex = $state(0);
-	const history = $derived(
-		buildLeaveHistory(
-			employeeLeave.payload?.requests ?? [],
-			employeeLeave.payload?.ledgerEntries ?? [],
-			employeeLeave.payload?.leaveTypes ?? []
-		)
-	);
+	const history = $derived(buildLeaveHistory(employeeLeave.payload?.requests ?? []));
 	const pageCount = $derived(Math.ceil(history.length / pageSize));
 	const currentPageIndex = $derived(Math.min(pageIndex, Math.max(0, pageCount - 1)));
 	const paginatedHistory = $derived(
@@ -57,8 +49,6 @@
 					{text}
 					isMutating={employeeLeave.isMutating}
 					onCancel={(request) => void cancelRequest(request)}
-					{onEdit}
-					{onResubmit}
 				/>
 			{/each}
 		</div>
