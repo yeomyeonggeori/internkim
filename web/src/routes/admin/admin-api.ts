@@ -2,14 +2,11 @@ import type {
 	AdminJob,
 	AdminSession,
 	AttendanceLeavePolicy,
-	AttendanceLocation,
-	AttendanceLocationsResponse,
 	AttendanceWorkPolicy,
 	AttendanceWorkPolicyResponse,
 	AttendanceWorkPolicyRevision,
 	BlueclawUpdateStatus,
 	BotProfile,
-	CalendarHolidayStatus,
 	CircleRecord,
 	CompanyDocumentsResponse,
 	CompanyHoliday,
@@ -21,7 +18,6 @@ import type {
 	CompanyShareSettingsUpdate,
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
-	HolidayCountriesResponse,
 	OrgGroup,
 	ReleaseHistoryResponse,
 	RestoreUploadResponse,
@@ -94,24 +90,6 @@ export async function fetchWorkspaceSettings(adminBaseURL: string, fallbackMessa
 	return readJSON<WorkspaceSettings>(response, fallbackMessage);
 }
 
-export async function fetchHolidayCountries(adminBaseURL: string, fallbackMessage: string): Promise<HolidayCountriesResponse> {
-	const response = await fetch(`${adminBaseURL}/holiday-countries`, { credentials: 'include' });
-	return readJSON<HolidayCountriesResponse>(response, fallbackMessage);
-}
-
-export async function fetchCalendarHolidayStatus(adminBaseURL: string, fallbackMessage: string): Promise<CalendarHolidayStatus> {
-	const response = await fetch(`${adminBaseURL}/calendar-holidays/status`, { credentials: 'include' });
-	return readJSON<CalendarHolidayStatus>(response, fallbackMessage);
-}
-
-export async function refreshCalendarHolidayStatus(adminBaseURL: string, fallbackMessage: string): Promise<CalendarHolidayStatus> {
-	const response = await fetch(`${adminBaseURL}/calendar-holidays/refresh`, {
-		method: 'POST',
-		credentials: 'include'
-	});
-	return readJSON<CalendarHolidayStatus>(response, fallbackMessage);
-}
-
 export async function updateWorkspaceSettings(adminBaseURL: string, settings: WorkspaceSettings, fallbackMessage: string): Promise<WorkspaceSettings> {
 	const response = await fetch(`${adminBaseURL}/workspace-settings`, {
 		method: 'PUT',
@@ -159,21 +137,6 @@ export async function fetchCompanyRecords(adminBaseURL: string, fallbackMessage:
 export async function fetchCompanyDocuments(adminBaseURL: string, fallbackMessage: string): Promise<CompanyDocumentsResponse> {
 	const response = await fetch(`${adminBaseURL}/company-documents`, { credentials: 'include' });
 	return readJSON<CompanyDocumentsResponse>(response, fallbackMessage);
-}
-
-export async function fetchAttendanceLocations(adminBaseURL: string, fallbackMessage: string): Promise<AttendanceLocationsResponse> {
-	const response = await fetch(`${adminBaseURL}/attendance-locations`, { credentials: 'include' });
-	return readJSON<AttendanceLocationsResponse>(response, fallbackMessage);
-}
-
-export async function updateAttendanceLocations(adminBaseURL: string, locations: AttendanceLocation[], fallbackMessage: string): Promise<AttendanceLocationsResponse> {
-	const response = await fetch(`${adminBaseURL}/attendance-locations`, {
-		method: 'PUT',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ locations })
-	});
-	return readJSON<AttendanceLocationsResponse>(response, fallbackMessage);
 }
 
 export async function fetchUsers(adminBaseURL: string, fallbackMessage: string): Promise<UsersResponse> {
