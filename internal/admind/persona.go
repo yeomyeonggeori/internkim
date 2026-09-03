@@ -1,17 +1,19 @@
 package admind
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -37,8 +39,6 @@ var soulSchemaDocument []byte
 
 //go:embed persona-schema/user.schema.json
 var userSchemaDocument []byte
-
-var personaPersonIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 type identityDocument struct {
 	SchemaVersion int      `json:"schemaVersion"`
@@ -562,7 +562,7 @@ func (service *Service) handlePersona(responseWriter http.ResponseWriter, reques
 		}
 		service.updateSoul(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/user":
-		service.writeUserDocument(responseWriter, actor.personID)
+		service.writeUserDocument(responseWriter, request, actor.personID)
 	case request.Method == http.MethodPost && path == "/user":
 		service.updateUserDocument(responseWriter, request, actor.personID)
 	default:
@@ -570,13 +570,11 @@ func (service *Service) handlePersona(responseWriter http.ResponseWriter, reques
 	}
 }
 
-func (service *Service) writeUserDocument(responseWriter http.ResponseWriter, personID string) {
-	user, errorValue := service.loadUserDocument(personID)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(responseWriter, user)
+// The document lives in the person's private home inside the guest, which their
+// POSIX user owns, so blueclaw reads and writes it as that person; admind checks
+// the document against the schema first so a refusal names the field here.
+func (service *Service) writeUserDocument(responseWriter http.ResponseWriter, request *http.Request, personID string) {
+	service.proxyPersonaUser(responseWriter, request, personID, http.MethodGet, nil)
 }
 
 func (service *Service) updateUserDocument(responseWriter http.ResponseWriter, request *http.Request, personID string) {
@@ -590,58 +588,37 @@ func (service *Service) updateUserDocument(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if errorValue := service.saveUserDocument(personID, user); errorValue != nil {
+	canonical, errorValue := canonicalUserDocument(user)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+		return
+	}
+	service.proxyPersonaUser(responseWriter, request, personID, http.MethodPut, canonical)
+}
+
+func (service *Service) proxyPersonaUser(responseWriter http.ResponseWriter, request *http.Request, personID string, method string, body []byte) {
+	proxyURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/admin/api/persona/user?personID=" + url.QueryEscape(personID)
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	proxyRequest, errorValue := http.NewRequestWithContext(request.Context(), method, proxyURL, reader)
+	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	service.writeJSON(responseWriter, user)
-}
-
-func (service *Service) userDocumentPaths(personID string) (string, string, error) {
-	trimmedPersonID := strings.TrimSpace(personID)
-	if !personaPersonIDPattern.MatchString(trimmedPersonID) {
-		return "", "", fmt.Errorf("person %q has no document path", personID)
+	if body != nil {
+		proxyRequest.Header.Set("Content-Type", "application/json")
 	}
-	configurationPath := filepath.Join(filepath.Dir(service.Configuration.IdentityDocumentPath), "users", trimmedPersonID+".json")
-	workspacePath := filepath.Join(service.Configuration.BlueclawWorkspacePath, ".blueclaw", "persona", "users", trimmedPersonID+".json")
-	return configurationPath, workspacePath, nil
-}
-
-func (service *Service) loadUserDocument(personID string) (userDocument, error) {
-	configurationPath, _, errorValue := service.userDocumentPaths(personID)
+	proxyResponse, errorValue := service.httpClient().Do(proxyRequest)
 	if errorValue != nil {
-		return userDocument{}, errorValue
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
 	}
-	document, errorValue := os.ReadFile(configurationPath)
-	if errors.Is(errorValue, os.ErrNotExist) {
-		return userDocument{SchemaVersion: personaSchemaVersion}, nil
-	}
-	if errorValue != nil {
-		return userDocument{}, errorValue
-	}
-	user, errorValue := parseUserDocument(document)
-	if errorValue != nil {
-		return userDocument{}, fmt.Errorf("%s: %w", configurationPath, errorValue)
-	}
-	return user, nil
-}
-
-func (service *Service) saveUserDocument(personID string, user userDocument) error {
-	configurationPath, workspacePath, errorValue := service.userDocumentPaths(personID)
-	if errorValue != nil {
-		return errorValue
-	}
-	document, errorValue := canonicalUserDocument(user)
-	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := writeDocumentAtomically(configurationPath, document, 0o600); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := os.MkdirAll(filepath.Dir(workspacePath), 0o755); errorValue != nil {
-		return errorValue
-	}
-	return writeDocumentAtomically(workspacePath, document, 0o644)
+	defer proxyResponse.Body.Close()
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(proxyResponse.StatusCode)
+	_, _ = io.Copy(responseWriter, proxyResponse.Body)
 }
 
 func parseUserDocument(document []byte) (userDocument, error) {
