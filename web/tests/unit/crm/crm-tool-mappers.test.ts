@@ -9,7 +9,7 @@ import {
 	type CRMOpportunityToolResult,
 	type CRMOrganizationToolResult
 } from '../../../src/routes/crm/crm-tool-mappers';
-import { CRMApiError } from '../../../src/routes/crm/crm-api';
+import { CRMApiError } from '../../../src/routes/crm/crm-error';
 
 const audit = {
 	createdAt: '2026-09-01T00:00:00.000Z',
