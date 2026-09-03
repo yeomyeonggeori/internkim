@@ -399,6 +399,69 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"holidayID":"company-holiday-2"`)
 			},
 		},
+		"notification_settings_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"notification_settings_get","result":{"categories":[{"category":"message","isOn":true,"isChoosable":true},{"category":"leave","isOn":true,"isChoosable":false},{"category":"mail","isOn":false,"isChoosable":true}],"mutedConversationIDs":["conversation-1"]}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"category":"leave","isOn":true,"isChoosable":false`)
+			},
+		},
+		"notification_settings_set": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"notification_settings_set","result":{"categories":[{"category":"message","isOn":true,"isChoosable":true},{"category":"leave","isOn":true,"isChoosable":false},{"category":"mail","isOn":true,"isChoosable":true}],"mutedConversationIDs":["conversation-1"]}}`)},
+			input:   `{"turnOn":["mail"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"category":"mail","isOn":true`)
+			},
+		},
+		"conversation_mute": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"conversation_mute","result":{"conversationID":"conversation-1","isMuted":true,"mutedConversationIDs":["conversation-1"]}}`)},
+			input:   `{"conversationID":"conversation-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"isMuted":true`)
+			},
+		},
+		"conversation_unmute": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"conversation_unmute","result":{"conversationID":"conversation-1","isMuted":false,"mutedConversationIDs":[]}}`)},
+			input:   `{"conversationID":"conversation-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"isMuted":false`)
+			},
+		},
+		"push_reachability_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"push_reachability_get","result":{"serverKey":"a-server-key","isServerKeyVaulted":true,"hasClaimedDevice":true}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"hasClaimedDevice":true`)
+			},
+		},
+		"push_device_claim": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"push_device_claim","result":{"serverKey":"a-server-key","isServerKeyVaulted":true,"hasClaimedDevice":true}}`)},
+			input:   `{"endpoint":"https://push.example.test/subscription-1","publicKey":"a-public-key","authenticationSecret":"an-authentication-secret"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"hasClaimedDevice":true`)
+			},
+		},
+		"push_device_release": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"push_device_release","result":{"serverKey":"a-server-key","isServerKeyVaulted":true,"hasClaimedDevice":false}}`)},
+			input:   `{"endpoint":"https://push.example.test/subscription-1"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"hasClaimedDevice":false`)
+			},
+		},
 		"attendance_work_policy_get": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_work_policy_get","result":{"timeZone":"Asia/Seoul","workMode":"flexible","policy":{"version":1,"revisions":[{"effectiveDate":"1970-01-01","workMode":"flexible","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"weeklyTargetMinutes":2400,"referenceStartTime":"09:00","fixedStartTime":"","fixedEndTime":"","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[],"nightStartTime":"22:00","nightEndTime":"06:00"}]},"people":[]}}`)},

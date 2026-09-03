@@ -1,17 +1,39 @@
-import { supabase } from '$lib/supabase';
-import { readNotificationSettings, writeNotificationSettings, type NotificationSettings } from './categories';
+import { invokeTool } from '$lib/public-api-call';
+import { isNotificationCategory, type NotificationCategory } from './categories';
 
-export async function myNotificationSettings(): Promise<NotificationSettings> {
-	const { data } = await supabase().auth.getSession();
-	const accountID = data.session?.user.id;
-	if (!accountID) return readNotificationSettings({});
+export type NotificationChoice = {
+	category: NotificationCategory;
+	isOn: boolean;
+	isChoosable: boolean;
+};
 
-	const settings = await supabase().rpc('my_notification_settings');
-	if (settings.error) throw new Error(settings.error.message);
-	return readNotificationSettings(settings.data);
+export type NotificationSettings = {
+	categories: NotificationChoice[];
+	mutedConversationIDs: string[];
+};
+
+type AnsweredSettings = {
+	categories: { category: string; isOn: boolean; isChoosable: boolean }[];
+	mutedConversationIDs: string[];
+};
+
+function settingsOf(answered: AnsweredSettings): NotificationSettings {
+	return {
+		categories: answered.categories.flatMap((choice) =>
+			isNotificationCategory(choice.category) ? [{ ...choice, category: choice.category }] : []
+		),
+		mutedConversationIDs: answered.mutedConversationIDs
+	};
 }
 
-export async function chooseNotificationSettings(chosen: NotificationSettings): Promise<void> {
-	const { error } = await supabase().rpc('notification_settings_set', { chosen: writeNotificationSettings(chosen) });
-	if (error) throw new Error(error.message);
+export async function myNotificationSettings(): Promise<NotificationSettings> {
+	return settingsOf(await invokeTool<AnsweredSettings>('notification_settings_get', {}));
+}
+
+export async function chooseNotificationCategory(
+	category: NotificationCategory,
+	wanted: boolean
+): Promise<NotificationSettings> {
+	const chosen = wanted ? { turnOn: [category] } : { turnOff: [category] };
+	return settingsOf(await invokeTool<AnsweredSettings>('notification_settings_set', chosen));
 }

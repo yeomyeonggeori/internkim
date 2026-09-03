@@ -44,20 +44,6 @@
 		"from('member')": 2,
 		"from('contact')": 1
 	},
-	"src/lib/notifications/muted-conversations.ts": {
-		"from('notification')": 1,
-		"rpc('conversation_mute')": 1,
-		"rpc('conversation_unmute')": 1
-	},
-	"src/lib/notifications/settings.ts": {
-		"rpc('my_notification_settings')": 1,
-		"rpc('notification_settings_set')": 1
-	},
-	"src/lib/notifications/subscribe.ts": {
-		"rpc('vapid_public_key')": 1,
-		"rpc('push_device_claim')": 1,
-		"rpc('push_device_release')": 1
-	},
 	"src/lib/stores/attachment-source.svelte.ts": {
 		"from(assetBucket)": 1
 	},

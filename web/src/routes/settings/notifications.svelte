@@ -3,14 +3,12 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Label } from '$lib/components/ui/label';
+	import type { NotificationCategory } from '$lib/notifications/categories';
 	import {
-		readNotificationSettings,
-		type NotificationCategory,
+		chooseNotificationCategory,
+		myNotificationSettings,
 		type NotificationSettings
-	} from '$lib/notifications/categories';
-	import { categoriesChoosableBy } from '$lib/notifications/choosable-categories';
-	import { chooseNotificationSettings, myNotificationSettings } from '$lib/notifications/settings';
-	import { supabaseMemberRole } from '$lib/supabase-session';
+	} from '$lib/notifications/settings';
 	import {
 		reachability,
 		startBeingReached,
@@ -29,8 +27,7 @@
 	const fieldID = $props.id();
 
 	let reach = $state<Reachability>('off');
-	let isAdmin = $state(false);
-	let settings = $state<NotificationSettings>(readNotificationSettings({}));
+	let settings = $state<NotificationSettings>({ categories: [], mutedConversationIDs: [] });
 	let isLoading = $state(true);
 	let isSwitching = $state(false);
 	let isTesting = $state(false);
@@ -49,7 +46,6 @@
 		try {
 			reach = await reachability();
 			settings = await myNotificationSettings();
-			isAdmin = (await supabaseMemberRole()) === 'admin';
 		} catch {
 			toast.error(text.notifyLoadFailed);
 		} finally {
@@ -84,14 +80,15 @@
 	}
 
 	async function choose(category: NotificationCategory, wanted: boolean) {
-		await keep({ ...settings, categories: { ...settings.categories, [category]: wanted } });
-	}
-
-	async function keep(wanted: NotificationSettings) {
 		const previous = settings;
-		settings = wanted;
+		settings = {
+			...settings,
+			categories: settings.categories.map((choice) =>
+				choice.category === category ? { ...choice, isOn: wanted } : choice
+			)
+		};
 		try {
-			await chooseNotificationSettings(wanted);
+			settings = await chooseNotificationCategory(category, wanted);
 		} catch {
 			settings = previous;
 			toast.error(text.notifyFailed);
@@ -124,15 +121,17 @@
 				<p class="text-sm text-muted-foreground">{text.notifyBlocked}</p>
 			{/if}
 			<div class="grid gap-3" class:opacity-50={reach !== 'on'}>
-				{#each categoriesChoosableBy(isAdmin) as category (category)}
+				{#each settings.categories.filter((choice) => choice.isChoosable) as choice (choice.category)}
 					<div class="flex items-center justify-between gap-4">
-						<Label for="{fieldID}-{category}" class="text-sm font-normal">{categoryLabels[category]}</Label>
+						<Label for="{fieldID}-{choice.category}" class="text-sm font-normal">
+							{categoryLabels[choice.category]}
+						</Label>
 						<div class="flex items-center gap-2">
 							<Switch
-								id="{fieldID}-{category}"
-								checked={settings.categories[category]}
+								id="{fieldID}-{choice.category}"
+								checked={choice.isOn}
 								disabled={reach !== 'on'}
-								onCheckedChange={(wanted) => choose(category, wanted)}
+								onCheckedChange={(wanted) => choose(choice.category, wanted)}
 							/>
 						</div>
 					</div>
