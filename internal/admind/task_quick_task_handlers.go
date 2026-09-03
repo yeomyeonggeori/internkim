@@ -74,20 +74,16 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 			return
 		}
 	}
-	if saved, answered, saveError := service.saveCentralTask(request, task, service.taskPeopleByID(request.Context())); answered {
-		if saveError != nil {
-			http.Error(responseWriter, saveError.Error(), http.StatusBadGateway)
-			return
-		}
-		service.writeJSON(responseWriter, saved)
+	saved, answered, saveError := service.saveCentralTask(request, task, service.taskPeopleByID(request.Context()))
+	if !answered {
+		http.Error(responseWriter, errTaskWriterUnnamed.Error(), http.StatusFailedDependency)
 		return
 	}
-	task = taskWithCreatedAt(task)
-	if errorValue := service.writeTask(request.Context(), task); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	if saveError != nil {
+		http.Error(responseWriter, saveError.Error(), http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, task)
+	service.writeJSON(responseWriter, saved)
 }
 
 func (service *Service) writeQuickTaskDuplicate(responseWriter http.ResponseWriter, task Task, reason string) {

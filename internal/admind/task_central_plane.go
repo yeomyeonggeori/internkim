@@ -50,17 +50,6 @@ func (service *Service) saveCentralTask(request *http.Request, task Task, people
 	return saved, true, nil
 }
 
-func (service *Service) removeCentralTask(request *http.Request, taskID string) (bool, error) {
-	client := service.centralPlane()
-	if client == nil {
-		return false, nil
-	}
-	requesterEmail := service.taskActorEmail(request)
-	if requesterEmail == "" {
-		return true, errTaskWriterUnnamed
-	}
-	return true, client.DeleteTask(request.Context(), "email", requesterEmail, taskID)
-}
 
 // A task the company already holds carries the identifier the company gave it;
 // one it has never seen carries none. Sending the device's own asks the company

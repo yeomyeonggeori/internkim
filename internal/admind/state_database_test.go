@@ -22,15 +22,18 @@ func TestStateDatabaseAdoptsLegacyDatabasesOnce(t *testing.T) {
 		TaskDatabasePath:     legacyTaskPath,
 		CalendarDatabasePath: legacyCalendarPath,
 	})
-	definitions, errorValue := service.readTaskDefinitions(context.Background())
+	taskDatabase, errorValue := service.openTaskDatabase(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(definitions.Categories) != 1 || definitions.Categories[0] != "샘플거리" {
-		t.Fatalf("categories = %#v", definitions.Categories)
+	var adoptedCategory string
+	if errorValue := taskDatabase.QueryRowContext(context.Background(),
+		"SELECT value FROM flow_definitions WHERE kind = 'category'").Scan(&adoptedCategory); errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	if definitions.CategoryColors["샘플거리"] != "#db2777" {
-		t.Fatalf("categoryColors = %#v", definitions.CategoryColors)
+	taskDatabase.Close()
+	if adoptedCategory != "샘플거리" {
+		t.Fatalf("adopted category = %q", adoptedCategory)
 	}
 
 	unifiedPath := service.stateDatabasePath()

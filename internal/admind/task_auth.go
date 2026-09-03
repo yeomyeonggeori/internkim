@@ -10,21 +10,12 @@ import (
 	"strings"
 )
 
-func (service *Service) authorizeTaskRequest(request *http.Request, action string, resource string) bool {
+func (service *Service) authorizeTaskRequest(request *http.Request) bool {
 	actorEmail := service.taskActorEmail(request)
 	if actorEmail == "" {
 		return false
 	}
-	if action == taskActionManage && resource == taskResourceDefinition {
-		return service.isTaskAdminActor(request, actorEmail)
-	}
-	if resource == taskResourceSummary && action == taskActionRead {
-		return service.isTaskMemberActor(request.Context(), actorEmail)
-	}
-	if resource == taskResourceTask && (action == taskActionCreate || action == taskActionUpdate || action == taskActionDelete) {
-		return service.isTaskMemberActor(request.Context(), actorEmail)
-	}
-	return false
+	return service.isTaskMemberActor(request.Context(), actorEmail)
 }
 
 func (service *Service) taskActorEmail(request *http.Request) string {
@@ -175,9 +166,6 @@ func (service *Service) isEmailInUsersSyncCache(actorEmail string) bool {
 	return false
 }
 
-func (service *Service) isTaskAdminActor(request *http.Request, actorEmail string) bool {
-	return service.isTaskAdminEmail(request.Context(), actorEmail)
-}
 
 func (service *Service) isTaskAdminEmail(ctx context.Context, actorEmail string) bool {
 	if strings.TrimSpace(actorEmail) == "" {

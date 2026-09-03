@@ -42,15 +42,6 @@ func containsString(values []string, target string) bool {
 	return false
 }
 
-func removeString(values []string, target string) []string {
-	filteredValues := make([]string, 0, len(values))
-	for _, value := range values {
-		if value != target {
-			filteredValues = append(filteredValues, value)
-		}
-	}
-	return filteredValues
-}
 
 func firstNonEmptySlice(values ...[]string) []string {
 	for _, value := range values {

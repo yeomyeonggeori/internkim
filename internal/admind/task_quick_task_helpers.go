@@ -61,14 +61,6 @@ func statusCompletedWhenEnded(status string, endDate string, today string) strin
 	return taskStatusCompleted
 }
 
-func memberIDForEmail(members []taskMember, email string) string {
-	for _, member := range members {
-		if strings.EqualFold(member.Email, strings.TrimSpace(email)) {
-			return member.ID
-		}
-	}
-	return ""
-}
 
 func cleanParticipantIDs(values []string, members []taskMember) []string {
 	allowed := map[string]bool{}

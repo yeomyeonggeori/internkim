@@ -30,15 +30,11 @@ func TestTaskDefinitionsAnswerTheCompanyVocabulary(t *testing.T) {
 	}
 }
 
-func TestTaskDefinitionsKeepTheDeviceListWhenNoCompanyIsNamed(t *testing.T) {
+func TestTaskDefinitionsAnswerNothingWhenNoCompanyIsNamed(t *testing.T) {
 	service := NewService(Configuration{TaskDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
 
-	definitions, errorValue := service.readTaskDefinitions(context.Background())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(definitions.Types) == 0 {
-		t.Fatal("a device that names no company answers its own types")
+	if _, errorValue := service.readTaskDefinitions(context.Background()); errorValue == nil {
+		t.Fatal("a device that names no company has no vocabulary of its own to answer with")
 	}
 }
 

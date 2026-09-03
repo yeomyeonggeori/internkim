@@ -238,7 +238,7 @@ func maxTime(left time.Time, right time.Time) time.Time {
 }
 
 func (service *Service) readCompanyShareWorkActivity(ctx context.Context, startDate string, endDate string) (map[string]int, []companyShareWorkRow, map[string]int, []companyShareMemberSource, error) {
-	activity, errorValue := service.readCompanyShareWorkRows(ctx, startDate, endDate)
+	activity, errorValue := service.readCompanyShareBoardActivity(ctx, startDate, endDate)
 	if errorValue != nil {
 		return nil, nil, nil, nil, errorValue
 	}
@@ -259,13 +259,6 @@ func (service *Service) readCompanyShareWorkActivity(ctx context.Context, startD
 		workRows = append(workRows, row)
 	}
 	return counts, workRows, statusCounts, members, nil
-}
-
-func (service *Service) readCompanyShareWorkRows(ctx context.Context, startDate string, endDate string) ([]companyShareWorkRow, error) {
-	if service.centralPlane() == nil {
-		return service.readTaskShareActivity(ctx, startDate, endDate)
-	}
-	return service.readCompanyShareBoardActivity(ctx, startDate, endDate)
 }
 
 func (service *Service) readCompanyShareBoardActivity(ctx context.Context, startDate string, endDate string) ([]companyShareWorkRow, error) {

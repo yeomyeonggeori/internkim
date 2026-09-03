@@ -8,13 +8,10 @@ import (
 
 func TestATaskWrittenWithoutARequesterStaysOnTheDevice(t *testing.T) {
 	service := &Service{}
-	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", nil)
+	request := httptest.NewRequest(http.MethodPost, quickTaskPath, nil)
 
 	if _, answered, _ := service.saveCentralTask(request, Task{Content: "결산"}, nil); answered {
 		t.Fatal("the company writes as the person who asked, so a request naming nobody cannot ask it")
-	}
-	if answered, _ := service.removeCentralTask(request, "task-1"); answered {
-		t.Fatal("the same holds for a delete")
 	}
 }
 
