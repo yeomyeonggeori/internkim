@@ -1,7 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
-import { devAdminOrganizationMockPlugin } from './dev-admin-organization-mock-plugin';
 import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
 import { devFilesMockPlugin } from './dev-files-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
@@ -40,11 +39,6 @@ export default defineConfig(({ mode }) => {
 			devAdminUsersMockPlugin({
 				isEnabled: isAdminMockEnabled,
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
-			}),
-			devAdminOrganizationMockPlugin({
-				isEnabled: env.VITE_MOCK_ADMIN === '1',
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com',
-				userRole: devUserRole
 			}),
 			devFilesMockPlugin({
 				isEnabled: env.VITE_MOCK_FILES === '1',

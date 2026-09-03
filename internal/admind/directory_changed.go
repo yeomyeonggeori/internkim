@@ -19,7 +19,6 @@ func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWrite
 	service.reconcileBlueclawRosterWithTimeout(request.Context())
 	recording := service.recordBuzzCredentials(request.Context())
 	log.Printf("buzz credentials after the directory changed: %s", recording)
-	service.forgetProfilesOfWhoeverLeft(request.Context())
 	go service.showOutWhoeverLeftTheCompany(context.Background())
 
 	// Answering 202 whatever happened is how somebody stayed unanswerable behind
@@ -67,38 +66,4 @@ func (service *Service) showOutWhoeverLeftTheCompany(ctx context.Context) {
 	}
 	defer relay.Close()
 	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, service.buzzKeySeed())
-}
-
-// A job title describes somebody who works here. Removing them through the
-// company app never reaches this device, so the description outlived the
-// person; the directory saying it changed is when to check.
-func (service *Service) forgetProfilesOfWhoeverLeft(ctx context.Context) {
-	records, errorValue := service.currentUserRecords(ctx)
-	if errorValue != nil {
-		log.Printf("nobody's profile is forgotten: the directory did not answer: %v", errorValue)
-		return
-	}
-	held := map[string]bool{}
-	for _, record := range records {
-		held[strings.ToLower(strings.TrimSpace(record.Email))] = true
-	}
-	if len(held) == 0 {
-		return
-	}
-	profiles, errorValue := service.readOrganizationProfiles(ctx)
-	if errorValue != nil {
-		log.Printf("nobody's profile is forgotten: this device could not read them: %v", errorValue)
-		return
-	}
-	for _, profile := range profiles {
-		email := strings.ToLower(strings.TrimSpace(profile.Email))
-		if email == "" || held[email] {
-			continue
-		}
-		if errorValue := service.forgetOrganizationProfile(ctx, email, profile.MemberID); errorValue != nil {
-			log.Printf("the organization profile of %s outlived them: %v", email, errorValue)
-			continue
-		}
-		log.Printf("the organization profile of %s went with them", email)
-	}
 }

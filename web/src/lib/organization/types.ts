@@ -30,3 +30,12 @@ export type UsersResponse = {
 	records?: UserRecord[];
 	availableGroups?: OrgGroup[];
 };
+
+export type OrgProfileUpdate = {
+	memberID: string;
+	jobTitle: string;
+	groupID?: string;
+	hireDate?: string;
+	phoneNumber?: string;
+	supervisorID?: string;
+};

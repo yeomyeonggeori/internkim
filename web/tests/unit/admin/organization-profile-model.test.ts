@@ -71,7 +71,6 @@ describe('organization profile model', () => {
 
 		expect(update).toEqual({
 			memberID: 'user-1',
-			email: 'user@example.com',
 			jobTitle: 'Lead',
 			groupID: 'leadership',
 			hireDate: '',
