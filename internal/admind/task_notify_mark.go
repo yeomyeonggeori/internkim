@@ -2,115 +2,111 @@ package admind
 
 import (
 	"context"
-	"database/sql"
 	"time"
 )
 
-const taskNotifyBaselineName = "task-notify"
+const taskNotifyMarkFile = "task-notify.json"
 
-func ensureTaskNotifySchema(ctx context.Context, database *sql.DB) error {
-	_, errorValue := database.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS task_notify_mark (
-	task_run_id TEXT PRIMARY KEY,
-	notified_status TEXT NOT NULL,
-	marked_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS task_notify_baseline (
-	name TEXT PRIMARY KEY,
-	seeded_at TEXT NOT NULL
-)`)
-	return errorValue
+type taskNotifyMarks struct {
+	SeededAt string                    `json:"seededAt"`
+	Marks    map[string]taskNotifyMark `json:"marks"`
 }
 
-func (service *Service) openTaskNotifyDatabase(ctx context.Context) (*sql.DB, error) {
-	options := sqliteDatabaseOptions{transactionLock: "immediate"}
-	return service.openStateDatabase(ctx, "task-notify", ensureTaskNotifySchema, options)
+type taskNotifyMark struct {
+	Status   string `json:"status"`
+	MarkedAt string `json:"markedAt"`
 }
 
 func (service *Service) taskNotifyBaselineSeeded(ctx context.Context) (bool, error) {
-	database, errorValue := service.openTaskNotifyDatabase(ctx)
+	service.taskNotifyMarkMutex.Lock()
+	defer service.taskNotifyMarkMutex.Unlock()
+
+	held, errorValue := service.heldTaskNotifyMarks(ctx)
 	if errorValue != nil {
 		return false, errorValue
 	}
-	defer database.Close()
-
-	seededAt := ""
-	errorValue = database.QueryRowContext(ctx,
-		"SELECT seeded_at FROM task_notify_baseline WHERE name = ?", taskNotifyBaselineName).Scan(&seededAt)
-	if errorValue == sql.ErrNoRows {
-		return false, nil
-	}
-	return seededAt != "", errorValue
+	return held.SeededAt != "", nil
 }
 
 func (service *Service) readTaskNotifyMarks(ctx context.Context) (map[string]string, error) {
-	database, errorValue := service.openTaskNotifyDatabase(ctx)
+	service.taskNotifyMarkMutex.Lock()
+	defer service.taskNotifyMarkMutex.Unlock()
+
+	held, errorValue := service.heldTaskNotifyMarks(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer database.Close()
-
-	rows, errorValue := database.QueryContext(ctx, "SELECT task_run_id, notified_status FROM task_notify_mark")
-	if errorValue != nil {
-		return nil, errorValue
+	statusByTaskRunID := map[string]string{}
+	for taskRunID, mark := range held.Marks {
+		statusByTaskRunID[taskRunID] = mark.Status
 	}
-	defer rows.Close()
-
-	marks := map[string]string{}
-	for rows.Next() {
-		taskRunID := ""
-		status := ""
-		if errorValue := rows.Scan(&taskRunID, &status); errorValue != nil {
-			return nil, errorValue
-		}
-		marks[taskRunID] = status
-	}
-	return marks, rows.Err()
+	return statusByTaskRunID, nil
 }
 
 func (service *Service) writeTaskNotifyMarks(ctx context.Context, statusByTaskRunID map[string]string, at time.Time) error {
 	if len(statusByTaskRunID) == 0 {
 		return nil
 	}
-	database, errorValue := service.openTaskNotifyDatabase(ctx)
+	service.taskNotifyMarkMutex.Lock()
+	defer service.taskNotifyMarkMutex.Unlock()
+
+	held, errorValue := service.heldTaskNotifyMarks(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	defer database.Close()
-
 	marked := at.UTC().Format(time.RFC3339)
 	for taskRunID, status := range statusByTaskRunID {
-		if _, errorValue := database.ExecContext(ctx, `
-INSERT INTO task_notify_mark (task_run_id, notified_status, marked_at) VALUES (?, ?, ?)
-ON CONFLICT (task_run_id) DO UPDATE SET notified_status = excluded.notified_status, marked_at = excluded.marked_at`,
-			taskRunID, status, marked); errorValue != nil {
-			return errorValue
-		}
+		held.Marks[taskRunID] = taskNotifyMark{Status: status, MarkedAt: marked}
 	}
-	return nil
+	return service.writeMachineState(taskNotifyMarkFile, held)
 }
 
 func (service *Service) writeTaskNotifyBaseline(ctx context.Context, at time.Time) error {
-	database, errorValue := service.openTaskNotifyDatabase(ctx)
+	service.taskNotifyMarkMutex.Lock()
+	defer service.taskNotifyMarkMutex.Unlock()
+
+	held, errorValue := service.heldTaskNotifyMarks(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	defer database.Close()
-
-	_, errorValue = database.ExecContext(ctx, `
-INSERT INTO task_notify_baseline (name, seeded_at) VALUES (?, ?)
-ON CONFLICT (name) DO NOTHING`, taskNotifyBaselineName, at.UTC().Format(time.RFC3339))
-	return errorValue
+	if held.SeededAt != "" {
+		return nil
+	}
+	held.SeededAt = at.UTC().Format(time.RFC3339)
+	return service.writeMachineState(taskNotifyMarkFile, held)
 }
 
 func (service *Service) forgetStaleTaskNotifyMarks(ctx context.Context, before time.Time) error {
-	database, errorValue := service.openTaskNotifyDatabase(ctx)
+	service.taskNotifyMarkMutex.Lock()
+	defer service.taskNotifyMarkMutex.Unlock()
+
+	held, errorValue := service.heldTaskNotifyMarks(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	defer database.Close()
+	stale := before.UTC().Format(time.RFC3339)
+	forgotten := false
+	for taskRunID, mark := range held.Marks {
+		if mark.MarkedAt < stale {
+			delete(held.Marks, taskRunID)
+			forgotten = true
+		}
+	}
+	if !forgotten {
+		return nil
+	}
+	return service.writeMachineState(taskNotifyMarkFile, held)
+}
 
-	_, errorValue = database.ExecContext(ctx,
-		"DELETE FROM task_notify_mark WHERE marked_at < ?", before.UTC().Format(time.RFC3339))
-	return errorValue
+func (service *Service) heldTaskNotifyMarks(ctx context.Context) (taskNotifyMarks, error) {
+	var held taskNotifyMarks
+	found, errorValue := service.readMachineState(ctx, taskNotifyMarkFile, &held,
+		"the task notifier's marks could not be read, so it adopts the runs there are")
+	if errorValue != nil || !found {
+		return taskNotifyMarks{Marks: map[string]taskNotifyMark{}}, errorValue
+	}
+	if held.Marks == nil {
+		held.Marks = map[string]taskNotifyMark{}
+	}
+	return held, nil
 }

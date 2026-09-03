@@ -58,7 +58,7 @@ func (service *Service) startAttendanceSweep(ctx context.Context) {
 
 func dropAttendanceTables(ctx context.Context, database *sql.DB, tableNames []string) error {
 	for _, tableName := range tableNames {
-		rowCount, held := countRowsInAttendanceTable(ctx, database, tableName)
+		rowCount, held := countRowsInTable(ctx, database, tableName)
 		if !held {
 			continue
 		}
@@ -71,7 +71,7 @@ func dropAttendanceTables(ctx context.Context, database *sql.DB, tableNames []st
 	return nil
 }
 
-func countRowsInAttendanceTable(ctx context.Context, database *sql.DB, tableName string) (int, bool) {
+func countRowsInTable(ctx context.Context, database *sql.DB, tableName string) (int, bool) {
 	var rowCount int
 	errorValue := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tableName).Scan(&rowCount)
 	if errorValue != nil {
