@@ -526,7 +526,7 @@ printf 'blueclaw health %%s\n' "$health_status"
 printf '\n== blueclaw status ==\n'
 systemctl status %s --no-pager -l 2>/dev/null | tail -100 || true
 printf '\n== blueclaw processes ==\n'
-ps -eo pid,stat,comm | grep -E 'blueclaw|cloud-hypervisor|virtiofsd' || true
+ps -eo pid,stat,comm | grep -E 'blueclaw|cloud-hyperviso|virtiofsd' || true
 printf '\n== blueclaw ports ==\n'
 ss -ltnp 2>/dev/null | grep ':8080' || true
 printf '\n== blueclaw journal ==\n'
@@ -584,7 +584,7 @@ func blueclawBootDiagnoseCommand() string {
 	return strings.TrimSpace("guestLogRoot=" + blueclawGuestLogRoot + "\n" + `
 set +e
 printf '== guest monitor processes ==\n'
-ps -eo pid,stat,etimes,comm | grep -E 'blueclaw|cloud-hypervisor|virtiofsd' || true
+ps -eo pid,stat,etimes,comm | grep -E 'blueclaw|cloud-hyperviso|virtiofsd' || true
 printf '\n== newest guest log directories ==\n'
 newestLogDirectories=$(find "$guestLogRoot" -maxdepth 1 -mindepth 1 -type d -newermt '-3 minutes' 2>/dev/null | head -4)
 if [ -z "$newestLogDirectories" ]; then
