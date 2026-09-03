@@ -299,7 +299,7 @@ describe('an event written through the record', () => {
 		expect((listed.events as { title: string }[]).map((event) => event.title)).toContain('주간 회의');
 	});
 
-	test('takes everyone attending as everyone in the company', async () => {
+	test('leaves an event everyone attends with no attendee list', async () => {
 		const made = resultOf(
 			await run('event_add', {
 				title: '전사 공지',
@@ -308,7 +308,59 @@ describe('an event written through the record', () => {
 				everyoneAttends: true
 			})
 		);
-		expect((made.participants as unknown[]).length >= 3).toBe(true);
+		expect(made.participants).toEqual([]);
+	});
+
+	test('answers the hours where the company is, not in UTC', async () => {
+		const made = resultOf(
+			await run('event_add', {
+				title: '자리 표기 확인',
+				startsAt: `${companyDay}T14:00:00+09:00`,
+				endsAt: `${companyDay}T15:30:00+09:00`
+			})
+		);
+		expect(made.startsAt).toBe(`${companyDay}T14:00:00+09:00`);
+		expect(made.endsAt).toBe(`${companyDay}T15:30:00+09:00`);
+	});
+
+	test('stands an event asked of somebody else at requested', async () => {
+		const made = resultOf(
+			await run('event_add', {
+				title: '남에게 부탁한 일정',
+				startsAt: `${companyDay}T16:00:00+09:00`,
+				endsAt: `${companyDay}T16:30:00+09:00`,
+				participantPersonHints: ['박예시']
+			})
+		);
+		const listed = resultOf(await run('event_list', { query: '남에게 부탁한' }));
+		expect((listed.events as unknown[]).length).toBe(1);
+		expect((made.participants as { name: string }[]).map((one) => one.name)).toEqual(['박예시']);
+	});
+
+	test('refuses a second copy of one event, and names the one it already holds', async () => {
+		const first = resultOf(
+			await run('event_add', {
+				title: '한 번만 있어야 할 회의',
+				startsAt: `${companyDay}T18:00:00+09:00`,
+				endsAt: `${companyDay}T19:00:00+09:00`
+			})
+		);
+		const refused = await run('event_add', {
+			title: '한 번만 있어야 할 회의',
+			startsAt: `${companyDay}T18:00:00+09:00`,
+			endsAt: `${companyDay}T19:00:00+09:00`
+		});
+		const refusal = refused.body as {
+			errorCode: string;
+			retryable: boolean;
+			safeRetry: boolean;
+			eventID: string;
+		};
+		expect(refused.status).toBe(409);
+		expect(refusal.errorCode).toBe('calendar_event_duplicate');
+		expect(refusal.retryable).toBe(false);
+		expect(refusal.safeRetry).toBe(false);
+		expect(refusal.eventID).toBe(first.eventID as string);
 	});
 
 	test('keeps what an update did not name', async () => {
@@ -366,6 +418,24 @@ describe('an event written through the record', () => {
 
 		const still = resultOf(await run('event_list', { query: '분기 리뷰' }));
 		expect((still.events as { title: string }[]).map((event) => event.title)).toEqual(['분기 리뷰']);
+	});
+
+	test('answers what is coming when no window was asked for', async () => {
+		const upcoming = resultOf(await run('event_list'));
+		const titles = (upcoming.events as { title: string }[]).map((event) => event.title);
+		expect(titles).toContain('주간 회의 (연장)');
+	});
+
+	test('matches a query against the note and the place, whatever the case', async () => {
+		const byPlace = resultOf(await run('event_list', { query: '회의실' }));
+		expect((byPlace.events as { title: string }[]).map((event) => event.title)).toContain(
+			'주간 회의 (연장)'
+		);
+	});
+
+	test('fills the other end of a window given only one', async () => {
+		const fromOnly = resultOf(await run('event_list', { startsAt: `${companyDay}T00:00:00+09:00` }));
+		expect((fromOnly.events as unknown[]).length > 0).toBe(true);
 	});
 
 	test('refuses an event that ends before it starts', async () => {

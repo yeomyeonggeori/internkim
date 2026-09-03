@@ -67,6 +67,22 @@ function offsetMilliseconds(timezone: string, instant: Date): number {
 // A day names a day where the company is, so its edges are that day's midnights
 // there. The offset is read twice because the first reading uses a guess that
 // can sit on the wrong side of a daylight-saving change.
+export function momentIn(timezone: string, instant: string): string {
+	const moment = new Date(instant);
+	if (Number.isNaN(moment.getTime())) return instant;
+	const offset = offsetMilliseconds(timezone, moment);
+	const wall = new Date(moment.getTime() + offset).toISOString().slice(0, 19);
+	return `${wall}${offsetWritten(offset)}`;
+}
+
+function offsetWritten(offset: number): string {
+	if (offset === 0) return 'Z';
+	const minutes = Math.abs(Math.round(offset / 60000));
+	const hourPart = String(Math.floor(minutes / 60)).padStart(2, '0');
+	const minutePart = String(minutes % 60).padStart(2, '0');
+	return `${offset < 0 ? '-' : '+'}${hourPart}:${minutePart}`;
+}
+
 export function instantOfDay(timezone: string, day: string, endOfDay = false): string {
 	const wall = Date.parse(`${day}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`);
 	const guessed = new Date(wall - offsetMilliseconds(timezone, new Date(wall)));

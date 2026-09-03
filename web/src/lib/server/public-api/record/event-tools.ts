@@ -1,8 +1,17 @@
 import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
-import { instantWritten, weekWindow } from './days';
+import { dayIn, instantOfDay, instantWritten, momentIn, weekWindow } from './days';
 import { peopleOfHints } from './people';
 import type { RecordContext } from './company';
-import { deleteTask, rowOfSavedID, saveTask, taskOfHint, tasksOfCompany, type TaskRow } from './tasks';
+import {
+	deleteTask,
+	RecordRefusedTheWrite,
+	rowOfSavedID,
+	saveTask,
+	taskOfHint,
+	tasksOfCompany,
+	taskSelection,
+	type TaskRow
+} from './tasks';
 
 type EventWritten = {
 	title?: string;
@@ -95,8 +104,8 @@ function answeredEvent(context: RecordContext, row: TaskRow): AnsweredEvent {
 		title: row.title,
 		note: row.note ?? '',
 		location: locationNameOf(row.location),
-		startsAt: row.starts_at ?? '',
-		endsAt: row.ends_at ?? '',
+		startsAt: row.starts_at ? momentIn(context.labels.timezone, row.starts_at) : '',
+		endsAt: row.ends_at ? momentIn(context.labels.timezone, row.ends_at) : '',
 		isWholeDay: row.is_whole_day,
 		...(row.notify_minutes_before ? { notifyMinutesBefore: row.notify_minutes_before } : {}),
 		participants: attendeesOfRow(context, row),
@@ -107,15 +116,19 @@ function answeredEvent(context: RecordContext, row: TaskRow): AnsweredEvent {
 // Everyone attending is the company, so it is read here rather than left as a
 // flag nothing acts on.
 function attendeesOf(context: RecordContext, written: EventWritten, row: TaskRow | null): string[] {
-	if (written.everyoneAttends) return context.people.map((person) => person.personID);
+	if (written.everyoneAttends) return [];
 	if (written.participantPersonHints !== undefined) {
-		const named = peopleOfHints(context.people, written.participantPersonHints, 'participant').map(
+		return peopleOfHints(context.people, written.participantPersonHints, 'participant').map(
 			(person) => person.personID
 		);
-		return named.length > 0 ? named : [context.requesterID];
 	}
 	if (row) return row.task_participant.map(({ member_id }) => member_id);
 	return [context.requesterID];
+}
+
+function isRequestedOfSomebodyElse(requesterID: string, attendees: string[]): boolean {
+	if (attendees.length === 0) return false;
+	return !attendees.includes(requesterID);
 }
 
 function eventWriteArguments(
@@ -137,8 +150,16 @@ function eventWriteArguments(
 			? written.notifyMinutesBefore
 			: row?.notify_minutes_before ?? null;
 	const isWholeDay = written.isWholeDay ?? row?.is_whole_day ?? false;
+	const attendees = attendeesOf(context, written, row);
 	return {
 		target_task_id: row?.id ?? null,
+		...(row
+			? {}
+			: {
+					target_status: isRequestedOfSomebodyElse(context.requesterID, attendees)
+						? 'requested'
+						: 'planned'
+				}),
 		target_size: sizeOfEvent(startsAt, endsAt, isWholeDay),
 		target_title: written.title ?? row?.title ?? '',
 		target_note: written.note !== undefined ? written.note || null : row?.note ?? null,
@@ -148,7 +169,7 @@ function eventWriteArguments(
 		target_is_whole_day: isWholeDay,
 		target_is_event: true,
 		target_notify_minutes_before: notify !== null && notify > 0 ? notify : null,
-		target_participant_ids: attendeesOf(context, written, row),
+		target_participant_ids: attendees,
 		...(row ? { target_expected_updated_at: row.updated_at } : {})
 	};
 }
@@ -162,9 +183,66 @@ async function eventByID(context: RecordContext, eventID: string): Promise<TaskR
 	return rowOfSavedID(await tasksOfCompany(context.caller, true), eventID, 'event');
 }
 
+export class CalendarEventDuplicate extends Error {
+	readonly errorCode = 'calendar_event_duplicate';
+	readonly failureStage = 'resolution';
+	readonly retryable = false;
+	readonly safeRetry = false;
+
+	constructor(readonly eventID: string) {
+		super('this company already holds this event at this time with these people');
+		this.name = 'CalendarEventDuplicate';
+	}
+}
+
+// The record's duplicate trigger names the clashing event by title and not by
+// id, so which event it was has to be looked up rather than read off the error.
+async function savedOrRefusedAsADuplicate(
+	context: RecordContext,
+	writeArguments: Record<string, unknown>
+): Promise<string> {
+	try {
+		return await saveTask(context.caller, writeArguments);
+	} catch (refusal) {
+		const isDuplicate = refusal instanceof RecordRefusedTheWrite && refusal.errorCode === 'record_duplicate';
+		if (!isDuplicate) throw refusal;
+		throw new CalendarEventDuplicate(await eventAlreadyHeld(context, writeArguments));
+	}
+}
+
+async function eventAlreadyHeld(
+	context: RecordContext,
+	writeArguments: Record<string, unknown>
+): Promise<string> {
+	const { data } = await context.caller
+		.from('task')
+		.select('id, starts_at, ends_at, task_participant (member_id)')
+		.eq('is_event', true)
+		.eq('title', writeArguments.target_title)
+		.neq('id', writeArguments.target_task_id ?? '00000000-0000-0000-0000-000000000000')
+		.returns<Pick<TaskRow, 'id' | 'starts_at' | 'ends_at' | 'task_participant'>[]>();
+
+	const attendees = new Set(writeArguments.target_participant_ids as string[]);
+	const clashing = (data ?? []).find(
+		(row) =>
+			isTheSameMoment(row.starts_at, writeArguments.target_starts_at) &&
+			isTheSameMoment(row.ends_at, writeArguments.target_ends_at) &&
+			row.task_participant.length === attendees.size &&
+			row.task_participant.every(({ member_id }) => attendees.has(member_id))
+	);
+	return clashing?.id ?? '';
+}
+
+// PostgREST spells a timestamp its own way, so instants are compared as
+// instants rather than as the strings carrying them.
+function isTheSameMoment(held: string | null, written: unknown): boolean {
+	if (!held || typeof written !== 'string') return false;
+	return Date.parse(held) === Date.parse(written);
+}
+
 export async function eventAdd(context: RecordContext, input: EventWritten): Promise<AnsweredEvent> {
 	if (!input.title?.trim()) throw new Error('an event needs a title');
-	const saved = await saveTask(context.caller, eventWriteArguments(context, input, null));
+	const saved = await savedOrRefusedAsADuplicate(context, eventWriteArguments(context, input, null));
 	return answeredEvent(context, await eventByID(context, saved));
 }
 
@@ -175,7 +253,7 @@ export async function eventUpdate(
 	if (!input.eventHint) throw new Error('an update names the event it changes');
 	const row = await eventOfHint(context, input.eventHint);
 	refuseAVersionThatMovedOn(versionOfEvent(row), input.expectedUpdatedAt);
-	const saved = await saveTask(context.caller, eventWriteArguments(context, input, row));
+	const saved = await savedOrRefusedAsADuplicate(context, eventWriteArguments(context, input, row));
 	return answeredEvent(context, await eventByID(context, saved));
 }
 
@@ -212,22 +290,33 @@ export function eventWindowOf(context: RecordContext, input: EventListInput): { 
 			to: instantWritten(context.labels.timezone, window.to, true)
 		};
 	}
-	const from = input.startsAt
-		? instantWritten(context.labels.timezone, input.startsAt)
-		: context.now.toISOString();
-	const to = input.endsAt
-		? instantWritten(context.labels.timezone, input.endsAt, true)
-		: new Date(new Date(from).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-	return { from, to };
+	if (!input.startsAt && !input.endsAt) return upcomingWindow(context);
+	if (input.startsAt) {
+		const from = instantWritten(context.labels.timezone, input.startsAt);
+		const to = input.endsAt
+			? instantWritten(context.labels.timezone, input.endsAt, true)
+			: shiftedByDays(from, 1);
+		return { from, to };
+	}
+	const to = instantWritten(context.labels.timezone, input.endsAt as string, true);
+	return { from: shiftedByDays(to, -1), to };
+}
+
+function upcomingWindow(context: RecordContext): { from: string; to: string } {
+	const today = dayIn(context.labels.timezone, context.now);
+	const from = instantOfDay(context.labels.timezone, today);
+	return { from, to: shiftedByDays(from, 7) };
+}
+
+function shiftedByDays(instant: string, days: number): string {
+	return new Date(Date.parse(instant) + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export async function eventList(context: RecordContext, input: EventListInput) {
 	const window = eventWindowOf(context, input);
 	const { data, error } = await context.caller
 		.from('task')
-		.select(
-			'id, title, status, note, location, business, type, size, is_event, is_whole_day, notify_minutes_before, starts_at, ends_at, updated_at, task_participant (member_id)'
-		)
+		.select(taskSelection)
 		.eq('is_event', true)
 		.neq('status', 'rejected')
 		.lt('starts_at', window.to)
@@ -236,10 +325,11 @@ export async function eventList(context: RecordContext, input: EventListInput) {
 		.returns<TaskRow[]>();
 	if (error) throw new Error(error.message);
 
+	const asked = (input.query ?? '').trim().toLowerCase();
 	const found = (data ?? []).filter((row) => {
-		if (!input.query) return true;
+		if (!asked) return true;
 		const searched = `${row.title} ${row.note ?? ''} ${locationNameOf(row.location)}`;
-		return searched.includes(input.query);
+		return searched.toLowerCase().includes(asked);
 	});
 	const kept = input.limit && input.limit > 0 ? found.slice(0, input.limit) : found;
 	return { events: kept.map((row) => answeredEvent(context, row)) };
