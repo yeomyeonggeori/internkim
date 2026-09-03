@@ -986,6 +986,7 @@ export const attendanceListInputSchema = z.strictObject({
     .optional(),
   from: z.string().describe(`Earliest day to include. ${attendanceDayDescription} Omit to start thirty days ago.`).optional(),
   to: z.string().describe(`Latest day to include. ${attendanceDayDescription} Omit to end today.`).optional(),
+  handWrittenOnly: z.boolean().describe('Keep only the records somebody wrote or changed by hand, and drop the ones clocked live. A hand-written record carries the reason it was written, or the moment it was moved from, or both; a live clock carries neither. Use it for "what has been written by hand this month" or to review what an administrator entered for somebody. Omit for every record in the window.').optional(),
   limit: z.number().describe('Maximum number of rows to return.').optional(),
 });
 
@@ -1034,6 +1035,8 @@ export const attendanceResultSchema = z.strictObject({
   time: z.string(),
   location: z.string().nullable(),
   wasCorrected: z.boolean(),
+  originalDate: z.string().nullable(),
+  originalTime: z.string().nullable(),
   reason: z.string().nullable(),
 });
 
@@ -1618,8 +1621,8 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_list',
-    description: "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company.",
-    version: '1',
+    description: "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone.",
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: attendanceListInputSchema,
     result: { schema: attendanceListResultSchema, effects: [] },

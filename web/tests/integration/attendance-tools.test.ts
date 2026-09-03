@@ -15,6 +15,7 @@ const now = new Date();
 
 let companyID = '';
 let sampleID = '';
+let exampleID = '';
 let adminID = '';
 let sample: ReturnType<typeof asMember>;
 let admin: ReturnType<typeof asMember>;
@@ -44,6 +45,9 @@ beforeAll(async () => {
 	await client.from('member').update({ name: '이샘플' }).eq('id', sampleID);
 	await client.from('member').update({ name: '최견본' }).eq('id', adminID);
 
+	exampleID = await addMember(client, companyID, `${slug}-example@example.test`);
+	await client.from('member').update({ name: '박예시' }).eq('id', exampleID);
+
 	sample = await signedInMember(sampleID, `${slug}-sample@example.test`);
 	admin = await signedInMember(adminID, `${slug}-admin@example.test`);
 }, networkHookTimeout);
@@ -68,6 +72,15 @@ function asAdmin(name: string, input: Record<string, unknown> = {}) {
 function resultOf(answer: { body: unknown }): Record<string, unknown> {
 	return (answer.body as { result: Record<string, unknown> }).result;
 }
+
+type AnsweredRecord = {
+	eventID: string;
+	person: string;
+	time: string;
+	originalDate: string | null;
+	originalTime: string | null;
+	reason: string | null;
+};
 
 describe('the attendance tools write a record and say when the company was told', () => {
 	test('a record inside the three days is written without telling anybody', async () => {
@@ -203,5 +216,84 @@ describe('the attendance tools write a record and say when the company was told'
 			reason: '관리자가 대신 기록합니다'
 		});
 		expect(resultOf(added).status).toBe('added');
+	});
+});
+
+describe('the list shows what was written by hand', () => {
+	let writtenID = '';
+	let clockedID = '';
+
+	test('a backdated write is found by asking for the records written by hand alone', async () => {
+		const written = await asAdmin('attendance_add', {
+			personHint: '박예시',
+			kind: 'clock_in',
+			date: dayShiftedBy(-45),
+			time: '09:00',
+			location: '사무실',
+			reason: '관리자가 손으로 남긴 기록'
+		});
+		expect(resultOf(written).status).toBe('added');
+		writtenID = resultOf(written).eventID as string;
+
+		const listed = await asAdmin('attendance_list', {
+			scope: 'all',
+			from: dayShiftedBy(-60),
+			handWrittenOnly: true
+		});
+		const found = (resultOf(listed).attendance as AnsweredRecord[]).find(
+			(record) => record.eventID === writtenID
+		);
+		expect(found).toBeDefined();
+		expect(found?.person).toBe('박예시');
+		expect(found?.reason).toBe('관리자가 손으로 남긴 기록');
+		expect(found?.originalDate).toBeNull();
+		expect(found?.originalTime).toBeNull();
+	});
+
+	test('a record that was moved says the moment it was moved from', async () => {
+		const corrected = await asAdmin('attendance_update', {
+			corrections: [{ eventHint: writtenID, time: '08:00' }],
+			reason: '실제로는 8시에 출근했습니다'
+		});
+		expect(resultOf(corrected).status).toBe('corrected');
+
+		const listed = await asAdmin('attendance_list', {
+			scope: 'all',
+			from: dayShiftedBy(-60),
+			handWrittenOnly: true
+		});
+		const found = (resultOf(listed).attendance as AnsweredRecord[]).find(
+			(record) => record.eventID === writtenID
+		);
+		expect(found?.time).toBe('08:00');
+		expect(found?.originalDate).toBe(dayShiftedBy(-45));
+		expect(found?.originalTime).toBe('09:00');
+	});
+
+	test('a live clock is in the window and out of the records written by hand', async () => {
+		const clocked = await asAdmin('attendance_add', { personHint: '박예시', kind: 'clock_out' });
+		expect(resultOf(clocked).status).toBe('added');
+		clockedID = resultOf(clocked).eventID as string;
+
+		const everything = await asAdmin('attendance_list', {
+			scope: 'all',
+			from: dayShiftedBy(-60)
+		});
+		const everyID = (resultOf(everything).attendance as AnsweredRecord[]).map(
+			(record) => record.eventID
+		);
+		expect(everyID).toContain(clockedID);
+		expect(everyID).toContain(writtenID);
+
+		const listed = await asAdmin('attendance_list', {
+			scope: 'all',
+			from: dayShiftedBy(-60),
+			handWrittenOnly: true
+		});
+		const handWrittenID = (resultOf(listed).attendance as AnsweredRecord[]).map(
+			(record) => record.eventID
+		);
+		expect(handWrittenID).not.toContain(clockedID);
+		expect(handWrittenID).toContain(writtenID);
 	});
 });

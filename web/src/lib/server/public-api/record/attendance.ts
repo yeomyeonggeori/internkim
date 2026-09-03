@@ -24,6 +24,10 @@ export class NoSuchAttendanceRecord extends Error {
 	}
 }
 
+export function attendanceWrittenByHand(rows: AttendanceRow[]): AttendanceRow[] {
+	return rows.filter((row) => row.edit_reason !== null || row.original_occurred_at !== null);
+}
+
 export function timeOfInstant(timezone: string, instant: string): string {
 	return new Intl.DateTimeFormat('en-GB', {
 		timeZone: timezone,

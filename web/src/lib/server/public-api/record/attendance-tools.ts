@@ -4,6 +4,7 @@ import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import {
 	attendanceByID,
 	attendanceOfCompany,
+	attendanceWrittenByHand,
 	timeOfInstant,
 	NoSuchAttendanceRecord,
 	type AttendanceRow
@@ -22,6 +23,8 @@ export type AnsweredAttendance = {
 	time: string;
 	location: string | null;
 	wasCorrected: boolean;
+	originalDate: string | null;
+	originalTime: string | null;
 	reason: string | null;
 };
 
@@ -35,6 +38,12 @@ function answeredAttendance(context: RecordContext, row: AttendanceRow): Answere
 		time: timeOfInstant(context.labels.timezone, row.occurred_at),
 		location: row.location,
 		wasCorrected: row.original_occurred_at !== null,
+		originalDate: row.original_occurred_at
+			? dayOfInstant(context.labels.timezone, row.original_occurred_at)
+			: null,
+		originalTime: row.original_occurred_at
+			? timeOfInstant(context.labels.timezone, row.original_occurred_at)
+			: null,
 		reason: row.edit_reason
 	};
 }
@@ -102,12 +111,14 @@ export type AttendanceListInput = {
 	scope?: string;
 	from?: string;
 	to?: string;
+	handWrittenOnly?: boolean;
 	limit?: number;
 };
 
 export async function attendanceList(context: RecordContext, input: AttendanceListInput) {
 	const found = await rowsInWindow(context, input.personHint, input.scope, input.from, input.to);
-	const kept = input.limit && input.limit > 0 ? found.rows.slice(-input.limit) : found.rows;
+	const written = input.handWrittenOnly ? attendanceWrittenByHand(found.rows) : found.rows;
+	const kept = input.limit && input.limit > 0 ? written.slice(-input.limit) : written;
 	return {
 		scope: found.memberID ? 'person' : 'everyone',
 		personID: found.memberID,
