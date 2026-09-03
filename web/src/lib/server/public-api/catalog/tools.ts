@@ -996,7 +996,7 @@ export const attendanceAddInputSchema = z.strictObject({
   date: z.string().describe(`The day the person actually arrived or left. ${attendanceDayDescription} Omit for today.`).optional(),
   time: z.string().describe(`The time they actually arrived or left. ${attendanceTimeDescription} Omit for the moment this call is made.`).optional(),
   location: z.string().describe('The registered workplace they were at. clock_out does not use it, so omit it there.').optional(),
-  reason: attendanceReasonSchema.describe('Why the record is being written by hand, in the requester\'s own words. A record that names a date or a time is refused without one; somebody clocking in or out right now needs none.').optional(),
+  reason: attendanceReasonSchema.describe('Why the record is being written by hand, in the requester\'s own words. It is kept when given and never demanded; somebody clocking in or out right now needs none.').optional(),
 });
 
 export const attendanceAddInputIntentSchema = attendanceAddInputSchema.partial();
@@ -1634,8 +1634,8 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_add',
-    description: "Write a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a workplace this company has registered and clock_out does not use it. reason says why a record is being written by hand: give it whenever date or time is named, and leave it out when clocking in or out right now.",
-    version: '1',
+    description: "Write a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a workplace this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceAddInputSchema,
     inputIntentSchema: attendanceAddInputIntentSchema,

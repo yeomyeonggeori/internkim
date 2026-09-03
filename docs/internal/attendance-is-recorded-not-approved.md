@@ -1,6 +1,6 @@
 # Attendance is recorded, not approved
 
-Status: **Built** · Last updated: 2026-09-02
+Status: **Built** · Last updated: 2026-09-04
 
 A person knows when they arrived. Asking an administrator to agree before the
 record says so buys nothing, and it cost a working feature: a request raised
@@ -31,11 +31,11 @@ refusal is what broke the feature it was meant to serve: a null `eventID`
 read as work not done, a completion gate refusing `finish`, and a person told
 their request had failed when the right person had just been asked.
 
-`attendance_add` with no `date` and no `time` clocks the moment of the call
-and needs no reason. That is somebody pressing the button as they walk in, and
-`edit_reason` stays null, which is what separates a clock from a record
-written by hand. Naming a past moment is writing by hand, and that needs a
-reason.
+`attendance_add` with no `date` and no `time` clocks the moment of the call.
+That is somebody pressing the button as they walk in, and `edit_reason` stays
+null, which is what separates a clock from a record written by hand. Naming a
+past moment is writing by hand, and a reason for it is kept when the caller
+gives one, never demanded.
 
 ## Who is told
 
