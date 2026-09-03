@@ -187,7 +187,7 @@ export function calendarEntryOfApprovedLeave(
 		description: '',
 		location: '',
 		startISO: leave.starts_at,
-		endISO: isAllDay ? lastCoveredMoment(leave.ends_at) : leave.ends_at,
+		endISO: leave.ends_at,
 		timeZone,
 		isAllDay,
 		color: dayOffColor,
@@ -218,8 +218,4 @@ function calendarParticipant(
 function leaveKindLabel(kind: string, days: number, locale: Locale): string {
 	if (kind !== 'leave' && kind !== '연차' && kind !== '반차') return kind;
 	return localizedLeaveUnitName(days, locale);
-}
-
-function lastCoveredMoment(endsAt: string): string {
-	return new Date(new Date(endsAt).getTime() - 1).toISOString();
 }

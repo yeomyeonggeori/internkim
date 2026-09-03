@@ -7,7 +7,15 @@ import {
 	type CompanyCalendarSource
 } from './company-calendar';
 import { crmColumnsWritten, writeCRMColumns } from './crm-tools';
-import { dayIn, instantOfDay, instantWritten, isTheSameMoment, momentIn, weekWindow } from './days';
+import {
+	dayIn,
+	instantAfterWrittenDay,
+	instantOfDay,
+	instantWritten,
+	isTheSameMoment,
+	momentIn,
+	weekWindow
+} from './days';
 import { labelOf } from './labels';
 import { peopleOfHints } from './people';
 import type { RecordContext } from './company';
@@ -92,6 +100,11 @@ function refuseAVersionThatMovedOn(current: string, expectedUpdatedAt: string | 
 	throw new CalendarEventVersionConflict(current);
 }
 
+export function eventEndInstant(timezone: string, written: string, isWholeDay: boolean): string {
+	if (isWholeDay) return instantAfterWrittenDay(timezone, written);
+	return instantWritten(timezone, written, true);
+}
+
 export function sizeOfEvent(startsAt: string, endsAt: string, isWholeDay: boolean): string {
 	const hours = (new Date(endsAt).getTime() - new Date(startsAt).getTime()) / millisecondsPerHour;
 	if (!isWholeDay) return sizeOfHours(hours);
@@ -157,10 +170,13 @@ function eventWriteArguments(
 	const business = labelOf(context.labels.businesses, written.business, row ? row.business : null);
 	const type = labelOf(context.labels.types, written.type, row ? row.type : null);
 	const timezone = context.labels.timezone;
+	const isWholeDay = written.isWholeDay ?? row?.is_whole_day ?? false;
 	const startsAt =
 		written.startsAt !== undefined ? instantWritten(timezone, written.startsAt) : row?.starts_at ?? '';
 	const endsAt =
-		written.endsAt !== undefined ? instantWritten(timezone, written.endsAt, true) : row?.ends_at ?? '';
+		written.endsAt !== undefined
+			? eventEndInstant(timezone, written.endsAt, isWholeDay)
+			: row?.ends_at ?? '';
 	if (!startsAt || !endsAt) throw new Error('an event runs from a moment to a moment');
 	if (endsAt <= startsAt) throw new Error('an event ends after it starts');
 
@@ -169,7 +185,6 @@ function eventWriteArguments(
 		written.notifyMinutesBefore !== undefined
 			? written.notifyMinutesBefore
 			: row?.notify_minutes_before ?? null;
-	const isWholeDay = written.isWholeDay ?? row?.is_whole_day ?? false;
 	const attendees = attendeesOf(context, written, row);
 	return {
 		target_task_id: row?.id ?? null,
