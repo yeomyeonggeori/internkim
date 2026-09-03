@@ -277,3 +277,29 @@ func TestANameTheDocumentCannotHoldIsNotSeeded(t *testing.T) {
 		t.Fatalf("expected nothing to reach blueclaw, got %v", seeded)
 	}
 }
+
+func TestDefaultDocumentsKeepEveryLineTheyName(t *testing.T) {
+	identity := defaultIdentityDocument()
+	normalizedIdentity := normalizeIdentityDocument(identity)
+	if len(normalizedIdentity.Names) != len(identity.Names) {
+		t.Fatalf("the default identity names %d names but keeps %v", len(identity.Names), normalizedIdentity.Names)
+	}
+	soul := defaultSoulDocument()
+	normalizedSoul := normalizeSoulDocument(soul)
+	for name, pair := range map[string][2]int{
+		"values":       {len(soul.Values), len(normalizedSoul.Values)},
+		"boundaries":   {len(soul.Boundaries), len(normalizedSoul.Boundaries)},
+		"workingStyle": {len(soul.WorkingStyle), len(normalizedSoul.WorkingStyle)},
+		"tone traits":  {len(soul.Tone.Traits), len(normalizedSoul.Tone.Traits)},
+	} {
+		if pair[0] != pair[1] {
+			t.Fatalf("the default soul names %d %s but keeps %d", pair[0], name, pair[1])
+		}
+	}
+	if _, errorValue := canonicalIdentityDocument(identity); errorValue != nil {
+		t.Fatalf("the default identity does not pass its own rules: %v", errorValue)
+	}
+	if _, errorValue := canonicalSoulDocument(soul); errorValue != nil {
+		t.Fatalf("the default soul does not pass its own rules: %v", errorValue)
+	}
+}
