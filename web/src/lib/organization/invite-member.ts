@@ -5,6 +5,7 @@ export type MemberInvitation = {
 	memberID: string;
 	email: string;
 	temporaryPassword: string;
+	wasTheCompanyServerTold: boolean;
 };
 
 export async function inviteMemberToCompany(email: string, name: string): Promise<MemberInvitation> {
@@ -19,19 +20,21 @@ export async function inviteMemberToCompany(email: string, name: string): Promis
 	});
 	if (!response.ok) throw new Error((await response.text()).trim() || `invite returned ${response.status}`);
 	const invitation = (await response.json()) as MemberInvitation;
-	await tellTheCompanyServerTheDirectoryChanged();
-	return invitation;
+	return { ...invitation, wasTheCompanyServerTold: await tellTheCompanyServerTheDirectoryChanged() };
 }
 
 // The company records the member and the company's own server gives them a
-// Linux user, so it is told rather than left to notice on its next sweep.
-// Whoever was just invited would otherwise be refused as a stranger until then,
-// and a server that cannot be reached is not a failed invitation.
-export async function tellTheCompanyServerTheDirectoryChanged(): Promise<void> {
+// Linux user and the key their messenger knows them by, so it is told rather
+// than left to notice on its next sweep. A server that cannot be reached is not
+// a failed invitation — the sweep catches up within a couple of minutes — but it
+// is not a finished one either, and saying so is the difference between a wait
+// and somebody quietly going unanswered.
+export async function tellTheCompanyServerTheDirectoryChanged(): Promise<boolean> {
 	try {
-		await callCompanyApp({ capability: 'directory.changed' });
+		const answer = await callCompanyApp({ capability: 'directory.changed' });
+		return answer.status < 400;
 	} catch {
-		return;
+		return false;
 	}
 }
 

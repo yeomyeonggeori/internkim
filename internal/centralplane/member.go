@@ -36,6 +36,15 @@ func (member Member) IsActive() bool {
 	return strings.EqualFold(strings.TrimSpace(member.Status), "active")
 }
 
+// Somebody invited yesterday and signing in tomorrow is neither active nor
+// gone, and what is prepared for them ahead of that sign-in reads this rather
+// than IsActive: a key derived the day they are invited is waiting the moment
+// they arrive. Mirrors hasLeftTheCompany in web/src/lib/server/control-plane.ts.
+func (member Member) HasLeftTheCompany() bool {
+	status := strings.ToLower(strings.TrimSpace(member.Status))
+	return status == "departed" || status == "withdrawn"
+}
+
 // Members asks the directory who works here. Asking address by address cannot
 // find somebody nobody has mentioned yet, which is every person invited since
 // the caller last looked.

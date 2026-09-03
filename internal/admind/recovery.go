@@ -136,6 +136,7 @@ var SSHRecoveryActions = []string{
 	"buzz-whose-key",
 	"buzz-snapshot",
 	"buzz-membership-recover",
+	"buzz-membership-close",
 	"buzz-restore",
 	"buzz-repair-dryrun",
 	"buzz-repair-apply",
@@ -346,6 +347,10 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		membershipContext, cancelMembership := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(membershipContext, "recover buzz member membership", "sh", "-lc", buzzMembershipRecoverCommand()))
 		cancelMembership()
+	case "buzz-membership-close":
+		closeContext, cancelClose := context.WithTimeout(context.Background(), 90*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(closeContext, "close the relay to keys the company never issued", "sh", "-lc", buzzMembershipCloseCommand()))
+		cancelClose()
 	case "buzz-restore":
 		restoreContext, cancelRestore := context.WithTimeout(context.Background(), 300*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(restoreContext, "restore buzz relay database from snapshot", "sh", "-lc", buzzRestoreCommand()))
@@ -1082,6 +1087,21 @@ echo "== effective relay env =="; systemctl show ` + blueclaw.BuzzRelayServiceNa
 echo "relay permissive via drop-in — scheduling admind restart to resync member membership"
 systemd-run --on-active=3sec --unit=internkim-membership-admind-restart systemctl restart internkim-admind
 echo "admind restart scheduled"
+`)
+}
+
+// buzz-membership-recover opens the relay to any key that can sign, so admind
+// can put the company's own keys back into a membership list that lost them.
+// Nothing took that back, and a relay left open admits a client that brings its
+// own key: that is how one colleague came to be in the messenger twice.
+func buzzMembershipCloseCommand() string {
+	return strings.TrimSpace(`
+set -e
+rm -f /etc/systemd/system/` + blueclaw.BuzzRelayServiceName + `.service.d/membership-recover.conf
+systemctl daemon-reload
+systemctl restart ` + blueclaw.BuzzRelayServiceName + `
+for attempt in $(seq 1 30); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+echo "== effective relay env =="; systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | grep -iE 'REQUIRE_RELAY|WS_EVENTS' || true
 `)
 }
 

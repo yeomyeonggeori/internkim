@@ -167,10 +167,14 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 	return report, nil
 }
 
-// A key the messenger deleted so hard that nothing names it any more still sits
-// in the rooms it was added to, where a member list reads it as bare hex. It is
-// taken out of every room, and the rooms it was in are told, so a client sees
-// the list it will get on its next read.
+// A key nobody derives is somebody the company never issued: it shows in the
+// people list and can be mentioned, and no address reaches it. It goes from the
+// rooms, from the community, and from the people list, and the rooms it was in
+// are told, so a client sees the list it will get on its next read.
+//
+// A key that has said something is left alone whatever else is true of it.
+// Taking it out would take its messages out of the conversations they are part
+// of, and that is a person's judgement, not a sweep's.
 func (service *Service) removeUnaccountedMemberships(
 	ctx context.Context,
 	database *sql.DB,
@@ -184,6 +188,10 @@ func (service *Service) removeUnaccountedMemberships(
 			return 0, errorValue
 		}
 	}
+	unaccounted, errorValue := keysThatSaidNothing(ctx, database, unaccounted)
+	if errorValue != nil || len(unaccounted) == 0 {
+		return 0, errorValue
+	}
 	const asBytea = "ARRAY(SELECT decode(unnest($1::text[]), 'hex'))"
 	rooms, errorValue := roomsHoldingMembers(ctx, database, unaccounted)
 	if errorValue != nil {
@@ -193,6 +201,16 @@ func (service *Service) removeUnaccountedMemberships(
 		"DELETE FROM channel_members WHERE pubkey = ANY("+asBytea+")", pq.Array(unaccounted))
 	if errorValue != nil {
 		return 0, errorValue
+	}
+	if _, errorValue := rowsChangedBy(ctx, database,
+		"DELETE FROM relay_members WHERE lower(pubkey) = ANY($1) AND role <> 'owner'",
+		pq.Array(unaccounted)); errorValue != nil {
+		return removed, errorValue
+	}
+	if _, errorValue := rowsChangedBy(ctx, database,
+		"DELETE FROM events WHERE kind = 0 AND pubkey = ANY("+asBytea+")",
+		pq.Array(unaccounted)); errorValue != nil {
+		return removed, errorValue
 	}
 	for _, channelID := range rooms {
 		if errorValue := service.tellClientsWhoIsInTheRoom(ctx, database, channelID); errorValue != nil {
@@ -231,8 +249,14 @@ func (service *Service) membersNobodyAccountsFor(ctx context.Context, database *
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	rows, errorValue := database.QueryContext(ctx,
-		"SELECT DISTINCT encode(pubkey, 'hex') FROM channel_members WHERE removed_at IS NULL")
+	// Looking only at the rooms is how a key nobody derives outlived every
+	// sweep: a client reads relay_members to list and mention people, so a key
+	// that is a member of the community and of no room is a person in the
+	// messenger that no pass could see.
+	rows, errorValue := database.QueryContext(ctx, `
+		SELECT DISTINCT encode(pubkey, 'hex') FROM channel_members WHERE removed_at IS NULL
+		UNION
+		SELECT DISTINCT lower(pubkey) FROM relay_members WHERE role <> 'owner'`)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -248,6 +272,81 @@ func (service *Service) membersNobodyAccountsFor(ctx context.Context, database *
 		}
 	}
 	return unaccounted, rows.Err()
+}
+
+// The company issues one key per address and derives it, so a key in the
+// community that no address derives was never issued here. It arrives through
+// doors that let a client bring its own — redeeming a Buzz invite, or a member
+// pasting one into settings — and it appears in the people list as somebody who
+// can be mentioned and cannot be reached. Waiting for a person to notice is how
+// one colleague came to be in the messenger twice.
+func (service *Service) showOutWhoeverNobodyNames(ctx context.Context) {
+	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
+	seed := service.buzzKeySeed()
+	if databaseURL == "" || seed == "" {
+		return
+	}
+	relay, errorValue := sql.Open("postgres", databaseURL)
+	if errorValue != nil {
+		log.Printf("buzz: the community could not be read: %v", errorValue)
+		return
+	}
+	defer relay.Close()
+
+	unaccounted, errorValue := service.membersNobodyAccountsFor(ctx, relay, seed)
+	if errorValue != nil {
+		log.Printf("buzz: nobody is shown out, %v", errorValue)
+		return
+	}
+	if len(unaccounted) == 0 {
+		return
+	}
+	removed, errorValue := service.removeUnaccountedMemberships(ctx, relay, unaccounted)
+	if errorValue != nil {
+		log.Printf("buzz: showing out a key nobody names failed: %v", errorValue)
+		return
+	}
+	if removed > 0 {
+		log.Printf("buzz: showed out %d seat(s) held by keys nobody names, of %d found", removed, len(unaccounted))
+	}
+}
+
+func keysThatSaidNothing(ctx context.Context, database *sql.DB, pubkeys []string) ([]string, error) {
+	rows, errorValue := database.QueryContext(ctx,
+		"SELECT DISTINCT encode(pubkey, 'hex') FROM events WHERE kind = 9 AND pubkey = ANY(ARRAY(SELECT decode(unnest($1::text[]), 'hex')))",
+		pq.Array(pubkeys))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+	spoke := map[string]bool{}
+	for rows.Next() {
+		var pubkey string
+		if errorValue := rows.Scan(&pubkey); errorValue != nil {
+			return nil, errorValue
+		}
+		spoke[pubkey] = true
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return nil, errorValue
+	}
+	for _, pubkey := range pubkeys {
+		if spoke[pubkey] {
+			log.Printf("buzz: %s belongs to nobody the company names and has said something, so it stays for a person to judge", pubkey)
+		}
+	}
+	return keysSafeToShowOut(pubkeys, spoke), nil
+}
+
+func keysSafeToShowOut(pubkeys []string, spoke map[string]bool) []string {
+	silent := []string{}
+	for _, pubkey := range pubkeys {
+		if spoke[pubkey] {
+			continue
+		}
+		silent = append(silent, pubkey)
+	}
+	return silent
 }
 
 func rowsChangedBy(ctx context.Context, database *sql.DB, statement string, argument any) (int, error) {
