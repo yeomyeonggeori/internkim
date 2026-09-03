@@ -1143,7 +1143,7 @@
         "state": "ok"
       },
       "canonicalName": "person_list",
-      "description": "Everyone who works here, with their exact name, email and mention. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.",
+      "description": "Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -1182,6 +1182,21 @@
                 "email": {
                   "type": "string"
                 },
+                "employmentStatus": {
+                  "type": "string"
+                },
+                "handle": {
+                  "type": "string"
+                },
+                "hireDate": {
+                  "type": "string"
+                },
+                "isAdmin": {
+                  "type": "boolean"
+                },
+                "jobTitle": {
+                  "type": "string"
+                },
                 "mention": {
                   "type": "string"
                 },
@@ -1189,6 +1204,21 @@
                   "type": "string"
                 },
                 "personID": {
+                  "type": "string"
+                },
+                "phoneNumber": {
+                  "type": "string"
+                },
+                "supervisorID": {
+                  "type": "string"
+                },
+                "supervisorName": {
+                  "type": "string"
+                },
+                "teamID": {
+                  "type": "string"
+                },
+                "teamName": {
                   "type": "string"
                 }
               },
@@ -1228,6 +1258,21 @@
                   "email": {
                     "type": "string"
                   },
+                  "employmentStatus": {
+                    "type": "string"
+                  },
+                  "handle": {
+                    "type": "string"
+                  },
+                  "hireDate": {
+                    "type": "string"
+                  },
+                  "isAdmin": {
+                    "type": "boolean"
+                  },
+                  "jobTitle": {
+                    "type": "string"
+                  },
                   "mention": {
                     "type": "string"
                   },
@@ -1235,6 +1280,21 @@
                     "type": "string"
                   },
                   "personID": {
+                    "type": "string"
+                  },
+                  "phoneNumber": {
+                    "type": "string"
+                  },
+                  "supervisorID": {
+                    "type": "string"
+                  },
+                  "supervisorName": {
+                    "type": "string"
+                  },
+                  "teamID": {
+                    "type": "string"
+                  },
+                  "teamName": {
                     "type": "string"
                   }
                 },
@@ -1257,7 +1317,1041 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "2",
+      "version": "3",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "person_update",
+      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "employmentStatus": {
+            "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
+            "enum": [
+              "active",
+              "departed"
+            ],
+            "type": "string"
+          },
+          "hireDate": {
+            "description": "The day they started, in YYYY-MM-DD format. An empty string clears it.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "isAdmin": {
+            "description": "Whether they administer the company. Only an administrator may raise or lower this.",
+            "type": "boolean"
+          },
+          "jobTitle": {
+            "description": "Their job title, e.g. '편집장'. An empty string clears it.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "description": "The name every screen and every mention shows for them.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "phoneNumber": {
+            "description": "Their phone number as they write it. An empty string clears it.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "supervisorHint": {
+            "description": "The person this one reports to, named the way personHint is. An empty string leaves them reporting to nobody.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "teamHint": {
+            "description": "The organization this person belongs to, named the way teamHint is. An empty string takes them out of every organization.",
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "minProperties": 2,
+        "properties": {
+          "employmentStatus": {
+            "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
+            "enum": [
+              "active",
+              "departed"
+            ],
+            "type": "string"
+          },
+          "hireDate": {
+            "description": "The day they started, in YYYY-MM-DD format. An empty string clears it.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "isAdmin": {
+            "description": "Whether they administer the company. Only an administrator may raise or lower this.",
+            "type": "boolean"
+          },
+          "jobTitle": {
+            "description": "Their job title, e.g. '편집장'. An empty string clears it.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "description": "The name every screen and every mention shows for them.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Identifies the person to act on: their exact person ID, their exact email address, their @handle, or their name as a person_list result shows it. A name only one colleague carries resolves; a name several carry fails with the candidates to choose between.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phoneNumber": {
+            "description": "Their phone number as they write it. An empty string clears it.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "supervisorHint": {
+            "description": "The person this one reports to, named the way personHint is. An empty string leaves them reporting to nobody.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "teamHint": {
+            "description": "The organization this person belongs to, named the way teamHint is. An empty string takes them out of every organization.",
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "required": [
+          "personHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "person_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "person_update",
+      "namespace": "person",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "employmentStatus": {
+            "type": "string"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "hireDate": {
+            "type": "string"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "mention": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personID": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "supervisorID": {
+            "type": "string"
+          },
+          "supervisorName": {
+            "type": "string"
+          },
+          "teamID": {
+            "type": "string"
+          },
+          "teamName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "personID",
+          "name",
+          "email"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:person_update",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "person",
+            "resultField": "personID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "email": {
+              "type": "string"
+            },
+            "employmentStatus": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "hireDate": {
+              "type": "string"
+            },
+            "isAdmin": {
+              "type": "boolean"
+            },
+            "jobTitle": {
+              "type": "string"
+            },
+            "mention": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "personID": {
+              "type": "string"
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "supervisorID": {
+              "type": "string"
+            },
+            "supervisorName": {
+              "type": "string"
+            },
+            "teamID": {
+              "type": "string"
+            },
+            "teamName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "personID",
+            "name",
+            "email"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "person_invite",
+      "description": "Invite somebody to the company: it creates their account, gives them a temporary password to sign in with once, and puts them in the directory. Only an administrator invites people. The answer carries the temporary password, which is the only time it is readable, so pass it to whoever is bringing the person in. Requires approval; an account and an address are hard to take back.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "description": "The address they sign in with, e.g. '새사람@example.com'. One address belongs to one company.",
+            "maxLength": 320,
+            "type": "string"
+          },
+          "jobTitle": {
+            "description": "Their job title, when it is known already.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "description": "Their name as colleagues will see it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "teamHint": {
+            "description": "The organization this person belongs to, named the way teamHint is. An empty string takes them out of every organization.",
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "description": "The address they sign in with, e.g. '새사람@example.com'. One address belongs to one company.",
+            "maxLength": 320,
+            "type": "string"
+          },
+          "jobTitle": {
+            "description": "Their job title, when it is known already.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "description": "Their name as colleagues will see it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "teamHint": {
+            "description": "The organization this person belongs to, named the way teamHint is. An empty string takes them out of every organization.",
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "name"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "person_invite",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "person_invite",
+      "namespace": "person",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "employmentStatus": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "temporaryPassword": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "personID",
+          "email",
+          "name",
+          "employmentStatus",
+          "temporaryPassword"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:person_invite",
+      "privacyClass": "workspace_task",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "person",
+            "resultField": "personID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "email": {
+              "type": "string"
+            },
+            "employmentStatus": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "personID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "temporaryPassword": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "personID",
+            "email",
+            "name",
+            "employmentStatus",
+            "temporaryPassword"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "team_list",
+      "description": "Every organization in the company, in the order the organization chart shows them, each with the organization it sits under and how many people belong to it. Call this before naming an organization in another call, and when an organization hint was refused with candidates to choose between.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "team_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "team_list",
+      "namespace": "team",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "teams": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "parentTeamID": {
+                  "type": "string"
+                },
+                "parentTeamName": {
+                  "type": "string"
+                },
+                "peopleCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "position": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "teamID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "teamID",
+                "name",
+                "parentTeamID",
+                "parentTeamName",
+                "position",
+                "peopleCount"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "teams"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:team_list",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "teams": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "parentTeamID": {
+                    "type": "string"
+                  },
+                  "parentTeamName": {
+                    "type": "string"
+                  },
+                  "peopleCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "position": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "teamID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "teamID",
+                  "name",
+                  "parentTeamID",
+                  "parentTeamName",
+                  "position",
+                  "peopleCount"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "teams"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "team_add",
+      "description": "Create one organization, optionally under another one. Only an administrator edits the organization chart. Creating an organization puts nobody in it; person_update moves people.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "The organization's name, e.g. '개발팀'.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "parentHint": {
+            "description": "The organization this one sits under, named the way teamHint is. An empty string makes it a top-level organization.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "position": {
+            "description": "Where it sits among its siblings, counting from 0. Omit to put it last.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "The organization's name, e.g. '개발팀'.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "parentHint": {
+            "description": "The organization this one sits under, named the way teamHint is. An empty string makes it a top-level organization.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "position": {
+            "description": "Where it sits among its siblings, counting from 0. Omit to put it last.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "team_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "team_add",
+      "namespace": "team",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "parentTeamID": {
+            "type": "string"
+          },
+          "parentTeamName": {
+            "type": "string"
+          },
+          "peopleCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "position": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "teamID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "teamID",
+          "name",
+          "parentTeamID",
+          "parentTeamName",
+          "position",
+          "peopleCount"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:team_add",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "team",
+            "resultField": "teamID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "parentTeamID": {
+              "type": "string"
+            },
+            "parentTeamName": {
+              "type": "string"
+            },
+            "peopleCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "position": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "teamID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "teamID",
+            "name",
+            "parentTeamID",
+            "parentTeamName",
+            "position",
+            "peopleCount"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "team_update",
+      "description": "Rename one organization, move it under another one, or change where it sits among its siblings. Only the fields the call names change, and only an administrator edits the organization chart. Moving an organization under one of its own descendants is refused.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "The organization's new name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "parentHint": {
+            "description": "The organization this one sits under, named the way teamHint is. An empty string makes it a top-level organization.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "position": {
+            "description": "Where it sits among its siblings, counting from 0.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "minProperties": 2,
+        "properties": {
+          "name": {
+            "description": "The organization's new name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "parentHint": {
+            "description": "The organization this one sits under, named the way teamHint is. An empty string makes it a top-level organization.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "position": {
+            "description": "Where it sits among its siblings, counting from 0.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "teamHint": {
+            "description": "Identifies the organization to act on: its exact team ID or its exact CURRENT name as a team_list result shows it. Never a new or intended name. A name only one organization carries resolves; a name several carry fails with the candidates to choose between.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "teamHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "team_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "team_update",
+      "namespace": "team",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "parentTeamID": {
+            "type": "string"
+          },
+          "parentTeamName": {
+            "type": "string"
+          },
+          "peopleCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "position": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "teamID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "teamID",
+          "name",
+          "parentTeamID",
+          "parentTeamName",
+          "position",
+          "peopleCount"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:team_update",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "team",
+            "resultField": "teamID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "parentTeamID": {
+              "type": "string"
+            },
+            "parentTeamName": {
+              "type": "string"
+            },
+            "peopleCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "position": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "teamID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "teamID",
+            "name",
+            "parentTeamID",
+            "parentTeamName",
+            "position",
+            "peopleCount"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "team_delete",
+      "description": "Remove one organization from the organization chart. Everybody who belonged to it keeps their directory entry and belongs to no organization until somebody moves them. An organization with organizations under it is refused; remove or move those first. Requires approval; this action is irreversible.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "teamHint": {
+            "description": "Identifies the organization to act on: its exact team ID or its exact CURRENT name as a team_list result shows it. Never a new or intended name. A name only one organization carries resolves; a name several carry fails with the candidates to choose between.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "teamHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "team_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "team_delete",
+      "namespace": "team",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "deleted": {
+            "const": true,
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "peopleLeftWithNoOrganization": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "teamID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "teamID",
+          "name",
+          "deleted",
+          "peopleLeftWithNoOrganization"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:team_delete",
+      "privacyClass": "workspace_task",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "id",
+            "objectType": "team",
+            "resultField": "teamID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "deleted": {
+              "const": true,
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "peopleLeftWithNoOrganization": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "teamID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "teamID",
+            "name",
+            "deleted",
+            "peopleLeftWithNoOrganization"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
       "worksOffline": false
     },
     {

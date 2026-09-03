@@ -12572,7 +12572,7 @@
         "state": "ok"
       },
       "canonicalName": "person_list",
-      "description": "Everyone who works here, with their exact name, email and mention. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.",
+      "description": "Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -12611,6 +12611,21 @@
                 "email": {
                   "type": "string"
                 },
+                "employmentStatus": {
+                  "type": "string"
+                },
+                "handle": {
+                  "type": "string"
+                },
+                "hireDate": {
+                  "type": "string"
+                },
+                "isAdmin": {
+                  "type": "boolean"
+                },
+                "jobTitle": {
+                  "type": "string"
+                },
                 "mention": {
                   "type": "string"
                 },
@@ -12618,6 +12633,21 @@
                   "type": "string"
                 },
                 "personID": {
+                  "type": "string"
+                },
+                "phoneNumber": {
+                  "type": "string"
+                },
+                "supervisorID": {
+                  "type": "string"
+                },
+                "supervisorName": {
+                  "type": "string"
+                },
+                "teamID": {
+                  "type": "string"
+                },
+                "teamName": {
                   "type": "string"
                 }
               },
@@ -12656,6 +12686,21 @@
                   "email": {
                     "type": "string"
                   },
+                  "employmentStatus": {
+                    "type": "string"
+                  },
+                  "handle": {
+                    "type": "string"
+                  },
+                  "hireDate": {
+                    "type": "string"
+                  },
+                  "isAdmin": {
+                    "type": "boolean"
+                  },
+                  "jobTitle": {
+                    "type": "string"
+                  },
                   "mention": {
                     "type": "string"
                   },
@@ -12663,6 +12708,21 @@
                     "type": "string"
                   },
                   "personID": {
+                    "type": "string"
+                  },
+                  "phoneNumber": {
+                    "type": "string"
+                  },
+                  "supervisorID": {
+                    "type": "string"
+                  },
+                  "supervisorName": {
+                    "type": "string"
+                  },
+                  "teamID": {
+                    "type": "string"
+                  },
+                  "teamName": {
                     "type": "string"
                   }
                 },
@@ -12685,7 +12745,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "2",
+      "version": "3",
       "worksOffline": false
     },
     "site_list": {

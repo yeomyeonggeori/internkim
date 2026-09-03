@@ -56,8 +56,11 @@ export type OwnOrganizationProfile = {
 	hireDate: string;
 };
 
-export async function saveOwnOrganizationProfile(profile: OwnOrganizationProfile): Promise<OwnOrganizationProfile> {
-	if (isSupabaseConfigured()) return saveOwnSupabaseProfile(profile.phoneNumber, profile.hireDate);
+export async function saveOwnOrganizationProfile(
+	memberID: string,
+	profile: OwnOrganizationProfile
+): Promise<OwnOrganizationProfile> {
+	if (isSupabaseConfigured()) return saveOwnSupabaseProfile(memberID, profile.phoneNumber, profile.hireDate);
 	const response = await fetch('/organization/api/me/profile', {
 		method: 'PUT',
 		headers: { 'content-type': 'application/json' },

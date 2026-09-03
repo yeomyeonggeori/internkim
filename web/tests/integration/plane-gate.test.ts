@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -44,8 +45,13 @@ describe('the gate over the tools the record runs', () => {
 	});
 
 	// The two halves of the gate are in different runtimes, so the thing that
-	// says the whole catalog is covered has to be able to see both counts.
-	test('the record half covers nineteen of the catalog', () => {
-		expect(toolsTheRecordRuns().length).toBe(19);
+	// says the whole catalog is covered has to be able to see both counts. The
+	// catalog is where that number comes from; a literal here would only ever
+	// mean the last person to add a tool remembered to raise it.
+	test('the record half covers every catalog tool the record answers', () => {
+		const answeredByTheRecord = catalog.tools.filter((tool) => tool.answeredBy === 'record').length;
+
+		expect(answeredByTheRecord).toBeGreaterThan(0);
+		expect(toolsTheRecordRuns().length).toBe(answeredByTheRecord);
 	});
 });

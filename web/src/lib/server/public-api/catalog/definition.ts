@@ -12,6 +12,15 @@ import {
   resourceEffectContractSchema,
 } from './protocol';
 
+export enum ResourceMutationEffect {
+  Created = 'created',
+  Sent = 'sent',
+  Updated = 'updated',
+  Previewed = 'previewed',
+  Published = 'published',
+  Deleted = 'deleted',
+}
+
 export type CapabilityResultDefinition = {
   schema: z.ZodType;
   effects: Array<z.infer<typeof resourceEffectContractSchema>>;
