@@ -7,7 +7,6 @@ const admindProxyPaths = [
 	'/attendance/api',
 	'/auth',
 	'/calendar/api',
-	'/task/api',
 	'/mail/api',
 	'/memory/api'
 ];

@@ -13,7 +13,7 @@ class TaskSearch {
 
 	load = async () => {
 		try {
-			const state = await fetchTaskState('');
+			const state = await fetchTaskState();
 			this.tasks = state.tasks ?? [];
 			this.definitions = state.definitions ?? emptyDefinitions;
 		} catch {

@@ -65,7 +65,7 @@
 		try {
 			if (reloadState) weeklySummaryCache.clear();
 			const [nextState, weeklySummary] = await Promise.all([
-				reloadState || !taskState ? fetchTaskState(text.loadError) : Promise.resolve(taskState),
+				reloadState || !taskState ? fetchTaskState() : Promise.resolve(taskState),
 				fetchCachedTaskWeeklySummary(week)
 			]);
 			if (!taskLoadTracker.isCurrent(loadID)) return false;
@@ -118,7 +118,7 @@
 	async function fetchCachedTaskWeeklySummary(week: string): Promise<TaskWeeklySummary> {
 		const cachedSummary = week ? weeklySummaryCache.get(week) : undefined;
 		if (cachedSummary) return cachedSummary;
-		const weeklySummary = await fetchTaskWeeklySummary(week, text.loadError);
+		const weeklySummary = await fetchTaskWeeklySummary(week);
 		if (weeklySummary.week.code) weeklySummaryCache.set(weeklySummary.week.code, weeklySummary);
 		return weeklySummary;
 	}

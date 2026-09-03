@@ -12,7 +12,6 @@ import {
 	canUpdateTask,
 	defaultParticipantFilterIDs,
 	filterTasks,
-	normalizedTaskDefinitionValue,
 	taskDefinitionLabel,
 	taskDefinitionOptionValue,
 	taskDefinitionValueFromOption,
@@ -97,13 +96,6 @@ describe('flow task workspace model', () => {
 		expect(taskDefinitionOptionValue('기능')).toBe('기능');
 		expect(taskDefinitionValueFromOption(ETC_TASK_OPTION_VALUE)).toBe(null);
 		expect(taskDefinitionValueFromOption('기능')).toBe('기능');
-	});
-
-	test('normalizes blank incoming values to null', () => {
-		expect(normalizedTaskDefinitionValue('')).toBe(null);
-		expect(normalizedTaskDefinitionValue('  ')).toBe(null);
-		expect(normalizedTaskDefinitionValue(undefined)).toBe(null);
-		expect(normalizedTaskDefinitionValue(' 기능 ')).toBe('기능');
 	});
 
 	test('keeps member profile images in participant filter options', () => {
@@ -256,7 +248,6 @@ function taskSummary(overrides: Partial<TaskSummary>): TaskSummary {
 		currentUserEmail: '',
 		currentUserName: '',
 		isAdmin: false,
-		source: 'test',
 		...overrides
 	};
 }

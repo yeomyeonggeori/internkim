@@ -20,7 +20,7 @@ export async function loadTeamStatusDayContextData(
 	const endDate = dateFromKey(addDays(lastDate, 1));
 	const [calendarResult, taskResult] = await Promise.allSettled([
 		fetchCalendarEvents(startDate, endDate),
-		fetchTaskState(fallbackMessage)
+		fetchTaskState()
 	]);
 	return {
 		calendarEvents: calendarResult.status === 'fulfilled' ? calendarResult.value : [],

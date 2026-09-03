@@ -4,7 +4,7 @@ import type { Task } from '../../../src/routes/task/task-types';
 let asked: { task: Task; statusBefore: string | null | undefined }[] = [];
 
 mock.module('../../../src/routes/task/task-api', () => ({
-	saveTask: async (task: Task, _fallbackMessage: string, statusBefore?: string | null) => {
+	saveTask: async (task: Task, statusBefore?: string | null) => {
 		asked.push({ task, statusBefore });
 	},
 	deleteTask: async () => undefined

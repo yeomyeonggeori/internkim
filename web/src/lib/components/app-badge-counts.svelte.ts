@@ -24,7 +24,7 @@ class AppBadgeCounts {
 
 	private loadRequestedTasks = async () => {
 		try {
-			this.requestedTasks = requestedTaskCount(await fetchTaskState(''));
+			this.requestedTasks = requestedTaskCount(await fetchTaskState());
 		} catch {
 			this.requestedTasks = 0;
 		}

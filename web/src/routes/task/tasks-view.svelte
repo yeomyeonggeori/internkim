@@ -155,7 +155,6 @@
 	taskTypeColor={page.taskTypeColor}
 	tasks={page.tasks()}
 	currentMemberID={page.currentMemberID()}
-	canUseTaskRelationships={page.canUseTaskRelationships()}
 	pendingRelationshipTaskIDs={page.relationships.pendingTaskIDs}
 	memberEmail={page.memberEmail}
 	bind:taskDraft={page.editor.taskDraft}

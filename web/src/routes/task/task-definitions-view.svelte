@@ -46,7 +46,6 @@
 		etcTypeColor: string;
 		setEtcBusinessColor: (color: string) => void;
 		setEtcTypeColor: (color: string) => void;
-		canEditEtcColor: boolean;
 		isAdmin: boolean;
 		canEditDefinitions: boolean;
 		isSavingDefinitions: boolean;
@@ -81,7 +80,6 @@
 		etcTypeColor,
 		setEtcBusinessColor,
 		setEtcTypeColor,
-		canEditEtcColor,
 		isAdmin,
 		canEditDefinitions,
 		isSavingDefinitions,
@@ -127,7 +125,6 @@
 				etcLabel={text.etcLabel}
 				etcColor={etcBusinessColor}
 				setEtcColor={setEtcBusinessColor}
-				{canEditEtcColor}
 			/>
 			<TaskEditableDefinitionListCard
 				title={text.type}
@@ -150,7 +147,6 @@
 				etcLabel={text.etcLabel}
 				etcColor={etcTypeColor}
 				setEtcColor={setEtcTypeColor}
-				{canEditEtcColor}
 			/>
 		</div>
 		{#if isAdmin}

@@ -1,7 +1,6 @@
 import { centralTaskStatusOptions } from '$lib/task/central-task';
 import { buildBusinessSelectOptions, buildTypeSelectOptions } from './task-workspace-model';
 import { taskStatus } from './task-status';
-import { isCentralTaskSource } from './task-source';
 import { taskText } from './text';
 import type { TaskDefinitions, TaskSummary, Task } from './task-types';
 import type { PageText } from '$lib/i18n/page-text.svelte';
@@ -22,7 +21,6 @@ const requestLifecycleStatuses: string[] = [taskStatus.requested, taskStatus.rej
 
 export function statusOptionsFromSummary(summary: TaskSummary | null, task?: Task | null): string[] {
 	if (!summary) return [];
-	if (!isCentralTaskSource(summary.source)) return summary.statusOptions;
 	if (hasTaskRequestProvenance(task)) return [...centralTaskStatusOptions];
 	return centralTaskStatusOptions.filter((status) => !requestLifecycleStatuses.includes(status));
 }
