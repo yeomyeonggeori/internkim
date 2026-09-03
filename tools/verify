@@ -189,6 +189,11 @@ GROUPS = [
         ["*.md", "docs/*", "tools/verify-doc-budgets"],
         [["tools/verify-doc-budgets"]],
     ),
+    Group(
+        "environment-declarations",
+        ["*.go", "*.ts", "*.sh", "tools/*", "host/*", "docs/internal/environment.json"],
+        [["tools/verify-environment-declarations"]],
+    ),
 ]
 
 
