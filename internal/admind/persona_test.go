@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -137,7 +138,26 @@ func TestSoulUpdateRefusesWhatTheSchemaDoesNotNameAndFollowsIntoTheWorkspace(t *
 }
 
 func TestPersonaAPILetsAMemberChangeTheirOwnDocumentButNotTheSoul(t *testing.T) {
+	var blueclawRequests []string
+	var storedDocument []byte
+	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		blueclawRequests = append(blueclawRequests, request.Method+" "+request.URL.RequestURI())
+		responseWriter.Header().Set("Content-Type", "application/json")
+		switch request.Method {
+		case http.MethodPut:
+			storedDocument, _ = io.ReadAll(request.Body)
+			_, _ = responseWriter.Write(storedDocument)
+		default:
+			if storedDocument == nil {
+				_, _ = responseWriter.Write([]byte(`{"schemaVersion":1}`))
+				return
+			}
+			_, _ = responseWriter.Write(storedDocument)
+		}
+	}))
+	defer blueclaw.Close()
 	service := personaTestService(t)
+	service.Configuration.BlueclawBaseURL = blueclaw.URL
 	stubPersonaActor(t, personaActor{email: "sample@example.com", personID: "person-1", isAdmin: false}, true)
 
 	recorder := httptest.NewRecorder()
@@ -151,9 +171,8 @@ func TestPersonaAPILetsAMemberChangeTheirOwnDocumentButNotTheSoul(t *testing.T) 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected the member's document to save, got %d %s", recorder.Code, recorder.Body.String())
 	}
-	workspaceDocument, errorValue := os.ReadFile(filepath.Join(service.Configuration.BlueclawWorkspacePath, ".blueclaw", "persona", "users", "person-1.json"))
-	if errorValue != nil || !strings.Contains(string(workspaceDocument), `"callMe": "샘플님"`) {
-		t.Fatalf("expected the canonical document under the workspace, got %s (%v)", workspaceDocument, errorValue)
+	if !strings.Contains(string(storedDocument), `"callMe": "샘플님"`) {
+		t.Fatalf("expected the canonical document to reach blueclaw, got %s", storedDocument)
 	}
 
 	recorder = httptest.NewRecorder()
@@ -161,11 +180,19 @@ func TestPersonaAPILetsAMemberChangeTheirOwnDocumentButNotTheSoul(t *testing.T) 
 	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "Give me the command first.") {
 		t.Fatalf("expected the member to read their document back, got %d %s", recorder.Code, recorder.Body.String())
 	}
+	for _, requested := range blueclawRequests {
+		if !strings.Contains(requested, "/admin/api/persona/user?personID=person-1") {
+			t.Fatalf("expected every call to name the member's own person, got %v", blueclawRequests)
+		}
+	}
 
 	recorder = httptest.NewRecorder()
 	service.handlePersona(recorder, httptest.NewRequest(http.MethodPost, "/persona/api/user", strings.NewReader(`{"schemaVersion": 1, "language": {"default": "ko", "matchRequester": true}}`)))
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("expected a field the user schema does not name to be refused, got %d", recorder.Code)
+	}
+	if len(blueclawRequests) != 2 {
+		t.Fatalf("expected a refused document never to reach blueclaw, got %v", blueclawRequests)
 	}
 }
 
