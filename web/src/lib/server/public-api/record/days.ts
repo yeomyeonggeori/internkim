@@ -38,9 +38,6 @@ export function weekWindow(timezone: string, now: Date, weekFrom: number, weekTo
 	};
 }
 
-export function windowHoldsDay(window: DayWindow, day: string): boolean {
-	return day >= window.from && day <= window.to;
-}
 
 function offsetMilliseconds(timezone: string, instant: Date): number {
 	const parts = new Intl.DateTimeFormat('en-CA', {

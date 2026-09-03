@@ -102,7 +102,17 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 		};
 	}
 	if (refusal instanceof LabelUnresolved) {
-		return { status: 409, body: { error: refusal.message, registered: refusal.registered } };
+		return {
+			status: 409,
+			body: {
+				error: refusal.message,
+				errorCode: refusal.errorCode,
+				failureStage: refusal.failureStage,
+				retryable: refusal.retryable,
+				safeRetry: refusal.safeRetry,
+				registered: refusal.registered
+			}
+		};
 	}
 	if (refusal instanceof NoSuchLeave) {
 		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
@@ -114,7 +124,15 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 		return { status: 409, body: { error: refusal.message, hint: refusal.hint, candidates: refusal.candidates } };
 	}
 	if (refusal instanceof RecordRefusedTheWrite) {
-		return { status: refusal.status, body: { error: refusal.message } };
+		return {
+			status: refusal.status,
+			body: {
+				error: refusal.message,
+				errorCode: refusal.errorCode,
+				retryable: refusal.status === 404 || refusal.status === 409,
+				safeRetry: refusal.status !== 502
+			}
+		};
 	}
 	if (refusal instanceof Error) return { status: 400, body: { error: refusal.message } };
 	return { status: 500, body: { error: `${name} failed for a reason it did not name` } };

@@ -3,6 +3,7 @@ import { addMember, controlPlane, provisionCompany, sessionForMember } from '../
 import { asMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
+import { dayIn } from '../../src/lib/server/public-api/record/days';
 import { capabilityToolResultSchema } from '../../src/lib/server/public-api/catalog/tools';
 
 mock.module('$env/dynamic/private', () => ({
@@ -15,10 +16,8 @@ const { runToolOverTheRecord, recordRunsTheTool, toolsTheRecordRuns, recordTools
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
 const slug = `record-tools-${Date.now()}`;
-const now = new Date('2026-08-26T03:00:00.000Z');
+const companyDay = dayIn('Asia/Seoul', new Date());
 
-// A task the record will accept as running has to be running: the company's own
-// clock decides that, not the fixed instant these week windows are read from.
 function dayAround(days: number): string {
 	return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
@@ -65,7 +64,7 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 async function run(name: string, input: Record<string, unknown> = {}) {
-	const answered = await runToolOverTheRecord(caller, sampleID, name, input, now);
+	const answered = await runToolOverTheRecord(caller, sampleID, name, input, new Date());
 	if (answered.status === 200) holdToTheContract(name, (answered.body as { result: unknown }).result);
 	return answered;
 }
@@ -120,7 +119,7 @@ describe('a task written through the record', () => {
 	test('belongs to the caller when nobody was named', async () => {
 		const made = resultOf(await run('task_add', { title: '분기 보고서 초안', size: 'M' }));
 		expect(made.participantNames).toEqual(['이샘플']);
-		expect(made.business).toBe('영업');
+		expect(made.business).toBe('');
 		expect(made.status).toBe('planned');
 		expect(made.content).toBe('분기 보고서 초안');
 		expect((made.participantPresentations as { mention: string }[])[0].mention).toBe('@이샘플');
@@ -207,6 +206,17 @@ describe('a task written through the record', () => {
 		expect((refused.body as { errorCode: string }).errorCode).toBe('task_participant_not_found');
 	});
 
+	test('carries a second call within ten minutes into the first rather than adding a copy', async () => {
+		const first = resultOf(await run('task_add', { title: '중복될 업무' }));
+		const second = resultOf(await run('task_add', { title: '중복될 업무', size: 'L' }));
+		expect(second.taskID).toBe(first.taskID);
+		expect(second.size).toBe('L');
+
+		const listed = resultOf(await run('task_list', { scope: 'all', weekFrom: -400, weekTo: 400 }));
+		const copies = (listed.tasks as { content: string }[]).filter((task) => task.content === '중복될 업무');
+		expect(copies.length).toBe(1);
+	});
+
 	test('refuses a rule of the record as something to fix, not as a permission', async () => {
 		await run('task_add', { title: '이미 끝난 기간', startsAt: '2020-01-06', endsAt: '2020-01-10' });
 		const refused = await run('task_update', { taskHint: '이미 끝난 기간', status: 'in_progress' });
@@ -214,6 +224,10 @@ describe('a task written through the record', () => {
 		expect(String((refused.body as { error: string }).error)).toContain('end');
 	});
 });
+
+function titlesOf(listed: Record<string, unknown>): string[] {
+	return (listed.tasks as { content: string }[]).map((task) => task.content);
+}
 
 describe('task_list', () => {
 	test('answers the caller’s own tasks by default and everyone’s on request', async () => {
@@ -225,12 +239,17 @@ describe('task_list', () => {
 	});
 
 	test('keeps only the weeks asked for', async () => {
+		await run('task_add', {
+			title: '작년에 끝낸 일',
+			status: 'completed',
+			startsAt: '2020-01-06',
+			endsAt: '2020-01-10'
+		});
 		const fixedWeek = resultOf(await run('task_list', { scope: 'all', weekFrom: 0, weekTo: 0 }));
-		const titles = (fixedWeek.tasks as { content: string }[]).map((task) => task.content);
-		expect(titles).not.toContain('이미 끝난 기간');
+		expect(titlesOf(fixedWeek)).not.toContain('작년에 끝낸 일');
 
 		const wide = resultOf(await run('task_list', { scope: 'all', weekFrom: -400, weekTo: 400 }));
-		expect((wide.tasks as { content: string }[]).map((task) => task.content)).toContain('이미 끝난 기간');
+		expect(titlesOf(wide)).toContain('작년에 끝낸 일');
 	});
 
 	test('keeps only the status asked for, and stops at the limit', async () => {
@@ -240,6 +259,26 @@ describe('task_list', () => {
 		const capped = resultOf(await run('task_list', { scope: 'all', limit: 1 }));
 		expect(capped.count).toBe(1);
 	});
+
+	test('answers this week when no week was asked for', async () => {
+		const asked = resultOf(await run('task_list', { scope: 'all' }));
+		expect(titlesOf(asked)).not.toContain('작년에 끝낸 일');
+	});
+
+	test('rolls planned work that has not started forward into the week being read', async () => {
+		await run('task_add', { title: '지난주에 잡아둔 계획', startsAt: dayAround(-21), endsAt: dayAround(-14) });
+		const thisWeek = resultOf(await run('task_list', { scope: 'all' }));
+		expect((thisWeek.tasks as { content: string }[]).map((task) => task.content)).toContain(
+			'지난주에 잡아둔 계획'
+		);
+	});
+
+	test('matches a query against more than the title, ignoring case and spacing', async () => {
+		const byBusiness = resultOf(await run('task_list', { scope: 'all', weekFrom: -400, weekTo: 400, query: '개 발' }));
+		const businesses = (byBusiness.tasks as { business: string }[]).map((task) => task.business);
+		expect(businesses.length > 0).toBe(true);
+		expect(businesses.every((business) => business === '개발')).toBe(true);
+	});
 });
 
 describe('an event written through the record', () => {
@@ -247,8 +286,8 @@ describe('an event written through the record', () => {
 		const made = resultOf(
 			await run('event_add', {
 				title: '주간 회의',
-				startsAt: '2026-08-26T10:00:00+09:00',
-				endsAt: '2026-08-26T11:00:00+09:00',
+				startsAt: `${companyDay}T10:00:00+09:00`,
+				endsAt: `${companyDay}T11:00:00+09:00`,
 				location: '회의실'
 			})
 		);
@@ -264,8 +303,8 @@ describe('an event written through the record', () => {
 		const made = resultOf(
 			await run('event_add', {
 				title: '전사 공지',
-				startsAt: '2026-08-27T10:00:00+09:00',
-				endsAt: '2026-08-27T11:00:00+09:00',
+				startsAt: `${companyDay}T14:00:00+09:00`,
+				endsAt: `${companyDay}T15:00:00+09:00`,
 				everyoneAttends: true
 			})
 		);
@@ -281,8 +320,8 @@ describe('an event written through the record', () => {
 	test('refuses an event that ends before it starts', async () => {
 		const refused = await run('event_add', {
 			title: '거꾸로',
-			startsAt: '2026-08-28T11:00:00+09:00',
-			endsAt: '2026-08-28T10:00:00+09:00'
+			startsAt: `${companyDay}T17:00:00+09:00`,
+			endsAt: `${companyDay}T16:00:00+09:00`
 		});
 		expect(refused.status).toBe(400);
 	});

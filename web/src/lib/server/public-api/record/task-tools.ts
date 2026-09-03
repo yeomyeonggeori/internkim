@@ -1,14 +1,15 @@
 import { compatibilityOwnerOf } from '$lib/task/central-task';
 import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
 import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
-import { dayOfInstant, instantWritten, weekWindow, windowHoldsDay } from './days';
-import { firstRegistered, labelOf } from './labels';
+import { dayOfInstant, instantWritten, weekWindow } from './days';
+import { labelOf } from './labels';
 import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
 import type { RecordContext } from './company';
 import {
 	deleteTask,
 	ownerOfScope,
 	participantsOfHints,
+	RecordRefusedTheWrite,
 	rowOfSavedID,
 	saveTask,
 	taskOfHint,
@@ -68,11 +69,19 @@ function participantsOf(context: RecordContext, row: TaskRow): AnsweredPerson[] 
 	return row.task_participant.map(({ member_id }) => presentationOf(member_id, personOf.get(member_id)));
 }
 
+function ownerOf(context: RecordContext, row: TaskRow): { id: string; name: string } {
+	const personOf = new Map(context.people.map((person) => [person.personID, person]));
+	return compatibilityOwnerOf(
+		row.task_participant.map(({ member_id }) => ({
+			id: member_id,
+			name: personOf.get(member_id)?.name ?? ''
+		}))
+	);
+}
+
 function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 	const participants = participantsOf(context, row);
-	const owner = compatibilityOwnerOf(
-		participants.map((participant) => ({ id: participant.personID, name: participant.displayName ?? '' }))
-	);
+	const owner = ownerOf(context, row);
 	const endDate = dayOfInstant(context.labels.timezone, row.ends_at);
 	return {
 		taskID: row.id,
@@ -92,6 +101,8 @@ function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 	};
 }
 
+type WrittenTaskFields = ReturnType<typeof writtenFields>;
+
 async function taskByID(context: RecordContext, taskID: string): Promise<TaskRow> {
 	return rowOfSavedID(await tasksOfCompany(context.caller, false), taskID, 'task');
 }
@@ -101,11 +112,7 @@ function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRo
 		title: written.title,
 		status: written.status,
 		size: written.size,
-		business: labelOf(
-			context.labels.businesses,
-			written.business,
-			row ? row.business : firstRegistered(context.labels.businesses)
-		),
+		business: labelOf(context.labels.businesses, written.business, row ? row.business : null),
 		type: labelOf(context.labels.types, written.type, row ? row.type : null),
 		startsAt:
 			written.startsAt === undefined ? undefined : instantWritten(context.labels.timezone, written.startsAt),
@@ -124,13 +131,66 @@ function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRo
 export async function taskAdd(context: RecordContext, input: TaskWritten): Promise<AnsweredTask> {
 	if (!input.title?.trim()) throw new Error('a task needs a title');
 	const written = writtenFields(context, input, null);
-	const saved = await saveTask(context.caller, {
-		...taskWriteArguments(null, {
-			...written,
-			participantIDs: written.participantIDs ?? [context.requesterID]
-		})
-	});
+	const participantIDs = written.participantIDs ?? [context.requesterID];
+
+	const tasks = await tasksOfCompany(context.caller, false);
+	const duplicate = duplicateJustAdded(context, tasks, participantIDs, input.title.trim());
+	if (duplicate) return answeredTask(context, await mergedIntoDuplicate(context, duplicate, input));
+
+	const saved = await saveTask(context.caller, taskWriteArguments(null, { ...written, participantIDs }));
 	return answeredTask(context, await taskByID(context, saved));
+}
+
+const duplicateWindowMilliseconds = 10 * 60 * 1000;
+
+function duplicateJustAdded(
+	context: RecordContext,
+	tasks: TaskRow[],
+	participantIDs: string[],
+	title: string
+): TaskRow | undefined {
+	const owner = compatibilityOwnerOf(participantIDs.map((id) => ({ id, name: '' }))).id;
+	if (!owner) return undefined;
+	return tasks.find(
+		(row) =>
+			row.title === title &&
+			ownerOf(context, row).id === owner &&
+			addedWithinTheDuplicateWindow(row.created_at, context.now)
+	);
+}
+
+function addedWithinTheDuplicateWindow(createdAt: string, now: Date): boolean {
+	const since = now.getTime() - new Date(createdAt).getTime();
+	return since >= 0 && since <= duplicateWindowMilliseconds;
+}
+
+async function mergedIntoDuplicate(
+	context: RecordContext,
+	duplicate: TaskRow,
+	input: TaskWritten
+): Promise<TaskRow> {
+	const written = writtenFields(context, input, duplicate);
+	if (!carriesSomethingNew(written, duplicate)) return duplicate;
+	const saved = await saveTask(
+		context.caller,
+		taskWriteArguments(duplicate, { ...written, participantIDs: undefined })
+	);
+	return taskByID(context, saved);
+}
+
+function carriesSomethingNew(written: WrittenTaskFields, row: TaskRow): boolean {
+	return (
+		isNewValue(written.status, row.status) ||
+		isNewValue(written.size, row.size) ||
+		isNewValue(written.business, row.business) ||
+		isNewValue(written.type, row.type) ||
+		isNewValue(written.startsAt, row.starts_at) ||
+		isNewValue(written.endsAt, row.ends_at)
+	);
+}
+
+function isNewValue(written: string | null | undefined, held: string | null): boolean {
+	return written !== undefined && written !== null && written !== held;
 }
 
 export async function taskUpdate(
@@ -140,8 +200,42 @@ export async function taskUpdate(
 	if (!input.taskHint) throw new Error('an update names the task it changes');
 	const tasks = await tasksOfCompany(context.caller, false);
 	const row = taskOfHint(tasks, input.taskHint, 'task', context.requesterID);
-	const saved = await saveTask(context.caller, taskWriteArguments(row, writtenFields(context, input, row)));
-	return answeredTask(context, await taskByID(context, saved));
+	const written = writtenFields(context, input, row);
+	const saved = await saveTask(context.caller, taskWriteArguments(row, written));
+	const patched = await taskByID(context, saved);
+	refuseUnlessPatched(written, patched);
+	return answeredTask(context, patched);
+}
+
+function refuseUnlessPatched(written: WrittenTaskFields, row: TaskRow): void {
+	const unwritten = [
+		unwrittenField('title', written.title, row.title),
+		unwrittenField('status', written.status, row.status),
+		unwrittenField('size', written.size, row.size),
+		unwrittenField('business', written.business, row.business),
+		unwrittenField('type', written.type, row.type),
+		unwrittenField('startsAt', written.startsAt, row.starts_at),
+		unwrittenField('endsAt', written.endsAt, row.ends_at),
+		unwrittenParticipants(written.participantIDs, row)
+	].filter((field): field is string => field !== null);
+	if (unwritten.length === 0) return;
+	throw new RecordRefusedTheWrite(
+		`the record saved this task without ${unwritten.join(', ')} as asked`,
+		502,
+		'task_result_invalid'
+	);
+}
+
+function unwrittenField(name: string, written: string | null | undefined, held: string | null): string | null {
+	if (written === undefined) return null;
+	return written === held ? null : name;
+}
+
+function unwrittenParticipants(written: string[] | undefined, row: TaskRow): string | null {
+	if (written === undefined) return null;
+	const held = new Set(row.task_participant.map(({ member_id }) => member_id));
+	if (held.size !== written.length) return 'participantPersonHints';
+	return written.every((personID) => held.has(personID)) ? null : 'participantPersonHints';
 }
 
 export async function taskDelete(
@@ -153,6 +247,63 @@ export async function taskDelete(
 	const row = taskOfHint(tasks, input.taskHint, 'task', context.requesterID);
 	await deleteTask(context.caller, row.id);
 	return { taskID: row.id, deleted: true };
+}
+
+const rollsForwardToTheWeekRead = new Set(['planned', 'paused']);
+const staysInTheWeekItEnded = new Set(['completed', 'rejected', 'stopped']);
+
+function weekCodeOfOffset(context: RecordContext, offset: number): string {
+	return taskWeekCodeForDateISO(weekWindow(context.labels.timezone, context.now, offset, offset).from);
+}
+
+function weeksAsked(context: RecordContext, weekFrom: number, weekTo: number): Set<string> {
+	const [earlier, later] = weekFrom <= weekTo ? [weekFrom, weekTo] : [weekTo, weekFrom];
+	const asked = new Set<string>();
+	for (let offset = earlier; offset <= later; offset += 1) {
+		asked.add(weekCodeOfOffset(context, offset));
+	}
+	return asked;
+}
+
+function weekCodeOfDay(context: RecordContext, instant: string | null): string {
+	const day = dayOfInstant(context.labels.timezone, instant);
+	return day ? taskWeekCodeForDateISO(day) : '';
+}
+
+function weekCodeOfTask(context: RecordContext, row: TaskRow, thisWeek: string): string {
+	const startWeek = weekCodeOfDay(context, row.starts_at);
+	const endWeek = weekCodeOfDay(context, row.ends_at);
+	if (row.status === 'paused') return thisWeek;
+	if (rollsForwardToTheWeekRead.has(row.status)) {
+		if (!startWeek || isCurrentOrEarlier(startWeek, thisWeek)) return thisWeek;
+		return startWeek;
+	}
+	if (staysInTheWeekItEnded.has(row.status)) return endWeek || startWeek;
+	return endWeek;
+}
+
+function isCurrentOrEarlier(weekCode: string, thisWeek: string): boolean {
+	const asked = weekOrdinalOf(weekCode);
+	const current = weekOrdinalOf(thisWeek);
+	if (asked === null || current === null) return false;
+	return asked <= current;
+}
+
+function weekOrdinalOf(weekCode: string): number | null {
+	const read = /^(\d{2})W(\d{1,2})$/.exec(weekCode.trim().toUpperCase());
+	if (!read) return null;
+	return Number(read[1]) * 100 + Number(read[2]);
+}
+
+function searchableText(value: string): string {
+	return value.trim().toLowerCase().split(/\s+/).join('');
+}
+
+function matchesQuery(context: RecordContext, row: TaskRow, query: string | undefined): boolean {
+	const asked = searchableText(query ?? '');
+	if (!asked) return true;
+	const searched = [row.title, row.business ?? '', row.type ?? '', ownerOf(context, row).name, row.status];
+	return searched.some((value) => searchableText(value).includes(asked));
 }
 
 export type TaskListInput = {
@@ -167,20 +318,14 @@ export type TaskListInput = {
 
 export async function taskList(context: RecordContext, input: TaskListInput) {
 	const ownerID = ownerOfScope(context.people, input.scope, input.participantPersonHint, context.requesterID);
-	const window =
-		input.weekFrom === undefined && input.weekTo === undefined
-			? null
-			: weekWindow(context.labels.timezone, context.now, input.weekFrom ?? 0, input.weekTo ?? input.weekFrom ?? 0);
+	const weeks = weeksAsked(context, input.weekFrom ?? 0, input.weekTo ?? input.weekFrom ?? 0);
+	const thisWeek = weekCodeOfOffset(context, 0);
 
 	const rows = (await tasksOfCompany(context.caller, false)).filter((row) => {
 		if (ownerID && !row.task_participant.some(({ member_id }) => member_id === ownerID)) return false;
 		if (input.status && row.status !== input.status) return false;
-		if (input.query && !row.title.includes(input.query)) return false;
-		if (!window) return true;
-		const day =
-			dayOfInstant(context.labels.timezone, row.starts_at) ||
-			dayOfInstant(context.labels.timezone, row.ends_at);
-		return day !== '' && windowHoldsDay(window, day);
+		if (!matchesQuery(context, row, input.query)) return false;
+		return weeks.has(weekCodeOfTask(context, row, thisWeek));
 	});
 
 	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
