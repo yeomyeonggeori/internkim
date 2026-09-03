@@ -146,7 +146,7 @@ describe('flow API', () => {
 				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
-			await saveTask(taskOf(''), 'Could not save the task.');
+			await saveTask(taskOf(''), 'Could not save the task.', null);
 
 			expect('id' in requestBody).toBe(false);
 			expect('statusRank' in requestBody).toBe(false);
@@ -168,7 +168,7 @@ describe('flow API', () => {
 				{ preconnect: fetchPreconnect(originalFetch) }
 			);
 
-			await saveTask({ ...taskOf(''), statusRank: 2048 }, 'Could not save the task.');
+			await saveTask({ ...taskOf(''), statusRank: 2048 }, 'Could not save the task.', null);
 
 			expect('id' in requestBody).toBe(false);
 			expect(requestBody.statusRank).toBe(2048);
@@ -194,7 +194,7 @@ describe('flow API', () => {
 				...taskOf('task-1'),
 				parentTaskID: 'stale-parent',
 				createdAt: '2026-06-01T10:00:00Z'
-			}, 'Could not save the task.');
+			}, 'Could not save the task.', null);
 
 			expect('createdAt' in requestBody).toBe(false);
 			expect('parentTaskID' in requestBody).toBe(false);
