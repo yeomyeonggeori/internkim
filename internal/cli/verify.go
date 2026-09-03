@@ -436,7 +436,7 @@ else
 fi
 
 echo "checking secret isolation"
-! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/slack-app-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/config/signal-jsonrpc-url || test -r /root/.internkim/config/signal-account || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null
+! su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null
 
 echo "checking blueclaw health"
 curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/health | jq -e '.status == "ok"' >/dev/null

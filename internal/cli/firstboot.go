@@ -363,22 +363,6 @@ chmod 755 /root/.internkim
 chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chown root:root /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 chmod 600 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
-if [ -f /root/.internkim/secrets/slack-bot-token ]; then
-  chown root:root /root/.internkim/secrets/slack-bot-token
-  chmod 600 /root/.internkim/secrets/slack-bot-token
-fi
-if [ -f /root/.internkim/secrets/slack-app-token ]; then
-  chown root:root /root/.internkim/secrets/slack-app-token
-  chmod 600 /root/.internkim/secrets/slack-app-token
-fi
-if [ -f /root/.internkim/config/signal-jsonrpc-url ]; then
-  chown root:root /root/.internkim/config/signal-jsonrpc-url
-  chmod 600 /root/.internkim/config/signal-jsonrpc-url
-fi
-if [ -f /root/.internkim/config/signal-account ]; then
-  chown root:root /root/.internkim/config/signal-account
-  chmod 600 /root/.internkim/config/signal-account
-fi
 install -d -o root -g root -m 700 /root/.internkim/models
 if [ -f "$STAGE/models/gemma-4-E4B-it.litertlm" ]; then
   cp -f "$STAGE/models/gemma-4-E4B-it.litertlm" /root/.internkim/models/gemma-4-E4B-it.litertlm

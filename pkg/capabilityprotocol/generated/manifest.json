@@ -1,5 +1,5 @@
 {
-  "aggregateHash": "300bfabdd4edb2c0ed977efab01b0a111cb6e156d3e00afb297db0439480f8b2",
+  "aggregateHash": "23bb06d5f38f5756b9f832e11e7917e0315d1524ee1d23641a5d7194cf917e26",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
     "hash": "adf0ba64939feba5b6480edfbc4aa41bb310a24f2f80545a871c0481084edfad"
@@ -43,7 +43,7 @@
     },
     {
       "fileName": "connector-platform.schema.json",
-      "hash": "746daec24bf36046cdacdda5ab24d99dc136c2fed34a65622d2df016649f06dd",
+      "hash": "f3ca11f6c247b347bfcc24f25399f8c139907eceb2f8e9ebef7949280c98de51",
       "name": "connector-platform"
     },
     {
@@ -53,7 +53,7 @@
     },
     {
       "fileName": "messenger-platform.schema.json",
-      "hash": "f4bc126fa173adf03ed1a774bcab0a5e6db1173af1984834dfc0ba596978fb42",
+      "hash": "1c4b42aec8e99d4b505892ae0c481da77b0aabeefb9004d37a112d53b5f37c29",
       "name": "messenger-platform"
     },
     {

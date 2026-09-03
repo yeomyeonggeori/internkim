@@ -60,10 +60,6 @@ type setupParameterValues struct {
 	AdminEmail       string
 	OpenRouterAPIKey string
 	LiteRTModelPath  string
-	SlackBotToken    string
-	SlackAppToken    string
-	SignalJSONRPCURL string
-	SignalAccount    string
 }
 
 type localBinaryAsset struct {
@@ -196,40 +192,10 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		ConfigureWifiSSH:            state.configureWifiSSH,
 		StageWifiSD:                 state.stageWifiSD,
 		StageTunnelSD:               state.stageTunnelSD,
-		ConfigureSlackTokenSSH:      state.configureSlackTokenSSH,
-		StageSlackTokenSD:           state.stageSlackTokenSD,
 		InstallUsersSyncSSH:         state.installUsersSyncSSH,
 		StageUsersSyncSD:            state.stageUsersSyncSD,
 		StageBootstrapSD:            state.stageBootstrapSD,
 	}
-}
-
-func (state *setupFlowState) resolveSlackBotToken() string {
-	if state.parameters.SlackBotToken != "" {
-		return state.parameters.SlackBotToken
-	}
-	return strings.TrimSpace(os.Getenv("INTERNKIM_SLACK_BOT_TOKEN"))
-}
-
-func (state *setupFlowState) resolveSlackAppToken() string {
-	if state.parameters.SlackAppToken != "" {
-		return state.parameters.SlackAppToken
-	}
-	return strings.TrimSpace(os.Getenv("INTERNKIM_SLACK_APP_TOKEN"))
-}
-
-func (state *setupFlowState) resolveSignalJSONRPCURL() string {
-	if state.parameters.SignalJSONRPCURL != "" {
-		return state.parameters.SignalJSONRPCURL
-	}
-	return strings.TrimSpace(os.Getenv("INTERNKIM_SIGNAL_JSONRPC_URL"))
-}
-
-func (state *setupFlowState) resolveSignalAccount() string {
-	if state.parameters.SignalAccount != "" {
-		return state.parameters.SignalAccount
-	}
-	return strings.TrimSpace(os.Getenv("INTERNKIM_SIGNAL_ACCOUNT"))
 }
 
 func (state *setupFlowState) ensureWiFiCredentials() error {
@@ -2602,79 +2568,6 @@ func (state *setupFlowState) stageTunnelSD(context *setup.Context) error {
 	return nil
 }
 
-func (state *setupFlowState) configureSlackTokenSSH(context *setup.Context) error {
-	slackBotToken := state.resolveSlackBotToken()
-	slackAppToken := state.resolveSlackAppToken()
-	signalJSONRPCURL := state.resolveSignalJSONRPCURL()
-	signalAccount := state.resolveSignalAccount()
-	state.sshClient.run("mkdir -p /root/.internkim/secrets /root/.internkim/config")
-	if slackBotToken != "" {
-		state.sshClient.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets
-printf '%%s' %s > /root/.internkim/secrets/slack-bot-token
-chown root:root /root/.internkim/secrets/slack-bot-token
-chmod 600 /root/.internkim/secrets/slack-bot-token`,
-			quoteShellValue(slackBotToken),
-		))
-	}
-	if slackAppToken != "" {
-		state.sshClient.run(fmt.Sprintf(`printf '%%s' %s > /root/.internkim/secrets/slack-app-token
-chown root:root /root/.internkim/secrets/slack-app-token
-chmod 600 /root/.internkim/secrets/slack-app-token`,
-			quoteShellValue(slackAppToken),
-		))
-	}
-	if signalJSONRPCURL != "" && signalAccount != "" {
-		state.sshClient.run(fmt.Sprintf(`printf '%%s' %s > /root/.internkim/config/signal-jsonrpc-url
-printf '%%s' %s > /root/.internkim/config/signal-account
-chown root:root /root/.internkim/config/signal-jsonrpc-url /root/.internkim/config/signal-account
-chmod 600 /root/.internkim/config/signal-jsonrpc-url /root/.internkim/config/signal-account`,
-			quoteShellValue(signalJSONRPCURL),
-			quoteShellValue(signalAccount),
-		))
-	}
-	if slackBotToken == "" && slackAppToken == "" && (signalJSONRPCURL == "" || signalAccount == "") {
-		fmt.Printf("  %s\n", state.messenger.t("플랫폼 connector 추가 설정 없음", "No additional platform connector configuration"))
-		return nil
-	}
-	fmt.Printf("  %s\n", state.messenger.t("플랫폼 connector 설정 저장 완료", "Platform connector settings installed"))
-	return nil
-}
-
-func (state *setupFlowState) stageSlackTokenSD(context *setup.Context) error {
-	slackBotToken := state.resolveSlackBotToken()
-	slackAppToken := state.resolveSlackAppToken()
-	signalJSONRPCURL := state.resolveSignalJSONRPCURL()
-	signalAccount := state.resolveSignalAccount()
-	hasConfiguration := false
-	if slackBotToken != "" {
-		if err := context.SD.WriteFile("secrets/slack-bot-token", []byte(slackBotToken), 0o600); err != nil {
-			return err
-		}
-		hasConfiguration = true
-	}
-	if slackAppToken != "" {
-		if err := context.SD.WriteFile("secrets/slack-app-token", []byte(slackAppToken), 0o600); err != nil {
-			return err
-		}
-		hasConfiguration = true
-	}
-	if signalJSONRPCURL != "" && signalAccount != "" {
-		if err := context.SD.WriteFile("config/signal-jsonrpc-url", []byte(signalJSONRPCURL), 0o600); err != nil {
-			return err
-		}
-		if err := context.SD.WriteFile("config/signal-account", []byte(signalAccount), 0o600); err != nil {
-			return err
-		}
-		hasConfiguration = true
-	}
-	if !hasConfiguration {
-		fmt.Printf("  %s\n", state.messenger.t("플랫폼 connector 추가 설정 없음", "No additional platform connector configuration"))
-		return nil
-	}
-	fmt.Printf("  %s\n", state.messenger.t("플랫폼 connector 설정 준비 완료", "Platform connector settings staged"))
-	return nil
-}
-
 func (state *setupFlowState) installUsersSyncSSH(context *setup.Context) error {
 	if err := state.ensureFleetRegistration(false); err != nil {
 		return err
@@ -2716,9 +2609,6 @@ func (state *setupFlowState) stageUsersSyncSD(context *setup.Context) error {
 
 func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 	if err := state.ensureFleetRegistration(false); err != nil {
-		return err
-	}
-	if err := state.stageSlackTokenSD(context); err != nil {
 		return err
 	}
 
