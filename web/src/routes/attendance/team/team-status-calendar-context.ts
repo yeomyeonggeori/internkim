@@ -1,6 +1,7 @@
+import { dayTaskEventFromCalendarEvent, eventEndDate, eventStartDate } from '../../calendar/embed/calendar-event-mapping';
 import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
 import { calendarParticipantsFromUnknown, type CalendarParticipant } from '../../calendar/embed/calendar-participants';
-import { addDays, timeInTimeZone, todayDateInTimeZone, utcDateKey } from '../shared/attendance-date';
+import { addDays, timeInTimeZone, todayDateInTimeZone } from '../shared/attendance-date';
 import type { TeamStatusCalendarEventDetail, TeamStatusDayContextPerson } from './team-status-day-context';
 
 export function calendarEventDetailsForPersonDay(
@@ -82,6 +83,7 @@ function normalizeToken(value: string): string {
 }
 
 function isCalendarEventOnDate(event: CalendarEvent, date: string): boolean {
+	if (event.isAllDay) return isWholeDayCalendarEventOnDate(event, date);
 	const startDate = eventDateKey(event, event.startISO);
 	const rawEndDate = eventDateKey(event, event.endISO);
 	if (!startDate || !rawEndDate) return false;
@@ -89,8 +91,23 @@ function isCalendarEventOnDate(event: CalendarEvent, date: string): boolean {
 	return date >= startDate && date <= endDate;
 }
 
+function isWholeDayCalendarEventOnDate(event: CalendarEvent, date: string): boolean {
+	if (Number.isNaN(new Date(event.startISO).getTime())) return false;
+	if (Number.isNaN(new Date(event.endISO).getTime())) return false;
+	const dayTaskEvent = dayTaskEventFromCalendarEvent(event);
+	const startDate = localDayKey(eventStartDate(dayTaskEvent));
+	const endDate = localDayKey(eventEndDate(dayTaskEvent));
+	return date >= startDate && date <= endDate;
+}
+
+function localDayKey(date: Date): string {
+	const year = String(date.getFullYear()).padStart(4, '0');
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
 function isExclusiveEndDate(event: CalendarEvent): boolean {
-	if (event.isAllDay) return true;
 	const endDate = new Date(event.endISO);
 	if (Number.isNaN(endDate.getTime())) return false;
 	const endTime = timeInTimeZone(event.timeZone, endDate);
@@ -100,7 +117,6 @@ function isExclusiveEndDate(event: CalendarEvent): boolean {
 function eventDateKey(event: CalendarEvent, isoDate: string): string {
 	const date = new Date(isoDate);
 	if (Number.isNaN(date.getTime())) return '';
-	if (event.isAllDay) return utcDateKey(date);
 	return todayDateInTimeZone(event.timeZone, date);
 }
 
