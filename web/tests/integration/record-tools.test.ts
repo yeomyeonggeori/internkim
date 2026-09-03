@@ -331,6 +331,27 @@ describe('an event written through the record', () => {
 		expect((listed.events as { title: string }[]).map((event) => event.title)).toContain('주간 회의');
 	});
 
+	test('keeps a reminder named in minutes, and gives it up when told none', async () => {
+		const made = resultOf(
+			await run('event_add', {
+				title: '알림 있는 회의',
+				startsAt: '2026-08-28T10:00:00+09:00',
+				endsAt: '2026-08-28T11:00:00+09:00',
+				notifyMinutesBefore: 30
+			})
+		);
+		expect(made.notifyMinutesBefore).toBe(30);
+
+		const moved = resultOf(await run('event_update', { eventHint: made.eventID, notifyMinutesBefore: 60 }));
+		expect(moved.notifyMinutesBefore).toBe(60);
+
+		const untouched = resultOf(await run('event_update', { eventHint: made.eventID, title: '알림 있는 회의' }));
+		expect(untouched.notifyMinutesBefore).toBe(60);
+
+		const cleared = resultOf(await run('event_update', { eventHint: made.eventID, notifyMinutesBefore: 0 }));
+		expect(cleared.notifyMinutesBefore).toBeUndefined();
+	});
+
 	test('leaves an event everyone attends with no attendee list', async () => {
 		const made = resultOf(
 			await run('event_add', {
