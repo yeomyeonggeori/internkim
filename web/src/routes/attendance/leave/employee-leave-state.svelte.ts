@@ -3,20 +3,15 @@ import type { AttendanceText } from '../text';
 import {
 	cancelEmployeeLeaveRequest,
 	createEmployeeLeaveRequest,
-	EmployeeLeaveAPIError,
 	fetchEmployeeLeave,
-	previewEmployeeLeave,
-	resubmitEmployeeLeaveRequest,
-	updateEmployeeLeaveRequest
+	previewEmployeeLeave
 } from './employee-leave-api';
 import { employeeLeaveErrorMessage } from './employee-leave-error';
 import type {
 	EmployeeLeavePayload,
 	EmployeeLeavePreview,
 	EmployeeLeavePreviewRequest,
-	EmployeeLeaveResubmission,
-	EmployeeLeaveSubmission,
-	EmployeeLeaveUpdate
+	EmployeeLeaveSubmission
 } from './employee-leave-types';
 
 export class EmployeeLeaveState {
@@ -25,7 +20,6 @@ export class EmployeeLeaveState {
 	isMutating = $state(false);
 	errorMessage = $state('');
 	mutationErrorMessage = $state('');
-	requestMutationConflict = $state(false);
 	private loadSequence = 0;
 
 	constructor(
@@ -50,32 +44,8 @@ export class EmployeeLeaveState {
 		return employeeLeaveErrorMessage(error, this.text, fallbackMessage);
 	}
 
-	async create(request: EmployeeLeaveSubmission, attachments: File[]): Promise<void> {
-		await this.mutate(() => createEmployeeLeaveRequest(request, attachments));
-	}
-
-	async resubmit(
-		requestID: string,
-		request: EmployeeLeaveResubmission,
-		attachments: File[]
-	): Promise<void> {
-		await this.mutate(() => resubmitEmployeeLeaveRequest(requestID, request, attachments));
-	}
-
-	async update(
-		requestID: string,
-		request: EmployeeLeaveUpdate,
-		attachments: File[]
-	): Promise<void> {
-		try {
-			await this.mutate(() => updateEmployeeLeaveRequest(requestID, request, attachments));
-		} catch (error) {
-			if (error instanceof EmployeeLeaveAPIError && error.code === 'invalidStatus') {
-				this.requestMutationConflict = true;
-				await this.load();
-			}
-			throw error;
-		}
+	async create(request: EmployeeLeaveSubmission): Promise<void> {
+		await this.mutate(() => createEmployeeLeaveRequest(request));
 	}
 
 	async cancel(requestID: string): Promise<void> {
@@ -86,7 +56,6 @@ export class EmployeeLeaveState {
 		if (this.isMutating) return;
 		this.isMutating = true;
 		this.mutationErrorMessage = '';
-		this.requestMutationConflict = false;
 		try {
 			await action();
 			await this.replacePayload();

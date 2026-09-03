@@ -27,22 +27,9 @@ export type LeaveManagementEmployee = {
 	balances: LeaveManagementBalance[];
 };
 
-export type LeaveManagementLedgerEntry = {
-	id: string;
-	operationType: string;
-	leaveTypeID: string;
-	leaveTypeName: string;
-	deltaMilliDays: number;
-	balanceAfterMilliDays: number;
-	effectiveOn: string;
-	occurredAt: string;
-	reason?: string;
-};
-
 export type LeaveManagementDetail = {
 	employee: LeaveManagementEmployee;
 	requests: EmployeeLeaveRequest[];
-	ledgerEntries: LeaveManagementLedgerEntry[];
 };
 
 export type LeaveManagementPayload = {
@@ -57,9 +44,6 @@ export type LeaveManagementAdjustment = {
 	leaveTypeID: string;
 	amountMilliDays: number;
 	kind: 'adjustment';
-	reason: string;
-	effectiveOn: string;
-	expiresOn: string;
 };
 
 export type LeaveManagementPastLeave = {
@@ -77,5 +61,4 @@ export type LeaveManagementTimeCorrection = {
 	employeeEmail: string;
 	startTime: string;
 	endTime: string;
-	reason: string;
 };

@@ -5,26 +5,20 @@
 	import * as Card from '$lib/components/ui/card';
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
-	import PaperclipIcon from '@lucide/svelte/icons/paperclip';
 	import type { AttendanceText } from '../text';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { milliDaysValue } from '../leave/leave-history-model';
 	import { leaveApprovalEmployeeName } from './leave-approval-employee-name';
 	import LeaveApprovalDecisionDialog from './leave-approval-decision-dialog.svelte';
 	import { getLeaveApprovalState } from './leave-approval-state.svelte';
-	import type {
-		LeaveApprovalChange,
-		LeaveApprovalRequest,
-		LeaveApprovalStatus
-	} from './leave-approval-types';
+	import type { LeaveApprovalRequest, LeaveApprovalStatus } from './leave-approval-types';
 
 	type Props = {
 		request: LeaveApprovalRequest;
 		text: AttendanceText['approval'];
-		change?: LeaveApprovalChange;
 	};
 
-	let { request, text, change }: Props = $props();
+	let { request, text }: Props = $props();
 
 	const approval = getLeaveApprovalState();
 	const attendance = getAttendanceState();
@@ -60,8 +54,6 @@
 
 	function statusLabel(status: LeaveApprovalStatus): string {
 		switch (status) {
-			case 'needsChanges':
-				return text.statusNeedsChanges;
 			case 'approved':
 				return text.statusApproved;
 			case 'rejected':
@@ -71,20 +63,6 @@
 			default:
 				return text.statusPending;
 		}
-	}
-
-	function changeLabel(): string {
-		if (!change) return '';
-		if (change.change === 'earlyReturn') return text.statusEarlyReturn;
-		return statusLabel(change.change);
-	}
-
-	function formattedReturnedAt(): string {
-		if (!change?.returnedAt) return '';
-		return new Intl.DateTimeFormat(text.dateTimeLocale, {
-			dateStyle: 'medium',
-			timeStyle: 'short'
-		}).format(new Date(change.returnedAt));
 	}
 
 	function leaveTypeName(): string {
@@ -123,9 +101,7 @@
 					</Card.Description>
 				</div>
 			</div>
-			<Badge variant={change?.change === 'rejected' ? 'destructive' : 'secondary'}>
-				{change ? changeLabel() : statusLabel(request.status)}
-			</Badge>
+			<Badge variant="secondary">{statusLabel(request.status)}</Badge>
 		</div>
 	</Card.Header>
 	<Card.Content class="space-y-4">
@@ -148,57 +124,11 @@
 			<p class="whitespace-pre-wrap text-sm">{request.reason}</p>
 		</div>
 
-		<div class="space-y-2">
-			<p class="text-xs text-muted-foreground">{text.attachments}</p>
-			{#if request.attachments.length === 0}
-				<p class="text-sm text-muted-foreground">{text.noAttachments}</p>
-			{:else}
-				<div class="flex flex-wrap gap-2">
-					{#each request.attachments as attachment (attachment.id)}
-						<a
-							href={attachment.downloadURL}
-							class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm hover:bg-muted"
-						>
-							<PaperclipIcon class="size-3.5" />
-							{attachment.fileName}
-						</a>
-					{/each}
-				</div>
-			{/if}
-		</div>
-
-		{#if change}
-			<div class="rounded-md bg-muted/60 p-3 text-sm">
-				<p class="font-medium">{changeLabel()}</p>
-				<p class="mt-1 text-xs text-muted-foreground">
-					{new Intl.DateTimeFormat(text.dateTimeLocale, {
-						dateStyle: 'medium',
-						timeStyle: 'short'
-					}).format(new Date(change.changedAt))}
-				</p>
-				{#if change.response}
-					<p class="mt-2 whitespace-pre-wrap">{change.response}</p>
-				{/if}
-				{#if change.returnedAt}
-					<p class="mt-2">
-						<span class="text-muted-foreground">{text.earlyReturnTime}</span>
-						<span class="ml-1 font-medium">{formattedReturnedAt()}</span>
-					</p>
-				{/if}
-			</div>
-		{/if}
 	</Card.Content>
-	{#if !change}
-		<Card.Footer class="flex flex-wrap justify-end gap-2 border-t pt-4">
-			<LeaveApprovalDecisionDialog requestID={request.id} action="reject" {text} />
-			<LeaveApprovalDecisionDialog
-				requestID={request.id}
-				action="needsChanges"
-				{text}
-			/>
-			<Button size="sm" onclick={approve} disabled={approval.isMutating}>
-				{approval.isMutating ? text.processing : text.approveAction}
-			</Button>
-		</Card.Footer>
-	{/if}
+	<Card.Footer class="flex flex-wrap justify-end gap-2 border-t pt-4">
+		<LeaveApprovalDecisionDialog requestID={request.id} {text} />
+		<Button size="sm" onclick={approve} disabled={approval.isMutating}>
+			{approval.isMutating ? text.processing : text.approveAction}
+		</Button>
+	</Card.Footer>
 </Card.Root>

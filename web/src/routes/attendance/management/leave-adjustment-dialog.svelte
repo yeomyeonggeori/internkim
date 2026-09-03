@@ -6,24 +6,15 @@
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { getAttendanceState } from '../attendance-context.svelte';
-	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
 	import { getLeaveManagementState } from './leave-management-state.svelte';
-	import { isSupabaseConfigured } from '$lib/supabase';
 
 	const text = createPageText(attendanceText);
-	const attendance = getAttendanceState();
 	const management = getLeaveManagementState();
-
-	const keepsAnAdjustmentLedger = !isSupabaseConfigured();
 
 	let isOpen = $state(false);
 	let leaveTypeID = $state('');
 	let amountDays = $state('');
-	let reason = $state('');
-	let effectiveOn = $state('');
-	let expiresOn = $state('');
 
 	const balanceTypes = $derived(
 		(management.payload?.leaveTypes ?? []).filter(
@@ -34,9 +25,6 @@
 	function reset(): void {
 		leaveTypeID = balanceTypes[0]?.id ?? '';
 		amountDays = '';
-		reason = '';
-		effectiveOn = todayDateInTimeZone(attendance.summary?.timeZone);
-		expiresOn = '';
 	}
 
 	function handleOpenChange(open: boolean): void {
@@ -57,10 +45,7 @@
 			employeeEmail: management.selectedEmployeeEmail,
 			leaveTypeID,
 			amountMilliDays,
-			kind: 'adjustment',
-			reason: reason.trim(),
-			effectiveOn,
-			expiresOn
+			kind: 'adjustment'
 		});
 		isOpen = false;
 	}
@@ -117,23 +102,6 @@
 				</span>
 			</label>
 
-			{#if keepsAnAdjustmentLedger}
-				<div class="grid grid-cols-2 gap-3">
-					<label class="grid gap-1.5 text-sm font-medium">
-						{text.management.effectiveOn}
-						<Input type="date" bind:value={effectiveOn} />
-					</label>
-					<label class="grid gap-1.5 text-sm font-medium">
-						{text.management.expiresOn}
-						<Input type="date" bind:value={expiresOn} />
-					</label>
-				</div>
-
-				<label class="grid gap-1.5 text-sm font-medium">
-					{text.management.reasonOptional}
-					<Input bind:value={reason} placeholder={text.management.reasonPlaceholder} />
-				</label>
-			{/if}
 		</div>
 
 		<Dialog.Footer>

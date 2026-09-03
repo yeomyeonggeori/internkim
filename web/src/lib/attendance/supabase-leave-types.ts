@@ -62,7 +62,6 @@ function employeeLeaveTypeOf(leaveType: LeaveType, ownsAnnualBalance: boolean): 
 		balanceMode: ownsAnnualBalance ? 'annual' : 'none',
 		allowedUnits: [...leaveType.allowedUnits],
 		includeInSummary: ownsAnnualBalance,
-		isActive: true,
-		requiresHireDate: false
+		isActive: true
 	};
 }

@@ -1,24 +1,12 @@
 import type {
 	EmployeeLeavePartialPeriod,
 	EmployeeLeavePreviewRequest,
-	EmployeeLeaveRequest,
-	EmployeeLeaveResubmission,
 	EmployeeLeaveSubmission,
 	EmployeeLeaveType,
-	EmployeeLeaveUpdate,
 	EmployeeLeaveUnit
 } from './employee-leave-types';
 
-export type LeaveRequestDraftMode = 'create' | 'edit' | 'resubmit';
-export type LeaveRequestDraftSubmission =
-	| { mode: 'create'; request: EmployeeLeaveSubmission }
-	| { mode: 'edit'; request: EmployeeLeaveUpdate }
-	| { mode: 'resubmit'; request: EmployeeLeaveResubmission };
-
 export class LeaveRequestDraft {
-	mode = $state<LeaveRequestDraftMode>('create');
-	requestID = $state('');
-	revision = $state(0);
 	leaveTypeID = $state('');
 	unit = $state<EmployeeLeaveUnit>('fullDay');
 	startDate = $state('');
@@ -26,17 +14,11 @@ export class LeaveRequestDraft {
 	partialPeriod = $state<EmployeeLeavePartialPeriod>('morning');
 	startTime = $state('');
 	reason = $state('');
-	response = $state('');
-	attachments = $state<File[]>([]);
-	existingAttachments = $state<EmployeeLeaveRequest['attachments']>([]);
-	removedAttachmentIDs = $state<string[]>([]);
 
 	synchronize(leaveTypes: EmployeeLeaveType[], defaultDate: string): void {
 		const activeTypes = leaveTypes.filter((leaveType) => leaveType.isActive);
 		const selectedType = leaveTypes.find((leaveType) => leaveType.id === this.leaveTypeID);
-		const canKeepSelectedType =
-			selectedType?.isActive === true || (this.requestID !== '' && selectedType !== undefined);
-		if (!canKeepSelectedType) {
+		if (selectedType?.isActive !== true) {
 			this.leaveTypeID = activeTypes[0]?.id ?? '';
 		}
 		const synchronizedType = leaveTypes.find((leaveType) => leaveType.id === this.leaveTypeID);
@@ -73,41 +55,7 @@ export class LeaveRequestDraft {
 		}
 	}
 
-	setAttachments(attachments: File[]): void {
-		this.attachments = attachments;
-	}
-
-	removeExistingAttachment(attachmentID: string): void {
-		this.existingAttachments = this.existingAttachments.filter(
-			(attachment) => attachment.id !== attachmentID
-		);
-		if (!this.removedAttachmentIDs.includes(attachmentID)) {
-			this.removedAttachmentIDs = [...this.removedAttachmentIDs, attachmentID];
-		}
-	}
-
-	loadRequest(request: EmployeeLeaveRequest): void {
-		this.mode = request.canEdit ? 'edit' : 'resubmit';
-		this.requestID = request.id;
-		this.revision = request.revision;
-		this.leaveTypeID = request.leaveTypeID;
-		this.unit = request.unit;
-		this.startDate = request.startDate;
-		this.endDate = request.endDate ?? '';
-		this.partialPeriod =
-			request.unit === 'quarterDay' ? 'custom' : (request.partialPeriod ?? 'morning');
-		this.startTime = request.startTime ?? '';
-		this.reason = request.reason;
-		this.response = '';
-		this.attachments = [];
-		this.existingAttachments = request.attachments;
-		this.removedAttachmentIDs = [];
-	}
-
 	reset(leaveTypes: EmployeeLeaveType[], defaultDate: string): void {
-		this.mode = 'create';
-		this.requestID = '';
-		this.revision = 0;
 		this.leaveTypeID = '';
 		this.unit = 'fullDay';
 		this.startDate = defaultDate;
@@ -115,10 +63,6 @@ export class LeaveRequestDraft {
 		this.partialPeriod = 'morning';
 		this.startTime = '';
 		this.reason = '';
-		this.response = '';
-		this.attachments = [];
-		this.existingAttachments = [];
-		this.removedAttachmentIDs = [];
 		this.synchronize(leaveTypes, defaultDate);
 	}
 
@@ -138,32 +82,9 @@ export class LeaveRequestDraft {
 		};
 	}
 
-	submission(): LeaveRequestDraftSubmission | null {
+	submission(): EmployeeLeaveSubmission | null {
 		const previewRequest = this.previewRequest();
-		const reason = this.reason.trim();
 		if (!previewRequest) return null;
-		if (this.mode === 'create') {
-			return { mode: 'create', request: { ...previewRequest, reason } };
-		}
-		if (this.mode === 'edit') {
-			return {
-				mode: 'edit',
-				request: {
-					...previewRequest,
-					reason,
-					revision: this.revision,
-					removedAttachmentIDs: this.removedAttachmentIDs
-				}
-			};
-		}
-		const response = this.response.trim();
-		return {
-			mode: 'resubmit',
-			request: {
-				...previewRequest,
-				reason,
-				...(response ? { response } : {})
-			}
-		};
+		return { ...previewRequest, reason: this.reason.trim() };
 	}
 }
