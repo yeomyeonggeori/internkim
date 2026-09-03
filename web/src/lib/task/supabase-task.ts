@@ -229,9 +229,10 @@ function nullableStringField(fields: Record<string, unknown>, field: string): st
 	return value;
 }
 
-export async function saveSupabaseTask(task: Task): Promise<void> {
+export async function saveSupabaseTask(task: Task, statusBefore: string | null): Promise<void> {
 	const saved = await supabase().rpc('task_save', supabaseTaskRPCArguments(task));
 	if (saved.error) throw new Error(saved.error.message);
+	if (statusBefore !== null && statusBefore !== centralStatusFromWord(task.status)) void announceTaskMoved(task.id);
 }
 
 export async function saveSupabaseTaskVocabulary(
