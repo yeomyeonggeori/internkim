@@ -379,6 +379,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCalendarSweep(ctx)
 	service.startOrganizationSweep(ctx)
 	service.startCompanyProfileSweep(ctx)
+	service.startCompanyLedgerSweep(ctx)
 	service.startAttendanceSweep(ctx)
 	service.startTaskSweep(ctx)
 	service.startSiteRuntimeJanitor(ctx)
@@ -485,6 +486,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/task-record-coverage", service.handleTaskRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/organization-record-coverage", service.handleOrganizationRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/company-profile-carry", service.handleCompanyProfileCarry)
+	multiplexer.HandleFunc("/agent/api/company-ledger-coverage", service.handleCompanyLedgerCoverage)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", service.handleBuzzChannelVisibilityRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)
@@ -773,26 +775,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeCompanyInfo(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/company-info":
 		service.updateCompanyInfo(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/company-metrics":
-		service.recordCompanyMetric(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/company-metrics":
-		service.listCompanyMetrics(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/company-records":
-		service.addCompanyRecord(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/company-records":
-		service.listCompanyRecords(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/company-records":
-		service.updateCompanyRecord(responseWriter, request)
-	case request.Method == http.MethodDelete && path == "/company-records":
-		service.deleteCompanyRecord(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/company-documents":
-		service.registerCompanyDocument(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/company-documents":
-		service.listCompanyDocuments(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/company-documents/search":
-		service.searchCompanyDocuments(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/company-documents":
-		service.updateCompanyDocument(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/wifi-profiles":
 		service.writeWifiProfiles(responseWriter)
 	case request.Method == http.MethodPost && path == "/wifi-profiles":
