@@ -45,6 +45,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `digest_app_url_keep` | `new_app_url text` | `boolean` | definer | service_role |
 | `digest_target_keep` | `new_project_url text` | `void` | definer | service_role |
 | `is_company_admin` | — | `boolean` | definer | anon, authenticated, service_role |
+| `is_company_profile` | `profile jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `is_in_circle` | `target_circle uuid` | `boolean` | definer | anon, authenticated, service_role |
 | `is_messenger_accounts` | `accounts jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `is_work_hours` | `schedule jsonb` | `boolean` | invoker | anon, authenticated, service_role |
@@ -58,8 +59,6 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `member_leave_remaining` | `target_member uuid, target_year integer` | `numeric` | invoker | anon, authenticated, service_role |
 | `member_locale` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
 | `member_minimum_daily_minutes` | `target_member uuid` | `integer` | invoker | anon, authenticated, service_role |
-| `member_profile_save_own` | `new_phone_number text, new_hire_date date` | `jsonb` | definer | anon, authenticated, service_role |
-| `member_profiles_save` | `profiles jsonb` | `void` | definer | anon, authenticated, service_role |
 | `member_secret_name` | `target_member uuid, target_kind text` | `text` | invoker | anon, authenticated, service_role |
 | `member_timezone` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
 | `member_today` | `target_member uuid` | `date` | invoker | anon, authenticated, service_role |
@@ -74,6 +73,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `my_team` | — | `uuid` | definer | anon, authenticated, service_role |
 | `notification_settings_set` | `chosen jsonb` | `void` | definer | anon, authenticated, service_role |
 | `people_on_task` | `subject uuid` | `uuid[]` | invoker | anon, authenticated, service_role |
+| `person_set` | `target_member uuid, account_changes jsonb, organization_changes jsonb` | `void` | definer | authenticated, service_role |
 | `push_device_claim` | `device_kind text, device_address text, device_keys jsonb` | `void` | definer | anon, authenticated, service_role |
 | `push_device_release` | `device_kind text, device_address text` | `void` | definer | anon, authenticated, service_role |
 | `read_company_secret` | `secret_id uuid` | `text` | definer | service_role |
@@ -82,7 +82,9 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |
 | `task_save` | `target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone` | `uuid` | definer | authenticated |
 | `task_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
-| `team_save` | `teams jsonb` | `void` | definer | anon, authenticated, service_role |
+| `team_add` | `new_name text, parent_team uuid, new_position integer` | `uuid` | definer | authenticated, service_role |
+| `team_delete` | `target_team uuid` | `integer` | definer | authenticated, service_role |
+| `team_update` | `target_team uuid, changes jsonb` | `void` | definer | authenticated, service_role |
 | `vapid_keys_keep` | `new_public_key text, new_private_key text, new_subject text, replace_existing boolean DEFAULT false` | `boolean` | definer | service_role |
 | `vapid_keys_read` | — | `jsonb` | definer | service_role |
 | `vapid_public_key` | — | `text` | definer | authenticated, service_role |
