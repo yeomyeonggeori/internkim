@@ -74,8 +74,6 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "company_document_register", Handler: Service.invokeCompanyTool},
 	{ToolName: "company_document_search", Handler: Service.invokeCompanyTool},
 	{ToolName: "company_document_update", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_info_get", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_info_set", Handler: Service.invokeCompanyTool},
 	{ToolName: "company_metric_list", Handler: Service.invokeCompanyTool},
 	{ToolName: "company_metric_record", Handler: Service.invokeCompanyTool},
 	{ToolName: "company_record_add", Handler: Service.invokeCompanyTool},

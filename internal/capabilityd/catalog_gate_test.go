@@ -327,6 +327,114 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"status":"corrected"`)
 			},
 		},
+		"company_settings_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_settings_get","result":{"name":"\uc5ec\uba85\uac70\ub9ac","country":"KR","locale":"ko","timeZone":"Asia/Seoul","currencyCode":"KRW","workLocations":[{"name":"\uc0ac\ubb34\uc2e4","color":null}],"leaveDays":15,"profileImageURL":null}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"timeZone":"Asia/Seoul"`)
+			},
+		},
+		"company_settings_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_settings_update","result":{"name":"\uc5ec\uba85\uac70\ub9ac","country":"KR","locale":"ko","timeZone":"Asia/Tokyo","currencyCode":"KRW","workLocations":[],"leaveDays":15,"profileImageURL":null}}`)},
+			input:   `{"timeZone":"Asia/Tokyo"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"timeZone":"Asia/Tokyo"`)
+			},
+		},
+		"company_info_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_info_get","result":{"language":"ko","name":"\uc8fc\uc2dd\ud68c\uc0ac \uc608\uc2dc","brandName":"","slogan":"","description":"","representative":"\uc774\uc0d8\ud50c","representativeTitle":"\ub300\ud45c\uc774\uc0ac","address":"\uc11c\uc6b8","officeAddress":"","jurisdiction":"","bankAccount":"","legalAttributes":{},"foundedDate":"","capital":"","fiscalYearEnd":"","employeeCount":0,"phone":"","fax":"","email":"","website":"","missingFields":["bankAccount","phone","email"],"updatedAt":""}}`)},
+			input:   `{"language":"ko"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"missingFields"`)
+			},
+		},
+		"company_info_set": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_info_set","result":{"language":"ko","name":"\uc8fc\uc2dd\ud68c\uc0ac \uc608\uc2dc","brandName":"","slogan":"","description":"","representative":"\uc774\uc0d8\ud50c","representativeTitle":"\ub300\ud45c\uc774\uc0ac","address":"\uc11c\uc6b8","officeAddress":"","jurisdiction":"","bankAccount":"","legalAttributes":{"\uc0ac\uc5c5\uc790\ub4f1\ub85d\ubc88\ud638":"123-45-67890"},"foundedDate":"","capital":"","fiscalYearEnd":"","employeeCount":0,"phone":"","fax":"","email":"","website":"","missingFields":[],"updatedAt":"2026-09-03T00:00:00Z"}}`)},
+			input:   `{"language":"ko","representative":"\uc774\uc0d8\ud50c","legalAttributes":"{\"\uc0ac\uc5c5\uc790\ub4f1\ub85d\ubc88\ud638\": \"123-45-67890\"}"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `123-45-67890`)
+			},
+		},
+		"company_holiday_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_holiday_list","result":{"count":1,"year":2026,"holidays":[{"holidayID":"company-holiday-1","name":"\uac1c\ucc9c\uc808","date":"2026-10-03","recursAnnually":true,"createdAt":null,"updatedAt":null}]}}`)},
+			input:   `{"year":2026}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"date":"2026-10-03"`)
+			},
+		},
+		"company_holiday_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_holiday_add","result":{"holidayID":"company-holiday-2","name":"\ucc3d\ub9bd\uae30\ub150\uc77c","date":"2026-11-02","recursAnnually":false,"createdAt":"2026-09-03T00:00:00Z","updatedAt":"2026-09-03T00:00:00Z"}}`)},
+			input:   `{"date":"2026-11-02","name":"\ucc3d\ub9bd\uae30\ub150\uc77c"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"holidayID":"company-holiday-2"`)
+			},
+		},
+		"company_holiday_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_holiday_update","result":{"holidayID":"company-holiday-2","name":"\ucc3d\ub9bd\uae30\ub150\uc77c","date":"2026-11-03","recursAnnually":true,"createdAt":"2026-09-03T00:00:00Z","updatedAt":"2026-09-03T01:00:00Z"}}`)},
+			input:   `{"holidayHint":"\ucc3d\ub9bd\uae30\ub150\uc77c","date":"2026-11-03","recursAnnually":true}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"recursAnnually":true`)
+			},
+		},
+		"company_holiday_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_holiday_delete","result":{"holidayID":"company-holiday-2","name":"\ucc3d\ub9bd\uae30\ub150\uc77c","date":"2026-11-03","recursAnnually":true,"createdAt":null,"updatedAt":null}}`)},
+			input:   `{"holidayHint":"2026-11-03"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"holidayID":"company-holiday-2"`)
+			},
+		},
+		"attendance_work_policy_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_work_policy_get","result":{"timeZone":"Asia/Seoul","workMode":"flexible","policy":{"version":1,"revisions":[{"effectiveDate":"1970-01-01","workMode":"flexible","workingWeekdays":[1,2,3,4,5],"dailyTargetMinutes":480,"weeklyTargetMinutes":2400,"referenceStartTime":"09:00","fixedStartTime":"","fixedEndTime":"","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[],"nightStartTime":"22:00","nightEndTime":"06:00"}]},"people":[]}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"effectiveDate":"1970-01-01"`)
+			},
+		},
+		"attendance_work_policy_set": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_work_policy_set","result":{"timeZone":"Asia/Seoul","effectiveDate":"2026-09-03","policy":{"version":1,"revisions":[{"effectiveDate":"2026-09-03","workMode":"fixed","workingWeekdays":[1,2,3,4],"dailyTargetMinutes":480,"weeklyTargetMinutes":1920,"referenceStartTime":"09:00","fixedStartTime":"09:00","fixedEndTime":"18:00","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[{"startTime":"12:00","endTime":"13:00"}],"nightStartTime":"22:00","nightEndTime":"06:00"}]}}}`)},
+			input:   `{"workMode":"fixed","workingWeekdays":[1,2,3,4],"dailyTargetMinutes":480,"weeklyTargetMinutes":1920,"referenceStartTime":"09:00","fixedStartTime":"09:00","fixedEndTime":"18:00","coreTimeEnabled":false,"coreStartTime":"","coreEndTime":"","breakPeriods":[{"startTime":"12:00","endTime":"13:00"}],"nightStartTime":"22:00","nightEndTime":"06:00"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"effectiveDate":"2026-09-03"`)
+			},
+		},
+		"attendance_leave_policy_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_leave_policy_get","result":{"version":2,"balanceTrackingMode":"managed","fiscalYearStartMonth":1,"fiscalYearStartDay":1,"leaveTypes":[{"id":"annual","systemKind":"annual","name":"\uc5f0\ucc28","paid":true,"balanceMode":"annual","grantCadence":"annual","grantAmountMilliDays":15000,"expiryMode":"fiscalYearEnd","carryoverEnabled":false,"allowedUnits":["fullDay","halfDay","quarterDay"],"includeInSummary":true,"isActive":true,"isSystem":true,"sortOrder":0}],"updatedAt":""}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"balanceTrackingMode":"managed"`)
+			},
+		},
+		"attendance_leave_policy_set": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_leave_policy_set","result":{"version":2,"balanceTrackingMode":"unlimited","fiscalYearStartMonth":3,"fiscalYearStartDay":1,"leaveTypes":[],"updatedAt":"2026-09-03T00:00:00Z"}}`)},
+			input:   `{"balanceTrackingMode":"unlimited","fiscalYearStartMonth":3,"fiscalYearStartDay":1,"leaveTypes":[]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"balanceTrackingMode":"unlimited"`)
+			},
+		},
 		"attendance_delete": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_delete","result":{"status":"asked","eventID":null,"backdated":true}}`)},
@@ -374,8 +482,6 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"company_document_register": overTheCompanyRecordSurface,
 	"company_document_search":   overTheCompanyRecordSurface,
 	"company_document_update":   overTheCompanyRecordSurface,
-	"company_info_get":          overTheCompanyRecordSurface,
-	"company_info_set":          overTheCompanyRecordSurface,
 	"company_metric_list":       overTheCompanyRecordSurface,
 	"company_metric_record":     overTheCompanyRecordSurface,
 	"company_record_add":        overTheCompanyRecordSurface,

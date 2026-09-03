@@ -131,7 +131,7 @@ export async function supabaseWorkStatusInputs(
 		me: members.data.find((member) => member.user_id === accountID),
 		attendance: attendance.data,
 		leave: leave.data,
-		policiesByMember: await supabaseWorkPolicies(client),
+		policiesByMember: await supabaseWorkPolicies(),
 		holidays: await workStatusHolidays(coveredDays),
 		coveredDays,
 		now: requestNow

@@ -15,13 +15,18 @@ export function isRefusalCode(refusal: unknown, errorCode: string): boolean {
 	return refusal instanceof ToolRefused && refusal.errorCode === errorCode;
 }
 
+export async function memberAccessToken(): Promise<string> {
+	const { data } = await supabase().auth.getSession();
+	const accessToken = data.session?.access_token;
+	if (!accessToken) throw new Error('sign in first');
+	return accessToken;
+}
+
 export async function invokeTool<Result>(
 	name: string,
 	input: Record<string, unknown>
 ): Promise<Result> {
-	const { data } = await supabase().auth.getSession();
-	const accessToken = data.session?.access_token;
-	if (!accessToken) throw new Error('sign in first');
+	const accessToken = await memberAccessToken();
 
 	const response = await fetch(`/api/v1/tools/${name}/invoke`, {
 		method: 'POST',

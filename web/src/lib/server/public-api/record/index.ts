@@ -3,6 +3,20 @@ import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } fro
 import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
 import {
+	attendanceLeavePolicyGet,
+	attendanceLeavePolicySet,
+	attendanceWorkPolicyGet,
+	attendanceWorkPolicySet,
+	companyHolidayAdd,
+	companyHolidayDelete,
+	companyHolidayList,
+	companyHolidayUpdate,
+	companyInfoGet,
+	companyInfoSet,
+	companySettingsGet,
+	companySettingsUpdate
+} from './company-tools';
+import {
 	CalendarEventDuplicate,
 	CalendarEventVersionConflict,
 	eventAdd,
@@ -49,7 +63,19 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	attendance_list: (context, input) => attendanceList(context, input),
 	attendance_add: (context, input) => attendanceAdd(context, input),
 	attendance_update: (context, input) => attendanceUpdate(context, input),
-	attendance_delete: (context, input) => attendanceDelete(context, input)
+	attendance_delete: (context, input) => attendanceDelete(context, input),
+	attendance_work_policy_get: (context) => attendanceWorkPolicyGet(context),
+	attendance_work_policy_set: (context, input) => attendanceWorkPolicySet(context, input),
+	attendance_leave_policy_get: (context) => attendanceLeavePolicyGet(context),
+	attendance_leave_policy_set: (context, input) => attendanceLeavePolicySet(context, input),
+	company_settings_get: (context) => companySettingsGet(context),
+	company_settings_update: (context, input) => companySettingsUpdate(context, input),
+	company_info_get: (context, input) => companyInfoGet(context, input),
+	company_info_set: (context, input) => companyInfoSet(context, input),
+	company_holiday_list: (context, input) => companyHolidayList(context, input),
+	company_holiday_add: (context, input) => companyHolidayAdd(context, input),
+	company_holiday_update: (context, input) => companyHolidayUpdate(context, input),
+	company_holiday_delete: (context, input) => companyHolidayDelete(context, input)
 };
 
 export function recordRunsTheTool(name: string): boolean {
