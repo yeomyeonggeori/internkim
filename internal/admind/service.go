@@ -160,6 +160,8 @@ type Service struct {
 	requestMetrics             *adminRequestMetrics
 	databaseSchemas            *adminDatabaseSchemas
 	legacyDatabaseMigration    sync.Once
+	mailNotifyMarkMutex        sync.Mutex
+	taskNotifyMarkMutex        sync.Mutex
 	removeTokenQuarantineFile  func(string) error
 	promoteCalendarTokenFile   func(string, string) error
 	startedAt                  time.Time

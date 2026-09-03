@@ -158,3 +158,28 @@ ON CONFLICT(actor_email) DO UPDATE SET
 	}
 	return service.clearMailCache(ctx, account.ActorEmail)
 }
+
+func (service *Service) mailNotifyActorEmails(ctx context.Context) ([]string, error) {
+	database, errorValue := service.openMailDatabase(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer database.Close()
+
+	rows, errorValue := database.QueryContext(ctx,
+		"SELECT actor_email FROM mail_accounts WHERE imap_host <> '' ORDER BY actor_email")
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer rows.Close()
+
+	actorEmails := []string{}
+	for rows.Next() {
+		actorEmail := ""
+		if errorValue := rows.Scan(&actorEmail); errorValue != nil {
+			return nil, errorValue
+		}
+		actorEmails = append(actorEmails, actorEmail)
+	}
+	return actorEmails, rows.Err()
+}
