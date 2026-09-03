@@ -8052,6 +8052,10 @@
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
+          },
+          "expectedUpdatedAt": {
+            "description": "The updatedAt the caller last read; the deletion is refused when the event has changed since.",
+            "type": "string"
           }
         },
         "required": [
@@ -8439,6 +8443,10 @@
           "everyoneAttends": {
             "description": "Set true when the event is open to the whole company, which leaves it with no attendee list. Leave it out when named people attend, or when nobody is named and the event is the requester\u2019s own.",
             "type": "boolean"
+          },
+          "expectedUpdatedAt": {
+            "description": "The updatedAt the caller last read; the update is refused when the event has changed since.",
+            "type": "string"
           },
           "isWholeDay": {
             "description": "Whether the event takes the whole day.",

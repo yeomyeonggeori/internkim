@@ -1,5 +1,20 @@
 import { supabase } from '$lib/supabase';
 
+export class ToolRefused extends Error {
+	constructor(
+		message: string,
+		readonly errorCode: string | undefined,
+		readonly status: number
+	) {
+		super(message);
+		this.name = 'ToolRefused';
+	}
+}
+
+export function isRefusalCode(refusal: unknown, errorCode: string): boolean {
+	return refusal instanceof ToolRefused && refusal.errorCode === errorCode;
+}
+
 export async function invokeTool<Result>(
 	name: string,
 	input: Record<string, unknown>
@@ -14,9 +29,15 @@ export async function invokeTool<Result>(
 		body: JSON.stringify({ input })
 	});
 	const answered = (await response.json().catch(() => null)) as
-		| { result?: Result; error?: string }
+		| { result?: Result; error?: string; errorCode?: string }
 		| null;
-	if (!response.ok) throw new Error(answered?.error ?? `${name} answered ${response.status}`);
+	if (!response.ok) {
+		throw new ToolRefused(
+			answered?.error ?? `${name} answered ${response.status}`,
+			answered?.errorCode,
+			response.status
+		);
+	}
 	if (!answered || answered.result === undefined) throw new Error(`${name} answered nothing`);
 	return answered.result;
 }

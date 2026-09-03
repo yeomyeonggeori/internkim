@@ -2,10 +2,48 @@ import { expect, test } from 'bun:test';
 
 import {
 	calendarTestEvent,
+	calendarVersionedTestEvent,
 	createPersistenceScenario,
 	deleteFailureMessage,
-	unknownPersistenceError
+	deleteVersionConflictMessage,
+	unknownPersistenceError,
+	versionConflictRefusal
 } from './calendar-event-persistence-scenario';
+
+test('a delete names the version the screen rendered', async () => {
+	const rendered = calendarVersionedTestEvent('versioned-delete', 'Persisted title', '2026-07-16T00:00:00Z');
+	const namedVersions: (string | undefined)[] = [];
+	const scenario = createPersistenceScenario([rendered], () => [], {
+		deleteEvent: async (_eventID: string, expectedUpdatedAt?: string) => {
+			namedVersions.push(expectedUpdatedAt);
+		}
+	});
+
+	await scenario.actions.deleteEvent(rendered.id);
+	await scenario.actions.flushPendingDelete();
+	await waitForQueuedPersistence();
+
+	expect(namedVersions).toEqual(['2026-07-16T00:00:00Z']);
+});
+
+test('a delete refused as a version conflict reloads rather than restoring what it held', async () => {
+	const rendered = calendarVersionedTestEvent('conflicted-delete', 'My title', '2026-07-16T00:00:00Z');
+	const somebodyElsesTitle = calendarTestEvent('conflicted-delete', 'Their title');
+	const scenario = createPersistenceScenario([rendered], () => [somebodyElsesTitle], {
+		deleteEvent: async () => {
+			throw versionConflictRefusal();
+		}
+	});
+
+	await scenario.actions.deleteEvent(rendered.id);
+	await scenario.actions.flushPendingDelete();
+	await waitForQueuedPersistence();
+
+	expect(scenario.notifications).toEqual([deleteVersionConflictMessage]);
+	expect(scenario.refreshCount()).toBe(1);
+	expect(scenario.events().map((event) => event.title)).toEqual(['Their title']);
+	expect(scenario.restoredEventTitles).toEqual([]);
+});
 
 test('hides the event at once and removes it from the record when the undo window closes', async () => {
 	const persistedEvent = calendarTestEvent('undo-window-expiry', 'Persisted title');

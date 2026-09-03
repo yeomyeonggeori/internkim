@@ -155,6 +155,10 @@ read가 아닌 모든 호출에는 이미 승인된 연속 실행 표시가 붙�
 이 키는 전달만 될 뿐 아무것도 바꾸지 않습니다. 에이전트 메시지에서는
 [`messageID`가 중복 제거를 맡습니다](/ko/docs/api/agent#sending-a-message).
 
+`event_update`와 `event_delete`는 마지막으로 읽은 `updatedAt`을
+`expectedUpdatedAt`으로 받을 수 있고, 그 사이 다른 사람이 일정을 바꿨다면
+`calendar_event_version_conflict`와 현재 `updatedAt`을 담아 `409`로 거절합니다.
+
 ## 힌트로 대상 고르기 [#choosing-a-target-with-a-hint]
 
 수정·삭제 도구에는 별도의 ID 파라미터가 없습니다. `task_update`와

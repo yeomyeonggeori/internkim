@@ -37,6 +37,34 @@ export type AnsweredEvent = {
 
 const millisecondsPerHour = 60 * 60 * 1000;
 
+export class CalendarEventVersionConflict extends Error {
+	readonly errorCode = 'calendar_event_version_conflict';
+	readonly failureStage = 'resolution';
+	readonly retryable = true;
+	readonly safeRetry = false;
+
+	constructor(readonly updatedAt: string) {
+		super('this event changed since the version named here was read');
+		this.name = 'CalendarEventVersionConflict';
+	}
+}
+
+function versionOfEvent(row: TaskRow): string {
+	const version = row.updated_at.trim();
+	if (Number.isNaN(Date.parse(version))) {
+		throw new Error(`the record answered event ${row.id} with an updatedAt that is not a moment`);
+	}
+	return version;
+}
+
+function refuseAVersionThatMovedOn(current: string, expectedUpdatedAt: string | undefined): void {
+	if (expectedUpdatedAt === undefined) return;
+	const named = Date.parse(expectedUpdatedAt);
+	if (Number.isNaN(named)) throw new Error('expectedUpdatedAt is not a moment');
+	if (named === Date.parse(current)) return;
+	throw new CalendarEventVersionConflict(current);
+}
+
 export function sizeOfEvent(startsAt: string, endsAt: string, isWholeDay: boolean): string {
 	const hours = (new Date(endsAt).getTime() - new Date(startsAt).getTime()) / millisecondsPerHour;
 	if (!isWholeDay) return sizeOfHours(hours);
@@ -142,20 +170,22 @@ export async function eventAdd(context: RecordContext, input: EventWritten): Pro
 
 export async function eventUpdate(
 	context: RecordContext,
-	input: EventWritten & { eventHint?: string }
+	input: EventWritten & { eventHint?: string; expectedUpdatedAt?: string }
 ): Promise<AnsweredEvent> {
 	if (!input.eventHint) throw new Error('an update names the event it changes');
 	const row = await eventOfHint(context, input.eventHint);
+	refuseAVersionThatMovedOn(versionOfEvent(row), input.expectedUpdatedAt);
 	const saved = await saveTask(context.caller, eventWriteArguments(context, input, row));
 	return answeredEvent(context, await eventByID(context, saved));
 }
 
 export async function eventDelete(
 	context: RecordContext,
-	input: { eventHint?: string }
+	input: { eventHint?: string; expectedUpdatedAt?: string }
 ): Promise<{ eventID: string; deleted: true }> {
 	if (!input.eventHint) throw new Error('a deletion names the event it removes');
 	const row = await eventOfHint(context, input.eventHint);
+	refuseAVersionThatMovedOn(versionOfEvent(row), input.expectedUpdatedAt);
 	await deleteTask(context.caller, row.id);
 	return { eventID: row.id, deleted: true };
 }

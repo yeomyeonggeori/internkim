@@ -10,7 +10,11 @@ import {
 	dismissCalendarDeleteUndoToast,
 	showCalendarDeleteUndoToast
 } from './calendar-delete-undo';
-import type { CalendarEvent } from './calendar-event-persistence';
+import {
+	calendarEventVersionConflictErrorCode,
+	type CalendarEvent
+} from './calendar-event-persistence';
+import { isRefusalCode } from '$lib/public-api-call';
 import type { CalendarProgrammaticUpdateState } from './calendar-programmatic-updates';
 import type { CalendarEventActionsContext } from './calendar-event-actions';
 import { CalendarEventPersistenceOrder } from './calendar-event-persistence-order';
@@ -117,11 +121,10 @@ export function createCalendarEventPersistenceActions(
 				persistenceOrder.clientID,
 				revision
 			);
-		} catch {
+		} catch (refusal) {
 			try {
 				if (persistenceOrder.isLatestAction(event.id, revision)) {
-					showEventPersistenceError(options.context.text.saveError);
-					await rollbackUpdatedEvent(previousEvent);
+					await recoverFromFailedUpdate(refusal, previousEvent);
 				}
 			} finally {
 				finishEventPersistence();
@@ -149,6 +152,16 @@ export function createCalendarEventPersistenceActions(
 		} finally {
 			finishEventPersistence();
 		}
+	}
+
+	async function recoverFromFailedUpdate(refusal: unknown, previousEvent?: DayTaskEvent): Promise<void> {
+		if (isRefusalCode(refusal, calendarEventVersionConflictErrorCode)) {
+			showEventPersistenceError(options.context.text.calendarEventVersionConflictError);
+			await options.context.refreshCalendar();
+			return;
+		}
+		showEventPersistenceError(options.context.text.saveError);
+		await rollbackUpdatedEvent(previousEvent);
 	}
 
 	async function rollbackUpdatedEvent(previousEvent?: DayTaskEvent): Promise<void> {
