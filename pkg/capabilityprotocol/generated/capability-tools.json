@@ -1355,7 +1355,7 @@
             "type": "boolean"
           },
           "jobTitle": {
-            "description": "Their job title, e.g. '편집장'. An empty string clears it.",
+            "description": "Their job title, e.g. 'editor in chief'. An empty string clears it.",
             "maxLength": 256,
             "type": "string"
           },
@@ -1405,7 +1405,7 @@
             "type": "boolean"
           },
           "jobTitle": {
-            "description": "Their job title, e.g. '편집장'. An empty string clears it.",
+            "description": "Their job title, e.g. 'editor in chief'. An empty string clears it.",
             "maxLength": 256,
             "type": "string"
           },
@@ -1592,7 +1592,7 @@
         "additionalProperties": false,
         "properties": {
           "email": {
-            "description": "The address they sign in with, e.g. '새사람@example.com'. One address belongs to one company.",
+            "description": "The address they sign in with, e.g. 'newcomer@example.com'. One address belongs to one company.",
             "maxLength": 320,
             "type": "string"
           },
@@ -1620,7 +1620,7 @@
         "additionalProperties": false,
         "properties": {
           "email": {
-            "description": "The address they sign in with, e.g. '새사람@example.com'. One address belongs to one company.",
+            "description": "The address they sign in with, e.g. 'newcomer@example.com'. One address belongs to one company.",
             "maxLength": 320,
             "type": "string"
           },
@@ -1910,7 +1910,7 @@
         "additionalProperties": false,
         "properties": {
           "name": {
-            "description": "The organization's name, e.g. '개발팀'.",
+            "description": "The organization's name, e.g. 'Engineering'.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -1934,7 +1934,7 @@
         "additionalProperties": false,
         "properties": {
           "name": {
-            "description": "The organization's name, e.g. '개발팀'.",
+            "description": "The organization's name, e.g. 'Engineering'.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
