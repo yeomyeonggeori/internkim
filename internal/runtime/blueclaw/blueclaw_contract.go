@@ -66,7 +66,6 @@ const (
 	CapabilityVSockHostCID                = 2
 	CapabilityVSockPort                   = 7000
 	BlueclawMattermostTokenPath           = "/root/.internkim/secrets/mattermost-bot-token"
-	BlueclawSlackTokenPath                = "/root/.internkim/secrets/slack-bot-token"
 	BlueclawMattermostLocalURL            = "http://127.0.0.1:8065"
 	LiteRTModelPath                       = "/root/.internkim/models/gemma-4-E4B-it.litertlm"
 	LiteRTModelSourceURL                  = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm"

@@ -32,7 +32,7 @@ operator on the same network ── the appliance
 | Component | Job | Code |
 |---|---|---|
 | `internkim-admind` | the device admin API: admin UI reverse proxy, companion broker, backup and restore, OTA apply | `cmd/internkim-admind/`, `internal/admind/` |
-| `internkim-capabilityd` | holds the OpenRouter key, the local model, messenger and companion credentials; exposes only a capability API; runs the optional Slack and Signal sidecars | `internal/capabilityd/` |
+| `internkim-capabilityd` | holds the OpenRouter key, the local model, messenger and companion credentials; exposes only a capability API | `internal/capabilityd/` |
 | the blueclaw guest | the agent, isolated in a Cloud Hypervisor VM under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json` | `.dependency/blueclaw/` |
 | `graphiti-memoryd` | the memory sidecar: episode ingestion and hybrid graph search | — |
 | the local model | a resident `llama-server`: gemma-4-E2B QAT with MTP drafting for generation, BGE-M3 Q8 on CPU for embedding | — |
