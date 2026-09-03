@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { page } from '$app/state';
 	import { forwardAppShortcut } from '$lib/app-shortcut-message';
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
@@ -12,7 +13,6 @@
 		normalizedVisibleDate
 	} from './calendar-embed-view-helpers';
 		import {
-		calendarSearchParams,
 		initialCalendarDate as createInitialCalendarDate,
 		initialCalendarEventID as createInitialCalendarEventID,
 		initialCalendarView as createInitialCalendarView
@@ -47,8 +47,8 @@
 	const text = createPageText(calendarText);
 	const localeCode = $derived(currentLocale.value === 'ko' ? 'ko-KR' : 'en-US');
 	const draftEventPlaceholderTitle = () => text.newEvent;
-	const initialCalendarDate = () => createInitialCalendarDate(browser, calendarSearchParams(browser));
-	const initialCalendarEventID = () => createInitialCalendarEventID(browser, calendarSearchParams(browser));
+	const initialCalendarDate = () => createInitialCalendarDate(page.url.searchParams);
+	const initialCalendarEventID = () => createInitialCalendarEventID(page.url.searchParams);
 	const initialCalendarView = () => createInitialCalendarView(browser);
 	const state = createCalendarEmbedPageState({
 		toolbarDate: initialCalendarDate(),

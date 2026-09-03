@@ -22,6 +22,14 @@ export function startOfCalendarGridWeek(date: Date, firstWeekday = 0): Date {
 	return addCalendarGridDays(startOfDay, -weekdayOffset);
 }
 
+export function startOfCalendarGridMonth(date: Date): Date {
+	return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+}
+
+export function calendarGridMonthAnchorWeekStart(date: Date, firstWeekday = 0): Date {
+	return startOfCalendarGridWeek(startOfCalendarGridMonth(date), firstWeekday);
+}
+
 export function addCalendarGridDays(date: Date, dayCount: number): Date {
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate() + dayCount, 0, 0, 0, 0);
 }

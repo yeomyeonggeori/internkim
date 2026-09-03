@@ -103,21 +103,21 @@ test.describe('embedded calendar month interactions', () => {
 		const eventIDs = await seedCalendarEvents([
 			{
 				title: 'Clear Selection Event',
-				startISO: '2026-06-09T09:00:00+09:00',
-				endISO: '2026-06-09T10:00:00+09:00',
+				startISO: '2026-06-10T09:00:00+09:00',
+				endISO: '2026-06-10T10:00:00+09:00',
 				isAllDay: false
 			}
 		]);
 		const [eventID] = eventIDs;
 
 		try {
-			await openMonthView(page, '2026-06-09');
+			await openMonthView(page, '2026-06-16');
 			const eventChip = page.locator(`[data-calendar-event-id="${eventID}"]:visible`).first();
 			await expect(eventChip).toBeVisible();
 			await eventChip.click();
 			await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 
-			await page.locator('[data-calendar-date="2026-06-11"]').click({ position: { x: 40, y: 44 } });
+			await page.locator('[data-calendar-date="2026-06-12"]').click({ position: { x: 40, y: 44 } });
 			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
 		} finally {
 			await cleanupCalendarEvents(eventIDs);

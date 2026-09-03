@@ -147,6 +147,16 @@ test.describe('embedded calendar month layout', () => {
 			await cleanupCalendarEvents(eventIDs);
 		}
 	});
+
+	test('centres the server-rendered month on the requested date, not on the server clock', async ({ page }) => {
+		await signInToCalendar(page);
+
+		const serverHTML = await (await page.request.get('/calendar/embed?date=2026-06-16')).text();
+		const serverWeekStarts = [...serverHTML.matchAll(/data-week-start="([^"]+)"/g)].map((match) => match[1]);
+		const weekHoldingTheFirstOfJune = '2026-05-31';
+
+		expect(serverWeekStarts[Math.floor(serverWeekStarts.length / 2)]).toBe(weekHoldingTheFirstOfJune);
+	});
 });
 
 async function openMonthView(page: Page, dateKey: string): Promise<void> {
