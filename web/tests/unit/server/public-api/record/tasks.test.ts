@@ -26,6 +26,11 @@ function row(overrides: Partial<TaskRow> = {}): TaskRow {
 		ends_at: '2026-08-31T23:59:59.999Z',
 		created_at: '2026-08-01T09:00:00.000Z',
 		updated_at: '2026-08-20T10:00:00.000Z',
+		organization_id: null,
+		opportunity_id: null,
+		contact_id: null,
+		due_at: null,
+		requester_id: null,
 		task_participant: [{ member_id: 'm1' }, { member_id: 'm2' }],
 		...overrides
 	};

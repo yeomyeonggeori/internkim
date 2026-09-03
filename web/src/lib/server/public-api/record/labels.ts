@@ -1,4 +1,4 @@
-import { vocabularyOf } from '$lib/task/task-vocabulary';
+import { vocabularyOf, type NamedColour } from '$lib/task/task-vocabulary';
 
 export class LabelUnresolved extends Error {
 	readonly errorCode: string;
@@ -22,34 +22,41 @@ export class LabelUnresolved extends Error {
 }
 
 export type CompanyLabels = {
-	businesses: string[];
-	types: string[];
+	businesses: NamedColour[];
+	types: NamedColour[];
 	timezone: string;
 };
 
 export function labelsOfVocabulary(vocabulary: unknown, timezone: string | null): CompanyLabels {
 	const read = vocabularyOf(vocabulary);
 	return {
-		businesses: (read.businesses ?? []).map((business) => business.name),
-		types: (read.types ?? []).map((type) => type.name),
+		businesses: read.businesses ?? [],
+		types: read.types ?? [],
 		timezone: timezone?.trim() || 'Asia/Seoul'
 	};
 }
 
+export function namesOf(labels: NamedColour[]): string[] {
+	return labels.map((label) => label.name);
+}
+
 // A label a company never registered would answer a board filter nobody set up,
 // so an unregistered one is refused with the list rather than written.
-export function labelOf(registered: string[], asked: string | undefined, fallback: string | null): string | null {
+export function labelOf(
+	registered: NamedColour[],
+	asked: string | undefined,
+	fallback: string | null
+): string | null {
 	if (asked === undefined) return fallback;
 	const written = asked.trim();
 	if (!written) return null;
-	if (registered.length === 0) return written;
+	const names = namesOf(registered);
+	if (names.length === 0) return written;
 
-	const exact = registered.find((label) => label.toLowerCase() === written.toLowerCase());
+	const exact = names.find((label) => label.toLowerCase() === written.toLowerCase());
 	if (exact) return exact;
 
-	const contained = registered.filter((label) =>
-		label.toLowerCase().includes(written.toLowerCase())
-	);
+	const contained = names.filter((label) => label.toLowerCase().includes(written.toLowerCase()));
 	if (contained.length === 1) return contained[0];
-	throw new LabelUnresolved(asked, registered, contained.length > 1 ? 'ambiguous' : 'unregistered');
+	throw new LabelUnresolved(asked, names, contained.length > 1 ? 'ambiguous' : 'unregistered');
 }

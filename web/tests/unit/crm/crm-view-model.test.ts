@@ -8,7 +8,7 @@ const text = crmText.ko;
 describe('opportunityStageLabel', () => {
 	const stages: CRMPipelineStage[] = [
 		{ stage: 'review', label: '검토', position: 1, outcome: 'open' },
-		{ stage: 'stage-9x2', label: '계약 검토', position: 2, outcome: 'open' },
+		{ stage: 'in_progress', label: '계약 검토', position: 2, outcome: 'open' },
 		{ stage: 'waiting', label: 'waiting', position: 3, outcome: 'open' }
 	];
 
@@ -16,8 +16,8 @@ describe('opportunityStageLabel', () => {
 		expect(opportunityStageLabel(stages, 'review', text)).toBe('검토');
 	});
 
-	test('shows the vocabulary name for a generated stage id', () => {
-		expect(opportunityStageLabel(stages, 'stage-9x2', text)).toBe('계약 검토');
+	test('shows the vocabulary name a company gave one of the stages', () => {
+		expect(opportunityStageLabel(stages, 'in_progress', text)).toBe('계약 검토');
 	});
 
 	test('falls back to the static table when the label is just the id', () => {

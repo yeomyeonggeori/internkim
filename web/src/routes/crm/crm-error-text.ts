@@ -35,7 +35,7 @@ export function crmErrorMessage(error: unknown, text: CRMErrorText): string {
 		return error.code === 'owner_not_found' ? text.ownerNotFound : text.ownerAmbiguous;
 	}
 	if (error instanceof CRMApiError) {
-		if (error.code === '2BP01') return text.definitionInUse;
+		if (error.code === '2BP01' || error.code === 'crm_definition_in_use') return text.definitionInUse;
 		if (error.status === 401 || error.status === 403) return text.permissionDenied;
 		if (error.status === 400) return text.invalidRequest;
 		if (error.status === 404) return text.recordNotFound;

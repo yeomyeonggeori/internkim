@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { LabelUnresolved, labelOf } from '$lib/server/public-api/record/labels';
 
-const registered = ['영업', '개발', '개발지원'];
+const registered = [{ name: '영업' }, { name: '개발', color: '#2563eb' }, { name: '개발지원' }];
 
 function refusalOf(asked: string, over = registered): LabelUnresolved {
 	try {
@@ -15,11 +15,11 @@ function refusalOf(asked: string, over = registered): LabelUnresolved {
 
 describe('naming a label', () => {
 	test('takes a whole label whatever the case', () => {
-		expect(labelOf(['Sales', 'Dev'], 'sales', null)).toBe('Sales');
+		expect(labelOf([{ name: 'Sales' }, { name: 'Dev' }], 'sales', null)).toBe('Sales');
 	});
 
 	test('takes a part only one label holds, whatever the case', () => {
-		expect(labelOf(['Sales', 'Dev'], 'DE', null)).toBe('Dev');
+		expect(labelOf([{ name: 'Sales' }, { name: 'Dev' }], 'DE', null)).toBe('Dev');
 	});
 
 	test('takes a whole label even when a longer one holds it', () => {
@@ -48,6 +48,6 @@ describe('naming a label', () => {
 		const refusal = refusalOf('마케팅');
 		expect(refusal.outcome).toBe('unregistered');
 		expect(refusal.errorCode).toBe('task_label_unregistered');
-		expect(refusal.registered).toEqual(registered);
+		expect(refusal.registered).toEqual(['영업', '개발', '개발지원']);
 	});
 });

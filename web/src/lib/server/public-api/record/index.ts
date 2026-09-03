@@ -16,6 +16,24 @@ import {
 	companySettingsGet,
 	companySettingsUpdate
 } from './company-tools';
+import { crmActivityList, crmActivitySave } from './crm-activity-tools';
+import {
+	crmContactAdd,
+	crmContactArchive,
+	crmContactList,
+	crmContactUpdate,
+	crmOpportunityAdd,
+	crmOpportunityArchive,
+	crmOpportunityList,
+	crmOpportunityMove,
+	crmOpportunityUpdate,
+	crmOrganizationAdd,
+	crmOrganizationArchive,
+	crmOrganizationList,
+	crmOrganizationUpdate,
+	crmVocabularyGet,
+	crmVocabularySet
+} from './crm-tools';
 import {
 	CalendarEventDuplicate,
 	CalendarEventVersionConflict,
@@ -91,7 +109,24 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	conversation_unmute: (context, input) => conversationUnmute(context, input),
 	push_reachability_get: (context) => pushReachabilityGet(context),
 	push_device_claim: (context, input) => pushDeviceClaim(context, input),
-	push_device_release: (context, input) => pushDeviceRelease(context, input)
+	push_device_release: (context, input) => pushDeviceRelease(context, input),
+	crm_organization_list: (context, input) => crmOrganizationList(context, input),
+	crm_organization_add: (context, input) => crmOrganizationAdd(context, input),
+	crm_organization_update: (context, input) => crmOrganizationUpdate(context, input),
+	crm_organization_archive: (context, input) => crmOrganizationArchive(context, input),
+	crm_contact_list: (context, input) => crmContactList(context, input),
+	crm_contact_add: (context, input) => crmContactAdd(context, input),
+	crm_contact_update: (context, input) => crmContactUpdate(context, input),
+	crm_contact_archive: (context, input) => crmContactArchive(context, input),
+	crm_opportunity_list: (context, input) => crmOpportunityList(context, input),
+	crm_opportunity_add: (context, input) => crmOpportunityAdd(context, input),
+	crm_opportunity_update: (context, input) => crmOpportunityUpdate(context, input),
+	crm_opportunity_move: (context, input) => crmOpportunityMove(context, input),
+	crm_opportunity_archive: (context, input) => crmOpportunityArchive(context, input),
+	crm_vocabulary_get: (context) => crmVocabularyGet(context),
+	crm_vocabulary_set: (context, input) => crmVocabularySet(context, input),
+	crm_activity_list: (context, input) => crmActivityList(context, input),
+	crm_activity_save: (context, input) => crmActivitySave(context, input)
 };
 
 export function recordRunsTheTool(name: string): boolean {

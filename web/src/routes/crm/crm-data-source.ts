@@ -9,7 +9,7 @@ import type {
 	CRMTransitionPayload,
 	CRMVocabulary
 } from './crm-api-types';
-import * as central from './crm-supabase';
+import * as central from './crm-public-api';
 
 export { CRMApiError } from './crm-api';
 

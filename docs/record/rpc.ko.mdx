@@ -38,8 +38,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `complete_tasks_past_their_end` | — | `void` | definer | service_role |
 | `conversation_mute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
 | `conversation_unmute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
-| `crm_opportunity_close` | `target_opportunity_id uuid, target_stage_id text, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text` | `opportunity` | definer | authenticated |
-| `crm_task_save` | `target_task_id uuid, target_title text, target_status task_status, target_note text, target_business text, target_type text, target_due_at timestamp with time zone, target_starts_at timestamp with time zone, target_ends_at timestamp with time zone, target_is_event boolean, target_is_whole_day boolean, target_notify_minutes_before integer, target_location jsonb, target_requester_id uuid, target_participant_ids uuid[], target_organization_id uuid, target_opportunity_id uuid, target_contact_id uuid` | `uuid` | definer | authenticated |
+| `crm_opportunity_close` | `target_opportunity_id uuid, target_stage_id crm_stage, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text` | `opportunity` | definer | authenticated |
 | `crm_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
 | `digest_agent_key_keep` | — | `boolean` | definer | authenticated, service_role |
 | `digest_app_url_keep` | `new_app_url text` | `boolean` | definer | service_role |
