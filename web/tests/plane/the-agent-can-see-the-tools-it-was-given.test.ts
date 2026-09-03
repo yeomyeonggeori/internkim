@@ -1,28 +1,24 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { aCompanyPlane } from './a-company-plane';
-
-const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
 type ToolInventory = {
 	tools: string[];
 	quarantinedProviders: { providerID: string; reason: string }[];
 };
 
-type CapabilityCatalog = {
-	tools: { modelName: string; answeredBy: string }[];
+type CapabilitiesDocument = {
+	toolDescriptors: { modelName: string; answeredBy: string }[];
 };
 
-function theToolsTheCatalogOffersThroughCapabilityd(): string[] {
-	const catalogPath = join(repositoryRoot, 'pkg', 'capabilityprotocol', 'generated', 'capability-tools.json');
-	const catalog = JSON.parse(readFileSync(catalogPath, 'utf8')) as CapabilityCatalog;
-	return catalog.tools
-		.filter((tool) => tool.answeredBy === 'company' || tool.answeredBy === 'record')
-		.map((tool) => tool.modelName);
+function theToolsCapabilitydOffersFor(capabilitiesDocumentPath: string): string[] {
+	const capabilities = JSON.parse(readFileSync(capabilitiesDocumentPath, 'utf8')) as CapabilitiesDocument;
+	return capabilities.toolDescriptors
+		.filter((toolDescriptor) => toolDescriptor.answeredBy === 'company' || toolDescriptor.answeredBy === 'record')
+		.map((toolDescriptor) => toolDescriptor.modelName);
 }
 
-test('the agent on the plane registered every tool the catalog offers through capabilityd', async () => {
+test('the agent on the plane registered every tool capabilityd offered it', async () => {
 	const plane = await aCompanyPlane();
 	try {
 		const answer = await fetch(`${plane.blueclawURL}/admin/api/tools`);
@@ -30,7 +26,7 @@ test('the agent on the plane registered every tool the catalog offers through ca
 		const inventory = (await answer.json()) as ToolInventory;
 		const registeredToolNames = new Set(inventory.tools);
 
-		const missingToolNames = theToolsTheCatalogOffersThroughCapabilityd().filter(
+		const missingToolNames = theToolsCapabilitydOffersFor(plane.capabilitiesDocumentPath).filter(
 			(toolName) => !registeredToolNames.has(toolName)
 		);
 
