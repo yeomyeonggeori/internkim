@@ -811,3 +811,27 @@ describe('canonical capability tools', () => {
     expect(imageTool?.inputSchema.properties).not.toHaveProperty('materialID');
   });
 });
+
+describe('catalog descriptions stay messenger-neutral', () => {
+  const namedMessengers = ['mattermost', 'buzz'];
+
+  function stringsIn(value: unknown): string[] {
+    if (typeof value === 'string') return [value];
+    if (Array.isArray(value)) return value.flatMap(stringsIn);
+    if (value !== null && typeof value === 'object') {
+      return Object.values(value as Record<string, unknown>).flatMap(stringsIn);
+    }
+    return [];
+  }
+
+  test('no tool description names a messenger the way its adapter does', () => {
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const violations = catalog.tools.flatMap(tool =>
+      stringsIn(tool)
+        .filter(text => namedMessengers.some(messenger => text.toLowerCase().includes(messenger)))
+        .map(text => `${tool.name}: "${text}"`)
+    );
+
+    expect(violations).toEqual([]);
+  });
+});
