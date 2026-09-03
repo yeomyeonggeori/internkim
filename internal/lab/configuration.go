@@ -22,12 +22,11 @@ type CompanionConfiguration struct {
 }
 
 type VirtualMachineConfiguration struct {
-	Container           ContainerConfiguration  `json:"container"`
-	Mattermost          MattermostConfiguration `json:"mattermost"`
-	SharedWorkspacePath string                  `json:"sharedWorkspacePath"`
-	MountDirectoryPath  string                  `json:"mountDirectoryPath"`
-	SSHUsername         string                  `json:"sshUsername"`
-	SSHPassword         string                  `json:"sshPassword"`
+	Container           ContainerConfiguration `json:"container"`
+	SharedWorkspacePath string                 `json:"sharedWorkspacePath"`
+	MountDirectoryPath  string                 `json:"mountDirectoryPath"`
+	SSHUsername         string                 `json:"sshUsername"`
+	SSHPassword         string                 `json:"sshPassword"`
 }
 
 type ContainerConfiguration struct {
@@ -37,10 +36,6 @@ type ContainerConfiguration struct {
 	KernelImagePath string `json:"kernelImagePath"`
 	CPUCount        int    `json:"cpuCount"`
 	MemoryMiB       int    `json:"memoryMiB"`
-}
-
-type MattermostConfiguration struct {
-	ListenAddress string `json:"listenAddress"`
 }
 
 func LoadConfiguration(path string) (Configuration, error) {
@@ -76,9 +71,6 @@ func applyDefaultConfiguration(configuration Configuration) Configuration {
 	}
 	if configuration.VirtualMachine.Container.MemoryMiB == 0 {
 		configuration.VirtualMachine.Container.MemoryMiB = 8192
-	}
-	if configuration.VirtualMachine.Mattermost.ListenAddress == "" {
-		configuration.VirtualMachine.Mattermost.ListenAddress = "127.0.0.1:8065"
 	}
 	if configuration.VirtualMachine.MountDirectoryPath == "" {
 		configuration.VirtualMachine.MountDirectoryPath = "/mnt/shared"

@@ -37,7 +37,6 @@ func NewService(options Options) (Service, error) {
 
 func (service Service) Status(contextValue context.Context) Status {
 	adminURL := service.adminHostURL()
-	mattermostURL := service.mattermostHostURL()
 	if errorValue := service.EnsureConfiguration(); errorValue != nil {
 		return Status{
 			CheckedAt: time.Now(),
@@ -47,9 +46,7 @@ func (service Service) Status(contextValue context.Context) Status {
 			},
 			SSH:           EndpointStatus{State: "unknown", Message: "VM status unavailable"},
 			Admin:         EndpointStatus{State: "unknown", Message: "configuration unavailable"},
-			Mattermost:    EndpointStatus{State: "unknown", Message: "configuration unavailable"},
 			AdminURL:      adminURL,
-			MattermostURL: mattermostURL,
 			LastResult:    readTrimmedFile(service.lastResultPath()),
 			CleanupNeeded: service.cleanupNeeded(),
 			StatePath:     service.options.StateRootPath,
@@ -61,9 +58,7 @@ func (service Service) Status(contextValue context.Context) Status {
 		VirtualMachine: virtualMachineState,
 		SSH:            service.sshStatus(contextValue, virtualMachineState),
 		Admin:          service.httpStatus(contextValue, adminURL+"/admin/api/health", "admind"),
-		Mattermost:     service.httpStatus(contextValue, mattermostURL+"/api/v4/system/ping", "mattermost"),
 		AdminURL:       adminURL,
-		MattermostURL:  mattermostURL,
 		LastResult:     readTrimmedFile(service.lastResultPath()),
 		CleanupNeeded:  service.cleanupNeeded(),
 		StatePath:      service.options.StateRootPath,
@@ -74,7 +69,7 @@ func (service Service) Run(contextValue context.Context, logger Logger, request 
 	if !service.options.IsEphemeral {
 		return service.runAction(contextValue, logger, request)
 	}
-	service.logEphemeralContext(logger, request)
+	service.logEphemeralContext(logger)
 	service.reapOrphanedEphemeralContainers(contextValue, logger)
 	if !request.KeepArtifacts {
 		return service.runWithEphemeralCleanup(contextValue, logger, request)
@@ -133,20 +128,20 @@ func (service Service) runAction(contextValue context.Context, logger Logger, re
 	case ActionReset:
 		return service.runPlans(contextValue, logger, service.resetPlans())
 	case ActionRunRecipe:
-		if request.WithoutMattermost {
-			return errors.New("without-mattermost mode requires --scenario")
+		if request.VirtualSession {
+			return errors.New("virtual session mode requires --scenario")
 		}
 		return service.RunRecipe(contextValue, logger, firstNonEmpty(request.Recipe, DefaultRecipe))
 	case ActionRunScenario:
-		return service.RunScenario(contextValue, logger, request.Scenario, request.WithoutMattermost, request.KeepArtifacts)
+		return service.RunScenario(contextValue, logger, request.Scenario, request.VirtualSession, request.KeepArtifacts)
 	case ActionUpgradeGate:
 		if strings.TrimSpace(request.Scenario) == "" {
 			return errors.New("upgrade gate requires --scenario")
 		}
 		return service.runPlans(contextValue, logger, service.upgradePathGatePlans(strings.TrimSpace(request.Scenario)))
 	case ActionVerifyRegression:
-		if request.WithoutMattermost {
-			return errors.New("without-mattermost regression is not supported")
+		if request.VirtualSession {
+			return errors.New("virtual session regression is not supported")
 		}
 		return service.VerifyRegression(contextValue, logger, request.Base, request.Scenario)
 	default:
@@ -163,20 +158,20 @@ func (service Service) RunRecipe(contextValue context.Context, logger Logger, re
 	}
 }
 
-func (service Service) RunScenario(contextValue context.Context, logger Logger, scenario string, withoutMattermost bool, keepArtifacts bool) error {
+func (service Service) RunScenario(contextValue context.Context, logger Logger, scenario string, virtualSession bool, keepArtifacts bool) error {
 	normalizedScenario := strings.TrimSpace(scenario)
 	if normalizedScenario == "" {
 		return errors.New("scenario is required")
 	}
 	buildPlans := service.scenarioPlanBuilders()
-	if withoutMattermost {
+	if virtualSession {
 		if _, isOurs := buildPlans[normalizedScenario]; isOurs {
 			return fmt.Errorf(
-				"%s is a local fleet scenario and --without-mattermost runs a blueclaw virtual session; run it without the flag",
+				"%s is a local fleet scenario and --virtual-session runs a blueclaw virtual session; run it without the flag",
 				normalizedScenario,
 			)
 		}
-		return service.runPlans(contextValue, logger, service.withoutMattermostScenarioPlans(normalizedScenario))
+		return service.runPlans(contextValue, logger, service.virtualSessionScenarioPlans(normalizedScenario))
 	}
 	build, isOurs := buildPlans[normalizedScenario]
 	if !isOurs {
@@ -275,13 +270,6 @@ func normalizeOptions(options Options) (Options, error) {
 		}
 		options.AdminHostPort = adminHostPort
 	}
-	if options.MattermostHostPort == 0 {
-		mattermostHostPort, errorValue := defaultHostPort(options.IsEphemeral, DefaultMattermostHostPort)
-		if errorValue != nil {
-			return options, errorValue
-		}
-		options.MattermostHostPort = mattermostHostPort
-	}
 	if options.CompanyAppPort == 0 {
 		companyAppPort, errorValue := defaultHostPort(options.IsEphemeral, DefaultCompanyAppPort)
 		if errorValue != nil {
@@ -356,7 +344,6 @@ func (service Service) configurationDocument() map[string]any {
 				"cpuCount":   6,
 				"memoryMiB":  8192,
 			},
-			"mattermost":          map[string]any{"listenAddress": "127.0.0.1:8065"},
 			"sharedWorkspacePath": service.options.RepositoryRootPath,
 			"mountDirectoryPath":  "/mnt/shared",
 			"sshUsername":         "admin",
@@ -367,10 +354,6 @@ func (service Service) configurationDocument() map[string]any {
 
 func (service Service) adminHostURL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", service.options.AdminHostPort)
-}
-
-func (service Service) mattermostHostURL() string {
-	return fmt.Sprintf("http://127.0.0.1:%d", service.options.MattermostHostPort)
 }
 
 func (service Service) cleanupNeeded() bool {

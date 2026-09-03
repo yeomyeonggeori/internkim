@@ -11,7 +11,7 @@ The VM is a disposable Apple Container running the same Blueclaw guest a device
 runs, so a change that only breaks on Linux breaks here first.
 
 - After local simulation passes, verify executable and Linux permission behavior
-  with `./internkim dev fleet run --without-mattermost --scenario <name>`.
+  with `./internkim dev fleet run --virtual-session --scenario <name>`.
 - Treat Local Fleet VM verification as the required pre-deploy Linux/runtime gate for
   agent execution that touches `shell`, `bun`, `uv`, Python dependency wrappers,
   POSIX users/groups, or workspace permissions.
@@ -58,9 +58,7 @@ runs, so a change that only breaks on Linux breaks here first.
 - When claiming a user-visible fix, prefer
   `./internkim dev fleet verify-regression --base main --scenario <name>` so the
   same scenario fails on the base revision and passes on the current checkout.
-- Run real Mattermost smoke only after the virtual-session and Mattermost-free
-  Linux gates pass, and clean up after it the way `AGENTS.md`'s Runtime Test
-  Hygiene says. Disposable local fleet runs stop and remove their VM by default while keeping
+- Disposable local fleet runs stop and remove their VM by default while keeping
   gitignored evidence under `.local/local-fleet/runs/<runID>` and
   `.artifacts/local-fleet/<runID>`; use `./internkim dev fleet reset` after
   `--reuse` runs.
@@ -68,9 +66,9 @@ runs, so a change that only breaks on Linux breaks here first.
   then removes them after the scenario. `--keep` leaves the VM, logs, Mattermost
   posts and users, and state for debugging, and prints the cleanup command.
   `--reuse` takes the shared local fleet instead; pair a reused run with
-  `dev fleet reset` or `dev fleet down`. `--without-mattermost` still runs inside
+  `dev fleet reset` or `dev fleet down`. `--virtual-session` still runs inside
   the Linux VM and uses the checkout's Linux toolchain without starting Kim
-  services or Mattermost ingress.
+  services.
 - The scenarios are registered in `internal/localfleet/service.go`. Read that
   map; a list kept anywhere else goes stale. Keep runtime-invariant
   scenarios deterministic with a scripted model and use `--live-llm` for model
