@@ -57,47 +57,6 @@ func (service Service) resolveCapabilityToolTarget(ctx context.Context, toolName
 	return targetRoute.Resolver(service, ctx, request)
 }
 
-func (service Service) resolveCalendarEventDeleteTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodeCalendarEventDeleteInput(request.Input)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	event, hintFailure, errorValue := service.resolveCalendarEventHintTarget(ctx, request, input.EventHint)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if hintFailure != nil {
-		return calendarEventHintFailureResponse(request.ToolName, *hintFailure), nil
-	}
-	return capabilityToolTargetResponse(request.ToolName, capabilityToolTarget{
-		InputField: "eventHint",
-		ID:         event.EventID,
-		Title:      event.Title,
-		StartsAt:   event.StartsAt,
-	}), nil
-}
-
-func (service Service) resolveTaskDeleteTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	input, errorValue := decodeTaskDeleteInput(request.Input)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	summary, errorValue := service.fetchTaskAllTasks(ctx, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	task, hintFailure := resolveTaskHint(input.TaskHint, service.requesterTaskOwnerID(ctx, request.Context.RequesterEmail, summary.Members), summary.Tasks)
-	if hintFailure != nil {
-		return taskFailureResponse(request.ToolName, *hintFailure), nil
-	}
-	return capabilityToolTargetResponse(request.ToolName, capabilityToolTarget{
-		InputField: "taskHint",
-		ID:         task.ID,
-		Title:      task.Content,
-		StartsAt:   task.StartDate,
-	}), nil
-}
-
 func capabilityToolTargetResponse(toolName string, target capabilityToolTarget) capabilities.ToolInvokeResponse {
 	result, _ := json.Marshal(target)
 	return capabilities.ToolInvokeResponse{

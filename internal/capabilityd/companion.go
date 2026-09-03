@@ -54,30 +54,11 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "image_read", Handler: Service.invokeImageReadTool},
 	{ToolName: "image_generate", Handler: Service.invokeImageGenerateTool},
 	{ToolName: "artifact_review", Handler: Service.invokeArtifactReviewTool},
-	{ToolName: "task_add", Handler: Service.invokeTaskTool},
-	{ToolName: "task_list", Handler: Service.invokeTaskTool},
-	{ToolName: "task_update", Handler: Service.invokeTaskTool},
-	{ToolName: "task_delete", Handler: Service.invokeTaskTool},
-	{ToolName: "person_list", Handler: Service.invokeTaskTool},
 	{ToolName: "message_context", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_search", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_send", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_update", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_delete", Handler: Service.invokePlatformMessageTool},
-	{ToolName: "event_add", Handler: Service.invokeCalendarTool},
-	{ToolName: "event_list", Handler: Service.invokeCalendarTool},
-	{ToolName: "event_update", Handler: Service.invokeCalendarTool},
-	{ToolName: "event_delete", Handler: Service.invokeCalendarTool},
-	{ToolName: "leave_list", Handler: Service.invokeRecordTool},
-	{ToolName: "leave_balance", Handler: Service.invokeRecordTool},
-	{ToolName: "leave_request", Handler: Service.invokeRecordTool},
-	{ToolName: "leave_update", Handler: Service.invokeRecordTool},
-	{ToolName: "leave_delete", Handler: Service.invokeRecordTool},
-	{ToolName: "leave_decide", Handler: Service.invokeRecordTool},
-	{ToolName: "attendance_list", Handler: Service.invokeRecordTool},
-	{ToolName: "attendance_add", Handler: Service.invokeRecordTool},
-	{ToolName: "attendance_update", Handler: Service.invokeRecordTool},
-	{ToolName: "attendance_delete", Handler: Service.invokeRecordTool},
 	{ToolName: "mail_message_list", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_search", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_read", Handler: Service.invokeMailTool},
@@ -126,6 +107,9 @@ func capabilityToolDescriptorFor(toolName string) (capabilities.Descriptor, bool
 }
 
 func capabilityToolRouteFor(toolName string) (capabilityToolRoute, bool) {
+	if theRecordAnswers(toolName) {
+		return capabilityToolRoute{ToolName: strings.TrimSpace(toolName), Handler: Service.invokeRecordTool}, true
+	}
 	for _, route := range capabilityToolRoutes {
 		if route.matches(toolName) {
 			return route, true

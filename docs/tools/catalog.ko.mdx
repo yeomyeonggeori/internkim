@@ -16,8 +16,9 @@ description: 정본 카탈로그에서 생성되는, 네임스페이스별 능�
 
 <ToolCatalog namespace="task" language="ko" />
 
-admind의 업무 API가 뒤를 받칩니다(`internal/capabilityd/task_tool.go`).
-수정과 삭제는 `taskHint`를 받습니다: `task_list` 결과에 있는 정확한 업무 ID
+중앙 평면의 `web/src/lib/server/public-api/record/task-tools.ts`가 기록의 `task`
+테이블 위에서 답하고, 부르는 멤버의 신원으로 돌기 때문에 무엇을 볼 수 있는지는 행
+수준 보안이 정합니다. 수정과 삭제는 `taskHint`를 받습니다: `task_list` 결과에 있는 정확한 업무 ID
 또는 정확한 현재 제목. 날짜는 `yyyy-mm-dd`이고 "다음 주 금요일" 같은 표현은
 에이전트가 호출 전에 풉니다.
 
@@ -34,8 +35,7 @@ planned와 paused는 읽고 있는 주로 밀려 나와서 계획한 일이 시�
 
 <ToolCatalog namespace="person" language="ko" />
 
-같은 구성원 데이터 위에 구현되어 있습니다
-(`internal/capabilityd/person_list_tool.go`). 사람이 누구인지, 여기 누가
+회사의 구성원 디렉터리 위에서 중앙 평면이 답합니다. 사람이 누구인지, 여기 누가
 일하는지에 답합니다. 힌트 앞 단계가 아닙니다. 힌트는 조각을 쓰인 그대로
 받아 서버가 풀고, 이 도구는 힌트가 후보 여럿과 함께 돌아왔을 때 에이전트가
 읽는 것입니다.
@@ -44,9 +44,8 @@ planned와 paused는 읽고 있는 주로 밀려 나와서 계획한 일이 시�
 
 <ToolCatalog namespace="calendar" language="ko" />
 
-역시 admind의 업무 API 위에 구현되어 있습니다
-(`internal/capabilityd/calendar_tool.go`). 캘린더 일정은 시간 구간이 있는
-업무입니다. 시각은 시간대가 붙은 ISO 타임스탬프이고 UTC가 아니라 회사가 있는
+중앙 평면의 `web/src/lib/server/public-api/record/event-tools.ts`가 답합니다.
+캘린더 일정은 시간 구간이 있는 업무입니다. 시각은 시간대가 붙은 ISO 타임스탬프이고 UTC가 아니라 회사가 있는
 곳의 시각으로 답합니다. `eventHint`는 `taskHint`와 같은 해석 규칙을 따릅니다.
 
 창을 주지 않으면 `event_list`는 다가오는 것으로 답합니다. 회사가 있는 곳의

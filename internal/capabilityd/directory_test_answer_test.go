@@ -1,11 +1,9 @@
 package capabilityd
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
-	"testing"
 )
 
 const directoryPeopleTestPath = "/admin/api/directory/people"
@@ -48,40 +46,4 @@ const defaultDirectoryPeopleTestDocument = `{"people":[
 	{"memberID":"person-alice","email":"alice@example.com","name":"Alice"}
 ]}`
 
-func useDirectoryPeopleOf(t *testing.T, members []taskMemberForTool) {
-	t.Helper()
-	people := make([]map[string]string, 0, len(members))
-	for _, member := range members {
-		people = append(people, map[string]string{
-			"memberID": member.ID,
-			"email":    member.Email,
-			"name":     member.Name,
-		})
-	}
-	document, errorValue := json.Marshal(map[string]any{"people": people})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	previous := directoryPeopleTestDocument
-	directoryPeopleTestDocument = string(document)
-	t.Cleanup(func() { directoryPeopleTestDocument = previous })
-}
-
 // A flow state a test serves names the people on that board. The company knows
-// the same people, so a test says so once by handing over the state it serves.
-func useDirectoryPeopleOfTaskState(t *testing.T, stateDocument string) {
-	t.Helper()
-	var state struct {
-		Members []taskMemberForTool `json:"members"`
-	}
-	if errorValue := json.Unmarshal([]byte(stateDocument), &state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	useDirectoryPeopleOf(t, state.Members)
-}
-
-func useDirectoryPeopleOfTaskStateAnd(t *testing.T, stateDocument string) string {
-	t.Helper()
-	useDirectoryPeopleOfTaskState(t, stateDocument)
-	return stateDocument
-}
