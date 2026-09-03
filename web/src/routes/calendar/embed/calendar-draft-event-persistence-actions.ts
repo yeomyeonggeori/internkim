@@ -2,8 +2,12 @@ import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model'
 import type { CalendarDraftEventDOMActions } from './calendar-draft-event-dom';
 import { CalendarDraftEventState } from './calendar-draft-events';
 import type { CalendarEventActionsContext } from './calendar-event-actions';
-import type { CalendarEvent } from './calendar-event-persistence';
+import {
+	calendarEventVersionConflictErrorCode,
+	type CalendarEvent
+} from './calendar-event-persistence';
 import type { CalendarPersistedEventActions } from './calendar-persisted-event-actions';
+import { isRefusalCode } from '$lib/public-api-call';
 
 type CalendarDraftEventPersistenceOptions = {
 	context: CalendarEventActionsContext;
@@ -153,13 +157,17 @@ export function createCalendarDraftEventPersistenceActions(
 
 	async function deleteCreatedServerEvent(eventID: string, expectedUpdatedAt: string | undefined): Promise<void> {
 		try {
-			await options.persistedEvents.deleteEvent(eventID);
+			await options.persistedEvents.deleteEvent(eventID, expectedUpdatedAt);
 			options.context.invalidatePendingEventLoad();
 			options.context.removeCalendarEvent(eventID);
 			options.context.notifyEventsChanged();
 			options.refreshEventCountAfterRender();
-		} catch {
-			options.showPersistenceError(options.context.text.deleteError);
+		} catch (refusal) {
+			options.showPersistenceError(
+				isRefusalCode(refusal, calendarEventVersionConflictErrorCode)
+					? options.context.text.calendarDeleteVersionConflictError
+					: options.context.text.deleteError
+			);
 			await options.context.refreshCalendar();
 		}
 	}

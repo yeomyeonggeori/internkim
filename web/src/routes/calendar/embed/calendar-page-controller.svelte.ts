@@ -120,6 +120,12 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 			invalidatePendingEventLoad: eventLoader.invalidatePendingLoad,
 			refreshCalendar: eventLoader.refreshCurrentRange,
 			text: {
+				get calendarDeleteVersionConflictError() {
+					return context.text.calendarDeleteVersionConflictError;
+				},
+				get calendarEventVersionConflictError() {
+					return context.text.calendarEventVersionConflictError;
+				},
 				get deleteError() {
 					return context.text.deleteError;
 				},

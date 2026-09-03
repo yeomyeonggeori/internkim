@@ -5,7 +5,9 @@ import {
 	type showCalendarDeleteUndoToast
 } from './calendar-delete-undo';
 import { CalendarEventPersistenceOrder } from './calendar-event-persistence-order';
+import { calendarEventVersionConflictErrorCode } from './calendar-event-persistence';
 import type { CalendarPersistedEventActions } from './calendar-persisted-event-actions';
+import { isRefusalCode } from '$lib/public-api-call';
 
 type CalendarDeletePersistenceOptions = {
 	context: CalendarEventActionsContext;
@@ -76,18 +78,33 @@ export function createCalendarDeletePersistenceActions(
 		if (!deleteAction) return;
 		options.beginPersistence();
 		try {
-			await options.persistedEvents.deleteEvent(deleteAction.event.id);
+			await options.persistedEvents.deleteEvent(
+				deleteAction.event.id,
+				versionOfPendingDelete(deleteAction.event)
+			);
 			options.persistenceOrder.clearPersistedUpdatedAt(deleteAction.event.id);
-		} catch {
-			options.showPersistenceError(options.context.text.deleteError);
-			options.context.invalidatePendingEventLoad();
-			if (!hasLocalEvent(deleteAction.event.id)) {
-				options.context.restoreCalendarEvent(deleteAction.event);
-			}
-			options.refreshEventCountAfterRender();
+		} catch (refusal) {
+			await recoverFromFailedDelete(refusal, deleteAction.event);
 		} finally {
 			options.finishPersistence();
 		}
+	}
+
+	function versionOfPendingDelete(event: DayTaskEvent): string | undefined {
+		const rendered = typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined;
+		return options.persistenceOrder.persistedUpdatedAt(event.id, rendered);
+	}
+
+	async function recoverFromFailedDelete(refusal: unknown, event: DayTaskEvent): Promise<void> {
+		options.context.invalidatePendingEventLoad();
+		if (isRefusalCode(refusal, calendarEventVersionConflictErrorCode)) {
+			options.showPersistenceError(options.context.text.calendarDeleteVersionConflictError);
+			await options.context.refreshCalendar();
+			return;
+		}
+		options.showPersistenceError(options.context.text.deleteError);
+		if (!hasLocalEvent(event.id)) options.context.restoreCalendarEvent(event);
+		options.refreshEventCountAfterRender();
 	}
 
 	function finalizePendingDelete(shouldDismissToast: boolean): void {

@@ -381,6 +381,18 @@ export const calendarAddInputSchema = z.strictObject({
 
 export const calendarAddInputIntentSchema = calendarAddInputSchema.partial();
 
+const calendarMutableFieldNames = Object.keys(calendarMutableFields);
+
+function hasCalendarMutation(document: object): boolean {
+  return calendarMutableFieldNames.some(name => Object.hasOwn(document, name));
+}
+
+function calendarExpectedUpdatedAtSchema(action: 'update' | 'deletion') {
+  return z.string()
+    .describe(`The updatedAt the caller last read; the ${action} is refused when the event has changed since.`)
+    .optional();
+}
+
 export const calendarListInputSchema = z.strictObject({
   startsAt: z.string().describe(`Inclusive start of the window. ${momentDescription}`).optional(),
   endsAt: z.string().describe(`Exclusive end of the window. ${momentDescription}`).optional(),
@@ -398,17 +410,22 @@ const calendarEventHintSchema = z.string().min(1).max(256).describe(
 
 const calendarUpdateObjectSchema = z.strictObject({
   eventHint: calendarEventHintSchema,
+  expectedUpdatedAt: calendarExpectedUpdatedAtSchema('update'),
   ...calendarMutableFields,
 });
 
 export const calendarUpdateInputSchema = calendarUpdateObjectSchema
-  .refine(hasMutationField, 'At least one calendar event field must be updated.')
+  .refine(hasCalendarMutation, 'At least one calendar event field must be updated.')
   .meta({ minProperties: 2 });
 
-export const calendarUpdateInputIntentSchema = calendarUpdateObjectSchema.omit({ eventHint: true });
+export const calendarUpdateInputIntentSchema = calendarUpdateObjectSchema.omit({
+  eventHint: true,
+  expectedUpdatedAt: true,
+});
 
 export const calendarDeleteInputSchema = z.strictObject({
   eventHint: calendarEventHintSchema,
+  expectedUpdatedAt: calendarExpectedUpdatedAtSchema('deletion'),
 });
 
 export const calendarDeleteInputIntentSchema = z.strictObject({});
