@@ -25,13 +25,14 @@ type capabilityToolTargetRoute struct {
 }
 
 var capabilityToolTargetRoutes = []capabilityToolTargetRoute{
-	{ToolName: "event_delete", Resolver: Service.resolveCalendarEventDeleteTarget},
-	{ToolName: "task_delete", Resolver: Service.resolveTaskDeleteTarget},
 	{ToolName: "message_delete", Resolver: Service.resolveMessageDeleteTarget},
 }
 
 func capabilityToolTargetRouteFor(toolName string) (capabilityToolTargetRoute, bool) {
 	trimmedToolName := strings.TrimSpace(toolName)
+	if theRecordAnswers(trimmedToolName) {
+		return capabilityToolTargetRoute{ToolName: trimmedToolName, Resolver: Service.previewRecordToolTarget}, true
+	}
 	for _, route := range capabilityToolTargetRoutes {
 		if route.ToolName == trimmedToolName {
 			return route, true

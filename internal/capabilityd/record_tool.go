@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 // These tools live in the record, so this carries the call to admind, which
@@ -33,7 +34,7 @@ func (service Service) invokeRecordTool(ctx context.Context, request capabilitie
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("record tool is not configured: %s", toolName)
 	}
 
-	answer, status, errorValue := service.askTheRecord(ctx, toolName, request.Input, request.Context.RequesterEmail)
+	answer, status, errorValue := service.askTheRecord(ctx, toolName, "invoke", request.Input, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -58,6 +59,7 @@ func (service Service) invokeRecordTool(ctx context.Context, request capabilitie
 func (service Service) askTheRecord(
 	ctx context.Context,
 	toolName string,
+	verb string,
 	input json.RawMessage,
 	requesterEmail string,
 ) (json.RawMessage, int, error) {
@@ -66,7 +68,7 @@ func (service Service) askTheRecord(
 		body = json.RawMessage("{}")
 	}
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost,
-		admindRequesterURL("/record/api/tools/"+toolName+"/invoke"), bytes.NewReader(body))
+		admindRequesterURL("/record/api/tools/"+toolName+"/"+verb), bytes.NewReader(body))
 	if errorValue != nil {
 		return nil, 0, errorValue
 	}
@@ -140,4 +142,43 @@ func recordToolFailureStage(status int) string {
 		return "target_resolution"
 	}
 	return "execution"
+}
+
+func theRecordAnswers(toolName string) bool {
+	descriptor, hasDescriptor := capabilityToolDescriptorFor(toolName)
+	return hasDescriptor && descriptor.AnsweredBy == capabilityprotocol.AnsweredByRecord
+}
+
+func (service Service) previewRecordToolTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	toolName := strings.TrimSpace(request.ToolName)
+	answer, status, errorValue := service.askTheRecord(ctx, toolName, "target", request.Input, request.Context.RequesterEmail)
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if status >= http.StatusBadRequest {
+		return recordToolFailure(toolName, status, answer), nil
+	}
+
+	var previewed struct {
+		Target json.RawMessage `json:"target"`
+	}
+	if errorValue := json.Unmarshal(answer, &previewed); errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
+	if namesNoTarget(previewed.Target) {
+		return capabilityToolWithoutTargetResponse(toolName), nil
+	}
+	return capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "record",
+		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Status:          "resolved",
+		Result:          previewed.Target,
+	}, nil
+}
+
+func namesNoTarget(target json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(target)
+	return len(trimmed) == 0 || string(trimmed) == "null"
 }
