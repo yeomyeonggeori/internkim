@@ -7,9 +7,10 @@
 		calendarGridDateFromKey,
 		calendarGridDateKey,
 		calendarGridDominantMonth,
+		calendarGridMonthAnchorWeekStart,
 		calendarGridWeeks,
 		isSameCalendarGridDay,
-		startOfCalendarGridWeek,
+		startOfCalendarGridMonth,
 		type CalendarGridWeek
 	} from './calendar-grid-dates';
 	import { defaultCalendarEventColor } from './calendar-grid-events';
@@ -73,7 +74,7 @@
 	let rangeStartPoint: { clientX: number; clientY: number } | null = null;
 	let longPressTimer: number | null = null;
 
-	let windowAnchorDateKey = $state(untrack(() => calendarGridDateKey(visibleDate)));
+	let windowAnchorDateKey = $state(untrack(() => calendarGridDateKey(startOfCalendarGridMonth(visibleDate))));
 	let weeksBeforeAnchor = $state(weeksBeforeVisibleDate);
 	let weeksAfterAnchor = $state(weeksAfterVisibleDate);
 
@@ -104,10 +105,11 @@
 	$effect(() => {
 		const requestedDateKey = calendarGridDateKey(visibleDate);
 		if (requestedDateKey === selfReportedMonthKey) return;
-		const visibleWeekStartKey = calendarGridDateKey(startOfCalendarGridWeek(visibleDate));
+		const requestedMonthKey = calendarGridDateKey(startOfCalendarGridMonth(visibleDate));
+		const visibleWeekStartKey = calendarGridDateKey(calendarGridMonthAnchorWeekStart(visibleDate));
 		if (visibleWeekStartKey === anchorWeekStartKey) return;
 		anchorWeekStartKey = visibleWeekStartKey;
-		if (!weeks.some((week) => week.startDateKey === visibleWeekStartKey)) windowAnchorDateKey = requestedDateKey;
+		if (!weeks.some((week) => week.startDateKey === visibleWeekStartKey)) windowAnchorDateKey = requestedMonthKey;
 		scrollWeekIntoView(visibleWeekStartKey);
 	});
 

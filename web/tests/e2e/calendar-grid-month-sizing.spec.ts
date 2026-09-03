@@ -93,6 +93,7 @@ test.describe('calendar grid month sizing', () => {
 			});
 			await expect(page.locator('[role="grid"]')).toHaveAttribute('aria-label', /2026년 6월/);
 			await expect(page.locator('[data-calendar-date="2026-06-08"]')).toBeVisible();
+			await expect(page.locator(`[data-calendar-event-id="${spanEndTimedID}"]`)).toHaveCount(1);
 
 			const measurements = await page.evaluate(
 				({ singleAllDayID, overflow0ID, threeTimedIDs, allDayTwoTimedIDs, weekEndSpanID, spanStartTimedID, spanEndTimedID }) => {
