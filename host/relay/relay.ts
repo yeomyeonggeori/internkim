@@ -350,6 +350,8 @@ async function tellAdmindTheDirectoryChanged(): Promise<{ status: number; body: 
 	// The machine records a credential for whoever was just invited before it
 	// answers, so the projection on the member rows is healed right behind it.
 	isProjectionHealed = false;
-	void messengerCredentialKind().catch(() => {});
+	void keepGoing('healing the messenger projection after the directory changed', async () => {
+		await messengerCredentialKind();
+	});
 	return { status: response.status, body: await answerBodyOf(response) };
 }

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type buzzClaimResponse struct {
@@ -79,6 +80,31 @@ func (service *Service) rememberBuzzCredential(ctx context.Context, actorEmail s
 // chatd asks for this kind by name (chatd/src/personal/buzz.ts).
 const buzzCredentialKind = "buzz-secret"
 
+const buzzCredentialSweepInterval = 2 * time.Minute
+
+// Recording ran when the directory said it changed and once at startup, so a
+// signal that never arrived left somebody without a key until this process was
+// restarted: they could speak, because the roster reconciles on its own clock,
+// and the agent could not tell who they were. It reconciles on a clock too now.
+func (service *Service) startBuzzCredentialSweep(ctx context.Context) {
+	go func() {
+		log.Printf("buzz credentials at startup: %s", service.recordBuzzCredentials(ctx))
+		ticker := time.NewTicker(buzzCredentialSweepInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				recording := service.recordBuzzCredentials(ctx)
+				if len(recording.Refusals) > 0 {
+					log.Printf("buzz credential sweep: %s", recording)
+				}
+			}
+		}
+	}()
+}
+
 // The people the record already names get their key without anybody pressing a
 // button, because the messenger they use every day is the thing that is broken.
 func (service *Service) recordBuzzCredentials(ctx context.Context) buzzCredentialRecording {
@@ -93,7 +119,7 @@ func (service *Service) recordBuzzCredentials(ctx context.Context) buzzCredentia
 	recording := buzzCredentialRecording{}
 	for _, member := range members {
 		email := strings.ToLower(strings.TrimSpace(member.Email))
-		if email == "" || !member.IsActive() {
+		if email == "" || member.HasLeftTheCompany() {
 			recording.Skipped++
 			continue
 		}

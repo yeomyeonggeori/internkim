@@ -7,6 +7,8 @@ export const organizationDirectoryText = {
 		inviteEmail: '이메일',
 		invite: '초대',
 		inviteHandOver: '본인에게 전달하세요. 로그인 후 패스키를 등록하면 비밀번호는 더 필요 없습니다.',
+		inviteCompanyServerUnreached:
+			'회사 서버에 닿지 못했습니다. 초대는 기록되었고 서버가 몇 분 안에 따라잡지만, 그전까지는 김인턴이 이 사람에게 답하지 않습니다.',
 		inviteFailed: '초대하지 못했습니다.',
 		cancel: '취소',
 		done: 'completed',
@@ -65,6 +67,8 @@ export const organizationDirectoryText = {
 		inviteEmail: 'Email',
 		invite: 'Invite',
 		inviteHandOver: 'Hand this over. Once they sign in and set up a passkey, no password is needed.',
+		inviteCompanyServerUnreached:
+			'The company server was not reached. The invitation is recorded and the server catches up within a couple of minutes; until it does, internkim will not answer this person.',
 		inviteFailed: 'The invitation did not go through.',
 		cancel: 'Cancel',
 		done: 'Done',
