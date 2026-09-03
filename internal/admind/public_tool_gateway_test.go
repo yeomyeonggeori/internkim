@@ -353,7 +353,7 @@ func startPublicToolGatewayCapabilityServer(t *testing.T, handler func(capabilit
 	}
 	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if request.URL.Path == "/v1/capabilities" {
-			_ = json.NewEncoder(responseWriter).Encode(capabilities.RegistryResponse{DeviceCapabilities: capabilities.DeviceDescriptors()})
+			_ = json.NewEncoder(responseWriter).Encode(capabilities.RegistryResponse{DeviceCapabilities: capabilities.DefaultToolDescriptors()})
 			return
 		}
 		var toolRequest capabilities.ToolInvokeRequest

@@ -819,17 +819,10 @@ func (service *Service) capabilityContractForStamping(ctx context.Context) bluec
 		return contract
 	}
 	contract.ProtocolIdentity = registry.ProtocolIdentity
-	if descriptors := registryStampDescriptors(registry); len(descriptors) > 0 {
+	if descriptors := capabilities.RegistryDescriptors(registry); len(descriptors) > 0 {
 		contract.ToolDescriptors = descriptors
 	}
 	return contract
-}
-
-func registryStampDescriptors(registry capabilities.RegistryResponse) []capabilities.Descriptor {
-	if len(registry.Capabilities) > 0 {
-		return registry.Capabilities
-	}
-	return registry.DeviceCapabilities
 }
 
 // The guest boots from the workspace copy, and the workspace sync only
