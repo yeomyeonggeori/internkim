@@ -74,7 +74,7 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			tellAdmindTheDirectoryChanged: async () => ({ status: 202, body: null }),
 			emailOfMember: async (memberID: string) =>
 				memberID === 'member-1' ? 'sample@example.test' : null,
-			messengerCredentialOf: async () => ({ kind: 'buzz-token', secret: 'a-held-secret' }),
+			messengerCredentialOf: async () => ({ kind: 'buzz-secret', secret: 'a-held-secret' }),
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null,
 			keepAttachment: async (contentBase64: string) => ({
 				address: keptAddress(contentBase64),

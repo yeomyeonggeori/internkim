@@ -1,6 +1,7 @@
 //   bun run web/scripts/link-messenger-identities.ts [--apply]
 
 import { controlPlane, linkCredential } from '../src/lib/server/control-plane';
+import { messengerIdentityCredentialKind } from '../src/lib/server/public-api/catalog/credential';
 
 const shouldApply = process.argv.includes('--apply');
 
@@ -32,11 +33,11 @@ const linked = new Set(existing.data.map((row) => `${row.member_id}|${row.kind}`
 let written = 0;
 let already = 0;
 for (const account of accounts) {
-	if (linked.has(`${account.memberID}|${account.platform}`)) {
+	if (linked.has(`${account.memberID}|${messengerIdentityCredentialKind}`)) {
 		already += 1;
 		continue;
 	}
-	if (shouldApply) await linkCredential(client, account.memberID, account.platform, account.externalID);
+	if (shouldApply) await linkCredential(client, account.memberID, messengerIdentityCredentialKind, account.externalID);
 	written += 1;
 	console.log(`  ${account.name} → ${account.platform} ${account.externalID}`);
 }

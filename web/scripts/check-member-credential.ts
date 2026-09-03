@@ -2,6 +2,10 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { keepMemberCredential, memberCredential } from '../src/lib/server/member-credential';
+import {
+	mailAccountCredentialKind,
+	messengerIdentityCredentialKind
+} from '../src/lib/server/public-api/catalog/credential';
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -41,31 +45,31 @@ try {
 	const second = await addMember(`two-${slug}@example.com`);
 
 	await keepMemberCredential(admin, first, {
-		kind: 'mattermost',
+		kind: messengerIdentityCredentialKind,
 		externalID: `U-one-${slug}`,
 		secret: 'token-for-one'
 	});
 	await keepMemberCredential(admin, second, {
-		kind: 'mattermost',
+		kind: messengerIdentityCredentialKind,
 		externalID: `U-two-${slug}`,
 		secret: 'token-for-two'
 	});
 
-	const forFirst = await memberCredential(admin, first, 'mattermost');
-	const forSecond = await memberCredential(admin, second, 'mattermost');
+	const forFirst = await memberCredential(admin, first, messengerIdentityCredentialKind);
+	const forSecond = await memberCredential(admin, second, messengerIdentityCredentialKind);
 
 	await keepMemberCredential(admin, first, {
-		kind: 'mattermost',
+		kind: messengerIdentityCredentialKind,
 		externalID: `U-one-${slug}`,
 		secret: 'token-for-one-rotated'
 	});
-	const rotated = await memberCredential(admin, first, 'mattermost');
+	const rotated = await memberCredential(admin, first, messengerIdentityCredentialKind);
 
 	const rows = await admin.from('credential').select('id').eq('member_id', first);
 
 	const companySecret = await admin.rpc('write_company_secret', {
 		secret_id: null,
-		secret_name: `${companyID}:mattermost`,
+		secret_name: `${companyID}:${messengerIdentityCredentialKind}`,
 		secret_value: 'the-company-admin-password'
 	});
 	if (companySecret.error) throw new Error(companySecret.error.message);
@@ -73,9 +77,9 @@ try {
 		.from('credential')
 		.update({ vault_secret_id: companySecret.data })
 		.eq('member_id', second)
-		.eq('kind', 'mattermost');
+		.eq('kind', messengerIdentityCredentialKind);
 	if (pointed.error) throw new Error(pointed.error.message);
-	const afterTampering = await memberCredential(admin, second, 'mattermost');
+	const afterTampering = await memberCredential(admin, second, messengerIdentityCredentialKind);
 
 	const findings = [
 		['each member reads their own secret', forFirst?.secret === 'token-for-one'],
@@ -83,7 +87,7 @@ try {
 		['the external id comes back', forFirst?.externalID === `U-one-${slug}`],
 		['rotating replaces rather than adds', rotated?.secret === 'token-for-one-rotated'],
 		['one row per member and kind', (rows.data?.length ?? -1) === 1],
-		['a member with no credential gets nothing', (await memberCredential(admin, second, 'slack')) === null],
+		['a member with no credential gets nothing', (await memberCredential(admin, second, mailAccountCredentialKind)) === null],
 		[
 			'pointing your own row at another secret gains you nothing',
 			afterTampering?.secret === 'token-for-two'

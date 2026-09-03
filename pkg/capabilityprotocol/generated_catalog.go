@@ -237,6 +237,23 @@ func calculateGeneratedHash(value string) string {
 	return hex.EncodeToString(digest[:])
 }
 
+func mustReadGeneratedSchemaEnum(schemaName string) []string {
+	document, errorValue := generatedCatalogFiles.ReadFile("generated/json-schema/" + schemaName + ".schema.json")
+	if errorValue != nil {
+		panic(errorValue)
+	}
+	schema := struct {
+		Enum []string `json:"enum"`
+	}{}
+	if errorValue := json.Unmarshal(document, &schema); errorValue != nil {
+		panic(errorValue)
+	}
+	if len(schema.Enum) == 0 {
+		panic("the generated " + schemaName + " schema names no value")
+	}
+	return schema.Enum
+}
+
 func decodeGeneratedJSON(document []byte, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(document))
 	decoder.DisallowUnknownFields()

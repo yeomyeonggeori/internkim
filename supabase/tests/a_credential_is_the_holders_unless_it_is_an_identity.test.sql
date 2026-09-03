@@ -23,10 +23,10 @@ insert into public.credential (member_id, kind, external_id, name) values
 
 select is(public.is_public_identity_credential('buzz-secret'), true,
   'who somebody is on the company messenger is public');
-select is(public.is_public_identity_credential('buzz'), true,
-  'the messenger kind is public however the writer spells it');
-select is(public.is_public_identity_credential('mattermost'), true,
-  'a messenger this company is leaving is still a messenger identity');
+select is(public.is_public_identity_credential('buzz'), false,
+  'the platform a company connects to is not a person''s identity');
+select is(public.is_public_identity_credential('mattermost'), false,
+  'a messenger nobody declares leaves its rows with the person they were issued to');
 select is(public.is_public_identity_credential('mail'), false,
   'a mail account is not an identity a colleague may read');
 select is(public.is_public_identity_credential('api_key'), false,
