@@ -1,6 +1,8 @@
 package admind
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"os"
@@ -59,6 +61,8 @@ func (service *Service) handleTaskRuns(responseWriter http.ResponseWriter, reque
 		service.proxyScopedTaskList(responseWriter, request, viewerEmail, isViewerAdmin)
 	case "/runs/api/detail":
 		service.proxyScopedTaskDetail(responseWriter, request, viewerEmail, isViewerAdmin)
+	case "/runs/api/approve":
+		service.proxyScopedTaskApproval(responseWriter, request, viewerEmail, isViewerAdmin)
 	default:
 		if request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/runs/api/") {
 			service.proxyScopedTaskDelete(responseWriter, request, viewerEmail, isViewerAdmin)
@@ -112,16 +116,60 @@ func (service *Service) proxyScopedTaskDetail(responseWriter http.ResponseWriter
 		http.Error(responseWriter, "taskRunID is required", http.StatusBadRequest)
 		return
 	}
-	query := url.Values{}
-	query.Set("taskRunID", taskRunID)
-	query.Set("viewerEmail", viewerEmail)
-	query.Set("viewerIsAdmin", strconv.FormatBool(isViewerAdmin))
 	var detail map[string]any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/run/detail?"+query.Encode(), nil, &detail); errorValue != nil {
+	path := scopedTaskDetailPath(taskRunID, viewerEmail, isViewerAdmin)
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &detail); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
 	service.writeJSON(responseWriter, detail)
+}
+
+func scopedTaskDetailPath(taskRunID string, viewerEmail string, isViewerAdmin bool) string {
+	query := url.Values{}
+	query.Set("taskRunID", taskRunID)
+	query.Set("viewerEmail", viewerEmail)
+	query.Set("viewerIsAdmin", strconv.FormatBool(isViewerAdmin))
+	return "/admin/api/run/detail?" + query.Encode()
+}
+
+type taskApprovalRequest struct {
+	TaskRunID string `json:"taskRunID"`
+	Decision  string `json:"decision"`
+}
+
+func (service *Service) proxyScopedTaskApproval(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {
+	if request.Method != http.MethodPost {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	var approvalRequest taskApprovalRequest
+	if json.NewDecoder(request.Body).Decode(&approvalRequest) != nil {
+		http.Error(responseWriter, "invalid task approval request", http.StatusBadRequest)
+		return
+	}
+	taskRunID := strings.TrimSpace(approvalRequest.TaskRunID)
+	if taskRunID == "" {
+		http.Error(responseWriter, "taskRunID is required", http.StatusBadRequest)
+		return
+	}
+	if !service.taskRunIsVisibleToViewer(request.Context(), taskRunID, viewerEmail, isViewerAdmin) {
+		http.Error(responseWriter, "task run not found", http.StatusNotFound)
+		return
+	}
+	blueclawRequest := taskApprovalRequest{TaskRunID: taskRunID, Decision: strings.TrimSpace(approvalRequest.Decision)}
+	var approvalResponse any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, "/admin/api/run/approve", blueclawRequest, &approvalResponse); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, approvalResponse)
+}
+
+func (service *Service) taskRunIsVisibleToViewer(ctx context.Context, taskRunID string, viewerEmail string, isViewerAdmin bool) bool {
+	var detail map[string]any
+	path := scopedTaskDetailPath(taskRunID, viewerEmail, isViewerAdmin)
+	return service.blueclawJSONRequest(ctx, http.MethodGet, path, nil, &detail) == nil
 }
 
 func (service *Service) proxyScopedTaskDelete(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {

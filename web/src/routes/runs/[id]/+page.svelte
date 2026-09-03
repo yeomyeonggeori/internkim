@@ -19,12 +19,14 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
 	import { onMount } from 'svelte';
+	import ApprovalDecision from '../approval-decision.svelte';
 	import {
 		eventLane,
 		fetchServiceLogs,
 		fetchTaskDetail,
 		formatCostUSD,
 		formatEventBody,
+		pendingApprovalOf,
 		summarizeTimeline,
 		taskDetailShareText,
 		taskEventShareText,
@@ -54,6 +56,7 @@
 	let serviceLogsError = $state('');
 
 	const summary = $derived(detail ? summarizeTimeline(detail.taskEvents) : undefined);
+	const pendingApproval = $derived(detail ? pendingApprovalOf(detail) : undefined);
 	const visibleTaskEvents = $derived(detail ? filterTaskEvents(detail.taskEvents) : []);
 	const taskShareText = $derived(detail ? taskDetailShareText(detail) : '');
 	const visibleEventsShareText = $derived(detail ? taskDetailShareText(detail, { events: visibleTaskEvents, title: 'Visible Task Events' }) : '');
@@ -210,6 +213,10 @@
 							</div>
 						{/if}
 					</div>
+					{#if pendingApproval}
+						<Separator />
+						<ApprovalDecision approval={pendingApproval} {text} onDecided={load} />
+					{/if}
 					{#if detail.taskRun.failureReason}
 						<Separator />
 						<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">

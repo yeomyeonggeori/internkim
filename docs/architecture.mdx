@@ -110,7 +110,8 @@ tells browsers whether the company's computer is currently connected at all.
 The app reads and writes the record directly as whoever signed in, so
 attendance, leave, the calendar, work and the org chart never touch the host.
 The screens that show what only the host knows — the messenger, mail, the
-agent's runs, its memory, its files — go through the gateway instead:
+agent's runs and the approvals they wait on, its memory, its files — go through
+the gateway instead:
 
 1. The browser sends `{ kind: "call", capability, body }` down its gateway
    socket. The token was verified when the socket opened; nothing in the body

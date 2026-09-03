@@ -1,5 +1,7 @@
 <script lang="ts">
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
+	import { page } from '$app/state';
+	import { pendingApprovalsPathOf, taskRunDetailPathOf } from '$lib/app-shell';
 	import { Badge } from '$lib/components/ui/badge';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -13,6 +15,7 @@
 	import PersonNameCell from '$lib/components/person-name-cell.svelte';
 	import { goto } from '$app/navigation';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
+	import HourglassIcon from '@lucide/svelte/icons/hourglass';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
@@ -162,13 +165,8 @@
 		return taskRun.llmCostUSD && taskRun.llmCostUSD > 0 ? formatCostUSD(taskRun.llmCostUSD) : '—';
 	}
 
-	function taskRunDetailPath(taskRunID: string): string {
-		const basePath = '/runs';
-		return `${basePath}/${encodeURIComponent(taskRunID)}`;
-	}
-
 	function openTaskRun(taskRunID: string) {
-		void goto(taskRunDetailPath(taskRunID));
+		void goto(taskRunDetailPathOf(page.url.pathname, taskRunID));
 	}
 
 	function handleTaskRunKeydown(event: KeyboardEvent, taskRunID: string) {
@@ -229,13 +227,19 @@
 		{/if}
 	</section>
 
-	<UnderlineTabs.Root value={statusFilter} onValueChange={selectStatus}>
-		<UnderlineTabs.List>
-			{#each statusFilters as filter (filter.value)}
-				<UnderlineTabs.Trigger value={filter.value}>{filter.label}</UnderlineTabs.Trigger>
-			{/each}
-		</UnderlineTabs.List>
-	</UnderlineTabs.Root>
+	<div class="flex flex-wrap items-center justify-between gap-3">
+		<UnderlineTabs.Root value={statusFilter} onValueChange={selectStatus}>
+			<UnderlineTabs.List>
+				{#each statusFilters as filter (filter.value)}
+					<UnderlineTabs.Trigger value={filter.value}>{filter.label}</UnderlineTabs.Trigger>
+				{/each}
+			</UnderlineTabs.List>
+		</UnderlineTabs.Root>
+		<Button href={pendingApprovalsPathOf(page.url.pathname)} variant="outline" size="sm">
+			<HourglassIcon data-icon="inline-start" />
+			{text.approvalsTitle}
+		</Button>
+	</div>
 
 	{#if actionError}
 		<Card.Root size="sm" class="border-destructive/30">
