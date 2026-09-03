@@ -27,6 +27,7 @@ let holdersToken = '';
 let readersToken = '';
 let departedToken = '';
 let sessionToken = '';
+let administratorsToken = '';
 
 beforeAll(async () => {
 	const provisioned = await provisionCompany(
@@ -35,6 +36,17 @@ beforeAll(async () => {
 		`${slug}-admin@example.test`
 	);
 	companyID = provisioned.companyID;
+
+	const { data: administrator } = await client.auth.admin.createUser({
+		email: `${slug}-admin@example.test`,
+		email_confirm: true
+	});
+	await client
+		.from('member')
+		.update({ user_id: administrator.user!.id, status: 'active' })
+		.eq('id', provisioned.adminMemberID);
+	administratorsToken = await issuePersonalAccessToken(client, provisioned.adminMemberID, 'administrator', 'delete');
+
 	memberID = await addMember(client, companyID, `${slug}-holder@example.test`);
 
 	const { data: account } = await client.auth.admin.createUser({
@@ -324,6 +336,62 @@ describe('input the catalog does not publish', () => {
 	});
 });
 
+function pictureCall(token: string, picture?: File): Promise<RouteAnswer> {
+	const carried = new FormData();
+	if (picture) carried.set('file', picture);
+	return reach('/company/profile-image', token, {
+		method: 'POST',
+		...(picture ? { body: carried } : { headers: { 'Content-Type': 'application/json' }, body: '{}' })
+	});
+}
+
+describe("the company's picture", () => {
+	const png = () => new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'logo.png', { type: 'image/png' });
+
+	test('is refused to a token that may only read', async () => {
+		const answered = await pictureCall(readersToken, png());
+
+		expect(answered.status).toBe(403);
+	});
+
+	test('is refused to somebody who does not administer the company', async () => {
+		const answered = await pictureCall(holdersToken, png());
+
+		expect(answered.status).toBe(403);
+		expect(messageOf(answered)).toContain('administrator');
+	});
+
+	test('is refused when the call carries no picture, and when it carries something else', async () => {
+		expect((await pictureCall(administratorsToken)).status).toBe(400);
+		const document = new File([new Uint8Array([37, 80, 68, 70])], 'terms.pdf', { type: 'application/pdf' });
+		expect((await pictureCall(administratorsToken, document)).status).toBe(400);
+	});
+
+	// The bucket is private, so what comes back is an address somebody signed
+	// rather than the path it was stored at, and company_settings_get answers
+	// the same picture from the same row.
+	test('is kept for an administrator, and answered as an address a browser can show', async () => {
+		const answered = await pictureCall(administratorsToken, png());
+
+		expect(answered.status).toBe(200);
+		const kept = (answered.body as { profileImageURL: string }).profileImageURL;
+		expect(kept).toContain('/storage/v1/');
+
+		const settings = await invoke('company_settings_get', administratorsToken, {});
+		expect((settings.body as { result: { profileImageURL: string } }).result.profileImageURL).toContain('/storage/v1/');
+	});
+
+	test('is taken down by an administrator, and nothing is answered in its place', async () => {
+		const answered = await reach('/company/profile-image', administratorsToken, { method: 'DELETE' });
+
+		expect(answered.status).toBe(200);
+		expect((answered.body as { profileImageURL: string | null }).profileImageURL).toBeNull();
+
+		const settings = await invoke('company_settings_get', administratorsToken, {});
+		expect((settings.body as { result: { profileImageURL: string | null } }).result.profileImageURL).toBeNull();
+	});
+});
+
 type Operation = { path: string; method: string };
 type PathsOfDocument = Record<string, Record<string, unknown> | undefined>;
 
@@ -386,6 +454,8 @@ describe('the documented endpoints', () => {
 			'post /token',
 			'delete /token',
 			'post /files',
+			'post /company/profile-image',
+			'delete /company/profile-image',
 			'post /agent/messages',
 			'get /agent/replies'
 		];

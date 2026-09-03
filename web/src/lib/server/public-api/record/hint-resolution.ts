@@ -79,6 +79,7 @@ function collapseWhitespace(text: string): string {
 }
 
 const notFoundCodes = {
+	holiday: 'company_holiday_not_found',
 	person: 'person_not_found',
 	participant: 'task_participant_not_found',
 	supervisor: 'supervisor_not_found',

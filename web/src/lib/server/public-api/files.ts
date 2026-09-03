@@ -1,4 +1,4 @@
-import { assetBucket, attachmentKind, digestOf, sharedAssetPath } from './asset-address';
+import { assetBucket, digestOf, sharedAssetPath } from './asset-address';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
 import type { ControlPlaneCredentials } from '$lib/server/control-plane';
 
@@ -11,10 +11,12 @@ export const largestFileAnAttachmentCanBe = 25 * 1024 * 1024;
 const defaultContentType = 'application/octet-stream';
 const alreadyKeptStatus = 409;
 
+export type StoreAnswer = { ok: boolean; status: number; text: () => Promise<string> };
+
 export type PutDocument = (
 	url: string,
-	options: { method: string; headers: Record<string, string>; body: Uint8Array<ArrayBuffer> }
-) => Promise<{ ok: boolean; status: number }>;
+	options: { method: string; headers: Record<string, string>; body?: Uint8Array<ArrayBuffer> }
+) => Promise<StoreAnswer>;
 
 export type KeptFile = {
 	path: string;
@@ -60,12 +62,13 @@ export class AssetStoreRefused extends Error {
 export async function keepFileInTheBucket(
 	credentials: ControlPlaneCredentials,
 	companyID: string,
+	kind: string,
 	bytes: Uint8Array<ArrayBuffer>,
 	contentType: string,
 	putDocument: PutDocument = putThroughTheRuntime
 ): Promise<KeptFile> {
 	const digest = await digestOf(bytes);
-	const path = sharedAssetPath(companyID, attachmentKind, digest, contentType);
+	const path = sharedAssetPath(companyID, kind, digest, contentType);
 	const response = await putDocument(objectAddress(credentials.projectURL, path), {
 		method: 'POST',
 		headers: {
@@ -76,10 +79,43 @@ export async function keepFileInTheBucket(
 		},
 		body: bytes
 	});
-	if (!response.ok && response.status !== alreadyKeptStatus) {
+	if (!response.ok && !(await namesAFileAlreadyKept(response))) {
 		throw new AssetStoreRefused(`the asset store answered ${response.status} for this file`);
 	}
 	return { path, digest, contentType, sizeBytes: bytes.byteLength };
+}
+
+// The store answers a path it already holds with HTTP 400 and its own
+// statusCode of 409, so the HTTP status alone does not say whether the bytes
+// are there. Storage API: https://supabase.com/docs/reference/javascript/storage-from-upload
+async function namesAFileAlreadyKept(response: StoreAnswer): Promise<boolean> {
+	if (response.status === alreadyKeptStatus) return true;
+	const written = await response.text().catch(() => '');
+	if (!written.trim().startsWith('{')) return false;
+	try {
+		const said: unknown = JSON.parse(written);
+		if (typeof said !== 'object' || said === null) return false;
+		return (said as { statusCode?: unknown }).statusCode === String(alreadyKeptStatus);
+	} catch {
+		return false;
+	}
+}
+
+export async function dropFileFromTheBucket(
+	credentials: ControlPlaneCredentials,
+	path: string,
+	putDocument: PutDocument = putThroughTheRuntime
+): Promise<void> {
+	const response = await putDocument(objectAddress(credentials.projectURL, path), {
+		method: 'DELETE',
+		headers: {
+			apikey: credentials.serviceRoleKey,
+			Authorization: `Bearer ${credentials.serviceRoleKey}`
+		}
+	});
+	if (!response.ok) {
+		throw new AssetStoreRefused(`the asset store answered ${response.status} taking this file back out`);
+	}
 }
 
 function objectAddress(projectURL: string, path: string): string {

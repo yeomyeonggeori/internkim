@@ -9962,12 +9962,12 @@
       "worksOffline": true
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
       "canonicalName": "company_info_get",
-      "description": "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as 사업자등록번호). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
+      "description": "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -9995,97 +9995,107 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "address": {
             "type": "string"
           },
-          "effects": {
+          "bankAccount": {
+            "type": "string"
+          },
+          "brandName": {
+            "type": "string"
+          },
+          "capital": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "employeeCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fax": {
+            "type": "string"
+          },
+          "fiscalYearEnd": {
+            "type": "string"
+          },
+          "foundedDate": {
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "legalAttributes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "missingFields": {
             "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
+              "type": "string"
             },
             "type": "array"
           },
-          "errorCode": {
+          "name": {
             "type": "string"
           },
-          "failureStage": {
+          "officeAddress": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
+          "phone": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
+          "representative": {
             "type": "string"
           },
-          "provider": {
+          "representativeTitle": {
             "type": "string"
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
+          "slogan": {
             "type": "string"
           },
-          "status": {
+          "updatedAt": {
             "type": "string"
           },
-          "toolName": {
+          "website": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "language",
+          "name",
+          "brandName",
+          "slogan",
+          "description",
+          "representative",
+          "representativeTitle",
+          "address",
+          "officeAddress",
+          "jurisdiction",
+          "bankAccount",
+          "legalAttributes",
+          "foundedDate",
+          "capital",
+          "fiscalYearEnd",
+          "employeeCount",
+          "phone",
+          "fax",
+          "email",
+          "website",
+          "missingFields",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -10093,13 +10103,124 @@
       "policyResource": "tool:company_info_get",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "bankAccount": {
+              "type": "string"
+            },
+            "brandName": {
+              "type": "string"
+            },
+            "capital": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "employeeCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "fax": {
+              "type": "string"
+            },
+            "fiscalYearEnd": {
+              "type": "string"
+            },
+            "foundedDate": {
+              "type": "string"
+            },
+            "jurisdiction": {
+              "type": "string"
+            },
+            "language": {
+              "type": "string"
+            },
+            "legalAttributes": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "propertyNames": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "missingFields": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "officeAddress": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "representative": {
+              "type": "string"
+            },
+            "representativeTitle": {
+              "type": "string"
+            },
+            "slogan": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "website": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "language",
+            "name",
+            "brandName",
+            "slogan",
+            "description",
+            "representative",
+            "representativeTitle",
+            "address",
+            "officeAddress",
+            "jurisdiction",
+            "bankAccount",
+            "legalAttributes",
+            "foundedDate",
+            "capital",
+            "fiscalYearEnd",
+            "employeeCount",
+            "phone",
+            "fax",
+            "email",
+            "website",
+            "missingFields",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
@@ -10109,7 +10230,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report a change ('회사 주소 바뀌었어'). Put country-specific identifiers (사업자등록번호, 법인등록번호, 업태, 종목, EIN …) into legalAttributes as a label-to-value JSON object string.",
+      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -10133,7 +10254,7 @@
             "type": "string"
           },
           "capital": {
-            "description": "Paid-in capital, e.g. '5억 원'.",
+            "description": "Paid-in capital, written the way the company states it, e.g. '500,000,000 KRW'.",
             "type": "string"
           },
           "description": {
@@ -10155,7 +10276,7 @@
             "type": "string"
           },
           "fiscalYearEnd": {
-            "description": "Fiscal year end month, e.g. '12월'.",
+            "description": "Fiscal year end month, e.g. 'December'.",
             "type": "string"
           },
           "foundedDate": {
@@ -10163,7 +10284,7 @@
             "type": "string"
           },
           "jurisdiction": {
-            "description": "Jurisdiction of incorporation for contract preambles, e.g. '대한민국' or 'the State of Delaware'.",
+            "description": "Jurisdiction of incorporation for contract preambles, e.g. 'the Republic of Korea' or 'the State of Delaware'.",
             "type": "string"
           },
           "language": {
@@ -10171,11 +10292,11 @@
             "type": "string"
           },
           "legalAttributes": {
-            "description": "JSON object string of country-specific label-to-value pairs, e.g. {\"사업자등록번호\": \"123-45-67890\", \"업태\": \"서비스\"}. Labels print on documents as-is.",
+            "description": "JSON object string of country-specific label-to-value pairs, e.g. {\"Business Registration Number\": \"123-45-67890\", \"Business Type\": \"Services\"}. Write each label in the language the country prints it in, because labels print on documents as-is.",
             "type": "string"
           },
           "name": {
-            "description": "Legal company name, e.g. '주식회사 여명거리'.",
+            "description": "Legal company name as it is registered, including the form of incorporation.",
             "type": "string"
           },
           "officeAddress": {
@@ -10191,7 +10312,7 @@
             "type": "string"
           },
           "representativeTitle": {
-            "description": "Representative's title. Defaults to 대표이사 (ko) / CEO (en).",
+            "description": "Representative's title. Defaults to the one customary in the language asked for.",
             "type": "string"
           },
           "slogan": {
@@ -10218,97 +10339,107 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "address": {
             "type": "string"
           },
-          "effects": {
+          "bankAccount": {
+            "type": "string"
+          },
+          "brandName": {
+            "type": "string"
+          },
+          "capital": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "employeeCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fax": {
+            "type": "string"
+          },
+          "fiscalYearEnd": {
+            "type": "string"
+          },
+          "foundedDate": {
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "legalAttributes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "missingFields": {
             "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
+              "type": "string"
             },
             "type": "array"
           },
-          "errorCode": {
+          "name": {
             "type": "string"
           },
-          "failureStage": {
+          "officeAddress": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
+          "phone": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
+          "representative": {
             "type": "string"
           },
-          "provider": {
+          "representativeTitle": {
             "type": "string"
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
+          "slogan": {
             "type": "string"
           },
-          "status": {
+          "updatedAt": {
             "type": "string"
           },
-          "toolName": {
+          "website": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "language",
+          "name",
+          "brandName",
+          "slogan",
+          "description",
+          "representative",
+          "representativeTitle",
+          "address",
+          "officeAddress",
+          "jurisdiction",
+          "bankAccount",
+          "legalAttributes",
+          "foundedDate",
+          "capital",
+          "fiscalYearEnd",
+          "employeeCount",
+          "phone",
+          "fax",
+          "email",
+          "website",
+          "missingFields",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -10316,10 +10447,121 @@
       "policyResource": "tool:company_info_set",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "bankAccount": {
+              "type": "string"
+            },
+            "brandName": {
+              "type": "string"
+            },
+            "capital": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "employeeCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "fax": {
+              "type": "string"
+            },
+            "fiscalYearEnd": {
+              "type": "string"
+            },
+            "foundedDate": {
+              "type": "string"
+            },
+            "jurisdiction": {
+              "type": "string"
+            },
+            "language": {
+              "type": "string"
+            },
+            "legalAttributes": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "propertyNames": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "missingFields": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "officeAddress": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "representative": {
+              "type": "string"
+            },
+            "representativeTitle": {
+              "type": "string"
+            },
+            "slogan": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "website": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "language",
+            "name",
+            "brandName",
+            "slogan",
+            "description",
+            "representative",
+            "representativeTitle",
+            "address",
+            "officeAddress",
+            "jurisdiction",
+            "bankAccount",
+            "legalAttributes",
+            "foundedDate",
+            "capital",
+            "fiscalYearEnd",
+            "employeeCount",
+            "phone",
+            "fax",
+            "email",
+            "website",
+            "missingFields",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
       "answeredBy": "company",
@@ -11272,6 +11514,2670 @@
       "sideEffectClass": "workspace_write",
       "version": "1",
       "worksOffline": true
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_settings_get",
+      "description": "What the company is set to: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_settings_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_settings_get",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "country": {
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "leaveDays": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locale": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profileImageURL": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "workLocations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "color"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "country",
+          "locale",
+          "timeZone",
+          "currencyCode",
+          "workLocations",
+          "leaveDays",
+          "profileImageURL"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_settings_get",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "country": {
+              "type": "string"
+            },
+            "currencyCode": {
+              "type": "string"
+            },
+            "leaveDays": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locale": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "profileImageURL": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "timeZone": {
+              "type": "string"
+            },
+            "workLocations": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "color"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "country",
+            "locale",
+            "timeZone",
+            "currencyCode",
+            "workLocations",
+            "leaveDays",
+            "profileImageURL"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_settings_update",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Change what the company is set to. Only the fields the call names change. This is an administrator's, and it is company-wide: the time zone and the language decide what every colleague sees, so put it to the requester before calling.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "currencyCode": {
+            "description": "The currency amounts are held in, as an ISO 4217 code, e.g. 'KRW'.",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "leaveDays": {
+            "description": "The annual leave a person is granted, in days. This is the same number the leave policy's annual grant carries.",
+            "type": "number"
+          },
+          "locale": {
+            "description": "The language the company works in, as a BCP 47 tag, e.g. 'ko' or 'en-US'.",
+            "maxLength": 16,
+            "minLength": 2,
+            "type": "string"
+          },
+          "name": {
+            "description": "The company's name as the app shows it. Not the legal name a document prints, which is company_info_set's.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "The company's time zone as an IANA name, e.g. 'Asia/Seoul'. Every date and time the record answers is read in it.",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workLocations": {
+            "description": "The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "The colour the attendance screens draw it in, as a CSS colour. Omit to leave it uncoloured.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The workplace's name as people say it, e.g. 'the office' or 'home'.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_settings_update",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_settings_update",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "country": {
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "leaveDays": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locale": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profileImageURL": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "workLocations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "color"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "country",
+          "locale",
+          "timeZone",
+          "currencyCode",
+          "workLocations",
+          "leaveDays",
+          "profileImageURL"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_settings_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "country": {
+              "type": "string"
+            },
+            "currencyCode": {
+              "type": "string"
+            },
+            "leaveDays": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locale": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "profileImageURL": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "timeZone": {
+              "type": "string"
+            },
+            "workLocations": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "color"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "country",
+            "locale",
+            "timeZone",
+            "currencyCode",
+            "workLocations",
+            "leaveDays",
+            "profileImageURL"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_holiday_list",
+      "description": "The days this company is closed, earliest first. Use this to answer 'are we closed on the third of October' or to find the holiday another company_holiday tool is about to change. A holiday that recurs annually falls on the same date every year, so it is answered for whichever year is asked for.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "year": {
+            "description": "Only the holidays falling in this calendar year. A holiday that recurs annually is counted in every year. Omit for all of them.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_holiday_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_holiday_list",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "holidays": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "createdAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "date": {
+                  "type": "string"
+                },
+                "holidayID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "recursAnnually": {
+                  "type": "boolean"
+                },
+                "updatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "holidayID",
+                "name",
+                "date",
+                "recursAnnually",
+                "createdAt",
+                "updatedAt"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "count",
+          "year",
+          "holidays"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_holiday_list",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "holidays": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "createdAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "holidayID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "recursAnnually": {
+                    "type": "boolean"
+                  },
+                  "updatedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "holidayID",
+                  "name",
+                  "date",
+                  "recursAnnually",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "year": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "count",
+            "year",
+            "holidays"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_holiday_add",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Add a day the company is closed. Adding a holiday is an administrator's. A date the company already holds a holiday on is refused, so read company_holiday_list first when the requester may be repeating one.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "description": "The day the company is closed. A day as yyyy-mm-dd.",
+            "type": "string"
+          },
+          "name": {
+            "description": "What the day is called, e.g. 'National Foundation Day'.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "recursAnnually": {
+            "description": "Set true for a day that falls on the same date every year. Defaults to false, which is what a one-off closure is.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "description": "The day the company is closed. A day as yyyy-mm-dd.",
+            "type": "string"
+          },
+          "name": {
+            "description": "What the day is called, e.g. 'National Foundation Day'.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "recursAnnually": {
+            "description": "Set true for a day that falls on the same date every year. Defaults to false, which is what a one-off closure is.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "date",
+          "name"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_holiday_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_holiday_add",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date": {
+            "type": "string"
+          },
+          "holidayID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recursAnnually": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "holidayID",
+          "name",
+          "date",
+          "recursAnnually",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_holiday_add",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "createdAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "date": {
+              "type": "string"
+            },
+            "holidayID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "recursAnnually": {
+              "type": "boolean"
+            },
+            "updatedAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "holidayID",
+            "name",
+            "date",
+            "recursAnnually",
+            "createdAt",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_holiday_update",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Change the day, the name, or the yearly recurrence of a holiday the company already holds. Only the fields the call names change. Changing a holiday is an administrator's.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "description": "The day it actually falls on. A day as yyyy-mm-dd. Omit to keep the day it has.",
+            "type": "string"
+          },
+          "name": {
+            "description": "What the day should be called. Omit to keep the name it has.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "recursAnnually": {
+            "description": "Whether it falls on the same date every year. Omit to keep what it says now.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "description": "The day it actually falls on. A day as yyyy-mm-dd. Omit to keep the day it has.",
+            "type": "string"
+          },
+          "holidayHint": {
+            "description": "Identifies the company holiday: its exact holiday ID, its exact date as yyyy-mm-dd, or its name as a company_holiday_list result shows it. A name only one holiday carries resolves; a name several carry fails with the candidates to choose between.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "description": "What the day should be called. Omit to keep the name it has.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "recursAnnually": {
+            "description": "Whether it falls on the same date every year. Omit to keep what it says now.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "holidayHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_holiday_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_holiday_update",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date": {
+            "type": "string"
+          },
+          "holidayID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recursAnnually": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "holidayID",
+          "name",
+          "date",
+          "recursAnnually",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_holiday_update",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "createdAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "date": {
+              "type": "string"
+            },
+            "holidayID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "recursAnnually": {
+              "type": "boolean"
+            },
+            "updatedAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "holidayID",
+            "name",
+            "date",
+            "recursAnnually",
+            "createdAt",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_holiday_delete",
+      "description": "Take a day off the company holiday list, so it counts as a working day again. Removing a holiday is an administrator's, and it changes what every colleague is expected to work, so put it to the requester before calling.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "holidayHint": {
+            "description": "Identifies the company holiday: its exact holiday ID, its exact date as yyyy-mm-dd, or its name as a company_holiday_list result shows it. A name only one holiday carries resolves; a name several carry fails with the candidates to choose between.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "holidayHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_holiday_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_holiday_delete",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date": {
+            "type": "string"
+          },
+          "holidayID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recursAnnually": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "holidayID",
+          "name",
+          "date",
+          "recursAnnually",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_holiday_delete",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "createdAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "date": {
+              "type": "string"
+            },
+            "holidayID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "recursAnnually": {
+              "type": "boolean"
+            },
+            "updatedAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "holidayID",
+            "name",
+            "date",
+            "recursAnnually",
+            "createdAt",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "attendance_work_policy_get",
+      "description": "The hours this company works: the policy in force and every earlier one with the day it took effect, so a past day is judged by the policy of that day. Use this to answer 'what are our working hours', 'is Saturday a working day', or 'when did the four-day week start'. people carries the work hours and daily minimum held for one colleague where they differ from the company's.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_work_policy_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "attendance_work_policy_get",
+      "namespace": "attendance",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "people": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "minimumDailyMinutes": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "personID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "workHours": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "items": {},
+                        "type": "array"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "personID",
+                "workHours",
+                "minimumDailyMinutes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "revisions": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "breakPeriods": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "endTime": {
+                                "type": "string"
+                              },
+                              "startTime": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "startTime",
+                              "endTime"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "coreEndTime": {
+                          "type": "string"
+                        },
+                        "coreStartTime": {
+                          "type": "string"
+                        },
+                        "coreTimeEnabled": {
+                          "type": "boolean"
+                        },
+                        "dailyTargetMinutes": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "effectiveDate": {
+                          "type": "string"
+                        },
+                        "fixedEndTime": {
+                          "type": "string"
+                        },
+                        "fixedStartTime": {
+                          "type": "string"
+                        },
+                        "nightEndTime": {
+                          "type": "string"
+                        },
+                        "nightStartTime": {
+                          "type": "string"
+                        },
+                        "referenceStartTime": {
+                          "type": "string"
+                        },
+                        "weeklyTargetMinutes": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "workMode": {
+                          "type": "string"
+                        },
+                        "workingWeekdays": {
+                          "items": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "effectiveDate",
+                        "workMode",
+                        "workingWeekdays",
+                        "dailyTargetMinutes",
+                        "weeklyTargetMinutes",
+                        "referenceStartTime",
+                        "fixedStartTime",
+                        "fixedEndTime",
+                        "coreTimeEnabled",
+                        "coreStartTime",
+                        "coreEndTime",
+                        "breakPeriods",
+                        "nightStartTime",
+                        "nightEndTime"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "version": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "revisions"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "workMode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "timeZone",
+          "workMode",
+          "policy",
+          "people"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_work_policy_get",
+      "privacyClass": "workspace_attendance",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "people": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "minimumDailyMinutes": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "personID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "workHours": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "items": {},
+                          "type": "array"
+                        },
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "personID",
+                  "workHours",
+                  "minimumDailyMinutes"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "policy": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "revisions": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "breakPeriods": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "endTime": {
+                                  "type": "string"
+                                },
+                                "startTime": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "startTime",
+                                "endTime"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "coreEndTime": {
+                            "type": "string"
+                          },
+                          "coreStartTime": {
+                            "type": "string"
+                          },
+                          "coreTimeEnabled": {
+                            "type": "boolean"
+                          },
+                          "dailyTargetMinutes": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "effectiveDate": {
+                            "type": "string"
+                          },
+                          "fixedEndTime": {
+                            "type": "string"
+                          },
+                          "fixedStartTime": {
+                            "type": "string"
+                          },
+                          "nightEndTime": {
+                            "type": "string"
+                          },
+                          "nightStartTime": {
+                            "type": "string"
+                          },
+                          "referenceStartTime": {
+                            "type": "string"
+                          },
+                          "weeklyTargetMinutes": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "workMode": {
+                            "type": "string"
+                          },
+                          "workingWeekdays": {
+                            "items": {
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "effectiveDate",
+                          "workMode",
+                          "workingWeekdays",
+                          "dailyTargetMinutes",
+                          "weeklyTargetMinutes",
+                          "referenceStartTime",
+                          "fixedStartTime",
+                          "fixedEndTime",
+                          "coreTimeEnabled",
+                          "coreStartTime",
+                          "coreEndTime",
+                          "breakPeriods",
+                          "nightStartTime",
+                          "nightEndTime"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "version": {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "revisions"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "timeZone": {
+              "type": "string"
+            },
+            "workMode": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "timeZone",
+            "workMode",
+            "policy",
+            "people"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "attendance_work_policy_set",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Set the hours this company works from today on. The earlier policies stay, each with the day it took effect, so nothing already worked is re-judged. The whole policy is written at once, so read attendance_work_policy_get first and send it back with the fields that change. This is an administrator's and it is company-wide.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "breakPeriods": {
+            "description": "The breaks the day holds, which do not count toward the target. They may not overlap.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "endTime": {
+                  "description": "When the break ends. A time of day as 24-hour HH:MM.",
+                  "type": "string"
+                },
+                "startTime": {
+                  "description": "When the break starts. A time of day as 24-hour HH:MM.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "startTime",
+                "endTime"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "coreEndTime": {
+            "description": "When the core hours end. A time of day as 24-hour HH:MM. An empty string when there are none.",
+            "type": "string"
+          },
+          "coreStartTime": {
+            "description": "When the core hours start. A time of day as 24-hour HH:MM. An empty string when there are none.",
+            "type": "string"
+          },
+          "coreTimeEnabled": {
+            "description": "Whether flexible work has hours everybody has to be present for. False under fixed and autonomous work.",
+            "type": "boolean"
+          },
+          "dailyTargetMinutes": {
+            "description": "The minutes a working day is expected to hold, breaks excluded. Zero only under autonomous work.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fixedEndTime": {
+            "description": "When the day ends under fixed work. A time of day as 24-hour HH:MM. An empty string under any other work mode.",
+            "type": "string"
+          },
+          "fixedStartTime": {
+            "description": "When the day starts under fixed work. A time of day as 24-hour HH:MM. An empty string under any other work mode.",
+            "type": "string"
+          },
+          "nightEndTime": {
+            "description": "When night work ends. A time of day as 24-hour HH:MM.",
+            "type": "string"
+          },
+          "nightStartTime": {
+            "description": "When night work starts. A time of day as 24-hour HH:MM.",
+            "type": "string"
+          },
+          "referenceStartTime": {
+            "description": "The hour a day is measured from when nobody is held to fixed hours. A time of day as 24-hour HH:MM.",
+            "type": "string"
+          },
+          "weeklyTargetMinutes": {
+            "description": "The minutes a working week is expected to hold: dailyTargetMinutes times the working weekdays, and zero under autonomous work.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "workMode": {
+            "description": "fixed for set hours everybody keeps, flexible for hours a person chooses around a core, autonomous for no hours at all.",
+            "enum": [
+              "autonomous",
+              "flexible",
+              "fixed"
+            ],
+            "type": "string"
+          },
+          "workingWeekdays": {
+            "description": "The weekdays that are working days, Monday as 1 through Sunday as 7.",
+            "items": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workMode",
+          "workingWeekdays",
+          "dailyTargetMinutes",
+          "weeklyTargetMinutes",
+          "referenceStartTime",
+          "fixedStartTime",
+          "fixedEndTime",
+          "coreTimeEnabled",
+          "coreStartTime",
+          "coreEndTime",
+          "breakPeriods",
+          "nightStartTime",
+          "nightEndTime"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_work_policy_set",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "attendance_work_policy_set",
+      "namespace": "attendance",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "effectiveDate": {
+            "type": "string"
+          },
+          "policy": {
+            "additionalProperties": false,
+            "properties": {
+              "revisions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "breakPeriods": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "endTime": {
+                            "type": "string"
+                          },
+                          "startTime": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "startTime",
+                          "endTime"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "coreEndTime": {
+                      "type": "string"
+                    },
+                    "coreStartTime": {
+                      "type": "string"
+                    },
+                    "coreTimeEnabled": {
+                      "type": "boolean"
+                    },
+                    "dailyTargetMinutes": {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "effectiveDate": {
+                      "type": "string"
+                    },
+                    "fixedEndTime": {
+                      "type": "string"
+                    },
+                    "fixedStartTime": {
+                      "type": "string"
+                    },
+                    "nightEndTime": {
+                      "type": "string"
+                    },
+                    "nightStartTime": {
+                      "type": "string"
+                    },
+                    "referenceStartTime": {
+                      "type": "string"
+                    },
+                    "weeklyTargetMinutes": {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "workMode": {
+                      "type": "string"
+                    },
+                    "workingWeekdays": {
+                      "items": {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "effectiveDate",
+                    "workMode",
+                    "workingWeekdays",
+                    "dailyTargetMinutes",
+                    "weeklyTargetMinutes",
+                    "referenceStartTime",
+                    "fixedStartTime",
+                    "fixedEndTime",
+                    "coreTimeEnabled",
+                    "coreStartTime",
+                    "coreEndTime",
+                    "breakPeriods",
+                    "nightStartTime",
+                    "nightEndTime"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "version": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "revisions"
+            ],
+            "type": "object"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "timeZone",
+          "effectiveDate",
+          "policy"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_work_policy_set",
+      "privacyClass": "workspace_attendance",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "effectiveDate": {
+              "type": "string"
+            },
+            "policy": {
+              "additionalProperties": false,
+              "properties": {
+                "revisions": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "breakPeriods": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "endTime": {
+                              "type": "string"
+                            },
+                            "startTime": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "startTime",
+                            "endTime"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "coreEndTime": {
+                        "type": "string"
+                      },
+                      "coreStartTime": {
+                        "type": "string"
+                      },
+                      "coreTimeEnabled": {
+                        "type": "boolean"
+                      },
+                      "dailyTargetMinutes": {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      "effectiveDate": {
+                        "type": "string"
+                      },
+                      "fixedEndTime": {
+                        "type": "string"
+                      },
+                      "fixedStartTime": {
+                        "type": "string"
+                      },
+                      "nightEndTime": {
+                        "type": "string"
+                      },
+                      "nightStartTime": {
+                        "type": "string"
+                      },
+                      "referenceStartTime": {
+                        "type": "string"
+                      },
+                      "weeklyTargetMinutes": {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      "workMode": {
+                        "type": "string"
+                      },
+                      "workingWeekdays": {
+                        "items": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "effectiveDate",
+                      "workMode",
+                      "workingWeekdays",
+                      "dailyTargetMinutes",
+                      "weeklyTargetMinutes",
+                      "referenceStartTime",
+                      "fixedStartTime",
+                      "fixedEndTime",
+                      "coreTimeEnabled",
+                      "coreStartTime",
+                      "coreEndTime",
+                      "breakPeriods",
+                      "nightStartTime",
+                      "nightEndTime"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "version": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "version",
+                "revisions"
+              ],
+              "type": "object"
+            },
+            "timeZone": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "timeZone",
+            "effectiveDate",
+            "policy"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "attendance_leave_policy_get",
+      "description": "The leave this company offers: every type with whether it is paid, how much it grants and in what portions of a day it may be taken, and the day the leave year starts. Use this to answer 'what leave can I take' or 'is sick leave paid'. The type names are what leave_request's kind takes.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_leave_policy_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "attendance_leave_policy_get",
+      "namespace": "attendance",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "balanceTrackingMode": {
+            "type": "string"
+          },
+          "fiscalYearStartDay": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fiscalYearStartMonth": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "leaveTypes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "allowedUnits": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "balanceMode": {
+                  "type": "string"
+                },
+                "carryoverEnabled": {
+                  "type": "boolean"
+                },
+                "carryoverLimitMilliDays": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "expiryMode": {
+                  "type": "string"
+                },
+                "expiryMonths": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "grantAmountMilliDays": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "grantCadence": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "includeInSummary": {
+                  "type": "boolean"
+                },
+                "isActive": {
+                  "type": "boolean"
+                },
+                "isSystem": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "paid": {
+                  "type": "boolean"
+                },
+                "sortOrder": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "systemKind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "systemKind",
+                "name",
+                "paid",
+                "balanceMode",
+                "grantCadence",
+                "grantAmountMilliDays",
+                "expiryMode",
+                "carryoverEnabled",
+                "allowedUnits",
+                "includeInSummary",
+                "isActive",
+                "isSystem",
+                "sortOrder"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "version": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "balanceTrackingMode",
+          "fiscalYearStartMonth",
+          "fiscalYearStartDay",
+          "leaveTypes",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_leave_policy_get",
+      "privacyClass": "workspace_leave",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "balanceTrackingMode": {
+              "type": "string"
+            },
+            "fiscalYearStartDay": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "fiscalYearStartMonth": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "leaveTypes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "allowedUnits": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "balanceMode": {
+                    "type": "string"
+                  },
+                  "carryoverEnabled": {
+                    "type": "boolean"
+                  },
+                  "carryoverLimitMilliDays": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "expiryMode": {
+                    "type": "string"
+                  },
+                  "expiryMonths": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "grantAmountMilliDays": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "grantCadence": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "includeInSummary": {
+                    "type": "boolean"
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  },
+                  "isSystem": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "paid": {
+                    "type": "boolean"
+                  },
+                  "sortOrder": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "systemKind": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "systemKind",
+                  "name",
+                  "paid",
+                  "balanceMode",
+                  "grantCadence",
+                  "grantAmountMilliDays",
+                  "expiryMode",
+                  "carryoverEnabled",
+                  "allowedUnits",
+                  "includeInSummary",
+                  "isActive",
+                  "isSystem",
+                  "sortOrder"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "version": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "version",
+            "balanceTrackingMode",
+            "fiscalYearStartMonth",
+            "fiscalYearStartDay",
+            "leaveTypes",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "attendance_leave_policy_set",
+      "completionEvidence": {
+        "action": "write_company",
+        "mode": "success",
+        "targetKind": "company"
+      },
+      "description": "Set the leave this company offers. The whole policy is written at once, so read attendance_leave_policy_get first and send it back with the types that change. A type left out that somebody has already taken leave under is kept, deactivated, because the leave rows point at it. This is an administrator's and it is company-wide.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "balanceTrackingMode": {
+            "description": "managed when the company grants a fixed annual entitlement, unlimited when it grants none.",
+            "enum": [
+              "managed",
+              "unlimited"
+            ],
+            "type": "string"
+          },
+          "fiscalYearStartDay": {
+            "description": "The day of that month the leave year starts on. It has to be a real date, so the 29th of February is refused.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fiscalYearStartMonth": {
+            "description": "The month the leave year starts in, 1 through 12.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "leaveTypes": {
+            "description": "Every leave type this company offers, replacing the whole list. A type left out that somebody has already taken leave under is kept, deactivated.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "allowedUnits": {
+                  "description": "The portions of a day this type may be taken in. At least one, each named once.",
+                  "items": {
+                    "enum": [
+                      "fullDay",
+                      "halfDay",
+                      "quarterDay"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "balanceMode": {
+                  "description": "annual for the type that owns the annual balance and the types that draw on it, separate for a type counting its own, none for a type counting nothing.",
+                  "enum": [
+                    "annual",
+                    "separate",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                "carryoverEnabled": {
+                  "description": "Whether an unused balance carries into the next year.",
+                  "type": "boolean"
+                },
+                "carryoverLimitMilliDays": {
+                  "description": "The most that carries over, in thousandths of a day. Omit for no limit.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "expiryMode": {
+                  "description": "When an unused balance lapses.",
+                  "enum": [
+                    "fiscalYearEnd",
+                    "monthsAfterGrant",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                "expiryMonths": {
+                  "description": "How many months after the grant it lapses. Only under monthsAfterGrant.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "grantAmountMilliDays": {
+                  "description": "How much is granted each time, in thousandths of a day. Zero for a type that grants nothing.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "grantCadence": {
+                  "description": "How often a balance is granted. none for a type that grants nothing.",
+                  "enum": [
+                    "annual",
+                    "monthly",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                "id": {
+                  "description": "The leave type's stable id. An empty string on a type being added, which the record then names.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "includeInSummary": {
+                  "description": "Whether the type appears in the leave summary a person sees.",
+                  "type": "boolean"
+                },
+                "isActive": {
+                  "description": "Whether the type may still be chosen. An inactive type keeps the leave already taken under it.",
+                  "type": "boolean"
+                },
+                "isSystem": {
+                  "description": "Whether the type is one the product ships. Only a type whose id names a built-in kind may say true.",
+                  "type": "boolean"
+                },
+                "name": {
+                  "description": "What the type is called, e.g. 'annual leave'.",
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "paid": {
+                  "description": "Whether leave of this type is paid.",
+                  "type": "boolean"
+                },
+                "sortOrder": {
+                  "description": "Where the type sits in the list, counting from 0.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "systemKind": {
+                  "description": "The kind a built-in type is, e.g. annual or sick. An empty string on a type this company invented.",
+                  "maxLength": 64,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "systemKind",
+                "name",
+                "paid",
+                "balanceMode",
+                "grantCadence",
+                "grantAmountMilliDays",
+                "expiryMode",
+                "carryoverEnabled",
+                "allowedUnits",
+                "includeInSummary",
+                "isActive",
+                "isSystem",
+                "sortOrder"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "balanceTrackingMode",
+          "fiscalYearStartMonth",
+          "fiscalYearStartDay",
+          "leaveTypes"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_leave_policy_set",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "attendance_leave_policy_set",
+      "namespace": "attendance",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "balanceTrackingMode": {
+            "type": "string"
+          },
+          "fiscalYearStartDay": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fiscalYearStartMonth": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "leaveTypes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "allowedUnits": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "balanceMode": {
+                  "type": "string"
+                },
+                "carryoverEnabled": {
+                  "type": "boolean"
+                },
+                "carryoverLimitMilliDays": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "expiryMode": {
+                  "type": "string"
+                },
+                "expiryMonths": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "grantAmountMilliDays": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "grantCadence": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "includeInSummary": {
+                  "type": "boolean"
+                },
+                "isActive": {
+                  "type": "boolean"
+                },
+                "isSystem": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "paid": {
+                  "type": "boolean"
+                },
+                "sortOrder": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "systemKind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "systemKind",
+                "name",
+                "paid",
+                "balanceMode",
+                "grantCadence",
+                "grantAmountMilliDays",
+                "expiryMode",
+                "carryoverEnabled",
+                "allowedUnits",
+                "includeInSummary",
+                "isActive",
+                "isSystem",
+                "sortOrder"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "version": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "balanceTrackingMode",
+          "fiscalYearStartMonth",
+          "fiscalYearStartDay",
+          "leaveTypes",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_leave_policy_set",
+      "privacyClass": "workspace_leave",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "balanceTrackingMode": {
+              "type": "string"
+            },
+            "fiscalYearStartDay": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "fiscalYearStartMonth": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "leaveTypes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "allowedUnits": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "balanceMode": {
+                    "type": "string"
+                  },
+                  "carryoverEnabled": {
+                    "type": "boolean"
+                  },
+                  "carryoverLimitMilliDays": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "expiryMode": {
+                    "type": "string"
+                  },
+                  "expiryMonths": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "grantAmountMilliDays": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "grantCadence": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "includeInSummary": {
+                    "type": "boolean"
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  },
+                  "isSystem": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "paid": {
+                    "type": "boolean"
+                  },
+                  "sortOrder": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "systemKind": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "systemKind",
+                  "name",
+                  "paid",
+                  "balanceMode",
+                  "grantCadence",
+                  "grantAmountMilliDays",
+                  "expiryMode",
+                  "carryoverEnabled",
+                  "allowedUnits",
+                  "includeInSummary",
+                  "isActive",
+                  "isSystem",
+                  "sortOrder"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "version": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "version",
+            "balanceTrackingMode",
+            "fiscalYearStartMonth",
+            "fiscalYearStartDay",
+            "leaveTypes",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
     },
     {
       "answeredBy": "company",

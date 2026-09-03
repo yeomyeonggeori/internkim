@@ -1,40 +1,51 @@
-import { supabase } from '$lib/supabase';
-import { companySettings, type CompanySettings } from '$lib/company/company-settings';
+import { invokeTool } from '$lib/public-api-call';
 import { companyHolidayDatesInMonth } from './company-holiday-dates';
 import { currentAttendanceWorkPolicy } from './current-work-policy';
-import { storedWorkPolicyRevisions } from './stored-work-policy';
+import { supabaseCompanyHolidays } from './supabase-company-holidays';
 import { defaultWorkPolicy, initialWorkPolicyEffectiveDate } from './work-policy-defaults';
 import type {
 	AttendanceWorkPolicyResponse,
-	AttendanceWorkPolicyRevision
+	AttendanceWorkPolicyRevision,
+	CompanyHoliday
 } from '../../routes/admin/admin-types';
 
+export type AnsweredWorkPolicy = {
+	timeZone: string;
+	workMode: string;
+	policy: { version: number; revisions: AttendanceWorkPolicyRevision[] } | null;
+	people: { personID: string; workHours: unknown[][] | null; minimumDailyMinutes: number | null }[];
+};
+
+export function answeredWorkPolicy(): Promise<AnsweredWorkPolicy> {
+	return invokeTool<AnsweredWorkPolicy>('attendance_work_policy_get', {});
+}
+
 export async function supabaseAttendanceWorkPolicy(): Promise<AttendanceWorkPolicyResponse> {
-	return workPolicyResponse(await companySettings());
+	return workPolicyResponse(await answeredWorkPolicy(), await supabaseCompanyHolidays());
 }
 
 export async function saveSupabaseAttendanceWorkPolicy(
 	revision: AttendanceWorkPolicyRevision
 ): Promise<AttendanceWorkPolicyResponse> {
-	const saved = await supabase().rpc('attendance_work_policy_save', {
-		target_policy: currentAttendanceWorkPolicy(revision)
+	await invokeTool('attendance_work_policy_set', {
+		...currentAttendanceWorkPolicy(revision)
 	});
-	if (saved.error) throw new Error(saved.error.message);
 	return supabaseAttendanceWorkPolicy();
 }
 
-export function workPolicyResponse(settings: CompanySettings): AttendanceWorkPolicyResponse {
-	const stored = settings.rules.attendanceWorkPolicy;
-	const currentMonth = monthIn(settings.timeZone);
-	const revisions: AttendanceWorkPolicyRevision[] =
-		stored === undefined
-			? [{ effectiveDate: initialWorkPolicyEffectiveDate, ...defaultWorkPolicy() }]
-			: storedWorkPolicyRevisions(stored, 'this company');
+export function workPolicyResponse(
+	answered: AnsweredWorkPolicy,
+	holidays: CompanyHoliday[]
+): AttendanceWorkPolicyResponse {
+	const currentMonth = monthIn(answered.timeZone);
+	const revisions = answered.policy?.revisions ?? [
+		{ effectiveDate: initialWorkPolicyEffectiveDate, ...defaultWorkPolicy() }
+	];
 	return {
 		policy: { version: 1, updatedAt: '', revisions },
 		currentMonth,
-		holidayDates: companyHolidayDatesInMonth(settings.rules.companyHolidays ?? [], currentMonth),
-		timeZone: settings.timeZone
+		holidayDates: companyHolidayDatesInMonth(holidays, currentMonth),
+		timeZone: answered.timeZone
 	};
 }
 

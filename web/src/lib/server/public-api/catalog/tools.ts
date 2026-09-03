@@ -19,6 +19,7 @@ import {
 import { mailToolDefinitions } from './mail';
 import { peopleToolDefinitions } from './people';
 import { modelToolDefinitions } from './model';
+import { settingsToolDefinitions } from './settings';
 
 const dateDescription = 'Date in YYYY-MM-DD format.';
 const momentDescription = 'ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.';
@@ -1665,6 +1666,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...hiddenBrowserToolDefinitions,
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
+  ...settingsToolDefinitions,
   ...mailToolDefinitions,
   ...modelToolDefinitions,
 ];

@@ -1,3 +1,4 @@
+import { holidayOfCompanyHint } from './company-tools';
 import { eventOfHint } from './event-tools';
 import { taskRowOfHint } from './task-tools';
 import type { RecordContext } from './company';
@@ -19,7 +20,11 @@ const previewsOverTheRecord: Record<string, Preview> = {
 	task_delete: async (context, input) =>
 		targetOf('taskHint', await taskRowOfHint(context, hintOf(input, 'taskHint'))),
 	event_delete: async (context, input) =>
-		targetOf('eventHint', await eventOfHint(context, hintOf(input, 'eventHint')))
+		targetOf('eventHint', await eventOfHint(context, hintOf(input, 'eventHint'))),
+	company_holiday_delete: async (context, input) => {
+		const holiday = await holidayOfCompanyHint(context, hintOf(input, 'holidayHint'));
+		return { inputField: 'holidayHint', id: holiday.id, title: `${holiday.date} ${holiday.title}` };
+	}
 };
 
 export function previewOfTool(name: string): Preview | undefined {

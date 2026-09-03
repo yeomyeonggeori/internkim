@@ -1,4 +1,4 @@
-import { companySettings } from '$lib/company/company-settings';
+import { companyTimeZone } from '$lib/company/company-settings';
 import { eventReminderLeadOf } from './event-reminder-lead';
 import { invokeTool } from '$lib/public-api-call';
 import { supabase } from '$lib/supabase';
@@ -106,6 +106,3 @@ export function calendarEventFromAnswer(answered: AnsweredEvent, timeZone: strin
 	};
 }
 
-async function companyTimeZone(): Promise<string> {
-	return (await companySettings()).timeZone;
-}

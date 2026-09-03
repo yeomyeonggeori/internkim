@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { defaultLeavePolicy } from '../../../src/lib/attendance/leave-policy-defaults';
 
 const databaseServerTime = '2026-08-18T03:04:05.678Z';
 
@@ -99,6 +100,15 @@ const client = {
 };
 
 mock.module('$lib/supabase', () => ({ supabase: () => client }));
+
+// Naming the active leave reads the leave policy, which the record answers
+// through attendance_leave_policy_get rather than off a company row.
+mock.module('../../../src/lib/public-api-call', () => ({
+	invokeTool: async (name: string) => {
+		if (name !== 'attendance_leave_policy_get') throw new Error(`Unexpected tool ${name}`);
+		return defaultLeavePolicy();
+	}
+}));
 
 const { supabaseAttendanceSummary } = await import('../../../src/lib/attendance/supabase-attendance');
 const { computeDayEvents, statusForDay } = await import(

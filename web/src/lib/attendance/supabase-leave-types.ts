@@ -1,6 +1,5 @@
-import { companySettings } from '$lib/company/company-settings';
 import { annualLeaveTypeID } from './leave-policy-defaults';
-import { leavePolicyOf } from './supabase-leave-policy-settings';
+import { supabaseAttendanceLeavePolicy } from './supabase-leave-policy-settings';
 import type { AttendanceLeavePolicy, LeaveType } from '../../routes/admin/admin-types';
 import type {
 	EmployeeLeaveBalanceTrackingMode,
@@ -18,11 +17,8 @@ export type LeaveTypeDirectory = {
 };
 
 export async function supabaseLeaveTypeDirectory(): Promise<LeaveTypeDirectory> {
-	const settings = await companySettings();
-	return leaveTypeDirectory(
-		leavePolicyOf(settings),
-		settings.leaveDays === null ? 'unlimited' : 'managed'
-	);
+	const policy = await supabaseAttendanceLeavePolicy();
+	return leaveTypeDirectory(policy, policy.balanceTrackingMode);
 }
 
 export function leaveTypeDirectory(

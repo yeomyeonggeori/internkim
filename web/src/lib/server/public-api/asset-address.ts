@@ -1,12 +1,15 @@
 export const assetBucket = 'asset';
 export const attachmentKind = 'attachment';
+export const companyPictureKind = 'company';
 
 const extensions: Record<string, string> = {
 	'image/png': '.png',
 	'image/jpeg': '.jpg',
 	'image/gif': '.gif',
 	'image/webp': '.webp',
-	'image/svg+xml': '.svg'
+	'image/svg+xml': '.svg',
+	'image/heic': '.heic',
+	'image/heif': '.heif'
 };
 
 export function extensionOf(contentType: string): string {
