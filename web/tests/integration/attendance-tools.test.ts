@@ -122,13 +122,20 @@ describe('the attendance tools write a record and say when the company was told'
 		expect(resultOf(removed).status).toBe('removed');
 	});
 
-	test('a record written by hand without a reason is refused', async () => {
-		const refused = await asSample('attendance_add', {
+	test('a record written by hand is taken without a reason', async () => {
+		const written = await asSample('attendance_add', {
 			kind: 'clock_out',
 			date: dayShiftedBy(-1),
 			time: '18:00'
 		});
-		expect(refused.status).toBeGreaterThanOrEqual(400);
+		expect(written.status).toBe(200);
+		expect(resultOf(written).status).toBe('added');
+
+		const removed = await asSample('attendance_delete', {
+			eventHint: resultOf(written).eventID as string,
+			reason: '손으로 넣은 기록을 되돌립니다'
+		});
+		expect(resultOf(removed).status).toBe('removed');
 	});
 
 	test('a hint that names nothing comes back with candidates rather than a guess', async () => {
