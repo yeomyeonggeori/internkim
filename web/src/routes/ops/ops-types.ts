@@ -63,7 +63,6 @@ export type TargetStatus = {
 	targetID: string;
 	checkedAt: string;
 	admin: EndpointStatus;
-	mattermost: EndpointStatus;
 	release: EndpointStatus;
 	recovery: RecoveryStatus;
 	llm: LLMModelStatus;

@@ -9,6 +9,15 @@ import (
 	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
+type mattermostPostRecord struct {
+	ID        string `json:"id"`
+	ChannelID string `json:"channel_id"`
+	RootID    string `json:"root_id"`
+	Type      string `json:"type"`
+	CreateAt  int64  `json:"create_at"`
+	DeleteAt  int64  `json:"delete_at"`
+}
+
 type mattermostPostDiagnostic struct {
 	ID        string `json:"id"`
 	ChannelID string `json:"channelID"`

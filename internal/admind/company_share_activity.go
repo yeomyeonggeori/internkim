@@ -8,8 +8,6 @@ import (
 	"encoding/hex"
 	"log"
 	"math"
-	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -48,7 +46,6 @@ type companyShareMember struct {
 	Seed     string `json:"seed"`
 	Surname  string `json:"surname"`
 	JobTitle string `json:"jobTitle,omitempty"`
-	Image    string `json:"image,omitempty"`
 }
 
 type companyShareTeamActivity struct {
@@ -384,7 +381,6 @@ func (service *Service) companyShareMembers(sources []companyShareMemberSource) 
 		seed := companyShareMemberSeed(key, memberID)
 		members = append(members, companyShareMember{
 			Seed: seed, Surname: publicCompanyShareSurname(source.Name), JobTitle: source.JobTitle,
-			Image: "/company/api/team/" + seed + "/image",
 		})
 		seedByMemberID[memberID] = seed
 	}
@@ -478,27 +474,6 @@ func companyShareRecentWorkRows(rows []companyShareWorkRow, seedByMemberID map[s
 		}
 	}
 	return recent
-}
-
-func (service *Service) serveCompanyShareMemberImage(responseWriter http.ResponseWriter, request *http.Request, seed string) {
-	settings, errorValue := service.readCompanyShareSettings()
-	if errorValue != nil || !settings.Enabled || !service.hasValidCompanyShareSession(request, settings) {
-		http.NotFound(responseWriter, request)
-		return
-	}
-	key, errorValue := service.companyShareSigningKey()
-	if errorValue != nil {
-		http.NotFound(responseWriter, request)
-		return
-	}
-	for _, member := range service.taskMembers(request) {
-		if hmac.Equal([]byte(companyShareMemberSeed(key, member.ID)), []byte(seed)) {
-			path := "/participants/" + url.PathEscape(member.ID) + "/image"
-			service.serveCalendarParticipantImage(responseWriter, request, path)
-			return
-		}
-	}
-	http.NotFound(responseWriter, request)
 }
 
 func sumCompanyShareActivity(counts map[string]int) int {

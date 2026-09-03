@@ -12,7 +12,6 @@ type adminUserMutation struct {
 	Handle                 string   `json:"handle,omitempty"`
 	Name                   string   `json:"name,omitempty"`
 	Email                  string   `json:"email"`
-	Image                  string   `json:"image,omitempty"`
 	HireDate               string   `json:"hireDate,omitempty"`
 	Note                   string   `json:"note,omitempty"`
 	Role                   string   `json:"role"`
@@ -48,7 +47,6 @@ func normalizeAdminUserPayload(payload adminUserMutation) (adminUserMutation, bo
 	if payload.Email == "" {
 		return adminUserMutation{}, false, errors.New("email required")
 	}
-	payload.Image = ""
 	payload.Handle = normalizeMemberHandle(firstNonEmpty(payload.Handle, memberHandleBase(payload.Email)))
 	if !isValidMemberHandle(payload.Handle) {
 		return adminUserMutation{}, false, errors.New("handle must start with a letter and contain 3-22 lowercase letters, numbers, dots, dashes, or underscores")

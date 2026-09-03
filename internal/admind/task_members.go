@@ -105,7 +105,6 @@ func membersFromUserRecords(records []adminUserMutation) []taskMember {
 			ID:                 id,
 			Name:               name,
 			Email:              email,
-			Image:              calendarParticipantImagePath(id),
 			MattermostUsername: strings.TrimSpace(firstNonEmpty(record.MattermostUsername, record.Handle)),
 			HireDate:           strings.TrimSpace(record.HireDate),
 			Role:               normalizeAdminUserRole(record.Role),

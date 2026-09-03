@@ -3,7 +3,6 @@
 	import { Button } from '$lib/components/ui/button';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { personProfileImagePath } from '$lib/person-profile-image';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
@@ -101,7 +100,7 @@
 				name={task.ownerName}
 				seed={task.ownerID || task.ownerName}
 				memberID={task.ownerID}
-				image={personProfileImagePath(task.ownerID)}
+				
 				class="size-4 ring-1 ring-border/60"
 			/>
 			<span class="truncate text-xs text-muted-foreground">{task.ownerName}</span>

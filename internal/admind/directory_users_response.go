@@ -18,7 +18,6 @@ func (service *Service) writeDirectoryUsersResponse(responseWriter http.Response
 }
 
 func (service *Service) directoryUsersResponseBody(ctx context.Context, response pagesUsersResponse) ([]byte, error) {
-	response.Records = adminUserRecordsWithProfileImages(response.Records)
 	responseBody, errorValue := json.Marshal(response)
 	if errorValue != nil {
 		return nil, errorValue

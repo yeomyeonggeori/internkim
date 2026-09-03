@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+type adminCircleRecord struct {
+	CircleID            string `json:"circleID"`
+	DisplayName         string `json:"displayName"`
+	IsMattermostManaged bool   `json:"isMattermostManaged,omitempty"`
+}
+
 func blueclawPersonHasEmail(person map[string]any, email string) bool {
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 	emailValues, _ := person["emails"].([]any)

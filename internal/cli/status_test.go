@@ -10,15 +10,13 @@ import (
 	"testing"
 )
 
-func TestPrintPublicStatusShowsMattermostWhenSSHIsUnavailable(t *testing.T) {
+func TestPrintPublicStatusShowsTheAdminGatewayWhenSSHIsUnavailable(t *testing.T) {
 	originalStatusHTTPClient := statusHTTPClient
 	defer func() { statusHTTPClient = originalStatusHTTPClient }()
 	requestPaths := []string{}
 	statusHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		requestPaths = append(requestPaths, request.URL.Path)
 		switch request.URL.Path {
-		case "/api/v4/system/ping":
-			return textHTTPResponse(http.StatusOK, `{"status":"OK"}`), nil
 		case "/admin/api/health":
 			return textHTTPResponse(http.StatusFound, ""), nil
 		default:
@@ -35,12 +33,10 @@ func TestPrintPublicStatusShowsMattermostWhenSSHIsUnavailable(t *testing.T) {
 		})
 	})
 
-	for _, expectedPath := range []string{"/api/v4/system/ping", "/admin/api/health"} {
-		if !containsString(requestPaths, expectedPath) {
-			t.Fatalf("expected request path %s, got %+v", expectedPath, requestPaths)
-		}
+	if !containsString(requestPaths, "/admin/api/health") {
+		t.Fatalf("expected the admin health path, got %+v", requestPaths)
 	}
-	for _, expectedText := range []string{"Mattermost 공개 URL", "✓ HTTP 200", "Admin 공개 URL", "HTTP 302 redirect"} {
+	for _, expectedText := range []string{"Admin 공개 URL", "HTTP 302 redirect"} {
 		if !strings.Contains(output, expectedText) {
 			t.Fatalf("expected output to contain %q, got %s", expectedText, output)
 		}

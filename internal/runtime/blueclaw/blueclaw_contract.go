@@ -65,7 +65,6 @@ const (
 	AdmindSocketPath                      = "/run/internkim/admind.sock"
 	CapabilityVSockHostCID                = 2
 	CapabilityVSockPort                   = 7000
-	BlueclawMattermostURLPath             = "/root/.internkim/env/mattermost-url"
 	BlueclawMattermostTokenPath           = "/root/.internkim/secrets/mattermost-bot-token"
 	BlueclawSlackTokenPath                = "/root/.internkim/secrets/slack-bot-token"
 	BlueclawMattermostLocalURL            = "http://127.0.0.1:8065"

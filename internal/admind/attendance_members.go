@@ -52,7 +52,6 @@ func attendanceMembersFromAdminUserRecords(records []adminUserMutation) []attend
 		result = append(result, attendanceMember{
 			Email:              email,
 			DisplayName:        displayName,
-			Image:              taskMember.Image,
 			MattermostUsername: strings.TrimSpace(taskMember.MattermostUsername),
 			UserID:             taskMember.ID,
 			HireDate:           taskMember.HireDate,

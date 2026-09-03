@@ -107,8 +107,6 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		service.serveCalendarHolidays(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/participants":
 		service.listCalendarParticipants(responseWriter, request)
-	case request.Method == http.MethodGet && isCalendarParticipantImageAPIPath(escapedPath):
-		service.serveCalendarParticipantImage(responseWriter, request, path)
 	case request.Method == http.MethodGet && strings.HasPrefix(escapedPath, "/events/"):
 		service.getCalendarEventFromAPIPath(responseWriter, request, escapedPath)
 	case request.Method == http.MethodPost && path == "/events":
@@ -123,14 +121,10 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 }
 
 func (service *Service) authorizeCalendarAPIRequest(request *http.Request, path string) bool {
-	if path == "/participants" || isCalendarParticipantImageAPIPath(path) {
+	if path == "/participants" {
 		return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
 	}
 	return service.authorizeCalendarRequest(request)
-}
-
-func isCalendarParticipantImageAPIPath(path string) bool {
-	return strings.HasPrefix(path, "/participants/") && strings.HasSuffix(path, "/image")
 }
 
 func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
@@ -156,7 +150,7 @@ func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, r
 		return
 	}
 	service.writeJSON(responseWriter, calendarEventsResponse{
-		Events: service.calendarEventsWithParticipantImages(request, events),
+		Events: calendarEventsWithNormalizedParticipants(events),
 	})
 }
 
@@ -175,7 +169,7 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		return
 	}
 	responseWriter.WriteHeader(http.StatusCreated)
-	service.writeJSON(responseWriter, service.calendarEventWithParticipantImages(request, saved))
+	service.writeJSON(responseWriter, calendarEventWithNormalizedParticipants(saved))
 }
 
 func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
@@ -195,7 +189,7 @@ func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, 
 	if writeCalendarCentralError(responseWriter, request, eventID, saveError) {
 		return
 	}
-	service.writeJSON(responseWriter, service.calendarEventWithParticipantImages(request, saved))
+	service.writeJSON(responseWriter, calendarEventWithNormalizedParticipants(saved))
 }
 
 func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
