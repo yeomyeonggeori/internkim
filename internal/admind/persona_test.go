@@ -2,6 +2,7 @@ package admind
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -220,5 +221,59 @@ func TestPersonaAPIRefusesSomeoneTheWorkspaceDoesNotKnow(t *testing.T) {
 	service.handlePersona(recorder, httptest.NewRequest(http.MethodGet, "/persona/api/user", nil))
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("expected a stranger to be refused, got %d", recorder.Code)
+	}
+}
+
+func TestARosterWriteGivesThePersonADocumentWithTheNameTheDirectoryKnows(t *testing.T) {
+	var seededDocuments []string
+	var seededPaths []string
+	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/admin/api/policy":
+			_, _ = responseWriter.Write([]byte(`{"people":[]}`))
+		case request.Method == http.MethodPost && request.URL.Path == "/admin/api/persona/user":
+			document, _ := io.ReadAll(request.Body)
+			seededDocuments = append(seededDocuments, string(document))
+			seededPaths = append(seededPaths, request.URL.RequestURI())
+			_, _ = responseWriter.Write(document)
+		default:
+			_, _ = responseWriter.Write([]byte(`{}`))
+		}
+	}))
+	defer blueclaw.Close()
+	service := personaTestService(t)
+	service.Configuration.BlueclawBaseURL = blueclaw.URL
+	service.Configuration.BlueclawPolicyDeliveryPath = filepath.Join(t.TempDir(), "policy.json")
+
+	if errorValue := service.inviteBlueclawPerson(context.Background(), "person-1", "sample@example.com", "이샘플"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(seededDocuments) != 1 || !strings.Contains(seededDocuments[0], `"callMe":"이샘플"`) {
+		t.Fatalf("expected the invited person to start with the name the directory knows, got %v", seededDocuments)
+	}
+	if len(seededPaths) != 1 || !strings.Contains(seededPaths[0], "personID=person-1") {
+		t.Fatalf("expected the seed to name the person, got %v", seededPaths)
+	}
+}
+
+func TestANameTheDocumentCannotHoldIsNotSeeded(t *testing.T) {
+	var seeded []string
+	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		seeded = append(seeded, request.URL.RequestURI())
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"schemaVersion":1}`))
+	}))
+	defer blueclaw.Close()
+	service := personaTestService(t)
+	service.Configuration.BlueclawBaseURL = blueclaw.URL
+
+	service.seedUserDocument(context.Background(), "person-1", strings.Repeat("샘", 65))
+	service.seedUserDocument(context.Background(), "person-1", "   ")
+	service.seedUserDocument(context.Background(), "", "이샘플")
+
+	if len(seeded) != 0 {
+		t.Fatalf("expected nothing to reach blueclaw, got %v", seeded)
 	}
 }

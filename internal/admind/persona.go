@@ -669,3 +669,24 @@ func normalizeUserDocument(user userDocument) userDocument {
 func canonicalUserDocument(user userDocument) ([]byte, error) {
 	return canonicalPersonaDocument(normalizeUserDocument(user), userSchemaDocument, "user.json")
 }
+
+// The directory already knows what to call a person, so their document starts
+// with that name instead of empty. Blueclaw keeps whatever the person has
+// written for themselves, so this runs on every roster write, not only the
+// first, and still never overwrites their own words.
+func (service *Service) seedUserDocument(ctx context.Context, personID string, name string) {
+	trimmedPersonID := strings.TrimSpace(personID)
+	trimmedName := strings.TrimSpace(name)
+	if trimmedPersonID == "" || trimmedName == "" {
+		return
+	}
+	document, errorValue := canonicalUserDocument(userDocument{CallMe: trimmedName})
+	if errorValue != nil {
+		log.Printf("persona seed for %s rejected: %v", trimmedPersonID, errorValue)
+		return
+	}
+	seedPath := "/admin/api/persona/user?personID=" + url.QueryEscape(trimmedPersonID)
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodPost, seedPath, json.RawMessage(document), nil); errorValue != nil {
+		log.Printf("persona seed for %s skipped: %v", trimmedPersonID, errorValue)
+	}
+}
