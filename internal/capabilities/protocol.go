@@ -103,6 +103,12 @@ func CompanyDescriptors() []Descriptor {
 		"company_document_list",
 		"company_document_search",
 		"company_document_update",
+		"company_settings_get",
+		"company_settings_update",
+		"company_holiday_list",
+		"company_holiday_add",
+		"company_holiday_update",
+		"company_holiday_delete",
 	))
 }
 
@@ -151,6 +157,10 @@ func AttendanceDescriptors() []Descriptor {
 		"attendance_add",
 		"attendance_update",
 		"attendance_delete",
+		"attendance_work_policy_get",
+		"attendance_work_policy_set",
+		"attendance_leave_policy_get",
+		"attendance_leave_policy_set",
 	))
 }
 

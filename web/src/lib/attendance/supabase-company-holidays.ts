@@ -1,45 +1,57 @@
-import { supabase } from '$lib/supabase';
-import { companySettings } from '$lib/company/company-settings';
+import { invokeTool } from '$lib/public-api-call';
 import type { CompanyHoliday, CompanyHolidayInput } from '../../routes/admin/admin-types';
 
+type AnsweredHoliday = {
+	holidayID: string;
+	name: string;
+	date: string;
+	recursAnnually: boolean;
+	createdAt: string | null;
+	updatedAt: string | null;
+};
+
+type AnsweredHolidays = { count: number; year: number | null; holidays: AnsweredHoliday[] };
+
+function companyHolidayOf(answered: AnsweredHoliday): CompanyHoliday {
+	return {
+		id: answered.holidayID,
+		title: answered.name,
+		date: answered.date,
+		recursAnnually: answered.recursAnnually,
+		createdAt: answered.createdAt ?? '',
+		updatedAt: answered.updatedAt ?? ''
+	};
+}
+
 export async function supabaseCompanyHolidays(): Promise<CompanyHoliday[]> {
-	return (await companySettings()).rules.companyHolidays ?? [];
+	const answered = await invokeTool<AnsweredHolidays>('company_holiday_list', {});
+	return answered.holidays.map(companyHolidayOf);
 }
 
 export async function createSupabaseCompanyHoliday(
 	input: CompanyHolidayInput
 ): Promise<CompanyHoliday> {
-	const now = new Date().toISOString();
-	const created: CompanyHoliday = {
-		id: `company-holiday-${crypto.randomUUID().replaceAll('-', '')}`,
-		...input,
-		createdAt: now,
-		updatedAt: now
-	};
-	await saveCompanyHolidays([...(await supabaseCompanyHolidays()), created]);
-	return created;
+	const added = await invokeTool<AnsweredHoliday>('company_holiday_add', {
+		date: input.date,
+		name: input.title,
+		recursAnnually: input.recursAnnually
+	});
+	return companyHolidayOf(added);
 }
 
 export async function updateSupabaseCompanyHoliday(
 	holidayID: string,
 	input: CompanyHolidayInput
 ): Promise<CompanyHoliday> {
-	const holidays = await supabaseCompanyHolidays();
-	const existing = holidays.find((holiday) => holiday.id === holidayID);
-	if (!existing) throw new Error(`company holiday ${holidayID} no longer exists`);
-	const updated: CompanyHoliday = { ...existing, ...input, updatedAt: new Date().toISOString() };
-	await saveCompanyHolidays(
-		holidays.map((holiday) => (holiday.id === holidayID ? updated : holiday))
-	);
-	return updated;
+	const written = await invokeTool<AnsweredHoliday>('company_holiday_update', {
+		holidayHint: holidayID,
+		date: input.date,
+		name: input.title,
+		recursAnnually: input.recursAnnually
+	});
+	return companyHolidayOf(written);
 }
 
 export async function deleteSupabaseCompanyHoliday(holidayID: string): Promise<void> {
-	const holidays = await supabaseCompanyHolidays();
-	await saveCompanyHolidays(holidays.filter((holiday) => holiday.id !== holidayID));
-}
-
-async function saveCompanyHolidays(holidays: CompanyHoliday[]): Promise<void> {
-	const saved = await supabase().rpc('company_holidays_save', { target_holidays: holidays });
-	if (saved.error) throw new Error(saved.error.message);
+	await invokeTool<AnsweredHoliday>('company_holiday_delete', { holidayHint: holidayID });
 }

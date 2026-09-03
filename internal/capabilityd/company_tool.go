@@ -15,29 +15,6 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-type companyInfoSetInput struct {
-	Language            string `json:"language"`
-	Name                string `json:"name"`
-	BrandName           string `json:"brandName"`
-	Slogan              string `json:"slogan"`
-	Description         string `json:"description"`
-	Representative      string `json:"representative"`
-	RepresentativeTitle string `json:"representativeTitle"`
-	Address             string `json:"address"`
-	OfficeAddress       string `json:"officeAddress"`
-	Jurisdiction        string `json:"jurisdiction"`
-	BankAccount         string `json:"bankAccount"`
-	LegalAttributes     string `json:"legalAttributes"`
-	FoundedDate         string `json:"foundedDate"`
-	Capital             string `json:"capital"`
-	FiscalYearEnd       string `json:"fiscalYearEnd"`
-	EmployeeCount       int    `json:"employeeCount"`
-	Phone               string `json:"phone"`
-	Fax                 string `json:"fax"`
-	Email               string `json:"email"`
-	Website             string `json:"website"`
-}
-
 type companyMetricRecordInput struct {
 	Metric   string   `json:"metric"`
 	Year     int      `json:"year"`
@@ -84,10 +61,6 @@ type companyDocumentUpdateInput struct {
 
 func (service Service) invokeCompanyTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	switch strings.TrimSpace(request.ToolName) {
-	case "company_info_get":
-		return service.invokeCompanyInfoGet(ctx, request)
-	case "company_info_set":
-		return service.invokeCompanyInfoSet(ctx, request)
 	case "company_metric_record":
 		return service.invokeCompanyMetricRecord(ctx, request)
 	case "company_metric_list":
@@ -111,61 +84,6 @@ func (service Service) invokeCompanyTool(ctx context.Context, request capabiliti
 	default:
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("company tool is not configured: %s", request.ToolName)
 	}
-}
-
-func (service Service) invokeCompanyInfoGet(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	var input struct {
-		Language string `json:"language"`
-	}
-	if errorValue := decodeCompanyInput(request.Input, &input); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	language := firstNonEmpty(strings.TrimSpace(input.Language), "ko")
-	result, errorValue := service.sendCompanyToolRequest(ctx, http.MethodGet, "/admin/api/company-info?language="+url.QueryEscape(language), nil, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return companyToolResponse(request.ToolName, "ok", result), nil
-}
-
-func (service Service) invokeCompanyInfoSet(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	var input companyInfoSetInput
-	if errorValue := decodeCompanyInput(request.Input, &input); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	payload := map[string]any{
-		"language":            firstNonEmpty(strings.TrimSpace(input.Language), "ko"),
-		"name":                input.Name,
-		"brandName":           input.BrandName,
-		"slogan":              input.Slogan,
-		"description":         input.Description,
-		"representative":      input.Representative,
-		"representativeTitle": input.RepresentativeTitle,
-		"address":             input.Address,
-		"officeAddress":       input.OfficeAddress,
-		"jurisdiction":        input.Jurisdiction,
-		"bankAccount":         input.BankAccount,
-		"foundedDate":         input.FoundedDate,
-		"capital":             input.Capital,
-		"fiscalYearEnd":       input.FiscalYearEnd,
-		"employeeCount":       input.EmployeeCount,
-		"phone":               input.Phone,
-		"fax":                 input.Fax,
-		"email":               input.Email,
-		"website":             input.Website,
-	}
-	legalAttributes, errorValue := decodeJSONObjectString(input.LegalAttributes, "legalAttributes")
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if len(legalAttributes) > 0 {
-		payload["legalAttributes"] = legalAttributes
-	}
-	result, errorValue := service.sendCompanyToolRequest(ctx, http.MethodPut, "/admin/api/company-info", payload, request.Context.RequesterEmail)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return companyToolResponse(request.ToolName, "saved", result), nil
 }
 
 func (service Service) invokeCompanyMetricRecord(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {

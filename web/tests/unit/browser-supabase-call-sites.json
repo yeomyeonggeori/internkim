@@ -11,17 +11,11 @@
 		"rpc('attendance_server_time')": 1,
 		"rpc('attendance_backdated_after_minutes')": 1
 	},
-	"src/lib/attendance/supabase-company-holidays.ts": {
-		"rpc('company_holidays_save')": 1
-	},
 	"src/lib/attendance/supabase-leave-management.ts": {
 		"rpc('member_leave_days_set')": 1,
 		"from('leave')": 4,
 		"from('company')": 1,
 		"rpc('leave_management_source')": 1
-	},
-	"src/lib/attendance/supabase-leave-policy-settings.ts": {
-		"rpc('attendance_leave_policy_save')": 1
 	},
 	"src/lib/attendance/supabase-leave.ts": {
 		"rpc('leave_in_full')": 1,
@@ -29,12 +23,6 @@
 		"from('company')": 1,
 		"rpc('member_today')": 1,
 		"rpc('member_leave_remaining')": 1
-	},
-	"src/lib/attendance/supabase-work-policy-settings.ts": {
-		"rpc('attendance_work_policy_save')": 1
-	},
-	"src/lib/attendance/supabase-work-policy.ts": {
-		"rpc('attendance_work_policies')": 1
 	},
 	"src/lib/attendance/supabase-work-status.ts": {
 		"from('company')": 1,
@@ -48,16 +36,6 @@
 	},
 	"src/lib/calendar/supabase-calendar-leave.ts": {
 		"from('leave')": 1
-	},
-	"src/lib/company/base-currency.ts": {
-		"from('company')": 2
-	},
-	"src/lib/company/company-settings.ts": {
-		"from('company')": 1
-	},
-	"src/lib/company/profile-image.ts": {
-		"from('company')": 3,
-		"from(assetBucket)": 3
 	},
 	"src/lib/host-bridge.ts": {
 		"from('member')": 1

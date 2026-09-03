@@ -1,38 +1,35 @@
-import { supabase } from '$lib/supabase';
-import type {
-	AttendanceLeavePolicy,
-	AttendanceWorkPolicyRevision,
-	CompanyHoliday
-} from '../../routes/admin/admin-types';
+import { invokeTool } from '$lib/public-api-call';
 
-export type CompanyRules = {
-	attendanceWorkPolicy?: AttendanceWorkPolicyRevision;
-	attendanceLeavePolicy?: AttendanceLeavePolicy;
-	companyHolidays?: CompanyHoliday[];
-};
+export type CompanyWorkLocation = { name: string; color: string | null };
 
 export type CompanySettings = {
-	rules: CompanyRules;
+	name: string;
+	country: string;
+	locale: string;
 	timeZone: string;
+	currencyCode: string;
+	workLocations: CompanyWorkLocation[];
 	leaveDays: number | null;
+	profileImageURL: string | null;
 };
 
-type CompanySettingsRow = {
-	timezone: string;
-	leave_days: number | null;
-	rules: CompanyRules | null;
+export type CompanySettingsChange = {
+	name?: string;
+	locale?: string;
+	timeZone?: string;
+	currencyCode?: string;
+	workLocations?: { name: string; color?: string }[];
+	leaveDays?: number;
 };
 
-export async function companySettings(): Promise<CompanySettings> {
-	const company = await supabase()
-		.from('company')
-		.select('timezone, leave_days, rules')
-		.limit(1)
-		.single<CompanySettingsRow>();
-	if (company.error) throw new Error(company.error.message);
-	return {
-		rules: company.data.rules ?? {},
-		timeZone: company.data.timezone,
-		leaveDays: company.data.leave_days
-	};
+export function companySettings(): Promise<CompanySettings> {
+	return invokeTool<CompanySettings>('company_settings_get', {});
+}
+
+export function saveCompanySettings(change: CompanySettingsChange): Promise<CompanySettings> {
+	return invokeTool<CompanySettings>('company_settings_update', change);
+}
+
+export async function companyTimeZone(): Promise<string> {
+	return (await companySettings()).timeZone;
 }

@@ -2,9 +2,8 @@
 	import CompanyAvatar from '$lib/components/company-avatar.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { companyPictureFormats, companyPictureMegabytes } from '$lib/company/company-picture';
 	import {
-		companyPictureFormats,
-		companyPictureMegabytes,
 		forgetCompanyProfileImage,
 		loadCompanyProfileImage,
 		refusalOfCompanyPicture,
@@ -51,7 +50,7 @@
 		}
 		isBusy = true;
 		try {
-			readableURL = (await saveCompanyProfileImage(chosen)).readableURL;
+			readableURL = await saveCompanyProfileImage(chosen);
 			toast.success(text.companyPictureSaved);
 		} catch (failure) {
 			toast.error(text.companyPictureFailed, { description: (failure as Error).message });

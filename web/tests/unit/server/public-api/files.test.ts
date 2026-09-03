@@ -8,6 +8,7 @@ import {
 } from '$lib/server/public-api/asset-address';
 import {
 	contentTypeOffered,
+	dropFileFromTheBucket,
 	filenameOffered,
 	keepFileInTheBucket,
 	largestFileAnAttachmentCanBe,
@@ -19,14 +20,31 @@ import {
 
 const credentials = { projectURL: 'https://plane.supabase.co', serviceRoleKey: 'service-role' };
 
-function storeAnswering(statuses: number[]): { putDocument: PutDocument; put: string[] } {
+type StoreCall = { url: string; method: string; headers: Record<string, string>; hasBody: boolean };
+
+type StoreReply = number | { status: number; said: string };
+
+function storeAnswering(replies: StoreReply[]): {
+	putDocument: PutDocument;
+	put: string[];
+	calls: StoreCall[];
+} {
 	const put: string[] = [];
-	const putDocument: PutDocument = async (url) => {
+	const calls: StoreCall[] = [];
+	const putDocument: PutDocument = async (url, options) => {
 		put.push(url);
-		const status = statuses[put.length - 1] ?? 200;
-		return { ok: status < 400, status };
+		calls.push({
+			url,
+			method: options.method,
+			headers: options.headers,
+			hasBody: options.body !== undefined
+		});
+		const reply = replies[put.length - 1] ?? 200;
+		const status = typeof reply === 'number' ? reply : reply.status;
+		const said = typeof reply === 'number' ? '' : reply.said;
+		return { ok: status < 400, status, text: async () => said };
 	};
-	return { putDocument, put };
+	return { putDocument, put, calls };
 }
 
 describe('what a key has to carry to put a file anywhere', () => {
@@ -87,7 +105,7 @@ describe('keeping the bytes in the company bucket', () => {
 	test('addresses the object by the digest of its content, under the company', async () => {
 		const { putDocument, put } = storeAnswering([200]);
 
-		const kept = await keepFileInTheBucket(credentials, 'company-1', bytes, 'image/png', putDocument);
+		const kept = await keepFileInTheBucket(credentials, 'company-1', attachmentKind, bytes, 'image/png', putDocument);
 
 		expect(kept.path).toBe(sharedAssetPath('company-1', attachmentKind, kept.digest, 'image/png'));
 		expect(kept.path.startsWith('company-1/shared/attachment/')).toBe(true);
@@ -96,13 +114,19 @@ describe('keeping the bytes in the company bucket', () => {
 		expect(put[0]).toBe(`${credentials.projectURL}/storage/v1/object/${assetBucket}/${kept.path}`);
 	});
 
+	// The store answers a path it already holds with HTTP 400 carrying its own
+	// statusCode of 409, so the bytes being there already is not a refusal.
 	test('lands on one address when the same bytes arrive twice', async () => {
-		const { putDocument, put } = storeAnswering([200, 409]);
+		const { putDocument, put } = storeAnswering([
+			200,
+			{ status: 400, said: '{"statusCode":"409","error":"Duplicate","message":"The resource already exists"}' }
+		]);
 
-		const first = await keepFileInTheBucket(credentials, 'company-1', bytes, 'image/png', putDocument);
+		const first = await keepFileInTheBucket(credentials, 'company-1', attachmentKind, bytes, 'image/png', putDocument);
 		const again = await keepFileInTheBucket(
 			credentials,
 			'company-1',
+			attachmentKind,
 			new Uint8Array(bytes),
 			'image/png',
 			putDocument
@@ -112,11 +136,21 @@ describe('keeping the bytes in the company bucket', () => {
 		expect(put[0]).toBe(put[1]);
 	});
 
+	test('takes a file back out without a body, which is what the store accepts', async () => {
+		const { putDocument, calls } = storeAnswering([200]);
+
+		await dropFileFromTheBucket(credentials, 'company-1/shared/company/a.png', putDocument);
+
+		expect(calls[0].method).toBe('DELETE');
+		expect(calls[0].hasBody).toBe(false);
+		expect(calls[0].headers['Content-Type']).toBeUndefined();
+	});
+
 	test('refuses loudly when the store answers anything else', async () => {
 		const { putDocument } = storeAnswering([503]);
 
 		expect(
-			keepFileInTheBucket(credentials, 'company-1', bytes, 'image/png', putDocument)
+			keepFileInTheBucket(credentials, 'company-1', attachmentKind, bytes, 'image/png', putDocument)
 		).rejects.toThrow('503');
 	});
 });
