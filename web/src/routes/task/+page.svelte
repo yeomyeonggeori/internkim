@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
-	import { ConfirmDeleteDialog } from '$lib/components/ui/confirm-delete-dialog';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { replaceState } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -168,5 +167,3 @@
 		</div>
 	</div>
 </main>
-
-<ConfirmDeleteDialog />
