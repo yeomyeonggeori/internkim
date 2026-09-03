@@ -248,6 +248,14 @@ type ToolInvokeResponse struct {
 	Result          json.RawMessage  `json:"result"`
 }
 
+type ApprovalTarget struct {
+	InputField string `json:"inputField,omitempty"`
+	ID         string `json:"id,omitempty"`
+	Title      string `json:"title,omitempty"`
+	StartsAt   string `json:"startsAt,omitempty"`
+	Preview    string `json:"preview,omitempty"`
+}
+
 type ResourceScope struct {
 	Kind  string `json:"kind,omitempty"`
 	Value string `json:"value,omitempty"`
