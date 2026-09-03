@@ -121,7 +121,6 @@
 				targetID,
 				checkedAt: new Date().toISOString(),
 				admin: { state: 'failed', message },
-				mattermost: { state: 'unknown' },
 				release: { state: 'unknown' },
 				recovery: { state: 'unknown' },
 				llm: { state: 'unknown' },
@@ -262,7 +261,6 @@
 			targetID,
 			checkedAt: '',
 			admin: { state },
-			mattermost: { state },
 			release: { state },
 			recovery: { state },
 			llm: { state },
@@ -379,7 +377,6 @@
 						<Card.Content class="space-y-3 p-4">
 							<div class="grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
 								{@render StatusCell('Admin', status?.admin)}
-								{@render StatusCell('Mattermost', status?.mattermost)}
 								{@render StatusCell('Release', status?.release)}
 								{@render StatusCell('Recovery', status?.recovery)}
 							</div>

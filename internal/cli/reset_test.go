@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestBlueclawHistoryResetScriptDeletesMemoryConversationAndMattermostState(t *testing.T) {
-	script := blueclawHistoryResetScript(false)
+func TestBlueclawHistoryResetScriptDeletesMemoryAndConversationState(t *testing.T) {
+	script := blueclawHistoryResetScript()
 	requiredFragments := []string{
 		"task_run",
 		"raw_event",
@@ -16,9 +16,6 @@ func TestBlueclawHistoryResetScriptDeletesMemoryConversationAndMattermostState(t
 		"graphiti_episode",
 		"graphiti_namespace",
 		"name 'kuzu*'",
-		"resetting Mattermost visible posts",
-		"UPDATE posts",
-		"WHERE deleteat = 0",
 	}
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(script, fragment) {
@@ -28,7 +25,7 @@ func TestBlueclawHistoryResetScriptDeletesMemoryConversationAndMattermostState(t
 }
 
 func TestBlueclawHistoryResetScriptKeepsIdentityAndPolicyState(t *testing.T) {
-	script := blueclawHistoryResetScript(false)
+	script := blueclawHistoryResetScript()
 	forbiddenFragments := []string{
 		"TRUNCATE TABLE person",
 		"TRUNCATE TABLE person_email",
@@ -43,33 +40,18 @@ func TestBlueclawHistoryResetScriptKeepsIdentityAndPolicyState(t *testing.T) {
 	}
 }
 
-func TestBlueclawHistoryResetScriptCanKeepMattermostPostsForDebugging(t *testing.T) {
-	script := blueclawHistoryResetScript(true)
+func TestBlueclawHistoryResetScriptLeavesTheMessengerAlone(t *testing.T) {
+	script := blueclawHistoryResetScript()
 	forbiddenFragments := []string{
-		"resetting Mattermost visible posts",
 		"UPDATE posts",
+		"DELETE FROM reactions",
+		"DELETE FROM threadmemberships",
+		"DELETE FROM threads",
 		"systemctl stop mattermost",
 	}
 	for _, fragment := range forbiddenFragments {
 		if strings.Contains(script, fragment) {
-			t.Fatalf("expected keep-mattermost reset script to omit %q", fragment)
-		}
-	}
-}
-
-func TestBlueclawHistoryResetScriptDeletesMattermostVisiblePostsByDefault(t *testing.T) {
-	script := blueclawHistoryResetScript(false)
-	requiredFragments := []string{
-		"resetting Mattermost visible posts",
-		"UPDATE posts",
-		"WHERE deleteat = 0",
-		"DELETE FROM reactions",
-		"DELETE FROM threadmemberships",
-		"DELETE FROM threads",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected Mattermost reset script to include %q", fragment)
+			t.Fatalf("expected reset script to omit %q", fragment)
 		}
 	}
 }

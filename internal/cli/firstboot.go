@@ -9,14 +9,14 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
-func buildFirstbootScript(deviceURL, adminEmail string, isLocalLlamaProvisioned bool) string {
+func buildFirstbootScript(isLocalLlamaProvisioned bool) string {
 	sections := []string{
 		renderFirstbootPreludeSection(),
 		renderFirstbootStagingSection(),
 		renderFirstbootNetworkSection(),
 		renderFirstbootPackagesSection(),
 		renderFirstbootToolsSection(),
-		renderFirstbootApplicationsSection(deviceURL, adminEmail),
+		renderFirstbootApplicationsSection(),
 		renderFirstbootServicesSection(isLocalLlamaProvisioned),
 		renderFirstbootCompletionSection(),
 	}
@@ -237,11 +237,6 @@ if [ -f "$STAGE/device-url" ]; then
   cp -f "$STAGE/device-url" /root/.internkim/env/device-url
   chown root:root /root/.internkim/env/device-url
   chmod 640 /root/.internkim/env/device-url
-fi
-if [ -f "$STAGE/mattermost-url" ]; then
-  cp -f "$STAGE/mattermost-url" /root/.internkim/env/mattermost-url
-  chown root:root /root/.internkim/env/mattermost-url
-  chmod 640 /root/.internkim/env/mattermost-url
 fi
 if [ -f "$STAGE/tunnel-origin" ]; then
   cp -f "$STAGE/tunnel-origin" /root/.internkim/env/tunnel-origin
@@ -618,8 +613,8 @@ fi`,
 	return strings.Join(parts, "\n\n")
 }
 
-func renderFirstbootApplicationsSection(deviceURL, adminEmail string) string {
-	section := strings.TrimSpace(`if phase_done apps; then
+func renderFirstbootApplicationsSection() string {
+	return strings.TrimSpace(`if phase_done apps; then
   echo "Phase apps already complete"
 else
   start_phase apps
@@ -627,22 +622,6 @@ else
   echo "Setting up PostgreSQL..."
   systemctl start postgresql
   sleep 2
-  if [ -f "$STAGE/mattermost-db.sql" ]; then
-    echo "  Restoring Mattermost DB from backup..."
-    su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='mattermost'\" | grep -q 1 || psql -c \"CREATE DATABASE mattermost\""
-    su - postgres -c "psql mattermost" < "$STAGE/mattermost-db.sql" 2>/dev/null || true
-    rm -f "$STAGE/mattermost-db.sql"
-    echo "  DB restored"
-  fi
-  MM_DB_PASS=$(cat /root/.internkim/secrets/mm-db-pass 2>/dev/null || echo "")
-  if [ -z "$MM_DB_PASS" ]; then
-    MM_DB_PASS=$(head -c 12 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 16)
-    printf '%s' "$MM_DB_PASS" > /root/.internkim/secrets/mm-db-pass
-    chmod 600 /root/.internkim/secrets/mm-db-pass
-  fi
-  su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='mmuser'\" | grep -q 1 || psql -c \"CREATE USER mmuser WITH PASSWORD '$MM_DB_PASS'\""
-  su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='mattermost'\" | grep -q 1 || psql -c \"CREATE DATABASE mattermost OWNER mmuser\""
-  su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE mattermost TO mmuser\""
   su - postgres -c "psql -c \"SELECT 1 FROM pg_roles WHERE rolname='blueclaw'\" | grep -q 1 || createuser blueclaw"
   if [ -f "$STAGE/blueclaw-db.sql" ]; then
     echo "  Restoring Blueclaw DB from backup..."
@@ -654,212 +633,8 @@ else
     su - postgres -c "psql -c \"SELECT 1 FROM pg_database WHERE datname='blueclaw'\" | grep -q 1 || createdb -O blueclaw blueclaw"
   fi
 
-  echo "Installing Mattermost..."
-  if [ ! -f /var/cache/internkim/mattermost.tar.gz ] || [ ! -s /var/cache/internkim/mattermost.tar.gz ]; then
-    echo "FATAL: /var/cache/internkim/mattermost.tar.gz not found. Injection failed." >&2
-    exit 1
-  fi
-  echo "  Using pre-injected archive"
-  cd /var/cache/internkim && tar -xzf mattermost.tar.gz
-  legacy_data="/opt/mattermost/data"
-  persistent_data="/var/lib/mattermost/data"
-  if [ -d "$legacy_data" ] && [ ! -L "$legacy_data" ]; then
-    mkdir -p "$(dirname "$persistent_data")"
-    if [ ! -e "$persistent_data" ]; then
-      mv "$legacy_data" "$persistent_data"
-    else
-      cp -an "$legacy_data"/. "$persistent_data"/ 2>/dev/null || true
-    fi
-  fi
-  rm -rf /opt/mattermost
-  mv /var/cache/internkim/mattermost /opt/mattermost
-  rm -f /var/cache/internkim/mattermost.tar.gz
-  mkdir -p "$persistent_data"
-  rm -rf "$legacy_data"
-  ln -s "$persistent_data" "$legacy_data"
-  id mattermost &>/dev/null || useradd --system --user-group mattermost
-  chown -R mattermost:mattermost /opt/mattermost "$(dirname "$persistent_data")"
-  chmod -R g+w /opt/mattermost "$(dirname "$persistent_data")"
-
-  SITE_URL="__DEVICE_URL__"
-  [ -z "$SITE_URL" ] && SITE_URL="http://localhost:8065"
-  cp /opt/mattermost/config/config.defaults.json /opt/mattermost/config/config.json 2>/dev/null || true
-  jq --arg ds "postgres://mmuser:${MM_DB_PASS}@localhost/mattermost?sslmode=disable&connect_timeout=10" \
-     --arg url "$SITE_URL" \
-     --arg resourcePaths "__MANAGED_RESOURCE_PATHS__" \
-     '.SqlSettings.DriverName = "postgres" | .SqlSettings.DataSource = $ds | .FileSettings.DriverName = "local" | .FileSettings.Directory = "/var/lib/mattermost/data" | .FileSettings.EnableFileAttachments = true | .ServiceSettings.SiteURL = $url | .ServiceSettings.AllowCorsFrom = $url | .ServiceSettings.CorsAllowCredentials = true | .ServiceSettings.ManagedResourcePaths = $resourcePaths | .ServiceSettings.EnableUserAccessTokens = true | .ServiceSettings.EnableBotAccountCreation = true | .TeamSettings.TeammateNameDisplay = "nickname_full_name" | .EmailSettings.SendPushNotifications = true | .EmailSettings.PushNotificationServer = "https://push-test.mattermost.com" | .EmailSettings.PushNotificationContents = "id_loaded"' \
-     /opt/mattermost/config/config.json > /opt/mattermost/config/config.tmp \
-     && mv /opt/mattermost/config/config.tmp /opt/mattermost/config/config.json
-  chown mattermost:mattermost /opt/mattermost/config/config.json
-
-  cat > /etc/systemd/system/mattermost.service <<'SVCEOF'
-[Unit]
-Description=Mattermost
-After=network.target postgresql.service
-BindsTo=postgresql.service
-
-[Service]
-Type=notify
-ExecStart=/opt/mattermost/bin/mattermost server
-TimeoutStartSec=3600
-KillMode=mixed
-Restart=always
-RestartSec=10
-WorkingDirectory=/opt/mattermost
-User=mattermost
-Group=mattermost
-LimitNOFILE=49152
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-  systemctl daemon-reload
-  systemctl enable mattermost
-  systemctl start mattermost
-
-  echo "Waiting for Mattermost to be ready..."
-  for attemptIndex in $(seq 1 60); do
-    if curl -sf http://localhost:8065/api/v4/system/ping 2>/dev/null | grep -q '"status":"OK"'; then
-      echo "Mattermost ready"
-      break
-    fi
-    sleep 3
-  done
-
-  MM_URL="http://localhost:8065"
-  ADMIN_EMAIL="admin@localhost"
-  ADMIN_USER="admin"
-  ADMIN_PASS=$(cat /root/.internkim/secrets/mm-admin-pass)
-
-  echo "Creating admin account..."
-  curl -sf -X POST "$MM_URL/api/v4/users" \
-    -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$ADMIN_EMAIL\",\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" >/dev/null 2>&1 || true
-
-  ADMIN_TOKEN="$(curl -sf -D - -X POST "$MM_URL/api/v4/users/login" \
-    -H 'Content-Type: application/json' \
-    -d "{\"login_id\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" 2>/dev/null \
-    | grep -i '^token:' | awk '{print $2}' | tr -d '\r' || true)"
-
-  if [ -z "$ADMIN_TOKEN" ]; then
-    echo "ERROR: Could not get admin token"
-    exit 1
-  fi
-
-  ADMIN_ID="$(curl -sf "$MM_URL/api/v4/users/username/$ADMIN_USER" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null | jq -r '.id // empty' || true)"
-  if [ -z "$ADMIN_ID" ]; then
-    echo "ERROR: Could not resolve admin user id"
-    exit 1
-  fi
-  su - postgres -c "psql mattermost -c \"UPDATE users SET email = 'admin@localhost', roles = 'system_admin system_user', deleteat = 0 WHERE id = '$ADMIN_ID'\"" >/dev/null
-  curl -sf -X PUT "$MM_URL/api/v4/users/$ADMIN_ID/patch" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" \
-    -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASS\"}" >/dev/null
-  curl -sf -X PUT "$MM_URL/api/v4/users/$ADMIN_ID/roles" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" \
-    -H 'Content-Type: application/json' \
-    -d '{"roles":"system_admin system_user"}' >/dev/null
-
-  PAT_RESPONSE="$(curl -sf -X POST "$MM_URL/api/v4/users/$ADMIN_ID/tokens" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" \
-    -H 'Content-Type: application/json' \
-    -d '{"description":"internkim-setup"}' 2>/dev/null || true)"
-  PAT_TOKEN=$(echo "$PAT_RESPONSE" | jq -r '.token // empty')
-
-  echo "Creating bot account..."
-  BOT_RESPONSE="$(curl -sf -X POST "$MM_URL/api/v4/bots" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" \
-    -H 'Content-Type: application/json' \
-    -d '{"username":"internkim","display_name":"김인턴"}' 2>/dev/null || true)"
-  BOT_USER_ID=$(echo "$BOT_RESPONSE" | jq -r '.user_id // empty')
-  if [ -z "$BOT_USER_ID" ]; then
-    BOT_USER_ID="$(curl -sf "$MM_URL/api/v4/users/username/internkim" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null | jq -r '.id // empty' || true)"
-  fi
-  if [ -n "$BOT_USER_ID" ]; then
-    curl -sf -X PUT "$MM_URL/api/v4/users/$BOT_USER_ID/patch" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" \
-      -H 'Content-Type: application/json' \
-      -d '{"first_name":"Intern","last_name":"Kim","nickname":"김인턴","position":""}' >/dev/null 2>&1 || true
-    if [ -f /opt/internkim/assets/internkim.png ]; then
-      curl -sf -X POST "$MM_URL/api/v4/users/$BOT_USER_ID/image" \
-        -H "Authorization: Bearer $ADMIN_TOKEN" \
-        -F "image=@/opt/internkim/assets/internkim.png;type=image/png" >/dev/null 2>&1 || true
-    fi
-  fi
-
-  BOT_TOKEN=""
-  if [ -n "$BOT_USER_ID" ]; then
-    BOT_PAT="$(curl -sf -X POST "$MM_URL/api/v4/users/$BOT_USER_ID/tokens" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" \
-      -H 'Content-Type: application/json' \
-      -d '{"description":"internkim-bot"}' 2>/dev/null || true)"
-    BOT_TOKEN=$(echo "$BOT_PAT" | jq -r '.token // empty')
-  fi
-
-  if [ -n "$BOT_USER_ID" ] && [ -n "$ADMIN_ID" ]; then
-    DM_RESPONSE=$(curl -sf -X POST "$MM_URL/api/v4/channels/direct" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" \
-      -H 'Content-Type: application/json' \
-      -d "[\"$ADMIN_ID\",\"$BOT_USER_ID\"]" 2>/dev/null || true)
-    DM_ID=$(echo "$DM_RESPONSE" | jq -r '.id // empty' || true)
-    if [ -n "$DM_ID" ]; then
-      POSTS_RESPONSE="$(curl -sf "$MM_URL/api/v4/channels/$DM_ID/posts?per_page=200" \
-        -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null || true)"
-      OLDEST_POST_ID=$(echo "$POSTS_RESPONSE" | jq -r '.order[-1] // empty' || true)
-      if [ -n "$OLDEST_POST_ID" ]; then
-        OLDEST_POST_MESSAGE=$(echo "$POSTS_RESPONSE" | jq -r ".posts[\"$OLDEST_POST_ID\"].message // empty" || true)
-        WELCOME_MESSAGE="Please add me to teams and channels you want me to interact in. To do this, use the browser or Mattermost Desktop App."
-        if [ "$OLDEST_POST_MESSAGE" = "$WELCOME_MESSAGE" ]; then
-          curl -sf -X DELETE "$MM_URL/api/v4/posts/$OLDEST_POST_ID" \
-            -H "Authorization: Bearer $ADMIN_TOKEN" >/dev/null 2>&1 || true
-        fi
-      fi
-    fi
-  fi
-
-  echo "Setting up team..."
-  TEAM_RESPONSE="$(curl -sf "$MM_URL/api/v4/teams/name/internkim" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null || true)"
-  TEAM_ID=$(echo "$TEAM_RESPONSE" | jq -r '.id // empty')
-  if [ -z "$TEAM_ID" ]; then
-    TEAM_RESPONSE="$(curl -sf -X POST "$MM_URL/api/v4/teams" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" \
-      -H 'Content-Type: application/json' \
-      -d '{"name":"internkim","display_name":"Intern Kim","type":"I"}' 2>/dev/null || true)"
-    TEAM_ID=$(echo "$TEAM_RESPONSE" | jq -r '.id // empty')
-  fi
-  echo "Team ID: ${TEAM_ID:-none}"
-
-  if [ -n "$TEAM_ID" ] && [ -n "$BOT_USER_ID" ]; then
-    curl -sf -X POST "$MM_URL/api/v4/teams/$TEAM_ID/members" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" \
-      -H 'Content-Type: application/json' \
-      -d "{\"team_id\":\"$TEAM_ID\",\"user_id\":\"$BOT_USER_ID\"}" >/dev/null 2>&1 || true
-    echo "Bot added to team"
-  fi
-
-  if [ -n "$BOT_TOKEN" ] && curl -sf "$MM_URL/api/v4/users/me" \
-    -H "Authorization: Bearer $BOT_TOKEN" >/dev/null 2>&1; then
-    printf '%s' "$BOT_TOKEN" > /root/.internkim/secrets/mattermost-bot-token
-    chown root:root /root/.internkim/secrets/mattermost-bot-token
-    chmod 600 /root/.internkim/secrets/mattermost-bot-token
-  else
-    echo "WARNING: Mattermost bot token was not created or did not validate"
-  fi
-
   mark_phase_done apps
 fi`)
-
-	replacements := map[string]string{
-		"__DEVICE_URL__":             deviceURL,
-		"__ADMIN_EMAIL__":            adminEmail,
-		"__MANAGED_RESOURCE_PATHS__": mattermostManagedResourcePathSetting(),
-	}
-
-	return fillFirstbootPlaceholders(section, replacements)
 }
 
 func renderFirstbootServicesSection(isLocalLlamaProvisioned bool) string {
@@ -913,7 +688,7 @@ else
   echo "Waiting for services..."
   for attemptIndex in $(seq 1 150); do
     allServicesActive=true
-    for serviceName in mattermost %s %s %s %s %s postgresql; do
+    for serviceName in %s %s %s %s %s postgresql; do
       if ! systemctl is-active --quiet "$serviceName" 2>/dev/null; then
         allServicesActive=false
         break
@@ -987,12 +762,4 @@ fi
 echo "first-boot complete"
 rm -f /usr/local/bin/internkim-firstboot.sh
 cp /var/log/internkim-firstboot.log /boot/firmware/internkim/firstboot.log 2>/dev/null || true`)
-}
-
-func fillFirstbootPlaceholders(section string, replacements map[string]string) string {
-	filledSection := section
-	for placeholder, replacement := range replacements {
-		filledSection = strings.ReplaceAll(filledSection, placeholder, replacement)
-	}
-	return filledSection
 }
