@@ -360,7 +360,7 @@ const calendarMutableFields = {
   everyoneAttends: z.boolean()
     .describe('Set true when the event is open to the whole company, which leaves it with no attendee list. Leave it out when named people attend, or when nobody is named and the event is the requester\u2019s own.')
     .optional(),
-  notifyMinutesBefore: z.number().int().positive().describe('Minutes before the start to notify attendees.').optional(),
+  notifyMinutesBefore: z.number().int().min(0).describe('Minutes before the start to notify attendees. 0 leaves the event with no reminder.').optional(),
 };
 
 export const calendarAddInputSchema = z.strictObject({
@@ -376,7 +376,7 @@ export const calendarAddInputSchema = z.strictObject({
   everyoneAttends: z.boolean()
     .describe('Set true when the event is open to the whole company, which leaves it with no attendee list. Leave it out when named people attend, or when nobody is named and the event is the requester\u2019s own.')
     .optional(),
-  notifyMinutesBefore: z.number().int().positive().describe('Minutes before the start to notify attendees.').optional(),
+  notifyMinutesBefore: z.number().int().min(0).describe('Minutes before the start to notify attendees. 0 leaves the event with no reminder.').optional(),
 });
 
 export const calendarAddInputIntentSchema = calendarAddInputSchema.partial();
