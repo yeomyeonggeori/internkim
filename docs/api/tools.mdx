@@ -61,6 +61,27 @@ left out is refused `400` naming the field:
 { "message": "input.size: Invalid option: expected one of \"XS\"|\"S\"|\"M\"|\"L\"|\"XL\"|\"XXL\"" }
 ```
 
+### Saying a field has no value [#no-value]
+
+There are three ways to say an optional field has no value, and they are one
+request: leave the field out, write `null`, or write `""`. All three are read
+as the field being left out, so a caller that fills every field it knows about
+is not refused for the way it spelled an empty one.
+
+```json
+{ "input": { "title": "draft the quarterly report", "startsAt": "", "size": null } }
+```
+
+That call is the same as sending `title` alone.
+
+This applies only where the schema allows the field to be left out. A field the
+tool requires is refused when you send it empty, because "you sent nothing" and
+"you forgot this" need different answers:
+
+```json
+{ "message": "input.title: Invalid input: expected string, received undefined" }
+```
+
 <Callout title="No approval pause" type="warn">
 In a messenger conversation the agent stops and asks before a delete or a
 send. Every non-read invocation arriving this way is marked an already-approved
