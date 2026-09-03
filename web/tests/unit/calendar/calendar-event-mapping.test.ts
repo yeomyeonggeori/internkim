@@ -86,6 +86,29 @@ test('maps leave source and read-only state into event meta', () => {
 	expect(event.meta?.source).toBe('leave');
 });
 
+test('draws a two-day leave across both of its days', () => {
+	const event = dayTaskEventFromCalendarEvent({
+		id: 'leave:leave-two-days',
+		uid: 'leave:leave-two-days',
+		title: '이샘플 · 휴가',
+		description: '',
+		location: '',
+		startISO: '2026-08-02T15:00:00.000Z',
+		endISO: '2026-08-04T15:00:00.000Z',
+		timeZone: 'Asia/Seoul',
+		isAllDay: true,
+		color: '',
+		createdByEmail: '',
+		createdByName: '',
+		updatedAt: '2026-08-02T15:00:00.000Z',
+		readOnly: true,
+		source: 'leave'
+	});
+
+	expect(calendarDatePartsOf(event.start)).toEqual({ year: 2026, month: 8, day: 3 });
+	expect(calendarDatePartsOf(event.end)).toEqual({ year: 2026, month: 8, day: 4 });
+});
+
 test('writes a whole-day event as the calendar day the viewer picked, not an instant of their own', () => {
 	const originalTimeZone = process.env.TZ;
 	try {
