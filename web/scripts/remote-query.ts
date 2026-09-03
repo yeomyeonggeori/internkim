@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 
 export const projectReference = process.env.SUPABASE_PROJECT_REF ?? 'mutvimjbvmoludotyehk';
 
-function accessToken(): string {
+export function accessToken(): string {
 	const fromEnvironment = process.env.SUPABASE_ACCESS_TOKEN?.trim();
 	if (fromEnvironment) return fromEnvironment;
 	const stored = execFileSync(
