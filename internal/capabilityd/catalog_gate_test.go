@@ -351,6 +351,7 @@ const (
 	throughTheModelRouter       = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
 	reachesLivePublicURLs       = "fetches live public URLs"
 	callsAnImageModel           = "calls an image model"
+	answeredOnlyOnThePlane      = "answered on the plane and nowhere else, so no backend this gate stands in for can answer it; step 3 of internkim#1306 puts admind's callers on it"
 )
 
 var toolsWithNoGateCaseYet = map[string]string{
@@ -359,6 +360,12 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"event_list":                implementedOnThePlaneToo,
 	"event_update":              implementedOnThePlaneToo,
 	"person_list":               implementedOnThePlaneToo,
+	"person_invite":             answeredOnlyOnThePlane,
+	"person_update":             answeredOnlyOnThePlane,
+	"team_add":                  answeredOnlyOnThePlane,
+	"team_delete":               answeredOnlyOnThePlane,
+	"team_list":                 answeredOnlyOnThePlane,
+	"team_update":               answeredOnlyOnThePlane,
 	"task_add":                  implementedOnThePlaneToo,
 	"task_delete":               implementedOnThePlaneToo,
 	"task_list":                 implementedOnThePlaneToo,

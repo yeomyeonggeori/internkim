@@ -1,60 +1,68 @@
-import { supabase } from '$lib/supabase';
+import { invokeTool } from '$lib/public-api-call';
+import { memberRoleOf } from '$lib/member-vocabulary';
 import type { OrgGroup, UserRecord, UsersResponse } from '$lib/organization/types';
 
-type MemberRow = {
-	id: string;
-	name: string | null;
-	email: string | null;
-	job_title: string | null;
-	phone_number: string | null;
-	joined_at: string | null;
-	team_id: string | null;
-	supervisor_id: string | null;
-	is_admin: boolean;
+type AnsweredPerson = {
+	personID: string;
+	name: string;
+	email: string;
+	handle?: string;
+	isAdmin?: boolean;
+	jobTitle?: string;
+	teamID?: string;
+	supervisorID?: string;
+	phoneNumber?: string;
+	hireDate?: string;
 };
 
-type TeamRow = { id: string; name: string; parent_team_id: string | null };
+type AnsweredPeople = { count: number; people: AnsweredPerson[] };
+
+type AnsweredTeam = {
+	teamID: string;
+	name: string;
+	parentTeamID: string;
+	position: number;
+};
+
+type AnsweredTeams = { count: number; teams: AnsweredTeam[] };
 
 export async function supabaseOrganizationDirectory(): Promise<UsersResponse> {
-	const members = await supabase()
-		.from('member')
-		.select('id, name, email, job_title, phone_number, joined_at, team_id, supervisor_id, is_admin')
-		.neq('status', 'withdrawn')
-		.returns<MemberRow[]>();
-	if (members.error) throw new Error(members.error.message);
-
-	const teams = await supabase()
-		.from('team')
-		.select('id, name, parent_team_id')
-		.order('position')
-		.returns<TeamRow[]>();
-	if (teams.error) throw new Error(teams.error.message);
-
+	const [people, teams] = await Promise.all([
+		invokeTool<AnsweredPeople>('person_list', {}),
+		invokeTool<AnsweredTeams>('team_list', {})
+	]);
 	return {
-		records: (members.data ?? []).map(recordOf),
-		availableGroups: (teams.data ?? []).map(groupOf),
+		records: people.people.map(recordOf),
+		availableGroups: teams.teams.map(groupOf)
 	};
 }
 
-function recordOf(member: MemberRow): UserRecord {
-	const email = member.email ?? '';
-	const handle = email.split('@')[0];
+function recordOf(person: AnsweredPerson): UserRecord {
 	return {
-		memberID: member.id,
-		email,
-		handle,
-		name: member.name || handle,
-		role: member.is_admin ? 'admin' : 'member',
-		jobTitle: member.job_title ?? undefined,
-		phoneNumber: member.phone_number ?? undefined,
-		hireDate: member.joined_at ? member.joined_at.slice(0, 10) : undefined,
-		groupID: member.team_id ?? undefined,
-		supervisorID: member.supervisor_id ?? undefined,
+		memberID: person.personID,
+		email: person.email,
+		handle: handleOf(person),
+		name: person.name,
+		role: memberRoleOf(person.isAdmin === true),
+		jobTitle: person.jobTitle,
+		phoneNumber: person.phoneNumber,
+		hireDate: person.hireDate,
+		groupID: person.teamID,
+		supervisorID: person.supervisorID
 	};
 }
 
-function groupOf(team: TeamRow): OrgGroup {
-	return { id: team.id, name: team.name, parentID: team.parent_team_id ?? undefined };
+function handleOf(person: AnsweredPerson): string {
+	const named = (person.handle ?? '').replace(/^@/, '');
+	return named || person.email.split('@')[0];
+}
+
+function groupOf(team: AnsweredTeam): OrgGroup {
+	return {
+		id: team.teamID,
+		name: team.name,
+		...(team.parentTeamID ? { parentID: team.parentTeamID } : {})
+	};
 }
 
 export type MemberProfileUpdate = {
@@ -67,39 +75,100 @@ export type MemberProfileUpdate = {
 };
 
 export async function saveSupabaseMemberProfiles(profiles: MemberProfileUpdate[]): Promise<UsersResponse> {
-	const saved = await supabase().rpc('member_profiles_save', { profiles });
-	if (saved.error) throw new Error(saved.error.message);
+	for (const profile of profiles) {
+		await invokeTool<AnsweredPerson>('person_update', {
+			personHint: profile.memberID,
+			jobTitle: profile.jobTitle,
+			teamHint: profile.groupID,
+			supervisorHint: profile.supervisorID,
+			phoneNumber: profile.phoneNumber,
+			hireDate: profile.hireDate
+		});
+	}
 	return supabaseOrganizationDirectory();
 }
 
 export async function saveSupabaseTeams(groups: OrgGroup[]): Promise<UsersResponse> {
-	const teams = groups.map((group) => ({ id: group.id, name: group.name, parentID: group.parentID ?? '' }));
-	const saved = await supabase().rpc('team_save', { teams });
-	if (saved.error) throw new Error(saved.error.message);
+	const held = await invokeTool<AnsweredTeams>('team_list', {});
+	await reconcileTeams(held.teams, groups);
 	return supabaseOrganizationDirectory();
+}
+
+async function reconcileTeams(held: AnsweredTeam[], offered: OrgGroup[]): Promise<void> {
+	const known = new Map(held.map((team) => [team.teamID, team]));
+	const knownByName = new Map(held.map((team) => [normalizedName(team.name), team]));
+	const settledIDByOfferedID = new Map<string, string>();
+
+	for (const [position, group] of offered.entries()) {
+		const match = known.get(group.id) ?? knownByName.get(normalizedName(group.name));
+		if (match) {
+			settledIDByOfferedID.set(group.id, match.teamID);
+			continue;
+		}
+		const made = await invokeTool<AnsweredTeam>('team_add', { name: group.name, position });
+		settledIDByOfferedID.set(group.id, made.teamID);
+		known.set(made.teamID, made);
+	}
+
+	for (const [position, group] of offered.entries()) {
+		const teamID = settledIDByOfferedID.get(group.id);
+		if (!teamID) continue;
+		const parentTeamID = group.parentID ? (settledIDByOfferedID.get(group.parentID) ?? '') : '';
+		const settled = known.get(teamID);
+		if (
+			settled &&
+			settled.name === group.name &&
+			settled.parentTeamID === parentTeamID &&
+			settled.position === position
+		) {
+			continue;
+		}
+		await invokeTool<AnsweredTeam>('team_update', {
+			teamHint: teamID,
+			name: group.name,
+			parentHint: parentTeamID,
+			position
+		});
+	}
+
+	for (const team of doomedTeamsDeepestFirst(held, new Set(settledIDByOfferedID.values()))) {
+		await invokeTool('team_delete', { teamHint: team.teamID });
+	}
+}
+
+function doomedTeamsDeepestFirst(held: AnsweredTeam[], kept: Set<string>): AnsweredTeam[] {
+	const byID = new Map(held.map((team) => [team.teamID, team]));
+	const depthOf = (team: AnsweredTeam): number => {
+		let depth = 0;
+		let walked = team;
+		while (walked.parentTeamID && depth < held.length) {
+			const parent = byID.get(walked.parentTeamID);
+			if (!parent) break;
+			walked = parent;
+			depth += 1;
+		}
+		return depth;
+	};
+	return held
+		.filter((team) => !kept.has(team.teamID))
+		.sort((first, second) => depthOf(second) - depthOf(first));
+}
+
+function normalizedName(name: string): string {
+	return name.trim().toLowerCase();
 }
 
 export type SavedMemberProfile = { phoneNumber: string; hireDate: string };
 
-function savedMemberProfileOf(value: unknown): SavedMemberProfile {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new Error('member_profile_save_own answered with no member profile');
-	}
-	const fields = value as Record<string, unknown>;
-	return {
-		phoneNumber: typeof fields.phoneNumber === 'string' ? fields.phoneNumber : '',
-		hireDate: typeof fields.hireDate === 'string' ? fields.hireDate : '',
-	};
-}
-
 export async function saveOwnSupabaseProfile(
+	memberID: string,
 	phoneNumber: string,
-	hireDate: string,
+	hireDate: string
 ): Promise<SavedMemberProfile> {
-	const saved = await supabase().rpc('member_profile_save_own', {
-		new_phone_number: phoneNumber || null,
-		new_hire_date: hireDate || null,
+	const saved = await invokeTool<AnsweredPerson>('person_update', {
+		personHint: memberID,
+		phoneNumber,
+		hireDate
 	});
-	if (saved.error) throw new Error(saved.error.message);
-	return savedMemberProfileOf(saved.data);
+	return { phoneNumber: saved.phoneNumber ?? '', hireDate: saved.hireDate ?? '' };
 }

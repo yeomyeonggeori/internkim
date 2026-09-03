@@ -7,6 +7,7 @@ import {
 	type TaskRow
 } from '$lib/server/public-api/record/tasks';
 import { HintRefused } from '$lib/server/public-api/record/hint-resolution';
+import { personInTheDirectory } from './directory-fixture';
 
 function row(overrides: Partial<TaskRow> = {}): TaskRow {
 	return {
@@ -137,7 +138,7 @@ describe('who a task belongs to', () => {
 	const people = [
 		{ personID: 'm1', name: '이샘플', email: 'sample@example.com' },
 		{ personID: 'm2', name: '박예시', email: 'yesi@example.com' }
-	];
+	].map(personInTheDirectory);
 
 	test('is the requester when the caller named nobody', () => {
 		expect(participantsOfHints(people, [], 'm1')).toEqual(['m1']);
@@ -156,7 +157,7 @@ describe('whose tasks a list answers with', () => {
 	const people = [
 		{ personID: 'm1', name: '이샘플', email: 'sample@example.com' },
 		{ personID: 'm2', name: '박예시', email: 'yesi@example.com' }
-	];
+	].map(personInTheDirectory);
 
 	test('is the caller by default, everyone on request, and the person named over both', () => {
 		expect(ownerOfScope(people, undefined, undefined, 'm1')).toBe('m1');

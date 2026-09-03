@@ -14,9 +14,30 @@ export type RecordPerson = {
 	personID: string;
 	name: string;
 	email: string;
+	isAdmin: boolean;
+	employmentStatus: string;
+	jobTitle: string;
+	teamID: string;
+	supervisorID: string;
+	phoneNumber: string;
+	hireDate: string;
 };
 
-type MemberRow = { id: string; name: string | null; email: string | null };
+type MemberRow = {
+	id: string;
+	name: string | null;
+	email: string | null;
+	is_admin: boolean;
+	status: string;
+	job_title: string | null;
+	team_id: string | null;
+	supervisor_id: string | null;
+	phone_number: string | null;
+	joined_at: string | null;
+};
+
+const directoryColumns =
+	'id, name, email, is_admin, status, job_title, team_id, supervisor_id, phone_number, joined_at';
 
 export function displayNameOf(member: { name: string | null; email: string | null }): string {
 	return member.name?.trim() || (member.email ?? '').split('@')[0];
@@ -35,16 +56,40 @@ export function handleOf(email: string): string {
 export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPerson[]> {
 	const { data, error } = await caller
 		.from('member')
-		.select('id, name, email')
+		.select(directoryColumns)
 		.neq('status', 'withdrawn')
 		.order('name')
 		.returns<MemberRow[]>();
 	if (error) throw new Error(error.message);
-	return (data ?? []).map((member) => ({
+	return (data ?? []).map(recordPersonOf);
+}
+
+function recordPersonOf(member: MemberRow): RecordPerson {
+	return {
 		personID: member.id,
 		name: displayNameOf(member),
-		email: member.email ?? ''
-	}));
+		email: member.email ?? '',
+		isAdmin: member.is_admin,
+		employmentStatus: member.status,
+		jobTitle: member.job_title ?? '',
+		teamID: member.team_id ?? '',
+		supervisorID: member.supervisor_id ?? '',
+		phoneNumber: member.phone_number ?? '',
+		hireDate: member.joined_at ? String(member.joined_at).slice(0, 10) : ''
+	};
+}
+
+export async function personOfCompanyByID(
+	caller: SupabaseClient,
+	personID: string
+): Promise<RecordPerson | null> {
+	const { data, error } = await caller
+		.from('member')
+		.select(directoryColumns)
+		.eq('id', personID)
+		.maybeSingle<MemberRow>();
+	if (error) throw new Error(error.message);
+	return data ? recordPersonOf(data) : null;
 }
 
 const personMatcher: HintMatcher<RecordPerson> = {

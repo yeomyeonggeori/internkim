@@ -55,11 +55,11 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 function asSample(name: string, input: Record<string, unknown> = {}) {
-	return runToolOverTheRecord(sample, sampleID, name, input, now);
+	return runToolOverTheRecord(sample, client, sampleID, name, input, now);
 }
 
 function asAdmin(name: string, input: Record<string, unknown> = {}) {
-	return runToolOverTheRecord(admin, adminID, name, input, now);
+	return runToolOverTheRecord(admin, client, adminID, name, input, now);
 }
 
 // The reader the attendance page uses, so a row this suite writes is held to

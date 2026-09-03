@@ -12,10 +12,12 @@ import { hiddenBrowserToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import {
   buildCapabilityCatalog,
+  ResourceMutationEffect,
   type CapabilityToolCatalog,
   type CapabilityToolDefinition,
 } from './definition';
 import { mailToolDefinitions } from './mail';
+import { peopleToolDefinitions } from './people';
 import { modelToolDefinitions } from './model';
 
 const dateDescription = 'Date in YYYY-MM-DD format.';
@@ -170,15 +172,6 @@ export enum SiteLifecycleStatus {
   Failed = 'failed',
 }
 
-export enum ResourceMutationEffect {
-  Created = 'created',
-  Sent = 'sent',
-  Updated = 'updated',
-  Previewed = 'previewed',
-  Published = 'published',
-  Deleted = 'deleted',
-}
-
 export enum CalendarReminderLeadHours {
   One = 1,
   Two = 2,
@@ -310,22 +303,6 @@ export const taskListResultSchema = z.strictObject({
 export const taskDeleteResultSchema = z.strictObject({
   taskID: resourceIDSchema,
   deleted: z.literal(true),
-});
-
-export const personListInputSchema = z.strictObject({});
-
-export const personListInputIntentSchema = z.strictObject({});
-
-const personResultSchema = z.strictObject({
-  personID: z.string(),
-  name: z.string(),
-  email: z.string(),
-  mention: z.string().optional(),
-});
-
-export const personListResultSchema = z.strictObject({
-  count: z.number(),
-  people: z.array(personResultSchema),
 });
 
 const calendarParticipantResultSchema = z.strictObject({
@@ -865,20 +842,6 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'delete_task', targetKind: 'task' },
-  },
-  {
-    name: 'person_list',
-    namespace: 'person',
-    answeredBy: CapabilityAnsweredBy.Record,
-    privacyClass: 'workspace_task',
-    policyResource: 'tool:person_list',
-    description: 'Everyone who works here, with their exact name, email and mention. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.',
-    version: '2',
-    estimatedLatency: CapabilityEstimatedLatency.Low,
-    inputSchema: personListInputSchema,
-    inputIntentSchema: personListInputIntentSchema,
-    result: { schema: personListResultSchema, effects: [] },
-    sideEffect: CapabilitySideEffect.Read,
   },
 ];
 
@@ -1690,6 +1653,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
 
 const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...taskToolDefinitions,
+  ...peopleToolDefinitions,
   ...calendarToolDefinitions,
   ...leaveToolDefinitions,
   ...attendanceToolDefinitions,
