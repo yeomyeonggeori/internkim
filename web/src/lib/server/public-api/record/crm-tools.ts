@@ -368,16 +368,28 @@ export async function crmContactList(
 	return { count: rows.length, contacts: rows.map(answeredContact) };
 }
 
+function refuseAContactNobodyCanReach(change: Record<string, unknown>, row: ContactRow | null): void {
+	const written = (field: 'email' | 'phone'): string => {
+		const value = field in change ? change[field] : row?.[field];
+		return typeof value === 'string' ? value.trim() : '';
+	};
+	if (written('email') === '' && written('phone') === '') {
+		throw new Error('a contact needs an email address or a phone number');
+	}
+}
+
 export async function crmContactAdd(
 	context: RecordContext,
 	input: CRMContactWritten
 ): Promise<CRMContactResult> {
 	if (!input.name?.trim()) throw new Error('a contact needs a name');
+	const change = await contactChange(context, input, null);
+	refuseAContactNobodyCanReach(change, null);
 	const written = await writtenRow<ContactRow>(
 		context.caller,
 		'contact',
 		contactColumns,
-		{ company_id: context.companyID, messenger: {}, ...(await contactChange(context, input, null)) },
+		{ company_id: context.companyID, messenger: {}, ...change },
 		null
 	);
 	return answeredContact(written);
@@ -390,6 +402,7 @@ export async function crmContactUpdate(
 	const row = await contactOfCRMHint(context, hintOf(input.contactHint, 'contact'));
 	const change = await contactChange(context, input, row);
 	if (Object.keys(change).length === 0) throw new Error('an update names at least one field to change');
+	refuseAContactNobodyCanReach(change, row);
 
 	return answeredContact(await writtenRow<ContactRow>(context.caller, 'contact', contactColumns, change, row.id));
 }

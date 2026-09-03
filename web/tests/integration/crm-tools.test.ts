@@ -207,6 +207,25 @@ describe('the people at those organizations', () => {
 		const listed = await asSample('crm_contact_list', { organizationHint: 'ABC상사' });
 		expect((resultOf(listed).contacts as unknown[]).length).toBe(1);
 	});
+
+	test('are refused when nobody could reach them, on the way in and on the way out', async () => {
+		const refused = await asSample('crm_contact_add', {
+			organizationHint: 'ABC상사',
+			name: '연락처 없는 사람'
+		});
+
+		expect(refused.status).toBe(400);
+		expect(errorOf(refused)).toContain('email address or a phone number');
+
+		const emptied = await asSample('crm_contact_update', {
+			contactHint: 'yesi',
+			email: '',
+			phoneNumber: ''
+		});
+
+		expect(emptied.status).toBe(400);
+		expect(errorOf(emptied)).toContain('email address or a phone number');
+	});
 });
 
 describe('the deals a company is working on', () => {

@@ -205,3 +205,19 @@ remains available to the central API and the existing host contact path.
 Authenticated writes stamp `created_by`, `updated_by`, and `archived_by` from
 the current member. Service-role and migration writes may supply audit actors
 explicitly. `updated_at` changes on every update.
+
+## What the device's CRM screen tested
+
+The device kept its own CRM in SQLite behind 28 `/crm/api/*` routes, and 33
+Playwright specs covered that path. The record answers the screen now and those
+specs went with the routes: creating, editing, archiving, board moves, stage
+ordering, terminal-stage settlement and currency conversion are covered in kind
+by the 16 record specs in `crm-central.spec.ts`, which run against a real
+database. Two invariants moved: a contact needs an email address or a phone number,
+which `crm_contact_add` and `crm_contact_update` refuse without, and a
+foreign-currency close needs a converted amount, which `crm_opportunity_close`
+now raises. What is uncovered until
+somebody retargets it is the screen's own geometry and chrome: donut sizing,
+column ratios, the tab list, popover stacking above its sheet, the searchable
+owner menu's alignment, the mobile create flow, and a refresh failing after a
+create succeeds. None of those depend on which backend answers.

@@ -1,4 +1,4 @@
-import { CRMApiError } from './crm-api';
+import { CRMApiError } from './crm-error';
 import { CRMOwnerResolutionError } from './crm-mappers';
 import { CRMOpportunityTransitionError } from './crm-opportunity-transition';
 
@@ -13,7 +13,6 @@ export type CRMErrorText = {
 	ownerNotFound: string;
 	ownerAmbiguous: string;
 	lostReasonRequired: string;
-	baseCurrencyConversionRequired: string;
 	definitionInUse: string;
 };
 
@@ -29,7 +28,7 @@ export function crmErrorMessage(error: unknown, text: CRMErrorText): string {
 		return error.code === 'organization_load_failed' ? text.organizationLoadFailed : text.refreshAfterSaveFailed;
 	}
 	if (error instanceof CRMOpportunityTransitionError) {
-		return error.code === 'lost_reason_required' ? text.lostReasonRequired : text.baseCurrencyConversionRequired;
+		return text.lostReasonRequired;
 	}
 	if (error instanceof CRMOwnerResolutionError) {
 		return error.code === 'owner_not_found' ? text.ownerNotFound : text.ownerAmbiguous;

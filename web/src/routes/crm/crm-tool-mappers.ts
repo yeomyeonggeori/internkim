@@ -1,5 +1,5 @@
 import { isCRMStage } from '$lib/crm/crm-stage';
-import { CRMApiError } from './crm-api';
+import { CRMApiError } from './crm-error';
 import type {
 	CRMActivityResponse,
 	CRMAuditResponse,
