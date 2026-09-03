@@ -2,8 +2,13 @@ package admind
 
 import "testing"
 
+func newOrganizationProfileTestService(t *testing.T) *Service {
+	t.Helper()
+	return NewService(Configuration{StateDirectory: t.TempDir()})
+}
+
 func TestForgettingAProfileLeavesEveryoneElseDescribed(t *testing.T) {
-	service, _ := newAttendanceActionTestService(t)
+	service := newOrganizationProfileTestService(t)
 	if errorValue := service.writeOrganizationProfiles(t.Context(), []organizationProfile{
 		{MemberID: "member-1", Email: "stays@example.com", JobTitle: "연구원"},
 		{MemberID: "member-2", Email: "leaves@example.com", JobTitle: "인턴"},
@@ -25,7 +30,7 @@ func TestForgettingAProfileLeavesEveryoneElseDescribed(t *testing.T) {
 }
 
 func TestForgettingAProfileNamingNobodyChangesNothing(t *testing.T) {
-	service, _ := newAttendanceActionTestService(t)
+	service := newOrganizationProfileTestService(t)
 	if errorValue := service.writeOrganizationProfiles(t.Context(), []organizationProfile{
 		{MemberID: "member-1", Email: "stays@example.com", JobTitle: "연구원"},
 	}); errorValue != nil {

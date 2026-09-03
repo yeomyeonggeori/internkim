@@ -5,7 +5,6 @@ import {
 	fetchCompanyHolidays,
 	updateCompanyHoliday
 } from './company-holidays-api';
-import { settingsSource } from './settings-source';
 import type { AdminPageText, CompanyHoliday, CompanyHolidayInput } from './admin-types';
 
 export type CompanyHolidayDraft = CompanyHolidayInput & {
@@ -36,14 +35,13 @@ export class CompanyHolidaySettingsState {
 
 	private adminBaseURL = '';
 	private text: AdminPageText['companyHolidays'] | null = null;
-	private loadedSource = '';
+	private hasLoaded = false;
 
 	sync(adminBaseURL: string, text: AdminPageText['companyHolidays']): void {
 		this.adminBaseURL = adminBaseURL;
 		this.text = text;
-		const source = settingsSource(adminBaseURL);
-		if (!source || this.loadedSource === source) return;
-		this.loadedSource = source;
+		if (this.hasLoaded) return;
+		this.hasLoaded = true;
 		void this.load();
 	}
 

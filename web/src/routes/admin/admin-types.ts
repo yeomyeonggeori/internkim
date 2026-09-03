@@ -131,52 +131,13 @@ export type CredentialProvidersResponse = {
 };
 
 export type WorkspaceSettings = {
-	countryCode: string;
 	timeZone: string;
 	language: WorkspaceLanguage;
 	callingCode: string;
 	updatedAt?: string;
 };
 
-export type HolidayCountry = {
-	countryCode: string;
-	name: string;
-};
-
-export type HolidayCountriesResponse = {
-	countries?: HolidayCountry[];
-};
-
 export type CalendarHolidaySyncState = 'healthy' | 'degraded' | 'neverSynced';
-
-export type CalendarHolidayYearStatus = {
-	year: number;
-	status: CalendarHolidaySyncState;
-	cacheCount: number;
-	lastSyncedAt?: string;
-	lastAttemptAt?: string;
-	lastError?: string;
-	nextRetryAt?: string;
-};
-
-export type CalendarHolidayStatus = {
-	status: CalendarHolidaySyncState;
-	countryCode: string;
-	provider: string;
-	years: CalendarHolidayYearStatus[];
-};
-
-export type AttendanceLocation = {
-	id: string;
-	name: string;
-	color: string;
-	isDefault: boolean;
-	updatedAt?: string;
-};
-
-export type AttendanceLocationsResponse = {
-	locations?: AttendanceLocation[];
-};
 
 export type LeaveBalanceMode = 'annual' | 'separate' | 'none';
 export type LeaveBalanceTrackingMode = 'managed' | 'unlimited';

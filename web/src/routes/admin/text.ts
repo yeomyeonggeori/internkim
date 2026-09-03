@@ -143,9 +143,6 @@ export const adminText = {
 			settings: {
 			title: '작업공간 설정',
 			description: '근태와 운영 화면에서 사용할 작업공간 설정입니다.',
-			country: '회사 국가',
-			countryDescription: '선택한 회사 국가를 기준으로 공휴일을 자동 표시하고 매월 최신 정보로 업데이트합니다.',
-			countryLoadError: '국가 목록을 불러오지 못했습니다. 현재 설정된 국가는 계속 표시됩니다.',
 			timeZone: '시간대',
 			timeZonePlaceholder: 'system 또는 Asia/Seoul',
 			timeZoneHint: '비워두거나 system으로 두면 기기 설정을 사용합니다. IANA timezone만 저장됩니다.',
@@ -160,9 +157,6 @@ export const adminText = {
 			loadError: '설정을 불러오지 못했습니다.',
 			saveSuccess: '저장되었습니다.',
 			saveError: '설정을 저장하지 못했습니다.'
-		},
-		holidayStatus: {
-			title: '공휴일 동기화', description: '국가별 공휴일 제공자와 로컬 캐시 상태를 확인합니다.', healthy: '정상', degraded: '오류', neverSynced: '동기화 전', country: '국가', provider: '제공자', year: '연도', cacheCount: '저장된 공휴일', lastSyncedAt: '마지막 성공', lastAttemptAt: '마지막 시도', nextRetryAt: '다음 자동 재시도', actualError: '실제 오류', refresh: '지금 다시 시도', refreshing: '다시 시도 중...', loading: '불러오는 중...', loadError: '공휴일 동기화 상태를 불러오지 못했습니다.', refreshError: '공휴일을 다시 불러오지 못했습니다.', emptyValue: '없음'
 		},
 		companyHolidays: {
 			title: '회사 지정 휴일', description: '창립기념일이나 전사 휴무일을 등록하면 모든 구성원의 캘린더와 휴가 계산에 반영됩니다.', add: '휴일 추가', createTitle: '회사 휴일 등록', editTitle: '회사 휴일 수정', name: '휴일명', namePlaceholder: '예: 창립기념일', date: '날짜', recursAnnually: '매년 반복', recurrenceDescription: '선택한 월과 일에 매년 표시합니다. 주말과 겹쳐도 대체 휴일은 자동으로 만들지 않습니다.', annual: '매년 반복', oneTime: '1회', edit: '수정', remove: '삭제', cancel: '취소', save: '저장', loading: '불러오는 중...', empty: '등록된 회사 휴일이 없습니다.', loadError: '회사 휴일을 불러오지 못했습니다.', saveError: '회사 휴일을 저장하지 못했습니다.', saveSuccess: '회사 휴일을 저장했습니다.', removeError: '회사 휴일을 삭제하지 못했습니다.', removeSuccess: '회사 휴일을 삭제했습니다.', removeConfirmationTitle: '회사 휴일을 삭제할까요?', removeConfirmationDescription: '삭제하면 모든 구성원의 캘린더와 휴가 계산에서 더 이상 적용되지 않습니다.'
@@ -293,19 +287,6 @@ export const adminText = {
 			addError: 'WiFi 추가에 실패했습니다.',
 			updateError: '비밀번호 변경에 실패했습니다.',
 			removeError: 'WiFi 삭제에 실패했습니다.'
-		},
-		attendanceLocations: {
-			title: '출근 장소',
-			description: 'Mattermost 출근 버튼에 표시할 장소입니다. 최소 하나는 유지됩니다.',
-			add: '추가',
-			color: '장소 색상',
-			placeholder: '사무실',
-			default: '기본',
-			remove: '장소 삭제',
-			save: '저장',
-			loadError: '출근 장소를 불러오지 못했습니다.',
-			saveSuccess: '저장되었습니다.',
-			saveError: '출근 장소를 저장하지 못했습니다.'
 		},
 		backup: {
 			title: '암호화 백업',
@@ -520,9 +501,6 @@ export const adminText = {
 		settings: {
 			title: 'Workspace Settings',
 			description: 'Workspace settings used by attendance and operations screens.',
-			country: 'Company country',
-			countryDescription: 'Public holidays are shown for the selected company country and updated automatically each month.',
-			countryLoadError: 'Could not load the country list. The currently configured country remains available.',
 			timeZone: 'Time zone',
 			timeZonePlaceholder: 'system or Asia/Seoul',
 			timeZoneHint: 'Leave empty or set system to use the device setting. Only IANA time zones are saved.',
@@ -537,9 +515,6 @@ export const adminText = {
 			loadError: 'Could not load settings.',
 			saveSuccess: 'Saved.',
 			saveError: 'Could not save settings.'
-		},
-		holidayStatus: {
-			title: 'Holiday sync', description: 'Review the public holiday provider and local cache status.', healthy: 'Healthy', degraded: 'Error', neverSynced: 'Not synced', country: 'Country', provider: 'Provider', year: 'Year', cacheCount: 'Cached holidays', lastSyncedAt: 'Last success', lastAttemptAt: 'Last attempt', nextRetryAt: 'Next automatic retry', actualError: 'Actual error', refresh: 'Retry now', refreshing: 'Retrying...', loading: 'Loading...', loadError: 'Could not load holiday sync status.', refreshError: 'Could not refresh public holidays.', emptyValue: 'None'
 		},
 		companyHolidays: {
 			title: 'Company holidays', description: 'Add company anniversaries and office closure days to every member calendar and leave calculation.', add: 'Add holiday', createTitle: 'Add company holiday', editTitle: 'Edit company holiday', name: 'Holiday name', namePlaceholder: 'e.g. Company anniversary', date: 'Date', recursAnnually: 'Repeat annually', recurrenceDescription: 'Show this holiday on the same month and day each year. Weekend overlaps do not create an automatic substitute holiday.', annual: 'Repeats annually', oneTime: 'One time', edit: 'Edit', remove: 'Delete', cancel: 'Cancel', save: 'Save', loading: 'Loading...', empty: 'No company holidays have been added.', loadError: 'Could not load company holidays.', saveError: 'Could not save the company holiday.', saveSuccess: 'Company holiday saved.', removeError: 'Could not delete the company holiday.', removeSuccess: 'Company holiday deleted.', removeConfirmationTitle: 'Delete this company holiday?', removeConfirmationDescription: 'It will no longer appear on member calendars or apply to leave calculations.'
@@ -650,19 +625,6 @@ export const adminText = {
 				foundedDate: 'Founded', employeeCount: 'Team size', jurisdiction: 'Jurisdiction', representative: 'Representative',
 				representativeTitle: 'Representative title', capital: 'Capital', fiscalYearEnd: 'Fiscal year end', email: 'Company email'
 			}
-		},
-		attendanceLocations: {
-			title: 'Attendance locations',
-			description: 'Locations shown on the Mattermost attendance button. Keep at least one location.',
-			add: 'Add',
-			color: 'Location color',
-			placeholder: 'Office',
-			default: 'Default',
-			remove: 'Remove location',
-			save: 'Save',
-			loadError: 'Could not load attendance locations.',
-			saveSuccess: 'Saved.',
-			saveError: 'Could not save attendance locations.'
 		},
 		wifiProfiles: {
 			title: 'WiFi',
