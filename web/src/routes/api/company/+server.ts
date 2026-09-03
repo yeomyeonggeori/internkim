@@ -71,7 +71,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		invited
 	);
 
-	const notifications = await setUpNotificationsFor(environment, accessToken, email);
+	const notifications = await setUpNotificationsFor(environment, accessToken, email, client);
 
 	return json({ ...founded, slug, notifications });
 };
