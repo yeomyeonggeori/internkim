@@ -65,8 +65,44 @@ func newCRMCarryTestService(t *testing.T, planeURL string) *Service {
 	return NewService(configuration)
 }
 
+// admind creates no CRM store any more, so a test that wants one holding rows
+// writes the columns the carry reads, the way a device that used the CRM has
+// them.
+var retiredCRMSchema = []string{
+	`CREATE TABLE account (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL,
+		types TEXT, tags TEXT NOT NULL, importance TEXT NOT NULL, owner_person_id TEXT NOT NULL,
+		owner_circle_id TEXT, address TEXT, description TEXT, created_at TEXT NOT NULL,
+		created_by_person_id TEXT NOT NULL, updated_at TEXT NOT NULL,
+		updated_by_person_id TEXT NOT NULL, archived_at TEXT, archived_by_person_id TEXT)`,
+	`CREATE TABLE contact (id TEXT PRIMARY KEY, account_id TEXT, name TEXT NOT NULL, email TEXT,
+		phone TEXT, title TEXT, department TEXT, is_primary INTEGER NOT NULL,
+		owner_person_id TEXT NOT NULL, owner_circle_id TEXT, description TEXT,
+		created_at TEXT NOT NULL, created_by_person_id TEXT NOT NULL, updated_at TEXT NOT NULL,
+		updated_by_person_id TEXT NOT NULL, archived_at TEXT, archived_by_person_id TEXT)`,
+	`CREATE TABLE opportunity (id TEXT PRIMARY KEY, account_id TEXT, business TEXT,
+		name TEXT NOT NULL, pipeline TEXT NOT NULL, stage TEXT NOT NULL,
+		stage_position REAL NOT NULL, stage_changed_at TEXT NOT NULL, owner_person_id TEXT NOT NULL,
+		owner_circle_id TEXT, amount_minor INTEGER, currency_code TEXT NOT NULL,
+		base_amount_minor INTEGER, base_currency_code TEXT, importance TEXT NOT NULL, due_at TEXT,
+		due_time_zone TEXT, lost_reason TEXT, description TEXT, created_at TEXT NOT NULL,
+		created_by_person_id TEXT NOT NULL, updated_at TEXT NOT NULL,
+		updated_by_person_id TEXT NOT NULL, archived_at TEXT, archived_by_person_id TEXT)`,
+	`CREATE TABLE opportunity_contact (opportunity_id TEXT NOT NULL, contact_id TEXT NOT NULL,
+		is_primary INTEGER NOT NULL, PRIMARY KEY (opportunity_id, contact_id))`,
+	`CREATE TABLE activity (id TEXT PRIMARY KEY, account_id TEXT, contact_id TEXT,
+		opportunity_id TEXT, business TEXT, kind TEXT NOT NULL, title TEXT NOT NULL,
+		occurred_at TEXT NOT NULL, content TEXT, created_at TEXT NOT NULL,
+		created_by_person_id TEXT NOT NULL, updated_at TEXT NOT NULL,
+		updated_by_person_id TEXT NOT NULL, archived_at TEXT, archived_by_person_id TEXT)`,
+	`CREATE TABLE resource_link (id TEXT PRIMARY KEY, entity_type TEXT NOT NULL,
+		entity_id TEXT NOT NULL, service TEXT NOT NULL, external_resource_type TEXT NOT NULL,
+		external_resource_id TEXT NOT NULL, external_resource_url TEXT, created_at TEXT NOT NULL,
+		created_by_person_id TEXT NOT NULL, removed_at TEXT, removed_by_person_id TEXT)`,
+}
+
 func seedCRMStore(t *testing.T, service *Service, statements ...string) {
 	t.Helper()
+	statements = append(append([]string{}, retiredCRMSchema...), statements...)
 	database, errorValue := service.openCRMDatabase(context.Background())
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -181,7 +217,6 @@ func TestCRMCarryRefusesAStageTheRecordDoesNotKeep(t *testing.T) {
 	plane, _ := startPlaneTakingCRM(t, []string{"member-1"})
 	service := newCRMCarryTestService(t, plane.URL)
 	seedCRMStore(t, service, seededCRMAccount, `
-INSERT INTO pipeline_stage (pipeline, stage, position, outcome) VALUES ('sales', 'haggling', 7, 'open')`, `
 INSERT INTO opportunity (id, account_id, name, pipeline, stage, stage_position, stage_changed_at,
 	owner_person_id, currency_code, importance, created_at, created_by_person_id, updated_at,
 	updated_by_person_id)
@@ -204,13 +239,13 @@ func TestCRMCarryRefusesADealAgainstNoRelationship(t *testing.T) {
 	plane, _ := startPlaneTakingCRM(t, []string{"member-1"})
 	service := newCRMCarryTestService(t, plane.URL)
 	seedCRMStore(t, service, seededCRMContact2(), `
-INSERT INTO opportunity_contact (opportunity_id, contact_id, is_primary)
-VALUES ('opportunity-2', 'contact-2', 1)`, `
 INSERT INTO opportunity (id, account_id, name, pipeline, stage, stage_position, stage_changed_at,
 	owner_person_id, currency_code, importance, created_at, created_by_person_id, updated_at,
 	updated_by_person_id)
 VALUES ('opportunity-2', NULL, '개인 고객 건', 'sales', 'waiting', 1024, '2026-01-05T00:00:00Z',
-	'member-1', 'KRW', 'medium', '2026-01-04T00:00:00Z', 'member-1', '2026-01-05T00:00:00Z', 'member-1')`)
+	'member-1', 'KRW', 'medium', '2026-01-04T00:00:00Z', 'member-1', '2026-01-05T00:00:00Z', 'member-1')`, `
+INSERT INTO opportunity_contact (opportunity_id, contact_id, is_primary)
+VALUES ('opportunity-2', 'contact-2', 1)`)
 
 	report, errorValue := service.carryTheCRMIntoTheRecord(context.Background())
 	if errorValue != nil {

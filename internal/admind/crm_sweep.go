@@ -178,3 +178,7 @@ func (service *Service) crmStillHeldHere(ctx context.Context) (int, []string, er
 	}
 	return uncovered, crmTablesTheRecordCannotTake(ctx, database), nil
 }
+
+func (service *Service) startCRMSweep(ctx context.Context) {
+	go service.sweepTheCRMTheRecordNowHolds(ctx)
+}

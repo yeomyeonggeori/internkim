@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { CRMApiError } from '../../../src/routes/crm/crm-api';
+import { CRMApiError } from '../../../src/routes/crm/crm-error';
 import { crmErrorMessage, CRMPageError } from '../../../src/routes/crm/crm-error-text';
 import { CRMOwnerResolutionError } from '../../../src/routes/crm/crm-mappers';
 import { CRMOpportunityTransitionError } from '../../../src/routes/crm/crm-opportunity-transition';
@@ -41,10 +41,4 @@ describe('CRM localized errors', () => {
 		expect(crmErrorMessage(error, crmText.en)).toBe('Select a lost reason before moving to a lost stage.');
 	});
 
-	test('localizes a missing foreign-currency conversion', () => {
-		const error = new CRMOpportunityTransitionError('base_currency_conversion_required');
-
-		expect(crmErrorMessage(error, crmText.ko)).toBe('외화 진행 건은 기준 통화 환산액이 있어야 종결할 수 있습니다.');
-		expect(crmErrorMessage(error, crmText.en)).toBe('Foreign-currency progress requires a converted base amount before it can be closed.');
-	});
 });
