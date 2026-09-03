@@ -42,30 +42,6 @@ const serializationFailureCode = "40001"
 
 const eventSelection = "id,title,note,location,starts_at,ends_at,is_whole_day,notify_minutes_before,status,updated_at,requester:requester_id(email,name),task_participant(member(email))"
 
-// EventsBetween answers the company's events that overlap the window, earliest
-// first. An event that started before it and has not ended overlaps it, so the
-// comparison is against each end rather than each start.
-func (client *Client) EventsBetween(ctx context.Context, platform string, externalID string, startISO string, endISO string) ([]Event, error) {
-	session, errorValue := client.sessionFor(ctx, platform, externalID)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	query := url.Values{}
-	query.Set("select", eventSelection)
-	query.Set("order", "starts_at.asc")
-	query.Set("is_event", "eq.true")
-	// An event somebody has been asked to attend is still on the calendar; one
-	// that was turned down is not.
-	query.Set("status", "neq.rejected")
-	if strings.TrimSpace(endISO) != "" {
-		query.Set("starts_at", "lt."+endISO)
-	}
-	if strings.TrimSpace(startISO) != "" {
-		query.Set("ends_at", "gte."+startISO)
-	}
-	return client.eventsMatching(ctx, session, query)
-}
-
 // A write answers with what the company now holds rather than with what the
 // caller sent, so the reply carries the version the next write has to match.
 func (client *Client) EventByID(ctx context.Context, platform string, externalID string, eventID string) (Event, bool, error) {
