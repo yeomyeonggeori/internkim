@@ -8,11 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -24,7 +22,6 @@ import (
 	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
@@ -35,12 +32,6 @@ type Configuration struct {
 	SocketPath                    string
 	VSockPort                     int
 	OpenRouterKeyPath             string
-	SlackTokenPath                string
-	SlackAppTokenPath             string
-	SignalJSONRPCURL              string
-	SignalAccount                 string
-	SignalJSONRPCURLPath          string
-	SignalAccountPath             string
 	BlueclawBaseURL               string
 	AdmindBaseURL                 string
 	AdmindSocketPath              string
@@ -87,54 +78,8 @@ type Service struct {
 	HTTPClient       *http.Client
 	RunCommand       func(context.Context, string, []string, []byte) ([]byte, error)
 	LookupExecutable func(string) (string, error)
-	EventLocker      *platformEventLocker
 	ProgressManager  *platformProgressManager
 	HealthState      *platformHealthState
-}
-
-type userLookupRequest struct {
-	SenderID string `json:"senderID"`
-}
-
-type historyFetchRequest struct {
-	HistoryCursor string `json:"historyCursor"`
-	Limit         int    `json:"limit"`
-	Direction     string `json:"direction"`
-}
-
-type replyRequest struct {
-	ReplyTargetID   string                        `json:"replyTargetID"`
-	Message         string                        `json:"message"`
-	RawEventID      string                        `json:"rawEventID,omitempty"`
-	OutboxID        string                        `json:"outboxID,omitempty"`
-	ReplyKind       string                        `json:"replyKind,omitempty"`
-	Attachments     []platformFileSpec            `json:"attachments,omitempty"`
-	RecoveryActions []capabilities.RecoveryAction `json:"recoveryActions,omitempty"`
-	Interaction     *platformAskInteraction       `json:"interaction,omitempty"`
-}
-
-type platformReplyResult struct {
-	Platform              string   `json:"platform"`
-	DispatchID            string   `json:"dispatchID"`
-	Visibility            string   `json:"visibility"`
-	MessageDelivered      bool     `json:"messageDelivered"`
-	NativeAttachmentCount int      `json:"nativeAttachmentCount"`
-	NativeAttachmentIDs   []string `json:"nativeAttachmentIDs,omitempty"`
-}
-
-func newPlatformReplyResult(platform string, dispatchID string, visibility string, message string, nativeAttachmentIDs []string) platformReplyResult {
-	return newPlatformReplyResultWithAttachmentCount(platform, dispatchID, visibility, message, len(nativeAttachmentIDs), nativeAttachmentIDs)
-}
-
-func newPlatformReplyResultWithAttachmentCount(platform string, dispatchID string, visibility string, message string, nativeAttachmentCount int, nativeAttachmentIDs []string) platformReplyResult {
-	return platformReplyResult{
-		Platform:              platform,
-		DispatchID:            strings.TrimSpace(dispatchID),
-		Visibility:            strings.TrimSpace(visibility),
-		MessageDelivered:      strings.TrimSpace(message) != "",
-		NativeAttachmentCount: nativeAttachmentCount,
-		NativeAttachmentIDs:   nativeAttachmentIDs,
-	}
 }
 
 type interactionResolveRequest struct {
@@ -185,10 +130,6 @@ func DefaultConfiguration() Configuration {
 		SocketPath:                    "/run/internkim/capability.sock",
 		VSockPort:                     0,
 		OpenRouterKeyPath:             "/root/.internkim/secrets/openrouter-api-key",
-		SlackTokenPath:                "/root/.internkim/secrets/slack-bot-token",
-		SlackAppTokenPath:             "/root/.internkim/secrets/slack-app-token",
-		SignalJSONRPCURLPath:          "/root/.internkim/config/signal-jsonrpc-url",
-		SignalAccountPath:             "/root/.internkim/config/signal-account",
 		BlueclawBaseURL:               "http://127.0.0.1:8080",
 		AdmindBaseURL:                 "http://127.0.0.1:18080",
 		AdmindSocketPath:              blueclaw.AdmindSocketPath,
@@ -245,9 +186,6 @@ func (service Service) Run(ctx context.Context) error {
 		defer vsockListener.Close()
 	}
 
-	go service.startSlackSocketMode(ctx)
-	go service.startSignalJSONRPCReceiver(ctx)
-
 	server := &http.Server{
 		Handler:           service.router(),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -281,14 +219,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/llm/chat", service.handleChatLLM)
 	multiplexer.HandleFunc("POST /v1/llm/text", service.handleTextLLM)
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/directory/person", service.handleDirectoryPerson)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleWhatThePlatformDoesNotKeep)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.remove", service.handleWhatThePlatformDoesNotKeep)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleWhatThePlatformDoesNotKeep)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleWhatThePlatformDoesNotKeep)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/target.resolve", service.handleToolTargetResolve)
 	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
@@ -383,70 +314,6 @@ func (service Service) handleEmbeddingCreate(responseWriter http.ResponseWriter,
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
-type platformCall func(context.Context, io.Reader) (any, error)
-
-type platformConnector struct {
-	resolveIdentity platformCall
-	sendReply       platformCall
-	fetchHistory    platformCall
-}
-
-func (service Service) platformConnectors() map[string]platformConnector {
-	return map[string]platformConnector{
-		"slack": {
-			resolveIdentity: service.slackLookupUserFromRequest,
-			sendReply:       service.slackReplyFromRequest,
-			fetchHistory:    service.slackHistoryFromRequest,
-		},
-		"signal": {
-			resolveIdentity: service.signalLookupUserFromRequest,
-			sendReply:       service.signalReplyFromRequest,
-			fetchHistory:    service.signalHistoryFromRequest,
-		},
-	}
-}
-
-func (service Service) platformConnectorFor(platform string) (platformConnector, bool) {
-	connector, isServed := service.platformConnectors()[platform]
-	return connector, isServed
-}
-
-func (service Service) answerForPlatform(responseWriter http.ResponseWriter, request *http.Request, callOf func(platformConnector) platformCall) {
-	connector, isServed := service.platformConnectorFor(request.PathValue("platform"))
-	if !isServed {
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	response, errorValue := callOf(connector)(request.Context(), request.Body)
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) handleIdentityResolve(responseWriter http.ResponseWriter, request *http.Request) {
-	service.answerForPlatform(responseWriter, request, func(connector platformConnector) platformCall {
-		return connector.resolveIdentity
-	})
-}
-
-func (service Service) handleReplySend(responseWriter http.ResponseWriter, request *http.Request) {
-	service.answerForPlatform(responseWriter, request, func(connector platformConnector) platformCall {
-		return connector.sendReply
-	})
-}
-
-func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, request *http.Request) {
-	service.answerForPlatform(responseWriter, request, func(connector platformConnector) platformCall {
-		return connector.fetchHistory
-	})
-}
-
-func (service Service) handleWhatThePlatformDoesNotKeep(responseWriter http.ResponseWriter, request *http.Request) {
-	if _, isServed := service.platformConnectorFor(request.PathValue("platform")); !isServed {
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeJSON(responseWriter, map[string]string{"status": "noop"})
-}
-
 func (service Service) writeResponse(responseWriter http.ResponseWriter, response any, errorValue error) {
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -528,190 +395,6 @@ func randomCapabilityHex(size int) string {
 	value := make([]byte, size)
 	_, _ = rand.Read(value)
 	return hex.EncodeToString(value)
-}
-
-func (service Service) slackLookupUserFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.slackLookupUser(ctx, payload)
-}
-
-func (service Service) slackLookupUser(ctx context.Context, payload json.RawMessage) (any, error) {
-	var request userLookupRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	senderID := strings.TrimSpace(request.SenderID)
-	if senderID == "" {
-		return nil, errors.New("senderID is required")
-	}
-	var response struct {
-		IsOK bool `json:"ok"`
-		User struct {
-			ID       string `json:"id"`
-			Name     string `json:"name"`
-			RealName string `json:"real_name"`
-			Profile  struct {
-				Email string `json:"email"`
-			} `json:"profile"`
-		} `json:"user"`
-		Error string `json:"error"`
-	}
-	errorValue := service.slackRequest(ctx, http.MethodGet, "/users.info?user="+url.QueryEscape(senderID), nil, &response)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if !response.IsOK {
-		return nil, errors.New("slack user lookup failed: " + response.Error)
-	}
-	return map[string]string{
-		"platform":    "slack",
-		"senderID":    response.User.ID,
-		"userID":      response.User.ID,
-		"email":       response.User.Profile.Email,
-		"displayName": firstNonEmpty(response.User.RealName, response.User.Name),
-	}, nil
-}
-
-func (service Service) slackReplyFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.slackReply(ctx, payload)
-}
-
-func (service Service) slackReply(ctx context.Context, payload json.RawMessage) (any, error) {
-	var request replyRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	handle, errorValue := decodePlatformHandle(request.ReplyTargetID)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if handle.Platform != "slack" {
-		return nil, errors.New("reply target platform mismatch")
-	}
-	if len(request.Attachments) > 0 {
-		dispatchID, errorValue := service.postSlackReplyWithAttachments(ctx, handle, request)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		return newPlatformReplyResultWithAttachmentCount("slack", dispatchID, "public", request.Message, len(request.Attachments), nil), nil
-	}
-	body := map[string]string{
-		"channel": handle.ChannelID,
-		"text":    request.Message,
-	}
-	if strings.TrimSpace(handle.ThreadTimestamp) != "" {
-		body["thread_ts"] = handle.ThreadTimestamp
-	}
-	var response struct {
-		IsOK  bool   `json:"ok"`
-		TS    string `json:"ts"`
-		Error string `json:"error"`
-	}
-	errorValue = service.slackRequest(ctx, http.MethodPost, "/chat.postMessage", body, &response)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if !response.IsOK {
-		return nil, errors.New("slack reply failed: " + response.Error)
-	}
-	return newPlatformReplyResult("slack", response.TS, "public", request.Message, nil), nil
-}
-
-func (service Service) slackHistoryFromRequest(ctx context.Context, reader io.Reader) (any, error) {
-	payload, errorValue := io.ReadAll(reader)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	var request historyFetchRequest
-	if errorValue := json.Unmarshal(payload, &request); errorValue != nil {
-		return nil, errorValue
-	}
-	handle, errorValue := decodePlatformHandle(request.HistoryCursor)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if handle.Platform != "slack" {
-		return nil, errors.New("history cursor platform mismatch")
-	}
-
-	contextValue := service.slackContext(ctx, handle, request.Limit)
-	return map[string]any{
-		"messages":      contextValue.Messages,
-		"hasMoreBefore": contextValue.HasMoreBefore,
-		"historyCursor": contextValue.HistoryCursor,
-	}, nil
-}
-
-func (service Service) slackRequest(ctx context.Context, method string, path string, body any, responseValue any) error {
-	token := readSecretValue(service.Configuration.SlackTokenPath)
-	if token == "" {
-		return errors.New("slack bot token is not configured")
-	}
-	return service.authenticatedJSONRequest(ctx, method, strings.TrimRight("https://slack.com/api", "/")+path, token, body, responseValue)
-}
-
-type httpStatusError struct {
-	StatusCode int
-	Body       string
-}
-
-func (errorValue *httpStatusError) Error() string {
-	return fmt.Sprintf("http status %d: %s", errorValue.StatusCode, errorValue.Body)
-}
-
-func isHTTPStatusNotFound(errorValue error) bool {
-	var statusError *httpStatusError
-	if !errors.As(errorValue, &statusError) {
-		return false
-	}
-	return statusError.StatusCode == http.StatusNotFound
-}
-
-func isHTTPStatusForbidden(errorValue error) bool {
-	var statusError *httpStatusError
-	if !errors.As(errorValue, &statusError) {
-		return false
-	}
-	return statusError.StatusCode == http.StatusForbidden
-}
-
-func (service Service) authenticatedJSONRequest(ctx context.Context, method string, requestURL string, token string, body any, responseValue any) error {
-	var reader io.Reader
-	if body != nil {
-		document, errorValue := json.Marshal(body)
-		if errorValue != nil {
-			return errorValue
-		}
-		reader = bytes.NewReader(document)
-	}
-	request, errorValue := http.NewRequestWithContext(ctx, method, requestURL, reader)
-	if errorValue != nil {
-		return errorValue
-	}
-	request.Header.Set("Authorization", "Bearer "+token)
-	if body != nil {
-		request.Header.Set("Content-Type", "application/json")
-	}
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	responseDocument, _ := io.ReadAll(response.Body)
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return &httpStatusError{StatusCode: response.StatusCode, Body: strings.TrimSpace(string(responseDocument))}
-	}
-	if responseValue == nil {
-		return nil
-	}
-	return json.Unmarshal(responseDocument, responseValue)
 }
 
 func (service Service) listen() (net.Listener, error) {
@@ -798,17 +481,6 @@ func readSecretValue(path string) string {
 	return strings.TrimPrefix(value, "OPENROUTER_API_KEY=")
 }
 
-func readOptionalFileValue(path string) string {
-	if strings.TrimSpace(path) == "" {
-		return ""
-	}
-	document, errorValue := os.ReadFile(path)
-	if errorValue != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(document))
-}
-
 func isPlaceholderOpenRouterKey(value string) bool {
 	normalizedValue := strings.ToLower(strings.TrimSpace(value))
 	return strings.Contains(normalizedValue, "internkim-simulation-openrouter-api-key") ||
@@ -833,36 +505,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-var fallbackPlatformEventLocker = newPlatformEventLocker()
 var fallbackPlatformProgressManager = newPlatformProgressManager()
-
-type platformEventLocker struct {
-	mutex      sync.Mutex
-	lockByName map[string]*sync.Mutex
-}
-
-func newPlatformEventLocker() *platformEventLocker {
-	return &platformEventLocker{lockByName: map[string]*sync.Mutex{}}
-}
-
-func (locker *platformEventLocker) WithLock(name string, work func() error) error {
-	lock := locker.lockForName(name)
-	lock.Lock()
-	defer lock.Unlock()
-	return work()
-}
-
-func (locker *platformEventLocker) lockForName(name string) *sync.Mutex {
-	locker.mutex.Lock()
-	defer locker.mutex.Unlock()
-	lock, isFound := locker.lockByName[name]
-	if isFound {
-		return lock
-	}
-	lock = &sync.Mutex{}
-	locker.lockByName[name] = lock
-	return lock
-}
 
 const platformProgressTTL = 3 * time.Minute
 const platformTypingInterval = 4 * time.Second
@@ -915,79 +558,11 @@ func (manager *platformProgressManager) Stop(key string) {
 	}
 }
 
-func (service Service) eventLocker() *platformEventLocker {
-	if service.EventLocker != nil {
-		return service.EventLocker
-	}
-	return fallbackPlatformEventLocker
-}
-
 func (service Service) progressManager() *platformProgressManager {
 	if service.ProgressManager != nil {
 		return service.ProgressManager
 	}
 	return fallbackPlatformProgressManager
-}
-
-const backupDeferredForwardRetryLimit = 8
-
-var backupDeferredForwardRetryDelay = 30 * time.Second
-
-func (service Service) forwardPlatformEvent(ctx context.Context, platform string, event platformInboundEvent) error {
-	lockName := platform + ":" + event.ConversationID
-	return service.eventLocker().WithLock(lockName, func() error {
-		return service.forwardPlatformEventWithRetry(ctx, platform, event)
-	})
-}
-
-func (service Service) forwardPlatformEventWithRetry(ctx context.Context, platform string, event platformInboundEvent) error {
-	for attempt := 0; ; attempt++ {
-		isDeferred, errorValue := service.forwardPlatformEventWithoutLock(ctx, platform, event)
-		if errorValue != nil || !isDeferred {
-			return errorValue
-		}
-		if attempt >= backupDeferredForwardRetryLimit {
-			return errors.New("platform event stayed deferred through the whole backup retry window: " + event.MessageID)
-		}
-		log.Printf("platform event deferred by backup; retrying: platform=%s messageID=%s attempt=%d", platform, event.MessageID, attempt+1)
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(backupDeferredForwardRetryDelay):
-		}
-	}
-}
-
-func (service Service) forwardPlatformEventWithoutLock(ctx context.Context, platform string, event platformInboundEvent) (bool, error) {
-	document, errorValue := json.Marshal(event)
-	if errorValue != nil {
-		return false, errorValue
-	}
-	requestURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/connectors/" + url.PathEscape(platform) + "/events"
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(document))
-	if errorValue != nil {
-		return false, errorValue
-	}
-	request.Header.Set("Content-Type", "application/json")
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return false, errorValue
-	}
-	defer response.Body.Close()
-	responseDocument, _ := io.ReadAll(response.Body)
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return false, errors.New(string(responseDocument))
-	}
-	log.Printf("platform event forward result: platform=%s messageID=%s response=%s", platform, event.MessageID, strings.TrimSpace(string(responseDocument)))
-	var forwardResult struct {
-		Ignored bool   `json:"ignored"`
-		Reason  string `json:"reason"`
-	}
-	if json.Unmarshal(responseDocument, &forwardResult) == nil &&
-		forwardResult.Ignored && forwardResult.Reason == "backup_prepare_active" {
-		return true, nil
-	}
-	return false, nil
 }
 
 func (configuration Configuration) WithDefaults() Configuration {
@@ -997,24 +572,6 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.OpenRouterKeyPath == "" {
 		configuration.OpenRouterKeyPath = defaultConfiguration.OpenRouterKeyPath
-	}
-	if configuration.SlackTokenPath == "" {
-		configuration.SlackTokenPath = defaultConfiguration.SlackTokenPath
-	}
-	if configuration.SlackAppTokenPath == "" {
-		configuration.SlackAppTokenPath = defaultConfiguration.SlackAppTokenPath
-	}
-	if configuration.SignalJSONRPCURLPath == "" {
-		configuration.SignalJSONRPCURLPath = defaultConfiguration.SignalJSONRPCURLPath
-	}
-	if configuration.SignalAccountPath == "" {
-		configuration.SignalAccountPath = defaultConfiguration.SignalAccountPath
-	}
-	if configuration.SignalJSONRPCURL == "" {
-		configuration.SignalJSONRPCURL = readOptionalFileValue(configuration.SignalJSONRPCURLPath)
-	}
-	if configuration.SignalAccount == "" {
-		configuration.SignalAccount = readOptionalFileValue(configuration.SignalAccountPath)
 	}
 	if configuration.BlueclawBaseURL == "" {
 		configuration.BlueclawBaseURL = defaultConfiguration.BlueclawBaseURL

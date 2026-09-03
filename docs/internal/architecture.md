@@ -37,16 +37,6 @@
                            ├─ managed DB
                            └─ workspace actor boundary
 
-Optional external channels
-  ├─ Slack workspace
-  │    └─ Slack Socket Mode
-  │         └─ internkim-capabilityd
-  │              └─ Blueclaw
-  └─ Signal account
-       └─ JSON-RPC poll
-            └─ internkim-capabilityd
-                 └─ Blueclaw
-
 사용자 컴퓨터
   └─ internkim-companion
        └─ internkim-admind companion broker
@@ -54,7 +44,7 @@ Optional external channels
 
 관리자 UI와 SSH는 Cloudflare Access 뒤의 운영 진입점이고, Flow, 일정, 근태 웹앱은 사용자 web session 경계로 보호합니다. 사용자 web session은 Mattermost session, Mattermost OAuth, Cloudflare Access email 중 하나로 신원을 확인한 뒤 internkim people/policy에서 active member인지 다시 판정합니다. Admin API는 일반 web session만으로 열리지 않고 admin 권한 경계를 따릅니다.
 
-Mattermost API, Blueclaw API, 내부 업무 API 호출은 사용자 브라우저 인증에 의존하지 않습니다. admind와 capabilityd는 필요한 서버-서버 호출을 로컬 루프백 또는 내부 서비스 경계로 수행합니다. Blueclaw는 로컬 루프백에서만 응답합니다. Slack과 Signal은 선택적 connector surface이며, credential/config 파일이 있으면 `internkim-capabilityd`가 외부 이벤트를 받아 Blueclaw 작업으로 정규화합니다. Mattermost와 Cloudflare 설정은 host-side setup이 관리하고, Blueclaw는 이미 배치된 파일과 capability endpoint를 사용합니다.
+Mattermost API, Blueclaw API, 내부 업무 API 호출은 사용자 브라우저 인증에 의존하지 않습니다. admind와 capabilityd는 필요한 서버-서버 호출을 로컬 루프백 또는 내부 서비스 경계로 수행합니다. Blueclaw는 로컬 루프백에서만 응답합니다. Mattermost와 Cloudflare 설정은 host-side setup이 관리하고, Blueclaw는 이미 배치된 파일과 capability endpoint를 사용합니다.
 
 ## 디렉토리 구조
 
@@ -84,8 +74,6 @@ Mattermost API, Blueclaw API, 내부 업무 API 호출은 사용자 브라우저
 |------|--------|
 | `/root/.internkim/secrets/openrouter-api-key` | internkim-capabilityd |
 | `/root/.internkim/models/*` | internkim-capabilityd, local model wrapper |
-| `/root/.internkim/secrets/slack-*` | internkim-capabilityd |
-| `/root/.internkim/config/signal-*` | internkim-capabilityd |
 | `/root/.internkim/state/companion-jobs.json` | internkim-admind |
 
 ## Workspace Actor와 POSIX 권한

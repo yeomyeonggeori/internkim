@@ -67,9 +67,6 @@ type Callbacks struct {
 
 	StageBootstrapSD func(context *Context) error
 
-	ConfigureSlackTokenSSH func(context *Context) error
-	StageSlackTokenSD      func(context *Context) error
-
 	InstallUsersSyncSSH func(context *Context) error
 	StageUsersSyncSD    func(context *Context) error
 }
