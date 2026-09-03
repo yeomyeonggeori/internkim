@@ -60,10 +60,12 @@ export function rowOfSavedID(rows: TaskRow[], savedID: string, subject: 'task' |
 
 const insufficientPrivilege = '42501';
 const serializationFailure = '40001';
+const uniqueViolation = '23505';
 
 export function statusOfPostgresCode(code: string | undefined): number {
 	if (code === insufficientPrivilege) return 403;
 	if (code === serializationFailure) return 409;
+	if (code === uniqueViolation) return 409;
 	return 422;
 }
 
@@ -71,6 +73,7 @@ export function statusOfPostgresCode(code: string | undefined): number {
 // the caller broke has to come from what the write was trying to change.
 export function refusedWriteOf(reason: string, code: string | undefined, changesParticipants: boolean) {
 	const status = statusOfPostgresCode(code);
+	if (code === uniqueViolation) return new RecordRefusedTheWrite(reason, status, 'record_duplicate');
 	if (status !== 403) return new RecordRefusedTheWrite(reason, status);
 	if (changesParticipants) {
 		return new RecordRefusedTheWrite(

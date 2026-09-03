@@ -2,7 +2,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } from './attendance-tools';
 import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
-import { CalendarEventVersionConflict, eventAdd, eventDelete, eventList, eventUpdate } from './event-tools';
+import {
+	CalendarEventDuplicate,
+	CalendarEventVersionConflict,
+	eventAdd,
+	eventDelete,
+	eventList,
+	eventUpdate
+} from './event-tools';
 import { HintRefused } from './hint-resolution';
 import { LabelUnresolved } from './labels';
 import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
@@ -111,6 +118,19 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 				retryable: refusal.retryable,
 				safeRetry: refusal.safeRetry,
 				updatedAt: refusal.updatedAt
+			}
+		};
+	}
+	if (refusal instanceof CalendarEventDuplicate) {
+		return {
+			status: 409,
+			body: {
+				error: refusal.message,
+				errorCode: refusal.errorCode,
+				failureStage: refusal.failureStage,
+				retryable: refusal.retryable,
+				safeRetry: refusal.safeRetry,
+				...(refusal.eventID ? { eventID: refusal.eventID } : {})
 			}
 		};
 	}
