@@ -600,12 +600,14 @@ describe('canonical capability tools', () => {
     expect(calendarDeleteInputSchema.safeParse({ eventHint: 'event-1' }).success).toBe(true);
     expect(calendarListInputSchema.safeParse({ limit: 2 }).success).toBe(true);
 
+    expect(calendarUpdateInputSchema.safeParse({ eventHint: 'event-1', notifyMinutesBefore: 0 }).success).toBe(true);
+
     expect(calendarUpdateInputSchema.safeParse({ eventHint: 'event-1' }).success).toBe(false);
     expect(calendarAddInputSchema.safeParse({
       title: 'customer support weekly check',
       startsAt: '2026-07-24T14:00:00+09:00',
       endsAt: '2026-07-24T15:00:00+09:00',
-      notifyMinutesBefore: 0,
+      notifyMinutesBefore: -30,
     }).success).toBe(false);
     expect(calendarUpdateInputSchema.safeParse({ query: 'weekly check', title: 'change' }).success).toBe(false);
     expect(calendarDeleteInputSchema.safeParse({ query: 'weekly check' }).success).toBe(false);

@@ -51,3 +51,45 @@ test('keeps the existing duration when a timed draft popover start moves after t
 	});
 });
 
+
+test('calendar draft popover opens on the reminder an event already carries', () => {
+	const reminded = createEvent({
+		id: 'reminded-event',
+		title: '주간 회의',
+		start: new Date(2026, 5, 18, 12),
+		end: new Date(2026, 5, 18, 13),
+		allDay: false,
+		calendarId: 'internkim',
+		meta: { reminderMinutesBefore: 30 }
+	});
+	const unreminded = createEvent({
+		id: 'unreminded-event',
+		title: '주간 회의',
+		start: new Date(2026, 5, 18, 12),
+		end: new Date(2026, 5, 18, 13),
+		allDay: false,
+		calendarId: 'internkim'
+	});
+
+	expect(draftPopoverStateFromEvent(reminded, 'edit', null, null).reminderMinutesBefore).toBe(30);
+	expect(draftPopoverStateFromEvent(unreminded, 'edit', null, null).reminderMinutesBefore).toBeNull();
+});
+
+test('calendar draft popover reports a reminder that was set, changed, or taken away', () => {
+	const event = createEvent({
+		id: 'reminder-change',
+		title: '주간 회의',
+		start: new Date(2026, 5, 18, 12),
+		end: new Date(2026, 5, 18, 13),
+		allDay: false,
+		calendarId: 'internkim',
+		meta: { reminderMinutesBefore: 30 }
+	});
+	const popover = draftPopoverStateFromEvent(event, 'edit', null, null);
+
+	expect(hasDraftPopoverEventChanges(popover, event)).toBe(false);
+	expect(draftPopoverChanges(popover).meta.reminderMinutesBefore).toBe(30);
+	expect(hasDraftPopoverEventChanges({ ...popover, reminderMinutesBefore: 60 }, event)).toBe(true);
+	expect(hasDraftPopoverEventChanges({ ...popover, reminderMinutesBefore: null }, event)).toBe(true);
+	expect(draftPopoverChanges({ ...popover, reminderMinutesBefore: null }).meta.reminderMinutesBefore).toBeNull();
+});
