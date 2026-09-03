@@ -164,7 +164,7 @@ function createDevTaskEvents(taskRun: TaskRunSummary): TaskEvent[] {
 		}, taskRun.createdAt),
 		taskEvent('agent.action', {
 			action: 'continue',
-			toolName: 'site.app.create',
+			toolName: 'site_serve',
 			toolInput: {
 				title: '맛있는 귤 세상',
 				slug: 'tasty-tangerine',
@@ -172,18 +172,18 @@ function createDevTaskEvents(taskRun: TaskRunSummary): TaskEvent[] {
 			},
 			reason: '사용자가 사이트 생성을 요청했으므로 사이트 생성 도구를 호출합니다.'
 		}, taskRun.createdAt),
-		taskEvent('tool.site.app.create.requested', {
+		taskEvent('tool.site_serve.requested', {
 			observationID: 'obs-006',
-			toolName: 'site.app.create',
+			toolName: 'site_serve',
 			input: {
 				title: '맛있는 귤 세상',
 				slug: 'tasty-tangerine',
 				audience: '귤을 좋아하는 사람들'
 			}
 		}, taskRun.updatedAt),
-		taskEvent('tool.site.app.publish.result', {
+		taskEvent('tool.site_serve.result', {
 			observationID: 'obs-012',
-			tool: 'site.app.publish',
+			tool: 'site_serve',
 			output: {
 				data: {
 					siteID: '0da25b8c036e2cb7a05e3200',
@@ -222,7 +222,7 @@ function serviceLogsResponse(searchParams: URLSearchParams): DevMockResponse {
 			taskRunID,
 			count: 3,
 			lines: [
-				`2026-06-25T07:29:04Z task=${taskRunID ?? 'unknown'} tool.site.app.publish started`,
+				`2026-06-25T07:29:04Z task=${taskRunID ?? 'unknown'} tool.site_serve started`,
 				`2026-06-25T07:29:05Z task=${taskRunID ?? 'unknown'} publish URL https://tangerine-hub.example-device.example.test`,
 				`2026-06-25T07:29:06Z task=${taskRunID ?? 'unknown'} task completed`
 			]

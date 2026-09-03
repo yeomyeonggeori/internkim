@@ -63,7 +63,7 @@ describe('dev tasks mock plugin', () => {
 		const body = response?.body as TaskDetail;
 		expect(body.taskRun.taskRunID).toBe('dev-task-run-001');
 		expect(body.taskEvents.some((taskEvent) => taskEvent.name === 'llm.call')).toBe(true);
-		expect(body.taskEvents.some((taskEvent) => taskEvent.name === 'tool.site.app.publish.result')).toBe(true);
+		expect(body.taskEvents.some((taskEvent) => taskEvent.name === 'tool.site_serve.result')).toBe(true);
 	});
 
 	test('deletes terminal task runs from the mock list', async () => {
