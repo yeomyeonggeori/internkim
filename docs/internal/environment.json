@@ -220,7 +220,6 @@
   "VITE_MOCK_FILES": {"process": "web", "description": "when \"1\", enables the local dev server's mocked files screen instead of the Supabase-backed one"},
   "VITE_MOCK_MAIL": {"process": "web", "description": "when \"1\", enables the local dev server's mocked mail screen instead of the Supabase-backed one"},
   "VITE_MOCK_MEMORY": {"process": "web", "description": "when \"1\", enables the local dev server's mocked memory screen instead of the Supabase-backed one"},
-  "VITE_MOCK_TASK": {"process": "web", "description": "when \"1\", enables the local dev server's mocked task screen instead of the Supabase-backed one"},
   "VITE_MOCK_TASKS": {"process": "web", "description": "when \"1\", enables the local dev server's mocked tasks screen (a second, distinct mock flag from VITE_MOCK_TASK) instead of the Supabase-backed one"},
   "VITE_SUPABASE_PUBLISHABLE_KEY": {"process": "web scripts", "description": "fallback name for the Supabase publishable key, read by web/scripts/send-magic-link.ts when SUPABASE_PUBLISHABLE_KEY is unset"},
   "WAYLAND_DISPLAY": {"process": "companion", "description": "the Wayland display socket name; the companion's browser runtime checks it is set (with DISPLAY unset) before choosing a Wayland-native launch path"},
