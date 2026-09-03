@@ -107,18 +107,11 @@ type platformContextMessage struct {
 }
 
 type platformHandle struct {
-	Platform        string `json:"platform"`
-	ConversationID  string `json:"conversationID"`
-	ChannelID       string `json:"channelID,omitempty"`
-	ChannelType     string `json:"channelType,omitempty"`
-	RootID          string `json:"rootID,omitempty"`
-	MessageID       string `json:"messageID,omitempty"`
-	TeamID          string `json:"teamID,omitempty"`
-	ThreadTimestamp string `json:"threadTimestamp,omitempty"`
-	MessageTS       string `json:"messageTS,omitempty"`
-	SignalAccount   string `json:"signalAccount,omitempty"`
-	SignalRecipient string `json:"signalRecipient,omitempty"`
-	SignalGroupID   string `json:"signalGroupID,omitempty"`
+	Platform       string `json:"platform"`
+	ConversationID string `json:"conversationID"`
+	RootID         string `json:"rootID,omitempty"`
+	MessageID      string `json:"messageID,omitempty"`
+	TeamID         string `json:"teamID,omitempty"`
 }
 
 func encodePlatformHandle(handle platformHandle) (string, error) {
@@ -145,23 +138,3 @@ func decodePlatformHandle(value string) (platformHandle, error) {
 	return handle, nil
 }
 
-func namespacedConversationID(channelType string, platformConversationID string) string {
-	prefix := "channel"
-	switch strings.ToLower(strings.TrimSpace(channelType)) {
-	case "d", "im", "direct":
-		prefix = "dm"
-	case "g", "group", "mpim":
-		prefix = "group"
-	}
-	return prefix + ":" + strings.TrimSpace(platformConversationID)
-}
-
-func normalizedHistoryLimit(limit int) int {
-	if limit <= 0 {
-		return 20
-	}
-	if limit > 100 {
-		return 100
-	}
-	return limit
-}

@@ -36,8 +36,6 @@ var StepHealth = Step{
 		checkBlueclawUsersPolicy(context, &failedChecks)
 		checkLLMCapability(context, &failedChecks)
 		checkLiteRTCapability(context, &failedChecks)
-		checkSlackProfileLookup(context, &failedChecks)
-		checkSlackFileUploadPermission(context, &failedChecks)
 
 		if len(failedChecks) > 0 {
 			return fmt.Errorf("health check failed: %s", strings.Join(failedChecks, ", "))
@@ -123,7 +121,7 @@ func checkSecretIsolation(context *Context, failedChecks *[]string) {
 		fmt.Printf("  runtime configuration: %s\n", runtimeCheck)
 		return
 	}
-	check := strings.TrimSpace(context.SSH.Run(`if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/slack-bot-token || test -r /root/.internkim/secrets/slack-app-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/config/signal-jsonrpc-url || test -r /root/.internkim/config/signal-account || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null; then
+	check := strings.TrimSpace(context.SSH.Run(`if su -s /bin/sh blueclaw -c 'test -r /root/.internkim/secrets/openrouter-api-key || test -r /root/.internkim/secrets/mattermost-bot-token || test -r /root/.internkim/secrets/device-secret || test -r /root/.internkim/models/gemma-4-E4B-it.litertlm' 2>/dev/null; then
   echo readable
 else
   echo ok
@@ -328,63 +326,6 @@ fi`))
 		check = "failed"
 	}
 	fmt.Printf("  local ai capability: failed (%s)\n", check)
-}
-
-func checkSlackProfileLookup(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`if [ ! -f /root/.internkim/secrets/slack-bot-token ]; then
-  echo skipped
-  exit 0
-fi
-slack_token="$(cat /root/.internkim/secrets/slack-bot-token)"
-user_id="$(curl -fsS -H "Authorization: Bearer $slack_token" https://slack.com/api/auth.test 2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin).get("user_id", ""))' 2>/dev/null || true)"
-if [ -z "$user_id" ]; then
-  echo failed
-  exit 0
-fi
-lookup_body="$(SENDER_ID="$user_id" python3 - <<'PY'
-import json
-import os
-print(json.dumps({"senderID": os.environ["SENDER_ID"]}))
-PY
-)"
-curl -fsS --unix-socket /run/internkim/capability.sock -H "Content-Type: application/json" -d "$lookup_body" http://internkim/v1/platform/slack/identity.resolve 2>/dev/null | python3 -c 'import json, sys; raise SystemExit(0 if json.load(sys.stdin).get("senderID") is not None else 1)' 2>/dev/null && echo ok || echo failed`))
-	if check == "skipped" {
-		fmt.Println("  slack profile lookup: skipped")
-		return
-	}
-	if check == "ok" {
-		fmt.Println("  slack profile lookup: ok")
-		return
-	}
-	*failedChecks = append(*failedChecks, "slack-profile-lookup")
-	fmt.Printf("  slack profile lookup: %s\n", check)
-}
-
-func checkSlackFileUploadPermission(context *Context, failedChecks *[]string) {
-	check := strings.TrimSpace(context.SSH.Run(`if [ ! -f /root/.internkim/secrets/slack-bot-token ]; then
-  echo skipped
-  exit 0
-fi
-slack_token="$(cat /root/.internkim/secrets/slack-bot-token)"
-response="$(curl -fsS -H "Authorization: Bearer $slack_token" -H "Content-Type: application/json" -d '{"filename":"internkim-health.txt","length":1}' https://slack.com/api/files.getUploadURLExternal 2>/dev/null || true)"
-if printf '%s' "$response" | python3 -c 'import json, sys; document=json.load(sys.stdin); raise SystemExit(0 if document.get("ok") is True and isinstance(document.get("upload_url"), str) and isinstance(document.get("file_id"), str) else 1)' >/dev/null 2>&1; then
-  echo ok
-else
-  printf '%s' "$response" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("error", "failed"))' 2>/dev/null || echo failed
-fi`))
-	if check == "skipped" {
-		fmt.Println("  slack file upload permission: skipped")
-		return
-	}
-	if check == "ok" {
-		fmt.Println("  slack file upload permission: ok")
-		return
-	}
-	*failedChecks = append(*failedChecks, "slack-file-upload-permission")
-	if check == "" {
-		check = "failed"
-	}
-	fmt.Printf("  slack file upload permission: %s\n", check)
 }
 
 func isPlannedStep(context *Context, stepName string) bool {
