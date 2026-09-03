@@ -50,6 +50,12 @@ type commandTaskDetail struct {
 
 var runCommandOutput io.Writer = os.Stdout
 
+func runTaskRun() {
+	if errorValue := runTaskArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
 func runTaskArguments(arguments []string) error {
 	if hasCommandArgument(arguments, "--help") || hasCommandArgument(arguments, "-h") {
 		printTaskUsage()
