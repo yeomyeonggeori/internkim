@@ -48,6 +48,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `is_company_profile` | `profile jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `is_in_circle` | `target_circle uuid` | `boolean` | definer | anon, authenticated, service_role |
 | `is_messenger_accounts` | `accounts jsonb` | `boolean` | invoker | anon, authenticated, service_role |
+| `is_public_identity_credential` | `kind text` | `boolean` | invoker | authenticated, service_role |
 | `is_work_hours` | `schedule jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `leave_days_in_year` | `starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer` | `numeric` | invoker | anon, authenticated, service_role |
 | `leave_in_full` | — | `TABLE(id uuid, member_id uuid, kind text, is_paid boolean, is_deducted boolean, days numeric, status leave_status, starts_at timestamp with time zone, ends_at timestamp with time zone, note text)` | definer | authenticated, service_role |
