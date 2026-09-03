@@ -36,7 +36,11 @@ func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string,
 		policyDocument["people"] = people
 	}
 	applyBlueclawPersonAttributes(person, name, role, circles, note)
-	return service.deliverBlueclawPolicy(ctx, policyDocument)
+	if errorValue := service.deliverBlueclawPolicy(ctx, policyDocument); errorValue != nil {
+		return errorValue
+	}
+	service.seedUserDocument(ctx, policyString(person["personID"]), name)
+	return nil
 }
 
 func (service *Service) removeBlueclawPerson(ctx context.Context, email string) error {

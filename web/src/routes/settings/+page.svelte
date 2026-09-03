@@ -7,6 +7,8 @@
 	import PersonalAPIKeys from './personal-access-tokens.svelte';
 	import Notifications from './notifications.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
+	import MyAgent from './my-agent.svelte';
+	import AgentSoul from './agent-soul.svelte';
 	import CompanyMembers from './company-members.svelte';
 	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
 	import AttendanceLeavePolicySettings from '../admin/attendance-leave-policy-settings.svelte';
@@ -46,6 +48,7 @@
 		<PersonalAPIKeys />
 		<Notifications />
 		<MyMessengerAccount />
+		<MyAgent />
 		{#if !isLoading && isAdmin}
 			<header class="grid gap-1 pt-2">
 				<h2 class="text-xl font-semibold">{text.company}</h2>
@@ -53,6 +56,7 @@
 			</header>
 			<CompanyProfileImage />
 			<CompanyBaseCurrency />
+			<AgentSoul />
 			<header class="grid gap-1 pt-2">
 				<h2 class="text-xl font-semibold">{text.members}</h2>
 				<p class="text-sm text-muted-foreground">{text.membersDescription}</p>

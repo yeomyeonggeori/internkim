@@ -2239,22 +2239,11 @@ func (state *setupFlowState) writeWorkspaceDocumentsSSH(workspaceDocuments works
 	state.sshClient.run("cat > /root/.blueclaw/workspace/AGENTS.md <<'EOF'\n" +
 		workspaceDocuments.Agents +
 		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md")
-	state.sshClient.run("cat > /root/.blueclaw/workspace/IDENTITY.md <<'EOF'\n" +
-		workspaceDocuments.Identity +
-		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/IDENTITY.md")
-	state.sshClient.run("cat > /root/.blueclaw/workspace/BOT_PROFILE.yaml <<'EOF'\n" +
-		workspaceDocuments.BotProfile +
-		"\nEOF\nrm -f /root/.blueclaw/workspace/BOT_PROFILE.md\nchown blueclaw:blueclaw /root/.blueclaw/workspace/BOT_PROFILE.yaml")
-	state.sshClient.run("if [ ! -f /root/.blueclaw/workspace/SOUL.md ] || grep -q '^# IDENTITY.md' /root/.blueclaw/workspace/SOUL.md 2>/dev/null; then cat > /root/.blueclaw/workspace/SOUL.md <<'EOF'\n" +
-		workspaceDocuments.Soul +
-		"\nEOF\nchown blueclaw:blueclaw /root/.blueclaw/workspace/SOUL.md\nfi")
+	state.sshClient.run("rm -f /root/.blueclaw/workspace/IDENTITY.md /root/.blueclaw/workspace/SOUL.md /root/.blueclaw/workspace/BOT_PROFILE.yaml /root/.blueclaw/workspace/BOT_PROFILE.md")
 }
 
 type workspaceDocuments struct {
-	Agents     string
-	Identity   string
-	Soul       string
-	BotProfile string
+	Agents string
 }
 
 func loadWorkspaceDocuments(scriptDir string) (workspaceDocuments, error) {
@@ -2262,24 +2251,7 @@ func loadWorkspaceDocuments(scriptDir string) (workspaceDocuments, error) {
 	if errorValue != nil {
 		return workspaceDocuments{}, errorValue
 	}
-	identityContent, errorValue := readWorkspaceMarkdown(blueclawworkspace.IdentityPath(scriptDir))
-	if errorValue != nil {
-		return workspaceDocuments{}, errorValue
-	}
-	soulContent, errorValue := readWorkspaceMarkdown(blueclawworkspace.SoulPath(scriptDir))
-	if errorValue != nil {
-		return workspaceDocuments{}, errorValue
-	}
-	botProfileContent, errorValue := readWorkspaceMarkdown(blueclawworkspace.BotProfilePath(scriptDir))
-	if errorValue != nil {
-		return workspaceDocuments{}, errorValue
-	}
-	return workspaceDocuments{
-		Agents:     agentsContent,
-		Identity:   identityContent,
-		Soul:       soulContent,
-		BotProfile: botProfileContent,
-	}, nil
+	return workspaceDocuments{Agents: agentsContent}, nil
 }
 
 func loadWorkspaceAgentsMarkdown(scriptDir string) (string, error) {
@@ -2643,15 +2615,6 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 		return err
 	}
 	if err := context.SD.WriteFile("AGENTS.md", []byte(workspaceDocuments.Agents), 0o644); err != nil {
-		return err
-	}
-	if err := context.SD.WriteFile("IDENTITY.md", []byte(workspaceDocuments.Identity), 0o644); err != nil {
-		return err
-	}
-	if err := context.SD.WriteFile("SOUL.md", []byte(workspaceDocuments.Soul), 0o644); err != nil {
-		return err
-	}
-	if err := context.SD.WriteFile("BOT_PROFILE.yaml", []byte(workspaceDocuments.BotProfile), 0o644); err != nil {
 		return err
 	}
 	botProfileImageDocument, err := os.ReadFile(filepath.Join(state.scriptDir, "assets", "internkim.png"))

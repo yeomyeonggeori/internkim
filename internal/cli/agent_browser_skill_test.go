@@ -86,19 +86,8 @@ func TestLoadWorkspaceDocumentsUsesBoardAssets(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected workspace documents: %v", errorValue)
 	}
-	for _, expectation := range []struct {
-		name     string
-		document string
-		fragment string
-	}{
-		{name: "identity", document: documents.Identity, fragment: "runtime bot profile"},
-		{name: "identity name policy", document: documents.Identity, fragment: "Treat names as a single field"},
-		{name: "soul", document: documents.Soul, fragment: "SOUL.md"},
-		{name: "bot profile", document: documents.BotProfile, fragment: `displayName: 김인턴`},
-	} {
-		if !strings.Contains(expectation.document, expectation.fragment) {
-			t.Fatalf("expected %s document to include %q", expectation.name, expectation.fragment)
-		}
+	if !strings.Contains(documents.Agents, "## Retrieval And Browser") {
+		t.Fatalf("expected the agents document from the board assets, got %q", documents.Agents)
 	}
 }
 
