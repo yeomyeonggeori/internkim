@@ -82,6 +82,10 @@ func (client *Client) write(ctx context.Context, signerEmail string, table strin
 	if errorValue != nil {
 		return errorValue
 	}
+	return client.writeAs(ctx, session, table, body)
+}
+
+func (client *Client) writeAs(ctx context.Context, session memberSession, table string, body map[string]any) error {
 	payload, errorValue := json.Marshal(body)
 	if errorValue != nil {
 		return errorValue
