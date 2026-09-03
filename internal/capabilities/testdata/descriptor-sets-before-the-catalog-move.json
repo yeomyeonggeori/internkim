@@ -96,7 +96,24 @@
       "conversation_unmute",
       "push_reachability_get",
       "push_device_claim",
-      "push_device_release"
+      "push_device_release",
+      "crm_organization_list",
+      "crm_organization_add",
+      "crm_organization_update",
+      "crm_organization_archive",
+      "crm_contact_list",
+      "crm_contact_add",
+      "crm_contact_update",
+      "crm_contact_archive",
+      "crm_opportunity_list",
+      "crm_opportunity_add",
+      "crm_opportunity_update",
+      "crm_opportunity_move",
+      "crm_opportunity_archive",
+      "crm_vocabulary_get",
+      "crm_vocabulary_set",
+      "crm_activity_list",
+      "crm_activity_save"
     ],
     "DeviceBrowserDescriptors": [
       "browser_open",
@@ -179,7 +196,24 @@
       "conversation_unmute",
       "push_reachability_get",
       "push_device_claim",
-      "push_device_release"
+      "push_device_release",
+      "crm_organization_list",
+      "crm_organization_add",
+      "crm_organization_update",
+      "crm_organization_archive",
+      "crm_contact_list",
+      "crm_contact_add",
+      "crm_contact_update",
+      "crm_contact_archive",
+      "crm_opportunity_list",
+      "crm_opportunity_add",
+      "crm_opportunity_update",
+      "crm_opportunity_move",
+      "crm_opportunity_archive",
+      "crm_vocabulary_get",
+      "crm_vocabulary_set",
+      "crm_activity_list",
+      "crm_activity_save"
     ]
   },
   "perSet": {
@@ -13562,6 +13596,16 @@
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
             "type": "string"
           },
+          "opportunityHint": {
+            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+            "maxLength": 256,
+            "type": "string"
+          },
           "participantPersonHints": {
             "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester\u2019s own.",
             "items": {
@@ -13618,6 +13662,16 @@
           },
           "endsAt": {
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+            "maxLength": 256,
             "type": "string"
           },
           "participantPersonHints": {
@@ -13686,6 +13740,12 @@
             "type": "string"
           },
           "endDate": {
+            "type": "string"
+          },
+          "opportunityID": {
+            "type": "string"
+          },
+          "organizationID": {
             "type": "string"
           },
           "ownerID": {
@@ -13777,6 +13837,12 @@
               "type": "string"
             },
             "endDate": {
+              "type": "string"
+            },
+            "opportunityID": {
+              "type": "string"
+            },
+            "organizationID": {
               "type": "string"
             },
             "ownerID": {
@@ -13977,6 +14043,16 @@
             "description": "Maximum number of tasks to return. Defaults to 50.",
             "type": "number"
           },
+          "opportunityHint": {
+            "description": "Only the work on one deal. Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Only the work for one organization. Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+            "maxLength": 256,
+            "type": "string"
+          },
           "participantPersonHint": {
             "description": "Name or email of a specific person whose tasks to list. Leave empty to use scope.",
             "type": "string"
@@ -14040,7 +14116,19 @@
             "properties": {
               "businesses": {
                 "items": {
-                  "type": "string"
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
                 },
                 "type": "array"
               },
@@ -14058,7 +14146,19 @@
               },
               "types": {
                 "items": {
-                  "type": "string"
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
                 },
                 "type": "array"
               }
@@ -14088,6 +14188,12 @@
                   "type": "string"
                 },
                 "endDate": {
+                  "type": "string"
+                },
+                "opportunityID": {
+                  "type": "string"
+                },
+                "organizationID": {
                   "type": "string"
                 },
                 "ownerID": {
@@ -14198,7 +14304,19 @@
               "properties": {
                 "businesses": {
                   "items": {
-                    "type": "string"
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
                   },
                   "type": "array"
                 },
@@ -14216,7 +14334,19 @@
                 },
                 "types": {
                   "items": {
-                    "type": "string"
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
                   },
                   "type": "array"
                 }
@@ -14246,6 +14376,12 @@
                     "type": "string"
                   },
                   "endDate": {
+                    "type": "string"
+                  },
+                  "opportunityID": {
+                    "type": "string"
+                  },
+                  "organizationID": {
                     "type": "string"
                   },
                   "ownerID": {
@@ -14370,6 +14506,16 @@
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
             "type": "string"
           },
+          "opportunityHint": {
+            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with. An empty string takes the work off the deal it belonged to.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company. An empty string takes the work off the organization it was for.",
+            "maxLength": 256,
+            "type": "string"
+          },
           "participantPersonHints": {
             "description": "Names, @handles, or emails of everyone taking part, replacing the current participants. Send the whole set, not just additions.",
             "items": {
@@ -14428,6 +14574,16 @@
           },
           "endsAt": {
             "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with. An empty string takes the work off the deal it belonged to.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company. An empty string takes the work off the organization it was for.",
+            "maxLength": 256,
             "type": "string"
           },
           "participantPersonHints": {
@@ -14503,6 +14659,12 @@
             "type": "string"
           },
           "endDate": {
+            "type": "string"
+          },
+          "opportunityID": {
+            "type": "string"
+          },
+          "organizationID": {
             "type": "string"
           },
           "ownerID": {
@@ -14594,6 +14756,12 @@
               "type": "string"
             },
             "endDate": {
+              "type": "string"
+            },
+            "opportunityID": {
+              "type": "string"
+            },
+            "organizationID": {
               "type": "string"
             },
             "ownerID": {
@@ -18438,6 +18606,5102 @@
             "serverKey",
             "isServerKeyVaulted",
             "hasClaimedDevice"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_organization_list": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_organization_list",
+      "description": "The organizations this company sells to, partners with or buys from, with who owns each relationship \u2014 'who are our customers'.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "includeArchived": {
+            "description": "Set true to include archived ones.",
+            "type": "boolean"
+          },
+          "query": {
+            "description": "Filter on the name, the address and the description.",
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_organization_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "crm_organization_list",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "organizations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "address": {
+                  "type": "string"
+                },
+                "audit": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "archivedByPersonID": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "createdByPersonID": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "updatedByPersonID": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "createdAt",
+                    "createdByPersonID",
+                    "updatedAt",
+                    "updatedByPersonID",
+                    "archivedAt",
+                    "archivedByPersonID"
+                  ],
+                  "type": "object"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "importance": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "organizationID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "ownerPersonID": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "types": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "organizationID",
+                "name",
+                "status",
+                "types",
+                "tags",
+                "importance",
+                "ownerPersonID",
+                "address",
+                "description",
+                "audit"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "organizations"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_organization_list",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "organizations": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  },
+                  "audit": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "archivedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "archivedByPersonID": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "createdByPersonID": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "updatedByPersonID": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "createdAt",
+                      "createdByPersonID",
+                      "updatedAt",
+                      "updatedByPersonID",
+                      "archivedAt",
+                      "archivedByPersonID"
+                    ],
+                    "type": "object"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "importance": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "organizationID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "ownerPersonID": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "types": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "organizationID",
+                  "name",
+                  "status",
+                  "types",
+                  "tags",
+                  "importance",
+                  "ownerPersonID",
+                  "address",
+                  "description",
+                  "audit"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "organizations"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_organization_add": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_organization_add",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_organization"
+      },
+      "description": "Add an organization this company deals with, after crm_organization_list shows it is not one already held.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about them.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "importance": {
+            "description": "high, medium or low.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "name": {
+            "description": "The organization's name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "The colleague who owns it, by name or email.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "status": {
+            "description": "prospect, active or paused.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "tags": {
+            "description": "Replaces the whole list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "description": "Types from crm_vocabulary_get, e.g. customer. Replaces the whole list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about them.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "importance": {
+            "description": "high, medium or low.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "name": {
+            "description": "The organization's name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "The colleague who owns it, by name or email.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "status": {
+            "description": "prospect, active or paused.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "tags": {
+            "description": "Replaces the whole list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "description": "Types from crm_vocabulary_get, e.g. customer. Replaces the whole list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_organization_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "crm_organization_add",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "audit": {
+            "additionalProperties": false,
+            "properties": {
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "archivedByPersonID": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "createdByPersonID": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "updatedByPersonID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "createdAt",
+              "createdByPersonID",
+              "updatedAt",
+              "updatedByPersonID",
+              "archivedAt",
+              "archivedByPersonID"
+            ],
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "organizationID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "ownerPersonID": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "organizationID",
+          "name",
+          "status",
+          "types",
+          "tags",
+          "importance",
+          "ownerPersonID",
+          "address",
+          "description",
+          "audit"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_organization_add",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "audit": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "archivedByPersonID": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdByPersonID": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedByPersonID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "createdAt",
+                "createdByPersonID",
+                "updatedAt",
+                "updatedByPersonID",
+                "archivedAt",
+                "archivedByPersonID"
+              ],
+              "type": "object"
+            },
+            "description": {
+              "type": "string"
+            },
+            "importance": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "organizationID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "ownerPersonID": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "tags": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "types": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "organizationID",
+            "name",
+            "status",
+            "types",
+            "tags",
+            "importance",
+            "ownerPersonID",
+            "address",
+            "description",
+            "audit"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_organization_update": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_organization_update",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_organization"
+      },
+      "description": "Change what this company holds about an organization; only the fields the call names change.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about them.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "importance": {
+            "description": "high, medium or low.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "name": {
+            "description": "The organization's name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "The colleague who owns it, by name or email.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "status": {
+            "description": "prospect, active or paused.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "tags": {
+            "description": "Replaces the whole list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "description": "Types from crm_vocabulary_get, e.g. customer. Replaces the whole list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "minProperties": 2,
+        "properties": {
+          "address": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about them.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "importance": {
+            "description": "high, medium or low.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "name": {
+            "description": "The organization's name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization: its exact ID, or its name as crm_organization_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "The colleague who owns it, by name or email.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "status": {
+            "description": "prospect, active or paused.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "tags": {
+            "description": "Replaces the whole list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "description": "Types from crm_vocabulary_get, e.g. customer. Replaces the whole list.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "organizationHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_organization_update",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_organization_update",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "audit": {
+            "additionalProperties": false,
+            "properties": {
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "archivedByPersonID": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "createdByPersonID": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "updatedByPersonID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "createdAt",
+              "createdByPersonID",
+              "updatedAt",
+              "updatedByPersonID",
+              "archivedAt",
+              "archivedByPersonID"
+            ],
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "organizationID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "ownerPersonID": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "organizationID",
+          "name",
+          "status",
+          "types",
+          "tags",
+          "importance",
+          "ownerPersonID",
+          "address",
+          "description",
+          "audit"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_organization_update",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "audit": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "archivedByPersonID": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdByPersonID": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedByPersonID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "createdAt",
+                "createdByPersonID",
+                "updatedAt",
+                "updatedByPersonID",
+                "archivedAt",
+                "archivedByPersonID"
+              ],
+              "type": "object"
+            },
+            "description": {
+              "type": "string"
+            },
+            "importance": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "organizationID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "ownerPersonID": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "tags": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "types": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "organizationID",
+            "name",
+            "status",
+            "types",
+            "tags",
+            "importance",
+            "ownerPersonID",
+            "address",
+            "description",
+            "audit"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_organization_archive": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_organization_archive",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_organization"
+      },
+      "description": "Put an organization away, so it leaves the CRM screens while its people, its deals and everything recorded against it stay.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "organizationHint": {
+            "description": "The organization: its exact ID, or its name as crm_organization_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_organization_archive",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_organization_archive",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "archivedAt": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recordID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordID",
+          "name",
+          "archivedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_organization_archive",
+      "privacyClass": "workspace_crm",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "archivedAt": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "recordID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "name",
+            "archivedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_contact_list": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_contact_list",
+      "description": "The people this company deals with at other organizations, with how to reach them \u2014 'who do we talk to at ABC'. Colleagues are person_list's.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "includeArchived": {
+            "description": "Set true to include archived ones.",
+            "type": "boolean"
+          },
+          "organizationHint": {
+            "description": "Only the people at this organization.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "query": {
+            "description": "Filter on the name, the email address and the title.",
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_contact_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "crm_contact_list",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "contacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "audit": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "archivedByPersonID": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "createdByPersonID": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "updatedByPersonID": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "createdAt",
+                    "createdByPersonID",
+                    "updatedAt",
+                    "updatedByPersonID",
+                    "archivedAt",
+                    "archivedByPersonID"
+                  ],
+                  "type": "object"
+                },
+                "contactID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "department": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "organizationID": {
+                  "type": "string"
+                },
+                "phoneNumber": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "contactID",
+                "organizationID",
+                "name",
+                "email",
+                "phoneNumber",
+                "role",
+                "department",
+                "description",
+                "audit"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "contacts"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_contact_list",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "contacts": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "audit": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "archivedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "archivedByPersonID": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "createdByPersonID": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "updatedByPersonID": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "createdAt",
+                      "createdByPersonID",
+                      "updatedAt",
+                      "updatedByPersonID",
+                      "archivedAt",
+                      "archivedByPersonID"
+                    ],
+                    "type": "object"
+                  },
+                  "contactID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "department": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "organizationID": {
+                    "type": "string"
+                  },
+                  "phoneNumber": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "contactID",
+                  "organizationID",
+                  "name",
+                  "email",
+                  "phoneNumber",
+                  "role",
+                  "department",
+                  "description",
+                  "audit"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "count",
+            "contacts"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_contact_add": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_contact_add",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_contact"
+      },
+      "description": "Add a person at an organization this company already holds, which crm_organization_add creates when it does not.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "department": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about them.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "description": "The person's name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization: its exact ID, or its name as crm_organization_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phoneNumber": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "role": {
+            "description": "Their title, e.g. 'purchasing manager'.",
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "department": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about them.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "description": "The person's name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization: its exact ID, or its name as crm_organization_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phoneNumber": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "role": {
+            "description": "Their title, e.g. 'purchasing manager'.",
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationHint",
+          "name"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_contact_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "crm_contact_add",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "audit": {
+            "additionalProperties": false,
+            "properties": {
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "archivedByPersonID": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "createdByPersonID": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "updatedByPersonID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "createdAt",
+              "createdByPersonID",
+              "updatedAt",
+              "updatedByPersonID",
+              "archivedAt",
+              "archivedByPersonID"
+            ],
+            "type": "object"
+          },
+          "contactID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "organizationID": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactID",
+          "organizationID",
+          "name",
+          "email",
+          "phoneNumber",
+          "role",
+          "department",
+          "description",
+          "audit"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_contact_add",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "audit": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "archivedByPersonID": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdByPersonID": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedByPersonID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "createdAt",
+                "createdByPersonID",
+                "updatedAt",
+                "updatedByPersonID",
+                "archivedAt",
+                "archivedByPersonID"
+              ],
+              "type": "object"
+            },
+            "contactID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "department": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "organizationID": {
+              "type": "string"
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "contactID",
+            "organizationID",
+            "name",
+            "email",
+            "phoneNumber",
+            "role",
+            "department",
+            "description",
+            "audit"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_contact_update": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_contact_update",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_contact"
+      },
+      "description": "Change what this company holds about a person, including moving them to another organization; only the fields the call names change.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "department": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about them.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "description": "The person's name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Where they work now.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phoneNumber": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "role": {
+            "description": "Their title, e.g. 'purchasing manager'.",
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "minProperties": 2,
+        "properties": {
+          "contactHint": {
+            "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "department": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about them.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 256,
+            "type": "string"
+          },
+          "name": {
+            "description": "The person's name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Where they work now.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phoneNumber": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "role": {
+            "description": "Their title, e.g. 'purchasing manager'.",
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_contact_update",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_contact_update",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "audit": {
+            "additionalProperties": false,
+            "properties": {
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "archivedByPersonID": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "createdByPersonID": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "updatedByPersonID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "createdAt",
+              "createdByPersonID",
+              "updatedAt",
+              "updatedByPersonID",
+              "archivedAt",
+              "archivedByPersonID"
+            ],
+            "type": "object"
+          },
+          "contactID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "organizationID": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactID",
+          "organizationID",
+          "name",
+          "email",
+          "phoneNumber",
+          "role",
+          "department",
+          "description",
+          "audit"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_contact_update",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "audit": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "archivedByPersonID": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdByPersonID": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedByPersonID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "createdAt",
+                "createdByPersonID",
+                "updatedAt",
+                "updatedByPersonID",
+                "archivedAt",
+                "archivedByPersonID"
+              ],
+              "type": "object"
+            },
+            "contactID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "department": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "organizationID": {
+              "type": "string"
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "contactID",
+            "organizationID",
+            "name",
+            "email",
+            "phoneNumber",
+            "role",
+            "department",
+            "description",
+            "audit"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_contact_archive": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_contact_archive",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_contact"
+      },
+      "description": "Put a person away, so they leave the CRM screens while everything recorded against them stays, as when somebody leaves the organization.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "contactHint": {
+            "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_contact_archive",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_contact_archive",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "archivedAt": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recordID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordID",
+          "name",
+          "archivedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_contact_archive",
+      "privacyClass": "workspace_crm",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "archivedAt": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "recordID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "name",
+            "archivedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_opportunity_list": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_opportunity_list",
+      "description": "The deals this company is working on, each with its stage, what it is worth and how much work has been recorded against it \u2014 'what are we closing this month'.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "includeArchived": {
+            "description": "Set true to include archived ones.",
+            "type": "boolean"
+          },
+          "organizationHint": {
+            "description": "Only the deals with this organization.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "query": {
+            "description": "Filter on the title and the description.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "stage": {
+            "description": "Only the deals at this stage.",
+            "enum": [
+              "waiting",
+              "in_progress",
+              "review",
+              "done",
+              "on_hold",
+              "lost"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_opportunity_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "crm_opportunity_list",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "opportunities": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "activityCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "amountMinor": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "audit": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "archivedByPersonID": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "createdByPersonID": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "updatedByPersonID": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "createdAt",
+                    "createdByPersonID",
+                    "updatedAt",
+                    "updatedByPersonID",
+                    "archivedAt",
+                    "archivedByPersonID"
+                  ],
+                  "type": "object"
+                },
+                "baseAmountMinor": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "baseCurrencyCode": {
+                  "type": "string"
+                },
+                "business": {
+                  "type": "string"
+                },
+                "contactID": {
+                  "type": "string"
+                },
+                "currencyCode": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "expectedCloseAt": {
+                  "type": "string"
+                },
+                "expectedCloseTimeZone": {
+                  "type": "string"
+                },
+                "importance": {
+                  "type": "string"
+                },
+                "lostReason": {
+                  "type": "string"
+                },
+                "opportunityID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "organizationID": {
+                  "type": "string"
+                },
+                "ownerPersonID": {
+                  "type": "string"
+                },
+                "pipeline": {
+                  "type": "string"
+                },
+                "stage": {
+                  "type": "string"
+                },
+                "stageChangedAt": {
+                  "type": "string"
+                },
+                "stagePosition": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "opportunityID",
+                "organizationID",
+                "contactID",
+                "title",
+                "business",
+                "pipeline",
+                "stage",
+                "stagePosition",
+                "stageChangedAt",
+                "ownerPersonID",
+                "amountMinor",
+                "currencyCode",
+                "baseAmountMinor",
+                "baseCurrencyCode",
+                "importance",
+                "expectedCloseAt",
+                "expectedCloseTimeZone",
+                "lostReason",
+                "description",
+                "activityCount",
+                "audit"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "opportunities"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_opportunity_list",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "opportunities": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "activityCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "amountMinor": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "audit": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "archivedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "archivedByPersonID": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "createdByPersonID": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "updatedByPersonID": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "createdAt",
+                      "createdByPersonID",
+                      "updatedAt",
+                      "updatedByPersonID",
+                      "archivedAt",
+                      "archivedByPersonID"
+                    ],
+                    "type": "object"
+                  },
+                  "baseAmountMinor": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "baseCurrencyCode": {
+                    "type": "string"
+                  },
+                  "business": {
+                    "type": "string"
+                  },
+                  "contactID": {
+                    "type": "string"
+                  },
+                  "currencyCode": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "expectedCloseAt": {
+                    "type": "string"
+                  },
+                  "expectedCloseTimeZone": {
+                    "type": "string"
+                  },
+                  "importance": {
+                    "type": "string"
+                  },
+                  "lostReason": {
+                    "type": "string"
+                  },
+                  "opportunityID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "organizationID": {
+                    "type": "string"
+                  },
+                  "ownerPersonID": {
+                    "type": "string"
+                  },
+                  "pipeline": {
+                    "type": "string"
+                  },
+                  "stage": {
+                    "type": "string"
+                  },
+                  "stageChangedAt": {
+                    "type": "string"
+                  },
+                  "stagePosition": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "opportunityID",
+                  "organizationID",
+                  "contactID",
+                  "title",
+                  "business",
+                  "pipeline",
+                  "stage",
+                  "stagePosition",
+                  "stageChangedAt",
+                  "ownerPersonID",
+                  "amountMinor",
+                  "currencyCode",
+                  "baseAmountMinor",
+                  "baseCurrencyCode",
+                  "importance",
+                  "expectedCloseAt",
+                  "expectedCloseTimeZone",
+                  "lostReason",
+                  "description",
+                  "activityCount",
+                  "audit"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "opportunities"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_opportunity_add": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_opportunity_add",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_opportunity"
+      },
+      "description": "Open a deal with an organization this company already holds. A deal already won or lost is opened here and then closed with crm_opportunity_move.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "amountMinor": {
+            "description": "What it is worth, in the currency's smallest unit: 15000000 is \u20a915,000,000.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "business": {
+            "description": "Business label from a task_list result.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "contactHint": {
+            "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "currencyCode": {
+            "description": "ISO 4217, e.g. 'KRW'.",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about the deal.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "expectedCloseDate": {
+            "description": "When it should close, in the company's time zone. A day as yyyy-mm-dd.",
+            "type": "string"
+          },
+          "importance": {
+            "description": "high, medium or low.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization: its exact ID, or its name as crm_organization_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "The colleague who owns it, by name or email.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "pipeline": {
+            "description": "The pipeline from crm_vocabulary_get. Omit when the company runs one.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "stage": {
+            "description": "Where it starts. Defaults to waiting; a closing stage is refused here.",
+            "enum": [
+              "waiting",
+              "in_progress",
+              "review",
+              "done",
+              "on_hold",
+              "lost"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "What the deal is called.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "amountMinor": {
+            "description": "What it is worth, in the currency's smallest unit: 15000000 is \u20a915,000,000.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "business": {
+            "description": "Business label from a task_list result.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "contactHint": {
+            "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "currencyCode": {
+            "description": "ISO 4217, e.g. 'KRW'.",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about the deal.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "expectedCloseDate": {
+            "description": "When it should close, in the company's time zone. A day as yyyy-mm-dd.",
+            "type": "string"
+          },
+          "importance": {
+            "description": "high, medium or low.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization: its exact ID, or its name as crm_organization_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "The colleague who owns it, by name or email.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "pipeline": {
+            "description": "The pipeline from crm_vocabulary_get. Omit when the company runs one.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "stage": {
+            "description": "Where it starts. Defaults to waiting; a closing stage is refused here.",
+            "enum": [
+              "waiting",
+              "in_progress",
+              "review",
+              "done",
+              "on_hold",
+              "lost"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "What the deal is called.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationHint",
+          "title"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_opportunity_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "crm_opportunity_add",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "activityCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "amountMinor": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audit": {
+            "additionalProperties": false,
+            "properties": {
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "archivedByPersonID": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "createdByPersonID": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "updatedByPersonID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "createdAt",
+              "createdByPersonID",
+              "updatedAt",
+              "updatedByPersonID",
+              "archivedAt",
+              "archivedByPersonID"
+            ],
+            "type": "object"
+          },
+          "baseAmountMinor": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseCurrencyCode": {
+            "type": "string"
+          },
+          "business": {
+            "type": "string"
+          },
+          "contactID": {
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expectedCloseAt": {
+            "type": "string"
+          },
+          "expectedCloseTimeZone": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "string"
+          },
+          "lostReason": {
+            "type": "string"
+          },
+          "opportunityID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "organizationID": {
+            "type": "string"
+          },
+          "ownerPersonID": {
+            "type": "string"
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "stageChangedAt": {
+            "type": "string"
+          },
+          "stagePosition": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "opportunityID",
+          "organizationID",
+          "contactID",
+          "title",
+          "business",
+          "pipeline",
+          "stage",
+          "stagePosition",
+          "stageChangedAt",
+          "ownerPersonID",
+          "amountMinor",
+          "currencyCode",
+          "baseAmountMinor",
+          "baseCurrencyCode",
+          "importance",
+          "expectedCloseAt",
+          "expectedCloseTimeZone",
+          "lostReason",
+          "description",
+          "activityCount",
+          "audit"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_opportunity_add",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "activityCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "amountMinor": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "audit": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "archivedByPersonID": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdByPersonID": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedByPersonID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "createdAt",
+                "createdByPersonID",
+                "updatedAt",
+                "updatedByPersonID",
+                "archivedAt",
+                "archivedByPersonID"
+              ],
+              "type": "object"
+            },
+            "baseAmountMinor": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "baseCurrencyCode": {
+              "type": "string"
+            },
+            "business": {
+              "type": "string"
+            },
+            "contactID": {
+              "type": "string"
+            },
+            "currencyCode": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "expectedCloseAt": {
+              "type": "string"
+            },
+            "expectedCloseTimeZone": {
+              "type": "string"
+            },
+            "importance": {
+              "type": "string"
+            },
+            "lostReason": {
+              "type": "string"
+            },
+            "opportunityID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "organizationID": {
+              "type": "string"
+            },
+            "ownerPersonID": {
+              "type": "string"
+            },
+            "pipeline": {
+              "type": "string"
+            },
+            "stage": {
+              "type": "string"
+            },
+            "stageChangedAt": {
+              "type": "string"
+            },
+            "stagePosition": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "opportunityID",
+            "organizationID",
+            "contactID",
+            "title",
+            "business",
+            "pipeline",
+            "stage",
+            "stagePosition",
+            "stageChangedAt",
+            "ownerPersonID",
+            "amountMinor",
+            "currencyCode",
+            "baseAmountMinor",
+            "baseCurrencyCode",
+            "importance",
+            "expectedCloseAt",
+            "expectedCloseTimeZone",
+            "lostReason",
+            "description",
+            "activityCount",
+            "audit"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_opportunity_update": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_opportunity_update",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_opportunity"
+      },
+      "description": "Change what a deal is worth, who it is with, or when it should close; only the fields the call names change. Its stage is crm_opportunity_move\u2019s.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "amountMinor": {
+            "description": "What it is worth, in the currency's smallest unit: 15000000 is \u20a915,000,000.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "business": {
+            "description": "Business label from a task_list result.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "contactHint": {
+            "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "currencyCode": {
+            "description": "ISO 4217, e.g. 'KRW'.",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about the deal.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "expectedCloseDate": {
+            "description": "When it should close, in the company's time zone. A day as yyyy-mm-dd.",
+            "type": "string"
+          },
+          "importance": {
+            "description": "high, medium or low.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization it is with now.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "The colleague who owns it, by name or email.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "pipeline": {
+            "description": "The pipeline from crm_vocabulary_get. Omit when the company runs one.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "title": {
+            "description": "What the deal is called.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "minProperties": 2,
+        "properties": {
+          "amountMinor": {
+            "description": "What it is worth, in the currency's smallest unit: 15000000 is \u20a915,000,000.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "business": {
+            "description": "Business label from a task_list result.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "contactHint": {
+            "description": "The person: their exact contact ID, their email address, or their name as crm_contact_list shows it.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "currencyCode": {
+            "description": "ISO 4217, e.g. 'KRW'.",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "description": {
+            "description": "What to remember about the deal.",
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "expectedCloseDate": {
+            "description": "When it should close, in the company's time zone. A day as yyyy-mm-dd.",
+            "type": "string"
+          },
+          "importance": {
+            "description": "high, medium or low.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "The deal: its exact opportunity ID, or its exact CURRENT title from crm_opportunity_list. Never a new title.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization it is with now.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "The colleague who owns it, by name or email.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "pipeline": {
+            "description": "The pipeline from crm_vocabulary_get. Omit when the company runs one.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "title": {
+            "description": "What the deal is called.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "opportunityHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_opportunity_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "crm_opportunity_update",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "activityCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "amountMinor": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audit": {
+            "additionalProperties": false,
+            "properties": {
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "archivedByPersonID": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "createdByPersonID": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "updatedByPersonID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "createdAt",
+              "createdByPersonID",
+              "updatedAt",
+              "updatedByPersonID",
+              "archivedAt",
+              "archivedByPersonID"
+            ],
+            "type": "object"
+          },
+          "baseAmountMinor": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseCurrencyCode": {
+            "type": "string"
+          },
+          "business": {
+            "type": "string"
+          },
+          "contactID": {
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expectedCloseAt": {
+            "type": "string"
+          },
+          "expectedCloseTimeZone": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "string"
+          },
+          "lostReason": {
+            "type": "string"
+          },
+          "opportunityID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "organizationID": {
+            "type": "string"
+          },
+          "ownerPersonID": {
+            "type": "string"
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "stageChangedAt": {
+            "type": "string"
+          },
+          "stagePosition": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "opportunityID",
+          "organizationID",
+          "contactID",
+          "title",
+          "business",
+          "pipeline",
+          "stage",
+          "stagePosition",
+          "stageChangedAt",
+          "ownerPersonID",
+          "amountMinor",
+          "currencyCode",
+          "baseAmountMinor",
+          "baseCurrencyCode",
+          "importance",
+          "expectedCloseAt",
+          "expectedCloseTimeZone",
+          "lostReason",
+          "description",
+          "activityCount",
+          "audit"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_opportunity_update",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "activityCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "amountMinor": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "audit": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "archivedByPersonID": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdByPersonID": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedByPersonID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "createdAt",
+                "createdByPersonID",
+                "updatedAt",
+                "updatedByPersonID",
+                "archivedAt",
+                "archivedByPersonID"
+              ],
+              "type": "object"
+            },
+            "baseAmountMinor": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "baseCurrencyCode": {
+              "type": "string"
+            },
+            "business": {
+              "type": "string"
+            },
+            "contactID": {
+              "type": "string"
+            },
+            "currencyCode": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "expectedCloseAt": {
+              "type": "string"
+            },
+            "expectedCloseTimeZone": {
+              "type": "string"
+            },
+            "importance": {
+              "type": "string"
+            },
+            "lostReason": {
+              "type": "string"
+            },
+            "opportunityID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "organizationID": {
+              "type": "string"
+            },
+            "ownerPersonID": {
+              "type": "string"
+            },
+            "pipeline": {
+              "type": "string"
+            },
+            "stage": {
+              "type": "string"
+            },
+            "stageChangedAt": {
+              "type": "string"
+            },
+            "stagePosition": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "opportunityID",
+            "organizationID",
+            "contactID",
+            "title",
+            "business",
+            "pipeline",
+            "stage",
+            "stagePosition",
+            "stageChangedAt",
+            "ownerPersonID",
+            "amountMinor",
+            "currencyCode",
+            "baseAmountMinor",
+            "baseCurrencyCode",
+            "importance",
+            "expectedCloseAt",
+            "expectedCloseTimeZone",
+            "lostReason",
+            "description",
+            "activityCount",
+            "audit"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_opportunity_move": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_opportunity_move",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_opportunity"
+      },
+      "description": "Move a deal to another stage, or reorder it within the one it stands at. A move into done or lost settles what it was worth and cannot be undone, so put it to the requester first.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "closedAt": {
+            "description": "When the move happened. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day. Defaults to now.",
+            "type": "string"
+          },
+          "finalAmountMinor": {
+            "description": "What it was worth in the company's own currency, which the record converts when the call does not.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "position": {
+            "description": "Where it sits at that stage, counting from 0.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Why it was lost. A move into lost is refused without one.",
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "stage": {
+            "description": "Where it moves to. Omit to only change its position.",
+            "enum": [
+              "waiting",
+              "in_progress",
+              "review",
+              "done",
+              "on_hold",
+              "lost"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "minProperties": 2,
+        "properties": {
+          "closedAt": {
+            "description": "When the move happened. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day. Defaults to now.",
+            "type": "string"
+          },
+          "finalAmountMinor": {
+            "description": "What it was worth in the company's own currency, which the record converts when the call does not.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "opportunityHint": {
+            "description": "The deal: its exact opportunity ID, or its exact CURRENT title from crm_opportunity_list. Never a new title.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "position": {
+            "description": "Where it sits at that stage, counting from 0.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Why it was lost. A move into lost is refused without one.",
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "stage": {
+            "description": "Where it moves to. Omit to only change its position.",
+            "enum": [
+              "waiting",
+              "in_progress",
+              "review",
+              "done",
+              "on_hold",
+              "lost"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "opportunityHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_opportunity_move",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "crm_opportunity_move",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "activityCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "amountMinor": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audit": {
+            "additionalProperties": false,
+            "properties": {
+              "archivedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "archivedByPersonID": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "createdByPersonID": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "updatedByPersonID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "createdAt",
+              "createdByPersonID",
+              "updatedAt",
+              "updatedByPersonID",
+              "archivedAt",
+              "archivedByPersonID"
+            ],
+            "type": "object"
+          },
+          "baseAmountMinor": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseCurrencyCode": {
+            "type": "string"
+          },
+          "business": {
+            "type": "string"
+          },
+          "contactID": {
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expectedCloseAt": {
+            "type": "string"
+          },
+          "expectedCloseTimeZone": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "string"
+          },
+          "lostReason": {
+            "type": "string"
+          },
+          "opportunityID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "organizationID": {
+            "type": "string"
+          },
+          "ownerPersonID": {
+            "type": "string"
+          },
+          "pipeline": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "stageChangedAt": {
+            "type": "string"
+          },
+          "stagePosition": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "opportunityID",
+          "organizationID",
+          "contactID",
+          "title",
+          "business",
+          "pipeline",
+          "stage",
+          "stagePosition",
+          "stageChangedAt",
+          "ownerPersonID",
+          "amountMinor",
+          "currencyCode",
+          "baseAmountMinor",
+          "baseCurrencyCode",
+          "importance",
+          "expectedCloseAt",
+          "expectedCloseTimeZone",
+          "lostReason",
+          "description",
+          "activityCount",
+          "audit"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_opportunity_move",
+      "privacyClass": "workspace_crm",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "activityCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "amountMinor": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "audit": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "archivedByPersonID": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "createdByPersonID": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "updatedByPersonID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "createdAt",
+                "createdByPersonID",
+                "updatedAt",
+                "updatedByPersonID",
+                "archivedAt",
+                "archivedByPersonID"
+              ],
+              "type": "object"
+            },
+            "baseAmountMinor": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "baseCurrencyCode": {
+              "type": "string"
+            },
+            "business": {
+              "type": "string"
+            },
+            "contactID": {
+              "type": "string"
+            },
+            "currencyCode": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "expectedCloseAt": {
+              "type": "string"
+            },
+            "expectedCloseTimeZone": {
+              "type": "string"
+            },
+            "importance": {
+              "type": "string"
+            },
+            "lostReason": {
+              "type": "string"
+            },
+            "opportunityID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "organizationID": {
+              "type": "string"
+            },
+            "ownerPersonID": {
+              "type": "string"
+            },
+            "pipeline": {
+              "type": "string"
+            },
+            "stage": {
+              "type": "string"
+            },
+            "stageChangedAt": {
+              "type": "string"
+            },
+            "stagePosition": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "opportunityID",
+            "organizationID",
+            "contactID",
+            "title",
+            "business",
+            "pipeline",
+            "stage",
+            "stagePosition",
+            "stageChangedAt",
+            "ownerPersonID",
+            "amountMinor",
+            "currencyCode",
+            "baseAmountMinor",
+            "baseCurrencyCode",
+            "importance",
+            "expectedCloseAt",
+            "expectedCloseTimeZone",
+            "lostReason",
+            "description",
+            "activityCount",
+            "audit"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_opportunity_archive": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_opportunity_archive",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_opportunity"
+      },
+      "description": "Put a deal away, so it leaves the pipeline while everything recorded against it stays. A deal that was lost is moved to lost instead.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "opportunityHint": {
+            "description": "The deal: its exact opportunity ID, or its exact CURRENT title from crm_opportunity_list. Never a new title.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "opportunityHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_opportunity_archive",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_opportunity_archive",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "archivedAt": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recordID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordID",
+          "name",
+          "archivedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_opportunity_archive",
+      "privacyClass": "workspace_crm",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "archivedAt": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "recordID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "name",
+            "archivedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_vocabulary_get": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_vocabulary_get",
+      "description": "The words this company runs its CRM in: the organization types it sorts relationships by, the pipelines it runs deals through, and the stages a deal can stand at with what each one means.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_vocabulary_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_vocabulary_get",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "organizationTypes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pipelines": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "stages": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "outcome": {
+                  "type": "string"
+                },
+                "stage": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stage",
+                "outcome"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "organizationTypes",
+          "pipelines",
+          "stages"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_vocabulary_get",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "organizationTypes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "pipelines": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "stages": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "outcome": {
+                    "type": "string"
+                  },
+                  "stage": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "stage",
+                  "outcome"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "organizationTypes",
+            "pipelines",
+            "stages"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_vocabulary_set": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_vocabulary_set",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_vocabulary"
+      },
+      "description": "Set the organization types and pipelines this company runs its CRM in. Both lists are written at once, so read crm_vocabulary_get first and send it back with what changes. The stages are the product\u2019s and are not set here. This is an administrator\u2019s.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "organizationTypes": {
+            "description": "Every organization type this company names, replacing the whole list. A type still carried by an organization cannot be dropped.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "The colour the CRM screens draw it in, as a CSS colour.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "id": {
+                  "description": "The stable key the records carry.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "What people call it.",
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pipelines": {
+            "description": "Every pipeline this company runs deals through, replacing the whole list. A pipeline still carried by a deal cannot be dropped.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "The colour the CRM screens draw it in, as a CSS colour.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "direction": {
+                  "description": "Which way the pipeline runs, e.g. inbound or outbound.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "id": {
+                  "description": "The stable key the records carry.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "What people call it.",
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "organizationTypes",
+          "pipelines"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_vocabulary_set",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_vocabulary_set",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "organizationTypes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pipelines": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "stages": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "outcome": {
+                  "type": "string"
+                },
+                "stage": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stage",
+                "outcome"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "organizationTypes",
+          "pipelines",
+          "stages"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_vocabulary_set",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "organizationTypes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "pipelines": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "stages": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "outcome": {
+                    "type": "string"
+                  },
+                  "stage": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "stage",
+                  "outcome"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "organizationTypes",
+            "pipelines",
+            "stages"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_activity_list": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_activity_list",
+      "description": "The work recorded against the organizations and deals this company holds, newest first, with the labels and colours the CRM screens draw it in. The same rows task_list answers, shaped for the CRM.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "opportunityHint": {
+            "description": "Only the work on this deal.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Only the work with this organization.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "query": {
+            "description": "Free-text filter matched against the title and the note.",
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_activity_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_activity_list",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "activities": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "activityID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "business": {
+                  "type": "string"
+                },
+                "contactID": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "endsAt": {
+                  "type": "string"
+                },
+                "isEvent": {
+                  "type": "boolean"
+                },
+                "isWholeDay": {
+                  "type": "boolean"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "location": {
+                  "type": "string"
+                },
+                "notifyMinutesBefore": {
+                  "anyOf": [
+                    {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string"
+                },
+                "opportunityID": {
+                  "type": "string"
+                },
+                "organizationID": {
+                  "type": "string"
+                },
+                "ownerPersonID": {
+                  "type": "string"
+                },
+                "requesterPersonID": {
+                  "type": "string"
+                },
+                "startsAt": {
+                  "type": "string"
+                },
+                "taskStatus": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "activityID",
+                "organizationID",
+                "opportunityID",
+                "contactID",
+                "business",
+                "kind",
+                "title",
+                "occurredAt",
+                "content",
+                "taskStatus",
+                "ownerPersonID",
+                "requesterPersonID",
+                "isEvent",
+                "isWholeDay",
+                "startsAt",
+                "endsAt",
+                "notifyMinutesBefore",
+                "location",
+                "createdAt",
+                "updatedAt"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "registeredLabels": {
+            "additionalProperties": false,
+            "properties": {
+              "businesses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "sizes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "statuses": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "types": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "businesses",
+              "types",
+              "sizes",
+              "statuses"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "count",
+          "activities",
+          "registeredLabels"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_activity_list",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "activities": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "activityID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "business": {
+                    "type": "string"
+                  },
+                  "contactID": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  },
+                  "endsAt": {
+                    "type": "string"
+                  },
+                  "isEvent": {
+                    "type": "boolean"
+                  },
+                  "isWholeDay": {
+                    "type": "boolean"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "notifyMinutesBefore": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "occurredAt": {
+                    "type": "string"
+                  },
+                  "opportunityID": {
+                    "type": "string"
+                  },
+                  "organizationID": {
+                    "type": "string"
+                  },
+                  "ownerPersonID": {
+                    "type": "string"
+                  },
+                  "requesterPersonID": {
+                    "type": "string"
+                  },
+                  "startsAt": {
+                    "type": "string"
+                  },
+                  "taskStatus": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "activityID",
+                  "organizationID",
+                  "opportunityID",
+                  "contactID",
+                  "business",
+                  "kind",
+                  "title",
+                  "occurredAt",
+                  "content",
+                  "taskStatus",
+                  "ownerPersonID",
+                  "requesterPersonID",
+                  "isEvent",
+                  "isWholeDay",
+                  "startsAt",
+                  "endsAt",
+                  "notifyMinutesBefore",
+                  "location",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "registeredLabels": {
+              "additionalProperties": false,
+              "properties": {
+                "businesses": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "sizes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "statuses": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "types": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "businesses",
+                "types",
+                "sizes",
+                "statuses"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "count",
+            "activities",
+            "registeredLabels"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    "crm_activity_save": {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "crm_activity_save",
+      "completionEvidence": {
+        "action": "write_crm",
+        "mode": "success",
+        "targetKind": "crm_activity"
+      },
+      "description": "Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, plus the calendar entry when the work goes in the calendar.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "activityHint": {
+            "description": "The activity to change. Omit to record a new one.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "business": {
+            "description": "Business label, from registeredLabels.businesses.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "contactHint": {
+            "description": "The person the work was with.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "When the calendar entry ends. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "type": "string"
+          },
+          "isEvent": {
+            "description": "Set true for work that goes in the calendar, which then needs startsAt and endsAt.",
+            "type": "boolean"
+          },
+          "isWholeDay": {
+            "description": "Whether the calendar entry takes the whole day.",
+            "type": "boolean"
+          },
+          "kind": {
+            "description": "The kind of work it was: a note, a call, a meeting, an email, a task.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "location": {
+            "description": "Where it happens.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "note": {
+            "description": "What was said or decided.",
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "notifyMinutesBefore": {
+            "description": "Minutes before the start to remind the people in it.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "occurredAt": {
+            "description": "When it happened. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "The deal the work belongs to.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization the work is with. A new activity names one.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "Name, @handle or email of the colleague it belongs to.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "startsAt": {
+            "description": "When the calendar entry starts. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "type": "string"
+          },
+          "status": {
+            "description": "The status the task stands at.",
+            "maxLength": 32,
+            "type": "string"
+          },
+          "title": {
+            "description": "What happened, in a line.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "crm_activity_save",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "crm_activity_save",
+      "namespace": "crm",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "activityID": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
+            "type": "string"
+          },
+          "business": {
+            "type": "string"
+          },
+          "contactID": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "isEvent": {
+            "type": "boolean"
+          },
+          "isWholeDay": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "notifyMinutesBefore": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "opportunityID": {
+            "type": "string"
+          },
+          "organizationID": {
+            "type": "string"
+          },
+          "ownerPersonID": {
+            "type": "string"
+          },
+          "requesterPersonID": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "taskStatus": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "activityID",
+          "organizationID",
+          "opportunityID",
+          "contactID",
+          "business",
+          "kind",
+          "title",
+          "occurredAt",
+          "content",
+          "taskStatus",
+          "ownerPersonID",
+          "requesterPersonID",
+          "isEvent",
+          "isWholeDay",
+          "startsAt",
+          "endsAt",
+          "notifyMinutesBefore",
+          "location",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:crm_activity_save",
+      "privacyClass": "workspace_crm",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "activityID": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "business": {
+              "type": "string"
+            },
+            "contactID": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "endsAt": {
+              "type": "string"
+            },
+            "isEvent": {
+              "type": "boolean"
+            },
+            "isWholeDay": {
+              "type": "boolean"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "notifyMinutesBefore": {
+              "anyOf": [
+                {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurredAt": {
+              "type": "string"
+            },
+            "opportunityID": {
+              "type": "string"
+            },
+            "organizationID": {
+              "type": "string"
+            },
+            "ownerPersonID": {
+              "type": "string"
+            },
+            "requesterPersonID": {
+              "type": "string"
+            },
+            "startsAt": {
+              "type": "string"
+            },
+            "taskStatus": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "activityID",
+            "organizationID",
+            "opportunityID",
+            "contactID",
+            "business",
+            "kind",
+            "title",
+            "occurredAt",
+            "content",
+            "taskStatus",
+            "ownerPersonID",
+            "requesterPersonID",
+            "isEvent",
+            "isWholeDay",
+            "startsAt",
+            "endsAt",
+            "notifyMinutesBefore",
+            "location",
+            "createdAt",
+            "updatedAt"
           ],
           "type": "object"
         }

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(27);
 
 select has_table('public', 'organization', 'crm: organization table exists');
 select has_table('public', 'opportunity', 'crm: opportunity table exists');
@@ -15,12 +15,6 @@ select hasnt_column(
   'task_participant',
   'contact_id',
   'crm: task participants remain internal members only'
-);
-select has_function(
-  'public',
-  'crm_task_save',
-  array['uuid', 'text', 'task_status', 'text', 'text', 'text', 'timestamp with time zone', 'timestamp with time zone', 'timestamp with time zone', 'boolean', 'boolean', 'integer', 'jsonb', 'uuid', 'uuid[]', 'uuid', 'uuid', 'uuid'],
-  'crm: CRM task writes use an authenticated transactional function'
 );
 select has_function(
   'public',
@@ -328,88 +322,6 @@ select lives_ok(
   $$,
   'crm: a task may link only an organization'
 );
-
-select lives_ok($block$do $$
-declare
-  saved_task uuid;
-  saved_participants integer;
-begin
-  set local role authenticated;
-  perform set_config(
-    'request.jwt.claims',
-    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
-    true
-  );
-
-  saved_task := public.crm_task_save(
-    null,
-    'CRM calendar task',
-    'planned',
-    'Shared CRM and Flow content',
-    'Sample business',
-    'meeting',
-    null,
-    '2026-08-20 09:00:00+09',
-    '2026-08-20 10:00:00+09',
-    true,
-    false,
-    30,
-    '{"name":"Sample meeting room"}'::jsonb,
-    null,
-    array['59400000-0000-0000-0000-0000000000a1']::uuid[],
-    '59400000-0000-0000-0000-000000000101',
-    '59400000-0000-0000-0000-000000000121',
-    '59400000-0000-0000-0000-000000000111'
-  );
-
-  assert exists (
-    select 1 from public.task
-    where id = saved_task
-      and is_event
-      and organization_id = '59400000-0000-0000-0000-000000000101'
-      and opportunity_id = '59400000-0000-0000-0000-000000000121'
-      and contact_id = '59400000-0000-0000-0000-000000000111'
-  ), 'the shared task keeps all CRM and calendar fields';
-
-  select count(*) into saved_participants
-  from public.task_participant
-  where task_id = saved_task
-    and member_id = '59400000-0000-0000-0000-0000000000a1';
-  assert saved_participants = 1, 'the internal member remains a task participant';
-
-  reset role;
-end $$;$block$, 'crm: a CRM task is saved atomically with its internal participant');
-
-select throws_ok($block$do $$
-begin
-  set local role authenticated;
-  perform set_config(
-    'request.jwt.claims',
-    '{"sub":"59400000-0000-0000-0000-000000000001","role":"authenticated"}',
-    true
-  );
-  perform public.crm_task_save(
-    null,
-    'Manual stage change',
-    'planned',
-    null,
-    null,
-    'stage_change',
-    now(),
-    null,
-    null,
-    false,
-    false,
-    null,
-    null,
-    null,
-    array['59400000-0000-0000-0000-0000000000a1']::uuid[],
-    '59400000-0000-0000-0000-000000000101',
-    null,
-    null
-  );
-  reset role;
-end $$;$block$, '42501', null, 'crm: users cannot create a stage change task manually');
 
 select lives_ok($block$do $$
 declare

@@ -22,6 +22,7 @@ import {
 	type CRMImportance,
 	type CRMProgressKind
 } from './crm-types';
+import { crmStageKeys } from '$lib/crm/crm-stage';
 
 type CRMDefinitions = {
 	businesses: string[];
@@ -229,7 +230,7 @@ function parseOpportunity(value: unknown): CRMOpportunityResponse {
 		business: optionalString(record, 'business'),
 		name: requiredString(record, 'name'),
 		pipeline: enumString(record, 'pipeline', ['sales', 'fundraising', 'investment', 'sponsorship', 'partnership', 'procurement']),
-		stage: requiredString(record, 'stage'),
+		stage: enumString(record, 'stage', crmStageKeys),
 		stagePosition: requiredNumber(record, 'stagePosition'),
 		stageChangedAt: requiredString(record, 'stageChangedAt'),
 		ownerPersonID: requiredString(record, 'ownerPersonID'),

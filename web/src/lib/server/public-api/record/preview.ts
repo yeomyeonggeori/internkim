@@ -1,4 +1,5 @@
 import { holidayOfCompanyHint } from './company-tools';
+import { contactOfCRMHint, opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
 import { eventOfHint } from './event-tools';
 import { taskRowOfHint } from './task-tools';
 import type { RecordContext } from './company';
@@ -24,6 +25,18 @@ const previewsOverTheRecord: Record<string, Preview> = {
 	company_holiday_delete: async (context, input) => {
 		const holiday = await holidayOfCompanyHint(context, hintOf(input, 'holidayHint'));
 		return { inputField: 'holidayHint', id: holiday.id, title: `${holiday.date} ${holiday.title}` };
+	},
+	crm_organization_archive: async (context, input) => {
+		const organization = await organizationOfCRMHint(context, hintOf(input, 'organizationHint'));
+		return { inputField: 'organizationHint', id: organization.id, title: organization.name };
+	},
+	crm_contact_archive: async (context, input) => {
+		const contact = await contactOfCRMHint(context, hintOf(input, 'contactHint'));
+		return { inputField: 'contactHint', id: contact.id, title: contact.name };
+	},
+	crm_opportunity_archive: async (context, input) => {
+		const opportunity = await opportunityOfCRMHint(context, hintOf(input, 'opportunityHint'));
+		return { inputField: 'opportunityHint', id: opportunity.id, title: opportunity.name };
 	}
 };
 

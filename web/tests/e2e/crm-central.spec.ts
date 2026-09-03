@@ -259,7 +259,7 @@ test('an added definition shows at once and the list keeps its shape while savin
 	const heldSave = new Promise<void>((resolve) => {
 		releaseSave = resolve;
 	});
-	await page.route('**/rpc/crm_vocabulary_save', async (route) => {
+	await page.route('**/tools/crm_vocabulary_set/invoke', async (route) => {
 		await heldSave;
 		await route.continue();
 	});
@@ -271,7 +271,7 @@ test('an added definition shows at once and the list keeps its shape while savin
 	await expect(swatches).toHaveCount(swatchCount + 1);
 	await expect(names.first()).toBeEnabled();
 
-	const saved = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	const saved = page.waitForResponse('**/tools/crm_vocabulary_set/invoke');
 	releaseSave();
 	await saved;
 
@@ -279,7 +279,7 @@ test('an added definition shows at once and the list keeps its shape while savin
 	await page.getByRole('tab', { name: '정의' }).click();
 	await expect(names.nth(nameCount - 1)).toHaveValue(organizationTypeName);
 
-	const removed = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	const removed = page.waitForResponse('**/tools/crm_vocabulary_set/invoke');
 	await card.getByRole('button', { name: '삭제' }).nth(nameCount - 1).click();
 	await expect(names).toHaveCount(nameCount);
 	await removed;
@@ -300,7 +300,7 @@ test('a definition added while an earlier save runs is not lost', async ({ page 
 		releaseFirstSave = resolve;
 	});
 	let hasHeld = false;
-	await page.route('**/rpc/crm_vocabulary_save', async (route) => {
+	await page.route('**/tools/crm_vocabulary_set/invoke', async (route) => {
 		if (!hasHeld) {
 			hasHeld = true;
 			await heldFirstSave;
@@ -322,7 +322,7 @@ test('a definition added while an earlier save runs is not lost', async ({ page 
 	await expect(names.nth(nameCount)).toHaveValue(queuedTypeNames[1]);
 
 	for (const index of [nameCount, nameCount - 1]) {
-		const removed = page.waitForResponse('**/rpc/crm_vocabulary_save');
+		const removed = page.waitForResponse('**/tools/crm_vocabulary_set/invoke');
 		await card.getByRole('button', { name: '삭제' }).nth(index).click();
 		await removed;
 	}
@@ -340,14 +340,14 @@ test('a renamed pipeline reaches the rest of the workspace without a reload', as
 	const originalName = await firstName.inputValue();
 	const renamedName = `${originalName} 개명`;
 
-	const saved = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	const saved = page.waitForResponse('**/tools/crm_vocabulary_set/invoke');
 	await firstName.fill(renamedName);
 	await firstName.blur();
 	await saved;
 
 	await expect(page.locator('[data-crm-metrics]')).toContainText(renamedName);
 
-	const restored = page.waitForResponse('**/rpc/crm_vocabulary_save');
+	const restored = page.waitForResponse('**/tools/crm_vocabulary_set/invoke');
 	await firstName.fill(originalName);
 	await firstName.blur();
 	await restored;

@@ -87,6 +87,29 @@ security가 정합니다. 수량은 숫자 `days`이고 종류는 회사가 등�
 무엇을 원했는지 알린 뒤, 관리자가 쓸 때까지 아무것도 쓰이지 않습니다. 수정은 고치기 전의 값을, 삭제는 누가 왜
 지웠는지를 남깁니다.
 
+## CRM [#crm]
+
+<ToolCatalog namespace="crm" language="ko" />
+
+중앙 평면의 `web/src/lib/server/public-api/record/crm-tools.ts`가 기록의
+`organization`, `contact`, `opportunity` 테이블과 `crm_opportunity_close`
+함수 위에서 부르는 멤버의 신원으로 답합니다. 관계처, 그곳의 사람, 진행 건은
+각각 힌트로 지목합니다. 정확한 ID이거나, 목록 결과에 있는 이름 또는 현재
+제목입니다.
+
+진행 건은 여섯 단계 중 하나에 섭니다. `waiting`, `in_progress`, `review`,
+`done`, `on_hold`, `lost`이고, 기록의 `crm_stage` 타입으로 한 번만 선언해
+카탈로그와 화면이 거기서 읽습니다. 단계를 바꾸는 길은 `crm_opportunity_move`
+하나뿐입니다. `done`이나 `lost`로 옮기면 그 건이 얼마짜리였는지를 회사 기준
+통화로 확정하고, 다른 통화로 들고 있었다면 환산해 넣으며, 잃은 건에는 적힌
+사유가 필요합니다. 단계 없이 위치만 주면 서 있는 자리에서 순서만 바뀝니다.
+
+활동은 업무입니다. `task_add`·`task_update`·`task_list`가
+`organizationHint`와 `opportunityHint`를 받으므로, 진행 건에 쌓인 일은 회사의
+평범한 업무입니다. 화면과 API는 같은 행을 `crm_activity_save`와
+`crm_activity_list`로도 다루는데, 이 둘은 모델에게 주지 않고 `task_add`와
+`event_add`가 쓰는 그 작성기를 그대로 거칩니다.
+
 ## 메시지 [#message]
 
 <ToolCatalog namespace="message" language="ko" />

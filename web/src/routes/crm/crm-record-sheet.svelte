@@ -30,6 +30,7 @@
 		CRMCreateDraft,
 		CRMImportance,
 		CRMOpportunity,
+		CRMOpportunityStage,
 		CRMPipeline,
 		CRMPipelineStage,
 		CRMProgressKind,
@@ -116,8 +117,8 @@
 	let organizationContacts = $derived(contacts.filter((contact) => contact.organizationID === organizationID));
 	let stageOutcome = $derived(sortedStages.find((candidate) => candidate.stage === stage)?.outcome ?? 'open');
 
-	function defaultStage(): string {
-		return stages.find((candidate) => candidate.outcome === 'open')?.stage ?? '';
+	function defaultStage(): CRMOpportunityStage {
+		return stages.find((candidate) => candidate.outcome === 'open')?.stage ?? 'waiting';
 	}
 
 	function resetForm(): void {

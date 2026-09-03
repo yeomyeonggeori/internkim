@@ -63,16 +63,5 @@
 	},
 	"src/lib/task/task-live-refresh.ts": {
 		"rpc('my_company_topic')": 1
-	},
-	"src/routes/crm/crm-supabase.ts": {
-		"from('company')": 1,
-		"from('organization')": 3,
-		"from('contact')": 3,
-		"from('opportunity')": 4,
-		"from('task')": 2,
-		"rpc('crm_task_save')": 2,
-		"rpc('crm_vocabulary_save')": 1,
-		"from('member')": 1,
-		"from(table)": 1
 	}
 }

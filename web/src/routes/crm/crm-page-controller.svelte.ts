@@ -47,6 +47,7 @@ import type {
 	CRMCreateDraft,
 	CRMNextAction,
 	CRMOpportunity,
+	CRMOpportunityStage,
 	CRMPipeline,
 	CRMPipelineStage,
 } from './crm-types';
@@ -390,7 +391,7 @@ export class CRMPageController {
 
 	private transitionPayload(
 		opportunityID: string,
-		stage: string,
+		stage: CRMOpportunityStage,
 		beforeOpportunityID: string | null,
 		values: CRMOpportunityTransitionValues
 	): CRMTransitionPayload {

@@ -507,6 +507,159 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"status":"asked"`)
 			},
 		},
+		"crm_activity_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_activity_list","result":{"count":1,"activities":[{"activityID":"t1","organizationID":"o1","opportunityID":"p1","contactID":"c1","business":"\uc601\uc5c5","kind":"meeting","title":"\ud0a5\uc624\ud504 \ubbf8\ud305","occurredAt":"2026-09-02T00:00:00Z","content":"\uc694\uad6c\uc0ac\ud56d\uc744 \ub4e4\uc5c8\ub2e4","taskStatus":"completed","ownerPersonID":"m1","requesterPersonID":"m1","isEvent":false,"isWholeDay":false,"startsAt":"","endsAt":"","notifyMinutesBefore":null,"location":"","createdAt":"2026-09-02T00:00:00Z","updatedAt":"2026-09-03T00:00:00Z"}],"registeredLabels":{"businesses":[{"name":"\uc601\uc5c5","color":"#2563eb"}],"types":[{"name":"meeting"}],"sizes":["XS","S","M","L","XL","XXL"],"statuses":["planned","in_progress","completed","requested","paused","rejected","stopped"]}}}`)},
+			input:   `{"opportunityHint":"ABC\uc0c1\uc0ac \ub3c4\uc785"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"color":"#2563eb"`)
+			},
+		},
+		"crm_activity_save": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_activity_save","result":{"activityID":"t1","organizationID":"o1","opportunityID":"p1","contactID":"c1","business":"\uc601\uc5c5","kind":"meeting","title":"\ud0a5\uc624\ud504 \ubbf8\ud305","occurredAt":"2026-09-02T00:00:00Z","content":"\uc694\uad6c\uc0ac\ud56d\uc744 \ub4e4\uc5c8\ub2e4","taskStatus":"completed","ownerPersonID":"m1","requesterPersonID":"m1","isEvent":false,"isWholeDay":false,"startsAt":"","endsAt":"","notifyMinutesBefore":null,"location":"","createdAt":"2026-09-02T00:00:00Z","updatedAt":"2026-09-03T00:00:00Z"}}`)},
+			input:   `{"organizationHint":"ABC\uc0c1\uc0ac","title":"\ud0a5\uc624\ud504 \ubbf8\ud305","kind":"meeting","note":"\uc694\uad6c\uc0ac\ud56d\uc744 \ub4e4\uc5c8\ub2e4","occurredAt":"2026-09-02T00:00:00Z"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"activityID":"t1"`)
+			},
+		},
+		"crm_organization_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_organization_list","result":{"count":1,"organizations":[{"organizationID":"o1","name":"ABC\uc0c1\uc0ac","status":"active","types":["customer"],"tags":["\uc11c\uc6b8"],"importance":"high","ownerPersonID":"m1","address":"\uc11c\uc6b8","description":"","audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}]}}`)},
+			input:   `{"query":"ABC"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"organizationID":"o1"`)
+			},
+		},
+		"crm_organization_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_organization_add","result":{"organizationID":"o1","name":"ABC\uc0c1\uc0ac","status":"active","types":["customer"],"tags":["\uc11c\uc6b8"],"importance":"high","ownerPersonID":"m1","address":"\uc11c\uc6b8","description":"","audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"name":"ABC\uc0c1\uc0ac","types":["customer"],"importance":"high"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"name":"ABC\uc0c1\uc0ac"`)
+			},
+		},
+		"crm_organization_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_organization_update","result":{"organizationID":"o1","name":"ABC\uc0c1\uc0ac","status":"active","types":["customer"],"tags":["\uc11c\uc6b8"],"importance":"high","ownerPersonID":"m1","address":"\uc11c\uc6b8","description":"","audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"organizationHint":"ABC\uc0c1\uc0ac","importance":"high"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"importance":"high"`)
+			},
+		},
+		"crm_organization_archive": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_organization_archive","result":{"recordID":"o1","name":"ABC\uc0c1\uc0ac","archivedAt":"2026-09-04T00:00:00Z"}}`)},
+			input:   `{"organizationHint":"ABC\uc0c1\uc0ac"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"recordID":"o1"`)
+			},
+		},
+		"crm_contact_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_contact_list","result":{"count":1,"contacts":[{"contactID":"c1","organizationID":"o1","name":"\uc774\uc0d8\ud50c","email":"sample@example.com","phoneNumber":"","role":"\uad6c\ub9e4\ud300\uc7a5","department":"","description":"","audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}]}}`)},
+			input:   `{"organizationHint":"ABC\uc0c1\uc0ac"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"contactID":"c1"`)
+			},
+		},
+		"crm_contact_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_contact_add","result":{"contactID":"c1","organizationID":"o1","name":"\uc774\uc0d8\ud50c","email":"sample@example.com","phoneNumber":"","role":"\uad6c\ub9e4\ud300\uc7a5","department":"","description":"","audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"organizationHint":"ABC\uc0c1\uc0ac","name":"\uc774\uc0d8\ud50c","email":"sample@example.com"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"email":"sample@example.com"`)
+			},
+		},
+		"crm_contact_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_contact_update","result":{"contactID":"c1","organizationID":"o1","name":"\uc774\uc0d8\ud50c","email":"sample@example.com","phoneNumber":"","role":"\uad6c\ub9e4\ud300\uc7a5","department":"","description":"","audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"contactHint":"sample@example.com","role":"\uad6c\ub9e4\ud300\uc7a5"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"role":"\uad6c\ub9e4\ud300\uc7a5"`)
+			},
+		},
+		"crm_contact_archive": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_contact_archive","result":{"recordID":"c1","name":"\uc774\uc0d8\ud50c","archivedAt":"2026-09-04T00:00:00Z"}}`)},
+			input:   `{"contactHint":"sample@example.com"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"recordID":"c1"`)
+			},
+		},
+		"crm_opportunity_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_list","result":{"count":1,"opportunities":[{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"review","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amountMinor":18000000,"currencyCode":"KRW","baseAmountMinor":null,"baseCurrencyCode":"","importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}]}}`)},
+			input:   `{"organizationHint":"ABC\uc0c1\uc0ac","stage":"review"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"stage":"review"`)
+			},
+		},
+		"crm_opportunity_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_add","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"waiting","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amountMinor":18000000,"currencyCode":"KRW","baseAmountMinor":null,"baseCurrencyCode":"","importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"organizationHint":"ABC\uc0c1\uc0ac","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","amountMinor":18000000,"currencyCode":"KRW"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"stage":"waiting"`)
+			},
+		},
+		"crm_opportunity_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_update","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"review","stagePosition":0,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amountMinor":18000000,"currencyCode":"KRW","baseAmountMinor":null,"baseCurrencyCode":"","importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"opportunityHint":"ABC\uc0c1\uc0ac \ub3c4\uc785","amountMinor":18000000}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"amountMinor":18000000`)
+			},
+		},
+		"crm_opportunity_move": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_move","result":{"opportunityID":"p1","organizationID":"o1","contactID":"c1","title":"ABC\uc0c1\uc0ac \ub3c4\uc785","business":"\uc601\uc5c5","pipeline":"partnership","stage":"done","stagePosition":1,"stageChangedAt":"2026-09-04T00:00:00Z","ownerPersonID":"m1","amountMinor":18000000,"currencyCode":"KRW","baseAmountMinor":18000000,"baseCurrencyCode":"KRW","importance":"high","expectedCloseAt":"2026-09-30T14:59:59.999Z","expectedCloseTimeZone":"Asia/Seoul","lostReason":"","description":"","activityCount":2,"audit":{"createdAt":"2026-09-01T00:00:00Z","createdByPersonID":"m1","updatedAt":"2026-09-04T00:00:00Z","updatedByPersonID":"m1","archivedAt":null,"archivedByPersonID":""}}}`)},
+			input:   `{"opportunityHint":"ABC\uc0c1\uc0ac \ub3c4\uc785","stage":"done","position":1}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"baseAmountMinor":18000000`)
+			},
+		},
+		"crm_opportunity_archive": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_opportunity_archive","result":{"recordID":"p1","name":"ABC\uc0c1\uc0ac \ub3c4\uc785","archivedAt":"2026-09-04T00:00:00Z"}}`)},
+			input:   `{"opportunityHint":"ABC\uc0c1\uc0ac \ub3c4\uc785"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"recordID":"p1"`)
+			},
+		},
+		"crm_vocabulary_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_vocabulary_get","result":{"organizationTypes":[{"id":"customer","name":"\uace0\uac1d"}],"pipelines":[{"id":"partnership","name":"\ud30c\ud2b8\ub108\uc2ed"}],"stages":[{"stage":"waiting","outcome":"open"},{"stage":"in_progress","outcome":"open"},{"stage":"review","outcome":"open"},{"stage":"done","outcome":"won"},{"stage":"on_hold","outcome":"on_hold"},{"stage":"lost","outcome":"lost"}]}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"stage":"on_hold"`)
+			},
+		},
+		"crm_vocabulary_set": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"crm_vocabulary_set","result":{"organizationTypes":[{"id":"customer","name":"\uace0\uac1d"}],"pipelines":[{"id":"partnership","name":"\ud30c\ud2b8\ub108\uc2ed"}],"stages":[{"stage":"waiting","outcome":"open"},{"stage":"in_progress","outcome":"open"},{"stage":"review","outcome":"open"},{"stage":"done","outcome":"won"},{"stage":"on_hold","outcome":"on_hold"},{"stage":"lost","outcome":"lost"}]}}`)},
+			input:   `{"organizationTypes":[{"id":"customer","name":"\uace0\uac1d"}],"pipelines":[{"id":"partnership","name":"\ud30c\ud2b8\ub108\uc2ed"}]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"id":"partnership"`)
+			},
+		},
 	}
 }
 

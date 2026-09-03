@@ -5,6 +5,7 @@ import type {
 	CRMCurrency,
 	CRMImportance,
 	CRMOpportunityContact,
+	CRMOpportunityStage,
 	CRMProgressKind
 } from './crm-types';
 import type { TaskVocabulary } from '$lib/task/task-vocabulary';
@@ -54,7 +55,7 @@ export type CRMOpportunityResponse = {
 	business?: string;
 	name: string;
 	pipeline: CRMProgressKind;
-	stage: string;
+	stage: CRMOpportunityStage;
 	stagePosition: number;
 	stageChangedAt: string;
 	ownerPersonID: string;
@@ -153,7 +154,7 @@ export type CRMActivityPayload = {
 };
 
 export type CRMTransitionPayload = {
-	stage: string;
+	stage: CRMOpportunityStage;
 	stagePosition: number;
 	beforeOpportunityID: string;
 	occurredAt: string;
