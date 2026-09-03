@@ -41,7 +41,6 @@ type calendarEventWriteInput struct {
 	Participants              []calendarToolParticipant
 	IsRequestedOfSomebodyElse bool
 	NotifyMinutesBefore       int
-	AllowDuplicate            bool
 	IncludeRequester          *bool
 	ExpectedUpdatedAt         string
 }
@@ -133,9 +132,6 @@ func (service Service) invokeCalendarEventAdd(ctx context.Context, request capab
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if errorValue := applyCalendarConflictResolution(&input, request.Context.ConflictResolution); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
 	input, failure, hasFailure := service.prepareCalendarEventWriteInput(ctx, input, request.Context, true)
 	if hasFailure {
 		return calendarToolPersonResolveErrorResponse(request.ToolName, failure), nil
@@ -143,9 +139,6 @@ func (service Service) invokeCalendarEventAdd(ctx context.Context, request capab
 	result, errorValue := service.sendCalendarToolRequest(ctx, http.MethodPost, "/calendar/api/events", calendarEventWritePayload(input), request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if isCalendarDuplicateCandidateResult(result) {
-		return calendarToolDuplicateCandidateResponse(request.ToolName, result), nil
 	}
 	normalizedResult, _, errorValue := normalizeCalendarEventResult(result, "")
 	if errorValue != nil {
@@ -276,18 +269,6 @@ func decodeCalendarEventWriteInput(document json.RawMessage) (calendarEventWrite
 		return calendarEventWriteInput{}, fmt.Errorf("startsAt and endsAt are required")
 	}
 	return input, nil
-}
-
-func applyCalendarConflictResolution(input *calendarEventWriteInput, resolution capabilities.ToolConflictResolution) error {
-	switch resolution {
-	case "":
-		return nil
-	case capabilities.ToolConflictResolutionAllowDuplicate:
-		input.AllowDuplicate = true
-		return nil
-	default:
-		return fmt.Errorf("calendar conflict resolution %q is not supported", resolution)
-	}
 }
 
 func normalizeCalendarToolPeople(values []string) []string {
@@ -489,7 +470,6 @@ func calendarEventWritePayload(input calendarEventWriteInput) map[string]any {
 		"people":                    []string(input.People),
 		"notifyMinutesBefore":       input.NotifyMinutesBefore,
 		"isRequestedOfSomebodyElse": input.IsRequestedOfSomebodyElse,
-		"allowDuplicate":            input.AllowDuplicate,
 	}
 	if input.ExpectedUpdatedAt != "" {
 		payload["expectedUpdatedAt"] = input.ExpectedUpdatedAt
@@ -731,23 +711,3 @@ func calendarEventMatchesQuery(event calendarEventForTool, query string) bool {
 	return strings.Contains(searchText, normalizedQuery)
 }
 
-func isCalendarDuplicateCandidateResult(result json.RawMessage) bool {
-	var document struct {
-		Status string `json:"status"`
-	}
-	return json.Unmarshal(result, &document) == nil && strings.TrimSpace(document.Status) == "duplicate_candidate"
-}
-
-func calendarToolDuplicateCandidateResponse(toolName string, result json.RawMessage) capabilities.ToolInvokeResponse {
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        toolName,
-		Outcome:         capabilities.ToolOutcomeFailed,
-		Status:          "duplicate_candidate",
-		IsError:         true,
-		ErrorCode:       "calendar_duplicate_candidate",
-		FailureStage:    "resolution",
-		Result:          result,
-	}
-}

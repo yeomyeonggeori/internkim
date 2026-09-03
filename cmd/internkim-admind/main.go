@@ -49,7 +49,6 @@ func main() {
 	flag.StringVar(&configuration.StateDirectory, "state-dir", configuration.StateDirectory, "admin job state directory")
 	flag.StringVar(&configuration.DatabasePath, "database", configuration.DatabasePath, "unified SQLite database path")
 	flag.StringVar(&configuration.TaskDatabasePath, "flow-db", configuration.TaskDatabasePath, "Flow SQLite database path")
-	flag.StringVar(&configuration.CalendarDatabasePath, "calendar-db", configuration.CalendarDatabasePath, "calendar SQLite database path")
 	flag.StringVar(&configuration.MailDatabasePath, "mail-db", configuration.MailDatabasePath, "mail SQLite database path")
 	flag.StringVar(&configuration.AttendanceDatabasePath, "attendance-db", configuration.AttendanceDatabasePath, "attendance SQLite database path")
 	flag.StringVar(&configuration.CentralPlaneAppURL, "central-plane-app-url", configuration.CentralPlaneAppURL, "central plane app URL, which issues member sessions")

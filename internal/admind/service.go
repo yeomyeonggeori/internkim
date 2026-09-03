@@ -158,9 +158,6 @@ type Service struct {
 	calendarHolidayRetryStates         map[calendarHolidayRetryKey]calendarHolidayRetryState
 	calendarHolidayRetryLoadError      error
 	holidayCheckedMonth                string
-	calendarCandidateClock             calendarConflictCandidateClock
-	calendarActorCacheMutex            sync.Mutex
-	calendarActorCache                 map[string]calendarActorProfileCacheEntry
 	companyShareMutex                  sync.Mutex
 	companyShareAttempts               map[string]companyShareAttempt
 	attendanceLeavePolicyMutationMutex sync.Mutex
@@ -169,8 +166,6 @@ type Service struct {
 	requestMetrics                     *adminRequestMetrics
 	databaseSchemas                    *adminDatabaseSchemas
 	legacyDatabaseMigration            sync.Once
-	calendarWindowCache                calendarEventWindowCacheAvailability
-	calendarWindowBuilds               calendarEventWindowCacheBuildCoordinator
 	removeTokenQuarantineFile          func(string) error
 	promoteCalendarTokenFile           func(string, string) error
 	startedAt                          time.Time
@@ -360,8 +355,6 @@ func NewService(configuration Configuration) *Service {
 		companionFileUploads:       map[string]*CompanionFileUpload{},
 		sites:                      map[string]*SiteRecord{},
 		mailBackend:                mail.StandardBackend{},
-		calendarDeleteIntentWakeUp: make(chan struct{}, 1),
-		calendarActorCache:         map[string]calendarActorProfileCacheEntry{},
 		calendarHolidayCache:       map[calendarHolidayCacheKey][]calendarHoliday{},
 		calendarHolidayRetryStates: map[calendarHolidayRetryKey]calendarHolidayRetryState{},
 		companyShareAttempts:       map[string]companyShareAttempt{},
@@ -403,7 +396,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startBotProfileSync(ctx)
 	service.startCompanionFileCleanup(ctx)
 	service.startBlueclawRosterReconcile(ctx)
-	service.startCalendarDeleteIntentWorker(ctx)
+	service.startCalendarSweep(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
 	service.startBuzzMemberLinker(ctx)
@@ -516,8 +509,6 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
-	multiplexer.HandleFunc("/calendar/ics/", service.serveCalendarICS)
-	multiplexer.HandleFunc("/calendar/dav/", service.serveCalendarDAV)
 	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
 	multiplexer.HandleFunc("/auth/session", service.handleWebSession)
 	multiplexer.HandleFunc("/auth/vault", service.handleAuthVault)
@@ -549,7 +540,6 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/company", service.serveCompanySharePage)
 	multiplexer.HandleFunc("/company/api/", service.handleCompanyShare)
 	multiplexer.HandleFunc("/company/", service.serveCompanySharePage)
-	multiplexer.HandleFunc("/.well-known/caldav", service.serveCalendarDAV)
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)

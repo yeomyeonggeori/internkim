@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -81,4 +82,35 @@ func (service *Service) calendarParticipantMattermostUser(request *http.Request,
 
 func mattermostUserHasProfileImage(userRecord mattermostadmin.UserRecord) bool {
 	return userRecord.LastPictureUpdate > 0
+}
+
+func (service *Service) serveMattermostUserImage(responseWriter http.ResponseWriter, request *http.Request, token string, userID string) {
+	requestURL := strings.TrimRight(service.Configuration.MattermostBaseURL, "/") + "/api/v4/users/" + url.PathEscape(strings.TrimSpace(userID)) + "/image"
+	mattermostRequest, errorValue := http.NewRequestWithContext(request.Context(), http.MethodGet, requestURL, nil)
+	if errorValue != nil {
+		http.Error(responseWriter, "actor image unavailable", http.StatusBadGateway)
+		return
+	}
+	mattermostRequest.Header.Set("Authorization", "Bearer "+token)
+	mattermostResponse, errorValue := service.httpClient().Do(mattermostRequest)
+	if errorValue != nil {
+		http.Error(responseWriter, "actor image unavailable", http.StatusBadGateway)
+		return
+	}
+	defer mattermostResponse.Body.Close()
+	if mattermostResponse.StatusCode == http.StatusNotFound {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	if mattermostResponse.StatusCode < http.StatusOK || mattermostResponse.StatusCode >= http.StatusMultipleChoices {
+		http.Error(responseWriter, "actor image unavailable", http.StatusBadGateway)
+		return
+	}
+	contentType := strings.TrimSpace(mattermostResponse.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = "image/png"
+	}
+	responseWriter.Header().Set("Content-Type", contentType)
+	responseWriter.Header().Set("Cache-Control", "private, max-age=300")
+	_, _ = io.Copy(responseWriter, mattermostResponse.Body)
 }

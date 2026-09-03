@@ -17,7 +17,7 @@ Everything currently working keeps working. That is the constraint, not an aspir
 
 ## 1. What the device has now
 
-> Superseded 2026-09-03 by #1347: Google Workspace was removed entirely. admind no longer syncs any remote calendar, so the Google half of what follows describes code that is gone. CalDAV survives as the inbound server clients subscribe to, never as an outbound sync target.
+> Superseded 2026-09-03 by #1347 and #1301: Google Workspace was removed entirely, and then the device's own calendar store went with it. admind keeps no calendar table but the holidays, serves no CalDAV, and answers `/calendar/api/events` from the company's record. The tables below describe a device that no longer exists.
 
 | Table | Holds |
 |---|---|
@@ -28,9 +28,9 @@ Everything currently working keeps working. That is the constraint, not an aspir
 | `calendar_channel_outbox` | Outbound delivery queue |
 
 Plus a CalDAV surface at `/calendar/dav/team/calendars/internkim/` and Google
-OAuth sync. Both are **kept** — [`saas-design.md`](./saas-design.md) lists
-"calendar (+CalDAV/ICS/Google OAuth)" under the Central product API, and the
-"Dropped" row next to it does not mention them.
+OAuth sync. Both are gone: the Google half with #1347, the CalDAV server with
+#1301, which found no consumer for it. A calendar client subscribes to the
+company's own ICS feed at `/calendar/feed/<token>.ics`.
 
 ## 2. Where each piece lands
 

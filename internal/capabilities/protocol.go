@@ -28,7 +28,6 @@ const (
 	ToolOutcomeFailed    = capabilityprotocol.ToolOutcomeFailed
 	ToolOutcomeDenied    = capabilityprotocol.ToolOutcomeDenied
 
-	ToolConflictResolutionAllowDuplicate = capabilityprotocol.ToolConflictResolutionAllowDuplicate
 )
 
 type Descriptor = capabilityprotocol.Descriptor
@@ -38,7 +37,6 @@ type ToolResultContract = capabilityprotocol.ToolResultContract
 type ResourceEffectContract = capabilityprotocol.ResourceEffectContract
 type ResourceEffect = capabilityprotocol.ResourceEffect
 type ToolOutcome = capabilityprotocol.ToolOutcome
-type ToolConflictResolution = capabilityprotocol.ToolConflictResolution
 type ResourceEffectIdentity = capabilityprotocol.ResourceEffectIdentity
 type AvailabilityMetadata = capabilityprotocol.AvailabilityMetadata
 type IdempotencyMetadata = capabilityprotocol.IdempotencyMetadata
