@@ -30,13 +30,6 @@
 		"from('attendance')": 1,
 		"from('leave')": 1
 	},
-	"src/lib/calendar/company-calendar.ts": {
-		"from('member')": 1,
-		"from('task')": 2
-	},
-	"src/lib/calendar/supabase-calendar-leave.ts": {
-		"from('leave')": 1
-	},
 	"src/lib/host-bridge.ts": {
 		"from('member')": 1
 	},

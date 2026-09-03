@@ -71,6 +71,11 @@ export enum CalendarToolName {
   Delete = 'event_delete',
 }
 
+export enum CalendarEntrySource {
+  Event = 'event',
+  Leave = 'leave',
+}
+
 export enum MessageToolName {
   Context = 'message_context',
   Search = 'message_search',
@@ -417,8 +422,13 @@ export const calendarDeleteInputSchema = z.strictObject({
 
 export const calendarDeleteInputIntentSchema = z.strictObject({});
 
+export const calendarEntryResultSchema = calendarEventResultSchema.extend({
+  source: z.enum(CalendarEntrySource),
+  readOnly: z.boolean(),
+});
+
 export const calendarListResultSchema = z.strictObject({
-  events: z.array(calendarEventResultSchema),
+  events: z.array(calendarEntryResultSchema),
 });
 
 export const calendarDeleteResultSchema = z.strictObject({
@@ -1073,8 +1083,8 @@ const calendarToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_calendar',
     policyResource: 'tool:event_list',
-    description: 'List calendar events in a concrete time window, optionally filtered by title, description, or location. Resolve natural-language dates to startISO and endISO before calling.',
-    version: '2',
+    description: 'List everything on the company calendar in a concrete time window: scheduled events and the approved leave of everyone who is off, optionally filtered by title, description, or location. Each entry names its source; a leave entry is read-only and cannot be updated or deleted. Resolve natural-language dates to startISO and endISO before calling.',
+    version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: calendarListInputSchema,
     result: { schema: calendarListResultSchema, effects: [] },
@@ -1706,6 +1716,7 @@ export type CalendarListInput = z.infer<typeof calendarListInputSchema>;
 export type CalendarUpdateInput = z.infer<typeof calendarUpdateInputSchema>;
 export type CalendarDeleteInput = z.infer<typeof calendarDeleteInputSchema>;
 export type CalendarEventResult = z.infer<typeof calendarEventResultSchema>;
+export type CalendarEntryResult = z.infer<typeof calendarEntryResultSchema>;
 export type MessageContextInput = z.infer<typeof messageContextInputSchema>;
 export type MessageSearchInput = z.infer<typeof messageSearchInputSchema>;
 export type MessageSendInput = z.infer<typeof messageSendInputSchema>;

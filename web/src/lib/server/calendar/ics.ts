@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../../../routes/calendar/embed/calendar-event-persistence';
+import type { CompanyCalendarEntry } from '$lib/server/public-api/record/company-calendar';
 
 const productIdentifier = '-//internkim//calendar//EN';
 const longestLine = 75;
@@ -50,7 +50,7 @@ function dayAfter(instant: string, timezone: string): string {
 	return dayOf(new Date(new Date(instant).getTime() + 24 * 60 * 60 * 1000).toISOString(), timezone);
 }
 
-function eventLines(event: CalendarEvent, companyTimezone: string): string[] {
+function eventLines(event: CompanyCalendarEntry, companyTimezone: string): string[] {
 	const timezone = event.timeZone.trim() || companyTimezone;
 	const lines = [
 		'BEGIN:VEVENT',
@@ -75,7 +75,7 @@ function eventLines(event: CalendarEvent, companyTimezone: string): string[] {
 	return lines;
 }
 
-export function calendarFeedOf(events: CalendarEvent[], companyName: string, timezone: string): string {
+export function calendarFeedOf(events: CompanyCalendarEntry[], companyName: string, timezone: string): string {
 	const lines = [
 		'BEGIN:VCALENDAR',
 		'VERSION:2.0',

@@ -1,37 +1,16 @@
 import { companyTimeZone } from '$lib/company/company-settings';
 import { eventReminderLeadOf } from './event-reminder-lead';
 import { invokeTool } from '$lib/public-api-call';
-import { supabase } from '$lib/supabase';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
-import type { Locale } from '../i18n/locale.svelte';
-import { companyCalendarEntries } from './company-calendar';
-
-type AnsweredAttendee = { personID?: string; name: string; email?: string };
-
-type AnsweredEvent = {
-	eventID: string;
-	title: string;
-	note: string;
-	location: string;
-	startsAt: string;
-	endsAt: string;
-	isWholeDay: boolean;
-	participants: AnsweredAttendee[];
-	notifyMinutesBefore?: number;
-	updatedAt: string;
-};
+import { companyCalendarEntries, type AnsweredEvent } from './company-calendar';
 
 type AnsweredPeople = { people: { personID: string; name: string; email: string }[] };
 
 const noReminder = 0;
 
-export async function supabaseCalendarEvents(
-	startDate: Date,
-	endDate: Date,
-	locale: Locale = 'ko'
-): Promise<CalendarEvent[]> {
-	return companyCalendarEntries(supabase(), startDate, endDate, await companyTimeZone(), locale);
+export async function supabaseCalendarEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
+	return companyCalendarEntries(startDate, endDate);
 }
 
 export function calendarEventWritten(payload: CalendarEventPayload): Record<string, unknown> {
