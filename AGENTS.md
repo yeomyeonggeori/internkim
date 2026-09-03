@@ -17,20 +17,13 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Use `apply_patch` for manual edits.
 - In new agent worktrees, run
   `tools/sync-worktree-local-state <main-worktree-path>` from the new worktree
-  before tests or deployments that need local ignored state. The script links
-  `.env`, `web/.dev.vars`, `.local/secrets`, `.agents`, and root secret files
-  from the main worktree, plus the `.dependency/` artifacts that are identical
-  across worktrees (`blueclaw-runtime`, `container-kernel`, `device-browser`,
-  `agent-browser`, `llama-cpp`, `llama-cpp-models`, `litert-models`,
-  `local-fleet-embedding`) — about 6.4 GB a worktree no longer duplicates.
-  Per-worktree build outputs stay excluded: `blueclaw-payload`, `buzz-relay`,
-  and `role-memory-arm64` carry a release SHA, so each worktree builds its own
-  through the matching `make prepare-*` target. Missing paths are
-  reported as skipped, and re-running is idempotent (`kept`). **A local fleet run
-  needs `--copy`**: the guest mounts the worktree at `/mnt/shared/workspace` and
-  nothing else, so a linked artifact points at a host path it cannot follow, and
-  provisioning dies minutes in on a missing file. `dev fleet run` refuses up front
-  when it finds one, naming which.
+  before tests or deployments that need local ignored state. Read the script for
+  what it links; it is short, and a list repeated here goes stale. Missing paths
+  are reported as skipped, and re-running is idempotent (`kept`). **A local fleet
+  run needs `--copy`**: the guest mounts the worktree at `/mnt/shared/workspace`
+  and nothing else, so a linked artifact points at a host path it cannot follow,
+  and provisioning dies minutes in on a missing file. Nothing checks for that
+  first, so passing `--copy` is yours to remember.
 - Do not revert user or generated changes unless explicitly asked.
 - Before commit, push, or deploy, check the current branch, upstream status,
   and working tree state.
@@ -325,7 +318,9 @@ and delete the duplicates.
   behavior changes, start with `./internkim dev simulate --scenario <name>`. The
   scenarios are registered in `BuiltinScenario`
   (`.dependency/blueclaw/internal/e2e/virtual_session.go`). Read that switch; a
-  list kept anywhere else goes stale.
+  list kept anywhere else goes stale. `dev fleet run --scenario` reads a
+  different registry, `localfleet.ScenarioNames()`
+  (`internal/localfleet/service.go`), which its own `--help` prints.
 - Use scripted virtual sessions only for deterministic runtime invariants such
   as state transitions, approval, cancellation, effects, and evidence.
 - Verify model judgment and AI SDK behavior through the live LLM path. Preserve

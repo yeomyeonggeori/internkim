@@ -163,10 +163,9 @@ no binaries at all. With components it maps five of them to setup steps — `web
 legacy SSH deploy does not support component(s): ...
 ```
 
-The eight it refuses include `relay` and `chatd`, which are what the credential
-redesign shipped all day. So the ssh path covers a fraction of the thirteen
-components a release carries, and making it the only path means building the
-rest.
+The six it refuses include `relay` and `chatd`, which are what the credential
+redesign shipped all day. So the ssh path covers five of the eleven components
+a release carries, and making it the only path means building the rest.
 
 Which is why the step is smaller than it looks. The pull half above is the
 package manager, and it stays. What goes is `release_uploads.go` and the direct
