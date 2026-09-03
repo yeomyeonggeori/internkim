@@ -1,5 +1,5 @@
 {
-  "aggregateHash": "6b419f92b77aea6ba914ca2895b1ed7768c278f82151a0aea552865830583550",
+  "aggregateHash": "300bfabdd4edb2c0ed977efab01b0a111cb6e156d3e00afb297db0439480f8b2",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
     "hash": "adf0ba64939feba5b6480edfbc4aa41bb310a24f2f80545a871c0481084edfad"
@@ -87,6 +87,11 @@
       "name": "task-event"
     },
     {
+      "fileName": "task-event-name.schema.json",
+      "hash": "d78a79eb7fd751bbb4f613c91bdecf6287e6e1ca4eff884b93fe59a411891d4a",
+      "name": "task-event-name"
+    },
+    {
       "fileName": "task-run.schema.json",
       "hash": "f3f278b7a02601c19575aaf5645f52f082ef576137d9b51c69b761d23ce14725",
       "name": "task-run"
@@ -105,6 +110,11 @@
       "fileName": "tool-invoke-response.schema.json",
       "hash": "958abb34d372341b628d297e4726051f54e4de93e545d709aa301d42e2ffd3fa",
       "name": "tool-invoke-response"
+    },
+    {
+      "fileName": "tool-task-event-suffix.schema.json",
+      "hash": "b752f1bf2576abbff10f56c813cdf56fc6c9cbafc49453a0e87833d28b659863",
+      "name": "tool-task-event-suffix"
     }
   ]
 }
