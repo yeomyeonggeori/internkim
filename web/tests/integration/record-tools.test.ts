@@ -157,6 +157,29 @@ describe('a task written through the record', () => {
 		expect(changed.endDate).toBe(dayAround(7));
 	});
 
+	test('moves the days of a task it already holds', async () => {
+		const made = resultOf(
+			await run('task_add', { title: '분기 계획 정리', startsAt: dayAround(-3), endsAt: dayAround(3) })
+		);
+
+		const moved = await run('task_update', { taskHint: '분기 계획 정리', endsAt: dayAround(10) });
+		expect(moved.status).toBe(200);
+		expect(resultOf(moved).taskID).toBe(made.taskID);
+		expect(resultOf(moved).endDate).toBe(dayAround(10));
+	});
+
+	test('takes a status the record then derives away from', async () => {
+		await run('task_add', { title: '이사회 자료 준비', startsAt: dayAround(5), endsAt: dayAround(9) });
+
+		const moved = await run('task_update', {
+			taskHint: '이사회 자료 준비',
+			status: 'planned',
+			startsAt: dayAround(-1)
+		});
+		expect(moved.status).toBe(200);
+		expect(resultOf(moved).status).toBe('in_progress');
+	});
+
 	test('names the people a caller named, by part of a name', async () => {
 		const made = resultOf(
 			await run('task_add', { title: '채용 공고 검토', participantPersonHints: ['예시'] })
