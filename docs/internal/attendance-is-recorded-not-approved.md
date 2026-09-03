@@ -51,6 +51,16 @@ record; one who does not, does nothing. The record keeps
 `original_occurred_at`, `edit_reason` and `deleted_at`, so what an
 administrator did afterwards is legible.
 
+## Where a hand-written record shows
+
+`attendance_list` takes `handWrittenOnly`, which keeps the rows carrying a
+reason or the moment they were moved from and drops the live clocks. The
+attendance page reads it over the current and previous month for
+administrators, in `web/src/routes/attendance/hand-written/`, and every row
+carries an undo. A record that was moved goes back to `original_occurred_at`
+through `attendance_update`; one that was only ever written by hand is removed
+through `attendance_delete`.
+
 ## What this replaced
 
 `supabase/migrations/20260901000004_a_refusal_becomes_a_request.sql` added an

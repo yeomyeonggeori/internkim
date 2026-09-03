@@ -9,6 +9,8 @@ export type AttendanceCentralEvent = {
 	kind: AttendanceCentralKind;
 	occurredAtISO: string;
 	location?: string;
+	originalOccurredAtISO?: string;
+	editReason?: string;
 };
 
 export type AttendanceCentralRow = {
@@ -77,7 +79,9 @@ export async function seedAttendanceEvents(events: AttendanceCentralEvent[]): Pr
 				member_id: event.memberID,
 				kind: event.kind,
 				location: event.kind === 'clock_in' ? (event.location ?? null) : null,
-				occurred_at: event.occurredAtISO
+				occurred_at: event.occurredAtISO,
+				original_occurred_at: event.originalOccurredAtISO ?? null,
+				edit_reason: event.editReason ?? null
 			})
 			.select('id')
 			.single<{ id: string }>();

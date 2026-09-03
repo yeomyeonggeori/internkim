@@ -5,7 +5,8 @@ export type AttendanceWorkspaceView =
 	| 'status'
 	| 'leaveHistory'
 	| 'approvals'
-	| 'leaveManagement';
+	| 'leaveManagement'
+	| 'handWritten';
 
 export class AttendanceViewState {
 	selected = $state<AttendanceWorkspaceView>('tools');

@@ -302,8 +302,8 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"attendance_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_list","result":{"scope":"person","personID":"p1","personName":"이샘플","from":"2026-08-02","to":"2026-09-01","count":1,"attendance":[{"eventID":"a1","person":"이샘플","kind":"clock_in","date":"2026-09-01","time":"09:02","location":"본사","wasCorrected":false,"reason":null}]}}`)},
-			input:   `{"scope":"self"}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_list","result":{"scope":"person","personID":"p1","personName":"이샘플","from":"2026-08-02","to":"2026-09-01","count":1,"attendance":[{"eventID":"a1","person":"이샘플","kind":"clock_in","date":"2026-09-01","time":"09:02","location":"본사","wasCorrected":false,"originalDate":null,"originalTime":null,"reason":null}]}}`)},
+			input:   `{"scope":"self","handWrittenOnly":true}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"time":"09:02"`)
