@@ -308,7 +308,7 @@ func (service Service) checkSharedWorkspaceCommand() string {
 }
 
 func (service Service) setupCommand(skipWeb bool, additionalSkippedSteps ...string) string {
-	skippedSteps := []string{"wifi", "local-llm", "slack"}
+	skippedSteps := []string{"wifi", "local-llm"}
 	if skipWeb {
 		skippedSteps = append(skippedSteps, "web")
 	}
