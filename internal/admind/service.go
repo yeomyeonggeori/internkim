@@ -381,6 +381,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startScheduledBackups(ctx)
 	service.startBuzzMemberLinker(ctx)
 	service.startBuzzCredentialSweep(ctx)
+	go service.sayIfTheRelayIsOpen(ctx)
 	service.startBuzzAccountLinkSync(ctx)
 	service.startMemberChannelMembershipSync(ctx)
 	service.startCircleRoomMembershipSync(ctx)
