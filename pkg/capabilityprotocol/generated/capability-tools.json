@@ -1303,9 +1303,9 @@
             "type": "string"
           },
           "notifyMinutesBefore": {
-            "description": "Minutes before the start to notify attendees.",
-            "exclusiveMinimum": 0,
+            "description": "Minutes before the start to notify attendees. 0 leaves the event with no reminder.",
             "maximum": 9007199254740991,
+            "minimum": 0,
             "type": "integer"
           },
           "participantPersonHints": {
@@ -1351,9 +1351,9 @@
             "type": "string"
           },
           "notifyMinutesBefore": {
-            "description": "Minutes before the start to notify attendees.",
-            "exclusiveMinimum": 0,
+            "description": "Minutes before the start to notify attendees. 0 leaves the event with no reminder.",
             "maximum": 9007199254740991,
+            "minimum": 0,
             "type": "integer"
           },
           "participantPersonHints": {
@@ -1818,9 +1818,9 @@
             "type": "string"
           },
           "notifyMinutesBefore": {
-            "description": "Minutes before the start to notify attendees.",
-            "exclusiveMinimum": 0,
+            "description": "Minutes before the start to notify attendees. 0 leaves the event with no reminder.",
             "maximum": 9007199254740991,
+            "minimum": 0,
             "type": "integer"
           },
           "participantPersonHints": {
@@ -1877,9 +1877,9 @@
             "type": "string"
           },
           "notifyMinutesBefore": {
-            "description": "Minutes before the start to notify attendees.",
-            "exclusiveMinimum": 0,
+            "description": "Minutes before the start to notify attendees. 0 leaves the event with no reminder.",
             "maximum": 9007199254740991,
+            "minimum": 0,
             "type": "integer"
           },
           "participantPersonHints": {
