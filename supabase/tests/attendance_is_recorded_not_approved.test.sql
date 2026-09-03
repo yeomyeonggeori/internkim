@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(16);
 
 insert into auth.users (id, email) values
 	('41000000-0000-0000-0000-000000000001', 'record-owner@example.test'),
@@ -192,6 +192,29 @@ end $$;$block$, 'an owner corrects a recent record quietly');
 
 select lives_ok($block$do $$
 declare
+	answer jsonb;
+begin
+	set local role authenticated;
+	perform set_config('request.jwt.claim.sub', '41000000-0000-0000-0000-000000000001', true);
+	answer := public.attendance_correct(
+		jsonb_build_array(jsonb_build_object(
+			'event_id', '41000000-0000-0000-0000-000000000102',
+			'local_date', ((now() - interval '90 minutes') at time zone 'Asia/Seoul')::date,
+			'local_time', ((now() - interval '90 minutes') at time zone 'Asia/Seoul')::time,
+			'location', 'Branch'
+		)),
+		null
+	);
+	assert answer ->> 'status' = 'corrected', 'a correction without a reason is still written';
+	assert (
+		select edit_reason is null and location = 'Branch'
+		from public.attendance
+		where id = '41000000-0000-0000-0000-000000000102'
+	), 'a reason nobody gave for a correction is not invented';
+end $$;$block$, 'an owner corrects a recent record without a reason');
+
+select lives_ok($block$do $$
+declare
 	blocked boolean := false;
 begin
 	set local role authenticated;
@@ -204,9 +227,31 @@ begin
 	assert blocked, 'a colleague removes nobody else record';
 end $$;$block$, 'a colleague cannot remove somebody else record');
 
+select lives_ok($block$do $$
+declare
+	answer jsonb;
+begin
+	set local role authenticated;
+	perform set_config('request.jwt.claim.sub', '41000000-0000-0000-0000-000000000001', true);
+	answer := public.attendance_remove('41000000-0000-0000-0000-000000000102', null);
+	assert answer ->> 'status' = 'removed', 'a removal without a reason is still written';
+end $$;$block$, 'an owner removes a recent record without a reason');
+
+set local role postgres;
+
+select is(
+	(
+		select deleted_at is not null and edit_reason is null
+		from public.attendance
+		where id = '41000000-0000-0000-0000-000000000102'
+	),
+	true,
+	'a reason nobody gave for a removal is not invented'
+);
+
 select is(
 	(select count(*)::integer from public.attendance where member_id = '41000000-0000-0000-0000-000000000011' and deleted_at is null),
-	3,
+	2,
 	'the owner is left with the records they were allowed to write'
 );
 
