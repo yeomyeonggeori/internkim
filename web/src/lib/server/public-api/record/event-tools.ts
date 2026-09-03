@@ -174,7 +174,7 @@ function eventWriteArguments(
 	};
 }
 
-async function eventOfHint(context: RecordContext, hint: string): Promise<TaskRow> {
+export async function eventOfHint(context: RecordContext, hint: string): Promise<TaskRow> {
 	const events = await tasksOfCompany(context.caller, true);
 	return taskOfHint(events, hint, 'event', context.requesterID);
 }

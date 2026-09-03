@@ -138,6 +138,43 @@ A tool carried to the company's computer answers the fuller shape below —
 | `isError`, `message`, `errorCode`, `failureStage` | failure detail |
 | `retryable`, `safeRetry` | whether a retry is sensible, and whether it is safe |
 
+## Looking before a destructive call [#looking-first]
+
+`POST /v1/tools/<name>/target` answers what a call would touch, without making
+it. It takes the same `input` the call takes, and it is refused for a tool whose
+`sideEffectClass` is not `destructive` — there is nothing to look at first.
+
+```bash
+curl https://api.intern.kim/v1/tools/event_delete/target \
+  --header "Authorization: Bearer $INTERNKIM_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{"input":{"eventHint":"주간 회의"}}'
+```
+
+```json
+{
+  "tool": "event_delete",
+  "target": {
+    "inputField": "eventHint",
+    "id": "b2c0…",
+    "title": "주간 회의",
+    "startsAt": "2026-09-03T10:00:00+09:00"
+  }
+}
+```
+
+The hint resolves through the same function the call itself uses, so the row
+looked at and the row touched cannot differ, and an unresolved hint answers here
+exactly what it would answer there — the same `409`, the same candidates.
+
+This is what a client asks before putting an irreversible action to a person.
+Replace the hint with the answer's `target.id` under `target.inputField` and the
+approved call acts on the row that was shown, rather than resolving the hint a
+second time against a record that may have moved. The agent's own approval
+prompt is built this way.
+
+A destructive tool with nothing to resolve ahead answers `"target": null`.
+
 ## Effects [#effects]
 
 `effects` is the record of what actually changed, written by the runtime from
