@@ -62,7 +62,7 @@ func (service *Service) sweepTheAttendanceTheCompanyNowHolds(ctx context.Context
 func attendanceTablesTheRecordCannotTake(ctx context.Context, database *sql.DB) []string {
 	pinned := []string{}
 	for _, tableName := range sortedAttendanceTableNames() {
-		rowCount, held := countRowsInAttendanceTable(ctx, database, tableName)
+		rowCount, held := countRowsInTable(ctx, database, tableName)
 		if held && rowCount > 0 {
 			pinned = append(pinned, tableName+" ("+attendanceTablesWithNowhereToGo[tableName]+")")
 		}
@@ -97,7 +97,7 @@ func (service *Service) attendanceTheRecordDoesNotHold(ctx context.Context, data
 }
 
 func countRowsOrZero(ctx context.Context, database *sql.DB, tableName string) (int, error) {
-	rowCount, held := countRowsInAttendanceTable(ctx, database, tableName)
+	rowCount, held := countRowsInTable(ctx, database, tableName)
 	if !held {
 		return 0, nil
 	}
@@ -139,7 +139,7 @@ func (service *Service) uncarriedClocks(ctx context.Context, database *sql.DB) (
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if _, held := countRowsInAttendanceTable(ctx, database, "attendance_events"); !held {
+	if _, held := countRowsInTable(ctx, database, "attendance_events"); !held {
 		return nil, nil
 	}
 	rows, errorValue := database.QueryContext(ctx, deviceClockQuery)
@@ -191,7 +191,7 @@ func (service *Service) uncarriedLeaves(ctx context.Context, database *sql.DB) (
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if _, held := countRowsInAttendanceTable(ctx, database, "attendance_leave_requests"); !held {
+	if _, held := countRowsInTable(ctx, database, "attendance_leave_requests"); !held {
 		return nil, nil
 	}
 	rows, errorValue := database.QueryContext(ctx, deviceLeaveQuery)
@@ -296,7 +296,7 @@ func (service *Service) carryAttendanceIntoTheRecord(ctx context.Context) (atten
 // describes, so it never outlives what it is about.
 func carriedRowIDs(ctx context.Context, database *sql.DB) (map[string]struct{}, error) {
 	carried := map[string]struct{}{}
-	if _, held := countRowsInAttendanceTable(ctx, database, "attendance_carried_rows"); !held {
+	if _, held := countRowsInTable(ctx, database, "attendance_carried_rows"); !held {
 		return carried, nil
 	}
 	rows, errorValue := database.QueryContext(ctx, "SELECT id FROM attendance_carried_rows")
