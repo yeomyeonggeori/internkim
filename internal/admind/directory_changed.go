@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -20,7 +21,30 @@ func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWrite
 	log.Printf("buzz credentials after the directory changed: %s", recording)
 	service.forgetProfilesOfWhoeverLeft(request.Context())
 	go service.showOutWhoeverLeftTheCompany(context.Background())
-	responseWriter.WriteHeader(http.StatusAccepted)
+
+	// Answering 202 whatever happened is how somebody stayed unanswerable behind
+	// an invitation that reported success. Nobody got a key when nobody could:
+	// that is this door failing, and it says so.
+	answer := directoryChangedAnswer{
+		KeysKept:    recording.Kept,
+		KeysSkipped: recording.Skipped,
+		KeysRefused: recording.Refusals,
+		WasRecorded: recording.Kept > 0 || len(recording.Refusals) == 0,
+	}
+	status := http.StatusAccepted
+	if !answer.WasRecorded {
+		status = http.StatusInternalServerError
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(status)
+	_ = json.NewEncoder(responseWriter).Encode(answer)
+}
+
+type directoryChangedAnswer struct {
+	KeysKept    int      `json:"keysKept"`
+	KeysSkipped int      `json:"keysSkipped"`
+	KeysRefused []string `json:"keysRefused,omitempty"`
+	WasRecorded bool     `json:"wasRecorded"`
 }
 
 // Removing somebody from the directory is what makes them a former colleague,

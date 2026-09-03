@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"reflect"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -53,5 +54,33 @@ func TestEveryKeyHeldByCarriesEveryVersionAPersonHasHad(t *testing.T) {
 	}
 	if _, errorValue := filepath.Abs(service.buzzIdentityVersionPath(email)); errorValue != nil {
 		t.Fatalf("version path: %v", errorValue)
+	}
+}
+
+// A key nobody derives is shown out of the community, and the one exception is
+// a key that has said something: taking that one out would take its messages
+// out of the conversations they belong to, which is a person's call.
+func TestAKeyThatSaidSomethingIsLeftForAPersonToJudge(t *testing.T) {
+	unaccounted := []string{"aa", "bb", "cc"}
+	spoke := map[string]bool{"bb": true}
+
+	safe := keysSafeToShowOut(unaccounted, spoke)
+
+	if !reflect.DeepEqual(safe, []string{"aa", "cc"}) {
+		t.Errorf("keysSafeToShowOut = %v, want [aa cc]", safe)
+	}
+}
+
+func TestAKeyThatSaidNothingIsShownOut(t *testing.T) {
+	safe := keysSafeToShowOut([]string{"aa"}, map[string]bool{})
+	if !reflect.DeepEqual(safe, []string{"aa"}) {
+		t.Errorf("keysSafeToShowOut = %v, want [aa]", safe)
+	}
+}
+
+func TestEveryUnaccountedKeyHavingSpokenLeavesNothingToSweep(t *testing.T) {
+	safe := keysSafeToShowOut([]string{"aa", "bb"}, map[string]bool{"aa": true, "bb": true})
+	if len(safe) != 0 {
+		t.Errorf("keysSafeToShowOut = %v, want none", safe)
 	}
 }

@@ -1,4 +1,5 @@
 import { supabase } from '$lib/supabase';
+import { tellTheCompanyServerTheDirectoryChanged } from '$lib/organization/invite-member';
 
 export type FoundingInvitation = {
 	memberID: string;
@@ -49,6 +50,12 @@ export async function belongsToACompany(): Promise<boolean> {
 	if (!accessToken) return false;
 	const response = await fetch('/api/member/me', { headers: { Authorization: `Bearer ${accessToken}` } });
 	if (!response.ok) return false;
-	const claimed = (await response.json()) as { member: { memberID: string } | null };
+	const claimed = (await response.json()) as {
+		member: { memberID: string; hasJustArrived?: boolean } | null;
+	};
+	// Arriving is the moment an invited person becomes somebody the company
+	// counts, and the key their messenger knows them by is derived from the
+	// directory. The company server hears it here rather than on its next sweep.
+	if (claimed.member?.hasJustArrived) await tellTheCompanyServerTheDirectoryChanged();
 	return claimed.member !== null;
 }
