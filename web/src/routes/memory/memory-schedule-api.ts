@@ -1,3 +1,8 @@
+import { adminApiFetch } from '$lib/admin-api';
+import { callCompanyApp } from '$lib/host-bridge';
+import { isSupabaseConfigured } from '$lib/supabase';
+import type { MemoryChange } from './memory-change';
+
 export type MemorySchedule = {
 	taskScheduleID: string;
 	creatorPersonID?: string;
@@ -48,24 +53,67 @@ export type ScheduleUpdateFields = {
 };
 
 export async function fetchMemorySchedules(request: MemoryScheduleListRequest = {}): Promise<MemoryScheduleListResponse> {
-	const response = await fetch(memorySchedulesURL(request), { credentials: 'include' });
-	if (!response.ok) {
-		throw new Error(`Memory schedules request returned ${response.status}`);
-	}
-	const document: unknown = await response.json();
-	return normalizeMemoryScheduleListResponse(document);
+	return normalizeMemoryScheduleListResponse(
+		isSupabaseConfigured() ? await askTheCompanyApp(request) : await askTheDevice(request)
+	);
+}
+
+export function memoryScheduleListBody(request: MemoryScheduleListRequest): Record<string, unknown> {
+	const body: Record<string, unknown> = {};
+	if (typeof request.page === 'number' && request.page > 0) body.page = Math.floor(request.page);
+	if (typeof request.pageSize === 'number' && request.pageSize > 0) body.pageSize = Math.floor(request.pageSize);
+	if (typeof request.includeExpired === 'boolean') body.includeExpired = request.includeExpired;
+	return body;
+}
+
+export function scheduleCancelRequest(taskScheduleID: string): MemoryChange {
+	return {
+		capability: 'person.memory.schedule_cancel',
+		path: '/memory/api/schedules/cancel',
+		body: { taskScheduleID }
+	};
+}
+
+export function scheduleDeleteRequest(taskScheduleID: string): MemoryChange {
+	return {
+		capability: 'person.memory.schedule_delete',
+		path: '/memory/api/schedules/delete',
+		body: { taskScheduleID }
+	};
+}
+
+export function scheduleUpdateRequest(taskScheduleID: string, fields: ScheduleUpdateFields): MemoryChange {
+	return {
+		capability: 'person.memory.schedule_update',
+		path: '/memory/api/schedules/update',
+		body: { taskScheduleID, ...fields }
+	};
 }
 
 export async function cancelSchedule(taskScheduleID: string): Promise<void> {
-	await postMemoryScheduleRequest('/memory/api/schedules/cancel', { taskScheduleID });
+	await changeSchedule(scheduleCancelRequest(taskScheduleID));
 }
 
 export async function deleteSchedule(taskScheduleID: string): Promise<void> {
-	await postMemoryScheduleRequest('/memory/api/schedules/delete', { taskScheduleID });
+	await changeSchedule(scheduleDeleteRequest(taskScheduleID));
 }
 
 export async function updateSchedule(taskScheduleID: string, fields: ScheduleUpdateFields): Promise<void> {
-	await postMemoryScheduleRequest('/memory/api/schedules/update', { taskScheduleID, ...fields });
+	await changeSchedule(scheduleUpdateRequest(taskScheduleID, fields));
+}
+
+async function askTheDevice(request: MemoryScheduleListRequest): Promise<unknown> {
+	const response = await adminApiFetch(memorySchedulesURL(request));
+	if (!response.ok) {
+		throw new Error(`Memory schedules request returned ${response.status}`);
+	}
+	return response.json();
+}
+
+async function askTheCompanyApp(request: MemoryScheduleListRequest): Promise<unknown> {
+	const answer = await callCompanyApp({ capability: 'person.memory.schedules', body: memoryScheduleListBody(request) });
+	if (answer.status >= 400) throw new Error(`Memory schedules request returned ${answer.status}`);
+	return answer.body;
 }
 
 export function normalizeMemoryScheduleListResponse(document: unknown): MemoryScheduleListResponse {
@@ -94,12 +142,16 @@ export function normalizeMemoryScheduleListResponse(document: unknown): MemorySc
 	};
 }
 
-async function postMemoryScheduleRequest(path: string, body: Record<string, unknown>): Promise<void> {
-	const response = await fetch(path, {
+async function changeSchedule(change: MemoryChange): Promise<void> {
+	if (isSupabaseConfigured()) {
+		const answer = await callCompanyApp({ capability: change.capability, body: change.body });
+		if (answer.status >= 400) throw new Error(`Memory schedules request returned ${answer.status}`);
+		return;
+	}
+	const response = await adminApiFetch(change.path, {
 		method: 'POST',
-		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(body)
+		body: JSON.stringify(change.body)
 	});
 	if (!response.ok) {
 		throw new Error(`Memory schedules request returned ${response.status}`);

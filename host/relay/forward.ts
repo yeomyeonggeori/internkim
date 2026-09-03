@@ -18,7 +18,7 @@ const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
-const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.'];
+const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.skills.'];
 export const apiRequestCapability = 'person.api.request';
 export const apiFileCapability = 'person.api.file';
 export const tellCapability = 'person.message.tell';
@@ -530,6 +530,7 @@ async function serveWorkspace(
 export const workspaceCapabilityPaths: Record<string, string> = {
 	'person.memory.graph': '/memory/api/graph',
 	'person.memory.schedules': '/memory/api/schedules',
+	'person.skills.list': '/skills/api',
 	[workspaceRootsCapability]: '/files/api/roots',
 	'person.files.list': '/files/api/list',
 	'person.runs.list': '/runs/api',
@@ -540,7 +541,13 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
 	'person.task.quick_task': '/task/api/tasks/quick',
-	'person.runs.approve': '/runs/api/approve'
+	'person.runs.approve': '/runs/api/approve',
+	'person.memory.episode_delete': '/memory/api/episodes/delete',
+	'person.memory.pinned_update': '/memory/api/pinned/update',
+	'person.memory.pinned_delete': '/memory/api/pinned/delete',
+	'person.memory.schedule_cancel': '/memory/api/schedules/cancel',
+	'person.memory.schedule_delete': '/memory/api/schedules/delete',
+	'person.memory.schedule_update': '/memory/api/schedules/update'
 };
 
 export function workspaceCallOf(

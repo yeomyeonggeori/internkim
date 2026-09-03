@@ -1,5 +1,7 @@
+import { adminApiFetch } from '$lib/admin-api';
 import { callCompanyApp } from '$lib/host-bridge';
 import { isSupabaseConfigured } from '$lib/supabase';
+import type { MemoryChange } from './memory-change';
 
 export type MemoryGraphHealth = {
 	configured?: boolean;
@@ -68,7 +70,7 @@ export async function fetchMemoryGraph(memoryGraphQuery: string): Promise<Memory
 
 	const urlParameters = new URLSearchParams({ limit: '120' });
 	if (asked) urlParameters.set('query', asked);
-	const response = await fetch(`/memory/api/graph?${urlParameters.toString()}`, { credentials: 'include' });
+	const response = await adminApiFetch(`/memory/api/graph?${urlParameters.toString()}`);
 	if (!response.ok) {
 		throw new Error(`Memory graph request returned ${response.status}`);
 	}
@@ -76,16 +78,32 @@ export async function fetchMemoryGraph(memoryGraphQuery: string): Promise<Memory
 	return normalizeMemoryGraphResponse(document);
 }
 
+export function episodeDeleteRequest(episodeID: string, namespaceIDs: string[]): MemoryChange {
+	return {
+		capability: 'person.memory.episode_delete',
+		path: '/memory/api/episodes/delete',
+		body: { episodeID, namespaceIDs }
+	};
+}
+
+export function pinnedUpdateRequest(content: string): MemoryChange {
+	return { capability: 'person.memory.pinned_update', path: '/memory/api/pinned/update', body: { content } };
+}
+
+export function pinnedDeleteRequest(): MemoryChange {
+	return { capability: 'person.memory.pinned_delete', path: '/memory/api/pinned/delete', body: {} };
+}
+
 export async function deleteMemoryEpisode(episodeID: string, namespaceIDs: string[]): Promise<void> {
-	await postMemoryGraphRequest('/memory/api/episodes/delete', { episodeID, namespaceIDs });
+	await changeMemory(episodeDeleteRequest(episodeID, namespaceIDs));
 }
 
 export async function savePinnedMemory(content: string): Promise<void> {
-	await postMemoryGraphRequest('/memory/api/pinned/update', { content });
+	await changeMemory(pinnedUpdateRequest(content));
 }
 
 export async function deletePinnedMemory(): Promise<void> {
-	await postMemoryGraphRequest('/memory/api/pinned/delete', {});
+	await changeMemory(pinnedDeleteRequest());
 }
 
 export function normalizeMemoryGraphResponse(document: unknown): MemoryGraphResponse {
@@ -109,12 +127,16 @@ export function normalizeMemoryGraphResponse(document: unknown): MemoryGraphResp
 	};
 }
 
-async function postMemoryGraphRequest(path: string, body: Record<string, unknown>): Promise<void> {
-	const response = await fetch(path, {
+async function changeMemory(change: MemoryChange): Promise<void> {
+	if (isSupabaseConfigured()) {
+		const answer = await callCompanyApp({ capability: change.capability, body: change.body });
+		if (answer.status >= 400) throw new Error(`Memory graph request returned ${answer.status}`);
+		return;
+	}
+	const response = await adminApiFetch(change.path, {
 		method: 'POST',
-		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(body)
+		body: JSON.stringify(change.body)
 	});
 	if (!response.ok) {
 		throw new Error(`Memory graph request returned ${response.status}`);
