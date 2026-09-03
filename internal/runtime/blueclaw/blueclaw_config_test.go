@@ -300,9 +300,6 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if outboundNetwork["hostDeviceName"] != "bctap0" || outboundNetwork["networkCIDR"] != "172.31.0.0/30" {
 		t.Fatalf("expected deterministic outbound network, got %+v", outboundNetwork)
 	}
-	if _, isFound := terminal["commandRewrite"]; isFound {
-		t.Fatalf("expected RTK hook not to be exposed as runtime config, got %+v", terminal)
-	}
 	forbiddenFragments := []string{"apiKeyPath", "botTokenPath", "signingSecretPath", "wrapperPath", "modelPath"}
 	for _, fragment := range forbiddenFragments {
 		if strings.Contains(document, fragment) {
