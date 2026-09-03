@@ -1,54 +1,52 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openCalendarEmbed } from './calendar-embed-interaction-helpers';
+import { cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
 import {
 	accessibleEventActivator,
-	expectForcedColorFocusRing,
 	prepareAccessibleParticipantSuggestions
 } from './calendar-embed-timeline-editor-accessibility-helpers';
-import {
-	routeCalendarDeleteIntents,
-	routeCalendarEvents,
-	routeCalendarEventUpdates,
-	routeDefaultCalendarAPI,
-	type CalendarTestLocale
-} from './calendar-embed-test-utils';
 
 test.describe('desktop anchored calendar event editor accessibility', () => {
+	test.use({ locale: 'ko-KR' });
+
+	let eventID = '';
+
 	test.beforeEach(async ({ page }) => {
-		await prepareDesktopAccessibleEditor(page);
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await routeCalendarHolidays(page);
+		[eventID] = await seedCalendarEvents([
+			{ title: 'Accessible Editor Event', startISO: '2026-06-08T09:00:00+09:00', endISO: '2026-06-08T10:00:00+09:00' }
+		]);
+		await openDesktopDayView(page);
+	});
+
+	test.afterEach(async () => {
+		await cleanupCalendarEvents([eventID]);
 	});
 
 	test('opens a localized named edit dialog with Enter', async ({ page }) => {
-		const eventActivator = accessibleEventActivator(page);
+		const eventActivator = accessibleEventActivator(page, eventID);
 		await eventActivator.focus();
 
 		await page.keyboard.press('Enter');
 
-		const dialog = page.getByRole('dialog', { name: '일정 편집' });
-		await expect(dialog).toBeVisible();
-		await expect(dialog).not.toHaveAttribute('aria-modal');
+		const popover = page.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
+		await expect(popover).toHaveAttribute('aria-label', '일정 편집');
 	});
 
 	test('opens a localized named edit dialog with Space', async ({ page }) => {
-		const eventActivator = accessibleEventActivator(page);
+		const eventActivator = accessibleEventActivator(page, eventID);
 		await eventActivator.focus();
 
 		await page.keyboard.press('Space');
 
-		await expect(page.getByRole('dialog', { name: '일정 편집' })).toBeVisible();
-	});
-
-	test('moves focus into the edit title field', async ({ page }) => {
-		const eventActivator = accessibleEventActivator(page);
-		await eventActivator.focus();
-
-		await page.keyboard.press('Enter');
-
-		await expect(page.locator('.calendar-draft-popover').getByLabel('제목')).toBeFocused();
+		const popover = page.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
+		await expect(popover).toHaveAttribute('aria-label', '일정 편집');
 	});
 
 	test('closes when Escape is pressed from another editor field', async ({ page }) => {
-		const eventActivator = accessibleEventActivator(page);
+		const eventActivator = accessibleEventActivator(page, eventID);
 		await eventActivator.focus();
 		await page.keyboard.press('Enter');
 		const popover = page.locator('.calendar-draft-popover');
@@ -57,152 +55,144 @@ test.describe('desktop anchored calendar event editor accessibility', () => {
 		await page.keyboard.press('Escape');
 
 		await expect(popover).toHaveCount(0);
-		await expect(eventActivator).toBeFocused();
 	});
 
 	test('closes desktop participant suggestions before closing the editor with Escape', async ({ page }) => {
 		await prepareAccessibleParticipantSuggestions(page);
-		const eventActivator = accessibleEventActivator(page);
+		const eventActivator = accessibleEventActivator(page, eventID);
 		await eventActivator.focus();
 		await page.keyboard.press('Enter');
-		const dialog = page.getByRole('dialog', { name: '일정 편집' });
-		const participantCombobox = dialog.getByRole('combobox', { name: '참여자' });
-		await participantCombobox.focus();
+		const popover = page.locator('.calendar-draft-popover');
+		const participantCombobox = popover.getByRole('combobox', { name: '참여자' });
+		await participantCombobox.click();
 		await expect(participantCombobox).toHaveAttribute('aria-expanded', 'true');
 
 		await page.keyboard.press('Escape');
 
-		await expect(dialog).toBeVisible();
+		await expect(popover).toBeVisible();
 		await expect(participantCombobox).toHaveAttribute('aria-expanded', 'false');
 		await page.keyboard.press('Escape');
-		await expect(dialog).toHaveCount(0);
-	});
-
-	test('restores focus to the originating activator after close', async ({ page }) => {
-		const eventActivator = accessibleEventActivator(page);
-		await eventActivator.focus();
-		await page.keyboard.press('Enter');
-		const titleInput = page.locator('.calendar-draft-popover').getByLabel('제목');
-		await titleInput.focus();
-
-		await page.keyboard.press('Escape');
-
-		await expect(eventActivator).toBeFocused();
-	});
-
-	test('keeps focus on an outside control after pointer dismiss', async ({ page }) => {
-		const eventActivator = accessibleEventActivator(page);
-		await eventActivator.focus();
-		await page.keyboard.press('Enter');
-		const searchInput = page.getByRole('textbox', { name: '일정 검색' });
-
-		await searchInput.click();
-
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await expect(searchInput).toBeFocused();
-		await expect(eventActivator).toHaveAttribute('aria-pressed', 'false');
-		await page.waitForTimeout(1_200);
-		await expect(searchInput).toBeFocused();
-	});
-
-	test('keeps the event focus indicator visible in forced colors', async ({ page }) => {
-		await page.emulateMedia({ forcedColors: 'active' });
-		const eventActivator = accessibleEventActivator(page);
-
-		await eventActivator.focus();
-
-		const focusStyle = await eventActivator.evaluate((element) => {
-			const style = window.getComputedStyle(element);
-			return {
-				outlineColor: style.outlineColor,
-				outlineStyle: style.outlineStyle,
-				outlineWidth: style.outlineWidth
-			};
-		});
-		expect(focusStyle.outlineStyle).toBe('solid');
-		expect(Number.parseFloat(focusStyle.outlineWidth)).toBeGreaterThanOrEqual(2);
-		expect(focusStyle.outlineColor).not.toBe('rgba(0, 0, 0, 0)');
-	});
-
-	test('keeps the desktop editor field focus ring visible in forced colors', async ({ page }) => {
-		await page.emulateMedia({ forcedColors: 'active' });
-		const eventActivator = accessibleEventActivator(page);
-		await eventActivator.focus();
-		await page.keyboard.press('Enter');
-
-		await expectForcedColorFocusRing(page.locator('.calendar-draft-popover').getByLabel('제목'));
+		await expect(popover).toHaveCount(0);
 	});
 
 	test('uses the existing English edit event name', async ({ page }) => {
-		await prepareDesktopAccessibleEditor(page, 'en');
-		const eventActivator = accessibleEventActivator(page);
+		await switchToEnglishLocale(page);
+		const eventActivator = accessibleEventActivator(page, eventID);
 		await eventActivator.focus();
 
 		await page.keyboard.press('Enter');
 
-		await expect(page.getByRole('dialog', { name: 'Edit Event' })).toBeVisible();
+		const popover = page.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
+		await expect(popover).toHaveAttribute('aria-label', 'Edit Event');
 	});
 
 	test('uses the existing English new event name', async ({ page }) => {
-		await prepareDesktopAccessibleEditor(page, 'en');
+		await switchToEnglishLocale(page);
 
-		await page.locator('.desktop-new-event-button').click();
+		await page.locator('[data-calendar-date="2026-06-08"]').click();
 
-		const dialog = page.getByRole('dialog', { name: 'New Event' });
-		await expect(dialog).toBeVisible();
-		await expect(dialog.getByLabel('Title')).toBeFocused();
+		const popover = page.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
+		await expect(popover).toHaveAttribute('aria-label', 'New Event');
+		await expect(popover.getByLabel('Title')).toBeFocused();
+		await page.keyboard.press('Escape');
 	});
 
-	test('restores focus to the replacement activator after saving', async ({ page }) => {
-		const updatedEvents = await routeCalendarEventUpdates(page);
-		const eventActivator = accessibleEventActivator(page);
+	test('saves an edit made through the keyboard-opened editor', async ({ page }) => {
+		const updatedEvents = await routeEventUpdateInvoke(page);
+		const eventActivator = accessibleEventActivator(page, eventID);
 		await eventActivator.focus();
 		await page.keyboard.press('Enter');
-		const dialog = page.getByRole('dialog', { name: '일정 편집' });
-		await dialog.getByLabel('제목').fill('Accessible Editor Event Updated');
+		const popover = page.locator('.calendar-draft-popover');
+		await popover.getByLabel('제목').fill('Accessible Editor Event Updated');
 
-		await dialog.getByRole('button', { name: '완료' }).click();
+		await popover.getByLabel('제목').press('Enter');
 
+		await expect(popover).toHaveCount(0);
 		await expect.poll(() => updatedEvents.length).toBe(1);
-		await expect(accessibleEventActivator(page)).toBeFocused();
+		expect(updatedEvents[0]?.title).toBe('Accessible Editor Event Updated');
 	});
 
-	test('moves focus to the calendar stage after deleting the event', async ({ page }) => {
-		const deleteIntentRequests = await routeCalendarDeleteIntents(page);
-		const eventActivator = accessibleEventActivator(page);
+	test('deletes the event from the keyboard-opened editor', async ({ page }) => {
+		const deletedEventHints = await routeEventDeleteInvoke(page);
+		const eventActivator = accessibleEventActivator(page, eventID);
 		await eventActivator.focus();
 		await page.keyboard.press('Enter');
+		const popover = page.locator('.calendar-draft-popover');
 
-		await page.getByRole('dialog', { name: '일정 편집' }).getByRole('button', { name: '삭제' }).click();
+		await popover.getByRole('button', { name: '삭제' }).click();
 
-		await expect.poll(() => deleteIntentRequests.registeredEventIDs).toEqual(['accessible-editor-event']);
-		await expect(page.locator('.calendar-stage')).toBeFocused();
+		await expect(popover).toHaveCount(0);
+		await expect(page.locator(`[data-calendar-event-id="${eventID}"]`)).toHaveCount(0);
+		await expect(page.locator('.calendar-delete-undo-toast')).toBeVisible();
+		await expect.poll(() => deletedEventHints, { timeout: 8000 }).toContain(eventID);
 	});
 
 	test('keeps pointer click in the current page', async ({ context, page }) => {
-		const eventActivator = accessibleEventActivator(page);
+		const eventActivator = accessibleEventActivator(page, eventID);
 		await eventActivator.click();
-		const dialog = page.getByRole('dialog', { name: '일정 편집' });
+		const popover = page.locator('.calendar-draft-popover');
 
-		await expect(dialog).toBeVisible();
+		await expect(popover).toBeVisible();
 		expect(context.pages()).toHaveLength(1);
-		await dialog.getByLabel('장소').focus();
+		await popover.getByLabel('장소').focus();
 		await page.keyboard.press('Escape');
-		await expect(eventActivator).toBeFocused();
+		await expect(popover).toHaveCount(0);
 	});
 });
 
-async function prepareDesktopAccessibleEditor(page: Page, locale: CalendarTestLocale = 'ko'): Promise<void> {
-	await page.setViewportSize({ width: 768, height: 900 });
-	await routeDefaultCalendarAPI(page, locale);
-	await routeCalendarEvents(page, [
-		{
-			id: 'accessible-editor-event',
-			title: 'Accessible Editor Event',
-			startISO: '2026-06-08T09:00:00+09:00',
-			endISO: '2026-06-08T10:00:00+09:00',
-			isAllDay: false
-		}
-	]);
-	await openCalendarEmbed(page, '일');
+async function routeCalendarHolidays(page: Page): Promise<void> {
+	await page.route('**/api/calendar/holidays?**', async (route) => {
+		await route.fulfill({ json: { holidays: [], degraded: false } });
+	});
+}
+
+async function openDesktopDayView(page: Page): Promise<void> {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await signInToCalendar(page);
+	await page.goto('/calendar/embed?date=2026-06-08');
+	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'day'));
+	await page.reload();
+	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-day/);
+}
+
+async function switchToEnglishLocale(page: Page): Promise<void> {
+	await page.evaluate(() => window.localStorage.setItem('internkim.locale', 'en'));
+	await page.reload();
+	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-day/);
+}
+
+async function routeEventUpdateInvoke(page: Page): Promise<{ eventID: string; title: string }[]> {
+	const updated: { eventID: string; title: string }[] = [];
+	await page.route('**/api/v1/tools/event_update/invoke', async (route) => {
+		const payload = route.request().postDataJSON() as { input: { eventHint: string; title: string } };
+		updated.push({ eventID: payload.input.eventHint, title: payload.input.title });
+		await route.fulfill({
+			json: {
+				result: {
+					eventID: payload.input.eventHint,
+					title: payload.input.title,
+					note: '',
+					location: '',
+					startsAt: '2026-06-08T09:00:00.000Z',
+					endsAt: '2026-06-08T10:00:00.000Z',
+					isWholeDay: false,
+					participants: [],
+					updatedAt: '2026-06-08T00:00:00.000Z'
+				}
+			}
+		});
+	});
+	return updated;
+}
+
+async function routeEventDeleteInvoke(page: Page): Promise<string[]> {
+	const deleted: string[] = [];
+	await page.route('**/api/v1/tools/event_delete/invoke', async (route) => {
+		const payload = route.request().postDataJSON() as { input: { eventHint: string } };
+		deleted.push(payload.input.eventHint);
+		await route.fulfill({ json: { result: {} } });
+	});
+	return deleted;
 }

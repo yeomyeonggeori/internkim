@@ -384,6 +384,16 @@ and delete the duplicates.
   `cd web && bun test tests/unit`.
 - Add or update a `web/package.json` script when adding a new test category, and
   wire important regression tests into the normal verification path.
+- The calendar screens read the central plane only (no mockable
+  `/calendar/api/*`), so its Playwright specs run against a real local
+  Supabase: sign in for real and seed fixtures straight into `task`/`leave`
+  (`web/tests/e2e/calendar-central-test-utils.ts`). `tools/verify`'s `web-e2e`
+  group runs `bun run test:e2e:calendar:central`
+  (`web/scripts/e2e-calendar-central.sh`), which resets the database itself;
+  a suite nothing runs is not a gate. It is its own group and lane, keyed on
+  the calendar routes and specs, never pulled in by `--only web` — a group
+  that resets the shared local database is opted into by name or by touching
+  calendar code, never a side effect of checking the web app (#1381).
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: `supabase db reset` then `bun run dev`, and hand over a real
   sign-in. A mock flag (`VITE_MOCK_TASK=1` or `VITE_MOCK_ADMIN=1`, with an

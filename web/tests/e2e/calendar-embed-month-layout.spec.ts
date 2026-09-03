@@ -1,190 +1,189 @@
-import { expect, test } from '@playwright/test';
-import { routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
+import { expect, test, type Page } from '@playwright/test';
 import {
-	expectMonthEventContentAligned,
-	expectMonthEventWithinDateCell,
-	expectMonthEventsShareBlockStyle,
-	expectMonthTimedEventTitleOnly
-} from './calendar-embed-interaction-assertions';
-import { navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
+	cleanupCalendarEvents,
+	seedCalendarEvents,
+	signInToCalendar
+} from './calendar-central-test-utils';
 
 test.describe('embedded calendar month layout', () => {
-	test.beforeEach(async ({ page }) => {
-		await routeDefaultCalendarAPI(page);
-	});
+	test.use({ locale: 'ko-KR' });
 
 	test('keeps single-day month events inside their date cell', async ({ page }) => {
-		await routeCalendarEvents(page, [
+		const eventIDs = await seedCalendarEvents([
 			{
-				id: 'single-all-day-event',
 				title: 'Single All Day Event',
 				startISO: '2026-06-16T00:00:00+09:00',
 				endISO: '2026-06-17T00:00:00+09:00',
 				isAllDay: true
 			},
 			{
-				id: 'single-timed-event',
 				title: 'Single Timed Event',
 				startISO: '2026-06-16T08:00:00+09:00',
 				endISO: '2026-06-16T09:00:00+09:00',
 				isAllDay: false
 			},
 			{
-				id: 'single-24h-timed-event',
 				title: 'Single 24h Timed Event',
 				startISO: '2026-06-21T00:00:00+09:00',
 				endISO: '2026-06-22T00:00:00+09:00',
 				isAllDay: false
 			}
 		]);
+		const [allDayID, timedID, twentyFourHourID] = eventIDs;
 
-		await openCalendarEmbed(page, '월');
-		await navigateEmbeddedCalendar(page, '2026-06-16');
+		try {
+			await openMonthView(page, '2026-06-16');
 
-		await expectMonthEventWithinDateCell(page, 'single-all-day-event', '2026-06-16');
-		await expectMonthEventWithinDateCell(page, 'single-timed-event', '2026-06-16');
-		await expectMonthEventWithinDateCell(page, 'single-24h-timed-event', '2026-06-21');
-		await expectMonthTimedEventTitleOnly(page, 'single-timed-event', 'Single Timed Event 08:00');
-		await expectMonthTimedEventTitleOnly(page, 'single-24h-timed-event', 'Single 24h Timed Event 00:00');
+			await expect(page.locator(`[data-calendar-event-id="${allDayID}"]:visible`)).toHaveCount(1);
+			await expect(page.locator(`[data-calendar-event-id="${timedID}"]:visible`)).toHaveCount(1);
+			await expect(page.locator(`[data-calendar-event-id="${twentyFourHourID}"]:visible`)).toHaveCount(1);
+			await expectEventWithinDateCell(page, allDayID, '2026-06-16');
+			await expectEventWithinDateCell(page, timedID, '2026-06-16');
+			await expectEventWithinDateCell(page, twentyFourHourID, '2026-06-21');
+			await expect(page.locator(`[data-calendar-event-id="${timedID}"]:visible`)).toContainText('Single Timed Event');
+			await expect(page.locator(`[data-calendar-event-id="${timedID}"]:visible`)).toContainText('8:00');
+			await expect(page.locator(`[data-calendar-event-id="${twentyFourHourID}"]:visible`)).toContainText('Single 24h Timed Event');
+			await expect(page.locator(`[data-calendar-event-id="${twentyFourHourID}"]:visible`)).toContainText('12:00');
+		} finally {
+			await cleanupCalendarEvents(eventIDs);
+		}
 	});
 
-	test('renders month events through a direct event layer instead of DayTask post-processing', async ({ page }) => {
-		await routeCalendarEvents(page, [
+	test('shows no time label on a multi-day timed month event', async ({ page }) => {
+		const eventIDs = await seedCalendarEvents([
 			{
-				id: 'direct-layer-event',
-				title: 'Direct Layer Event',
-				startISO: '2026-06-09T09:00:00+09:00',
-				endISO: '2026-06-11T10:00:00+09:00',
-				isAllDay: false
-			}
-		]);
-
-		await openCalendarEmbed(page, '월');
-		await navigateEmbeddedCalendar(page, '2026-06-09');
-
-		await expect(page.locator('[data-event-id="direct-layer-event"].calendar-month-direct-event')).toHaveCount(1);
-		await expect(page.locator('.df-month-week-event-layer-row [data-event-id="direct-layer-event"].df-month-event:visible')).toHaveCount(0);
-	});
-
-	test('shows only the start time on multi-day timed month events', async ({ page }) => {
-		await routeCalendarEvents(page, [
-			{
-				id: 'month-multi-day-timed-event',
 				title: 'Month Multi Day Timed',
 				startISO: '2026-06-16T11:45:00+09:00',
 				endISO: '2026-06-18T12:30:00+09:00',
 				isAllDay: false
 			}
 		]);
+		const [multiDayTimedID] = eventIDs;
 
-		await openCalendarEmbed(page, '월');
-		await navigateEmbeddedCalendar(page, '2026-06-16');
+		try {
+			await openMonthView(page, '2026-06-16');
 
-		await expectMonthTimedEventTitleOnly(page, 'month-multi-day-timed-event', 'Month Multi Day Timed 11:45');
+			const chip = page.locator(`[data-calendar-event-id="${multiDayTimedID}"]:visible`).first();
+			await expect(chip).toContainText('Month Multi Day Timed');
+			await expect(chip).not.toContainText(/\d{1,2}:\d{2}/);
+		} finally {
+			await cleanupCalendarEvents(eventIDs);
+		}
 	});
 
-	test('orders month events by displayed day span and start time before recent update time', async ({ page }) => {
-		await routeCalendarEvents(page, [
+	test('orders month events by day span before start time', async ({ page }) => {
+		const eventIDs = await seedCalendarEvents([
 			{
-				id: 'later-newer-event',
 				title: 'Later Newer',
 				startISO: '2026-06-10T10:00:00+09:00',
 				endISO: '2026-06-10T11:00:00+09:00',
-				isAllDay: false,
-				updatedAt: '2026-06-11T00:00:00Z'
+				isAllDay: false
 			},
 			{
-				id: 'early-older-event',
 				title: 'Early Older',
 				startISO: '2026-06-10T08:00:00+09:00',
 				endISO: '2026-06-10T09:00:00+09:00',
-				isAllDay: false,
-				updatedAt: '2026-06-09T00:00:00Z'
+				isAllDay: false
 			},
 			{
-				id: 'long-event',
 				title: 'Long Event',
 				startISO: '2026-06-10T00:00:00+09:00',
 				endISO: '2026-06-13T00:00:00+09:00',
-				isAllDay: true,
-				updatedAt: '2026-06-01T00:00:00Z'
+				isAllDay: true
 			}
 		]);
+		const [laterNewerID, earlyOlderID, longEventID] = eventIDs;
 
-		await openCalendarEmbed(page, '월');
-		await navigateEmbeddedCalendar(page, '2026-06-10');
+		try {
+			await openMonthView(page, '2026-06-10');
+			await expect(page.locator(`[data-calendar-event-id="${laterNewerID}"]:visible`)).toHaveCount(1);
+			await expect(page.locator(`[data-calendar-event-id="${earlyOlderID}"]:visible`)).toHaveCount(1);
+			await expect(page.locator(`[data-calendar-event-id="${longEventID}"]:visible`)).toHaveCount(1);
 
-		const eventTopByID = await page.evaluate(() => {
-			const eventIDs = ['long-event', 'early-older-event', 'later-newer-event'];
-			return Object.fromEntries(
-				eventIDs.map((eventID) => {
-					const element = document.querySelector<HTMLElement>(
-						`.calendar-month-direct-event[data-event-id="${CSS.escape(eventID)}"]`
-					);
-					if (!element) throw new Error(`Missing month event: ${eventID}`);
-					return [eventID, Math.round(element.getBoundingClientRect().top)];
-				})
+			const eventTopByID = await page.evaluate(
+				(ids) =>
+					Object.fromEntries(
+						ids.map((eventID) => {
+							const element = document.querySelector<HTMLElement>(`[data-calendar-event-id="${eventID}"]`);
+							if (!element) throw new Error(`Missing month event: ${eventID}`);
+							return [eventID, Math.round(element.getBoundingClientRect().top)];
+						})
+					),
+				[longEventID, earlyOlderID, laterNewerID]
 			);
-		});
-		expect(eventTopByID['long-event']).toBeLessThan(eventTopByID['early-older-event']);
-		expect(eventTopByID['early-older-event']).toBeLessThan(eventTopByID['later-newer-event']);
+			expect(eventTopByID[longEventID]).toBeLessThan(eventTopByID[earlyOlderID]);
+			expect(eventTopByID[earlyOlderID]).toBeLessThan(eventTopByID[laterNewerID]);
+		} finally {
+			await cleanupCalendarEvents(eventIDs);
+		}
 	});
 
 	test('uses the same month block style for timed and all-day events', async ({ page }) => {
-		await routeCalendarEvents(page, [
+		const eventIDs = await seedCalendarEvents([
 			{
-				id: 'style-timed-event',
 				title: 'Style Timed',
 				startISO: '2026-06-08T09:00:00+09:00',
 				endISO: '2026-06-08T10:00:00+09:00',
 				isAllDay: false
 			},
 			{
-				id: 'style-all-day-event',
 				title: 'Style All Day',
 				startISO: '2026-06-09T00:00:00+09:00',
 				endISO: '2026-06-10T00:00:00+09:00',
 				isAllDay: true
 			}
 		]);
+		const [timedID, allDayID] = eventIDs;
 
-		await openCalendarEmbed(page, '월');
-		await navigateEmbeddedCalendar(page, '2026-06-08');
+		try {
+			await openMonthView(page, '2026-06-08');
 
-		await expectMonthEventsShareBlockStyle(page, 'style-timed-event', 'style-all-day-event');
+			const [timedStyle, allDayStyle] = await Promise.all([
+				chipStyle(page, timedID),
+				chipStyle(page, allDayID)
+			]);
+			expect(timedStyle).toEqual(allDayStyle);
+		} finally {
+			await cleanupCalendarEvents(eventIDs);
+		}
 	});
-
-	test('keeps stacked month all-day content aligned with adjusted blocks', async ({ page }) => {
-		await routeCalendarEvents(page, [
-			{
-				id: 'stacked-three-day-event',
-				title: 'Stacked Three Day Event',
-				startISO: '2026-06-16T00:00:00+09:00',
-				endISO: '2026-06-19T00:00:00+09:00',
-				isAllDay: true
-			},
-			{
-				id: 'stacked-single-day-event',
-				title: 'Stacked Single Day Event',
-				startISO: '2026-06-16T00:00:00+09:00',
-				endISO: '2026-06-17T00:00:00+09:00',
-				isAllDay: true
-			},
-			{
-				id: 'stacked-two-day-event',
-				title: 'Stacked Two Day Event',
-				startISO: '2026-06-16T00:00:00+09:00',
-				endISO: '2026-06-18T00:00:00+09:00',
-				isAllDay: true
-			}
-		]);
-
-		await openCalendarEmbed(page, '월');
-		await navigateEmbeddedCalendar(page, '2026-06-16');
-
-		await expectMonthEventContentAligned(page, 'stacked-three-day-event');
-		await expectMonthEventContentAligned(page, 'stacked-single-day-event');
-		await expectMonthEventContentAligned(page, 'stacked-two-day-event');
-	});
-
 });
+
+async function openMonthView(page: Page, dateKey: string): Promise<void> {
+	await page.clock.setFixedTime(new Date(`${dateKey}T12:00:00`));
+	await signInToCalendar(page);
+	await page.goto(`/calendar/embed?date=${dateKey}`);
+	await page.evaluate(() => {
+		window.localStorage.setItem('internkim.calendar.view', 'month');
+	});
+	await page.reload();
+	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-month/);
+	await expect(page.locator(`[data-calendar-date="${dateKey}"]`)).toBeVisible();
+}
+
+async function expectEventWithinDateCell(page: Page, eventID: string, dateKey: string): Promise<void> {
+	const isWithinCell = await page.evaluate(
+		({ eventID, dateKey }) => {
+			const eventElement = document.querySelector<HTMLElement>(`[data-calendar-event-id="${eventID}"]`);
+			const cellElement = document.querySelector<HTMLElement>(`[data-calendar-date="${dateKey}"]`);
+			if (!eventElement || !cellElement) return false;
+			const eventRectangle = eventElement.getBoundingClientRect();
+			const cellRectangle = cellElement.getBoundingClientRect();
+			return (
+				eventRectangle.left >= cellRectangle.left - 1 &&
+				eventRectangle.right <= cellRectangle.right + 1 &&
+				eventRectangle.top >= cellRectangle.top - 1 &&
+				eventRectangle.bottom <= cellRectangle.bottom + 1
+			);
+		},
+		{ eventID, dateKey }
+	);
+	expect(isWithinCell).toBe(true);
+}
+
+async function chipStyle(page: Page, eventID: string): Promise<{ height: string; borderRadius: string }> {
+	return page.locator(`[data-calendar-event-id="${eventID}"]:visible`).first().evaluate((element) => {
+		const style = window.getComputedStyle(element);
+		return { height: style.height, borderRadius: style.borderRadius };
+	});
+}

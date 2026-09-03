@@ -150,6 +150,12 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "web-e2e",
+        ["web/src/routes/calendar/**", "web/tests/e2e/calendar*"],
+        [["bun", "run", "test:e2e:calendar:central"]],
+        working_directory="web",
+    ),
+    Group(
         "host",
         ["host/*", "tools/render-company-runtime"],
         [["bun", "test", "tests/unit/host"]],

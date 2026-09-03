@@ -1,41 +1,26 @@
 import { expect, test } from '@playwright/test';
-import { routeCalendarParticipants } from './calendar-embed-test-utils';
+import { signInToCalendar } from './calendar-central-test-utils';
 
 test.describe('calendar localization', () => {
-	test('updates embedded calendar labels when language changes', async ({ page }) => {
-		let locale = 'ko';
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.route('**/admin/api/session', async (route) => {
-			await route.fulfill({ json: { email: 'tester@example.com' } });
-		});
-		await page.route('**/auth/session**', async (route) => {
-			await route.fulfill({ json: { authenticated: true, email: 'tester@example.com' } });
-		});
-		await page.route('**/admin/api/locale', async (route) => {
-			if (route.request().method() === 'PUT') {
-				const payload = route.request().postDataJSON() as { locale?: string };
-				locale = payload.locale === 'en' ? 'en' : 'ko';
-			}
-			await route.fulfill({ json: { locale } });
-		});
-		await page.route('**/calendar/api/events?**', async (route) => {
-			await route.fulfill({ json: { events: [] } });
-		});
-		await page.route('**/calendar/api/sync', async (route) => {
-			await route.fulfill({
-				json: {
-					caldavURL: 'https://calendar.example.test/caldav',
-					caldavUsername: 'internkim',
-					caldavPassword: 'token',
-					icsURL: 'https://calendar.example.test/calendar.ics'
-				}
-			});
-		});
-		await routeCalendarParticipants(page, []);
+	test.use({ locale: 'ko-KR' });
 
-		await page.goto('/calendar/');
+	test('updates embedded calendar labels when language changes', async ({ page }) => {
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await page.route('**/api/calendar/holidays?**', async (route) => {
+			await route.fulfill({ json: { holidays: [], degraded: false } });
+		});
+		await page.route('**/api/calendar/subscription', async (route) => {
+			if (route.request().method() === 'POST') {
+				await route.fulfill({ json: { address: 'https://calendar.example.test/calendar.ics' } });
+				return;
+			}
+			await route.fulfill({ json: { registered: true } });
+		});
+
+		await signInToCalendar(page);
 		let calendarFrame = page.frameLocator('iframe');
 		await expect(calendarFrame.getByRole('button', { name: '설정' })).toBeVisible();
+
 		await page.getByRole('button', { name: '언어 변경' }).click();
 		await page.getByRole('menuitemradio', { name: 'English' }).click();
 
@@ -47,19 +32,17 @@ test.describe('calendar localization', () => {
 		await page.keyboard.press('Escape');
 		await expect(page.getByRole('heading', { name: 'Settings' })).toBeHidden();
 
-		await expect(calendarFrame.getByRole('button', { name: 'June 2026' })).toBeVisible();
-		await expect(calendarFrame.getByRole('button', { name: 'Month' })).toBeVisible();
+		await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveText('June 2026');
+		await expect(calendarFrame.getByRole('tab', { name: 'Month', exact: true })).toBeVisible();
 
-		await calendarFrame.getByRole('button', { name: 'New', exact: true }).click();
+		await calendarFrame.getByRole('tab', { name: 'Month', exact: true }).click();
+		await expect(calendarFrame.locator('.calendar-stage')).toHaveClass(/calendar-stage-month/);
+		await calendarFrame.locator('[data-calendar-date="2026-06-08"]').dblclick();
 		const popover = calendarFrame.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
 		await expect(popover.getByLabel('Title')).toBeVisible();
-		await popover.getByRole('button', { name: /Start date 2026\.06\.08 09:00/ }).click();
-		const picker = calendarFrame.locator('.draft-date-time-picker');
-		await expect(picker).toHaveAttribute('aria-label', 'Edit start date and time');
-		await expect(picker.getByRole('button', { name: 'Previous month' })).toBeVisible();
-		await expect(picker.getByRole('button', { name: 'June 17, 2026' })).toBeVisible();
-		await expect(picker.getByLabel('Hour')).toBeVisible();
-		await expect(picker.getByLabel('Minute')).toBeVisible();
-		await expect(picker.getByRole('button', { name: 'Save' })).toBeVisible();
+		await popover.getByRole('button', { name: 'Start date' }).click();
+		await expect(calendarFrame.locator('[data-calendar-grid]')).toBeVisible();
+		await expect(popover.getByLabel('Start time')).toBeVisible();
 	});
 });

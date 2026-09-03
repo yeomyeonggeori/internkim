@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ "$#" -lt 2 ]; then
-  echo "usage: $0 <spec path relative to web> <dev server port> [playwright arguments]" >&2
+  echo "usage: $0 <space-separated spec paths relative to web> <dev server port> [playwright arguments]" >&2
   exit 2
 fi
 spec="$1"
@@ -60,4 +60,4 @@ SUPABASE_SECRET_KEY="$SECRET_KEY" \
 PLAYWRIGHT_CENTRAL_PLANE=1 \
 PLAYWRIGHT_START_WEB_SERVER=1 \
 PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:$port}" \
-bunx playwright test "$spec" --workers=1 "$@"
+bunx playwright test $spec --workers=1 "$@"
