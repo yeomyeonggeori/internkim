@@ -1,5 +1,5 @@
 import { invokeTool, ToolRefused } from '$lib/public-api-call';
-import { CRMApiError } from './crm-api';
+import { CRMApiError } from './crm-error';
 import { crmPipelinesOf } from './crm-mappers';
 import type {
 	CRMOrganizationPayload,

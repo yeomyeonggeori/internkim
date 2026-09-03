@@ -16,7 +16,6 @@ import {
 	loadCRMData,
 	saveCRMVocabulary,
 	positionCRMOpportunity,
-	settlementIsConvertedByServer,
 	transitionCRMOpportunity,
 	updateCRMOrganization,
 	updateCRMActivity,
@@ -402,14 +401,12 @@ export class CRMPageController {
 			beforeOpportunityID: beforeOpportunityID ?? '',
 			occurredAt: new Date().toISOString(),
 			...opportunityTransitionOutcome(this.stages, stage, values, {
-				baseCurrency: this.companyBaseCurrency,
-				isConvertedByServer: settlementIsConvertedByServer()
+				baseCurrency: this.companyBaseCurrency
 			})
 		};
 	}
 
 	private settlesThroughCloseEndpoint(stage: string): boolean {
-		if (!settlementIsConvertedByServer()) return false;
 		return opportunitySettlesOnTransition(this.stages, stage);
 	}
 
