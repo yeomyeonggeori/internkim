@@ -216,7 +216,6 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 	}
 	return map[string]scenarioPlanBuilder{
 		"model-configuration-upgrade": always(service.modelConfigurationUpgradeScenarioPlans),
-		"dm-recipient-resolve":        always(service.dmRecipientResolveScenarioPlans),
 		"buzz-attachment":             always(service.buzzAttachmentScenarioPlans),
 		"buzz-direct-message":         always(service.buzzDirectMessageScenarioPlans),
 		"buzz-inbound-mention":        always(service.buzzInboundMentionScenarioPlans),
