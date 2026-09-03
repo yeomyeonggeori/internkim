@@ -77,6 +77,7 @@ func calendarEventsOfCompanyEvents(events []centralplane.Event, timeZoneName str
 			TimeZone:          timeZoneName,
 			IsAllDay:          event.IsWholeDay,
 			ReminderLeadHours: calendarReminderLeadHours(event.NotifyMinutesBefore),
+			ReminderMinutes:   event.NotifyMinutesBefore,
 			UpdatedAt:         event.UpdatedAt,
 			People:            event.ParticipantMails,
 			Participants:      calendarParticipantsOfEmails(event.ParticipantMails),
@@ -96,6 +97,15 @@ func calendarReminderLeadHours(minutes int) int {
 		return roundedHours
 	}
 	return 1
+}
+
+// An event keeps the minutes it was given, because the whole hours this device
+// stores round a half hour up to one and would write that hour back.
+func calendarReminderMinutes(event calendarEvent) int {
+	if event.ReminderMinutes > 0 {
+		return event.ReminderMinutes
+	}
+	return event.ReminderLeadHours * 60
 }
 
 func calendarParticipantsOfEmails(emails []string) []calendarParticipant {
@@ -137,7 +147,7 @@ func (service *Service) saveCentralCalendarEvent(request *http.Request, event ca
 		StartsAt:            event.StartISO,
 		EndsAt:              event.EndISO,
 		IsWholeDay:          event.IsAllDay,
-		NotifyMinutesBefore: event.ReminderLeadHours * 60,
+		NotifyMinutesBefore: calendarReminderMinutes(event),
 		Status:              requestedStatusWhenAskedOfSomebodyElse(isRequestedOfSomebodyElse),
 		ParticipantMails:    calendarParticipantEmails(event),
 		ExpectedUpdatedAt:   expectedUpdatedAt,

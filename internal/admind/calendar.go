@@ -27,6 +27,7 @@ type calendarEvent struct {
 	People            []string              `json:"people"`
 	Participants      []calendarParticipant `json:"participants,omitempty"`
 	ReminderLeadHours int                   `json:"reminderLeadHours"`
+	ReminderMinutes   int                   `json:"notifyMinutesBefore,omitempty"`
 	CreatedByEmail    string                `json:"createdByEmail"`
 	CreatedByName     string                `json:"createdByName"`
 	UpdatedAt         string                `json:"updatedAt"`
@@ -258,6 +259,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		People:            people,
 		Participants:      participants,
 		ReminderLeadHours: normalizeCalendarReminderLeadHours(payload.ReminderLeadHours),
+		ReminderMinutes:   payload.NotifyMinutesBefore,
 		CreatedByEmail:    createdByEmail,
 		CreatedByName:     createdByName,
 	}, nil
