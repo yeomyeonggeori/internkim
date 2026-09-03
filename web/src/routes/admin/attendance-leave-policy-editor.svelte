@@ -33,7 +33,6 @@
 		draft: LeaveType;
 		text: AdminPageText;
 		isSaving: boolean;
-		tracksSeparateBalances: boolean;
 		validationAttempted: boolean;
 		hasChanges: boolean;
 		onChange: (draft: LeaveType) => void;
@@ -46,7 +45,6 @@
 		draft,
 		text,
 		isSaving,
-		tracksSeparateBalances,
 		validationAttempted,
 		hasChanges,
 		onChange,
@@ -212,17 +210,15 @@
 					disabled={isSaving}
 				>
 					<Select.Trigger id="leave-balance-mode">
-						{draft.balanceMode === 'separate' && !tracksSeparateBalances
+						{draft.balanceMode === 'separate'
 							? unavailableBalanceModeLabel('separate')
 							: balanceModeLabel(draft.balanceMode)}
 					</Select.Trigger>
 					<Select.Content>
 						<Select.Group>
 							<Select.Item value="annual">{text.attendanceSettings.balanceModeAnnual}</Select.Item>
-							<Select.Item value="separate" disabled={!tracksSeparateBalances}>
-								{tracksSeparateBalances
-									? text.attendanceSettings.balanceModeSeparate
-									: unavailableBalanceModeLabel('separate')}
+							<Select.Item value="separate" disabled>
+								{unavailableBalanceModeLabel('separate')}
 							</Select.Item>
 							<Select.Item value="none">{text.attendanceSettings.balanceModeNone}</Select.Item>
 						</Select.Group>

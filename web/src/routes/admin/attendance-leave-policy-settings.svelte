@@ -16,7 +16,6 @@
 		fetchAttendanceLeavePolicy,
 		updateAttendanceLeavePolicy
 	} from './attendance-settings-api';
-	import { settingsSource } from './settings-source';
 	import type {
 		AdminPageText,
 		AttendanceLeavePolicy,
@@ -32,7 +31,7 @@
 	let { adminBaseURL, text }: LeavePolicySettingsProps = $props();
 	let policy = $state<AttendanceLeavePolicy | null>(null);
 	let draft = $state<LeaveType | null>(null);
-	let loadedSource = $state('');
+	let hasLoaded = $state(false);
 	let message = $state('');
 	let isLoading = $state(false);
 	let isSaving = $state(false);
@@ -43,9 +42,8 @@
 	let balanceTrackingMode = $state<LeaveBalanceTrackingMode>('managed');
 
 	$effect(() => {
-		const source = settingsSource(adminBaseURL);
-		if (!source || loadedSource === source) return;
-		loadedSource = source;
+		if (hasLoaded) return;
+		hasLoaded = true;
 		void loadPolicy();
 	});
 
@@ -233,7 +231,6 @@
 				{draft}
 				{text}
 				{isSaving}
-				tracksSeparateBalances={settingsSource(adminBaseURL) !== 'company'}
 				{validationAttempted}
 				hasChanges={draftHasChanges()}
 				onChange={(nextDraft) => (draft = nextDraft)}

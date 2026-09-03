@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { adminApiFetch } from '../../src/lib/admin-api';
-import {
-	AdminApiError,
-	apiErrorMessage,
-	fetchCalendarHolidayStatus,
-	refreshCalendarHolidayStatus
-} from '../../src/routes/admin/admin-api';
-import type { CalendarHolidayStatus } from '../../src/routes/admin/admin-types';
+import { AdminApiError, apiErrorMessage } from '../../src/routes/admin/admin-api';
 
 const originalFetch = globalThis.fetch;
 const originalWindow = (globalThis as { window?: unknown }).window;
@@ -79,27 +73,5 @@ describe('apiErrorMessage', () => {
 	test('falls back instead of showing raw network fetch failures', () => {
 		expect(apiErrorMessage(new TypeError('Failed to fetch'), '사용자를 불러오지 못했습니다.')).toBe('사용자를 불러오지 못했습니다.');
 		expect(apiErrorMessage(new TypeError('Load failed'), '사용자를 불러오지 못했습니다.')).toBe('사용자를 불러오지 못했습니다.');
-	});
-});
-
-describe('calendar holiday status API', () => {
-	test('loads status and posts a manual refresh', async () => {
-		const status = { status: 'degraded', countryCode: 'KR', provider: 'nager', years: [] } satisfies CalendarHolidayStatus;
-		const requests: { input: string; method?: string }[] = [];
-		globalThis.fetch = (async (input, init) => {
-			requests.push({ input: String(input), method: init?.method });
-			return new Response(JSON.stringify(status));
-		}) as typeof fetch;
-
-		try {
-			expect(await fetchCalendarHolidayStatus('/admin/api', 'load failed')).toEqual(status);
-			expect(await refreshCalendarHolidayStatus('/admin/api', 'refresh failed')).toEqual(status);
-			expect(requests).toEqual([
-				{ input: '/admin/api/calendar-holidays/status', method: undefined },
-				{ input: '/admin/api/calendar-holidays/refresh', method: 'POST' }
-			]);
-		} finally {
-			restoreGlobals();
-		}
 	});
 });

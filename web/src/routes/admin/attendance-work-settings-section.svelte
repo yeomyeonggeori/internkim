@@ -3,7 +3,6 @@
 	import * as Card from '$lib/components/ui/card';
 	import { apiErrorMessage } from './admin-api';
 	import { fetchAttendanceWorkPolicy, updateAttendanceWorkPolicy } from './attendance-settings-api';
-	import { settingsSource } from './settings-source';
 	import type {
 		AdminPageText,
 		AttendanceWorkPolicy,
@@ -27,7 +26,7 @@
 	let { adminBaseURL, text }: Props = $props();
 	let policy = $state<AttendanceWorkPolicy | null>(null);
 	let draft = $state<AttendanceWorkPolicyRevision | null>(null);
-	let loadedSource = $state('');
+	let hasLoaded = $state(false);
 	let message = $state('');
 	let isLoading = $state(false);
 	let isSaving = $state(false);
@@ -40,9 +39,8 @@
 	);
 
 	$effect(() => {
-		const source = settingsSource(adminBaseURL);
-		if (!source || loadedSource === source) return;
-		loadedSource = source;
+		if (hasLoaded) return;
+		hasLoaded = true;
 		void loadPolicy();
 	});
 
