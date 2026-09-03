@@ -110,8 +110,8 @@ var SSHRecoveryActions = []string{
 	"attendance-carry-into-the-record",
 	"task-record-coverage",
 	"task-carry-into-the-record",
-	"organization-directory-coverage",
-	"organization-seed-the-directory",
+	"organization-record-coverage",
+	"organization-carry-into-the-record",
 	"buzz-device-link-count",
 	"buzz-rewrite-old-links",
 	"buzz-rewrite-old-links-dryrun",
@@ -325,12 +325,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count members the directory does not name", "sh", "-lc", buzzStrangerMemberCommand(false)))
 	case "buzz-stranger-members-remove":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove members the directory does not name", "sh", "-lc", buzzStrangerMemberCommand(true)))
-	case "organization-directory-coverage":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count what the company directory knows about people", "sh", "-lc", organizationDirectoryCoverageCommand(false)))
-	case "organization-seed-the-directory":
-		seedContext, cancelSeed := context.WithTimeout(context.Background(), 600*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(seedContext, "give the company directory the profiles this device holds", "sh", "-lc", organizationDirectoryCoverageCommand(true)))
-		cancelSeed()
+	case "organization-record-coverage":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the organization profiles the record has not taken", "sh", "-lc", organizationRecordCoverageCommand(false)))
+	case "organization-carry-into-the-record":
+		organizationCarryContext, cancelOrganizationCarry := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(organizationCarryContext, "carry the organization profiles the record never took", "sh", "-lc", organizationRecordCoverageCommand(true)))
+		cancelOrganizationCarry()
 	case "calendar-record-coverage":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the calendar events the record holds", "sh", "-lc", calendarRecordCoverageCommand(false)))
 	case "calendar-carry-into-the-record":
@@ -1676,13 +1676,13 @@ printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 // Every link the agent sent before it learned the company's address names a
 // device host, and the identifier beside it is one only this device knows. A
 // rewrite has to resolve each one, so the count comes first.
-func organizationDirectoryCoverageCommand(seed bool) string {
-	seedValue := "false"
-	if seed {
-		seedValue = "true"
+func organizationRecordCoverageCommand(carry bool) string {
+	carryValue := "false"
+	if carry {
+		carryValue = "true"
 	}
 	return strings.TrimSpace(`
-body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/organization-directory-coverage?seed=` + seedValue + `")
+body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/organization-record-coverage?carry=` + carryValue + `")
 printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }

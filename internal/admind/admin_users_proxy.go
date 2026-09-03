@@ -27,8 +27,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	}
 	var removedUser *adminUserMutation
 	var upsertedEmail string
-	var organizationMutationIdentities []organizationPersonIdentity
-	var organizationMutation *organizationUserMutation
 	if request.Method == http.MethodDelete {
 		userRecord, errorValue := service.lookupRemovableUser(request.Context(), fleetID, fleetSecret, targetPath)
 		if errorValue != nil {
@@ -36,20 +34,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			return
 		}
 		removedUser = userRecord
-		if removedUser != nil {
-			identity, errorValue := service.resolveLocalOrganizationRemovalIdentity(request.Context(), removedUser.Email, removedUser.MemberID)
-			if errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-				return
-			}
-			organizationMutationIdentities = organizationProxyMutationIdentities(removedUser.MemberID, identity)
-			organizationMutation, errorValue = service.startOrganizationUserMutation(request.Context(), organizationMutationIdentities)
-			if errorValue != nil {
-				http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-				return
-			}
-			defer organizationMutation.completeAfterRequest(request.Context())
-		}
 	}
 	body := request.Body
 	var upsertedName string
@@ -57,7 +41,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 	var upsertedNote string
 	var upsertedRole string
 	var upsertedCircles []string
-	var upsertedUserID string
 	var upsertedBlueclawUserID string
 	var hasExplicitCircleMutation bool
 	if request.Method == http.MethodPost {
@@ -73,13 +56,13 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 		hasExplicitCircleMutation = explicitCircleMutation
 		payload.HireDate = strings.TrimSpace(payload.HireDate)
-		claimedMemberID := payload.MemberID
-		payload, identity, errorValue := service.resolveLocalOrganizationMutationIdentity(request.Context(), payload)
+		memberID, errorValue := service.personIDForMutation(request.Context(), payload.Email, payload.Name)
 		if errorValue != nil {
 			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 			return
 		}
-		upsertedBlueclawUserID = identity.MemberID
+		payload.MemberID = memberID
+		upsertedBlueclawUserID = memberID
 		upsertedEmail = payload.Email
 		upsertedName = payload.Name
 		upsertedHireDate = payload.HireDate
@@ -98,7 +81,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			}
 		}
 		payload.Circles = normalizeAdminUserCircles(payload.Circles, payload.Role)
-		upsertedUserID = strings.TrimSpace(payload.MemberID)
 		upsertedRole = payload.Role
 		upsertedCircles = append([]string{}, payload.Circles...)
 		isLastAdminDemotion, errorValue := service.isLastAdminDemotion(request.Context(), fleetID, fleetSecret, payload.Email, payload.Role)
@@ -110,13 +92,6 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 			http.Error(responseWriter, "cannot demote the last admin user", http.StatusBadRequest)
 			return
 		}
-		organizationMutationIdentities = organizationProxyMutationIdentities(claimedMemberID, identity)
-		organizationMutation, errorValue = service.startOrganizationUserMutation(request.Context(), organizationMutationIdentities)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer organizationMutation.completeAfterRequest(request.Context())
 		payload.Handle = firstNonEmpty(strings.TrimSpace(payload.Handle), handleFromEmail(payload.Email))
 		payload.Status = firstNonEmpty(strings.TrimSpace(payload.Status), "active")
 		proxyPayload := fleetAccountUpsertPayload(payload, fleetID)
@@ -154,11 +129,8 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		return
 	}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
-		if request.Method == http.MethodPost {
-			upsertedUserID = firstNonEmpty(upsertedUserID, userIDFromAdminUsersResponse(responseBody, upsertedEmail))
-		}
 		if upsertedEmail != "" {
-			service.persistOrganizationHireDate(request.Context(), upsertedUserID, upsertedEmail, upsertedHireDate)
+			service.persistOrganizationHireDate(request.Context(), upsertedEmail, upsertedHireDate)
 			var errorValue error
 			if hasExplicitCircleMutation {
 				errorValue = service.upsertBlueclawPerson(request.Context(), upsertedBlueclawUserID, upsertedEmail, upsertedName, upsertedRole, upsertedCircles, &upsertedNote)
@@ -177,13 +149,7 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 				http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 				return
 			}
-			if errorValue := service.forgetOrganizationProfile(request.Context(), removedUser.Email, removedUser.MemberID); errorValue != nil {
-				log.Printf("the organization profile of %s outlived them: %v", removedUser.Email, errorValue)
-			}
 			service.triggerUsersSync(request.Context())
-		}
-		if len(organizationMutationIdentities) > 0 {
-			organizationMutation.completeAfterSourceMutation(request.Context())
 		}
 		if request.Method == http.MethodPost && shouldIncludeBlueclawPolicy(request) {
 			if enhancedBody, errorValue := service.withBlueclawCircles(request.Context(), responseBody); errorValue == nil {
@@ -203,9 +169,8 @@ func (service *Service) proxyUsers(responseWriter http.ResponseWriter, request *
 		}
 		var usersResponse pagesUsersResponse
 		if errorValue := json.Unmarshal(responseBody, &usersResponse); errorValue == nil && usersResponse.Records != nil {
-			if metadataResponse, errorValue := service.organizationMetadataUsersResponse(request.Context(), usersResponse); errorValue == nil {
-				usersResponse = metadataResponse.response
-				if enhancedBody, errorValue := json.Marshal(usersResponse); errorValue == nil {
+			if described, errorValue := service.organizationMetadataUsersResponse(request.Context(), usersResponse); errorValue == nil {
+				if enhancedBody, errorValue := json.Marshal(described); errorValue == nil {
 					responseBody = enhancedBody
 				} else {
 					log.Printf("Organization metadata response marshal failed: %v", errorValue)

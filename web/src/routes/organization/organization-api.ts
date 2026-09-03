@@ -1,26 +1,17 @@
-import { AdminApiError, apiErrorMessage, saveOrgGroups, saveOrgProfiles, type OrgProfileUpdate } from '../admin/admin-api';
-import type { OrgGroup, UsersResponse } from '../../lib/organization/types';
+import { apiErrorMessage } from '../admin/admin-api';
+import type { OrgGroup, OrgProfileUpdate, UsersResponse } from '../../lib/organization/types';
 import {
 	saveOwnSupabaseProfile,
 	saveSupabaseMemberProfiles,
 	saveSupabaseTeams,
 	supabaseOrganizationDirectory
 } from '$lib/organization/supabase-directory';
-import { isSupabaseConfigured } from '$lib/supabase';
 
-export async function fetchOrganizationDirectory(fallbackMessage: string): Promise<UsersResponse> {
-	if (isSupabaseConfigured()) return supabaseOrganizationDirectory();
-	const response = await fetch('/organization/api/people', { credentials: 'include' });
-	if (!response.ok) throw new AdminApiError(await responseErrorMessage(response, fallbackMessage), response.status);
-	return (await response.json()) as UsersResponse;
+export async function fetchOrganizationDirectory(): Promise<UsersResponse> {
+	return supabaseOrganizationDirectory();
 }
 
-export async function saveOrganizationProfiles(
-	adminBaseURL: string,
-	profiles: OrgProfileUpdate[],
-	fallbackMessage: string
-): Promise<UsersResponse> {
-	if (!isSupabaseConfigured()) return saveOrgProfiles(adminBaseURL, profiles, fallbackMessage);
+export async function saveOrganizationProfiles(profiles: OrgProfileUpdate[]): Promise<UsersResponse> {
 	return saveSupabaseMemberProfiles(
 		profiles.map((profile) => ({
 			memberID: profile.memberID,
@@ -33,22 +24,12 @@ export async function saveOrganizationProfiles(
 	);
 }
 
-export async function saveOrganizationGroups(
-	adminBaseURL: string,
-	groups: OrgGroup[],
-	fallbackMessage: string
-): Promise<UsersResponse> {
-	if (!isSupabaseConfigured()) return saveOrgGroups(adminBaseURL, groups, fallbackMessage);
+export async function saveOrganizationGroups(groups: OrgGroup[]): Promise<UsersResponse> {
 	return saveSupabaseTeams(groups);
 }
 
 export function organizationApiErrorMessage(error: unknown, fallbackMessage: string): string {
 	return apiErrorMessage(error, fallbackMessage);
-}
-
-async function responseErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
-	const text = await response.text();
-	return text.trim() || fallbackMessage;
 }
 
 export type OwnOrganizationProfile = {
@@ -60,14 +41,5 @@ export async function saveOwnOrganizationProfile(
 	memberID: string,
 	profile: OwnOrganizationProfile
 ): Promise<OwnOrganizationProfile> {
-	if (isSupabaseConfigured()) return saveOwnSupabaseProfile(memberID, profile.phoneNumber, profile.hireDate);
-	const response = await fetch('/organization/api/me/profile', {
-		method: 'PUT',
-		headers: { 'content-type': 'application/json' },
-		credentials: 'include',
-		body: JSON.stringify(profile)
-	});
-	if (!response.ok) throw new Error((await response.text()).trim() || `profile update returned ${response.status}`);
-	const saved = (await response.json()) as Partial<OwnOrganizationProfile>;
-	return { phoneNumber: saved.phoneNumber ?? '', hireDate: saved.hireDate ?? '' };
+	return saveOwnSupabaseProfile(memberID, profile.phoneNumber, profile.hireDate);
 }
