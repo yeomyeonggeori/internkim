@@ -84,7 +84,7 @@ func scanPlanOutput(pipe interface{ Read([]byte) (int, error) }, logger Logger, 
 }
 
 func (service Service) upPlans(skipWeb bool) []CommandPlan {
-	return service.upPlansWithSkippedSetupSteps(skipWeb, nil)
+	return service.upPlansThroughSetup(skipWeb, nil)
 }
 
 // The guest sees one thing: this worktree, mounted at /mnt/shared/workspace. So a
@@ -145,13 +145,6 @@ func (service Service) upPlansThroughSetup(skipWeb bool, additionalSkippedSteps 
 	return plans
 }
 
-func (service Service) upPlansWithSkippedSetupSteps(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
-	return append(
-		service.upPlansThroughSetup(skipWeb, additionalSkippedSteps),
-		service.mattermostTestSettingsPlan(),
-	)
-}
-
 func (service Service) prepareLocalEmbeddingPlan() CommandPlan {
 	return service.command(filepath.Join(service.options.RepositoryRootPath, "tools", "prepare-local-fleet-embedding"))
 }
@@ -161,12 +154,6 @@ func (service Service) configureLocalEmbeddingPlan() CommandPlan {
 	return service.labCommand("vm-ssh", "sudo bash "+quoteShell(scriptPath))
 }
 
-func (service Service) mattermostTestSettingsPlan() CommandPlan {
-	workspacePath := "/mnt/shared/workspace"
-	scriptPath := workspacePath + "/lab/scripts/configure-mattermost-test-settings.sh"
-	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065")
-}
-
 func (service Service) upgradePathGatePlans(scenario string) []CommandPlan {
 	plans := service.upPlans(false)
 	plans = append(plans,
@@ -174,7 +161,7 @@ func (service Service) upgradePathGatePlans(scenario string) []CommandPlan {
 		service.upgradeReleaseApplyPlan(),
 		service.shellPlan("verify api after upgrade", service.verifyCommand("api")),
 		service.blueclawDevSessionPreparePlan(scenario),
-		service.withoutMattermostVirtualSessionPlan(scenario),
+		service.virtualSessionPlan(scenario),
 	)
 	return plans
 }
@@ -187,13 +174,13 @@ func (service Service) upgradeReleaseApplyPlan() CommandPlan {
 	)
 }
 
-func (service Service) withoutMattermostScenarioPlans(scenario string) []CommandPlan {
+func (service Service) virtualSessionScenarioPlans(scenario string) []CommandPlan {
 	return []CommandPlan{
 		service.prepareContainerKernelPlan(),
 		service.labCommand("vm-up"),
 		service.blueclawDevSessionPreparePlan(scenario),
 		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
-		service.withoutMattermostVirtualSessionPlan(scenario),
+		service.virtualSessionPlan(scenario),
 	}
 }
 
@@ -363,8 +350,7 @@ func (service Service) startTunnelCommand() string {
 	pidPath := quoteShell(service.tunnelPIDPath())
 	logPath := quoteShell(service.tunnelLogPath())
 	adminForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:18080", service.options.AdminHostPort)
-	mattermostForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:8065", service.options.MattermostHostPort)
-	forwardHealthCheck := fmt.Sprintf("nc -z 127.0.0.1 %d && nc -z 127.0.0.1 %d", service.options.AdminHostPort, service.options.MattermostHostPort)
+	forwardHealthCheck := fmt.Sprintf("nc -z 127.0.0.1 %d", service.options.AdminHostPort)
 	// The device belongs to a company, and the company lives on this machine, so
 	// the same session carries the app and the record back the other way.
 	appReverseForward := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", service.options.CompanyAppPort, service.options.CompanyAppPort)
@@ -374,7 +360,7 @@ func (service Service) startTunnelCommand() string {
 		"test -n \"$host\"",
 		"if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null && " + forwardHealthCheck + "; then exit 0; fi",
 		"if [ -s " + pidPath + " ]; then kill \"$(cat " + pidPath + ")\" 2>/dev/null || true; fi",
-		"for attempt in 1 2 3 4 5 6 7 8 9 10; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -L " + quoteShell(mattermostForward) + " -R " + quoteShell(appReverseForward) + " -R " + quoteShell(recordReverseForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null && " + forwardHealthCheck + "; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
+		"for attempt in 1 2 3 4 5 6 7 8 9 10; do rm -f " + pidPath + "; (nohup " + sshpassPath + " -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ExitOnForwardFailure=yes -N -L " + quoteShell(adminForward) + " -R " + quoteShell(appReverseForward) + " -R " + quoteShell(recordReverseForward) + " admin@\"$host\" > " + logPath + " 2>&1 < /dev/null & echo $! > " + pidPath + "); sleep 1; if [ -s " + pidPath + " ] && kill -0 \"$(cat " + pidPath + ")\" 2>/dev/null && " + forwardHealthCheck + "; then exit 0; fi; sleep 2; done; cat " + logPath + " 2>/dev/null || true; exit 1",
 	}, " && ")
 }
 
@@ -440,7 +426,7 @@ func (service Service) blueclawDevSessionPreparePlan(scenario string) CommandPla
 	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin /mnt/shared "+quoteShell(virtualSessionNeedsBunValue(scenario)))
 }
 
-func (service Service) withoutMattermostVirtualSessionPlan(scenario string) CommandPlan {
+func (service Service) virtualSessionPlan(scenario string) CommandPlan {
 	command := strings.Join([]string{
 		"cd " + quoteShell("/mnt/shared/workspace/.dependency/blueclaw"),
 		quoteShellArguments([]string{
@@ -462,15 +448,12 @@ func (service Service) virtualSessionArtifactDirectoryPath(scenario string) stri
 	return "/mnt/shared/workspace/.artifacts/local-fleet/" + safeIdentifier(runDirectoryName) + "/" + safeIdentifier(scenario)
 }
 
-func (service Service) logEphemeralContext(logger Logger, request JobRequest) {
+func (service Service) logEphemeralContext(logger Logger) {
 	logger.Info("ephemeral run: " + service.options.RunID)
 	logger.Info("state: " + service.options.StateRootPath)
 	logger.Info("evidence: " + service.hostArtifactDirectoryPath())
 	logger.Info("vm: " + service.options.VirtualMachineName)
 	logger.Info("admin URL: " + service.adminHostURL())
-	if !request.WithoutMattermost {
-		logger.Info("Mattermost URL: " + service.mattermostHostURL())
-	}
 	logger.Info("cleanup vm: " + service.removeVirtualMachineCommand())
 	logger.Info("cleanup all: " + service.manualCleanupCommand())
 }

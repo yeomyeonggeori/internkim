@@ -6,7 +6,6 @@ const (
 	DefaultVirtualMachineName = "internkim-local-fleet"
 	DefaultRecipe             = "predeploy-gate"
 	DefaultAdminHostPort      = 18080
-	DefaultMattermostHostPort = 8065
 	DefaultCompanyAppPort     = 5183
 
 	ActionUp               = "up"
@@ -25,7 +24,6 @@ type Options struct {
 	VirtualMachineName    string
 	RunID                 string
 	AdminHostPort         int
-	MattermostHostPort    int
 	CompanyAppPort        int
 	GenerationSeed        string
 	GenerationTemperature string
@@ -35,13 +33,13 @@ type Options struct {
 }
 
 type JobRequest struct {
-	Action            string `json:"action"`
-	Recipe            string `json:"recipe,omitempty"`
-	Scenario          string `json:"scenario,omitempty"`
-	Base              string `json:"base,omitempty"`
-	KeepArtifacts     bool   `json:"keepArtifacts,omitempty"`
-	WithoutMattermost bool   `json:"withoutMattermost,omitempty"`
-	SkipWeb           bool   `json:"skipWeb,omitempty"`
+	Action         string `json:"action"`
+	Recipe         string `json:"recipe,omitempty"`
+	Scenario       string `json:"scenario,omitempty"`
+	Base           string `json:"base,omitempty"`
+	KeepArtifacts  bool   `json:"keepArtifacts,omitempty"`
+	VirtualSession bool   `json:"virtualSession,omitempty"`
+	SkipWeb        bool   `json:"skipWeb,omitempty"`
 }
 
 type Status struct {
@@ -49,9 +47,7 @@ type Status struct {
 	VirtualMachine EndpointStatus `json:"virtualMachine"`
 	SSH            EndpointStatus `json:"ssh"`
 	Admin          EndpointStatus `json:"admin"`
-	Mattermost     EndpointStatus `json:"mattermost"`
 	AdminURL       string         `json:"adminURL,omitempty"`
-	MattermostURL  string         `json:"mattermostURL,omitempty"`
 	LastResult     string         `json:"lastResult,omitempty"`
 	CleanupNeeded  bool           `json:"cleanupNeeded"`
 	StatePath      string         `json:"statePath,omitempty"`

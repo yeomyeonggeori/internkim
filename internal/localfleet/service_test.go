@@ -34,8 +34,8 @@ func TestServiceDefaultsToLocalFleetState(t *testing.T) {
 	if service.options.StateRootPath != expectedStatePath {
 		t.Fatalf("state path = %q", service.options.StateRootPath)
 	}
-	if service.options.AdminHostPort != DefaultAdminHostPort || service.options.MattermostHostPort != DefaultMattermostHostPort {
-		t.Fatalf("ports = %d/%d", service.options.AdminHostPort, service.options.MattermostHostPort)
+	if service.options.AdminHostPort != DefaultAdminHostPort {
+		t.Fatalf("admin port = %d", service.options.AdminHostPort)
 	}
 }
 
@@ -45,7 +45,6 @@ func TestEphemeralServiceUsesRunScopedStateAndPorts(t *testing.T) {
 		ExecutablePath:     "/repo/internkim",
 		RunID:              "Test Run 1",
 		AdminHostPort:      19080,
-		MattermostHostPort: 19065,
 		IsEphemeral:        true,
 	})
 	if errorValue != nil {
@@ -61,8 +60,8 @@ func TestEphemeralServiceUsesRunScopedStateAndPorts(t *testing.T) {
 	if service.options.StateRootPath != expectedStatePath {
 		t.Fatalf("state path = %q", service.options.StateRootPath)
 	}
-	if service.adminHostURL() != "http://127.0.0.1:19080" || service.mattermostHostURL() != "http://127.0.0.1:19065" {
-		t.Fatalf("urls = %s %s", service.adminHostURL(), service.mattermostHostURL())
+	if service.adminHostURL() != "http://127.0.0.1:19080" {
+		t.Fatalf("admin URL = %s", service.adminHostURL())
 	}
 }
 
@@ -87,13 +86,11 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 	joinedPlans := joinedPlanArguments(plans)
 	for _, expectedFragment := range []string{
 		"-L '127.0.0.1:18080:127.0.0.1:18080'",
-		"-L '127.0.0.1:8065:127.0.0.1:8065'",
 		"prepare-container-kernel",
 		"prepare-local-fleet-embedding",
 		"make build",
 		"setup --board lab",
 		"sudo bash '/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh'",
-		"configure-mattermost-test-settings.sh",
 		"--admin-email local-fleet-admin@internkim.test",
 		"verify api",
 		"verify browser --local",
@@ -101,6 +98,9 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 		if !strings.Contains(joinedPlans, expectedFragment) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
 		}
+	}
+	if strings.Contains(joinedPlans, "mattermost") {
+		t.Fatalf("expected the predeploy gate to provision no mattermost:\n%s", joinedPlans)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) 
 	}
 }
 
-func TestUpPlanCanSkipWebForMattermostOutputTests(t *testing.T) {
+func TestUpPlanCanSkipWebForScenarioOutputTests(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -168,7 +168,7 @@ func TestReusableUpPlanHonorsExplicitRuntimeBaseSkip(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	plans := service.upPlansWithSkippedSetupSteps(true, []string{"blueclaw-runtime-base"})
+	plans := service.upPlansThroughSetup(true, []string{"blueclaw-runtime-base"})
 	if planArgumentIndex(plans, "--only blueclaw-runtime-base") >= 0 {
 		t.Fatalf("expected explicit runtime base skip to omit the ensure pass:\n%s", joinedPlanArguments(plans))
 	}
@@ -271,7 +271,6 @@ func TestStartTunnelCommandUsesConfiguredHostPorts(t *testing.T) {
 		RepositoryRootPath: "/repo",
 		ExecutablePath:     "/repo/internkim",
 		AdminHostPort:      19080,
-		MattermostHostPort: 19065,
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -279,12 +278,14 @@ func TestStartTunnelCommandUsesConfiguredHostPorts(t *testing.T) {
 	command := service.startTunnelCommand()
 	for _, expectedFragment := range []string{
 		"-L '127.0.0.1:19080:127.0.0.1:18080'",
-		"-L '127.0.0.1:19065:127.0.0.1:8065'",
-		"nc -z 127.0.0.1 19080 && nc -z 127.0.0.1 19065",
+		"nc -z 127.0.0.1 19080",
 	} {
 		if !strings.Contains(command, expectedFragment) {
 			t.Fatalf("expected %q in tunnel command:\n%s", expectedFragment, command)
 		}
+	}
+	if strings.Contains(command, "8065") {
+		t.Fatalf("expected no mattermost port forward:\n%s", command)
 	}
 }
 
@@ -318,33 +319,32 @@ func TestRealModelsIgnorePinnedTestModel(t *testing.T) {
 	}
 }
 
-func TestWithoutMattermostScenarioRunsLinuxVirtualSession(t *testing.T) {
+func TestVirtualSessionScenarioRunsLinuxVirtualSession(t *testing.T) {
 	service, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",
 		ExecutablePath:     "/repo/internkim",
-		RunID:              "without-mm",
+		RunID:              "virtual-session",
 		IsEphemeral:        true,
 		AdminHostPort:      19080,
-		MattermostHostPort: 19065,
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	plans := service.withoutMattermostScenarioPlans("dm_send_confirm_acceptance")
+	plans := service.virtualSessionScenarioPlans("dm_send_confirm_acceptance")
 	joinedPlans := joinedPlanArguments(plans)
 	for _, expectedFragment := range []string{
 		"vm-up --config",
 		"provision-blueclaw-dev-session.sh",
 		"virtual-session",
 		"--scenario' 'dm_send_confirm_acceptance",
-		".artifacts/local-fleet/without-mm/dm-send-confirm-acceptance",
+		".artifacts/local-fleet/virtual-session/dm-send-confirm-acceptance",
 	} {
 		if !strings.Contains(joinedPlans, expectedFragment) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
 		}
 	}
 	if strings.Contains(joinedPlans, "setup --board lab") {
-		t.Fatalf("without-mattermost scenario should not run setup:\n%s", joinedPlans)
+		t.Fatalf("virtual session scenario should not run setup:\n%s", joinedPlans)
 	}
 }
 
@@ -375,7 +375,6 @@ func TestEphemeralCleanupRemovesVirtualMachineAndKeepsEvidenceState(t *testing.T
 		VirtualMachineName: "internkim-e2e-run-1",
 		IsEphemeral:        true,
 		AdminHostPort:      19080,
-		MattermostHostPort: 19065,
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -454,9 +453,6 @@ func TestStatusReportsConfigurationFailure(t *testing.T) {
 	status := service.Status(context.Background())
 	if status.VirtualMachine.State != "failed" || !strings.Contains(status.VirtualMachine.Message, "configuration failed") {
 		t.Fatalf("virtual machine status = %+v", status.VirtualMachine)
-	}
-	if status.MattermostURL != "http://127.0.0.1:8065" {
-		t.Fatalf("mattermost URL = %q", status.MattermostURL)
 	}
 }
 
