@@ -1,17 +1,19 @@
 {
   "pages": [
     "index",
-    "---What it is---",
+    "---Understand---",
     "introduction",
+    "glossary",
     "architecture",
     "what-lives-where",
     "boundaries",
+    "---Run it---",
     "running-the-host",
-    "device",
-    "glossary",
-    "---Reference---",
-    "tools",
+    "---Build on it---",
     "api",
-    "record"
+    "tools",
+    "record",
+    "---Appendix---",
+    "device"
   ]
 }
