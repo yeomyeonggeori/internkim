@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(16);
 
 insert into auth.users (id, email) values
 	('41000000-0000-0000-0000-000000000001', 'record-owner@example.test'),
@@ -235,12 +235,19 @@ begin
 	perform set_config('request.jwt.claim.sub', '41000000-0000-0000-0000-000000000001', true);
 	answer := public.attendance_remove('41000000-0000-0000-0000-000000000102', null);
 	assert answer ->> 'status' = 'removed', 'a removal without a reason is still written';
-	assert (
+end $$;$block$, 'an owner removes a recent record without a reason');
+
+set local role postgres;
+
+select is(
+	(
 		select deleted_at is not null and edit_reason is null
 		from public.attendance
 		where id = '41000000-0000-0000-0000-000000000102'
-	), 'a reason nobody gave for a removal is not invented';
-end $$;$block$, 'an owner removes a recent record without a reason');
+	),
+	true,
+	'a reason nobody gave for a removal is not invented'
+);
 
 select is(
 	(select count(*)::integer from public.attendance where member_id = '41000000-0000-0000-0000-000000000011' and deleted_at is null),
