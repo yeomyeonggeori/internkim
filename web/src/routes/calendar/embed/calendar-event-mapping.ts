@@ -11,12 +11,13 @@ export type CalendarDateParts = {
 };
 
 export function dayTaskEventFromCalendarEvent(event: CalendarEvent): DayTaskEvent {
+	const timeZone = event.timeZone.trim() || undefined;
 	return createEvent({
 		id: event.id,
 		title: event.title,
 		description: event.description,
-		start: event.isAllDay ? localDateFromISODate(event.startISO) : new Date(event.startISO),
-		end: event.isAllDay ? dayBeforeLocalISODate(event.endISO) : new Date(event.endISO),
+		start: event.isAllDay ? localDateFromISODate(event.startISO, timeZone) : new Date(event.startISO),
+		end: event.isAllDay ? dayBeforeLocalISODate(event.endISO, timeZone) : new Date(event.endISO),
 		allDay: event.isAllDay,
 		calendarId: 'internkim',
 		meta: {
@@ -115,9 +116,19 @@ function localDateFromCalendarDateParts(dateParts: CalendarDateParts): Date {
 	return new Date(dateParts.year, dateParts.month - 1, dateParts.day);
 }
 
-function localDateFromISODate(isoDate: string): Date {
-	const date = new Date(isoDate);
-	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function calendarDatePartsInTimeZone(instant: string, timeZone: string | undefined): CalendarDateParts {
+	const parts = new Intl.DateTimeFormat('en-CA', {
+		timeZone,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	}).formatToParts(new Date(instant));
+	const valueOf = (partType: string) => Number(parts.find((part) => part.type === partType)?.value);
+	return { year: valueOf('year'), month: valueOf('month'), day: valueOf('day') };
+}
+
+function localDateFromISODate(isoDate: string, timeZone: string | undefined): Date {
+	return localDateFromCalendarDateParts(calendarDatePartsInTimeZone(isoDate, timeZone));
 }
 
 function calendarDatePartsFromISODate(isoDate: string): CalendarDateParts {
@@ -130,8 +141,8 @@ function calendarDatePartsFromISODate(isoDate: string): CalendarDateParts {
 	};
 }
 
-function dayBeforeLocalISODate(isoDate: string): Date {
-	const date = localDateFromISODate(isoDate);
+function dayBeforeLocalISODate(isoDate: string, timeZone: string | undefined): Date {
+	const date = localDateFromISODate(isoDate, timeZone);
 	date.setDate(date.getDate() - 1);
 	return date;
 }

@@ -9,6 +9,10 @@ import {
 	eventStartDate
 } from '../../../src/routes/calendar/embed/calendar-event-mapping';
 
+function calendarDatePartsOf(date: Date): { year: number; month: number; day: number } {
+	return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
+}
+
 test('maps all-day event display dates to local midnight', () => {
 	const event = createEvent({
 		id: 'all-day-display-date',
@@ -80,4 +84,37 @@ test('maps leave source and read-only state into event meta', () => {
 	expect(event.end).toEqual(new Date(2026, 7, 3));
 	expect(event.meta?.readOnly).toBe(true);
 	expect(event.meta?.source).toBe('leave');
+});
+
+test('places a whole-day event on the company day for a Los Angeles and a Seoul viewer alike', () => {
+	const originalTimeZone = process.env.TZ;
+	const wholeDayEvent = {
+		id: 'whole-day-event',
+		uid: 'whole-day-event',
+		title: '워크숍',
+		description: '',
+		location: '',
+		startISO: '2026-09-01T15:00:00.000Z',
+		endISO: '2026-09-02T15:00:00.000Z',
+		timeZone: 'Asia/Seoul',
+		isAllDay: true,
+		color: '',
+		createdByEmail: '',
+		createdByName: '',
+		updatedAt: '2026-09-01T15:00:00.000Z'
+	};
+
+	try {
+		process.env.TZ = 'America/Los_Angeles';
+		const fromLosAngeles = dayTaskEventFromCalendarEvent(wholeDayEvent);
+		expect(calendarDatePartsOf(fromLosAngeles.start)).toEqual({ year: 2026, month: 9, day: 2 });
+		expect(calendarDatePartsOf(fromLosAngeles.end)).toEqual({ year: 2026, month: 9, day: 2 });
+
+		process.env.TZ = 'Asia/Seoul';
+		const fromSeoul = dayTaskEventFromCalendarEvent(wholeDayEvent);
+		expect(calendarDatePartsOf(fromSeoul.start)).toEqual({ year: 2026, month: 9, day: 2 });
+		expect(calendarDatePartsOf(fromSeoul.end)).toEqual({ year: 2026, month: 9, day: 2 });
+	} finally {
+		process.env.TZ = originalTimeZone;
+	}
 });
