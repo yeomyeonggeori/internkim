@@ -5,6 +5,7 @@ import {
 	type PublicAPIPermission,
 } from '$lib/public-api-permission';
 import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
+import { personalAccessTokenCredentialKind } from './public-api/catalog/credential';
 
 export type ControlPlaneCredentials = {
 	projectURL: string;
@@ -359,8 +360,6 @@ export async function issueAgentKey(
 	return { agentID: data.id, companyID, apiKey };
 }
 
-const personalAccessTokenKind = 'api_key';
-
 const personalAccessTokenPrefix = 'ik_';
 
 function storedTokenPermission(stored: unknown): PublicAPIPermission {
@@ -395,7 +394,7 @@ export async function issuePersonalAccessToken(
 		.upsert(
 			{
 				member_id: memberID,
-				kind: personalAccessTokenKind,
+				kind: personalAccessTokenCredentialKind,
 				name,
 				external_id: await hashOf(apiKey),
 				permission,
@@ -411,7 +410,7 @@ export async function personalAccessTokens(client: SupabaseClient, memberID: str
 		.from('credential')
 		.select('name, permission')
 		.eq('member_id', memberID)
-		.eq('kind', personalAccessTokenKind)
+		.eq('kind', personalAccessTokenCredentialKind)
 		.order('name');
 	if (error) throw new Error(`personal access tokens: ${error.message}`);
 	return (data ?? []).map((row) => ({
@@ -429,7 +428,7 @@ export async function forgetPersonalAccessToken(
 		.from('credential')
 		.delete()
 		.eq('member_id', memberID)
-		.eq('kind', personalAccessTokenKind)
+		.eq('kind', personalAccessTokenCredentialKind)
 		.eq('name', name)
 		.select('name');
 	if (error) throw new Error(`personal access token ${name}: ${error.message}`);
@@ -464,7 +463,7 @@ export async function sessionForPersonalAccessToken(
 	const { data, error } = await client
 		.from('credential')
 		.select('member_id, permission, name, member(status)')
-		.eq('kind', personalAccessTokenKind)
+		.eq('kind', personalAccessTokenCredentialKind)
 		.eq('external_id', await hashOf(apiKey))
 		.maybeSingle<PersonalAccessTokenRow>();
 	if (error) throw new Error(`personal access token: ${error.message}`);
