@@ -1,56 +1,32 @@
 <script lang="ts">
-	import ColorPicker from '$lib/components/color-picker.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
-	import * as Item from '$lib/components/ui/item';
 	import * as Select from '$lib/components/ui/select';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
-	import PlusIcon from '@lucide/svelte/icons/plus';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import {
-		apiErrorMessage,
-		fetchAttendanceLocations,
-		fetchHolidayCountries,
-		fetchWorkspaceSettings,
-		updateAttendanceLocations,
-		updateWorkspaceSettings
-	} from './admin-api';
-	import type { AdminPageText, AttendanceLocation, HolidayCountry, UserRole, WorkspaceLanguage, WorkspaceSettings } from './admin-types';
-	import CalendarHolidayStatusCard from './calendar-holiday-status-card.svelte';
-	import WorkspaceCountrySelect from './workspace-country-select.svelte';
+	import { apiErrorMessage, fetchWorkspaceSettings, updateWorkspaceSettings } from './admin-api';
+	import type { AdminPageText, WorkspaceLanguage, WorkspaceSettings } from './admin-types';
 
 	type SettingsSectionProps = {
 		adminBaseURL: string;
 		isDeviceReachable: boolean;
-		role: UserRole;
 		text: AdminPageText;
 	};
 
-	let { adminBaseURL, isDeviceReachable, role, text }: SettingsSectionProps = $props();
+	let { adminBaseURL, isDeviceReachable, text }: SettingsSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
-	let workspaceSettings = $state<WorkspaceSettings>({ countryCode: 'KR', timeZone: 'system', language: 'ko', callingCode: '82' });
-	let workspaceSettingsDraft = $state<WorkspaceSettings>({ countryCode: 'KR', timeZone: 'system', language: 'ko', callingCode: '82' });
+	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko', callingCode: '82' });
+	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko', callingCode: '82' });
 	let workspaceSettingsMessage = $state('');
 	let isLoadingWorkspaceSettings = $state(false);
 	let isSavingWorkspaceSettings = $state(false);
-	let hasLoadedWorkspaceSettings = $state(false);
-	let holidayCountries = $state<HolidayCountry[]>([]);
-	let holidayCountriesMessage = $state('');
-	let isLoadingHolidayCountries = $state(false);
-	let attendanceLocations = $state<AttendanceLocation[]>([]);
-	let attendanceLocationsMessage = $state('');
-	let isLoadingAttendanceLocations = $state(false);
-	let isSavingAttendanceLocations = $state(false);
 
 	$effect(() => {
 		if (!adminBaseURL || loadedAdminBaseURL === adminBaseURL) return;
 		loadedAdminBaseURL = adminBaseURL;
 		loadWorkspaceSettings();
-		loadHolidayCountries();
-		loadAttendanceLocations();
 	});
 
 	function workspaceLanguageOptions(): { value: WorkspaceLanguage; label: string }[] {
@@ -62,7 +38,6 @@
 
 	function normalizeWorkspaceSettings(settings: WorkspaceSettings): WorkspaceSettings {
 		return {
-			countryCode: settings.countryCode?.trim().toUpperCase() || 'KR',
 			timeZone: settings.timeZone?.trim() || 'system',
 			language: settings.language === 'en' ? 'en' : 'ko',
 			callingCode: settings.callingCode?.replace(/[^0-9]/g, '') || '82',
@@ -78,9 +53,7 @@
 		try {
 			workspaceSettings = normalizeWorkspaceSettings(await fetchWorkspaceSettings(adminBaseURL, text.settings.loadError));
 			workspaceSettingsDraft = { ...workspaceSettings };
-			hasLoadedWorkspaceSettings = true;
 		} catch {
-			hasLoadedWorkspaceSettings = false;
 			workspaceSettingsMessage = text.settings.loadError;
 		} finally {
 			isLoadingWorkspaceSettings = false;
@@ -95,7 +68,6 @@
 		try {
 			workspaceSettings = normalizeWorkspaceSettings(await updateWorkspaceSettings(adminBaseURL, workspaceSettingsDraft, text.settings.saveError));
 			workspaceSettingsDraft = { ...workspaceSettings };
-			hasLoadedWorkspaceSettings = true;
 			workspaceSettingsMessage = text.settings.saveSuccess;
 		} catch (error) {
 			workspaceSettingsMessage = apiErrorMessage(error, text.settings.saveError);
@@ -104,80 +76,6 @@
 		}
 	}
 
-	async function loadHolidayCountries() {
-		if (!adminBaseURL) return;
-
-		isLoadingHolidayCountries = true;
-		holidayCountriesMessage = '';
-		try {
-			const response = await fetchHolidayCountries(adminBaseURL, text.settings.countryLoadError);
-			holidayCountries = response.countries ?? [];
-		} catch {
-			holidayCountriesMessage = text.settings.countryLoadError;
-		} finally {
-			isLoadingHolidayCountries = false;
-		}
-	}
-
-	async function loadAttendanceLocations() {
-		if (!adminBaseURL) return;
-
-		isLoadingAttendanceLocations = true;
-		attendanceLocationsMessage = '';
-		try {
-			const response = await fetchAttendanceLocations(adminBaseURL, text.attendanceLocations.loadError);
-			attendanceLocations = response.locations ?? [];
-		} catch {
-			attendanceLocationsMessage = text.attendanceLocations.loadError;
-		} finally {
-			isLoadingAttendanceLocations = false;
-		}
-	}
-
-	async function saveAttendanceLocations() {
-		if (!adminBaseURL) return;
-
-		isSavingAttendanceLocations = true;
-		attendanceLocationsMessage = '';
-		try {
-			const response = await updateAttendanceLocations(adminBaseURL, attendanceLocations, text.attendanceLocations.saveError);
-			attendanceLocations = response.locations ?? [];
-			attendanceLocationsMessage = text.attendanceLocations.saveSuccess;
-		} catch (error) {
-			attendanceLocationsMessage = apiErrorMessage(error, text.attendanceLocations.saveError);
-		} finally {
-			isSavingAttendanceLocations = false;
-		}
-	}
-
-	function addAttendanceLocation() {
-		attendanceLocations = [
-			...attendanceLocations,
-			{
-				id: '',
-				name: '',
-				color: '#0ea5e9',
-				isDefault: attendanceLocations.length === 0
-			}
-		];
-	}
-
-	function removeAttendanceLocation(index: number) {
-		if (attendanceLocations.length <= 1) return;
-		const removedLocation = attendanceLocations[index];
-		const nextLocations = attendanceLocations.filter((_, locationIndex) => locationIndex !== index);
-		if (removedLocation.isDefault && nextLocations[0]) {
-			nextLocations[0] = { ...nextLocations[0], isDefault: true };
-		}
-		attendanceLocations = nextLocations;
-	}
-
-	function updateAttendanceLocation(index: number, field: keyof AttendanceLocation, value: string | boolean) {
-		attendanceLocations = attendanceLocations.map((location, locationIndex) => {
-			if (locationIndex !== index) return field === 'isDefault' ? { ...location, isDefault: false } : location;
-			return { ...location, [field]: value };
-		});
-	}
 </script>
 
 <Card.Root>
@@ -188,21 +86,6 @@
 	<Card.Content>
 		<Field.Group class="@container/field-group">
 			<div class="grid gap-5 md:grid-cols-2">
-				<Field.Field>
-					<Field.Label for="workspace-country-code">{text.settings.country}</Field.Label>
-					<WorkspaceCountrySelect
-						bind:countryCode={workspaceSettingsDraft.countryCode}
-						countries={holidayCountries}
-						disabled={isLoadingWorkspaceSettings || isLoadingHolidayCountries || isSavingWorkspaceSettings}
-						fallbackCountryCode={hasLoadedWorkspaceSettings ? workspaceSettingsDraft.countryCode : ''}
-						label={text.settings.country}
-						locale={workspaceSettingsDraft.language === 'en' ? 'en' : 'ko'}
-					/>
-					<Field.Description>{text.settings.countryDescription}</Field.Description>
-					{#if holidayCountriesMessage}
-						<Field.Description>{holidayCountriesMessage}</Field.Description>
-					{/if}
-				</Field.Field>
 				<Field.Field>
 					<Field.Label for="workspace-time-zone">{text.settings.timeZone}</Field.Label>
 					<Input
@@ -252,69 +135,6 @@
 				<LoaderIcon class="size-4 animate-spin" />
 			{/if}
 			{text.settings.save}
-		</Button>
-	</Card.Footer>
-</Card.Root>
-
-<CalendarHolidayStatusCard {adminBaseURL} {isDeviceReachable} {role} {text} />
-
-<Card.Root>
-	<Card.Header class="border-b pb-4">
-		<Card.Title>{text.attendanceLocations.title}</Card.Title>
-		<Card.Description>{text.attendanceLocations.description}</Card.Description>
-		<Card.Action>
-			<Button variant="outline" size="sm" onclick={addAttendanceLocation} disabled={isLoadingAttendanceLocations}>
-				<PlusIcon />
-				{text.attendanceLocations.add}
-			</Button>
-		</Card.Action>
-	</Card.Header>
-	<Card.Content>
-		<Item.Group class="gap-2">
-			{#each attendanceLocations as location, index (index)}
-				<Item.Root variant="outline">
-					<Item.Media>
-						<ColorPicker
-							value={location.color}
-							label={text.attendanceLocations.color}
-							onChange={(color) => updateAttendanceLocation(index, 'color', color)}
-						/>
-					</Item.Media>
-					<Item.Content>
-						<Input
-							value={location.name}
-							placeholder={text.attendanceLocations.placeholder}
-							autocomplete="off"
-							oninput={(event) => updateAttendanceLocation(index, 'name', event.currentTarget.value)}
-						/>
-					</Item.Content>
-					<Item.Actions>
-						<Button
-							variant={location.isDefault ? 'secondary' : 'ghost'}
-							size="sm"
-							onclick={() => updateAttendanceLocation(index, 'isDefault', true)}
-						>
-							{text.attendanceLocations.default}
-						</Button>
-						{#if attendanceLocations.length > 1}
-							<Button variant="ghost" size="icon-sm" aria-label={text.attendanceLocations.remove} onclick={() => removeAttendanceLocation(index)}>
-								<Trash2Icon />
-							</Button>
-						{/if}
-					</Item.Actions>
-				</Item.Root>
-			{/each}
-		</Item.Group>
-		{#if attendanceLocationsMessage}
-			<Field.Description class="mt-4">{attendanceLocationsMessage}</Field.Description>
-		{/if}
-	</Card.Content>
-	<Card.Footer class="justify-end">
-		<Button disabled={!isDeviceReachable || isSavingAttendanceLocations || attendanceLocations.length === 0} onclick={saveAttendanceLocations}>
-			{#if isSavingAttendanceLocations}
-				<LoaderIcon class="size-4 animate-spin" />
-			{/if}
-			{text.attendanceLocations.save}
 		</Button>
 	</Card.Footer>
 </Card.Root>
