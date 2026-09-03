@@ -61,10 +61,6 @@ ENV_EXAMPLE_GROUPS = [
         ["INTERNKIM_DOMAIN", "INTERNKIM_API_URL", "INTERNKIM_FLEET_SECRET", "INTERNKIM_CONSOLE_PASSWORD", "INTERNKIM_ADMIN_EMAIL"],
     ),
     ("Models", ["OPENROUTER_API_KEY"]),
-    (
-        "Messenger connectors",
-        ["INTERNKIM_SLACK_BOT_TOKEN", "INTERNKIM_SLACK_APP_TOKEN", "INTERNKIM_SIGNAL_ACCOUNT", "INTERNKIM_SIGNAL_JSONRPC_URL"],
-    ),
 ]
 
 ENV_EXAMPLE_HEADER = """# Copy to .env at the repository root. Every value here is fake.

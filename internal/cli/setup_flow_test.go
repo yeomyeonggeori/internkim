@@ -85,7 +85,7 @@ func TestManagedHostExecutablesScriptInstallsCanonicalRuntimeTools(t *testing.T)
 }
 
 func TestSetupContextSkipsStepParsesSkipSelection(t *testing.T) {
-	context := &setup.Context{SetupSteps: "--skip=wifi,local-llm,slack"}
+	context := &setup.Context{SetupSteps: "--skip=wifi,local-llm,relay"}
 	if !setupContextSkipsStep(context, "local-llm") {
 		t.Fatal("expected local-llm to be skipped")
 	}

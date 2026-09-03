@@ -1,16 +1,11 @@
 package capabilityd
 
 import (
-	"bytes"
-	"context"
 	"encoding/base64"
 	"errors"
-	"io"
 	"mime"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -120,89 +115,6 @@ func (service Service) materializeInlinePlatformFile(configuration Configuration
 		SizeBytes:   int64(len(document)),
 		Title:       firstNonEmpty(attachment.Title, strings.TrimSuffix(filename, filepath.Ext(filename))),
 	}, nil
-}
-
-func (service Service) postSlackReplyWithAttachments(ctx context.Context, handle platformHandle, request replyRequest) (string, error) {
-	files, errorValue := service.validatePlatformFiles(request.Attachments)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	slackFiles := []map[string]string{}
-	for _, file := range files {
-		fileID, errorValue := service.uploadSlackFileBytes(ctx, file)
-		if errorValue != nil {
-			return "", errorValue
-		}
-		slackFiles = append(slackFiles, map[string]string{"id": fileID, "title": firstNonEmpty(file.Title, file.Filename)})
-	}
-	body := map[string]any{
-		"channel_id": handle.ChannelID,
-		"files":      slackFiles,
-	}
-	if strings.TrimSpace(handle.ThreadTimestamp) != "" {
-		body["thread_ts"] = handle.ThreadTimestamp
-	}
-	if strings.TrimSpace(request.Message) != "" {
-		body["initial_comment"] = request.Message
-	}
-	var response struct {
-		IsOK  bool   `json:"ok"`
-		Error string `json:"error"`
-		Files []struct {
-			ID string `json:"id"`
-		} `json:"files"`
-	}
-	if errorValue := service.slackRequest(ctx, http.MethodPost, "/files.completeUploadExternal", body, &response); errorValue != nil {
-		return "", errorValue
-	}
-	if !response.IsOK {
-		return "", errors.New("slack file complete failed: " + response.Error)
-	}
-	dispatchIDs := []string{}
-	for _, file := range response.Files {
-		if strings.TrimSpace(file.ID) != "" {
-			dispatchIDs = append(dispatchIDs, file.ID)
-		}
-	}
-	return strings.Join(dispatchIDs, ","), nil
-}
-
-func (service Service) uploadSlackFileBytes(ctx context.Context, file platformFile) (string, error) {
-	var response struct {
-		IsOK      bool   `json:"ok"`
-		UploadURL string `json:"upload_url"`
-		FileID    string `json:"file_id"`
-		Error     string `json:"error"`
-	}
-	if errorValue := service.slackRequest(ctx, http.MethodPost, "/files.getUploadURLExternal", map[string]any{
-		"filename": file.Filename,
-		"length":   file.SizeBytes,
-	}, &response); errorValue != nil {
-		return "", errorValue
-	}
-	if !response.IsOK {
-		return "", errors.New("slack file upload url failed: " + response.Error)
-	}
-	document, errorValue := os.ReadFile(file.DevicePath)
-	if errorValue != nil {
-		return "", errors.New("attachment file is unavailable")
-	}
-	uploadRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, response.UploadURL, bytes.NewReader(document))
-	if errorValue != nil {
-		return "", errorValue
-	}
-	uploadRequest.Header.Set("Content-Type", file.ContentType)
-	uploadRequest.Header.Set("Content-Length", strconv.FormatInt(file.SizeBytes, 10))
-	uploadResponse, errorValue := service.httpClient().Do(uploadRequest)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	defer uploadResponse.Body.Close()
-	if uploadResponse.StatusCode < 200 || uploadResponse.StatusCode >= 300 {
-		responseDocument, _ := io.ReadAll(uploadResponse.Body)
-		return "", errors.New(string(responseDocument))
-	}
-	return response.FileID, nil
 }
 
 func isPathUnderDirectory(directory string, path string) bool {
