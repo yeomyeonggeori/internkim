@@ -41,10 +41,21 @@ EXCLUDED_DIRECTORY_NAMES = {"node_modules", ".dependency", ".local", ".artifacts
 
 SHELL_NAME_PATTERN = r"[A-Z_][A-Z0-9_]*"
 GO_ENV_READ = re.compile(r'os\.(?:Getenv|LookupEnv)\(\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\)')
+# internal/cli/main.go's own `func envOr(key, fallback string) string { return
+# os.Getenv(key) ... }` — a literal name at the call site is as exact as
+# os.Getenv itself, just one call deeper.
+GO_ENV_OR = re.compile(r'\benvOr\(\s*"([A-Za-z_][A-Za-z0-9_]*)"')
 TS_PROCESS_ENV_DOT = re.compile(r"process\.env\.([A-Za-z_][A-Za-z0-9_]*)")
 TS_PROCESS_ENV_BRACKET = re.compile(r"""process\.env\[\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]\s*\]""")
 TS_ENV_ACCESSOR = re.compile(r"\benv\??\.([A-Z_][A-Z0-9_]*)\b")
 TS_ENVIRONMENT_ACCESSOR = re.compile(r"\benvironment\??\.([A-Z_][A-Z0-9_]*)\b")
+# web/tests/plane/a-company-plane.ts's own `function environmentValue(name:
+# string): string { ... }` wraps process.env the same way envOr wraps
+# os.Getenv.
+TS_ENVIRONMENT_VALUE_CALL = re.compile(r"""\benvironmentValue\(\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]""")
+# host/relay/relay.ts's own `function required(name: string): string { ...
+# process.env[name] ... }`, the same shape again.
+TS_REQUIRED_CALL = re.compile(r"""\brequired\(\s*['"]([A-Za-z_][A-Za-z0-9_]*)['"]""")
 PYTHON_ENV_CALL = re.compile(
     r"""os\.(?:environ\.get|getenv)\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']"""
 )
@@ -145,6 +156,7 @@ def matches_at(pattern, text, relative_path, exclude_names=frozenset()):
 
 def go_reads(relative_path, text):
     yield from matches_at(GO_ENV_READ, text, relative_path)
+    yield from matches_at(GO_ENV_OR, text, relative_path)
 
 
 def typescript_reads(relative_path, text):
@@ -152,6 +164,8 @@ def typescript_reads(relative_path, text):
     yield from matches_at(TS_PROCESS_ENV_BRACKET, text, relative_path)
     yield from matches_at(TS_ENV_ACCESSOR, text, relative_path)
     yield from matches_at(TS_ENVIRONMENT_ACCESSOR, text, relative_path)
+    yield from matches_at(TS_ENVIRONMENT_VALUE_CALL, text, relative_path)
+    yield from matches_at(TS_REQUIRED_CALL, text, relative_path)
 
 
 def python_reads(relative_path, text):

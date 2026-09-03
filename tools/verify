@@ -192,8 +192,19 @@ GROUPS = [
     ),
     Group(
         "environment-declarations",
-        ["*.go", "*.ts", "*.sh", "tools/*", "host/*", "docs/internal/environment.json"],
-        [["tools/verify-environment-declarations"]],
+        [
+            "*.go",
+            "*.ts",
+            "*.sh",
+            "tools/*",
+            "host/*",
+            "docs/internal/environment.json",
+            ".env.example",
+        ],
+        [
+            ["tools/verify-environment-declarations"],
+            ["tools/render-environment-documents", "--check"],
+        ],
     ),
 ]
 
