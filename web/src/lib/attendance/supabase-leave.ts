@@ -31,8 +31,6 @@ import {
 
 type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
-const halfADay = 0.5;
-
 type MemberDirectory = {
 	emailOf: (memberID: string) => string;
 	timeZoneOf: (memberID: string) => string;
@@ -115,10 +113,9 @@ export async function supabaseLeavePreview(request: EmployeeLeavePreviewRequest)
 // covers; a part of a day is the moments themselves, because no date can say
 // which quarter of the day was taken.
 export async function leaveSpanAsked(
-	request: EmployeeLeavePreviewRequest,
-	days: number
+	request: EmployeeLeavePreviewRequest
 ): Promise<{ startsAt: string; endsAt: string }> {
-	if (days > halfADay) {
+	if (request.unit === 'fullDay') {
 		return { startsAt: request.startDate, endsAt: request.endDate || request.startDate };
 	}
 	return leaveTimestampRange(request, await companyTimeZone());
@@ -126,13 +123,12 @@ export async function leaveSpanAsked(
 
 export async function createSupabaseLeaveRequest(request: EmployeeLeaveSubmission): Promise<void> {
 	const preview = await supabaseLeavePreview(request);
-	const days = preview.totalDeductionMilliDays / 1000;
-	const span = await leaveSpanAsked(request, days);
+	const span = await leaveSpanAsked(request);
 	await askTheRecord('leave_request', {
 		kind: request.leaveTypeID,
 		startsAt: span.startsAt,
 		endsAt: span.endsAt,
-		days,
+		days: preview.totalDeductionMilliDays / 1000,
 		note: request.reason
 	});
 	void announceToTheCompany('leave');
