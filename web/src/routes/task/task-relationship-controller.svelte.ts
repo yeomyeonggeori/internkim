@@ -29,7 +29,7 @@ export class TaskRelationshipController {
 		this.pendingTaskIDs = [...this.pendingTaskIDs, taskID];
 		this.setErrorMessage('');
 		try {
-			await updateTaskParent(taskID, parentTaskID, this.fallbackMessage());
+			await updateTaskParent(taskID, parentTaskID);
 			await this.loadTask(this.weekCode(), { reloadState: true });
 			return true;
 		} catch (error) {
@@ -46,7 +46,7 @@ export class TaskRelationshipController {
 		this.pendingTaskIDs = [...this.pendingTaskIDs, ...uniqueTaskIDs];
 		this.setErrorMessage('');
 		try {
-			await updateTaskParents(uniqueTaskIDs, parentTaskID, this.fallbackMessage());
+			await updateTaskParents(uniqueTaskIDs, parentTaskID);
 			await this.loadTask(this.weekCode(), { reloadState: true });
 			return true;
 		} catch (error) {

@@ -156,8 +156,7 @@ export async function supabaseTaskState(): Promise<TaskState> {
 		statusOptions: taskStatusOptions,
 		currentUserEmail: me?.email ?? '',
 		currentUserName: me ? displayName(me) : '',
-		isAdmin: me?.is_admin ?? false,
-		source: 'supabase'
+		isAdmin: me?.is_admin ?? false
 	};
 }
 
@@ -169,8 +168,7 @@ export async function supabaseTaskWeeklySummary(week: string): Promise<TaskWeekl
 		week: shown,
 		currentWeek: state.currentWeek,
 		weeklyTasks,
-		metrics: metricsOf(weeklyTasks),
-		source: 'supabase'
+		metrics: metricsOf(weeklyTasks)
 	};
 }
 

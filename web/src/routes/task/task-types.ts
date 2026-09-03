@@ -103,7 +103,6 @@ export type TaskSummary = {
 	currentUserEmail: string;
 	currentUserName: string;
 	isAdmin: boolean;
-	source: string;
 };
 
 export type TaskWeeklySummary = {
@@ -112,7 +111,6 @@ export type TaskWeeklySummary = {
 	weeklyTasks: Task[];
 	metrics: TaskMetrics;
 	report?: TaskReportSnapshot;
-	source: string;
 };
 
 export type TaskState = {
@@ -125,5 +123,4 @@ export type TaskState = {
 	currentUserEmail: string;
 	currentUserName: string;
 	isAdmin: boolean;
-	source: string;
 };

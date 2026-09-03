@@ -31,7 +31,6 @@
 		taskTypeColor: (type: string | null) => string;
 		tasks: Task[];
 		currentMemberID: string;
-		canUseTaskRelationships: boolean;
 		pendingRelationshipTaskIDs: string[];
 		memberEmail: (memberID: string) => string;
 		setParticipantIDs: (memberIDs: string[]) => void;
@@ -72,7 +71,6 @@
 		taskTypeColor,
 		tasks,
 		currentMemberID,
-		canUseTaskRelationships,
 		pendingRelationshipTaskIDs,
 		memberEmail,
 		setParticipantIDs,
@@ -125,7 +123,7 @@
 			{#if !isEditingTask}
 				<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
 					<TaskDetailView task={taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} {memberEmail} />
-					{#if canUseTaskRelationships && taskDraft.id}
+					{#if taskDraft.id}
 						<TaskRelationshipsSection
 							task={taskDraft}
 							{tasks}
@@ -177,7 +175,7 @@
 						{removeParticipantID}
 						{canRemoveParticipant}
 					/>
-					{#if canUseTaskRelationships && taskDraft.id}
+					{#if taskDraft.id}
 						<TaskRelationshipsSection
 							task={taskDraft}
 							{tasks}

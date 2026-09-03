@@ -2,11 +2,6 @@ import type { TaskDefinitions, TaskMember, TaskSummary, Task } from './task-type
 
 export const ETC_TASK_OPTION_VALUE = '__etc_task_option__';
 
-export function normalizedTaskDefinitionValue(value: string | null | undefined): string | null {
-	const trimmedValue = value?.trim();
-	return trimmedValue ? trimmedValue : null;
-}
-
 export type TaskWorkspaceTab = 'tasks' | 'report' | 'definitions' | 'members';
 
 export type TaskFilterState = {

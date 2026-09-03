@@ -47,7 +47,7 @@ type UpdateTaskStatusInput = {
 export async function saveTaskDraft(input: SaveTaskDraftInput): Promise<TaskSaveResult> {
 	if (!input.task || !input.canUpdateTask(input.task)) return { status: 'ignored' };
 	try {
-		await saveTask(input.task, input.saveErrorMessage, input.statusBefore);
+		await saveTask(input.task, input.statusBefore);
 		await input.loadTask(input.weekCode);
 		return { status: 'saved' };
 	} catch (error) {
@@ -58,7 +58,7 @@ export async function saveTaskDraft(input: SaveTaskDraftInput): Promise<TaskSave
 export async function deleteTaskDraft(input: DeleteTaskInput): Promise<TaskDeleteResult> {
 	if (!input.task.id || !input.canDeleteTask(input.task)) return { status: 'ignored' };
 	try {
-		await deleteTask(input.task.id, input.deleteErrorMessage);
+		await deleteTask(input.task.id);
 		await input.loadTask(input.weekCode);
 		return { status: 'deleted' };
 	} catch (error) {
@@ -71,7 +71,7 @@ export async function updateTaskStatus(input: UpdateTaskStatusInput): Promise<Ta
 	if (!input.canUpdateTask(input.task)) return { status: 'ignored' };
 	if (input.isTaskPending(input.task.id)) return { status: 'ignored' };
 	try {
-		await saveTask({ ...input.task, status: input.nextStatus }, input.saveErrorMessage, input.task.status);
+		await saveTask({ ...input.task, status: input.nextStatus }, input.task.status);
 		await input.loadTask(input.weekCode);
 		return { status: 'saved' };
 	} catch (error) {

@@ -12,8 +12,6 @@ import {
 	updateSupabaseTaskParent,
 	updateSupabaseTaskParents
 } from '$lib/task/supabase-task-relationships';
-import { isSupabaseConfigured } from '$lib/supabase';
-import { normalizedTaskDefinitionValue } from './task-workspace-model';
 import { callCompanyApp } from '$lib/host-bridge';
 
 export type TaskQuickTaskRequest = {
@@ -29,29 +27,12 @@ export type TaskQuickTaskResult = {
 	reason: string;
 };
 
-export async function fetchTaskWeeklySummary(week: string, fallbackMessage: string): Promise<TaskWeeklySummary> {
-	if (isSupabaseConfigured()) return supabaseTaskWeeklySummary(week);
-	const query = week ? `?week=${encodeURIComponent(week)}` : '';
-	const response = await fetch(`/task/api/summary${query}`, { credentials: 'include' });
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
-	const weeklySummary = (await response.json()) as TaskWeeklySummary;
-	return { ...weeklySummary, weeklyTasks: (weeklySummary.weeklyTasks ?? []).map(normalizedTask) };
+export function fetchTaskWeeklySummary(week: string): Promise<TaskWeeklySummary> {
+	return supabaseTaskWeeklySummary(week);
 }
 
-export async function fetchTaskState(fallbackMessage: string): Promise<TaskState> {
-	if (isSupabaseConfigured()) return supabaseTaskState();
-	const response = await fetch('/task/api/state', { credentials: 'include' });
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
-	const state = (await response.json()) as TaskState;
-	return { ...state, tasks: (state.tasks ?? []).map(normalizedTask) };
-}
-
-function normalizedTask(task: Task): Task {
-	return {
-		...task,
-		business: normalizedTaskDefinitionValue(task.business),
-		type: normalizedTaskDefinitionValue(task.type)
-	};
+export function fetchTaskState(): Promise<TaskState> {
+	return supabaseTaskState();
 }
 
 export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySummary): TaskSummary {
@@ -72,24 +53,11 @@ export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySumm
 		statusOptions: state.statusOptions,
 		currentUserEmail: state.currentUserEmail,
 		currentUserName: state.currentUserName,
-		isAdmin: state.isAdmin,
-		source: state.source
+		isAdmin: state.isAdmin
 	};
 }
 
-export async function createQuickTask(request: TaskQuickTaskRequest, fallbackMessage: string): Promise<TaskQuickTaskResult> {
-	if (isSupabaseConfigured()) return createQuickTaskThroughCompanyApp(request, fallbackMessage);
-	const response = await fetch('/task/api/tasks/quick', {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(request)
-	});
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
-	return quickTaskResultFromResponse(await responseJSON(response));
-}
-
-async function createQuickTaskThroughCompanyApp(
+export async function createQuickTask(
 	request: TaskQuickTaskRequest,
 	fallbackMessage: string
 ): Promise<TaskQuickTaskResult> {
@@ -109,95 +77,33 @@ function companyAppErrorMessage(body: unknown, fallback: string): string {
 	return fallback;
 }
 
-export async function saveTask(task: Task, fallbackMessage: string, statusBefore: string | null): Promise<void> {
-	if (isSupabaseConfigured()) return saveSupabaseTask(task, statusBefore);
-	const method = task.id ? 'PUT' : 'POST';
-	const path = task.id ? `/task/api/tasks/${encodeURIComponent(task.id)}` : '/task/api/tasks';
-	const response = await fetch(path, {
-		method,
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(taskSavePayload(task))
-	});
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+export function saveTask(task: Task, statusBefore: string | null): Promise<void> {
+	return saveSupabaseTask(task, statusBefore);
 }
 
-export async function moveTaskOnBoard(request: TaskBoardMoveRequest, fallbackMessage: string): Promise<void> {
-	if (isSupabaseConfigured()) return moveSupabaseTask(request.taskID, request.targetStatus);
-	const response = await fetch('/task/api/tasks/move', {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(request)
-	});
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+export function moveTaskOnBoard(request: TaskBoardMoveRequest): Promise<void> {
+	return moveSupabaseTask(request.taskID, request.targetStatus);
 }
 
-export async function deleteTask(taskID: string, fallbackMessage: string): Promise<void> {
-	if (isSupabaseConfigured()) return deleteSupabaseTask(taskID);
-	const response = await fetch(`/task/api/tasks/${encodeURIComponent(taskID)}`, {
-		method: 'DELETE',
-		credentials: 'include'
-	});
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+export function deleteTask(taskID: string): Promise<void> {
+	return deleteSupabaseTask(taskID);
 }
 
-export async function updateTaskParent(
-	taskID: string,
-	parentTaskID: string | undefined,
-	fallbackMessage: string
-): Promise<void> {
-	if (isSupabaseConfigured()) return updateSupabaseTaskParent(taskID, parentTaskID ?? null);
-	const response = await fetch(`/task/api/tasks/${encodeURIComponent(taskID)}/parent`, {
-		method: 'PATCH',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ parentTaskID: parentTaskID ?? null })
-	});
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+export function updateTaskParent(taskID: string, parentTaskID: string | undefined): Promise<void> {
+	return updateSupabaseTaskParent(taskID, parentTaskID ?? null);
 }
 
-export async function updateTaskParents(
-	taskIDs: string[],
-	parentTaskID: string,
-	fallbackMessage: string
-): Promise<void> {
+export async function updateTaskParents(taskIDs: string[], parentTaskID: string): Promise<void> {
 	if (taskIDs.length === 0) return;
-	if (isSupabaseConfigured()) return updateSupabaseTaskParents(taskIDs, parentTaskID);
-	const response = await fetch('/task/api/tasks/parents', {
-		method: 'PATCH',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ taskIDs, parentTaskID })
-	});
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
+	return updateSupabaseTaskParents(taskIDs, parentTaskID);
 }
 
-export async function saveTaskDefinitions(
+export function saveTaskDefinitions(
 	definitions: TaskDefinitions,
 	fallbackMessage: string,
 	inUseMessage: string
 ): Promise<void> {
-	if (isSupabaseConfigured()) {
-		return saveSupabaseTaskVocabulary(definitions, { failure: fallbackMessage, inUse: inUseMessage });
-	}
-	const response = await fetch('/task/api/definitions', {
-		method: 'PUT',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(definitions)
-	});
-	if (!response.ok) throw new Error(responseErrorMessage(response, fallbackMessage));
-}
-
-function responseErrorMessage(_response: Response, fallback: string): string {
-	return fallback;
-}
-
-async function responseJSON(response: Response): Promise<unknown> {
-	const contentType = response.headers.get('content-type') ?? '';
-	if (!contentType.includes('application/json')) return null;
-	return response.json() as Promise<unknown>;
+	return saveSupabaseTaskVocabulary(definitions, { failure: fallbackMessage, inUse: inUseMessage });
 }
 
 function quickTaskResultFromResponse(value: unknown): TaskQuickTaskResult {
@@ -209,17 +115,6 @@ function quickTaskResultFromResponse(value: unknown): TaskQuickTaskResult {
 		};
 	}
 	return { status: 'created', reason: '' };
-}
-
-function taskSavePayload(task: Task): Partial<Task> {
-	const { createdAt: _createdAt, ...taskPayload } = task;
-	if (taskPayload.id) {
-		const { parentTaskID: _parentTaskID, ...existingTaskPayload } = taskPayload;
-		return existingTaskPayload;
-	}
-	const { id: _id, statusRank, ...payload } = taskPayload;
-	if (statusRank !== 0) return { ...payload, statusRank };
-	return payload;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,6 +1,5 @@
 import type { TaskDefinitions, TaskMember, Task } from './task-types';
 import { compatibilityOwnerOf } from '$lib/task/central-task';
-import { isCentralTaskSource } from './task-source';
 
 type TaskParticipantIdentity = {
 	id: string;
@@ -63,17 +62,14 @@ export function participantSelectionFromIDs(
 	return participants;
 }
 
-export function updateTaskParticipantIDs(task: Task, members: TaskMember[], memberIDs: string[], source: string): Task {
-	const participants = participantSelectionFromIDs(memberIDs, members);
-	const selection = participantSelectionForSource(task, participants, source);
+export function updateTaskParticipantIDs(task: Task, members: TaskMember[], memberIDs: string[]): Task {
 	return {
 		...task,
-		...selection
+		...participantSelectionOf(participantSelectionFromIDs(memberIDs, members))
 	};
 }
 
-export function removeTaskParticipant(task: Task, memberID: string, source: string): Task {
-	if (!isCentralTaskSource(source) && memberID === task.ownerID) return task;
+export function removeTaskParticipant(task: Task, memberID: string): Task {
 	const participants = task.participantIDs
 		.map((participantID, index) => ({
 			id: participantID,
@@ -82,48 +78,12 @@ export function removeTaskParticipant(task: Task, memberID: string, source: stri
 		.filter((participant) => participant.id !== memberID);
 	return {
 		...task,
-		...participantSelectionForSource(task, participants, source)
+		...participantSelectionOf(participants)
 	};
 }
 
-function participantSelectionForSource(
-	task: Task,
-	participants: TaskParticipantIdentity[],
-	source: string
-): TaskParticipantSelection {
-	if (isCentralTaskSource(source)) return centralParticipantSelection(participants);
-	return deviceParticipantSelection(task, participants);
-}
-
-function centralParticipantSelection(participants: TaskParticipantIdentity[]): TaskParticipantSelection {
+function participantSelectionOf(participants: TaskParticipantIdentity[]): TaskParticipantSelection {
 	const owner = compatibilityOwnerOf(participants);
-	return participantSelection(owner, participants);
-}
-
-function deviceParticipantSelection(task: Task, participants: TaskParticipantIdentity[]): TaskParticipantSelection {
-	const owner = deviceTaskOwner(task, participants);
-	const orderedParticipants = owner.id
-		? [owner, ...participants.filter((participant) => participant.id !== owner.id)]
-		: participants;
-	return participantSelection(owner, orderedParticipants);
-}
-
-function deviceTaskOwner(task: Task, participants: TaskParticipantIdentity[]): TaskParticipantIdentity {
-	if (task.ownerID) {
-		const selectedOwner = participants.find((participant) => participant.id === task.ownerID);
-		const existingOwnerIndex = task.participantIDs.indexOf(task.ownerID);
-		return {
-			id: task.ownerID,
-			name: selectedOwner?.name ?? task.ownerName ?? task.participantNames[existingOwnerIndex] ?? ''
-		};
-	}
-	return participants[0] ?? { id: '', name: '' };
-}
-
-function participantSelection(
-	owner: TaskParticipantIdentity,
-	participants: TaskParticipantIdentity[]
-): TaskParticipantSelection {
 	return {
 		ownerID: owner.id,
 		ownerName: owner.name,

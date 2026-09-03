@@ -229,7 +229,6 @@ function taskStateFixture(tasks: Task[]): TaskState {
 		currentUserEmail: 'kim@example.com',
 		currentUserName: '김철수',
 		isAdmin: true,
-		source: 'test'
 	};
 }
 
