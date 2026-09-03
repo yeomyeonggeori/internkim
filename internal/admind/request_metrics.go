@@ -226,7 +226,8 @@ func isAdminStaticPath(path string) bool {
 }
 
 func isInternKimAPIPath(path string) bool {
-	return strings.HasPrefix(path, "/admin/api/") ||
+	return path == skillInventoryPath ||
+		strings.HasPrefix(path, "/admin/api/") ||
 		strings.HasPrefix(path, "/flow/api/") ||
 		strings.HasPrefix(path, "/memory/api/") ||
 		strings.HasPrefix(path, "/calendar/api/") ||

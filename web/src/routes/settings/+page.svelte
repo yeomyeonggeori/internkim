@@ -10,6 +10,7 @@
 	import CompanyMembers from './company-members.svelte';
 	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
 	import AttendanceLeavePolicySettings from '../admin/attendance-leave-policy-settings.svelte';
+	import SkillsSection from '../admin/skills-section.svelte';
 	import { adminText } from '../admin/text';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -64,6 +65,11 @@
 				<p class="text-sm text-muted-foreground">{text.connectionsDescription}</p>
 			</header>
 			<CompanyConnections />
+			<header class="grid gap-1 pt-2">
+				<h2 class="text-xl font-semibold">{text.agent}</h2>
+				<p class="text-sm text-muted-foreground">{text.agentDescription}</p>
+			</header>
+			<SkillsSection />
 		{/if}
 	</div>
 </main>
