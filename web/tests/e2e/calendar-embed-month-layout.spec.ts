@@ -1,9 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	calendarEventRowsTitled,
 	cleanupCalendarEvents,
 	seedCalendarEvents,
 	signInToCalendar
 } from './calendar-central-test-utils';
+import { dragBetweenCells, waitForClientHydration } from './calendar-draft-popover-test-utils';
 
 test.describe('embedded calendar month layout', () => {
 	test.use({ locale: 'ko-KR' });
@@ -179,6 +181,30 @@ test.describe('embedded calendar month layout for a viewer west of the company',
 			await expectEventWithinDateCell(page, allDayID, '2026-06-20');
 		} finally {
 			await cleanupCalendarEvents([allDayID]);
+		}
+	});
+
+	test('stores the company day a Los Angeles viewer picked for a whole-day event', async ({ page }) => {
+		const title = '서부에서 만든 종일 일정';
+		try {
+			await openMonthView(page, '2026-06-09');
+			await waitForClientHydration(page);
+			await dragBetweenCells(page, '2026-06-09', '2026-06-10');
+
+			const popover = page.locator('.calendar-draft-popover');
+			await expect(popover).toBeVisible();
+			await expect(popover.getByLabel('종일')).toBeChecked();
+			await popover.getByLabel('제목').fill(title);
+			await popover.getByLabel('제목').press('Enter');
+
+			await expect.poll(async () => (await calendarEventRowsTitled(title)).length).toBe(1);
+
+			const [written] = await calendarEventRowsTitled(title);
+			expect(written.is_whole_day).toBe(true);
+			expect(Date.parse(written.starts_at)).toBe(Date.parse('2026-06-09T00:00:00+09:00'));
+			expect(Date.parse(written.ends_at)).toBe(Date.parse('2026-06-11T00:00:00+09:00'));
+		} finally {
+			await cleanupCalendarEvents((await calendarEventRowsTitled(title)).map((row) => row.id));
 		}
 	});
 });

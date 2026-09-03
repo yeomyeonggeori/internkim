@@ -47,12 +47,11 @@ export function createCalendarPersistedEventActions(
 		mutationClientID?: string,
 		mutationSequence?: number
 	): Promise<CalendarEvent> {
-		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 		const currentExpectedUpdatedAt = expectedUpdatedAt
 			?? (typeof event.meta?.updatedAt === 'string' ? event.meta.updatedAt : undefined);
 		const eventID = isNewEvent ? event.id : persistedEventID(event.id);
 		const payload = {
-			...calendarEventPayloadFromDayTaskEvent(event, calendarColors.lineColor, timeZone),
+			...calendarEventPayloadFromDayTaskEvent(event, calendarColors.lineColor),
 			eventID,
 			...(!isNewEvent && currentExpectedUpdatedAt !== undefined
 				? { expectedUpdatedAt: currentExpectedUpdatedAt }

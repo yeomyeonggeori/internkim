@@ -218,8 +218,8 @@ test.describe('calendar draft popover', () => {
 		expect(addedPayloads[0]).toMatchObject({
 			title: '워크숍',
 			isWholeDay: true,
-			startsAt: '2026-06-10T00:00:00.000Z',
-			endsAt: '2026-06-13T00:00:00.000Z'
+			startsAt: '2026-06-10',
+			endsAt: '2026-06-12'
 		});
 	});
 });

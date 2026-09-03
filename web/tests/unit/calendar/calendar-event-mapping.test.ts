@@ -53,7 +53,7 @@ test('maps calendar participants through event meta and payload', () => {
 		{ personID: 'person-yeomyeong', name: '김예시', email: 'yeomyeong@example.com' }
 	]);
 
-	const payload = calendarEventPayloadFromDayTaskEvent(event, '#2563eb', 'Asia/Seoul');
+	const payload = calendarEventPayloadFromDayTaskEvent(event, '#2563eb');
 
 	expect(payload.participants).toEqual([
 		{ personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com' },
@@ -84,6 +84,27 @@ test('maps leave source and read-only state into event meta', () => {
 	expect(event.end).toEqual(new Date(2026, 7, 3));
 	expect(event.meta?.readOnly).toBe(true);
 	expect(event.meta?.source).toBe('leave');
+});
+
+test('writes a whole-day event as the calendar day the viewer picked, not an instant of their own', () => {
+	const originalTimeZone = process.env.TZ;
+	try {
+		process.env.TZ = 'America/Los_Angeles';
+		const wholeDay = createEvent({
+			id: 'whole-day-draft',
+			title: '워크숍',
+			start: new Date(2026, 8, 2),
+			end: new Date(2026, 8, 4),
+			allDay: true
+		});
+
+		const payload = calendarEventPayloadFromDayTaskEvent(wholeDay, '#2563eb');
+
+		expect(payload.startsAt).toBe('2026-09-02');
+		expect(payload.endsAt).toBe('2026-09-04');
+	} finally {
+		process.env.TZ = originalTimeZone;
+	}
 });
 
 test('places a whole-day event on the company day for a Los Angeles and a Seoul viewer alike', () => {

@@ -89,14 +89,24 @@ export function instantOfDay(timezone: string, day: string, endOfDay = false): s
 	return new Date(wall - offsetMilliseconds(timezone, guessed)).toISOString();
 }
 
+function isADay(written: string): boolean {
+	return /^\d{4}-\d{2}-\d{2}$/.test(written);
+}
+
 // A caller writes either a moment or a whole day. A moment already says where it
 // is; a whole day is read where the company is.
 export function instantWritten(timezone: string, written: string, endOfDay = false): string {
 	const asked = written.trim();
-	if (/^\d{4}-\d{2}-\d{2}$/.test(asked)) return instantOfDay(timezone, asked, endOfDay);
+	if (isADay(asked)) return instantOfDay(timezone, asked, endOfDay);
 	const moment = new Date(asked);
 	if (Number.isNaN(moment.getTime())) throw new Error(`${written} is not a date or a moment`);
 	return moment.toISOString();
+}
+
+export function instantAfterWrittenDay(timezone: string, written: string): string {
+	const asked = written.trim();
+	if (isADay(asked)) return instantOfDay(timezone, dayShifted(asked, 1));
+	return instantWritten(timezone, asked);
 }
 
 // instantWritten answers `…Z` and PostgREST answers `…+00:00` for the same
