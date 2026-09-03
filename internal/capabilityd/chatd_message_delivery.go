@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 type chatdMessagePostAttachment struct {
@@ -128,6 +129,34 @@ func chatdMessagePostAttachments(files []platformFile) []chatdMessagePostAttachm
 		})
 	}
 	return attachments
+}
+
+func (service Service) chatdProviderHealth(ctx context.Context) providerAvailability {
+	if !service.chatdServesTheMessenger() {
+		return providerAvailability{Reason: "chatd endpoint is not configured"}
+	}
+	if errorValue := service.pingChatd(ctx); errorValue != nil {
+		return providerAvailability{Configured: true, Reason: errorValue.Error()}
+	}
+	return providerAvailability{Configured: true, Available: true}
+}
+
+func (service Service) pingChatd(ctx context.Context) error {
+	endpoint := strings.TrimRight(strings.TrimSpace(service.Configuration.ChatdEndpoint), "/")
+	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+blueclaw.ChatdHealthPath, nil)
+	if errorValue != nil {
+		return errorValue
+	}
+	response, errorValue := service.httpClient().Do(httpRequest)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<20))
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("chatd health answered %d", response.StatusCode)
+	}
+	return nil
 }
 
 func (service Service) chatdRequest(ctx context.Context, capabilityName string, requestBody any, responseValue any) error {

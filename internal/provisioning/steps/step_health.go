@@ -31,6 +31,7 @@ var StepHealth = Step{
 
 		var failedChecks []string
 		checkService(context, blueclaw.CapabilitydServiceName, &failedChecks)
+		checkCapabilitydHealth(context, &failedChecks)
 		checkService(context, blueclaw.AdmindServiceName, &failedChecks)
 		checkBlueclawGuestRuntime(context, &failedChecks)
 		checkBlueclaw(context, &failedChecks)
@@ -368,6 +369,16 @@ func checkService(context *Context, serviceName string, failedChecks *[]string) 
 	}
 	*failedChecks = append(*failedChecks, serviceName)
 	fmt.Printf("  %s: failed\n", serviceName)
+}
+
+func checkCapabilitydHealth(context *Context, failedChecks *[]string) {
+	check := strings.TrimSpace(context.SSH.Run(blueclaw.CapabilitydHealthCheckCommand()))
+	if check == "ok" {
+		fmt.Println("  capabilityd health: ok")
+		return
+	}
+	*failedChecks = append(*failedChecks, "capabilityd-health")
+	fmt.Printf("  capabilityd health: %s\n", check)
 }
 
 func checkBlueclaw(context *Context, failedChecks *[]string) {

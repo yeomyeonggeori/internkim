@@ -34,6 +34,7 @@ var StepServices = Step{
 			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			localLLMServiceUnitsAreReady(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
+			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, blueclaw.GraphitiMemorydHealthCheckCommand()) == "ok" &&
 			runtimeCheck == "ok" &&
 			rootfsBaseCheck == "ok"
@@ -69,21 +70,20 @@ chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
 
 		connection.Run(serviceUnitInstallCommand(context))
 
-		isBlueclawHealthy := false
+		var unhealthyEntries []string
 		for attempt := 0; attempt < blueclawServiceHealthAttempts; attempt++ {
-			isBlueclawHealthy = blueclawServicesAreHealthy(context)
-			if isBlueclawHealthy {
+			unhealthyEntries = unhealthyServiceHealthEntries(context, readBlueclawServiceHealthReport(context))
+			if len(unhealthyEntries) == 0 {
 				break
 			}
 			time.Sleep(blueclawServiceHealthRetryDelay)
 		}
 
-		if isBlueclawHealthy {
-			fmt.Println("  " + context.T("blueclaw 실행 중", "blueclaw running"))
-		} else {
-			fmt.Println("  " + context.T("gateway 시작 실패", "Gateway failed"))
+		if len(unhealthyEntries) > 0 {
+			fmt.Println("  " + context.T("gateway 시작 실패", "Gateway failed") + ": " + strings.Join(unhealthyEntries, " "))
 			return errBlueclawHealthCheckFailed
 		}
+		fmt.Println("  " + context.T("blueclaw 실행 중", "blueclaw running"))
 
 		connection.Run("systemctl stop lightpanda 2>/dev/null; systemctl disable lightpanda 2>/dev/null; " +
 			"rm -f /etc/systemd/system/lightpanda.service; systemctl daemon-reload")
@@ -211,32 +211,17 @@ func shouldManageLocalLLMServices(context *Context) bool {
 }
 
 func blueclawServicesAreHealthy(context *Context) bool {
-	report := readBlueclawServiceHealthReport(context)
-	if report["blueclaw"] != "active" {
-		return false
+	return len(unhealthyServiceHealthEntries(context, readBlueclawServiceHealthReport(context))) == 0
+}
+
+func unhealthyServiceHealthEntries(context *Context, report map[string]string) []string {
+	var unhealthy []string
+	for _, check := range serviceHealthChecks(context) {
+		if report[check.name] != check.expectedValue {
+			unhealthy = append(unhealthy, check.name+"="+report[check.name])
+		}
 	}
-	if report["capabilityd"] != "active" {
-		return false
-	}
-	if report["admind"] != "active" {
-		return false
-	}
-	if report["blueclawHealth"] != "ok" {
-		return false
-	}
-	if context.BoardType == BoardSimulation {
-		return true
-	}
-	if !shouldManageLocalLLMServices(context) {
-		return true
-	}
-	if report["graphiti"] != "active" {
-		return false
-	}
-	if report["graphitiHealth"] != "ok" {
-		return false
-	}
-	return report["embedding"] == "active"
+	return unhealthy
 }
 
 type serviceUnitDocument struct {
@@ -257,30 +242,35 @@ func readBlueclawServiceHealthReport(context *Context) map[string]string {
 }
 
 func blueclawServiceHealthReportCommand(context *Context) string {
-	checks := []serviceHealthCheck{
-		{name: "blueclaw", command: "systemctl is-active " + blueclaw.BlueclawServiceName + " 2>/dev/null"},
-		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null"},
-		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null"},
-		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand()},
-	}
-	if shouldManageLocalLLMServices(context) {
-		checks = append(checks,
-			serviceHealthCheck{name: "graphiti", command: "systemctl is-active " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null"},
-			serviceHealthCheck{name: "graphitiHealth", command: blueclaw.GraphitiMemorydHealthCheckCommand()},
-		)
-		checks = append(checks, serviceHealthCheck{name: "embedding", command: "systemctl is-active " + locallm.LlamaCppEmbeddingServiceName + " 2>/dev/null"})
-	}
-
 	var command strings.Builder
-	for _, check := range checks {
+	for _, check := range serviceHealthChecks(context) {
 		fmt.Fprintf(&command, "printf '%%s=' %s; (%s) 2>/dev/null || true\n", shellQuote(check.name), check.command)
 	}
 	return command.String()
 }
 
+func serviceHealthChecks(context *Context) []serviceHealthCheck {
+	checks := []serviceHealthCheck{
+		{name: "blueclaw", command: "systemctl is-active " + blueclaw.BlueclawServiceName + " 2>/dev/null", expectedValue: "active"},
+		{name: "capabilityd", command: "systemctl is-active " + blueclaw.CapabilitydServiceName + " 2>/dev/null", expectedValue: "active"},
+		{name: "admind", command: "systemctl is-active " + blueclaw.AdmindServiceName + " 2>/dev/null", expectedValue: "active"},
+		{name: "blueclawHealth", command: blueclaw.BlueclawHealthCheckCommand(), expectedValue: "ok"},
+		{name: "capabilitydHealth", command: blueclaw.CapabilitydHealthCheckCommand(), expectedValue: "ok"},
+	}
+	if !shouldManageLocalLLMServices(context) {
+		return checks
+	}
+	return append(checks,
+		serviceHealthCheck{name: "graphiti", command: "systemctl is-active " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null", expectedValue: "active"},
+		serviceHealthCheck{name: "graphitiHealth", command: blueclaw.GraphitiMemorydHealthCheckCommand(), expectedValue: "ok"},
+		serviceHealthCheck{name: "embedding", command: "systemctl is-active " + locallm.LlamaCppEmbeddingServiceName + " 2>/dev/null", expectedValue: "active"},
+	)
+}
+
 type serviceHealthCheck struct {
-	name    string
-	command string
+	name          string
+	command       string
+	expectedValue string
 }
 
 func blueclawRuntimeContractCheckCommand() string {
