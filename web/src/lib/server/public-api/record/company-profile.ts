@@ -1,4 +1,4 @@
-import type { CompanyProfileResult } from '../catalog/company';
+import type { CompanyProfileLegalAttribute, CompanyProfileResult } from '../catalog/company';
 
 export type LocalizedText = Record<string, string>;
 
@@ -202,14 +202,11 @@ function anyLocalized(text: LocalizedText | undefined, language: string): string
 function legalAttributesIn(
 	attributes: Record<string, LocalizedText> | undefined,
 	language: string
-): LocalizedText {
-	if (!attributes) return {};
-	const asked = attributes[language];
-	if (asked && Object.keys(asked).length > 0) return asked;
-	const english = attributes.en;
-	if (english && Object.keys(english).length > 0) return english;
-	for (const labels of Object.values(attributes)) {
-		if (Object.keys(labels).length > 0) return labels;
+): CompanyProfileLegalAttribute[] {
+	if (!attributes) return [];
+	for (const labels of [attributes[language], attributes.en, ...Object.values(attributes)]) {
+		const printed = Object.entries(labels ?? {});
+		if (printed.length > 0) return printed.map(([label, value]) => ({ label, value }));
 	}
-	return {};
+	return [];
 }
