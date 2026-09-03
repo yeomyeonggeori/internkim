@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestAdminSessionReportsOperationsAdminRoleDespiteOrganizationCache(t *testing.T) {
+func TestAdminSessionReadsTheRoleFromTheDirectoryNotTheOrganizationCache(t *testing.T) {
 	deviceDirectory := t.TempDir()
 	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
 	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
@@ -28,22 +28,22 @@ func TestAdminSessionReportsOperationsAdminRoleDespiteOrganizationCache(t *testi
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"operator@example.com","role":"operationsAdmin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"records":[{"email":"colleague@example.com","role":"member"}]}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
-	personPayload, errorValue := json.Marshal(organizationCachedPerson{Record: newOrganizationCachedUserRecord(adminUserMutation{Email: "operator@example.com", Role: "admin"})})
+	personPayload, errorValue := json.Marshal(organizationCachedPerson{Record: newOrganizationCachedUserRecord(adminUserMutation{Email: "colleague@example.com", Role: "admin"})})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	key := organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "email:operator@example.com"}
+	key := organizationPeopleCacheKey{Kind: organizationPeopleCachePerson, Key: "email:colleague@example.com"}
 	if written, errorValue := service.writeOrganizationPeopleCachePayloadIfCurrent(context.Background(), key, 0, "", personPayload); errorValue != nil || !written {
 		t.Fatalf("write organization person cache: written = %t error = %v", written, errorValue)
 	}
 
-	responseDocument := requestAdminSession(t, service, "operator@example.com")
-	if responseDocument["role"] != "operationsAdmin" || responseDocument["isAdmin"] != false {
+	responseDocument := requestAdminSession(t, service, "colleague@example.com")
+	if responseDocument["role"] != "member" || responseDocument["isAdmin"] != false {
 		t.Fatalf("admin session = %#v", responseDocument)
 	}
 }
@@ -84,128 +84,21 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 	}
 }
 
-func TestOperationsAdminCanUseAllowedAdminEndpoint(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
+func TestSomebodyTheDirectoryDoesNotCallAdminIsRefusedTheAdminConsole(t *testing.T) {
+	service := newAdminConsoleAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("users status = %d body = %s", response.Code, response.Body.String())
-	}
-	if !strings.Contains(response.Body.String(), "operator@example.com") {
-		t.Fatalf("users body = %q", response.Body.String())
-	}
-}
-
-func TestOperationsAdminCannotGrantAdminRole(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(`{"email":"new@example.com","handle":"newuser","name":"New User","role":"admin"}`))
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "colleague@example.com")
 	response := httptest.NewRecorder()
 
 	service.router().ServeHTTP(response, request)
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("users status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOperationsAdminCannotGrantAdminRoleInBatch(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodPost, "/admin/api/users/batch", strings.NewReader(`{"users":[{"email":"new@example.com","handle":"newuser","name":"New User","role":"admin"}]}`))
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("users batch status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOperationsAdminCannotDemoteAdminRole(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(`{"email":"admin@example.com","handle":"adminuser","name":"Admin User","role":"member"}`))
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("users status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOperationsAdminCannotDemoteAdminRoleInBatch(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodPost, "/admin/api/users/batch", strings.NewReader(`{"users":[{"email":"admin@example.com","handle":"adminuser","name":"Admin User","role":"member"}]}`))
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("users batch status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOperationsAdminCannotResetAdminPassword(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodPost, "/admin/api/users/admin%40example.com/password-reset", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("password reset status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOperationsAdminCannotDeleteAdminUser(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodDelete, "/admin/api/users/admin%40example.com", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("delete user status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOperationsAdminCannotSaveReservedAdminCircle(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodPost, "/admin/api/circles", strings.NewReader(`{"circleID":"admin","displayName":"Admin","isMattermostManaged":true}`))
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("save circle status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOperationsAdminCannotDeleteReservedAdminCircle(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodDelete, "/admin/api/circles/admin", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("delete circle status = %d body = %s", response.Code, response.Body.String())
 	}
 }
 
 func TestAdminCannotDeleteReservedAdminCircle(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
+	service := newAdminConsoleAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodDelete, "/admin/api/circles/admin", nil)
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "owner@example.com")
 	response := httptest.NewRecorder()
@@ -217,50 +110,7 @@ func TestAdminCannotDeleteReservedAdminCircle(t *testing.T) {
 	}
 }
 
-func TestOperationsAdminCannotUseFullAdminEndpoint(t *testing.T) {
-	service := newOperationsAdminAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodGet, "/admin/api/bot-profile", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "operator@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("bot profile status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOperationsAdminPathPolicy(t *testing.T) {
-	if !isOperationsAdminPath(http.MethodGet, "/users") {
-		t.Fatal("operations admin should access users")
-	}
-	if !isOperationsAdminPath(http.MethodPost, "/users/person@example.com/password-reset") {
-		t.Fatal("operations admin should reset user passwords")
-	}
-	if !isOperationsAdminPath(http.MethodPut, "/workspace-settings") {
-		t.Fatal("operations admin should update workspace settings")
-	}
-	if isOperationsAdminPath(http.MethodPost, "/holiday-sync/refresh") {
-		t.Fatal("operations admin should not access removed holiday refresh")
-	}
-	if isOperationsAdminPath(http.MethodGet, "/company-holidays") {
-		t.Fatal("operations admin should not access company holidays")
-	}
-	if isOperationsAdminPath(http.MethodGet, "/calendar-holidays/status") {
-		t.Fatal("operations admin should not access a holiday cache that is gone")
-	}
-	if isOperationsAdminPath(http.MethodGet, "/attendance-locations") {
-		t.Fatal("operations admin should not access work locations the company keeps")
-	}
-	if isOperationsAdminPath(http.MethodGet, "/bot-profile") {
-		t.Fatal("operations admin should not access bot profile")
-	}
-	if isOperationsAdminPath(http.MethodPost, "/updates/apply") {
-		t.Fatal("operations admin should not apply updates")
-	}
-}
-
-func newOperationsAdminAuthorizationTestService(t *testing.T) *Service {
+func newAdminConsoleAuthorizationTestService(t *testing.T) *Service {
 	t.Helper()
 	rootPath := t.TempDir()
 	service := NewService(Configuration{
@@ -274,7 +124,7 @@ func newOperationsAdminAuthorizationTestService(t *testing.T) *Service {
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(http.StatusOK, `{"users":["operator@example.com","admin@example.com"],"records":[{"email":"operator@example.com","role":"operationsAdmin"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"users":["colleague@example.com","admin@example.com"],"records":[{"email":"colleague@example.com","role":"member"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
 		}
 		if strings.Contains(request.URL.Path, "/api/agent/key") {
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil

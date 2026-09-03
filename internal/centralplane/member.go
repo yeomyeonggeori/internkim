@@ -33,7 +33,7 @@ type Member struct {
 }
 
 func (member Member) IsActive() bool {
-	return strings.EqualFold(strings.TrimSpace(member.Status), "active")
+	return strings.EqualFold(strings.TrimSpace(member.Status), MemberStatusActive)
 }
 
 // Somebody invited yesterday and signing in tomorrow is neither active nor
@@ -42,7 +42,7 @@ func (member Member) IsActive() bool {
 // they arrive. Mirrors hasLeftTheCompany in web/src/lib/server/control-plane.ts.
 func (member Member) HasLeftTheCompany() bool {
 	status := strings.ToLower(strings.TrimSpace(member.Status))
-	return status == "departed" || status == "withdrawn"
+	return status == MemberStatusDeparted || status == MemberStatusWithdrawn
 }
 
 // Members asks the directory who works here. Asking address by address cannot

@@ -10,6 +10,7 @@ import {
 	normalizeEmail,
 	usersResponse
 } from '$lib/server/fleet-user-request';
+import { memberRoleOf, memberStatuses, isMemberStatus, type MemberStatus } from '$lib/member-vocabulary';
 import type { FleetUserRecord, UserRole } from '$lib/types';
 
 const corsHeaders = {
@@ -31,8 +32,13 @@ function isValidHandle(handle: string): boolean {
 }
 
 function normalizeRole(role: unknown): UserRole {
-	if (role === 'operationsAdmin') return 'operationsAdmin';
-	return role === 'admin' ? 'admin' : 'member';
+	return memberRoleOf(role === 'admin');
+}
+
+function askedStatus(value: unknown): MemberStatus | undefined {
+	if (value === undefined || value === null || value === '') return undefined;
+	if (!isMemberStatus(value)) throw error(400, `status must be one of ${memberStatuses.join(', ')}`);
+	return value;
 }
 
 function refuseInvalidHireDate(value: unknown): void {
@@ -103,7 +109,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		role: normalizedRole,
 		mattermostUserID,
 		mattermostUsername,
-		status
+		status: askedStatus(status)
 	});
 
 	return json(await usersResponse(nextRecords), { headers: corsHeaders });

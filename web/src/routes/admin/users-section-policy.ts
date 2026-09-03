@@ -12,7 +12,6 @@ export function userAdminCount(records: UserRecord[]): number {
 export function allUserRoleOptions(text: AdminPageText): UserRoleOption[] {
 	return [
 		{ value: 'member', label: text.users.member },
-		{ value: 'operationsAdmin', label: text.users.operationsAdmin },
 		{ value: 'admin', label: text.users.admin }
 	];
 }

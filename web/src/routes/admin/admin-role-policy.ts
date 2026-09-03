@@ -1,6 +1,5 @@
 import type { AdminSection, AdminSession, UserRole } from './admin-types';
 
-const operationsAdminSections: AdminSection[] = ['users', 'settings', 'apiTokens'];
 const memberSections: AdminSection[] = ['apiTokens'];
 type LegacyAdminSession = Omit<AdminSession, 'isAdmin'> & { isAdmin?: boolean };
 
@@ -12,12 +11,11 @@ export function adminSessionRole(session: LegacyAdminSession | null): UserRole {
 
 export function canViewAdminSection(role: UserRole, section: AdminSection): boolean {
 	if (role === 'admin') return true;
-	if (role === 'operationsAdmin') return operationsAdminSections.includes(section);
 	return memberSections.includes(section);
 }
 
 export function canManageOrganization(role: UserRole): boolean {
-	return role === 'admin' || role === 'operationsAdmin';
+	return role === 'admin';
 }
 
 export function firstVisibleAdminSection(role: UserRole, sections: AdminSection[]): AdminSection | null {

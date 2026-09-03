@@ -137,15 +137,23 @@ func TestMembersFromUserRecordsSortsByHireDate(t *testing.T) {
 	}
 }
 
-func TestMembersFromUserRecordsPreservesOperationsAdminRole(t *testing.T) {
+func TestMembersFromUserRecordsCarriesTheRoleTheDirectoryGaveThem(t *testing.T) {
 	members := membersFromUserRecords([]adminUserMutation{
-		{Email: "operator@example.com", Name: "Operator", Role: "operationsAdmin"},
+		{Email: "colleague@example.com", Name: "이샘플", Role: adminUserRoleMember},
+		{Email: "admin@example.com", Name: "박예시", Role: adminUserRoleAdmin},
 	})
 
-	if len(members) != 1 {
-		t.Fatalf("members = %d, want 1", len(members))
+	if len(members) != 2 {
+		t.Fatalf("members = %d, want 2", len(members))
 	}
-	if members[0].Role != "operationsAdmin" {
-		t.Fatalf("role = %q, want operationsAdmin", members[0].Role)
+	roleByEmail := map[string]string{}
+	for _, member := range members {
+		roleByEmail[member.Email] = member.Role
+	}
+	if roleByEmail["colleague@example.com"] != adminUserRoleMember {
+		t.Fatalf("colleague role = %q, want %q", roleByEmail["colleague@example.com"], adminUserRoleMember)
+	}
+	if roleByEmail["admin@example.com"] != adminUserRoleAdmin {
+		t.Fatalf("admin role = %q, want %q", roleByEmail["admin@example.com"], adminUserRoleAdmin)
 	}
 }

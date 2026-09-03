@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { FleetUserRecord, UserRole } from '$lib/types';
+import { memberRoleOf, type MemberStatus } from '$lib/member-vocabulary';
+import type { FleetUserRecord } from '$lib/types';
 
 export type FleetDirectory = { client: SupabaseClient; companyID: string };
 
@@ -9,7 +10,7 @@ type MemberRow = {
 	name: string | null;
 	note: string | null;
 	is_admin: boolean;
-	status: string;
+	status: MemberStatus;
 	messenger: Record<string, string> | null;
 };
 
@@ -130,7 +131,7 @@ function recordOf(member: MemberRow, circles: string[]): FleetUserRecord {
 		...(name ? { name } : {}),
 		email,
 		...(member.note ? { note: member.note } : {}),
-		role: (member.is_admin ? 'admin' : 'member') as UserRole,
+		role: memberRoleOf(member.is_admin),
 		...(circles.length > 0 ? { circles } : {}),
 		status: member.status,
 		isIncomplete: !name

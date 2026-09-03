@@ -1,9 +1,11 @@
 package admind
 
+import "gitlab.com/eastriver/internkim/internal/centralplane"
+
 const (
-	memberStatusActive    = "active"
-	memberStatusDeparted  = "departed"
-	memberStatusWithdrawn = "withdrawn"
+	memberStatusActive    = centralplane.MemberStatusActive
+	memberStatusDeparted  = centralplane.MemberStatusDeparted
+	memberStatusWithdrawn = centralplane.MemberStatusWithdrawn
 )
 
 type organizationProfile struct {

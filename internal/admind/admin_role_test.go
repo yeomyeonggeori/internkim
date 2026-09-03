@@ -9,8 +9,9 @@ func TestNormalizeAdminUserRole(t *testing.T) {
 		want string
 	}{
 		{name: "admin", role: adminUserRoleAdmin, want: adminUserRoleAdmin},
-		{name: "operations admin", role: adminUserRoleOperationsAdmin, want: adminUserRoleOperationsAdmin},
+		{name: "admin however it was typed", role: " ADMIN ", want: adminUserRoleAdmin},
 		{name: "member", role: adminUserRoleMember, want: adminUserRoleMember},
+		{name: "a role the record cannot hold", role: "operationsAdmin", want: adminUserRoleMember},
 		{name: "unknown role", role: "owner", want: adminUserRoleMember},
 		{name: "empty role", role: "", want: adminUserRoleMember},
 	}

@@ -147,8 +147,7 @@ class AppNavigation {
 }
 
 function normalizeSessionRole(session: AdminSession): UserRole {
-	if (session.role === 'admin' || session.role === 'operationsAdmin') return session.role;
-	if (session.isAdmin) return 'admin';
+	if (session.role === 'admin' || session.isAdmin) return 'admin';
 	return 'member';
 }
 

@@ -1,3 +1,5 @@
+import type { MemberRole, MemberStatus } from '$lib/member-vocabulary';
+
 export interface Device {
 	fleet_id: string;
 	fleet_secret_hash?: string;
@@ -27,7 +29,7 @@ export interface Fleet {
 	ledgerRevision?: number;
 }
 
-export type UserRole = 'admin' | 'operationsAdmin' | 'member';
+export type UserRole = MemberRole;
 
 export interface FleetUserRecord {
 	memberID?: string;
@@ -40,7 +42,7 @@ export interface FleetUserRecord {
 	circles?: string[];
 	mattermostUserID?: string;
 	mattermostUsername?: string;
-	status?: string;
+	status?: MemberStatus;
 	isIncomplete?: boolean;
 }
 
