@@ -4,7 +4,6 @@ import {
 	saveSupabaseCalendarEvent,
 	supabaseCalendarEvents
 } from '$lib/calendar/supabase-calendar';
-import type { Locale } from '$lib/i18n/locale.svelte';
 
 export type CalendarEvent = {
 	id: string;
@@ -50,12 +49,8 @@ export type CalendarEventPayload = {
 	participants: CalendarParticipantInput[];
 };
 
-export async function fetchCalendarEvents(
-	startDate: Date,
-	endDate: Date,
-	locale: Locale = 'ko'
-): Promise<CalendarEvent[]> {
-	return supabaseCalendarEvents(startDate, endDate, locale);
+export async function fetchCalendarEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
+	return supabaseCalendarEvents(startDate, endDate);
 }
 
 export async function writeCalendarEvent(

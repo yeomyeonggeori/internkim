@@ -1,4 +1,11 @@
 import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
+import {
+	calendarMembersOfPeople,
+	companyCalendarEntries,
+	type CompanyCalendarEntry,
+	type CompanyCalendarReader,
+	type CompanyCalendarSource
+} from './company-calendar';
 import { crmColumnsWritten, writeCRMColumns } from './crm-tools';
 import { dayIn, instantOfDay, instantWritten, isTheSameMoment, momentIn, weekWindow } from './days';
 import { labelOf } from './labels';
@@ -11,7 +18,6 @@ import {
 	saveTask,
 	taskOfHint,
 	tasksOfCompany,
-	taskSelection,
 	type TaskRow
 } from './tasks';
 
@@ -49,6 +55,11 @@ export type AnsweredEvent = {
 	notifyMinutesBefore?: number;
 	participants: AnsweredAttendee[];
 	updatedAt: string;
+};
+
+export type AnsweredCalendarEntry = AnsweredEvent & {
+	source: CompanyCalendarSource;
+	readOnly: boolean;
 };
 
 const millisecondsPerHour = 60 * 60 * 1000;
@@ -323,25 +334,46 @@ function shiftedByDays(instant: string, days: number): string {
 	return new Date(Date.parse(instant) + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function calendarReaderOf(context: RecordContext): CompanyCalendarReader {
+	return {
+		caller: context.caller,
+		members: calendarMembersOfPeople(context.people),
+		timeZone: context.labels.timezone,
+		locale: context.locale
+	};
+}
+
+function answeredEntry(context: RecordContext, entry: CompanyCalendarEntry): AnsweredCalendarEntry {
+	return {
+		eventID: entry.id,
+		title: entry.title,
+		note: entry.description,
+		location: entry.location,
+		startsAt: momentIn(context.labels.timezone, entry.startISO),
+		endsAt: momentIn(context.labels.timezone, entry.endISO),
+		isWholeDay: entry.isAllDay,
+		...(entry.reminderMinutesBefore ? { notifyMinutesBefore: entry.reminderMinutesBefore } : {}),
+		participants: entry.participants,
+		updatedAt: entry.updatedAt,
+		source: entry.source,
+		readOnly: entry.readOnly
+	};
+}
+
 export async function eventList(context: RecordContext, input: EventListInput) {
 	const window = eventWindowOf(context, input);
-	const { data, error } = await context.caller
-		.from('task')
-		.select(taskSelection)
-		.eq('is_event', true)
-		.neq('status', 'rejected')
-		.lt('starts_at', window.to)
-		.gte('ends_at', window.from)
-		.order('starts_at')
-		.returns<TaskRow[]>();
-	if (error) throw new Error(error.message);
+	const entries = await companyCalendarEntries(
+		calendarReaderOf(context),
+		new Date(window.from),
+		new Date(window.to)
+	);
 
 	const asked = (input.query ?? '').trim().toLowerCase();
-	const found = (data ?? []).filter((row) => {
+	const found = entries.filter((entry) => {
 		if (!asked) return true;
-		const searched = `${row.title} ${row.note ?? ''} ${locationNameOf(row.location)}`;
+		const searched = `${entry.title} ${entry.description} ${entry.location}`;
 		return searched.toLowerCase().includes(asked);
 	});
 	const kept = input.limit && input.limit > 0 ? found.slice(0, input.limit) : found;
-	return { events: kept.map((row) => answeredEvent(context, row)) };
+	return { events: kept.map((entry) => answeredEntry(context, entry)) };
 }

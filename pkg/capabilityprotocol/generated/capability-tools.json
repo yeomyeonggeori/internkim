@@ -2778,7 +2778,7 @@
         "state": "ok"
       },
       "canonicalName": "event_list",
-      "description": "List calendar events in a concrete time window, optionally filtered by title, description, or location. Resolve natural-language dates to startISO and endISO before calling.",
+      "description": "List everything on the company calendar in a concrete time window: scheduled events and the approved leave of everyone who is off, optionally filtered by title, description, or location. Each entry names its source; a leave entry is read-only and cannot be updated or deleted. Resolve natural-language dates to startISO and endISO before calling.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -2878,6 +2878,16 @@
                   },
                   "type": "array"
                 },
+                "readOnly": {
+                  "type": "boolean"
+                },
+                "source": {
+                  "enum": [
+                    "event",
+                    "leave"
+                  ],
+                  "type": "string"
+                },
                 "startsAt": {
                   "type": "string"
                 },
@@ -2897,7 +2907,9 @@
                 "endsAt",
                 "isWholeDay",
                 "participants",
-                "updatedAt"
+                "updatedAt",
+                "source",
+                "readOnly"
               ],
               "type": "object"
             },
@@ -2966,6 +2978,16 @@
                     },
                     "type": "array"
                   },
+                  "readOnly": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "enum": [
+                      "event",
+                      "leave"
+                    ],
+                    "type": "string"
+                  },
                   "startsAt": {
                     "type": "string"
                   },
@@ -2985,7 +3007,9 @@
                   "endsAt",
                   "isWholeDay",
                   "participants",
-                  "updatedAt"
+                  "updatedAt",
+                  "source",
+                  "readOnly"
                 ],
                 "type": "object"
               },
@@ -3000,7 +3024,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "2",
+      "version": "3",
       "worksOffline": false
     },
     {
