@@ -1,11 +1,12 @@
-import { isSupabaseConfigured, supabase, vapidPublicKey } from '$lib/supabase';
+import { invokeTool } from '$lib/public-api-call';
+import { isSupabaseConfigured, vapidPublicKey } from '$lib/supabase';
 import { decodeBase64URL, encodeBase64URL } from './base64url';
 
 export type Reachability = 'unsupported' | 'unconfigured' | 'blocked' | 'off' | 'on';
 
-const webPush = 'web-push';
-
 type ServerKey = { key: string; vaulted: boolean };
+
+type PushReachability = { serverKey: string };
 
 let cachedServerKey: Promise<ServerKey> | undefined;
 
@@ -25,8 +26,8 @@ function applicationServerKey(): Promise<ServerKey> {
 
 async function resolveServerKey(): Promise<ServerKey> {
 	if (!isSupabaseConfigured()) return { key: vapidPublicKey(), vaulted: false };
-	const { data, error } = await supabase().rpc('vapid_public_key');
-	if (!error && typeof data === 'string' && data !== '') return { key: data, vaulted: true };
+	const answered = await invokeTool<PushReachability>('push_reachability_get', {}).catch(() => null);
+	if (answered && answered.serverKey !== '') return { key: answered.serverKey, vaulted: true };
 	return { key: vapidPublicKey(), vaulted: false };
 }
 
@@ -81,15 +82,11 @@ export async function startBeingReached(): Promise<Reachability> {
 			applicationServerKey: decodeBase64URL(serverKey.key)
 		}));
 
-	const { error } = await supabase().rpc('push_device_claim', {
-		device_kind: webPush,
-		device_address: subscription.endpoint,
-		device_keys: {
-			p256dh: encodeBase64URL(subscription.getKey('p256dh')),
-			auth: encodeBase64URL(subscription.getKey('auth'))
-		}
+	await invokeTool<PushReachability>('push_device_claim', {
+		endpoint: subscription.endpoint,
+		publicKey: encodeBase64URL(subscription.getKey('p256dh')),
+		authenticationSecret: encodeBase64URL(subscription.getKey('auth'))
 	});
-	if (error) throw new Error(error.message);
 	return 'on';
 }
 
@@ -98,11 +95,7 @@ export async function stopBeingReached(): Promise<Reachability> {
 	const subscription = await heldSubscription();
 	if (!subscription) return 'off';
 
-	const { error } = await supabase().rpc('push_device_release', {
-		device_kind: webPush,
-		device_address: subscription.endpoint
-	});
-	if (error) throw new Error(error.message);
+	await invokeTool<PushReachability>('push_device_release', { endpoint: subscription.endpoint });
 	await subscription.unsubscribe();
 	return 'off';
 }
