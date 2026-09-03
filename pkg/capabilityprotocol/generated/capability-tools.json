@@ -9478,7 +9478,7 @@
       "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
@@ -9495,7 +9495,7 @@
         "additionalProperties": false,
         "properties": {
           "counterpart": {
-            "description": "Counterpart name to filter by, e.g. 'ABC물산'.",
+            "description": "Counterpart name to filter by, e.g. 'ABC Trading'.",
             "type": "string"
           },
           "query": {
@@ -9519,97 +9519,112 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "effects": {
+          "documents": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "counterpart": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "documentID": {
                   "type": "string"
                 },
-                "durability": {
+                "documentNumber": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "documentType": {
                   "type": "string"
                 },
-                "effect": {
+                "filePath": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "issuedAt": {
                   "type": "string"
                 },
-                "filename": {
+                "kind": {
                   "type": "string"
                 },
-                "id": {
-                  "type": "string"
+                "language": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
+                "requesterID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "summary": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "title": {
                   "type": "string"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "documentID",
+                "documentNumber",
+                "kind",
+                "documentType",
+                "title",
+                "counterpart",
+                "language",
+                "filePath",
+                "summary",
+                "requesterID",
+                "issuedAt"
               ],
               "type": "object"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "count",
+          "documents"
         ],
         "type": "object"
       },
@@ -9617,13 +9632,129 @@
       "policyResource": "tool:company_document_list",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "documents": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "counterpart": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documentID": {
+                    "type": "string"
+                  },
+                  "documentNumber": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documentType": {
+                    "type": "string"
+                  },
+                  "filePath": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "issuedAt": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "language": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requesterID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "summary": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "documentID",
+                  "documentNumber",
+                  "kind",
+                  "documentType",
+                  "title",
+                  "counterpart",
+                  "language",
+                  "filePath",
+                  "summary",
+                  "requesterID",
+                  "issuedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "documents"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
@@ -9645,7 +9776,7 @@
         "additionalProperties": false,
         "properties": {
           "counterpart": {
-            "description": "Counterpart company or person name, e.g. 'ABC물산'.",
+            "description": "Counterpart company or person name, e.g. 'ABC Trading'.",
             "type": "string"
           },
           "documentType": {
@@ -9669,7 +9800,7 @@
             "type": "string"
           },
           "title": {
-            "description": "Document title including the counterpart, e.g. 'ABC물산 김인턴 도입 컨설팅 견적서'.",
+            "description": "Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'.",
             "type": "string"
           }
         },
@@ -9690,97 +9821,98 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
+          "counterpart": {
+            "anyOf": [
+              {
+                "type": "string"
               },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+              {
+                "type": "null"
+              }
+            ]
           },
-          "errorCode": {
+          "documentID": {
             "type": "string"
           },
-          "failureStage": {
+          "documentNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documentType": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
+          "filePath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "message": {
+          "issuedAt": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
+          "kind": {
             "type": "string"
           },
-          "provider": {
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requesterID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "storageDirectory": {
             "type": "string"
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "documentID",
+          "documentNumber",
+          "kind",
+          "documentType",
+          "title",
+          "counterpart",
+          "language",
+          "filePath",
+          "summary",
+          "requesterID",
+          "issuedAt",
+          "storageDirectory"
         ],
         "type": "object"
       },
@@ -9788,18 +9920,120 @@
       "policyResource": "tool:company_document_register",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "counterpart": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documentID": {
+              "type": "string"
+            },
+            "documentNumber": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documentType": {
+              "type": "string"
+            },
+            "filePath": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "issuedAt": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "language": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "requesterID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "storageDirectory": {
+              "type": "string"
+            },
+            "summary": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "documentID",
+            "documentNumber",
+            "kind",
+            "documentType",
+            "title",
+            "counterpart",
+            "language",
+            "filePath",
+            "summary",
+            "requesterID",
+            "issuedAt",
+            "storageDirectory"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
       "canonicalName": "company_document_search",
-      "description": "Semantically search registered company documents by a natural-language question ('ABC와 맺은 계약 조건'). Returns best-matching documents with summaries — answer from the summary first and open the file only when detail is needed.",
+      "description": "Search registered company documents by a natural-language question ('the terms of the agreement with ABC'). Matches the question against each document's title, counterpart, summary and type, best match first. Answer from the summary first and open the file only when detail is needed.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -9817,7 +10051,7 @@
             "type": "integer"
           },
           "query": {
-            "description": "Natural-language question or topic, e.g. 'ABC물산이랑 맺은 용역 계약 대금 조건'.",
+            "description": "Natural-language question or topic, e.g. 'payment terms of the service agreement with ABC Trading'.",
             "type": "string"
           }
         },
@@ -9836,97 +10070,112 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "effects": {
+          "documents": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "counterpart": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "documentID": {
                   "type": "string"
                 },
-                "durability": {
+                "documentNumber": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "documentType": {
                   "type": "string"
                 },
-                "effect": {
+                "filePath": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "issuedAt": {
                   "type": "string"
                 },
-                "filename": {
+                "kind": {
                   "type": "string"
                 },
-                "id": {
-                  "type": "string"
+                "language": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
+                "requesterID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "summary": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "title": {
                   "type": "string"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "documentID",
+                "documentNumber",
+                "kind",
+                "documentType",
+                "title",
+                "counterpart",
+                "language",
+                "filePath",
+                "summary",
+                "requesterID",
+                "issuedAt"
               ],
               "type": "object"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "count",
+          "documents"
         ],
         "type": "object"
       },
@@ -9934,18 +10183,134 @@
       "policyResource": "tool:company_document_search",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "documents": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "counterpart": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documentID": {
+                    "type": "string"
+                  },
+                  "documentNumber": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documentType": {
+                    "type": "string"
+                  },
+                  "filePath": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "issuedAt": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "language": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requesterID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "summary": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "documentID",
+                  "documentNumber",
+                  "kind",
+                  "documentType",
+                  "title",
+                  "counterpart",
+                  "language",
+                  "filePath",
+                  "summary",
+                  "requesterID",
+                  "issuedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "documents"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
       "canonicalName": "company_document_update",
-      "description": "Update a registered document's file path, title, counterpart, or summary by id from a prior list/search result. Use when a file was moved or renamed so the ledger keeps tracking it.",
+      "description": "Update a registered document's file path, title, counterpart, or summary. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -9960,12 +10325,12 @@
             "description": "Corrected counterpart. Omit to keep unchanged.",
             "type": "string"
           },
-          "filePath": {
-            "description": "New workspace path after the file was saved, moved, or renamed.",
+          "documentHint": {
+            "description": "The document to update: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Never the new title this call is about to set.",
             "type": "string"
           },
-          "id": {
-            "description": "Document id from a prior company_document_list or search result.",
+          "filePath": {
+            "description": "New workspace path after the file was saved, moved, or renamed.",
             "type": "string"
           },
           "summary": {
@@ -9978,7 +10343,7 @@
           }
         },
         "required": [
-          "id"
+          "documentHint"
         ],
         "type": "object"
       },
@@ -9992,97 +10357,94 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
+          "counterpart": {
+            "anyOf": [
+              {
+                "type": "string"
               },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+              {
+                "type": "null"
+              }
+            ]
           },
-          "errorCode": {
+          "documentID": {
             "type": "string"
           },
-          "failureStage": {
+          "documentNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documentType": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
+          "filePath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "message": {
+          "issuedAt": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
+          "kind": {
             "type": "string"
           },
-          "provider": {
-            "type": "string"
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
+          "requesterID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "safeRetry": {
-            "type": "boolean"
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "documentID",
+          "documentNumber",
+          "kind",
+          "documentType",
+          "title",
+          "counterpart",
+          "language",
+          "filePath",
+          "summary",
+          "requesterID",
+          "issuedAt"
         ],
         "type": "object"
       },
@@ -10090,10 +10452,108 @@
       "policyResource": "tool:company_document_update",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "counterpart": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documentID": {
+              "type": "string"
+            },
+            "documentNumber": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documentType": {
+              "type": "string"
+            },
+            "filePath": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "issuedAt": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "language": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "requesterID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "summary": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "documentID",
+            "documentNumber",
+            "kind",
+            "documentType",
+            "title",
+            "counterpart",
+            "language",
+            "filePath",
+            "summary",
+            "requesterID",
+            "issuedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
       "answeredBy": "record",
@@ -10738,7 +11198,7 @@
       "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
@@ -10783,97 +11243,104 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "effects": {
+          "metrics": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "currency": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "metric": {
                   "type": "string"
                 },
-                "durability": {
+                "metricID": {
                   "type": "string"
                 },
-                "effect": {
+                "month": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "note": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "quarter": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "unit": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "updatedAt": {
                   "type": "string"
                 },
-                "filename": {
-                  "type": "string"
+                "value": {
+                  "type": "number"
                 },
-                "id": {
-                  "type": "string"
+                "valueUSD": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
+                "year": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "metricID",
+                "metric",
+                "year",
+                "quarter",
+                "month",
+                "value",
+                "currency",
+                "valueUSD",
+                "unit",
+                "note",
+                "updatedAt"
               ],
               "type": "object"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "count",
+          "metrics"
         ],
         "type": "object"
       },
@@ -10881,13 +11348,121 @@
       "policyResource": "tool:company_metric_list",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "metrics": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "currency": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metric": {
+                    "type": "string"
+                  },
+                  "metricID": {
+                    "type": "string"
+                  },
+                  "month": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "quarter": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "unit": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "number"
+                  },
+                  "valueUSD": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "year": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "metricID",
+                  "metric",
+                  "year",
+                  "quarter",
+                  "month",
+                  "value",
+                  "currency",
+                  "valueUSD",
+                  "unit",
+                  "note",
+                  "updatedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "metrics"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
@@ -10937,7 +11512,7 @@
             "type": "integer"
           },
           "note": {
-            "description": "Source or context note, e.g. '재무제표 기준'.",
+            "description": "Source or context note, e.g. 'from the audited financial statements'.",
             "type": "string"
           },
           "quarter": {
@@ -10947,11 +11522,11 @@
             "type": "integer"
           },
           "unit": {
-            "description": "Unit for a non-monetary value, e.g. '명', '건', 'sites'. Do not combine with currency.",
+            "description": "Unit for a non-monetary value, e.g. 'people', 'orders', 'sites'. Do not combine with currency.",
             "type": "string"
           },
           "value": {
-            "description": "Numeric value, e.g. 1200000000 for 12억 원. Use the raw number, not a formatted string.",
+            "description": "Numeric value, e.g. 1200000000 for 1.2 billion. Use the raw number, not a formatted string.",
             "type": "number"
           },
           "valueUSD": {
@@ -10982,97 +11557,86 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
               },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+              {
+                "type": "null"
+              }
+            ]
           },
-          "errorCode": {
+          "metric": {
             "type": "string"
           },
-          "failureStage": {
+          "metricID": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
+          "month": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "message": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quarter": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
+          "value": {
+            "type": "number"
           },
-          "provider": {
-            "type": "string"
+          "valueUSD": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
+          "year": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "metricID",
+          "metric",
+          "year",
+          "quarter",
+          "month",
+          "value",
+          "currency",
+          "valueUSD",
+          "unit",
+          "note",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -11080,13 +11644,103 @@
       "policyResource": "tool:company_metric_record",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "currency": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "metric": {
+              "type": "string"
+            },
+            "metricID": {
+              "type": "string"
+            },
+            "month": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "quarter": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "unit": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "value": {
+              "type": "number"
+            },
+            "valueUSD": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "year": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "metricID",
+            "metric",
+            "year",
+            "quarter",
+            "month",
+            "value",
+            "currency",
+            "valueUSD",
+            "unit",
+            "note",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
@@ -11096,7 +11750,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Add one company history/asset record: milestones (연혁), funding rounds, products, patents, certifications, awards, client references, government grants. Set category, date, title; put structured details (amount, investors, round …) into attributes as a label-to-value JSON object string.",
+      "description": "Add one company history/asset record: milestones, funding rounds, products, patents, certifications, awards, client references, government grants. Set category, date, title; put structured details (amount, investors, round …) into attributes as a label-to-value JSON object string.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -11108,11 +11762,11 @@
         "additionalProperties": false,
         "properties": {
           "attributes": {
-            "description": "JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"20억 원\", \"investors\": \"ABC벤처스\"}.",
+            "description": "JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"2,000,000 USD\", \"investors\": \"ABC Ventures\"}.",
             "type": "string"
           },
           "category": {
-            "description": "Record category: 'history' (연혁), 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.",
+            "description": "Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.",
             "type": "string"
           },
           "date": {
@@ -11124,7 +11778,7 @@
             "type": "string"
           },
           "title": {
-            "description": "Short title, e.g. '시드 투자 유치' or '김인턴 정식 출시'.",
+            "description": "Short title, e.g. 'Seed round closed' or 'Product launched'.",
             "type": "string"
           }
         },
@@ -11144,97 +11798,66 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
+          "attributes": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "label": {
                   "type": "string"
                 },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "value": {
                   "type": "string"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "label",
+                "value"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
+          "category": {
             "type": "string"
           },
-          "failureStage": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordID": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
+          "title": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "recordID",
+          "category",
+          "date",
+          "title",
+          "detail",
+          "attributes",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -11242,18 +11865,88 @@
       "policyResource": "tool:company_record_add",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attributes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "category": {
+              "type": "string"
+            },
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recordID": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "category",
+            "date",
+            "title",
+            "detail",
+            "attributes",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
       "canonicalName": "company_record_delete",
-      "description": "Delete a company record by id from a prior company_record_list result. Use only when the user asks to remove a wrong entry.",
+      "description": "Delete a company record named by recordHint from a prior company_record_list result. Use only when the user asks to remove a wrong entry.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -11264,13 +11957,13 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "id": {
-            "description": "Record id from a prior company_record_list result. Never invent an id.",
+          "recordHint": {
+            "description": "The record to delete: its id from a prior company_record_list result, or its exact CURRENT title. Never invent an id.",
             "type": "string"
           }
         },
         "required": [
-          "id"
+          "recordHint"
         ],
         "type": "object"
       },
@@ -11284,97 +11977,66 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
+          "attributes": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "label": {
                   "type": "string"
                 },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "value": {
                   "type": "string"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "label",
+                "value"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
+          "category": {
             "type": "string"
           },
-          "failureStage": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordID": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
+          "title": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "recordID",
+          "category",
+          "date",
+          "title",
+          "detail",
+          "attributes",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -11383,18 +12045,88 @@
       "privacyClass": "workspace_company",
       "requiresApproval": true,
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attributes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "category": {
+              "type": "string"
+            },
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recordID": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "category",
+            "date",
+            "title",
+            "detail",
+            "attributes",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "destructive",
       "sideEffectClass": "destructive",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
       "canonicalName": "company_record_list",
-      "description": "List company history/asset records, newest first. Filter by category (history, funding, product, certification, ip, award, reference, grant …) or keyword query. Use to build 연혁 sections, funding tables, and product overviews.",
+      "description": "List company history/asset records, newest first. Filter by category (history, funding, product, certification, ip, award, reference, grant …) or keyword query. Use to build company timelines, funding tables, and product overviews.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -11426,97 +12158,84 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "effects": {
+          "records": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "attributes": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "value"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "category": {
                   "type": "string"
                 },
-                "durability": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "detail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recordID": {
                   "type": "string"
                 },
-                "effect": {
+                "title": {
                   "type": "string"
                 },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "updatedAt": {
                   "type": "string"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "recordID",
+                "category",
+                "date",
+                "title",
+                "detail",
+                "attributes",
+                "updatedAt"
               ],
               "type": "object"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "count",
+          "records"
         ],
         "type": "object"
       },
@@ -11524,18 +12243,106 @@
       "policyResource": "tool:company_record_list",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "records": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "attributes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "category": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "detail": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "recordID": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "recordID",
+                  "category",
+                  "date",
+                  "title",
+                  "detail",
+                  "attributes",
+                  "updatedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "records"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
-      "answeredBy": "company",
+      "answeredBy": "record",
       "availability": {
         "state": "ok"
       },
       "canonicalName": "company_record_update",
-      "description": "Update fields on an existing company record identified by id from a prior company_record_list result. Only provided fields change.",
+      "description": "Update fields on an existing company record named by recordHint from a prior company_record_list result. Only provided fields change.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -11562,8 +12369,8 @@
             "description": "New detail text. Omit to keep unchanged.",
             "type": "string"
           },
-          "id": {
-            "description": "Record id from a prior company_record_list result.",
+          "recordHint": {
+            "description": "The record to update: its id from a prior company_record_list result, or its exact CURRENT title. Never the new title this call is about to set.",
             "type": "string"
           },
           "title": {
@@ -11572,7 +12379,7 @@
           }
         },
         "required": [
-          "id"
+          "recordHint"
         ],
         "type": "object"
       },
@@ -11586,97 +12393,66 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
+          "attributes": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "label": {
                   "type": "string"
                 },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "value": {
                   "type": "string"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "label",
+                "value"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
+          "category": {
             "type": "string"
           },
-          "failureStage": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordID": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
+          "title": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "recordID",
+          "category",
+          "date",
+          "title",
+          "detail",
+          "attributes",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -11684,10 +12460,80 @@
       "policyResource": "tool:company_record_update",
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attributes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "category": {
+              "type": "string"
+            },
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recordID": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "category",
+            "date",
+            "title",
+            "detail",
+            "attributes",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "1",
-      "worksOffline": true
+      "worksOffline": false
     },
     {
       "answeredBy": "record",

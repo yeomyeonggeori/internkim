@@ -450,7 +450,7 @@ func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 	}
 }
 
-func TestUncontractedToolsStayRegisteredButHiddenFromModels(t *testing.T) {
+func TestHiddenToolsStayRegisteredButOutOfTheModelsSight(t *testing.T) {
 	hiddenDefaultToolNames := []string{
 		"browser_handoff",
 		"browser_fill",

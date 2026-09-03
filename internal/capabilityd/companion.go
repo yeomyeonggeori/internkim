@@ -70,16 +70,6 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "site_serve", Handler: Service.invokeSiteAppTool},
 	{ToolName: "site_list", Handler: Service.invokeSiteAppTool},
 	{ToolName: "site_unserve", Handler: Service.invokeSiteAppTool},
-	{ToolName: "company_document_list", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_document_register", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_document_search", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_document_update", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_metric_list", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_metric_record", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_record_add", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_record_delete", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_record_list", Handler: Service.invokeCompanyTool},
-	{ToolName: "company_record_update", Handler: Service.invokeCompanyTool},
 }
 
 var capabilityToolDescriptorsByCanonicalName = buildCapabilityToolDescriptorsByCanonicalName()
