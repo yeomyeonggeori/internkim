@@ -131,10 +131,10 @@ beforeAll(async () => {
 		kind: '연차',
 		is_paid: true,
 		is_deducted: true,
-		days: 1,
+		days: 2,
 		status: 'approved',
 		starts_at: companyMidnight(inDays(3), 0),
-		ends_at: companyMidnight(inDays(3), 1)
+		ends_at: companyMidnight(inDays(3), 2)
 	});
 	if (leaveRefused) throw new Error(leaveRefused.message);
 
@@ -162,6 +162,8 @@ afterAll(async () => {
 type AnsweredEntry = {
 	eventID: string;
 	title: string;
+	startsAt: string;
+	endsAt: string;
 	isWholeDay: boolean;
 	source: string;
 	readOnly: boolean;
@@ -178,6 +180,12 @@ async function entriesTheToolAnswers(): Promise<AnsweredEntry[]> {
 	);
 	expect(answered.status).toBe(200);
 	return (answered.body as { result: { events: AnsweredEntry[] } }).result.events;
+}
+
+function entryTitled(entries: AnsweredEntry[], title: string): AnsweredEntry {
+	const found = entries.find((entry) => entry.title === title);
+	if (!found) throw new Error(`the calendar answered nothing titled ${title}`);
+	return found;
 }
 
 function titlesOf(entries: { title: string }[]): string[] {
@@ -197,8 +205,10 @@ describe('what is on the company calendar', () => {
 		const entries = await entriesTheToolAnswers();
 
 		expect(titlesOf(entries)).toEqual(expectedTitles());
-		const dayOff = entries.find((entry) => entry.title === leaveTitle());
+		const dayOff = entryTitled(entries, leaveTitle());
 		expect(dayOff).toMatchObject({ source: 'leave', readOnly: true, isWholeDay: true });
+		expect(Date.parse(dayOff.startsAt)).toBe(Date.parse(companyMidnight(inDays(3), 0)));
+		expect(Date.parse(dayOff.endsAt)).toBe(Date.parse(companyMidnight(inDays(3), 2)));
 		expect(entries.find((entry) => entry.title === wholeDayEventTitle)).toMatchObject({
 			source: 'event',
 			readOnly: false,
@@ -235,6 +245,7 @@ describe('what is on the company calendar', () => {
 		expect(feed).toContain(`SUMMARY:${leaveTitle()}`);
 		expect(feed).toContain(`DTSTART;VALUE=DATE:${companyDay(inDays(3)).replace(/-/g, '')}`);
 		expect(feed).toContain(`DTSTART;VALUE=DATE:${companyDay(inDays(2)).replace(/-/g, '')}`);
+		expect(feed).toContain(`DTEND;VALUE=DATE:${companyDay(inDays(5)).replace(/-/g, '')}`);
 	}, networkHookTimeout);
 
 	test('is one set of entries, whichever surface is asked', async () => {

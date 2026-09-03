@@ -376,6 +376,23 @@ describe('an event written through the record', () => {
 		expect(made.endsAt).toBe(`${companyDay}T15:30:00+09:00`);
 	});
 
+	test('covers the whole of the company days a whole-day event names', async () => {
+		const made = resultOf(
+			await run('event_add', {
+				title: '종일 워크숍',
+				startsAt: '2026-08-24',
+				endsAt: '2026-08-25',
+				isWholeDay: true
+			})
+		);
+		expect(made.isWholeDay).toBe(true);
+		expect(made.startsAt).toBe('2026-08-24T00:00:00+09:00');
+		expect(made.endsAt).toBe('2026-08-26T00:00:00+09:00');
+
+		const listed = resultOf(await run('event_list', { startsAt: '2026-08-24', endsAt: '2026-08-25' }));
+		expect((listed.events as { title: string }[]).map((event) => event.title)).toContain('종일 워크숍');
+	});
+
 	test('stands an event asked of somebody else at requested', async () => {
 		const made = resultOf(
 			await run('event_add', {

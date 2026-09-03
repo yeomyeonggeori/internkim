@@ -62,19 +62,15 @@ export function dayTaskEventFromCalendarHoliday(holiday: CalendarHoliday): DayTa
 
 export function calendarEventPayloadFromDayTaskEvent(
 	event: DayTaskEvent,
-	color: string,
-	timeZone: string
+	color: string
 ): CalendarEventPayload {
-	const startDate = calendarDateFromDayTaskEventStart(event);
-	const endDate = calendarDateFromDayTaskEventEnd(event);
 	return {
 		eventID: event.id,
 		title: event.title || 'Untitled event',
 		description: event.description ?? '',
 		location: typeof event.meta?.location === 'string' ? event.meta.location : '',
-		startISO: startDate.toISOString(),
-		endISO: endDate.toISOString(),
-		timeZone,
+		startsAt: calendarEdgeWritten(event.start, event.allDay ?? false),
+		endsAt: calendarEdgeWritten(event.end, event.allDay ?? false),
 		isAllDay: event.allDay ?? false,
 		color,
 		reminderMinutesBefore: eventReminderLeadOf(event.meta?.reminderMinutesBefore),
@@ -90,14 +86,15 @@ export function eventEndDate(event: DayTaskEvent): Date {
 	return event.allDay ? localDateFromCalendarDateParts(calendarDatePartsFromDate(event.end)) : new Date(event.end);
 }
 
-function calendarDateFromDayTaskEventStart(event: DayTaskEvent): Date {
-	if (event.allDay) return dateFromCalendarDateParts(calendarDatePartsFromDate(event.start));
-	return new Date(event.start);
+function calendarEdgeWritten(edge: Date, isWholeDay: boolean): string {
+	if (!isWholeDay) return edge.toISOString();
+	return dayWritten(calendarDatePartsFromDate(edge));
 }
 
-function calendarDateFromDayTaskEventEnd(event: DayTaskEvent): Date {
-	if (event.allDay) return dateFromCalendarDateParts(nextCalendarDateParts(calendarDatePartsFromDate(event.end)));
-	return new Date(event.end);
+function dayWritten(dateParts: CalendarDateParts): string {
+	const month = String(dateParts.month).padStart(2, '0');
+	const day = String(dateParts.day).padStart(2, '0');
+	return `${dateParts.year}-${month}-${day}`;
 }
 
 function calendarDatePartsFromDate(value: Date): CalendarDateParts {
@@ -106,10 +103,6 @@ function calendarDatePartsFromDate(value: Date): CalendarDateParts {
 		month: value.getMonth() + 1,
 		day: value.getDate()
 	};
-}
-
-function dateFromCalendarDateParts(dateParts: CalendarDateParts): Date {
-	return new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day));
 }
 
 function localDateFromCalendarDateParts(dateParts: CalendarDateParts): Date {
@@ -145,14 +138,4 @@ function dayBeforeLocalISODate(isoDate: string, timeZone: string | undefined): D
 	const date = localDateFromISODate(isoDate, timeZone);
 	date.setDate(date.getDate() - 1);
 	return date;
-}
-
-function nextCalendarDateParts(dateParts: CalendarDateParts): CalendarDateParts {
-	const date = new Date(dateParts.year, dateParts.month - 1, dateParts.day);
-	date.setDate(date.getDate() + 1);
-	return {
-		year: date.getFullYear(),
-		month: date.getMonth() + 1,
-		day: date.getDate()
-	};
 }

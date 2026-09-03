@@ -44,12 +44,6 @@ export function dayOf(instant: string, timezone: string): string {
 		.replace(/-/g, '');
 }
 
-// A whole-day event ends the day after the last one it covers, because DTEND is
-// the moment it stops rather than the last day it holds.
-function dayAfter(instant: string, timezone: string): string {
-	return dayOf(new Date(new Date(instant).getTime() + 24 * 60 * 60 * 1000).toISOString(), timezone);
-}
-
 function eventLines(event: CompanyCalendarEntry, companyTimezone: string): string[] {
 	const timezone = event.timeZone.trim() || companyTimezone;
 	const lines = [
@@ -60,7 +54,7 @@ function eventLines(event: CompanyCalendarEntry, companyTimezone: string): strin
 	];
 	if (event.isAllDay) {
 		lines.push(`DTSTART;VALUE=DATE:${dayOf(event.startISO, timezone)}`);
-		lines.push(`DTEND;VALUE=DATE:${dayAfter(event.endISO, timezone)}`);
+		lines.push(`DTEND;VALUE=DATE:${dayOf(event.endISO, timezone)}`);
 	} else {
 		lines.push(`DTSTART:${momentOf(event.startISO)}`);
 		lines.push(`DTEND:${momentOf(event.endISO)}`);

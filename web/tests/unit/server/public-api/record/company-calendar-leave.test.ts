@@ -6,7 +6,7 @@ const members = new Map([
 ]);
 
 describe('calendarEntryOfApprovedLeave', () => {
-	test('ends an all-day leave on the last day it covers, not the midnight after it', () => {
+	test('ends an all-day leave at the midnight that ends its last day', () => {
 		const event = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-1',
@@ -27,14 +27,14 @@ describe('calendarEntryOfApprovedLeave', () => {
 			title: '이샘플 · 휴가',
 			description: '',
 			startISO: '2026-08-02T15:00:00.000Z',
-			endISO: '2026-08-03T14:59:59.999Z',
+			endISO: '2026-08-03T15:00:00.000Z',
 			isAllDay: true,
 			readOnly: true,
 			source: 'leave'
 		});
 	});
 
-	test('ends a whole day on the day it covers, west of UTC as well', () => {
+	test('ends a whole day at the company midnight after it, west of UTC as well', () => {
 		const event = calendarEntryOfApprovedLeave(
 			{
 				id: 'full-day-west',
@@ -52,7 +52,29 @@ describe('calendarEntryOfApprovedLeave', () => {
 		expect(event).toMatchObject({
 			title: '이샘플 · 휴가',
 			startISO: '2026-08-03T07:00:00.000Z',
-			endISO: '2026-08-04T06:59:59.999Z',
+			endISO: '2026-08-04T07:00:00.000Z',
+			isAllDay: true
+		});
+	});
+
+	test('hands a two-day leave the midnight that ends its second day', () => {
+		const event = calendarEntryOfApprovedLeave(
+			{
+				id: 'leave-two-days',
+				member_id: 'member-1',
+				kind: '연차',
+				days: 2,
+				status: 'approved',
+				starts_at: '2026-08-02T15:00:00.000Z',
+				ends_at: '2026-08-04T15:00:00.000Z'
+			},
+			members,
+			'Asia/Seoul'
+		);
+
+		expect(event).toMatchObject({
+			startISO: '2026-08-02T15:00:00.000Z',
+			endISO: '2026-08-04T15:00:00.000Z',
 			isAllDay: true
 		});
 	});

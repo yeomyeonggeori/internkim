@@ -40,9 +40,8 @@ export type CalendarEventPayload = {
 	title: string;
 	description: string;
 	location: string;
-	startISO: string;
-	endISO: string;
-	timeZone: string;
+	startsAt: string;
+	endsAt: string;
 	isAllDay: boolean;
 	color: string;
 	reminderMinutesBefore: number | null;

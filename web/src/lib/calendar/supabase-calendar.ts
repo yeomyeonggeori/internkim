@@ -18,8 +18,8 @@ export function calendarEventWritten(payload: CalendarEventPayload): Record<stri
 		title: payload.title,
 		note: payload.description,
 		location: payload.location,
-		startsAt: payload.startISO,
-		endsAt: payload.endISO,
+		startsAt: payload.startsAt,
+		endsAt: payload.endsAt,
 		isWholeDay: payload.isAllDay,
 		notifyMinutesBefore: payload.reminderMinutesBefore ?? noReminder,
 		participantPersonHints: payload.participants.map((participant) => participant.personID)
