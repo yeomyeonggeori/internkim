@@ -32,7 +32,7 @@ Hypervisor 게스트는 이 경로를 만든 Jetson Orin Nano Super에서 나왔
 | 구성 요소 | 하는 일 | 코드 |
 |---|---|---|
 | `internkim-admind` | 디바이스 관리 API: 관리 UI 리버스 프록시, 컴패니언 브로커, 백업과 복원, OTA 적용 | `cmd/internkim-admind/`, `internal/admind/` |
-| `internkim-capabilityd` | OpenRouter 키, 로컬 모델, 메신저·컴패니언 자격증명을 쥐고 능력 API만 노출; 선택적 Slack·Signal 사이드카를 굴림 | `internal/capabilityd/` |
+| `internkim-capabilityd` | OpenRouter 키, 로컬 모델, 메신저·컴패니언 자격증명을 쥐고 능력 API만 노출 | `internal/capabilityd/` |
 | blueclaw 게스트 | `blueclaw-supervisor` 아래 Cloud Hypervisor VM에 격리된 에이전트, `/workspace/.blueclaw/config/*.json`을 읽음 | `.dependency/blueclaw/` |
 | `graphiti-memoryd` | 기억 사이드카: 에피소드 수집과 하이브리드 그래프 검색 | — |
 | 로컬 모델 | 상주 `llama-server`: 생성은 MTP 드래프팅을 붙인 gemma-4-E2B QAT, 임베딩은 CPU 위 BGE-M3 Q8 | — |

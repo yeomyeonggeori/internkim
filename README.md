@@ -73,9 +73,6 @@ the user's own computer
         └── a headed browser through the bundled agent-browser
 ```
 
-Slack and Signal are optional channels on the same boundary. Both connectors
-exist; capabilityd starts them when their credentials are present.
-
 ### Reaching a device from somewhere else
 
 The product does not open a way in. `admind` listens on loopback, the agent's
@@ -188,8 +185,6 @@ model path directly; it reaches them through the typed capability boundary that
 |---|---|---|
 | `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` | the remote LLM provider |
 | `/root/.internkim/models/*` | `internkim-capabilityd`, the local model wrapper | the local model runtime |
-| `/root/.internkim/secrets/slack-*` | `internkim-capabilityd` | optional Slack Socket Mode |
-| `/root/.internkim/config/signal-*` | `internkim-capabilityd` | optional Signal JSON-RPC |
 | `/root/.internkim/state/companion-jobs.json` | `internkim-admind` | companion broker restart recovery |
 
 Graphiti runs as a memory sidecar and reads none of these. A companion's signing
@@ -213,7 +208,7 @@ reading one.
 | **relay** (`host/relay/`) | The company computer's link to the central plane. Answers member calls over Realtime and forwards messenger arrivals. |
 | **Go CLI** (`cmd/internkim/`) | The operator's command: `setup`, `deploy`/`release`/`update`, `recover`, `verify`, `reset`, `lab`/`dev fleet`, `ops`, `llm`, `users`/`task`/`invite`. |
 | **internkim-admind** | The device administrator API: the admin UI reverse proxy, companion pairing and broker, backup and restore, status. |
-| **internkim-capabilityd** | Holds the OpenRouter key, the local model, messenger and companion credentials, and exposes only a capability API. Runs the optional Slack and Signal sidecars on the same boundary. |
+| **internkim-capabilityd** | Holds the OpenRouter key, the local model, messenger and companion credentials, and exposes only a capability API. |
 | **local model** | Generation and embedding both on a resident `llama-server`: gemma-4-E2B QAT with MTP drafting (`--chat-template gemma`) for generation, BGE-M3 Q8 on CPU (`-ngl 0`) for embedding. `internkim-local-llm-runner` (LiteRT) is a legacy fallback. |
 | **blueclaw** | The agent runtime. On a device it runs as a Cloud Hypervisor guest under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json`. |
 | **chatd** | Per-person messenger operations, with Mattermost and Buzz adapters behind one gateway. |
@@ -485,9 +480,7 @@ go test ./internal/e2e -run TestPresentationLocalMultiturnSuccessLive -count=1
 The reset clears blueclaw tasks, raw events, conversations, legacy memory, the
 Graphiti mirror and Kuzu files, along with the posts, reactions and threads
 visible in Mattermost. Invited users, policy, platform account links, secrets,
-Mattermost users, teams and channels survive. Slack and Signal are somebody
-else's service, so a reset removes the test messages and bot replies it can
-reach and leaves the rest.
+Mattermost users, teams and channels survive.
 
 ## Companion
 
