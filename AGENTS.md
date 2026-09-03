@@ -22,8 +22,16 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   are reported as skipped, and re-running is idempotent (`kept`). **A local fleet
   run needs `--copy`**: the guest mounts the worktree at `/mnt/shared/workspace`
   and nothing else, so a linked artifact points at a host path it cannot follow,
-  and provisioning dies minutes in on a missing file. Nothing checks for that
-  first, so passing `--copy` is yours to remember.
+  and provisioning dies minutes in on a missing file. `dev fleet run` refuses a
+  linked one up front, naming which.
+- **Then run `make prepare-buzz-relay` in the worktree.** Syncing copies
+  `.dependency/buzz-relay` because the Rust relay is 2 GB and built from its own
+  pinned source, but the same directory carries `chatd`, which is built from
+  whatever `.dependency/blueclaw` points at. A copied one is some other
+  worktree's chatd: setup installs it, the unit reports active, and the scenario
+  fails on a listen address and a health route that binary never had.
+  `dev fleet run` refuses a `CHATD_REVISION` that is missing or does not match
+  the pointer, naming both.
 - Do not revert user or generated changes unless explicitly asked.
 - Before commit, push, or deploy, check the current branch, upstream status,
   and working tree state.

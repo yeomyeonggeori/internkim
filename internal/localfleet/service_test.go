@@ -3,6 +3,7 @@ package localfleet
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -407,6 +408,125 @@ func TestCheckSharedWorkspaceCommandUsesBindMountedDirectory(t *testing.T) {
 	}
 	if strings.Contains(command, "virtiofs") || strings.Contains(command, "mountpoint") {
 		t.Fatalf("expected no mount logic, got %s", command)
+	}
+}
+
+func messengerArtifactFixture(t *testing.T, recordedRevision string) (string, string) {
+	t.Helper()
+	repositoryRootPath := t.TempDir()
+	blueclawPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
+	if errorValue := os.MkdirAll(blueclawPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, arguments := range [][]string{
+		{"init", "--quiet"},
+		{"commit", "--quiet", "--allow-empty", "-m", "chatd"},
+	} {
+		command := exec.Command("git", arguments...)
+		command.Dir = blueclawPath
+		command.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
+		if output, errorValue := command.CombinedOutput(); errorValue != nil {
+			t.Fatalf("git %v: %v: %s", arguments, errorValue, output)
+		}
+	}
+	pointerCommand := exec.Command("git", "rev-parse", "HEAD")
+	pointerCommand.Dir = blueclawPath
+	pointer, errorValue := pointerCommand.Output()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	artifactPath := filepath.Join(repositoryRootPath, ".dependency", "buzz-relay")
+	if errorValue := os.MkdirAll(artifactPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if recordedRevision == matchingChatdRevision {
+		recordedRevision = strings.TrimSpace(string(pointer))
+	}
+	if recordedRevision != "" {
+		if errorValue := os.WriteFile(filepath.Join(artifactPath, "CHATD_REVISION"), []byte(recordedRevision+"\n"), 0o644); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	return repositoryRootPath, strings.TrimSpace(string(pointer))
+}
+
+const matchingChatdRevision = "<the blueclaw pointer>"
+
+func runMessengerArtifactCheck(t *testing.T, repositoryRootPath string) (error, string) {
+	t.Helper()
+	service, errorValue := NewService(Options{RepositoryRootPath: repositoryRootPath, ExecutablePath: filepath.Join(repositoryRootPath, "internkim")})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	command := exec.Command("/bin/sh", "-c", service.checkMessengerArtifactCommand())
+	output, runError := command.CombinedOutput()
+	return runError, string(output)
+}
+
+func TestAFleetRunAcceptsAChatdBuiltFromTheBlueclawPointer(t *testing.T) {
+	repositoryRootPath, _ := messengerArtifactFixture(t, matchingChatdRevision)
+
+	runError, output := runMessengerArtifactCheck(t, repositoryRootPath)
+
+	if runError != nil {
+		t.Fatalf("a chatd built from the pointer must be accepted, got %v: %s", runError, output)
+	}
+}
+
+func TestAFleetRunRefusesAChatdBuiltFromAnotherRevision(t *testing.T) {
+	repositoryRootPath, pointer := messengerArtifactFixture(t, "0123456789012345678901234567890123456789")
+
+	runError, output := runMessengerArtifactCheck(t, repositoryRootPath)
+
+	if runError == nil {
+		t.Fatal("a chatd built from another revision would install a messenger the checkout never wrote")
+	}
+	if !strings.Contains(output, "0123456789012345678901234567890123456789") || !strings.Contains(output, pointer) {
+		t.Fatalf("the refusal must name both revisions, got %s", output)
+	}
+	if !strings.Contains(output, "make prepare-buzz-relay") {
+		t.Fatalf("the refusal must say how to fix it, got %s", output)
+	}
+}
+
+func TestAFleetRunRefusesAChatdThatRecordsNoRevision(t *testing.T) {
+	repositoryRootPath, _ := messengerArtifactFixture(t, "")
+
+	runError, output := runMessengerArtifactCheck(t, repositoryRootPath)
+
+	if runError == nil {
+		t.Fatal("a copied artifact with no CHATD_REVISION is exactly the one that shipped a chatd with no health route")
+	}
+	if !strings.Contains(output, "make prepare-buzz-relay") {
+		t.Fatalf("the refusal must say how to fix it, got %s", output)
+	}
+}
+
+func TestUpPlansCheckTheMessengerArtifactBeforeBuildingAnything(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.upPlansThroughSetup(true, nil)
+	checkIndex := -1
+	buildIndex := -1
+	for index, plan := range plans {
+		joined := strings.Join(plan.Arguments, " ")
+		if strings.Contains(joined, "CHATD_REVISION") {
+			checkIndex = index
+		}
+		if plan.Name == "make" {
+			buildIndex = index
+		}
+	}
+	if checkIndex < 0 {
+		t.Fatal("a fleet run must check the messenger binary it would install")
+	}
+	if buildIndex < 0 || checkIndex > buildIndex {
+		t.Fatalf("the check must come before the run spends ten minutes, got check %d build %d", checkIndex, buildIndex)
 	}
 }
 
