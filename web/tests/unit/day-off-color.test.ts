@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { calendarEventFromApprovedLeave } from '../../src/lib/calendar/supabase-calendar-leave';
+import { calendarEntryOfApprovedLeave } from '../../src/lib/server/public-api/record/company-calendar';
 import { dayOffColor } from '../../src/lib/calendar/day-off-color';
 
 describe('a day off is one colour', () => {
 	test('an approved leave becomes a calendar event in that colour', () => {
-		const event = calendarEventFromApprovedLeave(
+		const event = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-1',
 				member_id: 'member-1',

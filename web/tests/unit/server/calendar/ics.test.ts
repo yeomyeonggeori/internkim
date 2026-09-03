@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { calendarFeedOf, dayOf, escapedText, foldedLine, momentOf } from '$lib/server/calendar/ics';
-import { calendarEventFromApprovedLeave } from '$lib/calendar/supabase-calendar-leave';
-import type { CalendarEvent } from '../../../../src/routes/calendar/embed/calendar-event-persistence';
+import { calendarEntryOfApprovedLeave } from '$lib/server/public-api/record/company-calendar';
+import type { CompanyCalendarEntry } from '$lib/server/public-api/record/company-calendar';
 
-function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
+function event(overrides: Partial<CompanyCalendarEntry> = {}): CompanyCalendarEntry {
 	return {
 		id: '00000000-0000-0000-0000-000000000001',
 		uid: '00000000-0000-0000-0000-000000000001',
@@ -15,9 +15,13 @@ function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
 		timeZone: '',
 		isAllDay: false,
 		color: '',
+		reminderMinutesBefore: null,
+		participants: [],
 		createdByEmail: '',
 		createdByName: '',
 		updatedAt: '2026-08-31T00:00:00.000Z',
+		readOnly: false,
+		source: 'event',
 		...overrides
 	};
 }
@@ -143,7 +147,7 @@ describe('what an entry carries beyond its title', () => {
 
 describe('a day somebody is off', () => {
 	test('is in the feed a calendar app subscribes to, as a whole day in the company time zone', () => {
-		const leave = calendarEventFromApprovedLeave(
+		const leave = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-1',
 				member_id: 'member-1',

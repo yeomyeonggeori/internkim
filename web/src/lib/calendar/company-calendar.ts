@@ -1,113 +1,69 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { companyTimeZone } from '$lib/company/company-settings';
+import { invokeTool } from '$lib/public-api-call';
+import { dayOffColor } from './day-off-color';
+import { eventReminderLeadOf } from './event-reminder-lead';
 import type { CalendarEvent } from '../../routes/calendar/embed/calendar-event-persistence';
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
-import type { Locale } from '../i18n/locale.svelte';
-import { approvedLeaveCalendarEvents } from './supabase-calendar-leave';
-import { eventReminderLeadOf } from './event-reminder-lead';
 
-export type CalendarMember = { id: string; name: string | null; email: string | null };
+export type AnsweredParticipant = { personID?: string; name: string; email?: string };
 
-type EventRow = {
-	id: string;
+export type AnsweredEvent = {
+	eventID: string;
 	title: string;
-	note: string | null;
-	location: { name?: string } | null;
-	starts_at: string;
-	ends_at: string;
-	is_whole_day: boolean;
-	notify_minutes_before: number | null;
-	updated_at: string;
-	task_participant: { member_id: string }[];
+	note: string;
+	location: string;
+	startsAt: string;
+	endsAt: string;
+	isWholeDay: boolean;
+	notifyMinutesBefore?: number;
+	participants: AnsweredParticipant[];
+	updatedAt: string;
 };
 
-const eventSelection =
-	'id, title, note, location, starts_at, ends_at, is_whole_day, notify_minutes_before, updated_at, task_participant (member_id)';
+type AnsweredEntry = AnsweredEvent & {
+	source: 'event' | 'leave';
+	readOnly: boolean;
+};
 
-export async function companyCalendarEntries(
-	caller: SupabaseClient,
-	from: Date,
-	to: Date,
-	timeZone: string,
-	locale: Locale = 'ko'
-): Promise<CalendarEvent[]> {
-	const members = await calendarMembers(caller);
-	const [events, leave] = await Promise.all([
-		scheduledEvents(caller, from, to, members, timeZone),
-		approvedLeaveCalendarEvents(caller, from, to, members, timeZone, locale)
+export async function companyCalendarEntries(from: Date, to: Date): Promise<CalendarEvent[]> {
+	const [answered, timeZone] = await Promise.all([
+		invokeTool<{ events: AnsweredEntry[] }>('event_list', {
+			startsAt: from.toISOString(),
+			endsAt: to.toISOString()
+		}),
+		companyTimeZone()
 	]);
-	return [...events, ...leave].sort((left, right) => left.startISO.localeCompare(right.startISO));
+	return answered.events.map((entry) => calendarEventOfEntry(entry, timeZone));
 }
 
-export async function calendarMembers(caller: SupabaseClient): Promise<Map<string, CalendarMember>> {
-	const members = await caller
-		.from('member')
-		.select('id, name, email')
-		.neq('status', 'withdrawn')
-		.returns<CalendarMember[]>();
-	if (members.error) throw new Error(members.error.message);
-	return new Map(members.data.map((member) => [member.id, member]));
-}
-
-export async function calendarEventByID(
-	caller: SupabaseClient,
-	eventID: string,
-	members: Map<string, CalendarMember>,
-	timeZone: string
-): Promise<CalendarEvent> {
-	const event = await caller.from('task').select(eventSelection).eq('id', eventID).single<EventRow>();
-	if (event.error) throw new Error(event.error.message);
-	return scheduledEvent(event.data, members, timeZone);
-}
-
-async function scheduledEvents(
-	caller: SupabaseClient,
-	from: Date,
-	to: Date,
-	members: Map<string, CalendarMember>,
-	timeZone: string
-): Promise<CalendarEvent[]> {
-	const events = await caller
-		.from('task')
-		.select(eventSelection)
-		.eq('is_event', true)
-		.neq('status', 'rejected')
-		.lt('starts_at', to.toISOString())
-		.gte('ends_at', from.toISOString())
-		.order('starts_at')
-		.returns<EventRow[]>();
-	if (events.error) throw new Error(events.error.message);
-	return events.data.map((event) => scheduledEvent(event, members, timeZone));
-}
-
-function scheduledEvent(
-	event: EventRow,
-	members: Map<string, CalendarMember>,
-	timeZone: string
-): CalendarEvent {
+function calendarEventOfEntry(entry: AnsweredEntry, timeZone: string): CalendarEvent {
+	const isDayOff = entry.source === 'leave';
+	const person = entry.participants[0];
 	return {
-		id: event.id,
-		uid: event.id,
-		title: event.title,
-		description: event.note ?? '',
-		location: event.location?.name ?? '',
-		startISO: event.starts_at,
-		endISO: event.ends_at,
+		id: entry.eventID,
+		uid: entry.eventID,
+		title: entry.title,
+		description: entry.note,
+		location: entry.location,
+		startISO: entry.startsAt,
+		endISO: entry.endsAt,
 		timeZone,
-		isAllDay: event.is_whole_day,
-		color: '',
-		participants: event.task_participant.map((participant) => memberParticipant(participant.member_id, members)),
-		createdByEmail: '',
-		createdByName: '',
-		reminderMinutesBefore: eventReminderLeadOf(event.notify_minutes_before),
-		updatedAt: event.updated_at
+		isAllDay: entry.isWholeDay,
+		color: isDayOff ? dayOffColor : '',
+		participants: entry.participants.map(calendarParticipant),
+		createdByEmail: isDayOff ? person?.email ?? '' : '',
+		createdByName: isDayOff ? person?.name ?? '' : '',
+		reminderMinutesBefore: eventReminderLeadOf(entry.notifyMinutesBefore),
+		updatedAt: entry.updatedAt,
+		readOnly: entry.readOnly,
+		source: entry.source
 	};
 }
 
-function memberParticipant(
-	memberID: string,
-	members: Map<string, CalendarMember>
-): CalendarParticipant {
-	const member = members.get(memberID);
-	const email = member?.email ?? '';
-	return { personID: memberID, name: member?.name || email.split('@')[0], email: email || undefined };
+function calendarParticipant(participant: AnsweredParticipant): CalendarParticipant {
+	return {
+		personID: participant.personID ?? '',
+		name: participant.name,
+		email: participant.email
+	};
 }

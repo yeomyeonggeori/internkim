@@ -4,7 +4,8 @@ import {
 	sessionForMember,
 	type ControlPlaneCredentials
 } from '$lib/server/control-plane';
-import { companyCalendarEntries } from '$lib/calendar/company-calendar';
+import { localeOf } from '$lib/i18n/locale';
+import { calendarMembers, companyCalendarEntries } from '$lib/server/public-api/record/company-calendar';
 import { calendarFeedOf } from './ics';
 import { companyOfFeedToken } from './feed-token';
 
@@ -54,14 +55,23 @@ export async function calendarFeedForToken(
 
 	const company = await caller
 		.from('company')
-		.select('name, timezone')
+		.select('name, timezone, locale')
 		.eq('id', companyID)
-		.maybeSingle<{ name: string | null; timezone: string | null }>();
+		.maybeSingle<{ name: string | null; timezone: string | null; locale: string | null }>();
 	if (company.error) throw new Error(`calendar subscription: ${company.error.message}`);
 
 	const timezone = company.data?.timezone?.trim() || 'Asia/Seoul';
 	const window = windowAround(now);
-	const entries = await companyCalendarEntries(caller, window.from, window.to, timezone);
+	const entries = await companyCalendarEntries(
+		{
+			caller,
+			members: await calendarMembers(caller),
+			timeZone: timezone,
+			locale: localeOf(company.data?.locale)
+		},
+		window.from,
+		window.to
+	);
 
 	return calendarFeedOf(entries, company.data?.name?.trim() || 'internkim', timezone);
 }

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
@@ -40,26 +39,13 @@ func TestACompanyEventBecomesACalendarEvent(t *testing.T) {
 	}
 }
 
-func TestACalendarRequestOnADeviceWithNoCompanyStaysOnTheDevice(t *testing.T) {
+func TestACalendarWriteOnADeviceWithNoCompanyStaysOnTheDevice(t *testing.T) {
 	service := &Service{}
-	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events", nil)
+	request := httptest.NewRequest(http.MethodPost, "/calendar/api/events", nil)
 
-	events, answered, errorValue := service.centralCalendarEvents(request, time.Time{}, time.Time{})
-	if answered || errorValue != nil || events != nil {
+	client, _, answered, errorValue := service.centralCalendarWriter(request)
+	if answered || errorValue != nil || client != nil {
 		t.Fatalf("a device that names no company keeps its own calendar, got answered=%v error=%v", answered, errorValue)
-	}
-}
-
-func TestACompanyCalendarRefusesACallItCannotName(t *testing.T) {
-	service := serviceWithACompanyForTest(t)
-	request := httptest.NewRequest(http.MethodGet, "/calendar/api/events", nil)
-
-	_, answered, errorValue := service.centralCalendarEvents(request, time.Time{}, time.Time{})
-	if !answered {
-		t.Fatal("a company device answers for its calendar rather than handing back its own copy")
-	}
-	if !errors.Is(errorValue, errCalendarReaderUnnamed) {
-		t.Fatalf("a call the company cannot attribute is refused, got %v", errorValue)
 	}
 }
 
@@ -90,16 +76,6 @@ func serviceWithACompanyForTest(t *testing.T) *Service {
 		t.Fatal("these settings name a company")
 	}
 	return service
-}
-
-func TestAnOpenCalendarWindowAsksForNoBound(t *testing.T) {
-	if bound := calendarWindowBound(time.Time{}); bound != "" {
-		t.Fatalf("an absent bound is not a moment, got %q", bound)
-	}
-	moment := time.Date(2026, 8, 23, 0, 0, 0, 0, time.UTC)
-	if bound := calendarWindowBound(moment); bound != "2026-08-23T00:00:00Z" {
-		t.Fatalf("bound = %q", bound)
-	}
 }
 
 func TestAReminderShorterThanAnHourStaysAReminder(t *testing.T) {
