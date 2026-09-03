@@ -1,7 +1,23 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { buildAttendanceSummaryFixture } from '../../../dev-attendance-summary-fixture';
 import { currentMonthInTimeZone } from '../../../src/routes/attendance/shared/attendance-date';
 import { attendanceText } from '../../../src/routes/attendance/text';
+
+// The summary comes from the company record now. These tests are about how
+// AttendanceState sequences and clocks its loads, so the record is answered
+// here by the same Response the transport used to hand back.
+mock.module('../../../src/lib/attendance/supabase-attendance', () => ({
+	addSupabaseAttendanceEvent: async () => ({ outcome: 'saved' }),
+	correctSupabaseAttendanceEvents: async () => ({ outcome: 'saved' }),
+	recordSupabaseAttendance: async () => undefined,
+	removeSupabaseAttendanceEvent: async () => ({ outcome: 'saved' }),
+	setSupabaseTeamViewVisibility: async () => undefined,
+	supabaseAttendanceSummary: async (month: string) => {
+		const response = await globalThis.fetch(`/attendance/api/summary?month=${month}`);
+		if (!response.ok) throw new Error(await response.text());
+		return response.json();
+	}
+}));
 
 const currentMonth = currentMonthInTimeZone('Asia/Seoul');
 const firstServerTime = `${currentMonth}-15T15:00:00+09:00`;

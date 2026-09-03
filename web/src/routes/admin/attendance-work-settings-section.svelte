@@ -50,7 +50,7 @@
 		isLoading = true;
 		message = '';
 		try {
-			const response = await fetchAttendanceWorkPolicy(adminBaseURL, text.workSettings.loadError);
+			const response = await fetchAttendanceWorkPolicy();
 			policy = response.policy;
 			currentMonth = response.currentMonth;
 			holidayDates = response.holidayDates;
@@ -87,11 +87,7 @@
 		isSaving = true;
 		message = '';
 		try {
-			const response = await updateAttendanceWorkPolicy(
-				adminBaseURL,
-				draft,
-				text.workSettings.saveError
-			);
+			const response = await updateAttendanceWorkPolicy(draft);
 			policy = response.policy;
 			currentMonth = response.currentMonth;
 			holidayDates = response.holidayDates;
@@ -106,7 +102,7 @@
 
 	async function refreshPreviewContext(): Promise<void> {
 		try {
-			const response = await fetchAttendanceWorkPolicy(adminBaseURL, text.workSettings.loadError);
+			const response = await fetchAttendanceWorkPolicy();
 			currentMonth = response.currentMonth;
 			holidayDates = response.holidayDates;
 		} catch (error) {

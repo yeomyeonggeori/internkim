@@ -220,7 +220,6 @@
   "VITE_DEV_USER_EMAIL": {"process": "web", "description": "the fake signed-in user's email for the local Vite dev server's mock-data screens; defaults to kim@example.com"},
   "VITE_DEV_USER_ROLE": {"process": "web", "description": "the fake signed-in user's role for the local Vite dev server's mock-data screens"},
   "VITE_MOCK_ADMIN": {"process": "web", "description": "when \"1\", enables the local dev server's mocked admin/CRM screen instead of the Supabase-backed one"},
-  "VITE_MOCK_ATTENDANCE": {"process": "web", "description": "when \"1\", enables the local dev server's mocked attendance screen instead of the Supabase-backed one"},
   "VITE_MOCK_CRM": {"process": "web", "description": "when \"1\", enables the local dev server's mocked CRM screen instead of the Supabase-backed one"},
   "VITE_MOCK_FILES": {"process": "web", "description": "when \"1\", enables the local dev server's mocked files screen instead of the Supabase-backed one"},
   "VITE_MOCK_MAIL": {"process": "web", "description": "when \"1\", enables the local dev server's mocked mail screen instead of the Supabase-backed one"},

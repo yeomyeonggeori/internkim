@@ -63,7 +63,7 @@ export class LeaveManagementState {
 
 	async cancelRequest(requestID: string): Promise<void> {
 		if (!this.selectedEmployeeEmail) return;
-		await this.mutate(() => cancelManagedLeaveRequest(requestID, this.selectedEmployeeEmail));
+		await this.mutate(() => cancelManagedLeaveRequest(requestID));
 	}
 
 	async correctTime(
