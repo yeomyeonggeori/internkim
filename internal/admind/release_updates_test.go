@@ -363,7 +363,8 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 		CompanionFileDirectory:      t.TempDir(),
 		SitesRoot:                   t.TempDir(),
 		SiteSecretDirectory:         t.TempDir(),
-		BotProfilePath:              writeTestFile(t, "{}"),
+		IdentityDocumentPath:        filepath.Join(t.TempDir(), "identity.json"),
+		SoulDocumentPath:            filepath.Join(t.TempDir(), "soul.json"),
 		BotProfileImagePath:         writeTestFile(t, "image"),
 		BlueclawWorkspacePath:       t.TempDir(),
 	})

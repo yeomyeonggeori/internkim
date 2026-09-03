@@ -111,13 +111,24 @@ export type RestoreUploadResponse = {
 	chunkSize: number;
 };
 
-export type BotProfile = {
-	username: string;
-	displayName: string;
-	englishDisplayName?: string;
-	aliases?: string[];
-	publicDescription: string;
-	identityExtension?: string;
+export type AgentToneRegister = 'formal' | 'polite' | 'casual';
+
+export type AgentSoul = {
+	schemaVersion: 1;
+	values?: string[];
+	boundaries?: string[];
+	workingStyle?: string[];
+	tone?: { register?: AgentToneRegister; traits?: string[] };
+	language?: { default?: string; matchRequester?: boolean };
+};
+
+export type AgentUser = {
+	schemaVersion: 1;
+	callMe?: string;
+	about?: string;
+	preferences?: string[];
+	tone?: { register?: AgentToneRegister; traits?: string[] };
+	language?: { default?: string };
 };
 
 export type CredentialProviderStatus = {
