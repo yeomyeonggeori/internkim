@@ -18,18 +18,36 @@
     <string>HOME_DIR/Library/Logs/internkim-relay.log</string>
     <key>EnvironmentVariables</key>
     <dict>
-        <key>SUPABASE_URL</key>
-        <string>SUPABASE_URL_VALUE</string>
-        <key>SUPABASE_PUBLISHABLE_KEY</key>
-        <string>SUPABASE_PUBLISHABLE_KEY_VALUE</string>
-        <key>INTERNKIM_APP_URL</key>
-        <string>INTERNKIM_APP_URL_VALUE</string>
+        <!-- BEGIN GENERATED from docs/internal/environment.json — edit that file, then run tools/render-environment-documents -->
+        <key>ADMIND_BASE_URL</key>
+        <string>ADMIND_BASE_URL_VALUE</string>
+        <key>ADMIND_SOCKET_PATH</key>
+        <string>ADMIND_SOCKET_PATH_VALUE</string>
         <key>AGENT_API_KEY_PATH</key>
-        <string>AGENT_KEY_PATH_VALUE</string>
-        <key>MESSENGER_PLATFORM</key>
-        <string>MESSENGER_PLATFORM_VALUE</string>
+        <string>AGENT_API_KEY_PATH_VALUE</string>
+        <key>ANSWER_BYTE_CEILING</key>
+        <string>ANSWER_BYTE_CEILING_VALUE</string>
+        <key>ARRIVALS_PORT</key>
+        <string>ARRIVALS_PORT_VALUE</string>
         <key>CHATD_BASE_URL</key>
         <string>CHATD_BASE_URL_VALUE</string>
+        <key>GATEWAY_SERVER_KEY</key>
+        <string>GATEWAY_SERVER_KEY_VALUE</string>
+        <key>GATEWAY_URL</key>
+        <string>GATEWAY_URL_VALUE</string>
+        <key>INTERNKIM_APP_URL</key>
+        <string>INTERNKIM_APP_URL_VALUE</string>
+        <key>LARGEST_FILE_BYTES</key>
+        <string>LARGEST_FILE_BYTES_VALUE</string>
+        <key>MAILD_BASE_URL</key>
+        <string>MAILD_BASE_URL_VALUE</string>
+        <key>MESSENGER_PLATFORM</key>
+        <string>MESSENGER_PLATFORM_VALUE</string>
+        <key>SUPABASE_PUBLISHABLE_KEY</key>
+        <string>SUPABASE_PUBLISHABLE_KEY_VALUE</string>
+        <key>SUPABASE_URL</key>
+        <string>SUPABASE_URL_VALUE</string>
+        <!-- END GENERATED -->
     </dict>
 </dict>
 </plist>
