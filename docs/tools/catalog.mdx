@@ -47,8 +47,21 @@ candidates to choose between.
 
 Implemented in `internal/capabilityd/calendar_tool.go`, also over admind's
 task API; a calendar event is a task with a time span. Times are ISO
-timestamps with a time zone, and `eventHint` follows the same resolution rule
-as `taskHint`.
+timestamps with a time zone, answered where the company is rather than in UTC,
+and `eventHint` follows the same resolution rule as `taskHint`.
+
+`event_list` answers what is coming when no window is given: from the start of
+today where the company is, through the seven days after it. Given one end of a
+window and not the other, the missing end is a day away. `query` matches the
+title, note and location, whatever the case.
+
+`everyoneAttends` leaves the event with no attendee list, which is what open to
+the whole company means; it does not name every member. An event whose
+attendees do not include the person asking for it is being asked *of* them, and
+stands at `requested` until they answer. Adding an event the company already
+holds — same title, same time, same people — is refused with
+`calendar_event_duplicate` and the id of the event it clashed with, so the
+caller can update that one instead. There is no way to ask for it twice.
 
 ## Leave [#leave]
 
