@@ -23,8 +23,8 @@ which side the write goes to first.
 | `intern.kim` | Supabase `public.task` | nothing |
 | the device, or the agent | admind SQLite, `calendar_events` | nothing |
 
-Two importers close the gap by hand, `web/scripts/import-task-state.ts` and
-`web/scripts/import-calendar-events.ts`. Someone has to run them, and between
+Two importers close the gap by hand, one for tasks and one for calendar events
+(`web/scripts/import-calendar-events.ts`). Someone has to run them, and between
 runs the two stores disagree. The calendar sat five weeks behind that way.
 
 Reads are not in this state. Files, agent task runs and the messenger reach the
@@ -279,8 +279,19 @@ and `company.task_vocabulary` alone. §7 named two consumers and both are
 closed. capabilityd's Go copies of the task tools went in #1402, and the device
 board UI is the same web build, which asks no device now.
 
-admind still holds the tables. Its `/task/api/*` handlers answer the record
-wherever a company is named, the task vocabulary is read from the record
-through `task_list`, and the SQLite half of every read runs only on a device
-that names no company. Deleting the tables, the handlers and the summary cache
-is the next step, carried the way #1414 carried attendance.
+admind holds no task rows. The `flow_*` tables, the summary cache and every
+`/task/api/*` handler but one are gone; the one left is `tasks/quick`, where a
+prompt becomes a task through the model on the company's own machine and the
+task it infers is written to the record. `openStateDatabase(ctx, "flow"` stays
+for the sweep to open what it lets go of, and #1331 closes that.
+
+A device that still holds the tables lets go of them the way #1414 shaped it
+for attendance: the caches drop unconditionally, the rows drop once
+`task-carry-into-the-record` has put them on the record and a carried-rows
+table remembers which, and a store that cannot be read is a store that is kept.
+The carry writes each row as the person it belongs to; the record's insert
+policy asks only that the writer be a colleague, so no row needs an
+administrator. What it will not do is let the record reshape history: a
+completed row ending in the future, a reversed pair of dates, and a 요청 or
+기각 row whose requester the device never recorded are each refused and named,
+because the record would take them and quietly rewrite them.

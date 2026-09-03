@@ -2,13 +2,13 @@ package admind
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -17,7 +17,7 @@ func TestARequesterHeaderOnTheTCPListenerNamesNobody(t *testing.T) {
 	tcpServer := httptest.NewServer(service.router())
 	defer tcpServer.Close()
 
-	response := getTaskStateAsRequester(t, tcpServer.Client(), tcpServer.URL, "member@example.com")
+	response := postQuickTaskAsRequester(t, tcpServer.Client(), tcpServer.URL, "member@example.com")
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusForbidden {
@@ -30,19 +30,12 @@ func TestARequesterHeaderOnTheSocketNamesThePerson(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	socketPath, socketClient := serveOnARequesterSocket(t, service)
 
-	response := getTaskStateAsRequester(t, socketClient, "http://internkim", "member@example.com")
+	response := postQuickTaskAsRequester(t, socketClient, "http://internkim", "member@example.com")
 	defer response.Body.Close()
 
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode == http.StatusForbidden {
 		body, _ := io.ReadAll(response.Body)
-		t.Fatalf("%s answered %d %s", socketPath, response.StatusCode, string(body))
-	}
-	var state taskStateResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if state.CurrentUserEmail != "member@example.com" {
-		t.Fatalf("the socket served %q", state.CurrentUserEmail)
+		t.Fatalf("%s refused the person it asserted: %s", socketPath, string(body))
 	}
 }
 
@@ -82,9 +75,9 @@ func serveOnARequesterSocket(t *testing.T, service *Service) (string, *http.Clie
 	return socketPath, socketClient
 }
 
-func getTaskStateAsRequester(t *testing.T, client *http.Client, baseURL string, requesterEmail string) *http.Response {
+func postQuickTaskAsRequester(t *testing.T, client *http.Client, baseURL string, requesterEmail string) *http.Response {
 	t.Helper()
-	request, errorValue := http.NewRequest(http.MethodGet, baseURL+"/flow/api/state", nil)
+	request, errorValue := http.NewRequest(http.MethodPost, baseURL+quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

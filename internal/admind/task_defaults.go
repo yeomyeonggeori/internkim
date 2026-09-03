@@ -2,13 +2,8 @@ package admind
 
 import (
 	"fmt"
-	"regexp"
-	"strings"
 )
 
-func defaultTaskTypes() []string {
-	return []string{"기능", "개선", "변경", "수정", "기획", "디자인", "마케팅", "운영", "회의", "미팅", "문서"}
-}
 
 func defaultTaskSizeDefinitions() []taskSizeDefinition {
 	return defaultTaskSizeDefinitionsForLocale("ko")
@@ -53,9 +48,6 @@ func sizeDefinitionForLocale(locale string, name string, distanceKM int, maxHour
 	return size
 }
 
-func taskSizeLabel(size taskSizeDefinition) string {
-	return taskSizeLabelForLocale(size, "ko")
-}
 
 func taskSizeLabelForLocale(size taskSizeDefinition, locale string) string {
 	if normalizeAdminLocale(locale) == "en" {
@@ -73,66 +65,3 @@ func containsTaskSize(values []taskSizeDefinition, target string) bool {
 	return false
 }
 
-var taskDefinitionColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
-
-func cleanTaskDefinitionColors(colors map[string]string) map[string]string {
-	result := map[string]string{}
-	for value, color := range colors {
-		trimmedValue := strings.TrimSpace(value)
-		trimmedColor := strings.ToLower(strings.TrimSpace(color))
-		if trimmedValue == "" || !taskDefinitionColorPattern.MatchString(trimmedColor) {
-			continue
-		}
-		result[trimmedValue] = trimmedColor
-	}
-	return result
-}
-
-func cleanTaskDefinitionValues(values []string) []string {
-	result := []string{}
-	seen := map[string]bool{}
-	for _, value := range values {
-		trimmedValue := strings.TrimSpace(value)
-		if trimmedValue == "" || seen[trimmedValue] {
-			continue
-		}
-		seen[trimmedValue] = true
-		result = append(result, trimmedValue)
-	}
-	return result
-}
-
-func cleanTaskSizeDefinitions(values []taskSizeDefinition) []taskSizeDefinition {
-	result := []taskSizeDefinition{}
-	seen := map[string]bool{}
-	for _, value := range values {
-		name := strings.ToUpper(strings.TrimSpace(value.Name))
-		if name == "" || seen[name] {
-			continue
-		}
-		distanceKM := value.DistanceKM
-		if distanceKM <= 0 {
-			distanceKM = 1
-		}
-		maxHours := value.MaxHours
-		if maxHours <= 0 {
-			maxHours = distanceKM
-		}
-		size := taskSizeDefinition{
-			Name:               name,
-			DistanceKM:         distanceKM,
-			MaxHours:           maxHours,
-			DevelopmentExample: strings.TrimSpace(value.DevelopmentExample),
-			OtherExample:       strings.TrimSpace(value.OtherExample),
-			Note:               strings.TrimSpace(value.Note),
-			Score:              distanceKM,
-		}
-		size.Label = taskSizeLabel(size)
-		seen[name] = true
-		result = append(result, size)
-	}
-	if len(result) == 0 {
-		return defaultTaskSizeDefinitions()
-	}
-	return result
-}

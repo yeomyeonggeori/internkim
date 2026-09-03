@@ -2,48 +2,31 @@ package admind
 
 import "testing"
 
-func TestLocalizedTaskSizeDefinitionsTranslatesSeededText(t *testing.T) {
-	sizes := localizedTaskSizeDefinitions(defaultTaskSizeDefinitions(), "en")
+func TestTaskSizeDefinitionsSpeakTheAdminLocale(t *testing.T) {
+	english := defaultTaskSizeDefinitionsForLocale("en")
 
-	extraSmall := sizes[0]
-	if extraSmall.Name != "XS" {
-		t.Fatalf("first size = %q, want XS", extraSmall.Name)
+	if english[0].Name != "XS" {
+		t.Fatalf("first size = %q, want XS", english[0].Name)
 	}
-	if extraSmall.DevelopmentExample != "Trivial change" {
-		t.Fatalf("development example = %q, want the English default", extraSmall.DevelopmentExample)
+	if english[0].DevelopmentExample != "Trivial change" {
+		t.Fatalf("development example = %q, want the English default", english[0].DevelopmentExample)
 	}
-	if extraSmall.Note != "Done in a moment" {
-		t.Fatalf("note = %q, want the English default", extraSmall.Note)
+	if english[0].Note != "Done in a moment" {
+		t.Fatalf("note = %q, want the English default", english[0].Note)
 	}
-	if extraSmall.Label != "1km · max 1h" {
-		t.Fatalf("label = %q, want the English label", extraSmall.Label)
+	if english[0].Label != "1km · max 1h" {
+		t.Fatalf("label = %q, want the English label", english[0].Label)
 	}
-	if extraSmall.DistanceKM != 1 || extraSmall.MaxHours != 1 {
-		t.Fatalf("distance/hours = %d/%d, want the stored numbers", extraSmall.DistanceKM, extraSmall.MaxHours)
+	if english[0].DistanceKM != 1 || english[0].MaxHours != 1 {
+		t.Fatalf("distance/hours = %d/%d, want the rubric's numbers", english[0].DistanceKM, english[0].MaxHours)
 	}
-}
 
-func TestLocalizedTaskSizeDefinitionsKeepsCustomText(t *testing.T) {
-	sizes := defaultTaskSizeDefinitions()
-	sizes[0].Note = "우리 팀 기준"
+	korean := defaultTaskSizeDefinitionsForLocale("ko")
 
-	localized := localizedTaskSizeDefinitions(sizes, "en")
-
-	if localized[0].Note != "우리 팀 기준" {
-		t.Fatalf("note = %q, want the customized text kept", localized[0].Note)
+	if korean[0].Note != "잠깐이면 끝낼 것" {
+		t.Fatalf("note = %q, want the Korean default", korean[0].Note)
 	}
-	if localized[0].DevelopmentExample != "Trivial change" {
-		t.Fatalf("development example = %q, want the English default", localized[0].DevelopmentExample)
-	}
-}
-
-func TestLocalizedTaskSizeDefinitionsKeepsKoreanForKoreanLocale(t *testing.T) {
-	sizes := localizedTaskSizeDefinitions(defaultTaskSizeDefinitions(), "ko")
-
-	if sizes[0].Note != "잠깐이면 끝낼 것" {
-		t.Fatalf("note = %q, want the Korean default", sizes[0].Note)
-	}
-	if sizes[0].Label != "1km · 최대 1h" {
-		t.Fatalf("label = %q, want the Korean label", sizes[0].Label)
+	if korean[0].Label != "1km · 최대 1h" {
+		t.Fatalf("label = %q, want the Korean label", korean[0].Label)
 	}
 }

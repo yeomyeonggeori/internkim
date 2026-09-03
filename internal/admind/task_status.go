@@ -12,22 +12,7 @@ const (
 	taskStatusStopped    = "stopped"
 )
 
-var koreanTaskStatusLabels = map[string]string{
-	taskStatusRequested:  "요청",
-	taskStatusPlanned:    "예정",
-	taskStatusInProgress: "진행",
-	taskStatusCompleted:  "완료",
-	taskStatusPaused:     "일시정지",
-	taskStatusRejected:   "기각",
-	taskStatusStopped:    "중단",
-}
 
-func taskStatusLabel(status string) string {
-	if label, known := koreanTaskStatusLabels[cleanTaskStatus(status)]; known {
-		return label
-	}
-	return status
-}
 
 func defaultTaskStatus() string {
 	return taskStatusPlanned
@@ -71,9 +56,6 @@ func isAllowedTaskStatus(status string) bool {
 	return containsString(taskStatusOptions(), cleanTaskStatus(status))
 }
 
-func isTaskRequestedStatus(status string) bool {
-	return cleanTaskStatus(status) == taskStatusRequested
-}
 
 func isTaskInProgressStatus(status string) bool {
 	return cleanTaskStatus(status) == taskStatusInProgress
@@ -87,18 +69,6 @@ func isTaskPlannedStatus(status string) bool {
 	return cleanTaskStatus(status) == taskStatusPlanned
 }
 
-func isTaskPausedStatus(status string) bool {
-	return cleanTaskStatus(status) == taskStatusPaused
-}
 
-func isTaskRejectedStatus(status string) bool {
-	return cleanTaskStatus(status) == taskStatusRejected
-}
 
-func isTaskStoppedStatus(status string) bool {
-	return cleanTaskStatus(status) == taskStatusStopped
-}
 
-func isTaskInactiveStatus(status string) bool {
-	return isTaskRejectedStatus(status) || isTaskStoppedStatus(status)
-}

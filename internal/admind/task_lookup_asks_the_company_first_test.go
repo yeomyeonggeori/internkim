@@ -11,43 +11,26 @@ import (
 
 const companyHeldTaskID = "6f0f5f4e-3a52-4a3f-9b3f-2f7a9b1c0d21"
 
-func TestReadingOneTaskAnswersTheCompanyOverTheDeviceCopy(t *testing.T) {
+func TestTheBoardIsReadFromTheCompany(t *testing.T) {
 	service := NewService(Configuration{TaskDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
-	company := startCompanyHoldingOneTask(t, companyHeldTaskID, "completed")
-	useCompanyForTest(service, company.URL)
+	useCompanyForTest(service, startCompanyHoldingOneTask(t, companyHeldTaskID, "completed").URL)
 	ctx := withTaskActor(context.Background(), "someone@example.com")
 
-	staleCopy := taskSummaryInvalidationTask(companyHeldTaskID, "26W28", "2026-07-06", "2026-07-07", taskStatusPlanned, 1024)
-	if errorValue := service.writeTask(ctx, staleCopy); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	task, found, errorValue := service.readTaskAnswering(ctx, companyHeldTaskID, nil)
+	tasks, errorValue := service.readTasks(ctx, "26W28", nil)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !found || task.Status != "completed" {
-		t.Fatalf("the company's row must answer over the device copy, got found=%v status=%q", found, task.Status)
+	if len(tasks) != 1 || tasks[0].ID != companyHeldTaskID || tasks[0].Status != "completed" {
+		t.Fatalf("the company's board must be the board, got %+v", tasks)
 	}
 }
 
-func TestReadingOneTaskTheCompanyDoesNotHoldAnswersNothing(t *testing.T) {
+func TestADeviceThatNamesNoCompanyHasNoBoardToRead(t *testing.T) {
 	service := NewService(Configuration{TaskDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
-	company := startCompanyHoldingOneTask(t, companyHeldTaskID, "completed")
-	useCompanyForTest(service, company.URL)
 	ctx := withTaskActor(context.Background(), "someone@example.com")
 
-	deviceOnly := taskSummaryInvalidationTask("device-only-task", "26W28", "2026-07-06", "2026-07-07", taskStatusPlanned, 1024)
-	if errorValue := service.writeTask(ctx, deviceOnly); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	_, found, errorValue := service.readTaskAnswering(ctx, "device-only-task", nil)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if found {
-		t.Fatal("a company device answers tasks from the company board alone")
+	if _, errorValue := service.readTasks(ctx, "26W28", nil); errorValue == nil {
+		t.Fatal("a device with no company answers no board rather than one of its own")
 	}
 }
 

@@ -234,46 +234,6 @@ func TestPublicToolGatewayRejectsRemovedTokenOwner(t *testing.T) {
 	}
 }
 
-func TestTaskCreateDefaultsBusinessAndUpdatePreservesOmittedBusiness(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	if errorValue := service.writeTaskDefinitions(context.Background(), taskDefinitions{
-		Categories: []string{"제품"},
-		Types:      []string{"회의"},
-		Sizes:      defaultTaskSizeDefinitions(),
-	}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	createRequest := newTaskRequest("member@example.com", "member@example.com")
-	createResponse := httptest.NewRecorder()
-	service.createTask(createResponse, createRequest)
-	if createResponse.Code != http.StatusOK {
-		t.Fatalf("create status = %d body = %s", createResponse.Code, createResponse.Body.String())
-	}
-	var createdTask Task
-	if errorValue := json.Unmarshal(createResponse.Body.Bytes(), &createdTask); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if createdTask.Business != "제품" {
-		t.Fatalf("created business = %q", createdTask.Business)
-	}
-	updateDocument := `{"ownerID":"` + createdTask.OwnerID + `","participantIDs":["` + createdTask.OwnerID + `"],"type":"회의","content":"10분 회의","size":"XS","status":"in_progress","weekCode":"26W18"}`
-	updateRequest := httptest.NewRequest(http.MethodPut, "/flow/api/tasks/"+createdTask.ID, strings.NewReader(updateDocument))
-	updateRequest.RemoteAddr = "198.51.100.10:443"
-	updateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
-	updateResponse := httptest.NewRecorder()
-	service.updateTask(updateResponse, updateRequest, createdTask.ID)
-	if updateResponse.Code != http.StatusOK {
-		t.Fatalf("update status = %d body = %s", updateResponse.Code, updateResponse.Body.String())
-	}
-	var updatedTask Task
-	if errorValue := json.Unmarshal(updateResponse.Body.Bytes(), &updatedTask); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if updatedTask.Business != "제품" {
-		t.Fatalf("updated business = %q", updatedTask.Business)
-	}
-}
-
 func TestPublicAPIRunsAsTheRequesterTheSocketAsserts(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {

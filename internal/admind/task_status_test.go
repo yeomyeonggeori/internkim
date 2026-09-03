@@ -30,14 +30,3 @@ func TestCleanTaskStatusTranslatesOnlyStoredValues(t *testing.T) {
 	}
 }
 
-func TestTaskStatusLabelSpeaksKorean(t *testing.T) {
-	if label := taskStatusLabel("completed"); label != "완료" {
-		t.Fatalf("label = %q", label)
-	}
-	if label := taskStatusLabel("완료"); label != "완료" {
-		t.Fatalf("legacy label = %q", label)
-	}
-	if label := taskStatusLabel("unknown"); label != "unknown" {
-		t.Fatalf("unknown label = %q", label)
-	}
-}
