@@ -113,6 +113,8 @@ var SSHRecoveryActions = []string{
 	"organization-record-coverage",
 	"organization-carry-into-the-record",
 	"company-profile-carry-into-the-record",
+	"crm-record-coverage",
+	"crm-carry-into-the-record",
 	"company-ledger-record-coverage",
 	"company-ledger-carry-into-the-record",
 	"mail-account-carry-into-the-record",
@@ -345,6 +347,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		mailAccountCarryContext, cancelMailAccountCarry := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(mailAccountCarryContext, "carry the mail accounts the record never took", "sh", "-lc", mailAccountCarryCommand()))
 		cancelMailAccountCarry()
+	case "crm-record-coverage":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the CRM the record has not taken", "sh", "-lc", crmRecordCoverageCommand(false)))
+	case "crm-carry-into-the-record":
+		crmCarryContext, cancelCRMCarry := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(crmCarryContext, "carry the CRM the record never took", "sh", "-lc", crmRecordCoverageCommand(true)))
+		cancelCRMCarry()
 	case "organization-carry-into-the-record":
 		organizationCarryContext, cancelOrganizationCarry := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(organizationCarryContext, "carry the organization profiles the record never took", "sh", "-lc", organizationRecordCoverageCommand(true)))
@@ -1715,6 +1723,17 @@ func companyLedgerCoverageCommand(carry bool) string {
 	}
 	return strings.TrimSpace(`
 body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/company-ledger-coverage?carry=` + carryValue + `")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
+`)
+}
+
+func crmRecordCoverageCommand(carry bool) string {
+	carryValue := "false"
+	if carry {
+		carryValue = "true"
+	}
+	return strings.TrimSpace(`
+body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/crm-record-coverage?carry=` + carryValue + `")
 printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }
