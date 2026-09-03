@@ -151,6 +151,47 @@ describe('team status day context', () => {
 		expect(context.completedTasks.map((task) => task.id)).toEqual(['email-matched']);
 	});
 
+	test('keys a whole-day event by the Seoul company day, not its UTC storage day', () => {
+		const event = {
+			...calendarEvent('whole-day', '종일 일정', '2026-09-01T15:00:00.000Z', '2026-09-02T15:00:00.000Z', [
+				{ personID: 'kim', name: '김철수', email: 'kim@example.com' }
+			]),
+			isAllDay: true
+		} satisfies CalendarEvent;
+
+		const dayBeforeContext = buildTeamStatusDayContext(
+			{ email: 'kim@example.com', displayName: '김철수' },
+			'2026-09-01',
+			[event],
+			null,
+			'ko-KR',
+			'종일',
+			loadedContext()
+		);
+		const eventDayContext = buildTeamStatusDayContext(
+			{ email: 'kim@example.com', displayName: '김철수' },
+			'2026-09-02',
+			[event],
+			null,
+			'ko-KR',
+			'종일',
+			loadedContext()
+		);
+		const dayAfterContext = buildTeamStatusDayContext(
+			{ email: 'kim@example.com', displayName: '김철수' },
+			'2026-09-03',
+			[event],
+			null,
+			'ko-KR',
+			'종일',
+			loadedContext()
+		);
+
+		expect(dayBeforeContext.calendarEvents).toEqual([]);
+		expect(eventDayContext.calendarEvents.map((detail) => detail.id)).toEqual(['whole-day']);
+		expect(dayAfterContext.calendarEvents).toEqual([]);
+	});
+
 	test('hides calendar events with invalid dates', () => {
 		const context = buildTeamStatusDayContext(
 			{ email: 'kim@example.com', displayName: '김철수' },
