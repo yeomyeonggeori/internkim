@@ -99,9 +99,9 @@ func resolveApprovalTargetThroughRoute(t *testing.T, service Service, toolName s
 	return response
 }
 
-func decodeResolvedApprovalTarget(t *testing.T, response capabilities.ToolInvokeResponse) capabilityToolTarget {
+func decodeResolvedApprovalTarget(t *testing.T, response capabilities.ToolInvokeResponse) capabilities.ApprovalTarget {
 	t.Helper()
-	target := capabilityToolTarget{}
+	target := capabilities.ApprovalTarget{}
 	if errorValue := json.Unmarshal(response.Result, &target); errorValue != nil {
 		t.Fatalf("expected a resolved target document, got %s: %v", response.Result, errorValue)
 	}

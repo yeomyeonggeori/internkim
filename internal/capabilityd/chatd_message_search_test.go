@@ -195,7 +195,7 @@ func TestMessageDeleteApprovalPreviewQuotesTheTargets(testContext *testing.T) {
 	if errorValue != nil {
 		testContext.Fatalf("resolve failed: %v", errorValue)
 	}
-	var target capabilityToolTarget
+	var target capabilities.ApprovalTarget
 	if errorValue := json.Unmarshal(response.Result, &target); errorValue != nil {
 		testContext.Fatalf("target decode failed: %v", errorValue)
 	}
