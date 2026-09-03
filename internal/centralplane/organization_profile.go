@@ -26,7 +26,7 @@ func (client *Client) WriteOrganizationProfiles(ctx context.Context, profiles []
 	if client == nil || !client.settings.Configured() {
 		return nil, fmt.Errorf("central plane is not configured")
 	}
-	administratorEmail, errorValue := client.anAdministratorEmail(ctx)
+	administratorEmail, errorValue := client.claimedAdministratorEmail()
 	if errorValue != nil {
 		return nil, errorValue
 	}

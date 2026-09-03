@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 )
 
@@ -118,27 +117,17 @@ func (client *Client) MemberByEmail(ctx context.Context, email string) (Member, 
 }
 
 // A directory write belongs to an administrator, and a sync no person asked
-// for has none to name. The roster the plane already answers with says who
-// administers this company, so a write with no requester runs as one of them.
-func (client *Client) anAdministratorEmail(ctx context.Context) (string, error) {
-	members, errorValue := client.Members(ctx)
-	if errorValue != nil {
-		return "", errorValue
+// for has none to name. The device knows which administrator claimed it, and
+// that is the identity the record attributes these writes to.
+func (client *Client) claimedAdministratorEmail() (string, error) {
+	if client == nil || client.settings.ClaimedAdministratorEmail == nil {
+		return "", fmt.Errorf("this device names no claimed administrator, so it has nobody to write the directory as")
 	}
-	emails := []string{}
-	for _, member := range members {
-		if NormalizeMemberRole(member.Role) != MemberRoleAdmin || member.HasLeftTheCompany() {
-			continue
-		}
-		if email := strings.ToLower(strings.TrimSpace(member.Email)); email != "" {
-			emails = append(emails, email)
-		}
+	email := strings.ToLower(strings.TrimSpace(client.settings.ClaimedAdministratorEmail()))
+	if email == "" {
+		return "", fmt.Errorf("no administrator has claimed this device, so it has nobody to write the directory as")
 	}
-	if len(emails) == 0 {
-		return "", fmt.Errorf("this company has no administrator to write its directory as")
-	}
-	sort.Strings(emails)
-	return emails[0], nil
+	return email, nil
 }
 
 // Seating somebody goes through person_invite, which is the plane's own invite
@@ -152,7 +141,7 @@ func (client *Client) EnsureMember(ctx context.Context, email string, name strin
 	if client == nil || !client.settings.Configured() {
 		return Member{}, fmt.Errorf("central plane is not configured")
 	}
-	administratorEmail, errorValue := client.anAdministratorEmail(ctx)
+	administratorEmail, errorValue := client.claimedAdministratorEmail()
 	if errorValue != nil {
 		return Member{}, errorValue
 	}

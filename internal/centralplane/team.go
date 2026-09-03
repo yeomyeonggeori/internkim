@@ -72,7 +72,7 @@ func (client *Client) SettleTeams(ctx context.Context, teams []OfferedTeam) ([]T
 	if client == nil || !client.settings.Configured() {
 		return nil, fmt.Errorf("central plane is not configured")
 	}
-	administratorEmail, errorValue := client.anAdministratorEmail(ctx)
+	administratorEmail, errorValue := client.claimedAdministratorEmail()
 	if errorValue != nil {
 		return nil, errorValue
 	}

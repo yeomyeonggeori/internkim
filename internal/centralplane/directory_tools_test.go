@@ -17,7 +17,6 @@ type recordedToolCall struct {
 
 type directoryStub struct {
 	server  *httptest.Server
-	roster  []map[string]any
 	teams   []map[string]any
 	seated  map[string]string
 	calls   []recordedToolCall
@@ -26,15 +25,7 @@ type directoryStub struct {
 
 func newDirectoryStub(t *testing.T) *directoryStub {
 	t.Helper()
-	stub := &directoryStub{
-		roster: []map[string]any{
-			{"memberID": "member-boss", "email": "boss@example.com", "role": "admin", "status": "active"},
-			{"memberID": "member-early", "email": "early@example.com", "role": "admin", "status": "active"},
-			{"memberID": "member-one", "email": "one@example.com", "role": "member", "status": "active"},
-			{"memberID": "member-gone", "email": "gone@example.com", "role": "admin", "status": "withdrawn"},
-		},
-		seated: map[string]string{"one@example.com": "member-one"},
-	}
+	stub := &directoryStub{seated: map[string]string{"one@example.com": "member-one"}}
 	stub.server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch {
 		case request.URL.Path == "/api/agent/session":
@@ -57,10 +48,13 @@ func newDirectoryStub(t *testing.T) *directoryStub {
 	return stub
 }
 
+// Only the one-person lookup: a directory write runs as the administrator who
+// claimed the device, so anything reading the whole roster to decide who to
+// write as is a mistake this stub should name rather than answer.
 func (stub *directoryStub) answerTheDirectory(writer http.ResponseWriter, request *http.Request) {
 	email := request.URL.Query().Get("email")
 	if email == "" {
-		writeJSON(writer, map[string]any{"members": stub.roster})
+		http.Error(writer, "these writes do not read the roster", http.StatusNotFound)
 		return
 	}
 	memberID, isSeated := stub.seated[email]
@@ -153,11 +147,16 @@ func (stub *directoryStub) toolsCalled() []string {
 }
 
 func (stub *directoryStub) client() *Client {
+	return stub.clientClaimedBy("boss@example.com")
+}
+
+func (stub *directoryStub) clientClaimedBy(administratorEmail string) *Client {
 	return New(Settings{
-		AppURL:         stub.server.URL,
-		AgentAPIKey:    "agent-key",
-		ProjectURL:     stub.server.URL,
-		PublishableKey: "publishable",
+		AppURL:                    stub.server.URL,
+		AgentAPIKey:               "agent-key",
+		ProjectURL:                stub.server.URL,
+		PublishableKey:            "publishable",
+		ClaimedAdministratorEmail: func() string { return administratorEmail },
 	})
 }
 
@@ -175,10 +174,10 @@ func numberOr(value any, fallback int) int {
 	return fallback
 }
 
-func TestADirectoryWriteRunsAsAnAdministratorTheRosterNames(t *testing.T) {
+func TestADirectoryWriteRunsAsTheAdministratorWhoClaimedTheDevice(t *testing.T) {
 	stub := newDirectoryStub(t)
 
-	if _, errorValue := stub.client().SettleTeams(context.Background(), nil); errorValue != nil {
+	if _, errorValue := stub.clientClaimedBy("Early@Example.com").SettleTeams(context.Background(), nil); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -186,22 +185,36 @@ func TestADirectoryWriteRunsAsAnAdministratorTheRosterNames(t *testing.T) {
 		t.Fatal("settling teams read nothing from the record")
 	}
 	for _, call := range stub.calls {
-		if call.requester != "boss@example.com" {
-			t.Fatalf("%s ran as %q; a directory write runs as an administrator, and boss@ sorts first", call.tool, call.requester)
+		if call.requester != "early@example.com" {
+			t.Fatalf("%s ran as %q; a directory write runs as the administrator who claimed this device", call.tool, call.requester)
 		}
 	}
 }
 
-func TestADirectoryWriteRefusesWhenNobodyLeftAdministersTheCompany(t *testing.T) {
+func TestADirectoryWriteRefusesWhenNobodyHasClaimedTheDevice(t *testing.T) {
 	stub := newDirectoryStub(t)
-	stub.roster = []map[string]any{
-		{"memberID": "member-one", "email": "one@example.com", "role": "member", "status": "active"},
-		{"memberID": "member-gone", "email": "gone@example.com", "role": "admin", "status": "departed"},
-	}
 
-	_, errorValue := stub.client().SettleTeams(context.Background(), nil)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "no administrator") {
-		t.Fatalf("error = %v; a write with nobody to run as says so", errorValue)
+	_, errorValue := stub.clientClaimedBy("  ").SettleTeams(context.Background(), nil)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "no administrator has claimed this device") {
+		t.Fatalf("error = %v; a write with nobody to run as says why", errorValue)
+	}
+	if len(stub.calls) != 0 {
+		t.Fatalf("called %v; a write it cannot attribute reaches the record for nothing", stub.toolsCalled())
+	}
+}
+
+func TestADirectoryWriteRefusesWhenTheDeviceWasBuiltWithNoClaimAtAll(t *testing.T) {
+	stub := newDirectoryStub(t)
+	client := New(Settings{
+		AppURL:         stub.server.URL,
+		AgentAPIKey:    "agent-key",
+		ProjectURL:     stub.server.URL,
+		PublishableKey: "publishable",
+	})
+
+	_, errorValue := client.SettleTeams(context.Background(), nil)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "names no claimed administrator") {
+		t.Fatalf("error = %v; a client with no claim at all says so rather than writing as nobody", errorValue)
 	}
 }
 
