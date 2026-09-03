@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -203,6 +204,16 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		"web-backed-ui":           always(func() []CommandPlan { return service.webBackedScenarioPlans("web-backed-ui") }),
 		"regression-proof":        always(func() []CommandPlan { return service.webBackedScenarioPlans("regression-proof") }),
 	}
+}
+
+func ScenarioNames() []string {
+	builders := Service{}.scenarioPlanBuilders()
+	names := make([]string, 0, len(builders))
+	for name := range builders {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func (service Service) VerifyRegression(contextValue context.Context, logger Logger, base string, scenario string) error {
