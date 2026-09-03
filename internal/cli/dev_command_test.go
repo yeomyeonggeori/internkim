@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/localfleet"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -193,6 +195,30 @@ func TestParseDevFleetRunCanReuseSharedFleet(t *testing.T) {
 	}
 	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "buzz-direct-message" {
 		t.Fatalf("request = %+v", configuration.Request)
+	}
+}
+
+func TestParseDevFleetRunHelpListsScenariosFromTheRegistry(t *testing.T) {
+	readEnd, writeEnd, errorValue := os.Pipe()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	previousStderr := os.Stderr
+	os.Stderr = writeEnd
+	_, parseError := parseDevFleetRunArguments([]string{"--help"})
+	os.Stderr = previousStderr
+	writeEnd.Close()
+	if parseError == nil {
+		t.Fatal("expected --help to report flag.ErrHelp")
+	}
+	helpOutput, errorValue := io.ReadAll(readEnd)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, scenarioName := range localfleet.ScenarioNames() {
+		if !strings.Contains(string(helpOutput), scenarioName) {
+			t.Fatalf("expected --help output to list scenario %q, got:\n%s", scenarioName, helpOutput)
+		}
 	}
 }
 
