@@ -60,8 +60,6 @@ func ParseRuntimeArtifactManifest(manifestDocument []byte) (RuntimeArtifactManif
 
 func validateRuntimeArtifactDirectory(artifactDirectoryPath string, manifest RuntimeArtifactManifest) (RuntimeArtifactManifest, error) {
 	requiredFileNames := map[string]bool{
-		"firecracker":      true,
-		"jailer":           true,
 		"cloud-hypervisor": true,
 		"virtiofsd":        true,
 		"vmlinux.bin":      true,

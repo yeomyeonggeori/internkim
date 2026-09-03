@@ -14,20 +14,14 @@ func TestRuntimeConfigurationNamesTheDeliveryShareOnlyWhenTheMonitorServesIt(t *
 	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
 		t.Fatalf("expected the runtime document to parse: %v", errorValue)
 	}
-	guestConfiguration, isPresent := runtimeConfiguration["firecracker"].(map[string]any)
+	guestConfiguration, isPresent := runtimeConfiguration["guest"].(map[string]any)
 	if !isPresent {
 		t.Fatal("expected the guest configuration block")
 	}
 
-	deliveryDirectoryPath, _ := guestConfiguration["deliveryDirectoryPath"].(string)
-	if BlueclawVirtualMachineMonitor == FirecrackerMonitorName {
-		if deliveryDirectoryPath != "" {
-			t.Fatal("Firecracker emulates no virtio-fs, so naming a share asks for a device it cannot offer")
-		}
-	} else if deliveryDirectoryPath != BlueclawDeliveryReadOnlyPath {
-		t.Fatalf("expected the guest to be offered the read-only bind, got %q", deliveryDirectoryPath)
+	if deliveryDirectoryPath, _ := guestConfiguration["deliveryDirectoryPath"].(string); deliveryDirectoryPath == "" {
+		t.Fatal("Cloud Hypervisor serves the delivery directory over virtio-fs, so the share must be named")
 	}
-
 	if guestConfiguration["virtiofsdPath"] != BlueclawVirtiofsdPath {
 		t.Fatalf("expected the daemon path the supervisor starts, got %v", guestConfiguration["virtiofsdPath"])
 	}

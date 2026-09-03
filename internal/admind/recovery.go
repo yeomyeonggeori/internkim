@@ -200,7 +200,7 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 	case "remove-tenant-pilots":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove tenant pilots", "sh", "-lc", removeTenantPilotsCommand()))
 	case "limit-blueclaw":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "limit Blueclaw Firecracker", "sh", "-lc", blueclawResourceLimitCommand()))
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "limit Blueclaw guest resources", "sh", "-lc", blueclawResourceLimitCommand()))
 	case "release-setup-lock":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "release a setup lock nobody holds", "sh", "-lc", releaseSetupLockCommand()))
 	case "restart-blueclaw":
@@ -465,7 +465,7 @@ printf 'blueclaw health %%s\n' "$health_status"
 printf '\n== blueclaw status ==\n'
 systemctl status %s --no-pager -l 2>/dev/null | tail -100 || true
 printf '\n== blueclaw processes ==\n'
-ps -eo pid,stat,comm | grep -E 'blueclaw|firecracker|jailer' || true
+ps -eo pid,stat,comm | grep -E 'blueclaw|cloud-hypervisor|virtiofsd' || true
 printf '\n== blueclaw ports ==\n'
 ss -ltnp 2>/dev/null | grep ':8080' || true
 printf '\n== blueclaw journal ==\n'
@@ -522,8 +522,8 @@ fi
 func blueclawBootDiagnoseCommand() string {
 	return strings.TrimSpace("guestLogRoot=" + blueclawGuestLogRoot + "\n" + `
 set +e
-printf '== firecracker processes ==\n'
-ps -eo pid,stat,etimes,comm | grep -E 'blueclaw|firecracker|jailer' || true
+printf '== guest monitor processes ==\n'
+ps -eo pid,stat,etimes,comm | grep -E 'blueclaw|cloud-hypervisor|virtiofsd' || true
 printf '\n== newest guest log directories ==\n'
 newestLogDirectories=$(find "$guestLogRoot" -maxdepth 1 -mindepth 1 -type d -newermt '-3 minutes' 2>/dev/null | head -4)
 if [ -z "$newestLogDirectories" ]; then
@@ -537,7 +537,7 @@ for logDirectory in $(printf '%s\n' "$newestLogDirectories" | head -2); do
   printf '\n== %s stdout.log ==\n' "$logDirectory"
   tail -c 4000 "$logDirectory/stdout.log" 2>/dev/null || printf '(missing)\n'
 done
-newestJailerRoot=$(ls -dt /var/lib/bc/firecracker/*/root 2>/dev/null | head -1)
+newestInstanceRoot=$(ls -dt /var/lib/bc/cloud-hypervisor/*/root 2>/dev/null | head -1)
 printf '\n== live guest task runs ==\n'
 curl -s -m 6 http://127.0.0.1:8080/admin/api/run 2>&1 | head -c 1500
 printf '\n== live guest failure detail ==\n'
@@ -545,15 +545,13 @@ failedTaskRunID=$(curl -s -m 6 http://127.0.0.1:8080/admin/api/run 2>/dev/null |
 if [ -n "$failedTaskRunID" ]; then
   curl -s -m 8 "http://127.0.0.1:8080/admin/api/run/detail?taskRunID=$failedTaskRunID" 2>&1 | tr ',' '\n' | grep -E '"name":|"taskEventID":' | head -n 120
 fi
-printf '\n== jailer root %s ==\n' "$newestJailerRoot"
-ls -la "$newestJailerRoot" 2>/dev/null || true
-printf '\n== firecracker-config.json ==\n'
-head -c 4000 "$newestJailerRoot/firecracker-config.json" 2>/dev/null || printf '(missing)\n'
+printf '\n== instance root %s ==\n' "$newestInstanceRoot"
+ls -la "$newestInstanceRoot" 2>/dev/null || true
 printf '\n== boot input images ==\n'
 ls -la /var/lib/blueclaw/ 2>/dev/null || true
 df -h /var/lib/bc /var/lib/blueclaw 2>/dev/null || true
 printf '\n== rootfs guest-init lines 150-240 ==\n'
-debugfs -c -R 'cat /sbin/init' "$newestJailerRoot/rootfs.ext4" 2>&1 | awk 'NR>=150 && NR<=240 {print NR": "$0}'
+debugfs -c -R 'cat /sbin/init' /opt/internkim/blueclaw-runtime/rootfs.ext4 2>&1 | awk 'NR>=150 && NR<=240 {print NR": "$0}'
 printf '\n== guest postgres logs ==\n'
 debugfs -c -R 'cat /.blueclaw/logs/postgres.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -20
 debugfs -c -R 'cat /.blueclaw/logs/postgres-init.log' /var/lib/blueclaw/workspace.ext4 2>/dev/null | tail -10
@@ -826,7 +824,7 @@ memory_mib=%d
 for path in %s %s; do
   [ -f "$path" ] || continue
   temporary_path=$(mktemp)
-  jq --argjson virtualCPUCount "$virtual_cpu_count" --argjson memoryMiB "$memory_mib" '.firecracker.vcpuCount = $virtualCPUCount | .firecracker.memoryMiB = $memoryMiB' "$path" > "$temporary_path"
+  jq --argjson virtualCPUCount "$virtual_cpu_count" --argjson memoryMiB "$memory_mib" '.guest.vcpuCount = $virtualCPUCount | .guest.memoryMiB = $memoryMiB' "$path" > "$temporary_path"
   cat "$temporary_path" > "$path"
   rm -f "$temporary_path"
   printf '%%s updated\n' "$path"
@@ -841,13 +839,13 @@ for attempt in $(seq 1 90); do
   sleep 2
 done
 printf 'blueclaw health %%s\n' "$health_status"
-jq -r '"runtime vcpuCount=" + (.firecracker.vcpuCount|tostring) + " memoryMiB=" + (.firecracker.memoryMiB|tostring)' %s
+jq -r '"runtime vcpuCount=" + (.guest.vcpuCount|tostring) + " memoryMiB=" + (.guest.memoryMiB|tostring)' %s
 ps -eo pcpu,pmem,rss,pid,comm --sort=-rss | head -8
 free -h
 [ "$health_status" = ok ]
 	`,
-		blueclaw.BlueclawFirecrackerDefaultVirtualCPUCount,
-		blueclaw.BlueclawFirecrackerDefaultMemoryMiB,
+		blueclaw.BlueclawGuestDefaultVirtualCPUCount,
+		blueclaw.BlueclawGuestDefaultMemoryMiB,
 		blueclaw.BlueclawRuntimeConfigPath,
 		workspaceRuntimeConfigPath,
 		blueclaw.BlueclawServiceName,

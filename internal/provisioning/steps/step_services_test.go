@@ -18,7 +18,7 @@ func TestBlueclawRuntimeContractCheckCatchesStaleAgentConfiguration(t *testing.T
 	for _, expectedFragment := range []string{
 		"defaultBudgetClass",
 		"defaultTaskLevel",
-		"firecrackerGuest",
+		"virtualMachineGuest",
 		"runtime-config-mirror-drift",
 		"runtime-outbound-network-disabled",
 		"runtime-outbound-network-cidr",

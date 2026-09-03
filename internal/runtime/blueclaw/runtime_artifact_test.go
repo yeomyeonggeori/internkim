@@ -12,8 +12,6 @@ import (
 
 func TestValidateRuntimeArtifactDirectoryRequiresManifestAndChecksums(t *testing.T) {
 	artifactDirectoryPath := t.TempDir()
-	writeRuntimeArtifactFile(t, artifactDirectoryPath, "firecracker", "firecracker")
-	writeRuntimeArtifactFile(t, artifactDirectoryPath, "jailer", "jailer")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "cloud-hypervisor", "cloud-hypervisor")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "virtiofsd", "virtiofsd")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "vmlinux.bin", "kernel")
@@ -24,8 +22,6 @@ func TestValidateRuntimeArtifactDirectoryRequiresManifestAndChecksums(t *testing
   "platform": "linux-arm64",
   "version": "test",
   "files": [
-    {"name": "firecracker", "path": "firecracker", "sha256": "` + runtimeArtifactTestSHA256("firecracker") + `", "mode": "0755"},
-    {"name": "jailer", "path": "jailer", "sha256": "` + runtimeArtifactTestSHA256("jailer") + `", "mode": "0755"},
     {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "` + runtimeArtifactTestSHA256("cloud-hypervisor") + `", "mode": "0755"},
     {"name": "virtiofsd", "path": "virtiofsd", "sha256": "` + runtimeArtifactTestSHA256("virtiofsd") + `", "mode": "0755"},
     {"name": "vmlinux.bin", "path": "vmlinux.bin", "sha256": "` + runtimeArtifactTestSHA256("kernel") + `", "mode": "0644"},
@@ -48,8 +44,6 @@ func TestValidateRuntimeArtifactDirectoryRequiresManifestAndChecksums(t *testing
 
 func TestValidateRuntimeArtifactDirectoryRejectsChecksumMismatch(t *testing.T) {
 	artifactDirectoryPath := t.TempDir()
-	writeRuntimeArtifactFile(t, artifactDirectoryPath, "firecracker", "firecracker")
-	writeRuntimeArtifactFile(t, artifactDirectoryPath, "jailer", "jailer")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "cloud-hypervisor", "cloud-hypervisor")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "virtiofsd", "virtiofsd")
 	writeRuntimeArtifactFile(t, artifactDirectoryPath, "vmlinux.bin", "kernel")
@@ -60,9 +54,7 @@ func TestValidateRuntimeArtifactDirectoryRejectsChecksumMismatch(t *testing.T) {
   "platform": "linux-arm64",
   "version": "test",
   "files": [
-    {"name": "firecracker", "path": "firecracker", "sha256": "bad", "mode": "0755"},
-    {"name": "jailer", "path": "jailer", "sha256": "` + runtimeArtifactTestSHA256("jailer") + `", "mode": "0755"},
-    {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "` + runtimeArtifactTestSHA256("cloud-hypervisor") + `", "mode": "0755"},
+    {"name": "cloud-hypervisor", "path": "cloud-hypervisor", "sha256": "bad", "mode": "0755"},
     {"name": "virtiofsd", "path": "virtiofsd", "sha256": "` + runtimeArtifactTestSHA256("virtiofsd") + `", "mode": "0755"},
     {"name": "vmlinux.bin", "path": "vmlinux.bin", "sha256": "` + runtimeArtifactTestSHA256("kernel") + `", "mode": "0644"},
     {"name": "rootfs.ext4", "path": "rootfs.ext4", "sha256": "` + runtimeArtifactTestSHA256("rootfs") + `", "mode": "0644"}
@@ -138,19 +130,21 @@ func TestPrepareRuntimeScriptKeysTheGuestKernelToItsConfiguration(t *testing.T) 
 		}
 	}
 	if strings.Contains(script, "microvm-kernel-ci-aarch64") {
-		t.Fatal("expected the guest kernel configuration to be carried here, not borrowed from Firecracker")
+		t.Fatal("expected the guest kernel configuration to be carried here, not borrowed from another monitor")
 	}
 }
 
-func TestGuestKernelConfigurationCarriesBothVirtioTransports(t *testing.T) {
+func TestGuestKernelConfigurationCarriesVirtioOverPCIOnly(t *testing.T) {
 	repositoryRootPath := runtimeArtifactRepositoryRoot(t)
 	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "guest-kernel-aarch64.config"))
 	if errorValue != nil {
 		t.Fatalf("expected guest kernel configuration: %v", errorValue)
 	}
 	configuration := string(document)
+	if !strings.Contains(configuration, "\n# CONFIG_VIRTIO_MMIO is not set\n") {
+		t.Fatal("only Firecracker reached virtio over MMIO, so the guest kernel must not carry it")
+	}
 	for _, symbol := range []string{
-		"CONFIG_VIRTIO_MMIO=y",
 		"CONFIG_SERIAL_8250_CONSOLE=y",
 		"CONFIG_PCI=y",
 		"CONFIG_PCI_HOST_GENERIC=y",

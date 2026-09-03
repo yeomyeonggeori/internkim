@@ -24,7 +24,7 @@ Blueclaw/internkim을 오픈소스 셀프호스팅 가능하게. "clone → env 
 
 1. **POSIX 유저/그룹/파일권한이 불가침 보안 경계다.** 배포 형태가 이걸 흐리면 안 됨.
    Blueclaw 터미널은 per-person `bc_person_<id>` 유저, circle `bc_circle_<id>` 그룹,
-   `/workspace` POSIX 권한으로 실행 격리한다. Firecracker/bwrap은 **선택적 narrowing**(옵션),
+   `/workspace` POSIX 권한으로 실행 격리한다. 가상머신 게스트/bwrap은 **선택적 narrowing**(옵션),
    경계 자체는 POSIX. (CLAUDE.md "Blueclaw Terminal Permission Boundary" 참조)
 2. **배포단위 = 진짜 POSIX 시스템**(호스트/VM/시스템-컨테이너). **Docker 앱-컨테이너를 기본으로 쓰지 않는다** —
    앱-컨테이너 이디엄(한 프로세스·ephemeral)은 per-person `useradd`+영속 workspace+다중 UID 서브프로세스와
@@ -94,9 +94,9 @@ Blueclaw/internkim을 오픈소스 셀프호스팅 가능하게. "clone → env 
 - 단일 노드 셀프호스트가 1급 시민이 되게(현재는 fleet 노드 모델 중심).
 
 ### 4.6 타깃 제네릭화
-- Jetson 전용 스텝(L4T, Firecracker, CUDA llama.cpp)을 프로파일 뒤로.
+- Jetson 전용 스텝(L4T, 게스트 런타임 번들, CUDA llama.cpp)을 프로파일 뒤로.
 - `generic-linux-host` board type: Debian/Ubuntu systemd 호스트에 SSH로 구성. (SSH 백엔드 이미 존재.)
-- LLM 기본 = 리모트(OpenRouter). 로컬 CUDA LLM + Firecracker = 엣지/젯슨 프로파일 opt-in.
+- LLM 기본 = 리모트(OpenRouter). 로컬 CUDA LLM + 게스트 런타임 = 엣지/젯슨 프로파일 opt-in.
 
 ### 4.7 선택적 배포 형태 (core 아님, 나중)
 - **Nix flake(빌드)**: Go/bun/arm64 cross/llama.cpp 툴체인 핀 → 애드혹 컨테이너 빌더 대체. 유저 실행엔 불필요.
