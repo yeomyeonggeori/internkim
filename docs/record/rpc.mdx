@@ -42,6 +42,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `crm_task_save` | `target_task_id uuid, target_title text, target_status task_status, target_note text, target_business text, target_type text, target_due_at timestamp with time zone, target_starts_at timestamp with time zone, target_ends_at timestamp with time zone, target_is_event boolean, target_is_whole_day boolean, target_notify_minutes_before integer, target_location jsonb, target_requester_id uuid, target_participant_ids uuid[], target_organization_id uuid, target_opportunity_id uuid, target_contact_id uuid` | `uuid` | definer | authenticated |
 | `crm_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
 | `digest_agent_key_keep` | — | `boolean` | definer | authenticated, service_role |
+| `digest_app_url_keep` | `new_app_url text` | `boolean` | definer | service_role |
 | `digest_target_keep` | `new_project_url text` | `void` | definer | service_role |
 | `is_company_admin` | — | `boolean` | definer | anon, authenticated, service_role |
 | `is_in_circle` | `target_circle uuid` | `boolean` | definer | anon, authenticated, service_role |

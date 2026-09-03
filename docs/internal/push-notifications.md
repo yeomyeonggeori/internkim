@@ -113,6 +113,12 @@ project, so a call made while a valid one stands answers `{"stored":false}` and
 leaves it alone. The address goes to `project_url`, taken from the function's
 own `SUPABASE_URL` and never from anything the caller sends.
 
+That founding call also records where the app itself answers.
+`day_digest_app_url` holds `https://` and the zone the deployment serves, which
+is where the hourly unclosed-shift reminder posts `/api/agent/unclosed-shifts`.
+An address already in the vault is left as it stands, so a deployment set up by
+hand keeps what it was given.
+
 With no address and no key the function returns and nothing is sent, and no
 error is raised: a self-hosted install that has not been set up yet should not
 fail once a minute.
