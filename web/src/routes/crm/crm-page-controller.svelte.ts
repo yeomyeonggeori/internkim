@@ -5,7 +5,7 @@ import {
 	type CurrencyCatalogue
 } from '$lib/currency/currency-catalogue';
 import { interimCompanyBaseCurrency, loadCompanyBaseCurrency } from '$lib/company/base-currency';
-import { fetchCRMOrganizationDirectory } from './crm-directory';
+import { loadCRMOrganizationDirectory } from './crm-data-source';
 import {
 	CRMApiError,
 	archiveCRMOrganization,
@@ -381,9 +381,9 @@ export class CRMPageController {
 		this.error = error;
 	}
 
-	private async loadOrganizationDirectory(): Promise<Awaited<ReturnType<typeof fetchCRMOrganizationDirectory>>> {
+	private async loadOrganizationDirectory(): Promise<Awaited<ReturnType<typeof loadCRMOrganizationDirectory>>> {
 		try {
-			return await fetchCRMOrganizationDirectory();
+			return await loadCRMOrganizationDirectory();
 		} catch {
 			throw new CRMPageError('organization_load_failed');
 		}

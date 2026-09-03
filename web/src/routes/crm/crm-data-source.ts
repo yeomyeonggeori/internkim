@@ -1,5 +1,7 @@
 import { isSupabaseConfigured } from '$lib/supabase';
+import { supabaseOrganizationDirectory } from '$lib/organization/supabase-directory';
 import * as device from './crm-api';
+import { fetchCRMOrganizationDirectory } from './crm-directory';
 import type {
 	CRMOrganizationPayload,
 	CRMContactPayload,
@@ -15,6 +17,10 @@ export { CRMApiError } from './crm-api';
 
 export function settlementIsConvertedByServer(): boolean {
 	return isSupabaseConfigured();
+}
+
+export function loadCRMOrganizationDirectory() {
+	return isSupabaseConfigured() ? supabaseOrganizationDirectory() : fetchCRMOrganizationDirectory();
 }
 
 export function loadCRMData() {
