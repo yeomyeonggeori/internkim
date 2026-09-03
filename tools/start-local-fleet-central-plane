@@ -64,9 +64,21 @@ if ! printf '%s' "$companyFound" | grep -q "$fixtureCompanyID"; then
 fi
 
 if [ -s "$appPIDPath" ] && kill -0 "$(cat "$appPIDPath")" 2>/dev/null; then
-  kill "$(cat "$appPIDPath")" 2>/dev/null || true
+  trackedPID="$(cat "$appPIDPath")"
+  kill "$trackedPID" 2>/dev/null || true
+  for attempt in $(seq 1 10); do
+    kill -0 "$trackedPID" 2>/dev/null || break
+    sleep 1
+  done
 fi
 rm -f "$appPIDPath"
+
+portHolderPID="$(lsof -nP -iTCP:"$appPort" -sTCP:LISTEN -t 2>/dev/null | head -1 || true)"
+if [ -n "$portHolderPID" ]; then
+  portHolderCommand="$(ps -p "$portHolderPID" -o comm= 2>/dev/null || echo unknown)"
+  echo "port $appPort is already held by pid $portHolderPID ($portHolderCommand); refusing to adopt a stranger's app" >&2
+  exit 1
+fi
 
 (
   cd "$repositoryRoot/web"

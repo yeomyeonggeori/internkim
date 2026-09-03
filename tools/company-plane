@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Brings up what a company plane needs to be tested against, then runs the
-# scenarios. Everything here is shared and warm — the local record, the app, the
-# binaries — and none of it is per-run, so a second run costs seconds.
+# scenarios. The local record and the binaries are shared and warm, and none
+# of that is per-run, so a second run costs seconds; the app server is
+# started fresh and stopped at teardown, so no worktree's process outlives it.
 #
 # Per-run state lives in web/tests/plane, which creates its own company, its own
 # ports and its own run directory, and removes exactly those on the way out.
@@ -9,9 +10,21 @@ set -euo pipefail
 
 repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
 binaryDirectory="$repositoryRoot/.local/company-plane/bin"
+appPIDPath="$repositoryRoot/.local/company-plane/central-plane-app.pid"
 cd "$repositoryRoot"
 
 say() { printf '[plane] %s\n' "$1"; }
+
+stopCompanyApp() {
+  [ -s "$appPIDPath" ] || return 0
+  local appPID
+  appPID="$(cat "$appPIDPath")"
+  if kill -0 "$appPID" 2>/dev/null; then
+    kill "$appPID" 2>/dev/null || true
+  fi
+  rm -f "$appPIDPath"
+}
+trap stopCompanyApp EXIT
 
 say "the local record"
 if ! supabase status >/dev/null 2>&1; then
@@ -75,7 +88,7 @@ done
 
 say "the scenarios"
 cd web
-exec env \
+env \
   COMPANY_PLANE_SKILLS="$skillsDirectory" \
   SUPABASE_URL="$API_URL" \
   SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
