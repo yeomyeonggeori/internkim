@@ -9,6 +9,8 @@ export const member1Email = 'member1@example.com';
 export const member2Email = 'member2@example.com';
 export const member3Email = 'member3@example.com';
 
+export const seedPassword = 'seed-password';
+
 export const member1Name = '이샘플';
 export const member2Name = '김예시';
 export const member3Name = '박예시';
