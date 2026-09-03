@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"errors"
 	"log"
 	"sort"
 	"strings"
@@ -128,6 +129,19 @@ func taskWeekCodeOfDay(day string) string {
 	return weekCodeForDate(moment)
 }
 
+var errTaskBoardUnnamed = errors.New("this device names no company, and the company keeps the board")
+
+func (service *Service) readTasks(ctx context.Context, weekCode string, members []taskMember) ([]Task, error) {
+	tasks, answered, errorValue := service.companyBoardTasks(ctx, members)
+	if !answered {
+		return nil, errTaskBoardUnnamed
+	}
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return tasksInWeek(tasks, weekCode), nil
+}
+
 func tasksInWeek(tasks []Task, weekCode string) []Task {
 	kept := []Task{}
 	for _, task := range tasks {
@@ -138,19 +152,4 @@ func tasksInWeek(tasks []Task, weekCode string) []Task {
 	return kept
 }
 
-func tasksBetweenDays(tasks []Task, startDate string, endDate string) []Task {
-	kept := []Task{}
-	for _, task := range tasks {
-		if dayFallsWithin(task.StartDate, startDate, endDate) || dayFallsWithin(task.EndDate, startDate, endDate) {
-			kept = append(kept, task)
-		}
-	}
-	return kept
-}
 
-func dayFallsWithin(day string, startDate string, endDate string) bool {
-	if strings.TrimSpace(day) == "" {
-		return false
-	}
-	return day >= startDate && day <= endDate
-}

@@ -9,7 +9,7 @@ import (
 
 func TestATaskWriteOnADeviceWithNoCompanyStaysOnTheDevice(t *testing.T) {
 	service := &Service{}
-	request := httptest.NewRequest(http.MethodPost, "/task/api/tasks", nil)
+	request := httptest.NewRequest(http.MethodPost, quickTaskPath, nil)
 
 	_, answered, errorValue := service.saveCentralTask(request, Task{Content: "분기 보고서 초안"}, nil)
 	if answered || errorValue != nil {
@@ -19,7 +19,7 @@ func TestATaskWriteOnADeviceWithNoCompanyStaysOnTheDevice(t *testing.T) {
 
 func TestACompanyBoardRefusesAWriteItCannotAttribute(t *testing.T) {
 	service := serviceWithACompanyForTest(t)
-	request := httptest.NewRequest(http.MethodPost, "/task/api/tasks", nil)
+	request := httptest.NewRequest(http.MethodPost, quickTaskPath, nil)
 
 	_, answered, errorValue := service.saveCentralTask(request, Task{Content: "분기 보고서 초안"}, nil)
 	if !answered {
@@ -30,12 +30,3 @@ func TestACompanyBoardRefusesAWriteItCannotAttribute(t *testing.T) {
 	}
 }
 
-func TestACompanyBoardRefusesADeletionItCannotAttribute(t *testing.T) {
-	service := serviceWithACompanyForTest(t)
-	request := httptest.NewRequest(http.MethodDelete, "/task/api/tasks/task-1", nil)
-
-	answered, errorValue := service.removeCentralTask(request, "task-1")
-	if !answered || !errors.Is(errorValue, errTaskWriterUnnamed) {
-		t.Fatalf("a deletion nobody is named on cannot land on the device instead, got answered=%v error=%v", answered, errorValue)
-	}
-}

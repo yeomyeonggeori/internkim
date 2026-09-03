@@ -716,334 +716,37 @@ identityExtension: "Be crisp."
 	}
 }
 
-func TestTaskSizeDefinitionsPersist(t *testing.T) {
-	service := NewService(Configuration{TaskDatabasePath: filepath.Join(t.TempDir(), "flow.sqlite")})
-	ctx := context.Background()
-	definitions, errorValue := service.readTaskDefinitions(ctx)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	definitions.Sizes = []taskSizeDefinition{
-		sizeDefinition("T", 21, 64, "테스트 개발", "테스트 기타", "테스트 비고"),
-	}
-	if errorValue := service.writeTaskDefinitions(ctx, definitions); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	reloadedDefinitions, errorValue := service.readTaskDefinitions(ctx)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(reloadedDefinitions.Sizes) != 1 || reloadedDefinitions.Sizes[0].Name != "T" || reloadedDefinitions.Sizes[0].DistanceKM != 21 {
-		t.Fatalf("sizes = %#v", reloadedDefinitions.Sizes)
+func TestQuickTaskRejectsUnauthenticatedRemoteCaller(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
+	request := httptest.NewRequest(http.MethodPost, quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
+	request.RemoteAddr = "198.51.100.10:443"
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
 }
 
-func TestTaskAPIRejectsUnauthenticatedRemoteCaller(t *testing.T) {
+func TestTheRetiredTaskPathsAnswerNothing(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	for _, request := range []*http.Request{
-		httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil),
-		httptest.NewRequest(http.MethodGet, "/flow/api/state", nil),
-		httptest.NewRequest(http.MethodPost, "/flow/api/tasks", strings.NewReader(`{}`)),
-		httptest.NewRequest(http.MethodDelete, "/flow/api/tasks/task-1", nil),
-		httptest.NewRequest(http.MethodPut, "/flow/api/definitions", strings.NewReader(`{}`)),
+		httptest.NewRequest(http.MethodGet, "/task/api/summary", nil),
+		httptest.NewRequest(http.MethodGet, "/task/api/state", nil),
+		httptest.NewRequest(http.MethodPost, "/task/api/tasks", strings.NewReader(`{}`)),
+		httptest.NewRequest(http.MethodDelete, "/task/api/tasks/task-1", nil),
+		httptest.NewRequest(http.MethodPut, "/task/api/definitions", strings.NewReader(`{}`)),
+		httptest.NewRequest(http.MethodPost, "/flow/api/tasks/quick", strings.NewReader(`{}`)),
 	} {
 		request.RemoteAddr = "198.51.100.10:443"
+		request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 		response := httptest.NewRecorder()
 		service.router().ServeHTTP(response, request)
-		if response.Code != http.StatusForbidden {
-			t.Fatalf("%s %s status = %d body = %s", request.Method, request.URL.Path, response.Code, response.Body.String())
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("%s %s answered %d, and the record is the only place a task lives",
+				request.Method, request.URL.Path, response.Code)
 		}
-	}
-}
-
-func TestTaskAPIAllowsMemberSummaryAndOwnTask(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	handler := service.router()
-
-	stateRequest := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
-	stateRequest.RemoteAddr = "198.51.100.10:443"
-	stateRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
-	stateResponse := httptest.NewRecorder()
-	handler.ServeHTTP(stateResponse, stateRequest)
-	if stateResponse.Code != http.StatusOK {
-		t.Fatalf("state status = %d body = %s", stateResponse.Code, stateResponse.Body.String())
-	}
-	var state taskStateResponse
-	if errorValue := json.NewDecoder(stateResponse.Body).Decode(&state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if state.CurrentUserEmail != "member@example.com" || state.IsAdmin {
-		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
-	}
-
-	taskRequest := newTaskRequest("member@example.com", "member@example.com")
-	taskResponse := httptest.NewRecorder()
-	handler.ServeHTTP(taskResponse, taskRequest)
-	if taskResponse.Code != http.StatusOK {
-		t.Fatalf("task status = %d body = %s", taskResponse.Code, taskResponse.Body.String())
-	}
-	var task Task
-	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if task.Status != "in_progress" || task.OwnerID != stableTaskID("member@example.com") {
-		t.Fatalf("task = %+v", task)
-	}
-}
-
-func TestTaskAPIDeletesOwnTask(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	handler := service.router()
-	taskRequest := newTaskRequest("member@example.com", "member@example.com")
-	taskResponse := httptest.NewRecorder()
-	handler.ServeHTTP(taskResponse, taskRequest)
-	if taskResponse.Code != http.StatusOK {
-		t.Fatalf("task status = %d body = %s", taskResponse.Code, taskResponse.Body.String())
-	}
-	var task Task
-	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	deleteRequest := httptest.NewRequest(http.MethodDelete, "/flow/api/tasks/"+task.ID, nil)
-	deleteRequest.RemoteAddr = "198.51.100.10:443"
-	deleteRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
-	deleteResponse := httptest.NewRecorder()
-	handler.ServeHTTP(deleteResponse, deleteRequest)
-	if deleteResponse.Code != http.StatusOK {
-		t.Fatalf("delete status = %d body = %s", deleteResponse.Code, deleteResponse.Body.String())
-	}
-	_, found, errorValue := service.readTaskByID(context.Background(), task.ID)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if found {
-		t.Fatal("expected task to be deleted")
-	}
-}
-
-func TestTaskAPIRejectsDeletingOtherUserTask(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	handler := service.router()
-	taskRequest := newTaskRequest("other@example.com", "other@example.com")
-	taskResponse := httptest.NewRecorder()
-	handler.ServeHTTP(taskResponse, taskRequest)
-	if taskResponse.Code != http.StatusOK {
-		t.Fatalf("task status = %d body = %s", taskResponse.Code, taskResponse.Body.String())
-	}
-	var task Task
-	if errorValue := json.NewDecoder(taskResponse.Body).Decode(&task); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	deleteRequest := httptest.NewRequest(http.MethodDelete, "/flow/api/tasks/"+task.ID, nil)
-	deleteRequest.RemoteAddr = "198.51.100.10:443"
-	deleteRequest.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
-	deleteResponse := httptest.NewRecorder()
-	handler.ServeHTTP(deleteResponse, deleteRequest)
-	if deleteResponse.Code != http.StatusForbidden {
-		t.Fatalf("delete status = %d body = %s", deleteResponse.Code, deleteResponse.Body.String())
-	}
-	_, found, errorValue := service.readTaskByID(context.Background(), task.ID)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !found {
-		t.Fatal("expected task to remain")
-	}
-}
-
-func TestTaskAPIAllowsSignedWebSessionMemberSummary(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	cookieValue := webSessionCookieForTest(t, service, "member@example.com")
-	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	request.AddCookie(&http.Cookie{Name: webSessionCookieName, Value: cookieValue})
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
-	}
-	var state taskStateResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if state.CurrentUserEmail != "member@example.com" || state.IsAdmin {
-		t.Fatalf("state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
-	}
-}
-
-func TestTaskSummaryIncludesDistanceReport(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	memberID := stableTaskID("member@example.com")
-	otherID := stableTaskID("other@example.com")
-	tasks := []Task{
-		taskReportTestTask("current", "26W18", []string{memberID, otherID}, []string{"Member", "Other"}, "M", "completed", "2026-04-27", "2026-04-29"),
-		taskReportTestTask("previous-week", "26W17", []string{otherID}, []string{"Other"}, "S", "completed", "2026-04-20", "2026-04-21"),
-		taskReportTestTask("previous-month", "26W10", []string{memberID}, []string{"Member"}, "XS", "completed", "2026-03-03", "2026-03-03"),
-		taskReportTestTask("future-week", "26W19", []string{memberID}, []string{"Member"}, "XS", "planned", "2026-05-04", ""),
-	}
-	for _, task := range tasks {
-		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
-
-	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary?week=26W18", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("summary status = %d body = %s", response.Code, response.Body.String())
-	}
-	body := response.Body.Bytes()
-	var summary taskSummaryResponse
-	if errorValue := json.NewDecoder(bytes.NewReader(body)).Decode(&summary); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if summary.Report.WeeklyDistanceTrend.CurrentTotal != 3 || summary.Report.WeeklyDistanceTrend.PreviousTotal != 2 {
-		t.Fatalf("weekly trend = %+v", summary.Report.WeeklyDistanceTrend)
-	}
-	if len(summary.Report.WeeklyDistanceTrend.CurrentValues) != 7 || summary.Report.WeeklyDistanceTrend.CurrentValues[2] != 3 {
-		t.Fatalf("weekly values = %+v", summary.Report.WeeklyDistanceTrend.CurrentValues)
-	}
-	if summary.Report.MonthlyDistanceTrend.CurrentTotal != 5 || summary.Report.MonthlyDistanceTrend.PreviousTotal != 1 {
-		t.Fatalf("monthly trend = %+v", summary.Report.MonthlyDistanceTrend)
-	}
-	if len(summary.Report.MonthlyDistanceTrend.CurrentValues) != 30 || summary.Report.MonthlyDistanceTrend.CurrentValues[28] != 5 {
-		t.Fatalf("monthly values = %+v", summary.Report.MonthlyDistanceTrend.CurrentValues)
-	}
-	if len(summary.WeeklyTasks) != 1 || summary.WeeklyTasks[0].ID != "current" {
-		t.Fatalf("weekly tasks = %+v", summary.WeeklyTasks)
-	}
-	if summary.CurrentWeek.Code == "" {
-		t.Fatalf("current week = %+v selected week = %+v", summary.CurrentWeek, summary.Week)
-	}
-	if len(summary.Metrics.MemberScores) != 0 || len(summary.Metrics.MemberScoreDetails) != 0 || summary.Metrics.TotalScore != 0 {
-		t.Fatalf("summary score metrics = %+v", summary.Metrics)
-	}
-	assertJSONFieldsAbsent(t, body, "members", "tasks", "definitions", "statusOptions", "currentUserEmail", "currentUserName", "isAdmin")
-}
-
-func TestTaskStateIncludesCurrentGlobalData(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	memberID := stableTaskID("member@example.com")
-	otherID := stableTaskID("other@example.com")
-	now := time.Now()
-	currentWeekCode := weekCodeForDate(now)
-	currentWeekStart := weekStartForCode(currentWeekCode, now)
-	tasks := []Task{
-		taskReportTestTask("current-score", currentWeekCode, []string{memberID}, []string{"Member"}, "M", "completed", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
-		taskReportTestTask("older", weekCodeForDate(currentWeekStart.AddDate(0, 0, -7*2)), []string{otherID}, []string{"Other"}, "XS", "in_progress", currentWeekStart.AddDate(0, 0, -14).Format("2006-01-02"), ""),
-	}
-	for _, task := range tasks {
-		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
-
-	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
-	}
-	body := response.Body.Bytes()
-	var state taskStateResponse
-	if errorValue := json.NewDecoder(bytes.NewReader(body)).Decode(&state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if state.CurrentWeek.Code != currentWeekCode {
-		t.Fatalf("current week = %+v, want %s", state.CurrentWeek, currentWeekCode)
-	}
-	if len(state.Tasks) != 2 {
-		t.Fatalf("state tasks = %+v", state.Tasks)
-	}
-	if len(state.Members) != 3 {
-		t.Fatalf("state members = %+v", state.Members)
-	}
-	if state.Metrics.MemberScores[memberID] == 0 || state.Metrics.MemberScoreDetails[memberID].CurrentScore == 0 {
-		t.Fatalf("state member scores = %+v details = %+v", state.Metrics.MemberScores, state.Metrics.MemberScoreDetails)
-	}
-	assertJSONFieldsAbsent(t, body, "week", "weeklyTasks", "report")
-}
-
-func assertJSONFieldsAbsent(t *testing.T, document []byte, fields ...string) {
-	t.Helper()
-	values := map[string]json.RawMessage{}
-	if errorValue := json.Unmarshal(document, &values); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, field := range fields {
-		if _, found := values[field]; found {
-			t.Fatalf("unexpected JSON field %q in %s", field, string(document))
-		}
-	}
-}
-
-func TestTaskSummaryMemberScoresUseCurrentWeek(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	memberID := stableTaskID("member@example.com")
-	now := time.Now()
-	currentWeekCode := weekCodeForDate(now)
-	currentWeekStart := weekStartForCode(currentWeekCode, now)
-	previousCurrentWeekStart := currentWeekStart.AddDate(0, 0, -7)
-	previousCurrentWeekCode := weekCodeForDate(previousCurrentWeekStart)
-	selectedWeekStart := currentWeekStart.AddDate(0, 0, -7*30)
-	selectedWeekCode := weekCodeForDate(selectedWeekStart)
-	tasks := []Task{
-		taskReportTestTask("selected-score", selectedWeekCode, []string{memberID}, []string{"Member"}, "M", "completed", selectedWeekStart.Format("2006-01-02"), selectedWeekStart.Format("2006-01-02")),
-		taskReportTestTask("current-score", currentWeekCode, []string{memberID}, []string{"Member"}, "M", "completed", currentWeekStart.Format("2006-01-02"), currentWeekStart.Format("2006-01-02")),
-		taskReportTestTask("previous-current-score", previousCurrentWeekCode, []string{memberID}, []string{"Member"}, "M", "completed", previousCurrentWeekStart.Format("2006-01-02"), previousCurrentWeekStart.Format("2006-01-02")),
-	}
-	for _, task := range tasks {
-		if errorValue := service.writeTask(context.Background(), task); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
-
-	request := httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("state status = %d body = %s", response.Code, response.Body.String())
-	}
-	var state taskStateResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	members := service.taskMembers(request)
-	currentScoreStart, currentScoreEnd := taskScoreDateRange(currentWeekStart)
-	currentScoreTasks, errorValue := service.readTasksBetweenDates(context.Background(), currentScoreStart.Format("2006-01-02"), currentScoreEnd.Format("2006-01-02"), members)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	expectedCurrentDetails := buildTaskMemberScoreDetails(currentScoreTasks, members, state.Definitions, currentWeekStart)
-	selectedScoreStart, selectedScoreEnd := taskScoreDateRange(selectedWeekStart)
-	selectedScoreTasks, errorValue := service.readTasksBetweenDates(context.Background(), selectedScoreStart.Format("2006-01-02"), selectedScoreEnd.Format("2006-01-02"), members)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	selectedWeekDetails := buildTaskMemberScoreDetails(selectedScoreTasks, members, state.Definitions, selectedWeekStart)
-	if expectedCurrentDetails[memberID].CurrentScore == selectedWeekDetails[memberID].CurrentScore {
-		t.Fatalf("test setup did not distinguish current and selected score details: current=%+v selected=%+v", expectedCurrentDetails[memberID], selectedWeekDetails[memberID])
-	}
-	if state.Metrics.MemberScoreDetails[memberID] != expectedCurrentDetails[memberID] {
-		t.Fatalf("member score detail = %+v, want current-week detail %+v", state.Metrics.MemberScoreDetails[memberID], expectedCurrentDetails[memberID])
-	}
-	if state.Metrics.MemberScores[memberID] != expectedCurrentDetails[memberID].CurrentScore {
-		t.Fatalf("member score = %d, want %d", state.Metrics.MemberScores[memberID], expectedCurrentDetails[memberID].CurrentScore)
 	}
 }
 
@@ -1294,104 +997,26 @@ func webSessionFailureForTest(service *Service, cookieValue string) error {
 	return errorValue
 }
 
-func TestTaskAPIForcesMemberTaskForOtherMemberToRequestWithoutRequesterParticipant(t *testing.T) {
+func TestQuickTaskOnTheLocalSocketRequiresARequesterActor(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
-	response := httptest.NewRecorder()
+	unnamed := httptest.NewRequest(http.MethodPost, quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
+	unnamed.RemoteAddr = "127.0.0.1:12345"
+	unnamedResponse := httptest.NewRecorder()
 
-	service.router().ServeHTTP(response, newTaskRequest("member@example.com", "other@example.com"))
+	service.router().ServeHTTP(unnamedResponse, unnamed)
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("task status = %d body = %s", response.Code, response.Body.String())
+	if unnamedResponse.Code != http.StatusForbidden {
+		t.Fatalf("a local call naming nobody = %d body = %s", unnamedResponse.Code, unnamedResponse.Body.String())
 	}
-	var task Task
-	if errorValue := json.NewDecoder(response.Body).Decode(&task); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if task.Status != "requested" {
-		t.Fatalf("status = %q", task.Status)
-	}
-	if containsString(task.ParticipantIDs, stableTaskID("member@example.com")) {
-		t.Fatalf("requester should not be a participant by default, got %+v", task.ParticipantIDs)
+
+	named := httptest.NewRequest(http.MethodPost, quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
+	named.Header.Set(requesterEmailHeader, "member@example.com")
+	namedResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(namedResponse, arrivingOnTheRequesterSocket(named))
+	if namedResponse.Code == http.StatusForbidden {
+		t.Fatalf("a local call naming the requester was refused: %s", namedResponse.Body.String())
 	}
 }
-
-func TestTaskAPIRespectsExplicitRequesterParticipantForOtherMemberTask(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	payload := taskWriteRequest{
-		OwnerID:        stableTaskID("other@example.com"),
-		ParticipantIDs: []string{stableTaskID("other@example.com"), stableTaskID("member@example.com")},
-		Type:           "회의",
-		Content:        "같이 10분 회의",
-		Size:           "XS",
-		Status:         "in_progress",
-		WeekCode:       "26W18",
-	}
-	document, _ := json.Marshal(payload)
-	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("task status = %d body = %s", response.Code, response.Body.String())
-	}
-	var task Task
-	if errorValue := json.NewDecoder(response.Body).Decode(&task); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !containsString(task.ParticipantIDs, stableTaskID("member@example.com")) {
-		t.Fatalf("expected requester participant for joint work, got %+v", task.ParticipantIDs)
-	}
-}
-
-func TestTaskAPIDefinitionsRequireAdmin(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	handler := service.router()
-	memberRequest := newTaskDefinitionsRequest("member@example.com")
-	memberResponse := httptest.NewRecorder()
-	handler.ServeHTTP(memberResponse, memberRequest)
-	if memberResponse.Code != http.StatusForbidden {
-		t.Fatalf("member status = %d body = %s", memberResponse.Code, memberResponse.Body.String())
-	}
-
-	adminRequest := newTaskDefinitionsRequest("admin@example.com")
-	adminResponse := httptest.NewRecorder()
-	handler.ServeHTTP(adminResponse, adminRequest)
-	if adminResponse.Code != http.StatusOK {
-		t.Fatalf("admin status = %d body = %s", adminResponse.Code, adminResponse.Body.String())
-	}
-}
-
-func TestTaskAPILocalCapabilityRequiresRequesterActor(t *testing.T) {
-	service := newTaskAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodGet, "/flow/api/summary", nil)
-	request.RemoteAddr = "127.0.0.1:12345"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusForbidden {
-		t.Fatalf("local summary status = %d body = %s", response.Code, response.Body.String())
-	}
-
-	request = httptest.NewRequest(http.MethodGet, "/flow/api/state", nil)
-	request.Header.Set(requesterEmailHeader, "member@example.com")
-	response = httptest.NewRecorder()
-	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
-	if response.Code != http.StatusOK {
-		t.Fatalf("local requester state status = %d body = %s", response.Code, response.Body.String())
-	}
-	var state taskStateResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&state); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if state.CurrentUserEmail != "member@example.com" || state.IsAdmin {
-		t.Fatalf("local requester state current user email=%q isAdmin=%v", state.CurrentUserEmail, state.IsAdmin)
-	}
-}
-
 func TestTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	members := []taskMember{

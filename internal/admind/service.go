@@ -377,6 +377,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarSweep(ctx)
 	service.startAttendanceSweep(ctx)
+	service.startTaskSweep(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
 	service.startBuzzMemberLinker(ctx)
@@ -446,12 +447,12 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
 	multiplexer.HandleFunc("/api/v1/", service.handlePublicAPI)
 	multiplexer.HandleFunc("/task", service.serveTaskPage)
-	multiplexer.HandleFunc("/task/api/", service.handleTask)
+	multiplexer.HandleFunc(taskAPIPrefix+"/", service.handleQuickTask)
 	multiplexer.HandleFunc(recordToolPathPrefix, service.handleRecordTool)
 	multiplexer.HandleFunc(tellDirectMessagePath, service.handleTellDirectMessage)
 	multiplexer.HandleFunc("/task/", service.serveTaskPage)
+	multiplexer.HandleFunc(retiredTaskAPIPrefix+"/", http.NotFound)
 	multiplexer.HandleFunc("/flow", service.serveTaskPage)
-	multiplexer.HandleFunc("/flow/api/", service.handleTask)
 	multiplexer.HandleFunc("/flow/", service.serveTaskPage)
 	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
 	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
@@ -477,6 +478,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-rewrite-old-links", service.handleBuzzRewriteOldLinks)
 	multiplexer.HandleFunc("/agent/api/calendar-record-coverage", service.handleCalendarRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/attendance-record-coverage", service.handleAttendanceRecordCoverage)
+	multiplexer.HandleFunc("/agent/api/task-record-coverage", service.handleTaskRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/organization-directory-coverage", service.handleOrganizationDirectoryCoverage)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", service.handleBuzzChannelVisibilityRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
@@ -750,8 +752,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeCompanionReleases(responseWriter)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
 		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
-	case request.Method == http.MethodGet && path == "/flow/status":
-		service.writeTaskStatus(responseWriter)
 	case request.Method == http.MethodGet && path == "/bot-profile":
 		service.writeBotProfile(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/bot-profile":

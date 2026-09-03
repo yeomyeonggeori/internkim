@@ -357,16 +357,10 @@ func TestCompanyShareUnlockRateLimit(t *testing.T) {
 	}
 }
 
-func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testing.T) {
-	temporaryDirectory := t.TempDir()
-	service := NewService(Configuration{
-		StateDirectory:   temporaryDirectory,
-		TaskDatabasePath: temporaryDirectory + "/flow.sqlite",
-	})
-	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul", Language: workspaceLanguageEnglish}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	insertCompanyShareActivityTestData(t, service)
+func TestCompanyShareTeamActivityPublishesTaskTitlesAndNoAddresses(t *testing.T) {
+	service := newCompanyShareCompanyService(t)
+	useCompanyForTest(service, startCompanyHoldingTwoTasks(t).URL)
+	writeClaimedAdminEmailForTest(t, service, "admin@example.com")
 
 	activity, errorValue := service.buildCompanyShareTeamActivity(t.Context(), time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC))
 	if errorValue != nil {
@@ -386,16 +380,41 @@ func TestCompanyShareTeamActivityPublishesLimitedIdentityAndTaskTitles(t *testin
 		t.Fatal(errorValue)
 	}
 	serialized := string(document)
-	for _, publicValue := range []string{"김", "이", "고객 대시보드 개선"} {
-		if !strings.Contains(serialized, publicValue) {
-			t.Fatalf("activity omitted %q: %s", publicValue, serialized)
-		}
+	if !strings.Contains(serialized, "고객 대시보드 개선") {
+		t.Fatalf("activity omitted a task title: %s", serialized)
 	}
-	for _, privateValue := range []string{"member@example.com", "second@example.com", "김철수", "이영희"} {
+	for _, privateValue := range []string{"member@example.com", "second@example.com"} {
 		if strings.Contains(serialized, privateValue) {
 			t.Fatalf("activity exposed %q: %s", privateValue, serialized)
 		}
 	}
+}
+
+func startCompanyHoldingTwoTasks(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		if request.URL.Path == "/api/agent/session" {
+			responseWriter.Write([]byte(`{"memberID":"member-1","accessToken":"token","expiresAt":4102444800}`))
+			return
+		}
+		if !strings.HasPrefix(request.URL.Path, "/rest/v1/task") {
+			responseWriter.Write([]byte(`[]`))
+			return
+		}
+		responseWriter.Write([]byte(`[` +
+			`{"id":"11111111-1111-4111-8111-111111111111","title":"온보딩 흐름 정리","status":"in_progress",` +
+			`"business":"secret","type":"secret","size":"S","starts_at":"2026-07-13T00:00:00+00:00",` +
+			`"created_at":"2026-07-13T00:00:00+00:00","updated_at":"2026-07-13T10:00:00+00:00",` +
+			`"task_participant":[{"member":{"email":"member@example.com"}}]},` +
+			`{"id":"22222222-2222-4222-8222-222222222222","title":"고객 대시보드 개선","status":"completed",` +
+			`"business":"secret","type":"secret","size":"S","starts_at":"2026-07-12T00:00:00+00:00",` +
+			`"ends_at":"2026-07-14T00:00:00+00:00","created_at":"2026-07-12T00:00:00+00:00",` +
+			`"updated_at":"2026-07-14T10:00:00+00:00",` +
+			`"task_participant":[{"member":{"email":"second@example.com"}}]}]`))
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
 
 func TestPublicCompanyShareSurname(t *testing.T) {
@@ -515,21 +534,3 @@ func TestCompanyShareCountsTheClocksTheCompanyHolds(t *testing.T) {
 	}
 }
 
-func insertCompanyShareActivityTestData(t *testing.T, service *Service) {
-	t.Helper()
-	taskDatabase, errorValue := service.openTaskDatabase(t.Context())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	defer taskDatabase.Close()
-	_, errorValue = taskDatabase.ExecContext(t.Context(), `
-INSERT INTO flow_tasks (
-	id, week_code, owner_id, owner_name, participant_ids, participant_names, business, type, content, size,
-	status, status_rank, start_date, end_date, created_at, updated_at
-) VALUES
-('task-1', '2026-W29', 'member@example.com', '김철수', '[]', '[]', 'secret', 'secret', '온보딩 흐름 정리', 'S', '진행', 1, '2026-07-13', '', '2026-07-13T00:00:00Z', '2026-07-13T10:00:00Z'),
-('task-2', '2026-W29', 'second@example.com', '이영희', '[]', '[]', 'secret', 'secret', '고객 대시보드 개선', 'S', '완료', 2, '2026-07-12', '2026-07-14', '2026-07-12T00:00:00Z', '2026-07-14T10:00:00Z')`)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-}
