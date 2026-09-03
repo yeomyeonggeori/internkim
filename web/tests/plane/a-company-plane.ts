@@ -34,7 +34,6 @@ export type ACompanyPlane = {
 	agentAPIKey: string;
 	admindURL: string;
 	blueclawURL: string;
-	capabilitiesDocumentPath: string;
 	requesterSocketPath: string;
 	connector: ARecordingMessenger;
 	messenger: ARecordingMessenger;
@@ -408,7 +407,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			agentAPIKey: agent.apiKey,
 			admindURL,
 			blueclawURL,
-			capabilitiesDocumentPath: join(runDirectory, 'capabilities.json'),
 			requesterSocketPath,
 			connector,
 			messenger,

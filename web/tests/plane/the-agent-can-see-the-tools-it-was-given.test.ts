@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { aCompanyPlane } from './a-company-plane';
 
 type ToolInventory = {
@@ -7,18 +8,29 @@ type ToolInventory = {
 	quarantinedProviders: { providerID: string; reason: string }[];
 };
 
-type CapabilitiesDocument = {
-	toolDescriptors: { modelName: string; answeredBy: string }[];
+type GeneratedCatalog = {
+	tools: { modelName: string; answeredBy: string }[];
 };
 
-function theToolsCapabilitydOffersFor(capabilitiesDocumentPath: string): string[] {
-	const capabilities = JSON.parse(readFileSync(capabilitiesDocumentPath, 'utf8')) as CapabilitiesDocument;
-	return capabilities.toolDescriptors
-		.filter((toolDescriptor) => toolDescriptor.answeredBy === 'company' || toolDescriptor.answeredBy === 'record')
-		.map((toolDescriptor) => toolDescriptor.modelName);
+const generatedCatalogPath = join(
+	import.meta.dir,
+	'..',
+	'..',
+	'..',
+	'pkg',
+	'capabilityprotocol',
+	'generated',
+	'capability-tools.json'
+);
+
+function theToolsTheRecordAndTheCompanyAnswer(): string[] {
+	const catalog = JSON.parse(readFileSync(generatedCatalogPath, 'utf8')) as GeneratedCatalog;
+	return catalog.tools
+		.filter((tool) => tool.answeredBy === 'company' || tool.answeredBy === 'record')
+		.map((tool) => tool.modelName);
 }
 
-test('the agent on the plane registered every tool capabilityd offered it', async () => {
+test('the agent on the plane registered every tool the catalog says the record or the company answers', async () => {
 	const plane = await aCompanyPlane();
 	try {
 		const answer = await fetch(`${plane.blueclawURL}/admin/api/tools`);
@@ -26,7 +38,7 @@ test('the agent on the plane registered every tool capabilityd offered it', asyn
 		const inventory = (await answer.json()) as ToolInventory;
 		const registeredToolNames = new Set(inventory.tools);
 
-		const missingToolNames = theToolsCapabilitydOffersFor(plane.capabilitiesDocumentPath).filter(
+		const missingToolNames = theToolsTheRecordAndTheCompanyAnswer().filter(
 			(toolName) => !registeredToolNames.has(toolName)
 		);
 
