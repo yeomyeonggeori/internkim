@@ -8,29 +8,21 @@ import (
 )
 
 func TestTheAgentIsOfferedEveryToolTheRecordOrTheCompanyAnswers(t *testing.T) {
-	sets := map[string][]Descriptor{
-		"DefaultToolDescriptors": DefaultToolDescriptors(),
-		"DeviceDescriptors":      DeviceDescriptors(),
+	offeredToolNames := map[string]bool{}
+	for _, descriptor := range DefaultToolDescriptors() {
+		offeredToolNames[descriptor.Name] = true
 	}
-	for setName, descriptors := range sets {
-		t.Run(setName, func(t *testing.T) {
-			offeredToolNames := map[string]bool{}
-			for _, descriptor := range descriptors {
-				offeredToolNames[descriptor.Name] = true
-			}
-			absentToolNames := []string{}
-			for _, descriptor := range capabilityprotocol.GeneratedToolDescriptorSet() {
-				if descriptor.AnsweredBy == capabilityprotocol.AnsweredByLocal {
-					continue
-				}
-				if !offeredToolNames[descriptor.Name] {
-					absentToolNames = append(absentToolNames, descriptor.Name)
-				}
-			}
-			sort.Strings(absentToolNames)
-			if len(absentToolNames) > 0 {
-				t.Fatalf("the catalog says the record or the company answers %v, and this set offers the agent none of them", absentToolNames)
-			}
-		})
+	absentToolNames := []string{}
+	for _, descriptor := range capabilityprotocol.GeneratedToolDescriptorSet() {
+		if descriptor.AnsweredBy == capabilityprotocol.AnsweredByLocal {
+			continue
+		}
+		if !offeredToolNames[descriptor.Name] {
+			absentToolNames = append(absentToolNames, descriptor.Name)
+		}
+	}
+	sort.Strings(absentToolNames)
+	if len(absentToolNames) > 0 {
+		t.Fatalf("the catalog says the record or the company answers %v, and this set offers the agent none of them", absentToolNames)
 	}
 }

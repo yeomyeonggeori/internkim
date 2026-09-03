@@ -150,16 +150,16 @@ func TestCalendarDescriptorIncludesEventDeleteInput(t *testing.T) {
 }
 
 func TestRegisteredDescriptorsRequireTypedContractsWhenModelVisible(t *testing.T) {
-	for _, descriptors := range [][]Descriptor{DeviceDescriptors(), DefaultToolDescriptors()} {
-		if errorValue := capabilityprotocol.ValidateModelVisibleCapabilityDescriptorSet(descriptors); errorValue != nil {
-			t.Fatal(errorValue)
+	descriptors := DefaultToolDescriptors()
+	if errorValue := capabilityprotocol.ValidateModelVisibleCapabilityDescriptorSet(descriptors); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, descriptor := range descriptors {
+		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible && !descriptor.ModelVisible {
+			continue
 		}
-		for _, descriptor := range descriptors {
-			if descriptor.ModelVisibility == capabilityprotocol.ModelVisibilityVisible || descriptor.ModelVisible {
-				if descriptor.ResultContract == nil || len(descriptor.ResultContract.Schema) == 0 {
-					t.Fatalf("model-visible descriptor lacks a result contract: %+v", descriptor)
-				}
-			}
+		if descriptor.ResultContract == nil || len(descriptor.ResultContract.Schema) == 0 {
+			t.Fatalf("model-visible descriptor lacks a result contract: %+v", descriptor)
 		}
 	}
 }

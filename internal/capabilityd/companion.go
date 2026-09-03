@@ -141,7 +141,7 @@ func (service Service) capabilityRegistry(ctx context.Context) (capabilities.Reg
 		ProtocolIdentity:      capabilityprotocol.GeneratedProtocolIdentity(),
 		LocalOnly:             service.Configuration.LocalOnly,
 		RoutingCandidates:     capabilities.RoutingCandidates(),
-		DeviceCapabilities:    capabilities.DeviceDescriptors(),
+		DeviceCapabilities:    capabilities.DefaultToolDescriptors(),
 		CompanionStatus:       "not_configured",
 		CompanionCapabilities: []capabilities.Descriptor{},
 	}
