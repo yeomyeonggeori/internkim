@@ -1,27 +1,24 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { routeCalendarParticipants } from './calendar-embed-test-utils';
 
 export async function prepareAccessibleParticipantSuggestions(page: Page): Promise<void> {
-	await routeCalendarParticipants(page, [
-		{
-			personID: 'accessible-participant',
-			name: '접근성 참여자',
-			email: 'accessible-participant@example.com'
-		}
-	]);
+	await page.route('**/api/v1/tools/person_list/invoke', async (route) => {
+		await route.fulfill({
+			json: {
+				result: {
+					people: [{ personID: 'accessible-participant', name: '접근성 참여자', email: 'accessible-participant@example.com' }]
+				}
+			}
+		});
+	});
 	await page.reload();
 }
 
-export function accessibleEventBlock(page: Page): Locator {
-	return page.locator(
-		'.calendar-stage [data-event-id="accessible-editor-event"].df-day-event:not(.df-right-panel-event-card)'
-	);
+export function accessibleEventBlock(page: Page, eventID: string): Locator {
+	return page.locator(`.calendar-stage [data-calendar-event-id="${eventID}"]`);
 }
 
-export function accessibleEventActivator(page: Page): Locator {
-	return page.locator(
-		'.calendar-stage [data-event-id="accessible-editor-event"].df-day-event:not(.df-right-panel-event-card) .calendar-dayflow-event-activator'
-	);
+export function accessibleEventActivator(page: Page, eventID: string): Locator {
+	return accessibleEventBlock(page, eventID);
 }
 
 export async function expectForcedColorFocusRing(locator: Locator): Promise<void> {
