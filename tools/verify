@@ -116,6 +116,7 @@ GROUPS = [
         ["supabase/*", "tools/verify-migration-versions"],
         [
             ["tools/verify-migration-versions"],
+            ["bun", "run", "web/scripts/check-supabase-config.ts"],
             ["supabase", "db", "reset"],
             ["supabase", "test", "db"],
         ],
