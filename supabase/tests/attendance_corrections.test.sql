@@ -344,21 +344,19 @@ begin
 end $$;$block$, 'attendance correction batches are atomic across authorization failures');
 
 select lives_ok($block$do $$
-declare
-	blocked boolean := false;
 begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true);
-	begin
-		perform public.attendance_correct(
-			'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"10:00","location":"Office"}]'::jsonb,
-			'   '
-		);
-	exception when check_violation then
-		blocked := true;
-	end;
-	assert blocked, 'a blank reason must be rejected';
-end $$;$block$, 'attendance corrections require a nonblank reason');
+	perform public.attendance_correct(
+		'[{"event_id":"31000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"09:50","location":"Office"}]'::jsonb,
+		'   '
+	);
+	assert (
+		select occurred_at = '2026-08-10 09:50:00+09' and edit_reason is null
+		from public.attendance
+		where id = '31000000-0000-0000-0000-000000000101'
+	), 'a blank reason is kept as no reason, not rejected';
+end $$;$block$, 'attendance corrections accept a blank reason');
 
 select lives_ok($block$do $$
 declare
