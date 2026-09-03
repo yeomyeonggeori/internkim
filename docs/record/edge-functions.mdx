@@ -1,0 +1,17 @@
+---
+title: Edge functions
+description: "The Deno functions deployed beside the record, and whether each verifies a JWT."
+---
+
+These run on Supabase rather than in the web app. A function whose `verify_jwt` is false answers an unauthenticated request, so its own body is what decides who is allowed.
+
+| Name | Verifies JWT |
+| --- | --- |
+| `announce-attendance` | true |
+| `announce-event-reminder` | false |
+| `announce-task` | true |
+| `notify` | false |
+| `notify-test` | true |
+| `setup-digest-key` | true |
+| `setup-vapid` | true |
+| `tell-member` | false |

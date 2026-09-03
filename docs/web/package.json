@@ -11,10 +11,11 @@
     "generate:tools": "bun run scripts/generate-tool-catalog.ts",
     "generate:api": "bun run scripts/generate-api-reference.ts",
     "generate:tool-pages": "bun run scripts/generate-tool-pages.ts",
-    "prebuild": "bun run generate:tools && bun run generate:tool-pages && bun run generate:api",
+    "prebuild": "bun run generate:tools && bun run generate:tool-pages && bun run generate:api && bun run generate:record",
     "postbuild": "cp build/client/__spa-fallback.html build/client/404.html",
-    "predev": "bun run generate:tools && bun run generate:tool-pages && bun run generate:api",
-    "test": "bun test app/lib"
+    "predev": "bun run generate:tools && bun run generate:tool-pages && bun run generate:api && bun run generate:record",
+    "test": "bun test app/lib",
+    "generate:record": "bun run scripts/generate-record-pages.ts"
   },
   "dependencies": {
     "@react-router/node": "^8.3.0",

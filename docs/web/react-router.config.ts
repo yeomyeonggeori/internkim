@@ -4,9 +4,10 @@ import { createGetUrl, getSlugs } from 'fumadocs-core/source';
 import { i18n } from './app/lib/i18n';
 
 const publishedContentDirectory = '..';
-// kept in step with `docs.files` in app/lib/source.ts by hand: fumadocs-mdx rejects a
-// non-literal `files` in a macro, and this config cannot import a macro module.
-const publishedSections = ['*.{md,mdx}', 'tools/**/*.{md,mdx}', 'api/**/*.{md,mdx}'];
+// the same list as `docs.files` in app/lib/source.ts, held to it by
+// app/lib/published-sections.test.ts: fumadocs-mdx rejects a non-literal `files`
+// in a macro, and this config cannot import a macro module.
+const publishedSections = ['*.{md,mdx}', 'tools/**/*.{md,mdx}', 'api/**/*.{md,mdx}', 'record/**/*.{md,mdx}'];
 
 function localePrefix(language: string): string {
   return language === i18n.defaultLanguage ? '' : `/${language}`;

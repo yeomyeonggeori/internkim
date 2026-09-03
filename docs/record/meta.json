@@ -1,0 +1,4 @@
+{
+  "title": "The record",
+  "pages": ["index", "rpc", "edge-functions", "scheduled"]
+}

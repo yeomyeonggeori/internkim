@@ -1,0 +1,12 @@
+---
+title: 예약 실행
+description: "pg_cron이 무엇을 얼마나 자주 실행하는지."
+---
+
+호출자 없이 레코드가 자기 시계로 실행합니다.
+
+| 주기 | 실행 |
+| --- | --- |
+| `* * * * *` | `select public.announce_event_reminders()` |
+| `7 * * * *` | `select public.ask_about_shifts_nobody_closed()` |
+| `* * * * *` | `select public.complete_tasks_past_their_end()` |
