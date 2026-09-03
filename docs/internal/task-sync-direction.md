@@ -112,10 +112,10 @@ configured keeps what it recorded and sends nothing.
 
 | Piece | Where |
 |---|---|
-| the write, and the answer it returns | `internal/admind/flow_task_central_plane.go` |
-| the board, read as the member asking | `internal/admind/flow_central_board.go` |
+| the write, and the answer it returns | `internal/admind/task_central_plane.go` |
+| the board, read as the member asking | `internal/admind/task_central_board.go` |
 | what the central plane called a task | `internal/centralplane/task_mirror.go` |
-| the words each side uses for a status | `internal/admind/flow_central_terms.go` |
+| the words each side uses for a status | `internal/admind/task_central_terms.go` |
 | the calls, as the member they are for | `internal/centralplane/task.go` |
 
 Three rules the implementation had to keep, beyond §4's:
@@ -268,3 +268,19 @@ for the switch. What would change this is the agent moving to a machine with a
 link worth trusting, and then the remaining work is a central implementation
 behind the read store §7 collected, which is small because the shaping already
 exists — the mirror does it on every pass.
+
+## 10. The readers moved
+
+The screens read the record. Every task read and write under
+`web/src/routes/task` went through one of two branches chosen by
+`isSupabaseConfigured()`, and the device branch is gone: the board, the weekly
+summary, the editor, quick add and the definitions editor reach `public.task`
+and `company.task_vocabulary` alone. §7 named two consumers and both are
+closed. capabilityd's Go copies of the task tools went in #1402, and the device
+board UI is the same web build, which asks no device now.
+
+admind still holds the tables. Its `/task/api/*` handlers answer the record
+wherever a company is named, the task vocabulary is read from the record
+through `task_list`, and the SQLite half of every read runs only on a device
+that names no company. Deleting the tables, the handlers and the summary cache
+is the next step, carried the way #1414 carried attendance.
