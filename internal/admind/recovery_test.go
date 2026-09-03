@@ -279,3 +279,59 @@ func TestBootDiagnosisReadsTheRuntimeWhereTheGuestBootsFromIt(t *testing.T) {
 		t.Fatal("the workspace image no longer carries a runtime, so reading one reports a directory nothing writes")
 	}
 }
+
+func TestBuzzRelayTerminatorSkipsWithoutAPublicHost(t *testing.T) {
+	service := newRecoveryTestService(t)
+	service.Configuration.BuzzRelayURL = blueclaw.BuzzRelayLocalURL
+	invoked := make(chan struct{}, 1)
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		invoked <- struct{}{}
+		return []byte("ok\n"), nil
+	}
+
+	service.ensureBuzzRelayTerminator()
+
+	select {
+	case <-invoked:
+		t.Fatal("a relay with no public host terminates no TLS, so nothing should install or enable stunnel")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestBuzzRelayTerminatorRunsWithAPublicHost(t *testing.T) {
+	service := newRecoveryTestService(t)
+	service.Configuration.BuzzRelayURL = blueclaw.BuzzRelayLocalURL
+	service.Configuration.BuzzRelayPublicURL = "wss://relay.example.test"
+	invoked := make(chan string, 1)
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		invoked <- strings.TrimSpace(name + " " + strings.Join(arguments, " "))
+		return []byte("ok\n"), nil
+	}
+
+	service.ensureBuzzRelayTerminator()
+
+	select {
+	case command := <-invoked:
+		if !strings.Contains(command, "buzz-relay-stunnel") {
+			t.Fatalf("expected the stunnel repair command, got %s", command)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("a relay with a public host must keep its TLS terminator running")
+	}
+}
+
+func TestBuzzRelayRepairCommandInstallsStunnelBeforeEnablingIt(t *testing.T) {
+	command := buzzRelayRepairCommand()
+
+	installIndex := strings.Index(command, "command -v stunnel4")
+	enableIndex := strings.Index(command, "systemctl enable buzz-relay-stunnel")
+	if installIndex == -1 {
+		t.Fatal("the repair command must install stunnel4 before it enables the unit that runs it")
+	}
+	if enableIndex == -1 {
+		t.Fatal("expected the repair command to enable buzz-relay-stunnel")
+	}
+	if installIndex > enableIndex {
+		t.Fatalf("stunnel4 must be installed before the unit is enabled, install at %d enable at %d", installIndex, enableIndex)
+	}
+}
