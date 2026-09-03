@@ -392,19 +392,21 @@ and delete the duplicates.
   `cd web && bun test tests/unit`.
 - Add or update a `web/package.json` script when adding a new test category, and
   wire important regression tests into the normal verification path.
-- The calendar and attendance screens read the central plane only (no mockable
-  `/calendar/api/*` or `/attendance/api/*`), so their Playwright specs run
-  against a real local Supabase: sign in for real and seed fixtures straight
-  into `task`, `attendance` and `leave`. What both suites share — the admin
-  client, the company and member identifiers, `leave` seeding — is
-  `web/tests/e2e/central-test-utils.ts`; the rest is
-  `calendar-central-test-utils.ts` and `attendance-central-test-utils.ts`.
-  `tools/verify`'s `web-e2e` group runs `bun run test:e2e:calendar:central`
-  and `bun run test:e2e:attendance:central`, each of which resets the database
-  itself; a suite nothing runs is not a gate. It is its own group and lane,
-  keyed on those routes and specs, never pulled in by `--only web` — a group
-  that resets the shared local database is opted into by name or by touching
-  that code, never a side effect of checking the web app (#1381).
+- The calendar, attendance and task screens read the central plane only (no
+  mockable `/calendar/api/*`, `/attendance/api/*` or `/task/api/*`), so their
+  Playwright specs run against a real local Supabase: sign in for real and seed
+  fixtures straight into `task`, `task_participant`, `attendance` and `leave`.
+  What the suites share — the admin client, the company and member identifiers,
+  the sign-in, `leave` seeding — is `web/tests/e2e/central-test-utils.ts`; the
+  rest is `calendar-`, `attendance-` and `task-central-test-utils.ts`.
+  `tools/verify`'s `web-e2e` group runs `bun run test:e2e:calendar:central`,
+  `bun run test:e2e:attendance:central` and `bun run test:e2e:task:central`,
+  each of which resets the database itself; a suite nothing runs is not a gate.
+  It is its own group and lane, keyed on those routes and specs, never pulled
+  in by `--only web` — a group that resets the shared local database is opted
+  into by name or by touching that code, never a side effect of checking the
+  web app (#1381). Playwright orders spec files alphabetically, so a spec that
+  changes shared company state gets a database of its own.
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: `supabase db reset` then `bun run dev`, and hand over a real
   sign-in. A mock flag (`VITE_MOCK_TASKS=1` or `VITE_MOCK_ADMIN=1`, with an
