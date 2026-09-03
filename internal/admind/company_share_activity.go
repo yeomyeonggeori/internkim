@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"log"
 	"math"
@@ -110,107 +109,88 @@ func (service *Service) buildCompanyShareTeamActivity(ctx context.Context, now t
 }
 
 func (service *Service) readCompanyShareAttendanceActivity(ctx context.Context, startDate string, endDate string, now time.Time, location *time.Location) (map[string]int, map[string]int, []companyShareMemberSource, error) {
-	database, errorValue := service.openAttendanceDatabase(ctx)
+	clocks, errorValue := service.readCompanyShareClocks(ctx, startDate, location)
 	if errorValue != nil {
 		return nil, nil, nil, errorValue
 	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `
-SELECT local_date, COUNT(DISTINCT email)
-FROM attendance_events
-WHERE local_date >= ? AND local_date <= ? AND kind = ? AND canceled_at = ''
-GROUP BY local_date`, startDate, endDate, attendanceKindClockIn)
-	if errorValue != nil {
-		return nil, nil, nil, errorValue
+	counts, members := companyShareClockedInByDate(clocks, startDate, endDate, location)
+	return counts, buildCompanyShareWorkMinutesByDate(clocks, startDate, endDate, now, location), members, nil
+}
+
+// The company is the only attendance store, so a device that names none has
+// nothing to say about who clocked in.
+func (service *Service) readCompanyShareClocks(ctx context.Context, startDate string, location *time.Location) ([]centralplane.Clock, error) {
+	client := service.centralPlane()
+	if client == nil {
+		return nil, nil
 	}
-	defer rows.Close()
+	adminEmail := service.claimedAdminEmail()
+	if adminEmail == "" {
+		log.Printf("the share activity has no claimed admin to read the company attendance as, so it publishes without clocks")
+		return nil, nil
+	}
+	from, errorValue := time.ParseInLocation("2006-01-02", startDate, location)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return client.ClocksSince(ctx, "email", adminEmail, from)
+}
+
+func companyShareClockedInByDate(clocks []centralplane.Clock, startDate string, endDate string, location *time.Location) (map[string]int, []companyShareMemberSource) {
 	counts := map[string]int{}
-	for rows.Next() {
-		var date string
-		var count int
-		if errorValue := rows.Scan(&date, &count); errorValue != nil {
-			return nil, nil, nil, errorValue
+	countedByDate := map[string]map[string]struct{}{}
+	nameByMemberID := map[string]string{}
+	memberOrder := []string{}
+	for _, clock := range clocks {
+		if clock.Kind != attendanceKindClockIn {
+			continue
 		}
-		counts[date] = count
-	}
-	if errorValue := rows.Err(); errorValue != nil {
-		return nil, nil, nil, errorValue
-	}
-	rows.Close()
-	memberRows, errorValue := database.QueryContext(ctx, `
-SELECT DISTINCT email, display_name
-FROM attendance_events
-WHERE local_date >= ? AND local_date <= ? AND kind = ? AND canceled_at = ''`, startDate, endDate, attendanceKindClockIn)
-	if errorValue != nil {
-		return nil, nil, nil, errorValue
-	}
-	defer memberRows.Close()
-	members := []companyShareMemberSource{}
-	for memberRows.Next() {
-		var email string
-		var name string
-		if errorValue := memberRows.Scan(&email, &name); errorValue != nil {
-			return nil, nil, nil, errorValue
+		date := clock.OccurredAt.In(location).Format("2006-01-02")
+		if date < startDate || date > endDate {
+			continue
 		}
-		members = append(members, companyShareMemberSource{MemberID: companySharePersonID(email), Name: name})
+		memberID := companySharePersonID(clock.Email)
+		counted, found := countedByDate[date]
+		if !found {
+			counted = map[string]struct{}{}
+			countedByDate[date] = counted
+		}
+		if _, alreadyCounted := counted[memberID]; !alreadyCounted {
+			counted[memberID] = struct{}{}
+			counts[date]++
+		}
+		if _, known := nameByMemberID[memberID]; !known {
+			nameByMemberID[memberID] = clock.Name
+			memberOrder = append(memberOrder, memberID)
+		}
 	}
-	if errorValue := memberRows.Err(); errorValue != nil {
-		return nil, nil, nil, errorValue
+	members := make([]companyShareMemberSource, 0, len(memberOrder))
+	for _, memberID := range memberOrder {
+		members = append(members, companyShareMemberSource{MemberID: memberID, Name: nameByMemberID[memberID]})
 	}
-	memberRows.Close()
-	events, errorValue := service.readCompanyShareAttendanceEvents(ctx, database)
-	if errorValue != nil {
-		return nil, nil, nil, errorValue
-	}
-	workMinutesByDate := buildCompanyShareWorkMinutesByDate(events, startDate, endDate, now, location)
-	return counts, workMinutesByDate, members, nil
+	return counts, members
 }
 
-func (service *Service) readCompanyShareAttendanceEvents(ctx context.Context, database *sql.DB) ([]attendanceEvent, error) {
-	rows, errorValue := database.QueryContext(ctx, "SELECT "+attendanceEventSelectColumns+`
-FROM attendance_events
-WHERE canceled_at = ''
-ORDER BY occurred_at ASC`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	events := []attendanceEvent{}
-	for rows.Next() {
-		event, scanError := scanAttendanceEvent(rows)
-		if scanError != nil {
-			rows.Close()
-			return nil, scanError
-		}
-		events = append(events, event)
-	}
-	errorValue = rows.Err()
-	rows.Close()
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	return service.applyAttendanceEventOverrides(ctx, database, events)
-}
-
-func buildCompanyShareWorkMinutesByDate(events []attendanceEvent, startDate string, endDate string, now time.Time, location *time.Location) map[string]int {
+func buildCompanyShareWorkMinutesByDate(clocks []centralplane.Clock, startDate string, endDate string, now time.Time, location *time.Location) map[string]int {
 	windowStart, startError := time.ParseInLocation("2006-01-02", startDate, location)
 	windowEndDate, endError := time.ParseInLocation("2006-01-02", endDate, location)
 	if startError != nil || endError != nil {
 		return map[string]int{}
 	}
 	windowEnd := windowEndDate.AddDate(0, 0, 1)
-	orderedEvents := append([]attendanceEvent{}, events...)
-	sort.SliceStable(orderedEvents, func(leftIndex int, rightIndex int) bool {
-		return orderedEvents[leftIndex].OccurredAt < orderedEvents[rightIndex].OccurredAt
+	orderedClocks := append([]centralplane.Clock{}, clocks...)
+	sort.SliceStable(orderedClocks, func(leftIndex int, rightIndex int) bool {
+		return orderedClocks[leftIndex].OccurredAt.Before(orderedClocks[rightIndex].OccurredAt)
 	})
 	openByMemberID := map[string]time.Time{}
 	workMinutesByDate := map[string]int{}
-	for _, event := range orderedEvents {
-		occurredAt, errorValue := parseAttendanceEventTime(event.OccurredAt)
-		if errorValue != nil || occurredAt.After(now) {
+	for _, clock := range orderedClocks {
+		occurredAt := clock.OccurredAt
+		if occurredAt.After(now) {
 			continue
 		}
-		memberID := companySharePersonID(firstNonEmpty(event.Email, event.MattermostUserID))
-		if event.Kind == attendanceKindClockIn {
+		memberID := companySharePersonID(clock.Email)
+		if clock.Kind == attendanceKindClockIn {
 			if startedAt, found := openByMemberID[memberID]; found {
 				addCompanyShareWorkMinutes(workMinutesByDate, startedAt, occurredAt, windowStart, windowEnd, location)
 			}
@@ -218,7 +198,7 @@ func buildCompanyShareWorkMinutesByDate(events []attendanceEvent, startDate stri
 			continue
 		}
 		startedAt, found := openByMemberID[memberID]
-		if event.Kind != attendanceKindClockOut || !found {
+		if clock.Kind != attendanceKindClockOut || !found {
 			continue
 		}
 		addCompanyShareWorkMinutes(workMinutesByDate, startedAt, occurredAt, windowStart, windowEnd, location)

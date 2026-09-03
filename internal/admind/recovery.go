@@ -102,6 +102,8 @@ var SSHRecoveryActions = []string{
 	"stop-mattermost",
 	"calendar-record-coverage",
 	"calendar-carry-into-the-record",
+	"attendance-record-coverage",
+	"attendance-carry-into-the-record",
 	"organization-directory-coverage",
 	"organization-seed-the-directory",
 	"buzz-device-link-count",
@@ -318,6 +320,12 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		carryContext, cancelCarry := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(carryContext, "carry the calendar events the record never took", "sh", "-lc", calendarRecordCoverageCommand(true)))
 		cancelCarry()
+	case "attendance-record-coverage":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the attendance the record has not taken", "sh", "-lc", attendanceRecordCoverageCommand(false)))
+	case "attendance-carry-into-the-record":
+		attendanceCarryContext, cancelAttendanceCarry := context.WithTimeout(context.Background(), 600*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(attendanceCarryContext, "carry the attendance the record never took", "sh", "-lc", attendanceRecordCoverageCommand(true)))
+		cancelAttendanceCarry()
 	case "buzz-rewrite-old-links":
 		rewriteContext, cancelRewrite := context.WithTimeout(context.Background(), 600*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(rewriteContext, "rewrite the links in messages already sent", "sh", "-lc", buzzRewriteOldLinksCommand(true)))
@@ -1599,6 +1607,17 @@ func calendarRecordCoverageCommand(carry bool) string {
 	}
 	return strings.TrimSpace(`
 body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/calendar-record-coverage?carry=` + carryValue + `")
+printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
+`)
+}
+
+func attendanceRecordCoverageCommand(carry bool) string {
+	carryValue := "false"
+	if carry {
+		carryValue = "true"
+	}
+	return strings.TrimSpace(`
+body=$(curl -sS "` + blueclaw.AdmindBaseURL + `/agent/api/attendance-record-coverage?carry=` + carryValue + `")
 printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }

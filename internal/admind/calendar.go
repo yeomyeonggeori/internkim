@@ -104,8 +104,6 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 	switch {
 	case request.Method == http.MethodGet && path == "/events":
 		service.listCalendarEvents(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/holidays":
-		service.serveCalendarHolidays(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/participants":
 		service.listCalendarParticipants(responseWriter, request)
 	case request.Method == http.MethodGet && strings.HasPrefix(escapedPath, "/events/"):
