@@ -7,14 +7,14 @@ import { docsContentRoute, docsRoute } from './shared';
 export const docs = defineDocs({
   dir: '..',
   docs: {
-    files: ['*.{md,mdx}', 'tools/**/*.{md,mdx}', 'api/**/*.{md,mdx}'],
+    files: ['*.{md,mdx}', 'tools/**/*.{md,mdx}', 'api/**/*.{md,mdx}', 'record/**/*.{md,mdx}'],
     async: true,
     postprocess: {
       includeProcessedMarkdown: true,
     },
   },
   meta: {
-    files: ['*.json', 'tools/**/*.json', 'api/**/*.json'],
+    files: ['*.json', 'tools/**/*.json', 'api/**/*.json', 'record/**/*.json'],
   },
 });
 

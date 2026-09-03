@@ -1,0 +1,12 @@
+---
+title: Scheduled work
+description: "What pg_cron runs, and how often."
+---
+
+The record does this on its own clock, with no caller.
+
+| Schedule | Runs |
+| --- | --- |
+| `* * * * *` | `select public.announce_event_reminders()` |
+| `7 * * * *` | `select public.ask_about_shifts_nobody_closed()` |
+| `* * * * *` | `select public.complete_tasks_past_their_end()` |
