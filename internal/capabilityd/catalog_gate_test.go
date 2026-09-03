@@ -750,6 +750,60 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"id":"partnership"`)
 			},
 		},
+		"person_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_update","result":{"personID":"person-1","name":"\uc774\uc0d8\ud50c","email":"member@example.com","handle":"sample","mention":"@\uc774\uc0d8\ud50c","jobTitle":"\ud3b8\uc9d1\uc7a5","teamID":"team-1","teamName":"\ud3b8\uc9d1\ud300","supervisorID":"","supervisorName":"","phoneNumber":"","hireDate":"2026-03-02","isAdmin":false,"employmentStatus":"active"}}`)},
+			input:   `{"personHint":"member@example.com","jobTitle":"\ud3b8\uc9d1\uc7a5"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"personID":"person-1"`)
+			},
+		},
+		"person_invite": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_invite","result":{"personID":"person-2","email":"newcomer@example.com","name":"\ubc15\uc608\uc2dc","employmentStatus":"active","temporaryPassword":"one-time-password"}}`)},
+			input:   `{"email":"newcomer@example.com","name":"\ubc15\uc608\uc2dc"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"temporaryPassword":"one-time-password"`)
+			},
+		},
+		"team_list": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"team_list","result":{"count":2,"teams":[{"teamID":"team-1","name":"\ud3b8\uc9d1\ud300","parentTeamID":"","parentTeamName":"","position":0,"peopleCount":3},{"teamID":"team-2","name":"\uc601\uc5c5\ud300","parentTeamID":"","parentTeamName":"","position":1,"peopleCount":2}]}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"teamID":"team-2"`)
+			},
+		},
+		"team_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"team_add","result":{"teamID":"team-3","name":"\ub514\uc790\uc778\ud300","parentTeamID":"team-1","parentTeamName":"\ud3b8\uc9d1\ud300","position":0,"peopleCount":0}}`)},
+			input:   `{"name":"\ub514\uc790\uc778\ud300","parentHint":"\ud3b8\uc9d1\ud300"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"teamID":"team-3"`)
+			},
+		},
+		"team_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"team_update","result":{"teamID":"team-3","name":"\ub514\uc790\uc778\uc2e4","parentTeamID":"","parentTeamName":"","position":2,"peopleCount":0}}`)},
+			input:   `{"teamHint":"\ub514\uc790\uc778\ud300","name":"\ub514\uc790\uc778\uc2e4"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"position":2`)
+			},
+		},
+		"team_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"team_delete","result":{"teamID":"team-3","name":"\ub514\uc790\uc778\uc2e4","deleted":true,"peopleLeftWithNoOrganization":2}}`)},
+			input:   `{"teamHint":"\ub514\uc790\uc778\uc2e4"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"peopleLeftWithNoOrganization":2`)
+			},
+		},
 	}
 }
 
@@ -764,7 +818,6 @@ const (
 	throughTheModelRouter    = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
 	reachesLivePublicURLs    = "fetches live public URLs"
 	callsAnImageModel        = "calls an image model"
-	answeredOnlyOnThePlane   = "answered on the plane and nowhere else, so no backend this gate stands in for can answer it; step 3 of internkim#1306 puts admind's callers on it"
 )
 
 var toolsWithNoGateCaseYet = map[string]string{
@@ -773,12 +826,6 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"event_list":             implementedOnThePlaneToo,
 	"event_update":           implementedOnThePlaneToo,
 	"person_list":            implementedOnThePlaneToo,
-	"person_invite":          answeredOnlyOnThePlane,
-	"person_update":          answeredOnlyOnThePlane,
-	"team_add":               answeredOnlyOnThePlane,
-	"team_delete":            answeredOnlyOnThePlane,
-	"team_list":              answeredOnlyOnThePlane,
-	"team_update":            answeredOnlyOnThePlane,
 	"task_add":               implementedOnThePlaneToo,
 	"task_delete":            implementedOnThePlaneToo,
 	"task_list":              implementedOnThePlaneToo,

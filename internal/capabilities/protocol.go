@@ -76,76 +76,19 @@ func DeviceBrowserDescriptors() []Descriptor {
 
 func DeviceDescriptors() []Descriptor {
 	descriptors := capabilityprotocol.MustGeneratedToolDescriptors("llm_text", "llm_structured", "embedding_create")
-	descriptors = append(descriptors, WebDescriptors()...)
-	descriptors = append(descriptors, FileDescriptors()...)
-	descriptors = append(descriptors, PlatformMessageDescriptors()...)
-	descriptors = append(descriptors, TaskToolDescriptors()...)
-	descriptors = append(descriptors, CalendarDescriptors()...)
-	descriptors = append(descriptors, LeaveDescriptors()...)
-	descriptors = append(descriptors, AttendanceDescriptors()...)
-	descriptors = append(descriptors, MailDescriptors()...)
-	descriptors = append(descriptors, SiteAppDescriptors()...)
-	descriptors = append(descriptors, CompanyDescriptors()...)
-	descriptors = append(descriptors, NotificationDescriptors()...)
-	descriptors = append(descriptors, CRMDescriptors()...)
+	descriptors = append(descriptors, descriptorsTheRecordAndTheCompanyAnswer()...)
 	return canonicalizeDescriptors(descriptors)
 }
 
-func NotificationDescriptors() []Descriptor {
-	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
-		"notification_settings_get",
-		"notification_settings_set",
-		"conversation_mute",
-		"conversation_unmute",
-		"push_reachability_get",
-		"push_device_claim",
-		"push_device_release",
-	))
-}
-
-func CompanyDescriptors() []Descriptor {
-	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
-		"company_info_get",
-		"company_info_set",
-		"company_metric_record",
-		"company_metric_list",
-		"company_record_add",
-		"company_record_list",
-		"company_record_update",
-		"company_record_delete",
-		"company_document_register",
-		"company_document_list",
-		"company_document_search",
-		"company_document_update",
-		"company_settings_get",
-		"company_settings_update",
-		"company_holiday_list",
-		"company_holiday_add",
-		"company_holiday_update",
-		"company_holiday_delete",
-	))
-}
-
-func CRMDescriptors() []Descriptor {
-	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
-		"crm_organization_list",
-		"crm_organization_add",
-		"crm_organization_update",
-		"crm_organization_archive",
-		"crm_contact_list",
-		"crm_contact_add",
-		"crm_contact_update",
-		"crm_contact_archive",
-		"crm_opportunity_list",
-		"crm_opportunity_add",
-		"crm_opportunity_update",
-		"crm_opportunity_move",
-		"crm_opportunity_archive",
-		"crm_vocabulary_get",
-		"crm_vocabulary_set",
-		"crm_activity_list",
-		"crm_activity_save",
-	))
+func descriptorsTheRecordAndTheCompanyAnswer() []Descriptor {
+	descriptors := []Descriptor{}
+	for _, descriptor := range capabilityprotocol.GeneratedToolDescriptorSet() {
+		if descriptor.AnsweredBy != capabilityprotocol.AnsweredByRecord && descriptor.AnsweredBy != capabilityprotocol.AnsweredByCompany {
+			continue
+		}
+		descriptors = append(descriptors, descriptor)
+	}
+	return descriptors
 }
 
 func WebDescriptors() []Descriptor {
@@ -173,30 +116,6 @@ func TaskToolDescriptors() []Descriptor {
 		"task_update",
 		"task_delete",
 		"person_list",
-	))
-}
-
-func LeaveDescriptors() []Descriptor {
-	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
-		"leave_list",
-		"leave_balance",
-		"leave_request",
-		"leave_update",
-		"leave_delete",
-		"leave_decide",
-	))
-}
-
-func AttendanceDescriptors() []Descriptor {
-	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
-		"attendance_list",
-		"attendance_add",
-		"attendance_update",
-		"attendance_delete",
-		"attendance_work_policy_get",
-		"attendance_work_policy_set",
-		"attendance_leave_policy_get",
-		"attendance_leave_policy_set",
 	))
 }
 
@@ -234,25 +153,9 @@ func ArtifactDescriptors() []Descriptor {
 	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors("artifact_review"))
 }
 
-func completionEvidence(mode string, action string, targetKind string) *CompletionEvidenceDescriptor {
-	return &CompletionEvidenceDescriptor{Mode: mode, Action: action, TargetKind: targetKind}
-}
-
 func DefaultToolDescriptors() []Descriptor {
 	descriptors := CompanionToolDescriptors()
-	descriptors = append(descriptors, WebDescriptors()...)
-	descriptors = append(descriptors, FileDescriptors()...)
-	descriptors = append(descriptors, PlatformMessageDescriptors()...)
-	descriptors = append(descriptors, TaskToolDescriptors()...)
-	descriptors = append(descriptors, CalendarDescriptors()...)
-	descriptors = append(descriptors, LeaveDescriptors()...)
-	descriptors = append(descriptors, AttendanceDescriptors()...)
-	descriptors = append(descriptors, MailDescriptors()...)
-	descriptors = append(descriptors, SiteAppDescriptors()...)
-	descriptors = append(descriptors, ArtifactDescriptors()...)
-	descriptors = append(descriptors, CompanyDescriptors()...)
-	descriptors = append(descriptors, NotificationDescriptors()...)
-	descriptors = append(descriptors, CRMDescriptors()...)
+	descriptors = append(descriptors, descriptorsTheRecordAndTheCompanyAnswer()...)
 	return canonicalizeDescriptors(descriptors)
 }
 
