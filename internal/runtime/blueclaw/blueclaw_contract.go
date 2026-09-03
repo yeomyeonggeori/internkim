@@ -173,8 +173,11 @@ func BlueclawHealthCheckCommand() string {
 	return "curl --max-time 15 -fsS " + BlueclawHealthCheckURL() + " >/dev/null && echo ok || echo no"
 }
 
+const capabilitydHealthReportFilter = `if .status != "ok" then "no" else ([.providers // {} | to_entries[] | select(.value.configured and (.value.available | not)) | .key] | sort | if length == 0 then "ok" else "unready:" + join(",") end) end`
+
 func CapabilitydHealthCheckCommand() string {
-	return "curl --max-time 5 -fsS --unix-socket " + CapabilitySocketPath + " http://internkim/health | jq -e '.status == \"ok\"' >/dev/null && echo ok || echo no"
+	return `capabilityd_health="$(curl --max-time 5 -fsS --unix-socket ` + CapabilitySocketPath +
+		` http://internkim/health 2>/dev/null | jq -r '` + capabilitydHealthReportFilter + `' 2>/dev/null)"; echo "${capabilityd_health:-no}"`
 }
 
 func RetireLLMDLeftByEarlierReleasesCommand() string {

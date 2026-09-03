@@ -36,8 +36,9 @@ type (
 )
 
 type providerAvailability struct {
-	Available bool   `json:"available"`
-	Reason    string `json:"reason,omitempty"`
+	Configured bool   `json:"configured"`
+	Available  bool   `json:"available"`
+	Reason     string `json:"reason,omitempty"`
 }
 
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
@@ -226,22 +227,39 @@ func (service Service) localInferenceMode() string {
 
 func (service Service) providerHealth(ctx context.Context) map[string]providerAvailability {
 	return map[string]providerAvailability{
+		"chatd":  service.chatdProviderHealth(ctx),
 		"litert": service.liteRTProviderHealth(ctx),
 	}
 }
 
 func (service Service) liteRTProviderHealth(ctx context.Context) providerAvailability {
+	if !service.localBackendIsConfigured("litert") {
+		return providerAvailability{Reason: "litert is not in the configured local backend order"}
+	}
 	providerSet := service.localProviderSet("litert", "", false)
 	if len(providerSet.Backends) == 0 {
-		return providerAvailability{Available: false, Reason: "litert provider is not configured"}
+		return providerAvailability{Reason: "litert provider is not configured"}
 	}
 	errorValue := providerSet.Backends[0].Ping(ctx)
 	if errorValue == nil {
-		return providerAvailability{Available: true}
+		return providerAvailability{Configured: true, Available: true}
 	}
+	return providerAvailability{Configured: true, Reason: providerUnavailableReason(errorValue)}
+}
+
+func (service Service) localBackendIsConfigured(providerName string) bool {
+	for _, configuredName := range firstProviderOrder(service.Configuration.LocalBackendOrder, llmbackend.DefaultDeviceLocalProviderOrder) {
+		if strings.EqualFold(strings.TrimSpace(configuredName), providerName) {
+			return true
+		}
+	}
+	return false
+}
+
+func providerUnavailableReason(errorValue error) string {
 	reason := llmbackend.ProviderUnavailableReason(errorValue)
 	if reason == "" {
-		reason = errorValue.Error()
+		return errorValue.Error()
 	}
-	return providerAvailability{Available: false, Reason: reason}
+	return reason
 }

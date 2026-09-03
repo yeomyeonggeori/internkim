@@ -440,6 +440,114 @@ func TestServiceHealthReportChecksLocalLLMWhenPlanned(t *testing.T) {
 	}
 }
 
+func TestServicesSatisfiedRequiresCapabilitydToAnswer(t *testing.T) {
+	context := &Context{
+		Backend: BackendSSH,
+		SSH:     capabilitydHealthBoardConnection{capabilitydHealth: "ok"},
+	}
+	if !StepServices.IsSatisfied(context) {
+		t.Fatal("expected services to be satisfied when capabilityd answers")
+	}
+
+	silentContext := &Context{
+		Backend: BackendSSH,
+		SSH:     capabilitydHealthBoardConnection{capabilitydHealth: "no"},
+	}
+	if StepServices.IsSatisfied(silentContext) {
+		t.Fatal("expected services not to be satisfied when capabilityd is active but does not answer")
+	}
+}
+
+func TestServicesSatisfiedRequiresConfiguredCapabilitydProvidersToBeReady(t *testing.T) {
+	context := &Context{
+		Backend: BackendSSH,
+		SSH:     capabilitydHealthBoardConnection{capabilitydHealth: "unready:chatd"},
+	}
+
+	if StepServices.IsSatisfied(context) {
+		t.Fatal("expected services not to be satisfied when capabilityd reports an unready configured provider")
+	}
+}
+
+func TestBlueclawServicesHealthNamesTheUnreadyCapabilitydProvider(t *testing.T) {
+	context := &Context{BoardType: BoardJetsonOrinNano}
+	report := map[string]string{
+		"blueclaw":          "active",
+		"capabilityd":       "active",
+		"admind":            "active",
+		"blueclawHealth":    "ok",
+		"capabilitydHealth": "unready:chatd",
+	}
+
+	unhealthy := unhealthyServiceHealthEntries(context, report)
+	if len(unhealthy) != 1 || unhealthy[0] != "capabilitydHealth=unready:chatd" {
+		t.Fatalf("expected the unready provider to be named, got %v", unhealthy)
+	}
+}
+
+func TestBlueclawServicesHealthRequiresCapabilitydHealth(t *testing.T) {
+	context := &Context{
+		BoardType: BoardJetsonOrinNano,
+		SSH: serviceHealthReportBoardConnection{
+			report: strings.Join([]string{
+				"blueclaw=active",
+				"capabilityd=active",
+				"admind=active",
+				"blueclawHealth=ok",
+				"capabilitydHealth=no",
+			}, "\n"),
+		},
+	}
+
+	if blueclawServicesAreHealthy(context) {
+		t.Fatal("expected an unanswering capabilityd to fail service health")
+	}
+}
+
+func TestServiceHealthReportChecksCapabilitydHealthUnconditionally(t *testing.T) {
+	command := blueclawServiceHealthReportCommand(&Context{BoardType: BoardJetsonOrinNano})
+
+	for _, expectedValue := range []string{
+		"printf '%s=' 'capabilitydHealth'",
+		"curl --max-time 5 -fsS --unix-socket " + blueclaw.CapabilitySocketPath,
+	} {
+		if !strings.Contains(command, expectedValue) {
+			t.Fatalf("expected health report command to include %q, got:\n%s", expectedValue, command)
+		}
+	}
+}
+
+type capabilitydHealthBoardConnection struct {
+	capabilitydHealth string
+}
+
+func (connection capabilitydHealthBoardConnection) Run(command string) string {
+	switch {
+	case strings.Contains(command, "runtime_path ="):
+		return "ok"
+	case strings.Contains(command, "rootfs_path="):
+		return "ok"
+	case strings.Contains(command, blueclaw.RetiredLLMDServiceIsGoneCommand()):
+		return "inactive"
+	case strings.Contains(command, "cat "+blueclaw.CapabilitydServicePath):
+		return "ExecStart=" + blueclaw.CapabilitydBinaryPath + " --chatd-endpoint " + blueclaw.ChatdEndpoint + " --chatd-platform buzz"
+	case strings.Contains(command, blueclaw.CapabilitySocketPath):
+		return connection.capabilitydHealth
+	case strings.Contains(command, blueclaw.GraphitiEndpoint):
+		return "ok"
+	case strings.Contains(command, blueclaw.BlueclawHealthCheckURL()):
+		return "ok"
+	case strings.HasPrefix(command, "systemctl is-active "):
+		return "active"
+	default:
+		return ""
+	}
+}
+
+func (connection capabilitydHealthBoardConnection) SCP(localPath, remotePath string) error {
+	return nil
+}
+
 type serviceHealthFailureBoardConnection struct{}
 
 type serviceHealthReportBoardConnection struct {
