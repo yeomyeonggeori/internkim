@@ -67,7 +67,6 @@ type Conversation = {
 	historyCursor: string;
 };
 
-const platform = 'mattermost';
 const pageSize = 50;
 
 // key is the one name this app knows the reader by; names is every name they
