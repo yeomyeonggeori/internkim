@@ -7,6 +7,9 @@ import (
 )
 
 func (service *Service) readTaskDefinitions(ctx context.Context) (taskDefinitions, error) {
+	if definitions, answered, errorValue := service.companyTaskDefinitions(ctx); answered {
+		return definitions, errorValue
+	}
 	database, errorValue := service.openTaskDatabase(ctx)
 	if errorValue != nil {
 		return taskDefinitions{}, errorValue
@@ -40,10 +43,6 @@ func (service *Service) readTaskDefinitions(ctx context.Context) (taskDefinition
 		definitions.Sizes = localizedTaskSizeDefinitions(definitions.Sizes, locale)
 	}
 	return definitions, nil
-}
-
-func restoreTaskSizeDefaults(sizes []taskSizeDefinition) []taskSizeDefinition {
-	return localizedTaskSizeDefinitions(sizes, "ko")
 }
 
 func localizedTaskSizeDefinitions(sizes []taskSizeDefinition, locale string) []taskSizeDefinition {
