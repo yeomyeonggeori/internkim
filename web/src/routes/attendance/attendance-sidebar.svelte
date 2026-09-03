@@ -9,7 +9,6 @@
 	import { getAttendanceState } from './attendance-context.svelte';
 	import { getAttendanceViewState } from './attendance-view-state.svelte';
 	import { getLeaveApprovalState } from './approval/leave-approval-state.svelte';
-	import { getEmployeeLeaveState } from './leave/employee-leave-state.svelte';
 	import PersonalToolsPanel from './personal/personal-tools-panel.svelte';
 	import { attendanceText } from './text';
 
@@ -17,10 +16,6 @@
 	const attendance = getAttendanceState();
 	const attendanceView = getAttendanceViewState();
 	const leaveApproval = getLeaveApprovalState();
-	const employeeLeave = getEmployeeLeaveState();
-	const needsChangesCount = $derived(
-		employeeLeave.payload?.requests.filter((request) => request.status === 'needsChanges').length ?? 0
-	);
 </script>
 
 <aside class="flex w-60 shrink-0 flex-col border-r bg-background max-md:hidden">
@@ -42,11 +37,6 @@
 			>
 				<HistoryIcon />
 				<span class="flex-1 text-left">{text.leave.historyTab}</span>
-				{#if needsChangesCount > 0}
-					<Badge variant="secondary" data-testid="leave-history-needs-changes-count">
-						{needsChangesCount}
-					</Badge>
-				{/if}
 			</Button>
 			{#if attendance.summary?.isAdmin}
 				<Button

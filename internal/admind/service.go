@@ -372,7 +372,6 @@ func (service *Service) Run(ctx context.Context) error {
 	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
 	go service.keepUsersSyncInstalled(ctx)
-	go service.keepWorkPolicyPublished(ctx)
 	go service.keepOrganizationProfilesReadBack(ctx)
 	if service.Configuration.TaskRunNotifyEnabled {
 		go service.keepTaskRunsNotified(ctx)
@@ -712,10 +711,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 			http.Error(responseWriter, "admin access required", http.StatusForbidden)
 			return
 		}
-	}
-	if path == "/attendance/backfill" {
-		service.backfillAttendanceCentrally(responseWriter, request)
-		return
 	}
 	if service.rejectOperationsAdminRestrictedMutation(responseWriter, request, path) {
 		return
