@@ -8,6 +8,7 @@ export type CalendarCentralEvent = {
 	endISO: string;
 	isAllDay?: boolean;
 	note?: string;
+	participantIDs?: string[];
 };
 
 export async function signInToCalendar(page: Page): Promise<void> {
@@ -40,7 +41,18 @@ export async function seedCalendarEvents(events: CalendarCentralEvent[]): Promis
 	}));
 	const inserted = await admin.from('task').insert(rows).select('id');
 	if (inserted.error) throw new Error(`Failed to seed calendar events: ${inserted.error.message}`);
-	return inserted.data.map((row) => row.id as string);
+	const eventIDs = inserted.data.map((row) => row.id as string);
+	const participantRows = events.flatMap((event, index) =>
+		(event.participantIDs ?? []).map((memberID) => ({ task_id: eventIDs[index], member_id: memberID }))
+	);
+	if (participantRows.length > 0) {
+		const participants = await admin.from('task_participant').insert(participantRows);
+		if (participants.error) {
+			await cleanupCalendarEvents(eventIDs);
+			throw new Error(`Failed to seed calendar event participants: ${participants.error.message}`);
+		}
+	}
+	return eventIDs;
 }
 
 export type CalendarEventRow = {
