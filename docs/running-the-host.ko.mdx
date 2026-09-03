@@ -59,7 +59,7 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<프로젝트의 publishable key>
 INTERNKIM_APP_URL=https://<company>.intern.kim
 CHATD_BOT_USER_NAME=<봇의 표시 이름>
-MESSENGER_PLATFORM=buzz              # 또는 mattermost
+MESSENGER_PLATFORM=buzz
 DATABASE_URL=postgres://…
 ```
 
@@ -68,11 +68,10 @@ DATABASE_URL=postgres://…
 환경에 남지 않습니다. 파일을 교체하는 것이 곧 키 교체 절차의 전부입니다.
 릴레이는 그 경로를 `AGENT_API_KEY_PATH`로 받습니다.
 
-그리고 회사가 굴리는 메신저, 둘 중 하나.
+그리고 회사가 굴리는 메신저.
 
 ```
 CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
-CHATD_MATTERMOST_BASE_URL=…   CHATD_MATTERMOST_BOT_TOKEN=…
 ```
 
 그리고 릴레이가 앱에 답할 때 거치는 게이트웨이.

@@ -62,7 +62,7 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
 INTERNKIM_APP_URL=https://<company>.intern.kim
 CHATD_BOT_USER_NAME=<the bot's display name>
-MESSENGER_PLATFORM=buzz              # or mattermost
+MESSENGER_PLATFORM=buzz
 DATABASE_URL=postgres://…
 ```
 
@@ -71,11 +71,10 @@ mode `0600`, read by path, so it stays out of the process environment where
 anything reading `/proc` could find it. Rotating the file is the whole
 rotation procedure. The relay takes the path as `AGENT_API_KEY_PATH`.
 
-Then the messenger the company runs, one of:
+Then the messenger the company runs:
 
 ```
 CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
-CHATD_MATTERMOST_BASE_URL=…   CHATD_MATTERMOST_BOT_TOKEN=…
 ```
 
 And the gateway the relay answers through:
