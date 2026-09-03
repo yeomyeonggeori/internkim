@@ -52,7 +52,6 @@ export type AnsweredTask = {
 	taskID: string;
 	organizationID: string;
 	opportunityID: string;
-	contactID: string;
 	content: string;
 	ownerID: string;
 	ownerName: string;
@@ -102,7 +101,6 @@ function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 		taskID: row.id,
 		organizationID: row.organization_id ?? '',
 		opportunityID: row.opportunity_id ?? '',
-		contactID: row.contact_id ?? '',
 		content: row.title,
 		ownerID: owner.id,
 		ownerName: owner.name,

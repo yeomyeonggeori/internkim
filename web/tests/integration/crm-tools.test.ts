@@ -235,6 +235,20 @@ describe('the deals a company is working on', () => {
 		expect(resultOf(opened).amountMinor).toBe(18000000);
 	});
 
+	test('are changed field by field, keeping what the call does not name', async () => {
+		const changed = await asSample('crm_opportunity_update', {
+			opportunityHint: 'ABC상사 도입',
+			importance: 'medium',
+			description: '보안 검토가 남았다'
+		});
+
+		expect(changed.status).toBe(200);
+		expect(resultOf(changed).importance).toBe('medium');
+		expect(resultOf(changed).description).toBe('보안 검토가 남았다');
+		expect(resultOf(changed).amountMinor).toBe(18000000);
+		expect(resultOf(changed).contactID).not.toBe('');
+	});
+
 	test('are listed by the stage they stand at and the organization they are with', async () => {
 		expect(opportunitiesOf(await asSample('crm_opportunity_list', { stage: 'waiting' }))).toHaveLength(1);
 		expect(opportunitiesOf(await asSample('crm_opportunity_list', { stage: 'done' }))).toHaveLength(0);
@@ -434,5 +448,23 @@ describe('the activities recorded against a deal', () => {
 		});
 		expect(invented.status).toBe(400);
 		expect(errorOf(invented)).toContain('moving the deal');
+	});
+});
+
+describe('what a company puts away', () => {
+	test('leaves the CRM screens while everything recorded against it stays', async () => {
+		const deal = await asSample('crm_opportunity_archive', { opportunityHint: 'ABC상사 도입' });
+		expect(deal.status).toBe(200);
+		expect(resultOf(deal).name).toBe('ABC상사 도입');
+
+		const contact = await asSample('crm_contact_archive', { contactHint: 'yesi' });
+		expect(contact.status).toBe(200);
+
+		expect(opportunitiesOf(await asSample('crm_opportunity_list', {}))).toHaveLength(0);
+		expect(resultOf(await asSample('crm_contact_list', {})).contacts as unknown[]).toHaveLength(0);
+		expect(
+			opportunitiesOf(await asSample('crm_opportunity_list', { includeArchived: true }))
+		).toHaveLength(1);
+		expect(activitiesOf(await asSample('crm_activity_list', {})).length).toBeGreaterThan(0);
 	});
 });

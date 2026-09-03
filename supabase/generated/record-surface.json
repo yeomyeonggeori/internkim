@@ -161,7 +161,7 @@
       "name": "attendance_work_policies",
       "arguments": "",
       "returns": "TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -316,15 +316,6 @@
       ]
     },
     {
-      "name": "crm_task_save",
-      "arguments": "target_task_id uuid, target_title text, target_status task_status, target_note text, target_business text, target_type text, target_due_at timestamp with time zone, target_starts_at timestamp with time zone, target_ends_at timestamp with time zone, target_is_event boolean, target_is_whole_day boolean, target_notify_minutes_before integer, target_location jsonb, target_requester_id uuid, target_participant_ids uuid[], target_organization_id uuid, target_opportunity_id uuid, target_contact_id uuid",
-      "returns": "uuid",
-      "security": "definer",
-      "callableBy": [
-        "authenticated"
-      ]
-    },
-    {
       "name": "crm_vocabulary_save",
       "arguments": "target_vocabulary jsonb",
       "returns": "jsonb",
@@ -471,7 +462,7 @@
       "name": "member_leave_days",
       "arguments": "target_member uuid",
       "returns": "numeric",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -493,7 +484,7 @@
       "name": "member_leave_remaining",
       "arguments": "target_member uuid, target_year integer",
       "returns": "numeric",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -504,7 +495,7 @@
       "name": "member_locale",
       "arguments": "target_member uuid",
       "returns": "text",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -515,7 +506,7 @@
       "name": "member_minimum_daily_minutes",
       "arguments": "target_member uuid",
       "returns": "integer",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -537,7 +528,7 @@
       "name": "member_timezone",
       "arguments": "target_member uuid",
       "returns": "text",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -548,7 +539,7 @@
       "name": "member_today",
       "arguments": "target_member uuid",
       "returns": "date",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -570,7 +561,7 @@
       "name": "member_work_hours",
       "arguments": "target_member uuid",
       "returns": "jsonb",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -581,7 +572,7 @@
       "name": "member_work_hours_on",
       "arguments": "target_member uuid, target_day date",
       "returns": "jsonb",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",

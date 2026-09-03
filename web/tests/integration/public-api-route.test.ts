@@ -53,7 +53,7 @@ beforeAll(async () => {
 		email: `${slug}-holder@example.test`,
 		email_confirm: true
 	});
-	await client.from('member').update({ user_id: account.user!.id }).eq('id', memberID);
+	await client.from('member').update({ user_id: account.user!.id, status: 'active' }).eq('id', memberID);
 
 	holdersToken = await issuePersonalAccessToken(client, memberID, 'holder', 'delete');
 	readersToken = await issuePersonalAccessToken(client, memberID, 'reader', 'read');
