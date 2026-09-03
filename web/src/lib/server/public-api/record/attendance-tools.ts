@@ -159,7 +159,6 @@ export type AttendanceUpdateInput = { corrections?: AttendanceCorrection[]; reas
 export async function attendanceUpdate(context: RecordContext, input: AttendanceUpdateInput) {
 	const asked = input.corrections ?? [];
 	if (asked.length === 0) throw new Error('a correction names the attendance records it corrects');
-	if (!input.reason?.trim()) throw new Error('a correction says why the records were wrong');
 
 	const corrections = [];
 	for (const correction of asked) {
@@ -176,7 +175,7 @@ export async function attendanceUpdate(context: RecordContext, input: Attendance
 
 	const { data, error } = await context.caller.rpc('attendance_correct', {
 		corrections,
-		reason: input.reason.trim()
+		reason: input.reason?.trim() || null
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return { ...answeredWrite(data), eventID: corrections[0].event_id };
@@ -186,13 +185,12 @@ export type AttendanceDeleteInput = { eventHint?: string; reason?: string };
 
 export async function attendanceDelete(context: RecordContext, input: AttendanceDeleteInput) {
 	if (!input.eventHint) throw new Error('a removal names the attendance record it removes');
-	if (!input.reason?.trim()) throw new Error('a removal says why the record should not be there');
 
 	const row = await attendanceOfHint(context, input.eventHint);
 
 	const { data, error } = await context.caller.rpc('attendance_remove', {
 		event_id: row.id,
-		reason: input.reason.trim()
+		reason: input.reason?.trim() || null
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return answeredWrite(data);
