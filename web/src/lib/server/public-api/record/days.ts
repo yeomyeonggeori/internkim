@@ -98,3 +98,9 @@ export function instantWritten(timezone: string, written: string, endOfDay = fal
 	if (Number.isNaN(moment.getTime())) throw new Error(`${written} is not a date or a moment`);
 	return moment.toISOString();
 }
+
+// instantWritten answers `…Z` and PostgREST answers `…+00:00` for the same
+// instant.
+export function isTheSameMoment(held: string, written: string): boolean {
+	return Date.parse(held) === Date.parse(written);
+}
