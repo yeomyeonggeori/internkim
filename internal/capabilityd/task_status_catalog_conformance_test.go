@@ -1,12 +1,15 @@
 package capabilityd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 func statusesTheCentralPlaneDeclares(t *testing.T) []string {
@@ -30,10 +33,29 @@ func statusesTheCentralPlaneDeclares(t *testing.T) []string {
 	return statuses
 }
 
+func statusesTheToolTakes(t *testing.T, toolName string) []string {
+	t.Helper()
+	var schema struct {
+		Properties struct {
+			Status struct {
+				Enum []string `json:"enum"`
+			} `json:"status"`
+		} `json:"properties"`
+	}
+	descriptor := capabilityprotocol.MustGeneratedToolDescriptors(toolName)[0]
+	if errorValue := json.Unmarshal(descriptor.InputSchema, &schema); errorValue != nil {
+		t.Fatalf("the %s input schema cannot be read: %v", toolName, errorValue)
+	}
+	if len(schema.Properties.Status.Enum) == 0 {
+		t.Fatalf("the %s input schema names no statuses", toolName)
+	}
+	return schema.Properties.Status.Enum
+}
+
 func TestTheToolCatalogTakesTheStatusesTheCentralPlaneDeclares(t *testing.T) {
 	declared := statusesTheCentralPlaneDeclares(t)
 
-	takenOnUpdate := taskUpdateStatuses()
+	takenOnUpdate := statusesTheToolTakes(t, "task_update")
 	slices.Sort(takenOnUpdate)
 	if !slices.Equal(takenOnUpdate, declared) {
 		t.Fatalf("task_update takes %v and the central plane declares %v", takenOnUpdate, declared)
@@ -45,7 +67,7 @@ func TestTheToolCatalogOpensATaskOnEveryStatusButRequested(t *testing.T) {
 		return status == "requested"
 	})
 
-	takenOnAdd := taskAddStatuses()
+	takenOnAdd := statusesTheToolTakes(t, "task_add")
 	slices.Sort(takenOnAdd)
 	if !slices.Equal(takenOnAdd, initial) {
 		t.Fatalf("task_add takes %v and a task may open on %v; the runtime, not the model, asks for requested", takenOnAdd, initial)

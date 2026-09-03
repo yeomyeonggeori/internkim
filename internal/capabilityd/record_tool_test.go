@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -111,7 +115,7 @@ func TestOnlyTheRecordsOwnToolsAreServedHere(t *testing.T) {
 
 func TestEveryToolTheRecordRunsIsRoutedToTheRecord(t *testing.T) {
 	recordHandler := reflect.ValueOf(capabilityToolHandler(Service.invokeRecordTool)).Pointer()
-	for toolName := range toolsTheRecordRuns {
+	for _, toolName := range toolNamesAnsweredBy(capabilityprotocol.AnsweredByRecord) {
 		route, hasRoute := capabilityToolRouteFor(toolName)
 		if !hasRoute {
 			t.Fatalf("%s is answered by the record and nothing routes to it", toolName)
@@ -120,4 +124,35 @@ func TestEveryToolTheRecordRunsIsRoutedToTheRecord(t *testing.T) {
 			t.Fatalf("%s is answered by the record and its route reaches somewhere else", toolName)
 		}
 	}
+}
+
+func admindOnASocket(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	directory, errorValue := os.MkdirTemp("", "admind")
+	if errorValue != nil {
+		t.Fatalf("make the socket directory: %v", errorValue)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(directory) })
+	socketPath := filepath.Join(directory, "admind.sock")
+	listener, errorValue := net.Listen("unix", socketPath)
+	if errorValue != nil {
+		t.Fatalf("listen on %s: %v", socketPath, errorValue)
+	}
+	server := httptest.NewUnstartedServer(handler)
+	_ = server.Listener.Close()
+	server.Listener = listener
+	server.Start()
+	t.Cleanup(server.Close)
+	return socketPath
+}
+
+func admindOnLoopbackThatFailsTheTest(t *testing.T) string {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		t.Errorf("%s %s reached admind over TCP, where the requester header is ignored", request.Method, request.URL.Path)
+		responseWriter.WriteHeader(http.StatusOK)
+		_, _ = responseWriter.Write([]byte(`{}`))
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
 }

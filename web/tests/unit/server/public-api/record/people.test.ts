@@ -81,6 +81,14 @@ describe('naming a person', () => {
 		expect(refusal.candidates.map((one) => one.label)).toContain('이샘플');
 	});
 
+	test('offers the nearest for a mistyped domain, and nothing for a local part nobody has', () => {
+		const domainSlip = refusalOf('yesi@example.con');
+		expect(domainSlip.outcome).toBe('approximate');
+		expect(domainSlip.candidates.map((one) => one.email)).toContain('yesi@example.com');
+
+		expect(refusalOf('nobodyhere@example.com').outcome).toBe('not_found');
+	});
+
 	test('refuses a name nothing comes close to, with no candidates', () => {
 		const refusal = refusalOf('최견본');
 		expect(refusal.outcome).toBe('not_found');
