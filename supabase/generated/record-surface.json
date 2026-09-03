@@ -344,6 +344,15 @@
       ]
     },
     {
+      "name": "digest_app_url_keep",
+      "arguments": "new_app_url text",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "digest_target_keep",
       "arguments": "new_project_url text",
       "returns": "void",
