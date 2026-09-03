@@ -134,7 +134,6 @@ func TestCompanyShareSnapshotContainsOnlyPublishedProjection(t *testing.T) {
 		"ko": `{"name":"테스트 회사","description":"한국어 소개","bankAccount":"민감한 계좌","legalAttributes":[{"label":"사업자번호","value":"000-00-00000"}],"email":"company@example.com"}`,
 		"en": `{"name":"Test Company","description":"English profile","email":"company@example.com"}`,
 	})
-	insertCompanyShareTestData(t, service)
 	settings := defaultCompanyShareSettings()
 	settings.Languages = []string{"en", "ko"}
 	settings.ProfileFields = []string{"description", "email"}
@@ -163,7 +162,6 @@ func TestCompanyShareSnapshotContainsOnlyPublishedProjection(t *testing.T) {
 
 func TestCompanyShareSnapshotPublishesOnlyApprovedEvidence(t *testing.T) {
 	service := newCompanyShareProfileService(t, map[string]string{"ko": `{"name":"테스트 회사"}`, "en": `{"name":"Test Company"}`})
-	insertCompanyShareTestData(t, service)
 	settings := defaultCompanyShareSettings()
 	settings.MetricNames = []string{"annualRevenue"}
 	settings.MetricContexts = map[string]companyShareMetricContext{
@@ -193,7 +191,7 @@ func TestCompanyShareSnapshotPublishesOnlyApprovedEvidence(t *testing.T) {
 			t.Fatalf("snapshot omitted approved evidence %q: %s", publicValue, serialized)
 		}
 	}
-	for _, privateValue := range []string{"secret-attribute", "공개 상세", "private/path", "Private Counterpart", "requester@example.com"} {
+	for _, privateValue := range []string{"secret-attribute", "공개 상세", "private/path", "Private Counterpart", "member-private"} {
 		if strings.Contains(serialized, privateValue) {
 			t.Fatalf("snapshot exposed private evidence %q: %s", privateValue, serialized)
 		}
@@ -442,27 +440,6 @@ func saveCompanyShareTestSettings(t *testing.T, service *Service, password strin
 	return settings
 }
 
-func insertCompanyShareTestData(t *testing.T, service *Service) {
-	t.Helper()
-	database, errorValue := service.openCompanyDatabase(t.Context())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	defer database.Close()
-	_, errorValue = database.ExecContext(t.Context(), `
-INSERT INTO company_metrics (metric, year, quarter, month, value, currency, value_usd, unit, note, updated_at) VALUES
-('annualRevenue', 2025, 0, 0, 1200000000, 'KRW', 870000, '', 'internal note', '2026-01-01T00:00:00Z'),
-('mau', 2025, 0, 12, 9000, '', NULL, '명', 'do not publish', '2026-01-01T00:00:00Z');
-INSERT INTO company_records (id, category, record_date, title, detail, attributes, updated_at) VALUES
-('public-record', 'milestone', '2025-12-01', '공개 이력', '공개 상세', '{"round":"Seed","secret":"secret-attribute"}', '2026-01-01T00:00:00Z'),
-('private-record', 'funding', '2025-11-01', '비공개 이력', 'private-record', '{}', '2026-01-01T00:00:00Z');
-INSERT INTO company_documents (id, document_number, kind, document_type, title, counterpart, language, file_path, summary, summary_embedding, requester_email, issued_at, updated_at) VALUES
-('public-document', 'AWD-2025-001', 'received', 'award-certificate', '수상 확인서', 'Private Counterpart', 'ko', 'private/path', '선정 근거 요약', '', 'requester@example.com', '2025-12-02T00:00:00Z', '2025-12-02T00:00:00Z')`)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-}
-
 // The company is the only attendance store, so the clocks this panel counts
 // come back from the record rather than from a table on the device.
 func companyShareRecordHandler(writer http.ResponseWriter, request *http.Request) {
@@ -519,6 +496,23 @@ func TestCompanyShareCountsTheClocksTheCompanyHolds(t *testing.T) {
 	}
 }
 
+const (
+	companyShareLedgerMetrics = `{"count":2,"metrics":[` +
+		`{"metricID":"metric-revenue","metric":"annualRevenue","year":2025,"quarter":0,"month":0,"value":1200000000,` +
+		`"currency":"KRW","valueUSD":870000,"unit":null,"note":"internal note","updatedAt":"2026-01-01T00:00:00Z"},` +
+		`{"metricID":"metric-mau","metric":"mau","year":2025,"quarter":0,"month":12,"value":9000,` +
+		`"currency":null,"valueUSD":null,"unit":"\uba85","note":"do not publish","updatedAt":"2026-01-01T00:00:00Z"}]}`
+	companyShareLedgerRecords = `{"count":2,"records":[` +
+		`{"recordID":"public-record","category":"milestone","date":"2025-12-01","title":"\uacf5\uac1c \uc774\ub825",` +
+		`"detail":"\uacf5\uac1c \uc0c1\uc138","attributes":[{"label":"round","value":"Seed"},{"label":"secret","value":"secret-attribute"}],"updatedAt":"2026-01-01T00:00:00Z"},` +
+		`{"recordID":"private-record","category":"funding","date":"2025-11-01","title":"\ube44\uacf5\uac1c \uc774\ub825",` +
+		`"detail":"private-record","attributes":[],"updatedAt":"2026-01-01T00:00:00Z"}]}`
+	companyShareLedgerDocuments = `{"count":1,"documents":[` +
+		`{"documentID":"public-document","documentNumber":"AWD-2025-001","kind":"received","documentType":"award-certificate",` +
+		`"title":"\uc218\uc0c1 \ud655\uc778\uc11c","counterpart":"Private Counterpart","language":"ko","filePath":"private/path",` +
+		`"summary":"\uc120\uc815 \uadfc\uac70 \uc694\uc57d","requesterID":"member-private","issuedAt":"2025-12-02T00:00:00Z"}]}`
+)
+
 func newCompanyShareProfileService(t *testing.T, profilesByLanguage map[string]string) *Service {
 	t.Helper()
 	company := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -538,6 +532,12 @@ func newCompanyShareProfileService(t *testing.T, profilesByLanguage map[string]s
 				profile = `{}`
 			}
 			_, _ = responseWriter.Write([]byte(`{"tool":"company_info_get","result":` + profile + `}`))
+		case "/api/v1/tools/company_metric_list/invoke":
+			_, _ = responseWriter.Write([]byte(`{"tool":"company_metric_list","result":` + companyShareLedgerMetrics + `}`))
+		case "/api/v1/tools/company_record_list/invoke":
+			_, _ = responseWriter.Write([]byte(`{"tool":"company_record_list","result":` + companyShareLedgerRecords + `}`))
+		case "/api/v1/tools/company_document_list/invoke":
+			_, _ = responseWriter.Write([]byte(`{"tool":"company_document_list","result":` + companyShareLedgerDocuments + `}`))
 		default:
 			responseWriter.WriteHeader(http.StatusNotFound)
 			_, _ = responseWriter.Write([]byte(`{}`))
