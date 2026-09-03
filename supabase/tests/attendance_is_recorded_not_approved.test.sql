@@ -65,19 +65,23 @@ end $$;$block$, 'omitting the day and the time clocks the moment it is called');
 
 select lives_ok($block$do $$
 declare
-	refused boolean := false;
+	answer jsonb;
+	kept text;
+	written uuid;
 begin
 	set local role authenticated;
 	perform set_config('request.jwt.claim.sub', '41000000-0000-0000-0000-000000000001', true);
-	begin
-		perform public.attendance_add(
-			'41000000-0000-0000-0000-000000000011', 'clock_out', '2026-08-10'::date, '18:00'::time, null, null
-		);
-	exception when check_violation then
-		refused := true;
-	end;
-	assert refused, 'a record written by hand says why';
-end $$;$block$, 'a hand-written record without a reason is refused');
+	answer := public.attendance_add(
+		'41000000-0000-0000-0000-000000000011', 'clock_out', current_date - 1, '18:00'::time, null, null
+	);
+	assert answer ->> 'status' = 'added', 'a record written by hand needs no reason';
+	written := (answer ->> 'eventID')::uuid;
+	select edit_reason into kept from public.attendance where id = written;
+	assert kept is null, 'a reason nobody gave is not invented';
+
+	reset role;
+	delete from public.attendance where id = written;
+end $$;$block$, 'a hand-written record is taken without a reason');
 
 select lives_ok($block$do $$
 declare
