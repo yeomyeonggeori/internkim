@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Cut every shipped icon from the two masters in assets/.
+
+assets/internkim.icon.png is the finished app icon, rounded and shaded. It
+fills every slot an OS presents as an app: the PWA icons, apple-touch-icon,
+and the Companion Tauri set. assets/internkim.square.png is the same face on
+a full-bleed square and fills the slots that crop or shrink the mark: the tab
+favicon, the docs favicon, the menu-bar tray, and the Mattermost bot avatar.
+
+Android cuts its own shape and iOS paints transparency black, so the maskable
+icon and apple-touch-icon get the icon's transparent corners filled with its
+own vertical gradient before resizing. The tray icon is the square's white
+silhouette as alpha, which macOS tints as a template. The 16px favicon.ico
+entry is cut from the centre of the square so the glasses survive.
+
+Needs Pillow and numpy on the running Python, and bun for the Tauri set.
+"""
+
+import base64
+import io
+import pathlib
+import subprocess
+import sys
+
+try:
+    import numpy
+    from PIL import Image
+except ImportError as error:
+    sys.exit(f"tools/generate-icons needs Pillow and numpy: {error}")
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+ICON_MASTER = REPOSITORY_ROOT / "assets" / "internkim.icon.png"
+SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
+FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
+TEMPLATE_DARKEST_WHITE = 150
+TEMPLATE_LIGHTEST_WHITE = 240
+FAVICON_16_CROP = 0.72
+
+
+def save(image: Image.Image, relative_path: str, size: int, mode: str) -> None:
+    output = image.resize((size, size), Image.LANCZOS).convert(mode)
+    output.save(REPOSITORY_ROOT / relative_path, optimize=True)
+    print(relative_path, output.size, output.mode)
+
+
+def full_bleed(image: Image.Image) -> Image.Image:
+    pixels = numpy.array(image)
+    height, width = pixels.shape[:2]
+    sample_column = 40
+    column = pixels[:, sample_column, :3].astype(numpy.float32)
+    opaque = pixels[:, sample_column, 3] == 255
+    rows = numpy.arange(height)
+    for channel in range(3):
+        column[:, channel] = numpy.interp(rows, rows[opaque], column[opaque, channel])
+    background = numpy.repeat(column[:, None, :], width, axis=1).astype(numpy.uint8)
+    ground = Image.fromarray(background, "RGB").convert("RGBA")
+    return Image.alpha_composite(ground, image)
+
+
+def template_from_square(image: Image.Image, size: int) -> Image.Image:
+    pixels = numpy.array(image.resize((size, size), Image.LANCZOS)).astype(numpy.float32)
+    whiteness = pixels.mean(axis=2)
+    span = TEMPLATE_LIGHTEST_WHITE - TEMPLATE_DARKEST_WHITE
+    alpha = numpy.clip((whiteness - TEMPLATE_DARKEST_WHITE) / span, 0, 1) * 255
+    output = numpy.zeros((size, size, 4), numpy.uint8)
+    output[..., 3] = alpha.astype(numpy.uint8)
+    return Image.fromarray(output, "RGBA")
+
+
+def center_crop(image: Image.Image, keep: float) -> Image.Image:
+    width, height = image.size
+    inset = int(width * (1 - keep) / 2)
+    return image.crop((inset, inset, width - inset, height - inset))
+
+
+def write_favicon(square: Image.Image) -> None:
+    largest, *rest = FAVICON_SIZES
+    frames = [square.resize(largest, Image.LANCZOS).convert("RGBA")]
+    for size in rest:
+        source = center_crop(square, FAVICON_16_CROP) if size == (16, 16) else square
+        frames.append(source.resize(size, Image.LANCZOS).convert("RGBA"))
+    frames[0].save(REPOSITORY_ROOT / "docs/web/public/favicon.ico", append_images=frames[1:], sizes=FAVICON_SIZES)
+    print("docs/web/public/favicon.ico", FAVICON_SIZES)
+
+
+def write_logo_svg(square: Image.Image) -> None:
+    buffer = io.BytesIO()
+    square.resize((256, 256), Image.LANCZOS).save(buffer, format="PNG", optimize=True)
+    encoded = base64.b64encode(buffer.getvalue()).decode()
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        'viewBox="0 0 256 256" width="256" height="256">'
+        f'<image width="256" height="256" xlink:href="data:image/png;base64,{encoded}"/></svg>\n'
+    )
+    (REPOSITORY_ROOT / "web/static/logo.svg").write_text(svg)
+    print("web/static/logo.svg", len(svg), "bytes")
+
+
+def write_tauri_set() -> None:
+    subprocess.run(
+        ["bunx", "tauri", "icon", str(ICON_MASTER)],
+        cwd=REPOSITORY_ROOT / "companion",
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    print("companion/src-tauri/icons/ (tauri icon)")
+
+
+def main() -> None:
+    icon = Image.open(ICON_MASTER).convert("RGBA")
+    square = Image.open(SQUARE_MASTER).convert("RGB")
+
+    save(icon, "web/static/icon-192.png", 192, "RGBA")
+    save(icon, "web/static/icon-512.png", 512, "RGBA")
+    save(full_bleed(icon), "web/static/icon-maskable-512.png", 512, "RGB")
+    save(full_bleed(icon), "web/static/apple-touch-icon.png", 180, "RGB")
+    save(square, "assets/internkim.png", 512, "RGB")
+    write_favicon(square)
+    write_logo_svg(square)
+
+    write_tauri_set()
+    tray = template_from_square(square, 128)
+    tray.save(REPOSITORY_ROOT / "companion/src-tauri/icons/tray-icon.png", optimize=True)
+    print("companion/src-tauri/icons/tray-icon.png", tray.size, tray.mode)
+
+
+if __name__ == "__main__":
+    main()
