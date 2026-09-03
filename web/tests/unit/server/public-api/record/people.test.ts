@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { candidateOf, mentionOf, personOfHint, peopleOfHints } from '$lib/server/public-api/record/people';
 import { HintRefused } from '$lib/server/public-api/record/hint-resolution';
+import { personInTheDirectory } from './directory-fixture';
 
 const people = [
 	{ personID: 'm1', name: '이샘플', email: 'sample@example.com' },
 	{ personID: 'm2', name: '박예시', email: 'yesi@example.com' },
 	{ personID: 'm3', name: '박예시연', email: 'yesiyeon@example.com' }
-];
+].map(personInTheDirectory);
 
 function refusalOf(hint: string): HintRefused {
 	try {
@@ -41,7 +42,7 @@ describe('naming a person', () => {
 	});
 
 	test('asks rather than picking one when two addresses share a local part', () => {
-		const sharing = [...people, { personID: 'm4', name: '박예시', email: 'yesi@example.co.kr' }];
+		const sharing = [...people, personInTheDirectory({ personID: 'm4', name: '박예시', email: 'yesi@example.co.kr' })];
 		const refusal = (() => {
 			try {
 				personOfHint(sharing, '@yesi');

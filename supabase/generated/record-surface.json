@@ -512,28 +512,6 @@
       ]
     },
     {
-      "name": "member_profile_save_own",
-      "arguments": "new_phone_number text, new_hire_date date",
-      "returns": "jsonb",
-      "security": "definer",
-      "callableBy": [
-        "anon",
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
-      "name": "member_profiles_save",
-      "arguments": "profiles jsonb",
-      "returns": "void",
-      "security": "definer",
-      "callableBy": [
-        "anon",
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
       "name": "member_secret_name",
       "arguments": "target_member uuid, target_kind text",
       "returns": "text",
@@ -687,6 +665,16 @@
       ]
     },
     {
+      "name": "person_set",
+      "arguments": "target_member uuid, account_changes jsonb, organization_changes jsonb",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "push_device_claim",
       "arguments": "device_kind text, device_address text, device_keys jsonb",
       "returns": "void",
@@ -763,12 +751,31 @@
       ]
     },
     {
-      "name": "team_save",
-      "arguments": "teams jsonb",
+      "name": "team_add",
+      "arguments": "new_name text, parent_team uuid, new_position integer",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "team_delete",
+      "arguments": "target_team uuid",
+      "returns": "integer",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "team_update",
+      "arguments": "target_team uuid, changes jsonb",
       "returns": "void",
       "security": "definer",
       "callableBy": [
-        "anon",
         "authenticated",
         "service_role"
       ]

@@ -15,7 +15,9 @@ import { LabelUnresolved } from './labels';
 import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
 import { leaveBalance, leaveDecide, leaveDelete, leaveList, leaveRequest, leaveUpdate } from './leave-tools';
-import { personList, taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
+import { personInvite, personList, personUpdate } from './people-tools';
+import { taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
+import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
 
@@ -32,6 +34,12 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	event_list: (context, input) => eventList(context, input),
 	event_delete: (context, input) => eventDelete(context, input),
 	person_list: (context) => personList(context),
+	person_update: (context, input) => personUpdate(context, input),
+	person_invite: (context, input) => personInvite(context, input),
+	team_list: (context) => teamList(context),
+	team_add: (context, input) => teamAdd(context, input),
+	team_update: (context, input) => teamUpdate(context, input),
+	team_delete: (context, input) => teamDelete(context, input),
 	leave_list: (context, input) => leaveList(context, input),
 	leave_balance: (context, input) => leaveBalance(context, input),
 	leave_request: (context, input) => leaveRequest(context, input),
@@ -64,6 +72,7 @@ export type ToolAnswer = { status: number; body: unknown };
 
 export async function previewToolOverTheRecord(
 	caller: SupabaseClient,
+	accountDirectory: SupabaseClient,
 	requesterID: string,
 	name: string,
 	input: ToolInput,
@@ -73,7 +82,7 @@ export async function previewToolOverTheRecord(
 	if (!preview) return { status: 200, body: { tool: name, target: null } };
 
 	try {
-		const context = await recordContextOf(caller, requesterID, now);
+		const context = await recordContextOf(caller, accountDirectory, requesterID, now);
 		return { status: 200, body: { tool: name, target: await preview(context, input) } };
 	} catch (refusal) {
 		return refusalAnswer(name, refusal);
@@ -82,6 +91,7 @@ export async function previewToolOverTheRecord(
 
 export async function runToolOverTheRecord(
 	caller: SupabaseClient,
+	accountDirectory: SupabaseClient,
 	requesterID: string,
 	name: string,
 	input: ToolInput,
@@ -91,7 +101,7 @@ export async function runToolOverTheRecord(
 	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
 
 	try {
-		const context = await recordContextOf(caller, requesterID, now);
+		const context = await recordContextOf(caller, accountDirectory, requesterID, now);
 		return { status: 200, body: { tool: name, result: await run(context, input) } };
 	} catch (refusal) {
 		return refusalAnswer(name, refusal);

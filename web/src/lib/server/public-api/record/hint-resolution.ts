@@ -81,8 +81,10 @@ function collapseWhitespace(text: string): string {
 const notFoundCodes = {
 	person: 'person_not_found',
 	participant: 'task_participant_not_found',
+	supervisor: 'supervisor_not_found',
 	task: 'task_not_found',
-	event: 'calendar_event_not_found'
+	event: 'calendar_event_not_found',
+	organization: 'organization_not_found'
 } as const;
 
 export type HintSubject = keyof typeof notFoundCodes;
