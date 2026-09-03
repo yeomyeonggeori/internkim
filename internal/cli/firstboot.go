@@ -317,16 +317,7 @@ if [ -f "$STAGE/assets/internkim.png" ]; then
   cp -f "$STAGE/assets/internkim.png" /opt/internkim/assets/internkim.png
   chmod 644 /opt/internkim/assets/internkim.png
 fi
-if [ -f "$STAGE/SOUL.md" ] && { [ ! -f /root/.blueclaw/workspace/SOUL.md ] || grep -q '^# IDENTITY.md' /root/.blueclaw/workspace/SOUL.md 2>/dev/null; }; then
-  cp -f "$STAGE/SOUL.md" /root/.blueclaw/workspace/SOUL.md
-fi
-if [ -f "$STAGE/IDENTITY.md" ]; then
-  cp -f "$STAGE/IDENTITY.md" /root/.blueclaw/workspace/IDENTITY.md
-fi
-if [ -f "$STAGE/BOT_PROFILE.yaml" ]; then
-  cp -f "$STAGE/BOT_PROFILE.yaml" /root/.blueclaw/workspace/BOT_PROFILE.yaml
-  rm -f /root/.blueclaw/workspace/BOT_PROFILE.md
-fi
+rm -f /root/.blueclaw/workspace/SOUL.md /root/.blueclaw/workspace/IDENTITY.md /root/.blueclaw/workspace/BOT_PROFILE.yaml /root/.blueclaw/workspace/BOT_PROFILE.md
 if [ -f "$STAGE/AGENTS.md" ]; then
   cp -f "$STAGE/AGENTS.md" /root/.blueclaw/workspace/AGENTS.md
 fi
@@ -348,7 +339,7 @@ id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLO
 getent group internkim-site >/dev/null 2>&1 || groupadd --system internkim-site
 id internkim-site &>/dev/null || useradd -r -g internkim-site -d /nonexistent -s "$NOLOGIN_BINARY" internkim-site
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
-chown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md /root/.blueclaw/workspace/IDENTITY.md /root/.blueclaw/workspace/BOT_PROFILE.yaml /root/.blueclaw/workspace/SOUL.md 2>/dev/null || true
+chown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true
 chmod 711 /root
 mkdir -p /root/.internkim/secrets /root/.internkim/env /root/.internkim/config
 chown root:root /root/.internkim/secrets
