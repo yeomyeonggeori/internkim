@@ -82,6 +82,7 @@ export function createCalendarPersistedEventActions(
 						location: event.location,
 						color: event.color,
 						participants: event.participants,
+						reminderMinutesBefore: event.reminderMinutesBefore ?? null,
 						timeZone: event.timeZone,
 						createdByEmail: event.createdByEmail,
 						createdByName: event.createdByName,

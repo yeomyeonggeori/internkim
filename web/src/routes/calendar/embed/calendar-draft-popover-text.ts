@@ -10,6 +10,8 @@ export type DraftPopoverText = {
 	participantsPlaceholder: string;
 	participantsEmpty: string;
 	participantsSummary: string;
+	reminder: string;
+	reminderLead: string;
 	calendar: string;
 	cancel: string;
 	complete: string;
