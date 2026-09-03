@@ -1,4 +1,5 @@
 import { devLocale, setDevLocale } from './dev-locale-state';
+import type { MemberRole } from './src/lib/member-vocabulary';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type DevAdminMockState = {
@@ -7,7 +8,7 @@ export type DevAdminMockState = {
 	locale: 'ko' | 'en';
 };
 
-export type DevAdminMockUserRole = 'admin' | 'operationsAdmin' | 'member';
+export type DevAdminMockUserRole = MemberRole;
 
 export type DevMockRequest = {
 	method: string;

@@ -40,13 +40,8 @@ describe('admin role policy', () => {
 		expect(visibleSections('admin')).toEqual(allSections);
 	});
 
-	test('limits operations admins to people operations sections', () => {
-		expect(visibleSections('operationsAdmin')).toEqual(['users', 'settings']);
-	});
-
-	test('allows operations admins and full admins to manage organization from the employee page', () => {
+	test('only a full admin manages the organization from the employee page', () => {
 		expect(canManageOrganization('admin')).toBe(true);
-		expect(canManageOrganization('operationsAdmin')).toBe(true);
 		expect(canManageOrganization('member')).toBe(false);
 	});
 
@@ -55,12 +50,13 @@ describe('admin role policy', () => {
 	});
 
 	test('selects the first visible section for the current role', () => {
-		expect(firstVisibleAdminSection('operationsAdmin', allSections)).toBe('users');
+		expect(firstVisibleAdminSection('admin', allSections)).toBe('device');
 		expect(firstVisibleAdminSection('member', allSections)).toBe(null);
 	});
 
 	test('derives roles from current and legacy admin sessions', () => {
-		expect(adminSessionRole(session('operationsAdmin', false))).toBe('operationsAdmin');
+		expect(adminSessionRole(session('member', false))).toBe('member');
+		expect(adminSessionRole(session('admin', false))).toBe('admin');
 		expect(adminSessionRole(session(undefined, true))).toBe('admin');
 		expect(adminSessionRole(session(undefined, false))).toBe('member');
 		expect(adminSessionRole(session(undefined))).toBe('member');

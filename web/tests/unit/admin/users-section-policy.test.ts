@@ -35,10 +35,11 @@ const memberRecord: UserRecord = {
 };
 
 describe('users section policy', () => {
-	test('hides full admin role options from operations admins', () => {
-		expect(userRoleOptions(adminText.ko, false).map((option) => option.value)).toEqual(['member', 'operationsAdmin']);
-		expect(userRoleOptions(adminText.ko, true).map((option) => option.value)).toEqual(['member', 'operationsAdmin', 'admin']);
-		expect(userRoleLabel(adminText.ko, 'operationsAdmin')).toBe('운영자');
+	test('hides the admin role option from whoever may not grant it', () => {
+		expect(userRoleOptions(adminText.ko, false).map((option) => option.value)).toEqual(['member']);
+		expect(userRoleOptions(adminText.ko, true).map((option) => option.value)).toEqual(['member', 'admin']);
+		expect(userRoleLabel(adminText.ko, 'member')).toBe('일반');
+		expect(userRoleLabel(adminText.ko, 'admin')).toBe('관리자');
 	});
 
 	test('protects admin users from limited admins', () => {

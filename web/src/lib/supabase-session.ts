@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from '$lib/supabase';
+import { memberRoleOf, type MemberRole } from '$lib/member-vocabulary';
 import { forgetHeldTasks } from '$lib/task/task-cache';
 import { forgetLastSeenTask } from '../routes/task/task-last-seen';
 import { forgetLastSeenDirectory } from '../routes/organization/organization-last-seen';
@@ -22,7 +23,7 @@ export async function supabaseWebAuthSession(returnPath: string): Promise<WebAut
 	};
 }
 
-export type SignedInMember = { memberID: string; role: 'admin' | 'member'; companySlug: string };
+export type SignedInMember = { memberID: string; role: MemberRole; companySlug: string };
 
 export async function supabaseMember(): Promise<SignedInMember> {
 	const { data } = await supabase().auth.getSession();
@@ -35,12 +36,12 @@ export async function supabaseMember(): Promise<SignedInMember> {
 		.maybeSingle<{ id: string; is_admin: boolean; company: { slug: string } | null }>();
 	return {
 		memberID: member.data?.id ?? '',
-		role: member.data?.is_admin ? 'admin' : 'member',
+		role: memberRoleOf(member.data?.is_admin ?? false),
 		companySlug: member.data?.company?.slug ?? ''
 	};
 }
 
-export async function supabaseMemberRole(): Promise<'admin' | 'member'> {
+export async function supabaseMemberRole(): Promise<MemberRole> {
 	return (await supabaseMember()).role;
 }
 

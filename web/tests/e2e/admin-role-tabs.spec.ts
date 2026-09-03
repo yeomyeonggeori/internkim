@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 
-type MockAdminRole = 'admin' | 'operationsAdmin' | 'member';
+type MockAdminRole = 'admin' | 'member';
 
 async function mockAdminPage(page: Page, role: MockAdminRole): Promise<void> {
 	await page.route('**/admin/api/session', async (route) => {
@@ -76,34 +76,6 @@ test.describe('admin role tabs', () => {
 		const adminRow = main.getByRole('row').filter({ hasText: 'admin@example.com' });
 		await expect(adminRow.getByText('관리자', { exact: true })).toBeVisible();
 		await expect(adminRow.getByRole('button', { name: '일반으로 변경' })).toBeVisible();
-	});
-
-	test('limits operations admins to user and settings tabs', async ({ page }) => {
-		await mockAdminPage(page, 'operationsAdmin');
-
-		await page.goto('/?fleet_id=demo');
-
-		const main = page.locator('main');
-		await expect(main.getByRole('tab', { name: '사용자' })).toBeVisible();
-		await expect(main.getByRole('link', { name: '조직도' })).toHaveCount(0);
-		await expect(main.getByRole('tab', { name: '조직도' })).toHaveCount(0);
-		await expect(main.getByRole('tab', { name: '일반', exact: true })).toBeVisible();
-		await expect(main.getByRole('tab', { name: '근무 설정', exact: true })).toHaveCount(0);
-		await expect(main.getByRole('tab', { name: '휴가 설정', exact: true })).toHaveCount(0);
-		await expect(main.getByRole('tab', { name: '기기' })).toHaveCount(0);
-		await expect(main.getByRole('tab', { name: '인증 정보' })).toHaveCount(0);
-		await expect(main.getByRole('tab', { name: '백업' })).toHaveCount(0);
-		await expect(main.getByRole('tab', { name: '봇' })).toHaveCount(0);
-		await expect(main.getByRole('tab', { name: '네트워크' })).toHaveCount(0);
-		await main.getByRole('tab', { name: '사용자' }).click();
-		const adminRow = main.getByRole('row').filter({ hasText: 'admin@example.com' });
-		await expect(adminRow.getByText('관리자', { exact: true })).toBeVisible();
-		await expect(adminRow.getByRole('button', { name: '일반으로 변경' })).toHaveCount(0);
-		await expect(adminRow.getByRole('button', { name: '저장' })).toBeDisabled();
-		await expect(adminRow.getByRole('button', { name: '비밀번호 리셋' })).toBeDisabled();
-		await expect(adminRow.getByRole('button', { name: '삭제' })).toBeDisabled();
-		await expect(main.getByRole('button', { name: '삭제 Admin' })).toHaveCount(0);
-		await expect(main.getByRole('button', { name: '삭제 Engineering' })).toBeVisible();
 		await main.getByRole('tab', { name: '일반', exact: true }).click();
 		await expect(main.getByRole('button', { name: '지금 다시 시도' })).toBeVisible();
 		await expect(main.getByText('nager API status 503: unavailable')).toBeVisible();
