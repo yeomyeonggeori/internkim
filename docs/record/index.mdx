@@ -1,0 +1,41 @@
+---
+title: The record
+description: What answers underneath the API — Postgres functions, edge functions, and scheduled work.
+---
+
+The API at `https://api.intern.kim/v1` is the surface a caller is meant to use.
+Underneath it is Postgres, and a good deal of internkim is written there rather
+than in the web app: a tool like `attendance_add` resolves the caller, decides
+whether they may write, and either writes or turns the request into something an
+administrator was asked, all inside one function.
+
+That has a cost worth knowing about. A rule written in SQL is invisible to the
+TypeScript above it, so the two drift unless the rule is stated once. It has
+happened: the tool schema demanded a reason `public.attendance_add` does not,
+and the attendance screen was refused before the record ever saw the call.
+
+These pages are generated from a database with every migration applied, so they
+say what is actually there rather than what somebody remembered to write down.
+
+<Cards>
+  <Card title="Every RPC" href="/docs/record/rpc" description="Every function PostgREST exposes, and who may call it" />
+  <Card title="Edge functions" href="/docs/record/edge-functions" description="The Deno functions beside the record, and which verify a JWT" />
+  <Card title="Scheduled work" href="/docs/record/scheduled" description="What pg_cron runs with no caller" />
+</Cards>
+
+## Reading the tables [#reading-the-tables]
+
+**Callable by** is the EXECUTE privilege, not the whole answer. Row level
+security still applies to every table a function touches, and most functions
+gate themselves besides: `member_leave_days_set` raises unless
+`public.is_company_admin()` holds, whoever called it.
+
+**Security** is `definer` or `invoker`. An `invoker` function runs as the
+caller, so row level security answers for it. A `definer` function runs as its
+owner and can see past those policies, which is how a function returns one
+person's leave balance without opening the whole table — and which means its own
+body is the only thing standing between a caller and everything it can reach.
+
+The schema of record is `supabase/migrations`, and
+[docs/internal/core-schema.md](https://github.com/yeomyeonggeori/internkim/blob/main/docs/internal/core-schema.md)
+explains the tables.

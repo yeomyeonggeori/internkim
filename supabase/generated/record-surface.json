@@ -1,0 +1,907 @@
+{
+  "rpc": [
+    {
+      "name": "announce_event_reminders",
+      "arguments": "",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "ask_about_shifts_nobody_closed",
+      "arguments": "",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_company",
+      "arguments": "object_name text",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_reader_may_read",
+      "arguments": "object_name text",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_scope",
+      "arguments": "object_name text",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_segment",
+      "arguments": "object_name text, segment_index integer",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_uuid",
+      "arguments": "object_name text, segment_index integer",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "attendance_add",
+      "arguments": "target_member uuid, kind attendance_kind, local_date date, local_time time without time zone, location text, reason text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "attendance_backdated_after_minutes",
+      "arguments": "",
+      "returns": "integer",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "attendance_correct",
+      "arguments": "corrections jsonb, reason text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "attendance_correction_window_minutes",
+      "arguments": "",
+      "returns": "integer",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "attendance_leave_policy_save",
+      "arguments": "target_policy jsonb",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "attendance_policy_save",
+      "arguments": "target_company uuid, attendance_work_policy jsonb",
+      "returns": "void",
+      "security": "invoker",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "attendance_reconciliation_save",
+      "arguments": "target_company uuid, attendance_work_policy jsonb, attendance_calendar jsonb",
+      "returns": "void",
+      "security": "invoker",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "attendance_remove",
+      "arguments": "event_id uuid, reason text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "attendance_server_time",
+      "arguments": "",
+      "returns": "timestamp with time zone",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "attendance_work_policies",
+      "arguments": "",
+      "returns": "TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "attendance_work_policy_save",
+      "arguments": "target_policy jsonb",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "calendar_subscription_company",
+      "arguments": "target_token_hash text",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "calendar_subscription_save",
+      "arguments": "target_token_hash text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "can_manage_task_relationship",
+      "arguments": "target_task_id uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": []
+    },
+    {
+      "name": "company_holidays_merge",
+      "arguments": "target_company uuid, target_holidays jsonb",
+      "returns": "jsonb",
+      "security": "invoker",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_holidays_save",
+      "arguments": "target_holidays jsonb",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "company_of_circle",
+      "arguments": "target_circle uuid",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_of_member",
+      "arguments": "target_member uuid",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_of_task",
+      "arguments": "target_task uuid",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_of_team",
+      "arguments": "target_team uuid",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "company_topic",
+      "arguments": "target_company uuid",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "complete_tasks_past_their_end",
+      "arguments": "",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "conversation_mute",
+      "arguments": "conversation text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "conversation_unmute",
+      "arguments": "conversation text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "crm_opportunity_close",
+      "arguments": "target_opportunity_id uuid, target_stage_id text, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text",
+      "returns": "opportunity",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "crm_task_save",
+      "arguments": "target_task_id uuid, target_title text, target_status task_status, target_note text, target_business text, target_type text, target_due_at timestamp with time zone, target_starts_at timestamp with time zone, target_ends_at timestamp with time zone, target_is_event boolean, target_is_whole_day boolean, target_notify_minutes_before integer, target_location jsonb, target_requester_id uuid, target_participant_ids uuid[], target_organization_id uuid, target_opportunity_id uuid, target_contact_id uuid",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "crm_vocabulary_save",
+      "arguments": "target_vocabulary jsonb",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "digest_agent_key_keep",
+      "arguments": "",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "digest_target_keep",
+      "arguments": "new_project_url text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "is_company_admin",
+      "arguments": "",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "is_in_circle",
+      "arguments": "target_circle uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "is_messenger_accounts",
+      "arguments": "accounts jsonb",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "is_work_hours",
+      "arguments": "schedule jsonb",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "leave_days_in_year",
+      "arguments": "starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer",
+      "returns": "numeric",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "leave_in_full",
+      "arguments": "",
+      "returns": "TABLE(id uuid, member_id uuid, kind text, is_paid boolean, is_deducted boolean, days numeric, status leave_status, starts_at timestamp with time zone, ends_at timestamp with time zone, note text)",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "leave_management_source",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "leave_return_early",
+      "arguments": "work_location text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_hr_file",
+      "arguments": "target_member uuid",
+      "returns": "TABLE(member_id uuid, leave_days numeric, note text)",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_leave_days",
+      "arguments": "target_member uuid",
+      "returns": "numeric",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_leave_days_set",
+      "arguments": "target_member uuid, granted_days numeric",
+      "returns": "numeric",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_leave_remaining",
+      "arguments": "target_member uuid, target_year integer",
+      "returns": "numeric",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_locale",
+      "arguments": "target_member uuid",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_minimum_daily_minutes",
+      "arguments": "target_member uuid",
+      "returns": "integer",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_profile_save_own",
+      "arguments": "new_phone_number text, new_hire_date date",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_profiles_save",
+      "arguments": "profiles jsonb",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_secret_name",
+      "arguments": "target_member uuid, target_kind text",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_timezone",
+      "arguments": "target_member uuid",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_today",
+      "arguments": "target_member uuid",
+      "returns": "date",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_topic",
+      "arguments": "target_member uuid",
+      "returns": "text",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_work_hours",
+      "arguments": "target_member uuid",
+      "returns": "jsonb",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_work_hours_on",
+      "arguments": "target_member uuid, target_day date",
+      "returns": "jsonb",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "my_app_company",
+      "arguments": "",
+      "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "my_company_topic",
+      "arguments": "",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "my_member",
+      "arguments": "",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "my_member_topic",
+      "arguments": "",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "my_notification_settings",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "my_team",
+      "arguments": "",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "notification_settings_set",
+      "arguments": "chosen jsonb",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "people_on_task",
+      "arguments": "subject uuid",
+      "returns": "uuid[]",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "push_device_claim",
+      "arguments": "device_kind text, device_address text, device_keys jsonb",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "push_device_release",
+      "arguments": "device_kind text, device_address text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "read_company_secret",
+      "arguments": "secret_id uuid",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "read_member_secret",
+      "arguments": "target_member uuid, target_kind text",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "task_children_link",
+      "arguments": "parent_id uuid, child_ids uuid[]",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_parent_set",
+      "arguments": "target_task_id uuid, target_parent_task_id uuid",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_save",
+      "arguments": "target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "task_vocabulary_save",
+      "arguments": "target_vocabulary jsonb",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "team_save",
+      "arguments": "teams jsonb",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "vapid_keys_keep",
+      "arguments": "new_public_key text, new_private_key text, new_subject text, replace_existing boolean DEFAULT false",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "vapid_keys_read",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "vapid_public_key",
+      "arguments": "",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "work_location_names",
+      "arguments": "company_id uuid",
+      "returns": "text[]",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "work_mode_of_member",
+      "arguments": "target_member uuid",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "write_company_secret",
+      "arguments": "secret_id uuid, secret_name text, secret_value text",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "write_member_secret",
+      "arguments": "target_member uuid, target_kind text, secret_value text",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    }
+  ],
+  "triggerFunctions": [
+    "abandon_the_profile_image",
+    "announce_task_write",
+    "bind_member_to_new_user",
+    "derive_task_status_from_dates",
+    "enforce_crm_reference_consistency",
+    "guard_task_authority_shape",
+    "guard_task_status_against_dates",
+    "leave_under_autonomous_work_is_taken_not_asked",
+    "lock_task_requester",
+    "order_time_range",
+    "record_opportunity_stage_change",
+    "refuse_a_second_copy_of_an_event",
+    "refuse_task_parent_cycle",
+    "resolve_attendance",
+    "stamp_crm_record",
+    "stamp_task_on_participant_change",
+    "stamp_task_update",
+    "sync_member_email_from_user",
+    "validate_attendance_correction",
+    "validate_attendance_update_order",
+    "withdraw_member_on_user_deleted"
+  ],
+  "edgeFunctions": [
+    {
+      "name": "announce-attendance",
+      "verifyJWT": true
+    },
+    {
+      "name": "announce-event-reminder",
+      "verifyJWT": false
+    },
+    {
+      "name": "announce-task",
+      "verifyJWT": true
+    },
+    {
+      "name": "notify",
+      "verifyJWT": false
+    },
+    {
+      "name": "notify-test",
+      "verifyJWT": true
+    },
+    {
+      "name": "setup-digest-key",
+      "verifyJWT": true
+    },
+    {
+      "name": "setup-vapid",
+      "verifyJWT": true
+    },
+    {
+      "name": "tell-member",
+      "verifyJWT": false
+    }
+  ],
+  "scheduled": [
+    {
+      "schedule": "* * * * *",
+      "command": "select public.announce_event_reminders()"
+    },
+    {
+      "schedule": "7 * * * *",
+      "command": "select public.ask_about_shifts_nobody_closed()"
+    },
+    {
+      "schedule": "* * * * *",
+      "command": "select public.complete_tasks_past_their_end()"
+    }
+  ]
+}

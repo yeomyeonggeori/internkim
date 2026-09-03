@@ -1,0 +1,119 @@
+---
+title: Every RPC
+description: "Every function PostgREST exposes at /rest/v1/rpc, and who may call it."
+---
+
+The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<name>` on the company's Supabase, running as whichever role its key carries. Row level security still applies to everything a function touches, and a `definer` function additionally runs with its owner's privileges, so its own body is the only thing deciding what the caller may see.
+
+| Name | Arguments | Returns | Security | Callable by |
+| --- | --- | --- | --- | --- |
+| `announce_event_reminders` | — | `void` | definer | service_role |
+| `ask_about_shifts_nobody_closed` | — | `void` | definer | service_role |
+| `asset_company` | `object_name text` | `uuid` | invoker | anon, authenticated, service_role |
+| `asset_reader_may_read` | `object_name text` | `boolean` | invoker | anon, authenticated, service_role |
+| `asset_scope` | `object_name text` | `text` | invoker | anon, authenticated, service_role |
+| `asset_segment` | `object_name text, segment_index integer` | `text` | invoker | anon, authenticated, service_role |
+| `asset_uuid` | `object_name text, segment_index integer` | `uuid` | invoker | anon, authenticated, service_role |
+| `attendance_add` | `target_member uuid, kind attendance_kind, local_date date, local_time time without time zone, location text, reason text` | `jsonb` | definer | authenticated |
+| `attendance_backdated_after_minutes` | — | `integer` | invoker | authenticated, service_role |
+| `attendance_correct` | `corrections jsonb, reason text` | `jsonb` | definer | authenticated |
+| `attendance_correction_window_minutes` | — | `integer` | invoker | authenticated, service_role |
+| `attendance_leave_policy_save` | `target_policy jsonb` | `jsonb` | definer | authenticated |
+| `attendance_policy_save` | `target_company uuid, attendance_work_policy jsonb` | `void` | invoker | service_role |
+| `attendance_reconciliation_save` | `target_company uuid, attendance_work_policy jsonb, attendance_calendar jsonb` | `void` | invoker | service_role |
+| `attendance_remove` | `event_id uuid, reason text` | `jsonb` | definer | authenticated |
+| `attendance_server_time` | — | `timestamp with time zone` | invoker | authenticated, service_role |
+| `attendance_work_policies` | — | `TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)` | invoker | anon, authenticated, service_role |
+| `attendance_work_policy_save` | `target_policy jsonb` | `jsonb` | definer | authenticated |
+| `calendar_subscription_company` | `target_token_hash text` | `uuid` | definer | service_role |
+| `calendar_subscription_save` | `target_token_hash text` | `void` | definer | authenticated |
+| `can_manage_task_relationship` | `target_task_id uuid` | `boolean` | definer | nobody |
+| `company_holidays_merge` | `target_company uuid, target_holidays jsonb` | `jsonb` | invoker | service_role |
+| `company_holidays_save` | `target_holidays jsonb` | `jsonb` | definer | authenticated |
+| `company_of_circle` | `target_circle uuid` | `uuid` | invoker | anon, authenticated, service_role |
+| `company_of_member` | `target_member uuid` | `uuid` | invoker | anon, authenticated, service_role |
+| `company_of_task` | `target_task uuid` | `uuid` | invoker | anon, authenticated, service_role |
+| `company_of_team` | `target_team uuid` | `uuid` | invoker | anon, authenticated, service_role |
+| `company_topic` | `target_company uuid` | `text` | invoker | anon, authenticated, service_role |
+| `complete_tasks_past_their_end` | — | `void` | definer | service_role |
+| `conversation_mute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
+| `conversation_unmute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
+| `crm_opportunity_close` | `target_opportunity_id uuid, target_stage_id text, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text` | `opportunity` | definer | authenticated |
+| `crm_task_save` | `target_task_id uuid, target_title text, target_status task_status, target_note text, target_business text, target_type text, target_due_at timestamp with time zone, target_starts_at timestamp with time zone, target_ends_at timestamp with time zone, target_is_event boolean, target_is_whole_day boolean, target_notify_minutes_before integer, target_location jsonb, target_requester_id uuid, target_participant_ids uuid[], target_organization_id uuid, target_opportunity_id uuid, target_contact_id uuid` | `uuid` | definer | authenticated |
+| `crm_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
+| `digest_agent_key_keep` | — | `boolean` | definer | authenticated, service_role |
+| `digest_target_keep` | `new_project_url text` | `void` | definer | service_role |
+| `is_company_admin` | — | `boolean` | definer | anon, authenticated, service_role |
+| `is_in_circle` | `target_circle uuid` | `boolean` | definer | anon, authenticated, service_role |
+| `is_messenger_accounts` | `accounts jsonb` | `boolean` | invoker | anon, authenticated, service_role |
+| `is_work_hours` | `schedule jsonb` | `boolean` | invoker | anon, authenticated, service_role |
+| `leave_days_in_year` | `starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer` | `numeric` | invoker | anon, authenticated, service_role |
+| `leave_in_full` | — | `TABLE(id uuid, member_id uuid, kind text, is_paid boolean, is_deducted boolean, days numeric, status leave_status, starts_at timestamp with time zone, ends_at timestamp with time zone, note text)` | definer | authenticated, service_role |
+| `leave_management_source` | — | `jsonb` | definer | authenticated, service_role |
+| `leave_return_early` | `work_location text` | `jsonb` | definer | authenticated, service_role |
+| `member_hr_file` | `target_member uuid` | `TABLE(member_id uuid, leave_days numeric, note text)` | definer | authenticated, service_role |
+| `member_leave_days` | `target_member uuid` | `numeric` | invoker | anon, authenticated, service_role |
+| `member_leave_days_set` | `target_member uuid, granted_days numeric` | `numeric` | definer | anon, authenticated, service_role |
+| `member_leave_remaining` | `target_member uuid, target_year integer` | `numeric` | invoker | anon, authenticated, service_role |
+| `member_locale` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
+| `member_minimum_daily_minutes` | `target_member uuid` | `integer` | invoker | anon, authenticated, service_role |
+| `member_profile_save_own` | `new_phone_number text, new_hire_date date` | `jsonb` | definer | anon, authenticated, service_role |
+| `member_profiles_save` | `profiles jsonb` | `void` | definer | anon, authenticated, service_role |
+| `member_secret_name` | `target_member uuid, target_kind text` | `text` | invoker | anon, authenticated, service_role |
+| `member_timezone` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
+| `member_today` | `target_member uuid` | `date` | invoker | anon, authenticated, service_role |
+| `member_topic` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
+| `member_work_hours` | `target_member uuid` | `jsonb` | invoker | anon, authenticated, service_role |
+| `member_work_hours_on` | `target_member uuid, target_day date` | `jsonb` | invoker | anon, authenticated, service_role |
+| `my_app_company` | — | `uuid` | invoker | anon, authenticated, service_role |
+| `my_company_topic` | — | `text` | definer | anon, authenticated, service_role |
+| `my_member` | — | `uuid` | definer | anon, authenticated, service_role |
+| `my_member_topic` | — | `text` | definer | anon, authenticated, service_role |
+| `my_notification_settings` | — | `jsonb` | definer | authenticated, service_role |
+| `my_team` | — | `uuid` | definer | anon, authenticated, service_role |
+| `notification_settings_set` | `chosen jsonb` | `void` | definer | anon, authenticated, service_role |
+| `people_on_task` | `subject uuid` | `uuid[]` | invoker | anon, authenticated, service_role |
+| `push_device_claim` | `device_kind text, device_address text, device_keys jsonb` | `void` | definer | anon, authenticated, service_role |
+| `push_device_release` | `device_kind text, device_address text` | `void` | definer | anon, authenticated, service_role |
+| `read_company_secret` | `secret_id uuid` | `text` | definer | service_role |
+| `read_member_secret` | `target_member uuid, target_kind text` | `text` | definer | service_role |
+| `task_children_link` | `parent_id uuid, child_ids uuid[]` | `void` | definer | authenticated |
+| `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |
+| `task_save` | `target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone` | `uuid` | definer | authenticated |
+| `task_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
+| `team_save` | `teams jsonb` | `void` | definer | anon, authenticated, service_role |
+| `vapid_keys_keep` | `new_public_key text, new_private_key text, new_subject text, replace_existing boolean DEFAULT false` | `boolean` | definer | service_role |
+| `vapid_keys_read` | — | `jsonb` | definer | service_role |
+| `vapid_public_key` | — | `text` | definer | authenticated, service_role |
+| `work_location_names` | `company_id uuid` | `text[]` | invoker | anon, authenticated, service_role |
+| `work_mode_of_member` | `target_member uuid` | `text` | definer | anon, authenticated, service_role |
+| `write_company_secret` | `secret_id uuid, secret_name text, secret_value text` | `uuid` | definer | service_role |
+| `write_member_secret` | `target_member uuid, target_kind text, secret_value text` | `uuid` | definer | service_role |
+
+## Trigger functions
+
+These run when a row changes rather than when somebody calls them.
+
+| Name |
+| --- |
+| `abandon_the_profile_image` |
+| `announce_task_write` |
+| `bind_member_to_new_user` |
+| `derive_task_status_from_dates` |
+| `enforce_crm_reference_consistency` |
+| `guard_task_authority_shape` |
+| `guard_task_status_against_dates` |
+| `leave_under_autonomous_work_is_taken_not_asked` |
+| `lock_task_requester` |
+| `order_time_range` |
+| `record_opportunity_stage_change` |
+| `refuse_a_second_copy_of_an_event` |
+| `refuse_task_parent_cycle` |
+| `resolve_attendance` |
+| `stamp_crm_record` |
+| `stamp_task_on_participant_change` |
+| `stamp_task_update` |
+| `sync_member_email_from_user` |
+| `validate_attendance_correction` |
+| `validate_attendance_update_order` |
+| `withdraw_member_on_user_deleted` |

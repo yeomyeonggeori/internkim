@@ -203,6 +203,7 @@
   "SMOKE_SENDER_KEY_PATH": {"process": "host smoke test", "description": "path to the private key host/smoke.sh signs its smoke message with"},
   "SMOKE_WAIT_SECONDS": {"process": "host smoke test", "description": "how long host/smoke.sh and host/smoke-listen.ts wait for the smoke message's answer; defaults to 90"},
   "SUPABASE_ACCESS_TOKEN": {"process": "web scripts", "description": "a Supabase management API access token, read by web/scripts/remote-query.ts"},
+  "SUPABASE_DB_URL": {"process": "tooling", "description": "the database supabase/scripts/generate-record-surface.ts reads pg_proc from; defaults to the local Supabase at postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"},
   "SUPABASE_JWKS_URL": {"process": "connection-gateway worker", "description": "override JWKS URL the connection-gateway worker verifies member tokens against, instead of deriving it from SUPABASE_URL"},
   "SUPABASE_PROJECT_REF": {"process": "web scripts", "description": "the Supabase project reference web/scripts/remote-query.ts targets"},
   "SUPABASE_PUBLISHABLE_KEY": {"process": "relay, host, web, connection-gateway worker, web scripts", "description": "the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts"},
