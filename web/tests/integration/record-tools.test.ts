@@ -10,8 +10,13 @@ mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
 }));
 
-const { runToolOverTheRecord, recordRunsTheTool, toolsTheRecordRuns, recordToolsWithoutAnImplementation } =
-	await import('../../src/lib/server/public-api/record');
+const {
+	previewToolOverTheRecord,
+	runToolOverTheRecord,
+	recordRunsTheTool,
+	toolsTheRecordRuns,
+	recordToolsWithoutAnImplementation
+} = await import('../../src/lib/server/public-api/record');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -67,6 +72,10 @@ async function run(name: string, input: Record<string, unknown> = {}) {
 	const answered = await runToolOverTheRecord(caller, sampleID, name, input, new Date());
 	if (answered.status === 200) holdToTheContract(name, (answered.body as { result: unknown }).result);
 	return answered;
+}
+
+function previewOf(name: string, input: Record<string, unknown>) {
+	return previewToolOverTheRecord(caller, sampleID, name, input, new Date());
 }
 
 function holdToTheContract(name: string, result: unknown): void {
@@ -445,6 +454,48 @@ describe('an event written through the record', () => {
 			endsAt: `${companyDay}T16:00:00+09:00`
 		});
 		expect(refused.status).toBe(400);
+	});
+});
+
+describe('looking at what a delete would touch', () => {
+	test('names the event the delete then deletes, and writes nothing', async () => {
+		const made = resultOf(
+			await run('event_add', {
+				title: '미리 볼 일정',
+				startsAt: `${companyDay}T20:00:00+09:00`,
+				endsAt: `${companyDay}T21:00:00+09:00`
+			})
+		);
+
+		const previewed = await previewOf('event_delete', { eventHint: '미리 볼 일정' });
+		expect(previewed.status).toBe(200);
+		const target = (previewed.body as { target: { inputField: string; id: string; title: string } }).target;
+		expect(target.id).toBe(made.eventID as string);
+		expect(target.title).toBe('미리 볼 일정');
+		expect(target.inputField).toBe('eventHint');
+
+		const stillThere = resultOf(await run('event_list', { query: '미리 볼 일정' }));
+		expect((stillThere.events as unknown[]).length).toBe(1);
+
+		const gone = resultOf(await run('event_delete', { eventHint: target.id }));
+		expect(gone.eventID).toBe(target.id);
+	});
+
+	test('answers a hint several tasks hold with the candidates the call would answer with', async () => {
+		await run('task_add', { title: '미리보기 후보 하나' });
+		await run('task_add', { title: '미리보기 후보 둘' });
+
+		const previewed = await previewOf('task_delete', { taskHint: '미리보기 후보' });
+		const invoked = await run('task_delete', { taskHint: '미리보기 후보' });
+
+		expect(previewed.status).toBe(409);
+		expect(previewed.body).toEqual(invoked.body);
+	});
+
+	test('answers no target for a destructive tool with nothing to resolve ahead', async () => {
+		const previewed = await previewOf('leave_delete', { leaveHint: 'anything' });
+		expect(previewed.status).toBe(200);
+		expect((previewed.body as { target: unknown }).target).toBeNull();
 	});
 });
 

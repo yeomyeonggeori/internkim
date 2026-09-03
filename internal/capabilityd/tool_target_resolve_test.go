@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -24,28 +26,30 @@ type approvalTargetFixture struct {
 	invoke        func(Service, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)
 }
 
-func calendarApprovalTargetService(t *testing.T, methods *[]string) Service {
-	t.Helper()
-	return Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			*methods = append(*methods, request.Method)
-			return calendarToolEventsResponse(
-				calendarToolEventDocument("event-1", "상하이 acme 미팅", "2026-08-18T14:00:00+09:00", "2026-08-18T15:00:00+09:00"),
-				calendarToolEventDocument("event-2", "주간 팀 회의", "2026-08-19T10:00:00+09:00", "2026-08-19T11:00:00+09:00"),
-			), nil
-		})},
+// The record answers both verbs, so the fake stands in for the plane rather
+// than for the device API these tools used to read.
+func recordApprovalTargetService(inputField string, title string, identity string) func(*testing.T, *[]string) Service {
+	return func(t *testing.T, paths *[]string) Service {
+		t.Helper()
+		return Service{
+			Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				*paths = append(*paths, request.URL.Path)
+				body, _ := io.ReadAll(request.Body)
+				if !strings.Contains(string(body), title) && !strings.Contains(string(body), identity) {
+					return recordToolJSONResponse(http.StatusConflict, `{"error":"no event matches that","errorCode":"interaction_required","failureStage":"target_resolution","retryable":true,"safeRetry":true,"candidates":[]}`), nil
+				}
+				return recordToolJSONResponse(http.StatusOK, `{"tool":"x","target":{"inputField":"`+inputField+`","id":"`+identity+`","title":"`+title+`"}}`), nil
+			})},
+		}
 	}
 }
 
-func taskApprovalTargetService(t *testing.T, methods *[]string) Service {
-	t.Helper()
-	return Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			*methods = append(*methods, request.Method)
-			return taskToolJSONResponse(`{"tasks":[{"id":"task-1","content":"고객지원 분기 결산 검토 완료"},{"id":"task-2","content":"주간 보고"}]}`), nil
-		})},
+func recordToolJSONResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
 	}
 }
 
@@ -57,8 +61,8 @@ var approvalTargetFixtures = []approvalTargetFixture{
 		absentHint:    "NVIDIA·젯슨 공급 미팅",
 		expectedID:    "event-1",
 		expectedTitle: "상하이 acme 미팅",
-		newService:    calendarApprovalTargetService,
-		invoke:        Service.invokeCalendarEventDelete,
+		newService:    recordApprovalTargetService("eventHint", "상하이 acme 미팅", "event-1"),
+		invoke:        Service.previewRecordToolTarget,
 	},
 	{
 		toolName:      "task_delete",
@@ -67,8 +71,8 @@ var approvalTargetFixtures = []approvalTargetFixture{
 		absentHint:    "NVIDIA·젯슨 공급 미팅",
 		expectedID:    "task-1",
 		expectedTitle: "고객지원 분기 결산 검토 완료",
-		newService:    taskApprovalTargetService,
-		invoke:        Service.invokeTaskDelete,
+		newService:    recordApprovalTargetService("taskHint", "고객지원 분기 결산 검토 완료", "task-1"),
+		invoke:        Service.previewRecordToolTarget,
 	},
 }
 
@@ -164,17 +168,17 @@ func TestResolvingATargetReturnsTheSameFailureTheInvokePathWouldHaveReturned(t *
 func TestResolvingATargetWritesNothing(t *testing.T) {
 	for _, fixture := range approvalTargetFixtures {
 		t.Run(fixture.toolName, func(t *testing.T) {
-			methods := []string{}
-			service := fixture.newService(t, &methods)
+			paths := []string{}
+			service := fixture.newService(t, &paths)
 
 			resolveApprovalTargetThroughRoute(t, service, fixture.toolName, approvalTargetToolInput(fixture.inputField, fixture.titleHint))
 
-			for _, method := range methods {
-				if method != http.MethodGet {
-					t.Fatalf("resolving a target before the question is asked can only read, got %+v", methods)
+			for _, path := range paths {
+				if !strings.HasSuffix(path, "/target") {
+					t.Fatalf("resolving a target before the question is asked can only ask what it would touch, got %+v", paths)
 				}
 			}
-			if len(methods) == 0 {
+			if len(paths) == 0 {
 				t.Fatal("expected the resolution to read the current state rather than trust the hint")
 			}
 		})
@@ -182,8 +186,8 @@ func TestResolvingATargetWritesNothing(t *testing.T) {
 }
 
 func TestAToolThatResolvesNoTargetAheadIsReportedAsHavingNone(t *testing.T) {
-	methods := []string{}
-	service := calendarApprovalTargetService(t, &methods)
+	paths := []string{}
+	service := recordApprovalTargetService("eventHint", "상하이 acme 미팅", "event-1")(t, &paths)
 
 	response := resolveApprovalTargetThroughRoute(t, service, "message_send", json.RawMessage(`{"targetType":"currentThread","message":"안녕하세요"}`))
 
@@ -193,8 +197,8 @@ func TestAToolThatResolvesNoTargetAheadIsReportedAsHavingNone(t *testing.T) {
 	if decodeResolvedApprovalTarget(t, response).ID != "" {
 		t.Fatalf("expected no target, got %s", response.Result)
 	}
-	if len(methods) != 0 {
-		t.Fatalf("a tool with no target resolver reaches no backend, got %+v", methods)
+	if len(paths) != 0 {
+		t.Fatalf("a tool with no target resolver reaches no backend, got %+v", paths)
 	}
 }
 
@@ -233,14 +237,11 @@ func TestEveryToolThatResolvesATargetAheadNamesARequiredFieldOfItsOwnInputSchema
 var previewApprovalTargetRouteNames = []string{"message_delete"}
 
 func TestEveryTargetRouteIsCoveredByAFixture(t *testing.T) {
-	if len(capabilityToolTargetRoutes) != len(approvalTargetFixtures)+len(previewApprovalTargetRouteNames) {
-		t.Fatalf("every route that resolves a target ahead needs the round trip proven, got %d routes and %d fixtures", len(capabilityToolTargetRoutes), len(approvalTargetFixtures)+len(previewApprovalTargetRouteNames))
+	if len(capabilityToolTargetRoutes) != len(previewApprovalTargetRouteNames) {
+		t.Fatalf("every route that resolves a target ahead needs the round trip proven, got %d routes and %d fixtures", len(capabilityToolTargetRoutes), len(previewApprovalTargetRouteNames))
 	}
 	for _, route := range capabilityToolTargetRoutes {
 		isCovered := false
-		for _, fixture := range approvalTargetFixtures {
-			isCovered = isCovered || fixture.toolName == route.ToolName
-		}
 		for _, previewRouteName := range previewApprovalTargetRouteNames {
 			isCovered = isCovered || previewRouteName == route.ToolName
 		}
@@ -273,8 +274,8 @@ func TestTheMessageDeleteTargetRouteAnswersOnItsOwnPath(t *testing.T) {
 }
 
 func TestTheTargetResolutionRouteAnswersOnItsOwnPath(t *testing.T) {
-	methods := []string{}
-	service := calendarApprovalTargetService(t, &methods)
+	paths := []string{}
+	service := recordApprovalTargetService("eventHint", "상하이 acme 미팅", "event-1")(t, &paths)
 	requestBody := `{"input":{"eventHint":"상하이 acme 미팅"},"context":{"requesterEmail":"member@example.com"}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/tools/event_delete/target.resolve", strings.NewReader(requestBody))
 	responseRecorder := httptest.NewRecorder()
@@ -286,5 +287,19 @@ func TestTheTargetResolutionRouteAnswersOnItsOwnPath(t *testing.T) {
 	}
 	if !strings.Contains(responseRecorder.Body.String(), "event-1") {
 		t.Fatalf("expected the resolved event, got %s", responseRecorder.Body.String())
+	}
+}
+
+func TestTheRecordsDestructiveToolsResolveTheirTargetThroughTheRecord(t *testing.T) {
+	carrier := reflect.ValueOf(Service.previewRecordToolTarget).Pointer()
+	for _, fixture := range approvalTargetFixtures {
+		route, hasRoute := capabilityToolTargetRouteFor(fixture.toolName)
+		if !hasRoute {
+			t.Errorf("%s resolves no target", fixture.toolName)
+			continue
+		}
+		if reflect.ValueOf(route.Resolver).Pointer() != carrier {
+			t.Errorf("%s is answered by the record and previews its target somewhere else", fixture.toolName)
+		}
 	}
 }

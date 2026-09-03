@@ -103,6 +103,11 @@ function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 
 type WrittenTaskFields = ReturnType<typeof writtenFields>;
 
+export async function taskRowOfHint(context: RecordContext, hint: string): Promise<TaskRow> {
+	const tasks = await tasksOfCompany(context.caller, false);
+	return taskOfHint(tasks, hint, 'task', context.requesterID);
+}
+
 async function taskByID(context: RecordContext, taskID: string): Promise<TaskRow> {
 	return rowOfSavedID(await tasksOfCompany(context.caller, false), taskID, 'task');
 }
@@ -198,8 +203,7 @@ export async function taskUpdate(
 	input: TaskWritten & { taskHint?: string }
 ): Promise<AnsweredTask> {
 	if (!input.taskHint) throw new Error('an update names the task it changes');
-	const tasks = await tasksOfCompany(context.caller, false);
-	const row = taskOfHint(tasks, input.taskHint, 'task', context.requesterID);
+	const row = await taskRowOfHint(context, input.taskHint);
 	const written = writtenFields(context, input, row);
 	const saved = await saveTask(context.caller, taskWriteArguments(row, written));
 	const patched = await taskByID(context, saved);
@@ -243,8 +247,7 @@ export async function taskDelete(
 	input: { taskHint?: string }
 ): Promise<{ taskID: string; deleted: true }> {
 	if (!input.taskHint) throw new Error('a deletion names the task it removes');
-	const tasks = await tasksOfCompany(context.caller, false);
-	const row = taskOfHint(tasks, input.taskHint, 'task', context.requesterID);
+	const row = await taskRowOfHint(context, input.taskHint);
 	await deleteTask(context.caller, row.id);
 	return { taskID: row.id, deleted: true };
 }

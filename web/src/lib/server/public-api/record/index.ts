@@ -16,6 +16,7 @@ import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
 import { leaveBalance, leaveDecide, leaveDelete, leaveList, leaveRequest, leaveUpdate } from './leave-tools';
 import { personList, taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
+import { previewOfTool } from './preview';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
 
 type ToolInput = Record<string, unknown>;
@@ -60,6 +61,24 @@ export function toolsTheRecordAnswers(): string[] {
 }
 
 export type ToolAnswer = { status: number; body: unknown };
+
+export async function previewToolOverTheRecord(
+	caller: SupabaseClient,
+	requesterID: string,
+	name: string,
+	input: ToolInput,
+	now: Date
+): Promise<ToolAnswer> {
+	const preview = previewOfTool(name);
+	if (!preview) return { status: 200, body: { tool: name, target: null } };
+
+	try {
+		const context = await recordContextOf(caller, requesterID, now);
+		return { status: 200, body: { tool: name, target: await preview(context, input) } };
+	} catch (refusal) {
+		return refusalAnswer(name, refusal);
+	}
+}
 
 export async function runToolOverTheRecord(
 	caller: SupabaseClient,

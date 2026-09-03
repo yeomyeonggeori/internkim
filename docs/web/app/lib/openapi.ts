@@ -42,7 +42,8 @@ type ApiCopy = {
 		| 'readReplies'
 		| 'listTools'
 		| 'readTool'
-		| 'invokeTool',
+		| 'invokeTool'
+	| 'previewTool',
 		EndpointCopy
 	>;
 	errors: Record<
@@ -50,6 +51,7 @@ type ApiCopy = {
 		| 'unauthorized'
 		| 'forbidden'
 		| 'notFound'
+		| 'conflict'
 		| 'badGateway'
 		| 'aboveOwnRung'
 		| 'namesItself'
@@ -124,6 +126,11 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 					'`input`은 그 도구의 입력 스키마를 따릅니다. `toolName`, `actor`, `context`는 토큰과 도구 명세에서 정해지므로 본문에 담아도 무시됩니다.',
 				idempotency:
 					'같은 키로 다시 부르면 이 도구는 같은 일을 두 번 하지 않습니다. 이 필드는 그것을 지원하는 도구에만 있습니다.'
+			},
+			previewTool: {
+				summary: '무엇을 건드릴지 미리 보기',
+				description:
+					'무언가를 없애는 도구를 부르기 전에, 그 호출이 무엇을 건드릴지 묻습니다. `input`은 부를 때와 같고 아무것도 쓰지 않습니다. 힌트는 실제 호출이 쓰는 바로 그 함수로 풀리므로, 미리 본 것과 부른 것이 다른 행일 수 없습니다. 되돌릴 수 없는 일을 사람에게 확인받는 클라이언트를 위한 것입니다. 답의 `target.inputField`와 `target.id`로 입력을 좁혀 두면 승인 뒤의 호출이 힌트를 다시 풀지 않습니다. 미리 볼 것이 없는 도구는 `target`이 `null`입니다.'
 			}
 		},
 		errors: {
@@ -131,6 +138,7 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			unauthorized: '토큰이 없거나 유효하지 않습니다',
 			forbidden: '이 토큰의 등급으로는 부를 수 없는 도구입니다',
 			notFound: '그런 도구가 없습니다',
+			conflict: '힌트가 하나로 좁혀지지 않았고, 고를 후보가 함께 옵니다',
 			badGateway: '회사 안쪽 서비스가 응답하지 않았습니다',
 			aboveOwnRung: '자기보다 높은 등급의 토큰은 만들 수 없습니다',
 			namesItself: '그 이름은 이 호출을 인증한 토큰의 것입니다',
@@ -218,6 +226,11 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 					'`input` follows that tool\'s own input schema. `toolName`, `actor` and `context` come from the token and the descriptor, so a body that carries them is ignored.',
 				idempotency:
 					'Calling again with the same key makes this tool do the same work once. Only tools that support it carry this field.'
+			},
+			previewTool: {
+				summary: 'Look at what a call would touch',
+				description:
+					'Before calling a tool that destroys something, ask what that call would touch. `input` is the same input the call takes and nothing is written. The hint resolves through the same function the call itself uses, so the row previewed and the row touched cannot differ. This is for a client that puts an irreversible action to a person first: narrow the input with the answer\'s `target.inputField` and `target.id` and the approved call will not resolve the hint again. A tool with nothing to look at answers `target: null`.'
 			}
 		},
 		errors: {
@@ -225,6 +238,7 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			unauthorized: 'No token, or a token that is not valid',
 			forbidden: "This token's rung does not reach this tool",
 			notFound: 'No tool by that name',
+			conflict: 'The hint did not resolve to one thing, and the candidates come with it',
 			badGateway: 'A service inside the company did not answer',
 			aboveOwnRung: 'A token may not make one that reaches past itself',
 			namesItself: 'That name belongs to the token making this call',
@@ -476,6 +490,26 @@ function invokeToolPath(copy: ApiCopy) {
 	};
 }
 
+function previewToolPath(copy: ApiCopy) {
+	return {
+		post: {
+			tags: [copy.tags.tools],
+			operationId: 'previewTool',
+			summary: copy.endpoints.previewTool.summary,
+			description: copy.endpoints.previewTool.description,
+			parameters: [{ name: 'name', in: 'path', required: true, schema: { type: 'string' } }],
+			requestBody: jsonBody('ToolInvokeRequest'),
+			responses: {
+				'200': jsonResponse(copy.endpoints.previewTool.summary, 'ToolTargetResponse'),
+				'400': errorResponse(copy.errors.badRequest),
+				'401': errorResponse(copy.errors.unauthorized),
+				'403': errorResponse(copy.errors.forbidden),
+				'409': errorResponse(copy.errors.conflict)
+			}
+		}
+	};
+}
+
 function describeTool(tool: CatalogTool): string {
 	const facts = [
 		`\`${tool.sideEffectClass ?? 'read'}\``,
@@ -624,7 +658,8 @@ function createPaths(copy: ApiCopy) {
 		'/agent/replies': agentRepliesPath(copy),
 		'/tools': listToolsPath(copy),
 		'/tools/{name}': toolByNamePath(copy),
-		'/tools/{name}/invoke': invokeToolPath(copy)
+		'/tools/{name}/invoke': invokeToolPath(copy),
+		'/tools/{name}/target': previewToolPath(copy)
 	};
 	for (const tool of baseTools()) {
 		paths[`/tools/${tool.name}/invoke`] = namedToolPath(tool, copy);
@@ -742,7 +777,25 @@ function createComponents(copy: ApiCopy) {
 					timeoutSecond: { type: 'integer' }
 				}
 			},
-			ToolInvokeResponse: {
+			ToolTargetResponse: {
+			type: 'object',
+			properties: {
+				tool: { type: 'string' },
+				target: {
+					type: 'object',
+					nullable: true,
+					properties: {
+						inputField: { type: 'string' },
+						id: { type: 'string' },
+						title: { type: 'string' },
+						startsAt: { type: 'string' }
+					},
+					required: ['inputField', 'id', 'title']
+				}
+			},
+			required: ['tool', 'target']
+		},
+		ToolInvokeResponse: {
 				type: 'object',
 				required: ['toolName', 'outcome', 'result'],
 				properties: {
