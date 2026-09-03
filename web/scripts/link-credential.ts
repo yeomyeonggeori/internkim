@@ -1,4 +1,4 @@
-//   bun run web/scripts/link-credential.ts --email <address> --kind mattermost --external-id <id>
+//   bun run web/scripts/link-credential.ts --email <address> --kind buzz-secret --external-id <id>
 
 import { controlPlane, linkCredential } from '../src/lib/server/control-plane';
 

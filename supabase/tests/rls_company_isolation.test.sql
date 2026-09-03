@@ -31,8 +31,8 @@ insert into public.attendance (member_id, kind) values
   ('000000bb-0000-0000-0000-000000000001', 'clock_in');
 
 insert into public.credential (member_id, kind, external_id) values
-  ('000000aa-0000-0000-0000-000000000002', 'buzz', 'pubkey-unclaimed'),
-  ('000000bb-0000-0000-0000-000000000001', 'buzz', 'pubkey-b');
+  ('000000aa-0000-0000-0000-000000000002', 'buzz-secret', 'pubkey-unclaimed'),
+  ('000000bb-0000-0000-0000-000000000001', 'buzz-secret', 'pubkey-b');
 
 insert into public.task (company_id, title) values
   ('00000000-0000-0000-0000-0000000000a0', 'Ship the vertical slice'),
@@ -898,8 +898,8 @@ begin
     ('00000000-0000-0000-0000-0000ffffff00', 'company app', 'hash-d'),
     ('00000000-0000-0000-0000-0000ffffff0e', 'company app', 'hash-e');
   insert into public.credential (company_id, kind, external_id, settings) values
-    ('00000000-0000-0000-0000-0000ffffff00', 'mattermost', 'https://d.example', '{}'),
-    ('00000000-0000-0000-0000-0000ffffff0e', 'mattermost', 'https://e.example', '{}');
+    ('00000000-0000-0000-0000-0000ffffff00', 'buzz', 'https://d.example', '{}'),
+    ('00000000-0000-0000-0000-0000ffffff0e', 'buzz', 'https://e.example', '{}');
 
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);

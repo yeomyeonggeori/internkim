@@ -17,12 +17,12 @@ insert into public.member (id, company_id, user_id, email, name, status) values
 
 insert into public.credential (member_id, kind, name, external_id) values
   ('49000000-0000-0000-0000-0000000000b1', 'api_key', 'the laptop', 'the-hash-of-a-key'),
-  ('49000000-0000-0000-0000-0000000000b1', 'mattermost', '', 'mm-holder');
+  ('49000000-0000-0000-0000-0000000000b1', 'buzz-secret', '', 'a-public-key-hex');
 
 -- The kinds there is one of stay one of: their name is the empty one.
 select throws_ok(
   $$insert into public.credential (member_id, kind, external_id) values
-      ('49000000-0000-0000-0000-0000000000b1', 'mattermost', 'mm-again')$$,
+      ('49000000-0000-0000-0000-0000000000b1', 'buzz-secret', 'another-public-key-hex')$$,
   '23505',
   null,
   'a person still has one messenger account, because that kind carries no name'
@@ -52,7 +52,7 @@ set local request.jwt.claims = '{"sub":"49000000-0000-0000-0000-000000000002","r
 
 select is(
   (select count(*)::integer from public.credential
-   where member_id = '49000000-0000-0000-0000-0000000000b1' and kind = 'mattermost'),
+   where member_id = '49000000-0000-0000-0000-0000000000b1' and kind = 'buzz-secret'),
   1,
   'a colleague still sees which messenger account is somebody''s'
 );
