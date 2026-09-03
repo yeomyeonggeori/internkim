@@ -109,8 +109,8 @@ function companyAppErrorMessage(body: unknown, fallback: string): string {
 	return fallback;
 }
 
-export async function saveTask(task: Task, fallbackMessage: string): Promise<void> {
-	if (isSupabaseConfigured()) return saveSupabaseTask(task);
+export async function saveTask(task: Task, fallbackMessage: string, statusBefore: string | null): Promise<void> {
+	if (isSupabaseConfigured()) return saveSupabaseTask(task, statusBefore);
 	const method = task.id ? 'PUT' : 'POST';
 	const path = task.id ? `/task/api/tasks/${encodeURIComponent(task.id)}` : '/task/api/tasks';
 	const response = await fetch(path, {

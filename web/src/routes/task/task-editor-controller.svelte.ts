@@ -33,6 +33,7 @@ type TaskEditorControllerInput = {
 
 export class TaskEditorController {
 	taskDraft = $state<Task | null>(null);
+	statusWhenOpened = $state<string | null>(null);
 	isEditingTask = $state(false);
 	taskErrorMessage = $state('');
 	isSavingTask = $state(false);
@@ -64,6 +65,7 @@ export class TaskEditorController {
 	openTask = (task: Task, isTaskPending: (taskID: string) => boolean): void => {
 		if (isTaskPending(task.id)) return;
 		this.taskDraft = cloneTask(task);
+		this.statusWhenOpened = task.status;
 		this.isEditingTask = false;
 		this.taskErrorMessage = '';
 	};
@@ -77,6 +79,7 @@ export class TaskEditorController {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
 		this.taskDraft = createTaskDraft(owner, definitionsFromSummary(this.summary), this.taskWeek());
+		this.statusWhenOpened = null;
 		this.isEditingTask = true;
 		if (typeof status === 'string' && status) this.taskDraft.status = status;
 		if (this.summary.source === 'supabase') {
@@ -97,6 +100,7 @@ export class TaskEditorController {
 		this.taskErrorMessage = '';
 		const result = await saveTaskDraft({
 			task: this.taskDraft,
+			statusBefore: this.statusWhenOpened,
 			canUpdateTask: this.canUpdateTask,
 			loadTask: this.loadTask,
 			weekCode: this.currentWeek(),
