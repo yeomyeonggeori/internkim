@@ -320,16 +320,19 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	if seed == "" {
 		return
 	}
-	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
-	if errorValue != nil {
-		log.Printf("buzz member membership: channel query failed: %v", errorValue)
-		return
-	}
 	member := service.memberBuzzMembers(ctx)
 	// The agent administers every room the company runs, which is what a room
 	// with no admin in it still needs once the company account has left.
 	if agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject)); errorValue == nil {
 		member = append(member, buzzMember{Pubkey: agentPubkey, Role: buzzChannelOwnerRole})
+	}
+	for _, member := range member {
+		service.grantRelayMembership(ctx, member.Pubkey)
+	}
+	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
+	if errorValue != nil {
+		log.Printf("buzz member membership: channel query failed: %v", errorValue)
+		return
 	}
 	log.Printf("buzz member membership: %d stream channels, %d member pubkeys", len(channelIDs), len(member))
 	if len(channelIDs) == 0 || len(member) == 0 {
@@ -337,9 +340,6 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	}
 	connections := service.newBuzzActorConnections()
 	defer connections.closeAll()
-	for _, member := range member {
-		service.grantRelayMembership(ctx, member.Pubkey)
-	}
 	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
 	if errorValue != nil {
 		log.Printf("buzz member membership: %v", errorValue)
