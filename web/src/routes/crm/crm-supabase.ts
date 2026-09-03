@@ -1,4 +1,5 @@
 import { supabase } from '$lib/supabase';
+import { invokeTool, ToolRefused } from '$lib/public-api-call';
 import { CRMApiError } from './crm-api';
 import type {
 	CRMOrganizationPayload,
@@ -21,6 +22,14 @@ import {
 	type OpportunityRow,
 	type OrganizationRow
 } from './crm-supabase-mappers';
+import {
+	contactResponseOf,
+	opportunityResponseOf,
+	organizationResponseOf,
+	type CRMContactToolResult,
+	type CRMOpportunityToolResult,
+	type CRMOrganizationToolResult
+} from './crm-tool-mappers';
 
 const organizationSelection = 'id, name, status, types, tags, importance, owner_id, address, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
 const contactSelection = 'id, organization_id, name, email, phone, title, department, description, created_at, created_by, updated_at, updated_by, archived_at, archived_by';
@@ -54,134 +63,83 @@ export async function loadSupabaseCRMData(): Promise<CRMDataResponse> {
 }
 
 export async function createSupabaseCRMOrganization(payload: CRMOrganizationPayload): Promise<CRMOrganizationResponse> {
-	const context = await crmContext();
-	const result = await supabase()
-		.from('organization')
-		.insert({ company_id: context.companyID, ...organizationValues(payload) })
-		.select(organizationSelection)
-		.single<OrganizationRow>();
-	throwResultError(result.error);
-	return organizationFrom(requiredData(result.data, 'organization'));
+	return organizationResponseOf(
+		await callTool<CRMOrganizationToolResult>('crm_organization_add', organizationInput(payload))
+	);
 }
 
 export async function updateSupabaseCRMOrganization(id: string, payload: CRMOrganizationPayload): Promise<CRMOrganizationResponse> {
-	const result = await supabase()
-		.from('organization')
-		.update(organizationValues(payload))
-		.eq('id', id)
-		.select(organizationSelection)
-		.single<OrganizationRow>();
-	throwResultError(result.error);
-	return organizationFrom(requiredData(result.data, 'organization'));
+	return organizationResponseOf(
+		await callTool<CRMOrganizationToolResult>('crm_organization_update', {
+			organizationHint: id,
+			...organizationInput(payload)
+		})
+	);
 }
 
 export async function archiveSupabaseCRMOrganization(id: string): Promise<void> {
-	await archiveRecord('organization', id);
+	await callTool('crm_organization_archive', { organizationHint: id });
 }
 
 export async function createSupabaseCRMContact(payload: CRMContactPayload): Promise<CRMContactResponse> {
-	const context = await crmContext();
-	const result = await supabase()
-		.from('contact')
-		.insert({ company_id: context.companyID, messenger: {}, ...contactValues(payload) })
-		.select(contactSelection)
-		.single<ContactRow>();
-	throwResultError(result.error);
-	return contactFrom(requiredData(result.data, 'contact'));
+	return contactResponseOf(await callTool<CRMContactToolResult>('crm_contact_add', contactInput(payload)));
 }
 
 export async function updateSupabaseCRMContact(id: string, payload: CRMContactPayload): Promise<CRMContactResponse> {
-	const result = await supabase()
-		.from('contact')
-		.update(contactValues(payload))
-		.eq('id', id)
-		.select(contactSelection)
-		.single<ContactRow>();
-	throwResultError(result.error);
-	return contactFrom(requiredData(result.data, 'contact'));
+	return contactResponseOf(
+		await callTool<CRMContactToolResult>('crm_contact_update', {
+			contactHint: id,
+			...contactInput(payload)
+		})
+	);
 }
 
 export async function archiveSupabaseCRMContact(id: string): Promise<void> {
-	await archiveRecord('contact', id);
+	await callTool('crm_contact_archive', { contactHint: id });
 }
 
 export async function createSupabaseCRMOpportunity(payload: CRMOpportunityPayload): Promise<CRMOpportunityResponse> {
-	const context = await crmContext();
 	const transition = requiredTransition(payload.transition);
-	const result = await supabase()
-		.from('opportunity')
-		.insert({
-			company_id: context.companyID,
-			...opportunityValues(payload),
-			stage_id: transition.stage,
-			stage_position: transition.stagePosition,
-			stage_changed_at: transition.occurredAt,
-			lost_reason: transition.lostReason || null,
-			base_amount_minor: transition.baseAmountMinor,
-			base_currency_code: transition.baseCurrencyCode || null
-		})
-		.select(opportunitySelection)
-		.single<OpportunityRow>();
-	throwResultError(result.error);
-	return opportunityFrom(requiredData(result.data, 'opportunity'));
+	const opened = await callTool<CRMOpportunityToolResult>('crm_opportunity_add', {
+		...opportunityInput(payload),
+		...(settlingStage(transition.stage) ? {} : { stage: transition.stage })
+	});
+	return opportunityResponseOf(opened);
 }
 
 export async function updateSupabaseCRMOpportunity(id: string, payload: CRMOpportunityPayload): Promise<CRMOpportunityResponse> {
-	const transitionValues = payload.transition ? {
-		stage_id: payload.transition.stage,
-		stage_position: payload.transition.stagePosition,
-		stage_changed_at: payload.transition.occurredAt,
-		lost_reason: payload.transition.lostReason || null,
-		base_amount_minor: payload.transition.baseAmountMinor,
-		base_currency_code: payload.transition.baseCurrencyCode || null
-	} : {};
-	const result = await supabase()
-		.from('opportunity')
-		.update({ ...opportunityValues(payload), ...transitionValues })
-		.eq('id', id)
-		.select(opportunitySelection)
-		.single<OpportunityRow>();
-	throwResultError(result.error);
-	return opportunityFrom(requiredData(result.data, 'opportunity'));
+	const written = await callTool<CRMOpportunityToolResult>('crm_opportunity_update', {
+		opportunityHint: id,
+		...opportunityInput(payload)
+	});
+	if (!payload.transition || settlingStage(payload.transition.stage)) return opportunityResponseOf(written);
+	return transitionSupabaseCRMOpportunity(id, payload.transition);
 }
 
 export async function archiveSupabaseCRMOpportunity(id: string): Promise<void> {
-	await archiveRecord('opportunity', id);
+	await callTool('crm_opportunity_archive', { opportunityHint: id });
 }
 
 export async function transitionSupabaseCRMOpportunity(id: string, payload: CRMTransitionPayload): Promise<CRMOpportunityResponse> {
-	const session = await supabase().auth.getSession();
-	const accessToken = session.data.session?.access_token;
-	if (!accessToken) throw new CRMApiError('sign in first', 401, 'unauthenticated');
-
-	const response = await fetch('/api/crm/opportunity-close', {
-		method: 'POST',
-		headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			opportunityID: id,
+	return opportunityResponseOf(
+		await callTool<CRMOpportunityToolResult>('crm_opportunity_move', {
+			opportunityHint: id,
 			stage: payload.stage,
-			stagePosition: payload.stagePosition,
-			occurredAt: payload.occurredAt,
-			lostReason: payload.lostReason
+			position: payload.stagePosition,
+			closedAt: payload.occurredAt,
+			...(payload.lostReason ? { reason: payload.lostReason } : {}),
+			...(payload.baseAmountMinor === null ? {} : { finalAmountMinor: payload.baseAmountMinor })
 		})
-	});
-	if (!response.ok) {
-		const detail = (await response.text()).trim();
-		throw new CRMApiError(detail || `closing returned ${response.status}`, response.status, 'close_failed');
-	}
-	const settled = (await response.json()) as { opportunity: OpportunityRow };
-	return opportunityFrom(requiredData(settled.opportunity, 'opportunity'));
+	);
 }
 
 export async function positionSupabaseCRMOpportunity(id: string, payload: CRMPositionPayload): Promise<CRMOpportunityResponse> {
-	const result = await supabase()
-		.from('opportunity')
-		.update({ stage_position: payload.position })
-		.eq('id', id)
-		.select(opportunitySelection)
-		.single<OpportunityRow>();
-	throwResultError(result.error);
-	return opportunityFrom(requiredData(result.data, 'opportunity'));
+	return opportunityResponseOf(
+		await callTool<CRMOpportunityToolResult>('crm_opportunity_move', {
+			opportunityHint: id,
+			position: payload.position
+		})
+	);
 }
 
 export async function createSupabaseCRMActivity(payload: CRMActivityPayload): Promise<CRMActivityResponse> {
@@ -199,8 +157,21 @@ export async function updateSupabaseCRMActivity(id: string, payload: CRMActivity
 }
 
 export async function saveSupabaseCRMVocabulary(vocabulary: CRMVocabulary): Promise<void> {
-	const result = await supabase().rpc('crm_vocabulary_save', { target_vocabulary: vocabulary });
-	throwResultError(result.error);
+	await callTool('crm_vocabulary_set', {
+		organizationTypes: vocabulary.organization_types,
+		pipelines: vocabulary.pipelines
+	});
+}
+
+async function callTool<Result>(name: string, input: Record<string, unknown>): Promise<Result> {
+	try {
+		return await invokeTool<Result>(name, input);
+	} catch (refusal) {
+		if (refusal instanceof ToolRefused) {
+			throw new CRMApiError(refusal.message, refusal.status, refusal.errorCode ?? 'request_failed');
+		}
+		throw refusal;
+	}
 }
 
 async function crmContext(): Promise<CRMContext> {
@@ -219,46 +190,49 @@ async function crmContext(): Promise<CRMContext> {
 	return { companyID: row.company_id, memberID: row.id };
 }
 
-function organizationValues(payload: CRMOrganizationPayload) {
+function organizationInput(payload: CRMOrganizationPayload): Record<string, unknown> {
 	return {
 		name: payload.name,
 		status: payload.status,
 		types: payload.types,
 		tags: payload.tags,
 		importance: payload.importance,
-		owner_id: payload.ownerPersonID || null,
-		address: payload.address || null,
-		description: payload.description || null
+		ownerPersonHint: payload.ownerPersonID ?? '',
+		address: payload.address ?? '',
+		description: payload.description ?? ''
 	};
 }
 
-function contactValues(payload: CRMContactPayload) {
+function contactInput(payload: CRMContactPayload): Record<string, unknown> {
 	return {
-		organization_id: payload.organizationID || null,
 		name: payload.name,
-		email: payload.email || null,
-		phone: payload.phone || null,
-		title: payload.title || null,
-		department: payload.department || null,
-		description: payload.description || null
+		...(payload.organizationID ? { organizationHint: payload.organizationID } : {}),
+		email: payload.email ?? '',
+		phoneNumber: payload.phone ?? '',
+		role: payload.title ?? '',
+		department: payload.department ?? '',
+		description: payload.description ?? ''
 	};
 }
 
-function opportunityValues(payload: CRMOpportunityPayload) {
+function opportunityInput(payload: CRMOpportunityPayload): Record<string, unknown> {
 	return {
-		organization_id: payload.organizationID,
-		contact_id: payload.contacts[0]?.contactID || null,
-		name: payload.name,
-		business: payload.business || null,
-		pipeline_id: payload.pipeline,
-		owner_id: payload.ownerPersonID || null,
-		amount_minor: payload.amountMinor,
-		currency_code: payload.currencyCode || null,
+		organizationHint: payload.organizationID,
+		title: payload.name,
+		pipeline: payload.pipeline,
+		business: payload.business ?? '',
 		importance: payload.importance,
-		due_at: payload.dueAt || null,
-		due_time_zone: payload.dueTimeZone || null,
-		description: payload.description || null
+		description: payload.description ?? '',
+		ownerPersonHint: payload.ownerPersonID ?? '',
+		contactHint: payload.contacts[0]?.contactID ?? '',
+		currencyCode: payload.currencyCode || '',
+		expectedCloseDate: payload.dueAt ?? '',
+		...(payload.amountMinor === null ? {} : { amountMinor: payload.amountMinor })
 	};
+}
+
+function settlingStage(stage: string): boolean {
+	return stage === 'done' || stage === 'lost';
 }
 
 function crmTaskArguments(taskID: string | null, payload: CRMActivityPayload, context: CRMContext) {
@@ -294,23 +268,6 @@ async function taskByID(id: string): Promise<CRMTaskRow> {
 function requiredTransition(value: CRMTransitionPayload | undefined): CRMTransitionPayload {
 	if (value) return value;
 	throw new CRMApiError('진행 단계가 필요합니다.', 400, 'stage_required');
-}
-
-async function archiveRecord(table: 'organization' | 'contact' | 'opportunity', id: string): Promise<void> {
-	const result = await supabase().from(table).update({ archived_at: new Date().toISOString() }).eq('id', id);
-	throwResultError(result.error);
-}
-
-function organizationFrom(row: OrganizationRow): CRMOrganizationResponse {
-	return crmDataResponseOf([row], [], [], [], {}).organizations[0];
-}
-
-function contactFrom(row: ContactRow): CRMContactResponse {
-	return crmDataResponseOf([], [row], [], [], {}).contacts[0];
-}
-
-function opportunityFrom(row: OpportunityRow): CRMOpportunityResponse {
-	return crmDataResponseOf([], [], [row], [], {}).opportunities[0];
 }
 
 function activityFrom(row: CRMTaskRow): CRMActivityResponse {

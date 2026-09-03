@@ -111,7 +111,7 @@ describe('Supabase CRM mapper', () => {
 		const data = crmDataResponseOf(
 			[{ ...archived, id: 'organization', name: '보관 기관', status: 'active', types: [], tags: [], importance: 'medium', owner_id: null, address: null, description: null }],
 			[{ ...archived, id: 'contact', organization_id: null, name: '보관 연락처', email: null, phone: null, title: null, department: null, description: null }],
-			[{ ...archived, id: 'opportunity', organization_id: 'organization', contact_id: null, name: '보관 진행 건', business: null, pipeline_id: 'pipeline', stage_id: 'stage', stage_position: 0, stage_changed_at: audit.updated_at, owner_id: null, amount_minor: null, currency_code: null, base_amount_minor: null, base_currency_code: null, importance: 'medium', due_at: null, due_time_zone: null, lost_reason: null, description: null }],
+			[{ ...archived, id: 'opportunity', organization_id: 'organization', contact_id: null, name: '보관 진행 건', business: null, pipeline_id: 'pipeline', stage_id: 'waiting', stage_position: 0, stage_changed_at: audit.updated_at, owner_id: null, amount_minor: null, currency_code: null, base_amount_minor: null, base_currency_code: null, importance: 'medium', due_at: null, due_time_zone: null, lost_reason: null, description: null }],
 			[],
 			{}
 		);

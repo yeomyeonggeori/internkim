@@ -12,6 +12,7 @@ import type {
 	CRMProgressKind
 } from './crm-types';
 import { crmOrganizationTypes } from './crm-types';
+import { crmStageOutcomes } from '$lib/crm/crm-stage';
 import type { CRMText } from './text';
 import type { Locale } from '$lib/i18n/locale.svelte';
 export { formatMoney, formatMoneyTotals } from './crm-money';
@@ -91,9 +92,10 @@ export function getStatusVariant(status: CRMOrganizationStatus): CRMBadgeVariant
 }
 
 export function getStageVariant(stage: CRMOpportunityStage): CRMBadgeVariant {
-	if (stage === 'won') return 'default';
-	if (stage === 'lost') return 'destructive';
-	if (stage === 'on_hold') return 'outline';
+	const outcome = crmStageOutcomes[stage];
+	if (outcome === 'won') return 'default';
+	if (outcome === 'lost') return 'destructive';
+	if (outcome === 'on_hold') return 'outline';
 	return 'secondary';
 }
 

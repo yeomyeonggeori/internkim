@@ -1,6 +1,7 @@
 import { compatibilityOwnerOf } from '$lib/task/central-task';
 import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
 import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
+import { opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
 import { dayOfInstant, instantWritten, isTheSameMoment, weekWindow } from './days';
 import { labelOf } from './labels';
 import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
@@ -12,6 +13,7 @@ import {
 	RecordRefusedTheWrite,
 	rowOfSavedID,
 	saveTask,
+	statusOfPostgresCode,
 	taskOfHint,
 	tasksOfCompany,
 	taskWriteArguments,
@@ -27,6 +29,8 @@ type TaskWritten = {
 	startsAt?: string;
 	endsAt?: string;
 	participantPersonHints?: string[];
+	organizationHint?: string;
+	opportunityHint?: string;
 };
 
 export type AnsweredPerson = {
@@ -38,6 +42,8 @@ export type AnsweredPerson = {
 
 export type AnsweredTask = {
 	taskID: string;
+	organizationID: string;
+	opportunityID: string;
 	content: string;
 	ownerID: string;
 	ownerName: string;
@@ -85,6 +91,8 @@ function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 	const endDate = dayOfInstant(context.labels.timezone, row.ends_at);
 	return {
 		taskID: row.id,
+		organizationID: row.organization_id ?? '',
+		opportunityID: row.opportunity_id ?? '',
 		content: row.title,
 		ownerID: owner.id,
 		ownerName: owner.name,
@@ -140,10 +148,63 @@ export async function taskAdd(context: RecordContext, input: TaskWritten): Promi
 
 	const tasks = await tasksOfCompany(context.caller, false);
 	const duplicate = duplicateJustAdded(context, tasks, participantIDs, input.title.trim());
-	if (duplicate) return answeredTask(context, await mergedIntoDuplicate(context, duplicate, input));
+	const saved = duplicate
+		? (await mergedIntoDuplicate(context, duplicate, input)).id
+		: await saveTask(context.caller, taskWriteArguments(null, { ...written, participantIDs }));
 
-	const saved = await saveTask(context.caller, taskWriteArguments(null, { ...written, participantIDs }));
+	await writeCRMLinks(context, saved, await crmLinksWritten(context, input, duplicate ?? null));
 	return answeredTask(context, await taskByID(context, saved));
+}
+
+type CRMLinks = { organization_id: string | null; opportunity_id: string | null };
+
+// A task on a deal carries the deal's organization too: the record refuses a
+// pair that disagrees, so the two are written together or not at all.
+async function crmLinksWritten(
+	context: RecordContext,
+	input: TaskWritten,
+	row: TaskRow | null
+): Promise<CRMLinks | null> {
+	if (input.organizationHint === undefined && input.opportunityHint === undefined) return null;
+	if (input.organizationHint !== undefined && !input.organizationHint.trim()) {
+		return { organization_id: null, opportunity_id: null };
+	}
+
+	const dealHint =
+		input.opportunityHint === undefined ? row?.opportunity_id ?? '' : input.opportunityHint.trim();
+	const deal = dealHint ? await opportunityOfCRMHint(context, dealHint) : null;
+	const named = input.organizationHint
+		? await organizationOfCRMHint(context, input.organizationHint)
+		: null;
+
+	if (deal && named && deal.organization_id !== named.id) {
+		throw new Error(`${deal.name} is a deal with another organization`);
+	}
+	if (deal) return { organization_id: deal.organization_id, opportunity_id: deal.id };
+	if (named) return { organization_id: named.id, opportunity_id: null };
+	return { organization_id: row?.organization_id ?? null, opportunity_id: null };
+}
+
+async function writeCRMLinks(
+	context: RecordContext,
+	taskID: string,
+	links: CRMLinks | null
+): Promise<void> {
+	if (!links) return;
+	const { data, error } = await context.caller
+		.from('task')
+		.update(links)
+		.eq('id', taskID)
+		.select('id')
+		.returns<{ id: string }[]>();
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if ((data ?? []).length === 0) {
+		throw new RecordRefusedTheWrite(
+			'only somebody taking part in this task or an admin can put it on an organization',
+			403,
+			'task_write_forbidden'
+		);
+	}
 }
 
 const duplicateWindowMilliseconds = 10 * 60 * 1000;
@@ -211,6 +272,7 @@ export async function taskUpdate(
 	const row = await taskRowOfHint(context, input.taskHint);
 	const written = writtenFields(context, input, row);
 	const saved = await saveTask(context.caller, taskWriteArguments(row, written));
+	await writeCRMLinks(context, saved, await crmLinksWritten(context, input, row));
 	const patched = await taskByID(context, saved);
 	refuseUnlessPatched(written, patched);
 	return answeredTask(context, patched);
@@ -322,6 +384,8 @@ export type TaskListInput = {
 	weekFrom?: number;
 	weekTo?: number;
 	status?: string;
+	organizationHint?: string;
+	opportunityHint?: string;
 	limit?: number;
 };
 
@@ -329,12 +393,19 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 	const ownerID = ownerOfScope(context.people, input.scope, input.participantPersonHint, context.requesterID);
 	const weeks = weeksAsked(context, input.weekFrom ?? 0, input.weekTo ?? input.weekFrom ?? 0);
 	const thisWeek = weekCodeOfOffset(context, 0);
+	const deal = input.opportunityHint ? await opportunityOfCRMHint(context, input.opportunityHint) : null;
+	const organization = input.organizationHint
+		? await organizationOfCRMHint(context, input.organizationHint)
+		: null;
+	const everyWeek = Boolean(deal || organization) && input.weekFrom === undefined && input.weekTo === undefined;
 
 	const rows = (await tasksOfCompany(context.caller, false)).filter((row) => {
 		if (ownerID && !row.task_participant.some(({ member_id }) => member_id === ownerID)) return false;
 		if (input.status && row.status !== input.status) return false;
+		if (deal && row.opportunity_id !== deal.id) return false;
+		if (organization && row.organization_id !== organization.id) return false;
 		if (!matchesQuery(context, row, input.query)) return false;
-		return weeks.has(weekCodeOfTask(context, row, thisWeek));
+		return everyWeek || weeks.has(weekCodeOfTask(context, row, thisWeek));
 	});
 
 	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;

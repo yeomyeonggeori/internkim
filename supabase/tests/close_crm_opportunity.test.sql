@@ -5,7 +5,7 @@ select plan(11);
 select has_function(
   'public',
   'crm_opportunity_close',
-  array['uuid', 'text', 'integer', 'timestamp with time zone', 'text', 'bigint', 'text'],
+  array['uuid', 'crm_stage', 'integer', 'timestamp with time zone', 'text', 'bigint', 'text'],
   'currency: closing an opportunity goes through an authenticated function'
 );
 

@@ -87,6 +87,7 @@ func DeviceDescriptors() []Descriptor {
 	descriptors = append(descriptors, SiteAppDescriptors()...)
 	descriptors = append(descriptors, CompanyDescriptors()...)
 	descriptors = append(descriptors, NotificationDescriptors()...)
+	descriptors = append(descriptors, CRMDescriptors()...)
 	return canonicalizeDescriptors(descriptors)
 }
 
@@ -122,6 +123,26 @@ func CompanyDescriptors() []Descriptor {
 		"company_holiday_add",
 		"company_holiday_update",
 		"company_holiday_delete",
+	))
+}
+
+func CRMDescriptors() []Descriptor {
+	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
+		"crm_organization_list",
+		"crm_organization_add",
+		"crm_organization_update",
+		"crm_organization_archive",
+		"crm_contact_list",
+		"crm_contact_add",
+		"crm_contact_update",
+		"crm_contact_archive",
+		"crm_opportunity_list",
+		"crm_opportunity_add",
+		"crm_opportunity_update",
+		"crm_opportunity_move",
+		"crm_opportunity_archive",
+		"crm_vocabulary_get",
+		"crm_vocabulary_set",
 	))
 }
 
@@ -229,6 +250,7 @@ func DefaultToolDescriptors() []Descriptor {
 	descriptors = append(descriptors, ArtifactDescriptors()...)
 	descriptors = append(descriptors, CompanyDescriptors()...)
 	descriptors = append(descriptors, NotificationDescriptors()...)
+	descriptors = append(descriptors, CRMDescriptors()...)
 	return canonicalizeDescriptors(descriptors)
 }
 

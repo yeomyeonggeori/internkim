@@ -13,6 +13,7 @@ import type {
 	CRMActivityKind,
 	CRMCurrency,
 	CRMImportance,
+	CRMOpportunityStage,
 	CRMProgressKind
 } from './crm-types';
 import { vocabularyOf } from '$lib/task/task-vocabulary';
@@ -57,7 +58,7 @@ export type OpportunityRow = CRMAuditRow & {
 	name: string;
 	business: string | null;
 	pipeline_id: string;
-	stage_id: string;
+	stage_id: CRMOpportunityStage;
 	stage_position: number;
 	stage_changed_at: string;
 	owner_id: string | null;

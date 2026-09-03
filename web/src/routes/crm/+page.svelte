@@ -49,6 +49,7 @@
 		CRMContact,
 		CRMCreateDraft,
 		CRMOpportunity,
+	CRMOpportunityStage,
 		CRMProgressKind,
 		CRMRecordKind
 	} from './crm-types';
@@ -99,7 +100,7 @@
 	let selectedOrganizationID = $state<string | null>(null);
 	let selectedContactID = $state<string | null>(null);
 	let selectedOpportunityID = $state<string | null>(null);
-	let requestedOpportunityStage = $state<string | undefined>();
+	let requestedOpportunityStage = $state<CRMOpportunityStage | undefined>();
 	let selectedActivityID = $state<string | null>(null);
 	let isOrganizationSheetOpen = $state(false);
 	let isRelationshipEditOpen = $state(false);
