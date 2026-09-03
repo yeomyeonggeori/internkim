@@ -1,1 +1,1 @@
-export const claimCodeLength = 6;
+export const claimCodeLength = 8;
