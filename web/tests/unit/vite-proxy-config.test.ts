@@ -2,15 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import config from '../../vite.config';
 
 const admindProxyPaths = [
-	'/.well-known/caldav',
 	'/api/v1',
 	'/admin/api',
 	'/attendance/api',
 	'/auth',
 	'/calendar/api',
-	'/calendar/dav',
-	'/calendar/ics',
-	'/calendar/oauth',
 	'/task/api',
 	'/mail/api',
 	'/memory/api'

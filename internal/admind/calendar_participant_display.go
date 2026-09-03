@@ -52,36 +52,3 @@ func calendarParticipantsWithMemberImages(participants []calendarParticipant, me
 	}
 	return result
 }
-
-func calendarEventRelatedParticipants(event calendarEvent) []calendarParticipant {
-	participants := normalizeCalendarParticipants(event.Participants)
-	if len(participants) == 0 {
-		if people, hasPeopleLine := calendarPeopleFromDescription(event.Description); hasPeopleLine {
-			participants = calendarParticipantsFromPeople(people)
-		}
-	}
-	creatorParticipant := calendarEventCreatorParticipant(event)
-	if calendarParticipantsIncludeParticipant(participants, creatorParticipant) {
-		return participants
-	}
-	return normalizeCalendarParticipants(append(participants, creatorParticipant))
-}
-
-func calendarEventCreatorParticipant(event calendarEvent) calendarParticipant {
-	return calendarParticipant{
-		Name:  firstNonEmpty(strings.TrimSpace(event.CreatedByName), strings.TrimSpace(event.CreatedByEmail)),
-		Email: strings.TrimSpace(event.CreatedByEmail),
-	}
-}
-
-func calendarNotificationPeople(event calendarEvent) ([]string, bool) {
-	people := calendarParticipantNames(event.Participants)
-	if len(people) > 0 {
-		return people, true
-	}
-	return calendarPeopleFromDescription(event.Description)
-}
-
-func calendarNotificationCreatorPeople(event calendarEvent) []string {
-	return calendarParticipantNames([]calendarParticipant{calendarEventCreatorParticipant(event)})
-}

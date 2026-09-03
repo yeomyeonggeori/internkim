@@ -38,37 +38,14 @@ func (service *Service) deleteCalendarEventFromAPIPath(responseWriter http.Respo
 }
 
 func (service *Service) getCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
-	if companyEvent, held := service.centralCalendarEventByID(request, eventID); held {
-		service.answerWithCalendarEvent(responseWriter, request, companyEvent)
+	if !service.belongsToACompany() {
+		writeCalendarBelongsToTheCompany(responseWriter)
 		return
 	}
-	event, found, errorValue := service.readCalendarEventByID(request.Context(), strings.TrimSpace(eventID))
-	if errorValue != nil {
-		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
-		return
-	}
-	if !found {
+	event, held := service.centralCalendarEventByID(request, eventID)
+	if !held {
 		http.NotFound(responseWriter, request)
 		return
 	}
-	service.answerWithCalendarEvent(responseWriter, request, event)
-}
-
-func (service *Service) answerWithCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, event calendarEvent) {
-	event = service.calendarEventWithParticipantImages(request, event)
-	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
-}
-
-func (service *Service) searchCalendarEventCandidates(responseWriter http.ResponseWriter, request *http.Request) {
-	query := strings.TrimSpace(request.URL.Query().Get("query"))
-	if query == "" {
-		http.Error(responseWriter, "calendar event search query is required", http.StatusBadRequest)
-		return
-	}
-	events, errorValue := service.searchCalendarEvents(request.Context(), query)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.writeJSON(responseWriter, calendarEventsResponse{Events: events})
+	service.writeJSON(responseWriter, service.calendarEventWithParticipantImages(request, event))
 }

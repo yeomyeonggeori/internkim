@@ -1857,7 +1857,7 @@ func newWorkspaceSettingsMattermostTestService(t *testing.T, isAnnouncementsMiss
 	channelNamesByID := map[string]string{
 		"town-square-channel":   mattermostdefaults.TownSquareChannelName,
 		"off-topic-channel":     mattermostdefaults.OffTopicChannelName,
-		"announcements-channel": calendarAnnouncementsChannelName,
+		"announcements-channel": "announcements",
 	}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {

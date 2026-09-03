@@ -1,16 +1,12 @@
 package admind
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestCalendarParticipantsFromMembersIncludesImagePath(t *testing.T) {
@@ -20,30 +16,6 @@ func TestCalendarParticipantsFromMembersIncludesImagePath(t *testing.T) {
 
 	if len(participants) != 1 || participants[0].Image != "/calendar/api/participants/person-gamyeong/image" {
 		t.Fatalf("participants = %+v", participants)
-	}
-}
-
-func TestCalendarParticipantsRejectCalendarToken(t *testing.T) {
-	service := newCalendarTestService(t)
-	if _, errorValue := service.writeCalendarICSToken(context.Background(), "calendar-token"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	tokenRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/participants", nil)
-	tokenRequest.RemoteAddr = "203.0.113.10:49152"
-	tokenRequest.SetBasicAuth(calendarDAVUsername, "calendar-token")
-	tokenResponse := httptest.NewRecorder()
-	service.router().ServeHTTP(tokenResponse, tokenRequest)
-	if tokenResponse.Code != http.StatusForbidden {
-		t.Fatalf("token status = %d body = %s", tokenResponse.Code, tokenResponse.Body.String())
-	}
-
-	memberRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/participants", nil)
-	memberRequest.Header.Set("CF-Access-Authenticated-User-Email", "admin@example.com")
-	memberResponse := httptest.NewRecorder()
-	service.router().ServeHTTP(memberResponse, memberRequest)
-	if memberResponse.Code != http.StatusOK {
-		t.Fatalf("member status = %d body = %s", memberResponse.Code, memberResponse.Body.String())
 	}
 }
 
@@ -68,63 +40,6 @@ func TestCalendarEventsWithParticipantImagesRestoresCurrentMemberImage(t *testin
 	expectedImage := "/calendar/api/participants/" + url.PathEscape(stableTaskID("gamyeong@example.com")) + "/image"
 	if len(events) != 1 || len(events[0].Participants) != 1 || events[0].Participants[0].Image != expectedImage {
 		t.Fatalf("events = %+v", events)
-	}
-}
-
-func TestCalendarNoopUpdateKeepsParticipantImage(t *testing.T) {
-	service := newCalendarTestService(t)
-	service.Configuration.APIBaseURL = "http://internkim.local"
-	service.Configuration.FleetIDPath = writeTestFile(t, "fleet-1")
-	service.Configuration.FleetSecretPath = writeTestFile(t, "fleet-secret")
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "http://internkim.local/api/users?fleet_id=fleet-1" {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"gamyeong@example.com","name":"이샘플","handle":"gamyeong","role":"member"}]}`, nil), nil
-		}
-		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
-	})}
-	startTime := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
-	endTime := startTime.Add(time.Hour)
-	personID := stableTaskID("gamyeong@example.com")
-	event := calendarEvent{
-		ID:          "noop-participant-image",
-		UID:         "noop-participant-image@internkim",
-		Title:       "Noop participant image",
-		Description: "Bring agenda",
-		StartISO:    startTime.Format(time.RFC3339),
-		EndISO:      endTime.Format(time.RFC3339),
-		TimeZone:    "UTC",
-		Color:       "#2563eb",
-		Participants: []calendarParticipant{
-			{PersonID: personID, Name: "이샘플", Email: "gamyeong@example.com"},
-		},
-		ReminderLeadHours: 24,
-		CreatedByEmail:    "admin@example.com",
-	}
-	if errorValue := service.writeCalendarEvent(context.Background(), event); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	persistedEvent, found, errorValue := service.readCalendarEventByID(context.Background(), event.ID)
-	if errorValue != nil || !found {
-		t.Fatalf("persisted event found=%v error=%v", found, errorValue)
-	}
-	updatePayload := fmt.Sprintf(`{"title":"Noop participant image","description":"Bring agenda","startISO":"%s","endISO":"%s","timeZone":"UTC","color":"#2563eb","participants":[{"personID":"%s","name":"이샘플","email":"gamyeong@example.com"}],"reminderLeadHours":24,"expectedUpdatedAt":%q}`, event.StartISO, event.EndISO, personID, persistedEvent.UpdatedAt)
-	request := httptest.NewRequest(http.MethodPut, "/calendar/api/events/"+event.ID, strings.NewReader(updatePayload))
-	request.RemoteAddr = "127.0.0.1:49152"
-	request.Header.Set("Content-Type", "application/json")
-	responseRecorder := httptest.NewRecorder()
-
-	service.router().ServeHTTP(responseRecorder, request)
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("update status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
-	}
-	var responseEvent calendarEvent
-	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &responseEvent); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	expectedImage := "/calendar/api/participants/" + url.PathEscape(personID) + "/image"
-	if len(responseEvent.Participants) != 1 || responseEvent.Participants[0].Image != expectedImage {
-		t.Fatalf("participants = %+v", responseEvent.Participants)
 	}
 }
 

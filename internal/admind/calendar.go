@@ -3,35 +3,16 @@ package admind
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
-
-	"github.com/emersion/go-ical"
-	"github.com/emersion/go-webdav/caldav"
 )
 
-const (
-	calendarProductID                = "-//internkim//Shared Calendar//EN"
-	calendarName                     = "Work"
-	calendarDAVUsername              = "internkim"
-	calendarPrincipalPath            = "/calendar/dav/team/"
-	calendarHomeSetPath              = "/calendar/dav/team/calendars/"
-	calendarServerXMLNamespace       = "http://calendarserver.org/ns/"
-	calendarGetCTagLocalName         = "getctag"
-	calendarCollectionPath           = "/calendar/dav/team/calendars/internkim/"
-	calendarSettingsICSKey           = "ics_token"
-	calendarDefaultReminderLeadHours = 24
-	calendarAnnouncementsChannelName = "announcements"
-)
+const calendarDefaultReminderLeadHours = 24
 
 type calendarEvent struct {
 	ID                string                `json:"id"`
@@ -43,63 +24,37 @@ type calendarEvent struct {
 	EndISO            string                `json:"endISO"`
 	TimeZone          string                `json:"timeZone"`
 	IsAllDay          bool                  `json:"isAllDay"`
-	Color             string                `json:"color"`
 	People            []string              `json:"people"`
 	Participants      []calendarParticipant `json:"participants,omitempty"`
 	ReminderLeadHours int                   `json:"reminderLeadHours"`
 	CreatedByEmail    string                `json:"createdByEmail"`
 	CreatedByName     string                `json:"createdByName"`
-	CreatedByImage    string                `json:"createdByImage,omitempty"`
-	UpdatedByEmail    string                `json:"updatedByEmail,omitempty"`
-	UpdatedByName     string                `json:"updatedByName,omitempty"`
-	UpdatedByImage    string                `json:"updatedByImage,omitempty"`
-	UpdatedByAt       string                `json:"updatedByAt,omitempty"`
 	UpdatedAt         string                `json:"updatedAt"`
-	MattermostPostID  string                `json:"mattermostPostID,omitempty"`
-	RemoteSource      string                `json:"remoteSource,omitempty"`
-	RemoteETag        string                `json:"remoteETag,omitempty"`
-	RemoteHref        string                `json:"remoteHref,omitempty"`
-	RemoteModifiedAt  string                `json:"-"`
-	RawICS            string                `json:"-"`
 }
 
 type calendarEventWriteRequest struct {
-	Title             string                        `json:"title"`
-	Description       string                        `json:"description"`
-	Location          string                        `json:"location"`
-	StartISO          string                        `json:"startISO"`
-	EndISO            string                        `json:"endISO"`
-	TimeZone          string                        `json:"timeZone"`
-	IsAllDay          bool                          `json:"isAllDay"`
-	Color             string                        `json:"color"`
-	People            calendarPeopleInput           `json:"people"`
-	Participants      []calendarParticipantIdentity `json:"participants"`
-	ReminderLeadHours int                           `json:"reminderLeadHours"`
+	Title        string                        `json:"title"`
+	Description  string                        `json:"description"`
+	Location     string                        `json:"location"`
+	StartISO     string                        `json:"startISO"`
+	EndISO       string                        `json:"endISO"`
+	TimeZone     string                        `json:"timeZone"`
+	IsAllDay     bool                          `json:"isAllDay"`
+	People       calendarPeopleInput           `json:"people"`
+	Participants []calendarParticipantIdentity `json:"participants"`
+
+	ReminderLeadHours int `json:"reminderLeadHours"`
 	// The company keeps a reminder in minutes, which is what a caller that speaks
 	// the row's own vocabulary sends.
 	NotifyMinutesBefore int `json:"notifyMinutesBefore"`
 	// Somebody asked somebody else to be somewhere. The company stamps who asked
 	// from the status, so this is what it is told.
-	IsRequestedOfSomebodyElse bool    `json:"isRequestedOfSomebodyElse"`
-	AllowDuplicate            bool    `json:"allowDuplicate"`
-	ExpectedUpdatedAt         string  `json:"expectedUpdatedAt"`
-	MutationClientID          *string `json:"mutationClientID"`
-	MutationSequence          *int64  `json:"mutationSequence"`
-}
-
-type calendarEventDeleteRequest struct {
-	ExpectedUpdatedAt string `json:"expectedUpdatedAt"`
+	IsRequestedOfSomebodyElse bool   `json:"isRequestedOfSomebodyElse"`
+	ExpectedUpdatedAt         string `json:"expectedUpdatedAt"`
 }
 
 type calendarEventsResponse struct {
 	Events []calendarEvent `json:"events"`
-}
-
-type calendarSyncResponse struct {
-	CalDAVURL      string `json:"caldavURL"`
-	CalDAVUsername string `json:"caldavUsername"`
-	CalDAVPassword string `json:"caldavPassword"`
-	ICSURL         string `json:"icsURL"`
 }
 
 type calendarPeopleInput []string
@@ -110,9 +65,6 @@ func (service *Service) serveCalendarPage(responseWriter http.ResponseWriter, re
 		return
 	}
 	if service.serveCalendarStaticFile(responseWriter, request) {
-		return
-	}
-	if service.forwardOldLink(responseWriter, request, "event", service.linkedCalendarEventID) {
 		return
 	}
 	service.serveCalendarIndex(responseWriter, request)
@@ -153,50 +105,25 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		service.listCalendarEvents(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/holidays":
 		service.serveCalendarHolidays(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/events/search":
-		service.searchCalendarEventCandidates(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/participants":
 		service.listCalendarParticipants(responseWriter, request)
 	case request.Method == http.MethodGet && isCalendarParticipantImageAPIPath(escapedPath):
 		service.serveCalendarParticipantImage(responseWriter, request, path)
-	case request.Method == http.MethodGet && isCalendarActorImageAPIPath(escapedPath):
-		service.serveCalendarActorImage(responseWriter, request, path)
 	case request.Method == http.MethodGet && strings.HasPrefix(escapedPath, "/events/"):
 		service.getCalendarEventFromAPIPath(responseWriter, request, escapedPath)
 	case request.Method == http.MethodPost && path == "/events":
 		service.createCalendarEvent(responseWriter, request)
-	case request.Method == http.MethodPut && isCalendarDeleteIntentPath(escapedPath):
-		eventID, operationID, _ := parseCalendarDeleteIntentPath(path)
-		service.handleCalendarDeleteIntent(responseWriter, request, eventID, operationID)
-	case request.Method == http.MethodDelete && isCalendarDeleteIntentPath(escapedPath):
-		eventID, operationID, _ := parseCalendarDeleteIntentPath(path)
-		service.handleCalendarDeleteIntent(responseWriter, request, eventID, operationID)
 	case request.Method == http.MethodPut && strings.HasPrefix(escapedPath, "/events/"):
 		service.updateCalendarEventFromAPIPath(responseWriter, request, escapedPath)
 	case request.Method == http.MethodDelete && strings.HasPrefix(escapedPath, "/events/"):
 		service.deleteCalendarEventFromAPIPath(responseWriter, request, escapedPath)
-	case request.Method == http.MethodGet && path == "/sync":
-		service.writeCalendarSync(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/ics-token":
-		service.rotateCalendarICSToken(responseWriter, request)
 	default:
 		http.NotFound(responseWriter, request)
 	}
 }
 
-func isCalendarDeleteIntentPath(path string) bool {
-	_, _, found := parseCalendarDeleteIntentPath(path)
-	return found
-}
-
 func (service *Service) authorizeCalendarAPIRequest(request *http.Request, path string) bool {
-	if path == "/participants" {
-		return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
-	}
-	if isCalendarParticipantImageAPIPath(path) {
-		return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
-	}
-	if isCalendarActorImageAPIPath(path) {
+	if path == "/participants" || isCalendarParticipantImageAPIPath(path) {
 		return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
 	}
 	return service.authorizeCalendarRequest(request)
@@ -206,60 +133,31 @@ func isCalendarParticipantImageAPIPath(path string) bool {
 	return strings.HasPrefix(path, "/participants/") && strings.HasSuffix(path, "/image")
 }
 
-func isCalendarActorImageAPIPath(path string) bool {
-	return strings.HasPrefix(path, "/events/") && strings.HasSuffix(path, "/actor-image")
-}
-
 func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
-	if isLocalRequest(request) {
-		return true
-	}
-	if service.authorizeCalendarTokenRequest(request) {
-		return true
-	}
-	return service.authorizeWebMemberRequest(request)
-}
-
-func (service *Service) authorizeCalendarTokenRequest(request *http.Request) bool {
-	username, password, ok := request.BasicAuth()
-	if !ok {
-		return false
-	}
-	token := firstNonEmpty(password, username)
-	return service.isValidCalendarICSToken(request.Context(), token)
+	return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
 }
 
 func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, request *http.Request) {
-	query := request.URL.Query()
-	hasExplicitRange := strings.TrimSpace(query.Get("startISO")) != "" && strings.TrimSpace(query.Get("endISO")) != ""
 	startTime, endTime, errorValue := parseCalendarRange(request)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if startTime.IsZero() && endTime.IsZero() && query.Get("window") == "upcoming" {
+	if startTime.IsZero() && endTime.IsZero() && request.URL.Query().Get("window") == "upcoming" {
 		startTime, endTime = service.upcomingCalendarWindow(time.Now())
 	}
-	if centralEvents, answered, readError := service.centralCalendarEvents(request, startTime, endTime); answered {
-		if readError != nil {
-			writeCalendarCentralError(responseWriter, request, "", readError)
-			return
-		}
-		service.writeJSON(responseWriter, calendarEventsResponse{Events: centralEvents})
+	events, answered, readError := service.centralCalendarEvents(request, startTime, endTime)
+	if !answered {
+		writeCalendarBelongsToTheCompany(responseWriter)
 		return
 	}
-	var events []calendarEvent
-	if hasExplicitRange {
-		events, errorValue = service.readCalendarEventWindow(request.Context(), startTime, endTime)
-	} else {
-		events, errorValue = service.readCalendarEvents(request.Context(), startTime, endTime)
-	}
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	if readError != nil {
+		writeCalendarCentralError(responseWriter, request, "", readError)
 		return
 	}
-	events = service.calendarEventsWithParticipantImages(request, events)
-	service.writeJSON(responseWriter, calendarEventsResponse{Events: service.calendarEventsWithActorProfiles(request.Context(), events)})
+	service.writeJSON(responseWriter, calendarEventsResponse{
+		Events: service.calendarEventsWithParticipantImages(request, events),
+	})
 }
 
 func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, request *http.Request) {
@@ -268,311 +166,48 @@ func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, 
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, "", "", payload.IsRequestedOfSomebodyElse); answered {
-		if writeCalendarCentralError(responseWriter, request, event.ID, saveError) {
-			return
-		}
-		service.writeJSON(responseWriter, saved)
+	saved, answered, saveError := service.saveCentralCalendarEvent(request, event, "", "", payload.IsRequestedOfSomebodyElse)
+	if !answered {
+		writeCalendarBelongsToTheCompany(responseWriter)
 		return
 	}
-	if !payload.AllowDuplicate {
-		if candidates, errorValue := service.findDuplicateCalendarCandidates(request.Context(), event); errorValue == nil && len(candidates) > 0 {
-			responseWriter.WriteHeader(http.StatusOK)
-			service.writeJSON(responseWriter, map[string]any{
-				"status":     "duplicate_candidate",
-				"candidates": service.calendarEventsWithParticipantImages(request, candidates),
-			})
-			return
-		}
-	}
-	if errorValue := service.writeCalendarEvent(request.Context(), event); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	if writeCalendarCentralError(responseWriter, request, event.ID, saveError) {
 		return
 	}
-	persistedEvent, found, errorValue := service.readCalendarEventByID(request.Context(), event.ID)
-	if errorValue != nil || !found {
-		http.Error(responseWriter, "failed to read created calendar event", http.StatusInternalServerError)
-		return
-	}
-	event = persistedEvent
-	service.createPairedTaskForCalendarEvent(request, event)
 	responseWriter.WriteHeader(http.StatusCreated)
-	event = service.calendarEventWithParticipantImages(request, event)
-	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
+	service.writeJSON(responseWriter, service.calendarEventWithParticipantImages(request, saved))
 }
 
 func (service *Service) updateCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
-	// The body is a stream and both routes need it, so it is read once here.
 	event, payload, errorValue := service.decodeCalendarEventWriteRequest(request, eventID)
 	if errorValue != nil {
 		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
 		return
 	}
-
 	// The company holds the event, so the device has no row to read first, and the
 	// version the writer claims is whatever they sent rather than one read here.
-	if saved, answered, saveError := service.saveCentralCalendarEvent(request, event, eventID, strings.TrimSpace(payload.ExpectedUpdatedAt), payload.IsRequestedOfSomebodyElse); answered {
-		if writeCalendarCentralError(responseWriter, request, eventID, saveError) {
-			return
-		}
-		service.writeJSON(responseWriter, saved)
+	saved, answered, saveError := service.saveCentralCalendarEvent(
+		request, event, eventID, strings.TrimSpace(payload.ExpectedUpdatedAt), payload.IsRequestedOfSomebodyElse)
+	if !answered {
+		writeCalendarBelongsToTheCompany(responseWriter)
 		return
 	}
-
-	existingEvent, found, errorValue := service.readCalendarEventByID(request.Context(), eventID)
-	if errorValue != nil {
-		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
+	if writeCalendarCentralError(responseWriter, request, eventID, saveError) {
 		return
 	}
-	if !found {
-		http.NotFound(responseWriter, request)
-		return
-	}
-	event.ID = existingEvent.ID
-	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAtOrCurrent(payload.ExpectedUpdatedAt, existingEvent.UpdatedAt)
-	if errorValue != nil {
-		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
-		return
-	}
-	mutationOrigin, errorValue := normalizeCalendarMutationOrigin(payload.MutationClientID, payload.MutationSequence)
-	if errorValue != nil {
-		writeCalendarErrorCode(responseWriter, http.StatusBadRequest, calendarMutationInvalidRequestErrorCode)
-		return
-	}
-	if !hasCalendarEventUserEditableChanges(existingEvent, event) {
-		existingEvent = service.calendarEventWithParticipantImages(request, existingEvent)
-		service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), existingEvent))
-		return
-	}
-	event.UID = existingEvent.UID
-	event.CreatedByEmail = existingEvent.CreatedByEmail
-	event.CreatedByName = existingEvent.CreatedByName
-	event.UpdatedByEmail, event.UpdatedByName = service.webMemberActorIdentity(request)
-	event.UpdatedByAt = time.Now().UTC().Format(time.RFC3339Nano)
-	event.MattermostPostID = existingEvent.MattermostPostID
-	event.RemoteSource = existingEvent.RemoteSource
-	event.RemoteETag = existingEvent.RemoteETag
-	event.RemoteHref = existingEvent.RemoteHref
-	regeneratedRawICS, errorValue := encodeCalendarObject(event)
-	if errorValue != nil {
-		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
-		return
-	}
-	event.RawICS = regeneratedRawICS
-	if errorValue := service.writeCalendarEventIfCurrentVersionWithOrigin(request.Context(), event, expectedUpdatedAt, mutationOrigin); errorValue != nil {
-		if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
-			return
-		}
-		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
-		return
-	}
-	persistedEvent, found, errorValue := service.readCalendarEventByID(request.Context(), event.ID)
-	if errorValue != nil || !found {
-		if errorValue == nil {
-			errorValue = sql.ErrNoRows
-		}
-		writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
-		return
-	}
-	event = persistedEvent
-	event = service.calendarEventWithParticipantImages(request, event)
-	service.writeJSON(responseWriter, service.calendarEventWithActorProfiles(request.Context(), event))
+	service.writeJSON(responseWriter, service.calendarEventWithParticipantImages(request, saved))
 }
 
 func (service *Service) deleteCalendarEvent(responseWriter http.ResponseWriter, request *http.Request, eventID string) {
-	if answered, removeError := service.removeCentralCalendarEvent(request, eventID); answered {
-		if writeCalendarCentralError(responseWriter, request, eventID, removeError) {
-			return
-		}
-		responseWriter.WriteHeader(http.StatusNoContent)
+	answered, removeError := service.removeCentralCalendarEvent(request, eventID)
+	if !answered {
+		writeCalendarBelongsToTheCompany(responseWriter)
 		return
 	}
-	var payload calendarEventDeleteRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil && !errors.Is(errorValue, io.EOF) {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+	if writeCalendarCentralError(responseWriter, request, eventID, removeError) {
 		return
 	}
-	currentUpdatedAt := ""
-	if strings.TrimSpace(payload.ExpectedUpdatedAt) == "" {
-		currentEvent, found, errorValue := service.readCalendarEventByID(request.Context(), eventID)
-		if errorValue != nil {
-			writeCalendarMutationInternalError(responseWriter, request, eventID, errorValue)
-			return
-		}
-		if !found {
-			http.NotFound(responseWriter, request)
-			return
-		}
-		currentUpdatedAt = currentEvent.UpdatedAt
-	}
-	expectedUpdatedAt, errorValue := normalizeExpectedCalendarEventUpdatedAtOrCurrent(payload.ExpectedUpdatedAt, currentUpdatedAt)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	if errorValue := service.softDeleteCalendarEventIfCurrentVersion(request.Context(), eventID, expectedUpdatedAt); errorValue != nil {
-		if writeCalendarEventVersionConflictError(responseWriter, errorValue) {
-			return
-		}
-		if errors.Is(errorValue, sql.ErrNoRows) {
-			http.NotFound(responseWriter, request)
-			return
-		}
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	service.deletePairedTaskForCalendarEvent(request.Context(), eventID)
 	responseWriter.WriteHeader(http.StatusNoContent)
-}
-
-func (service *Service) writeCalendarSync(responseWriter http.ResponseWriter, request *http.Request) {
-	token, errorValue := service.ensureCalendarICSToken(request.Context())
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	baseURL := service.calendarExternalBaseURL(request)
-	service.writeJSON(responseWriter, calendarSyncResponse{
-		CalDAVURL:      calendarDAVSubscriptionURL(baseURL, token),
-		CalDAVUsername: calendarDAVUsername,
-		CalDAVPassword: token,
-		ICSURL:         baseURL + "/calendar/ics/" + url.PathEscape(token) + ".ics",
-	})
-}
-
-func (service *Service) rotateCalendarICSToken(responseWriter http.ResponseWriter, request *http.Request) {
-	if !service.isAuthorized(request) {
-		http.Error(responseWriter, "admin access required", http.StatusForbidden)
-		return
-	}
-	token, errorValue := service.writeCalendarICSToken(request.Context(), randomHex(32))
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	baseURL := service.calendarExternalBaseURL(request)
-	service.writeJSON(responseWriter, calendarSyncResponse{
-		CalDAVURL:      calendarDAVSubscriptionURL(baseURL, token),
-		CalDAVUsername: calendarDAVUsername,
-		CalDAVPassword: token,
-		ICSURL:         baseURL + "/calendar/ics/" + url.PathEscape(token) + ".ics",
-	})
-}
-
-func (service *Service) serveCalendarICS(responseWriter http.ResponseWriter, request *http.Request) {
-	if service.refuseACalendarBesideTheRecord(responseWriter) {
-		return
-	}
-	token := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/calendar/ics/"), ".ics")
-	if token == "" || !service.isValidCalendarICSToken(request.Context(), token) {
-		http.NotFound(responseWriter, request)
-		return
-	}
-	events, errorValue := service.readCalendarEvents(request.Context(), time.Time{}, time.Time{})
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	var calendar *ical.Calendar
-	if len(events) > 0 {
-		calendar, errorValue = buildCalendarFeed(events)
-		if errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-	responseWriter.Header().Set("Content-Type", ical.MIMEType+"; charset=utf-8")
-	responseWriter.Header().Set("Content-Disposition", `inline; filename="internkim.ics"`)
-	responseWriter.Header().Set("Cache-Control", "no-store")
-	if len(events) == 0 {
-		calendar = newCalendarFeedDocument()
-	}
-	_ = ical.NewEncoder(responseWriter).Encode(calendar)
-}
-
-func (service *Service) serveCalendarDAV(responseWriter http.ResponseWriter, request *http.Request) {
-	if service.refuseACalendarBesideTheRecord(responseWriter) {
-		return
-	}
-	if !service.authorizeCalendarRequest(request) {
-		http.Error(responseWriter, "calendar access required", http.StatusForbidden)
-		return
-	}
-	if request.Method == "REPORT" {
-		body, errorValue := io.ReadAll(request.Body)
-		if errorValue == nil {
-			request.Body = io.NopCloser(bytes.NewReader(body))
-			if bytes.Contains(body, []byte("sync-collection")) {
-				writeCalendarSyncCollectionUnsupported(responseWriter)
-				return
-			}
-		}
-	}
-	if request.Method == "PROPPATCH" {
-		service.handleCalendarPropPatch(responseWriter, request)
-		return
-	}
-	if request.Method == "PROPFIND" {
-		service.handleCalendarPropFind(responseWriter, request)
-		return
-	}
-	service.invokeCalendarDAVHandler(responseWriter, request)
-}
-
-func (service *Service) invokeCalendarDAVHandler(responseWriter http.ResponseWriter, request *http.Request) {
-	handler := caldav.Handler{
-		Backend: calendarDAVBackend{service: service},
-		Prefix:  "/calendar/dav",
-	}
-	handler.ServeHTTP(responseWriter, request)
-}
-
-func writeCalendarSyncCollectionUnsupported(responseWriter http.ResponseWriter) {
-	responseWriter.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	responseWriter.WriteHeader(http.StatusForbidden)
-	_, _ = responseWriter.Write([]byte(
-		`<?xml version="1.0" encoding="utf-8"?>` +
-			`<D:error xmlns:D="DAV:"><D:supported-report/></D:error>`,
-	))
-}
-
-func (service *Service) findDuplicateCalendarCandidates(ctx context.Context, event calendarEvent) ([]calendarEvent, error) {
-	newStart, errorValue := time.Parse(time.RFC3339, event.StartISO)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	existingEvents, errorValue := service.readCalendarEvents(ctx, newStart.Add(-time.Second), newStart.Add(time.Second))
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	newPeopleKey := calendarPeopleSetKey(event.People)
-	candidates := []calendarEvent{}
-	for _, existingEvent := range existingEvents {
-		existingStart, parseError := time.Parse(time.RFC3339, existingEvent.StartISO)
-		if parseError != nil || !existingStart.Equal(newStart) {
-			continue
-		}
-		if calendarPeopleSetKey(existingEvent.People) != newPeopleKey {
-			continue
-		}
-		candidates = append(candidates, existingEvent)
-	}
-	return candidates, nil
-}
-
-func calendarPeopleSetKey(people []string) string {
-	normalizedPeople := []string{}
-	seenPerson := map[string]bool{}
-	for _, person := range people {
-		normalizedPerson := strings.ToLower(strings.TrimSpace(person))
-		if normalizedPerson == "" || seenPerson[normalizedPerson] {
-			continue
-		}
-		seenPerson[normalizedPerson] = true
-		normalizedPeople = append(normalizedPeople, normalizedPerson)
-	}
-	sort.Strings(normalizedPeople)
-	return strings.Join(normalizedPeople, "\x00")
 }
 
 func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, eventID string) (calendarEvent, calendarEventWriteRequest, error) {
@@ -580,10 +215,10 @@ func (service *Service) decodeCalendarEventWriteRequest(request *http.Request, e
 	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
 		return calendarEvent{}, calendarEventWriteRequest{}, errorValue
 	}
-	// A caller that speaks the company's vocabulary sends minutes; this device
-	// still keeps whole hours.
+	// A caller that speaks the company's vocabulary sends minutes; this API still
+	// answers in whole hours.
 	if payload.NotifyMinutesBefore > 0 && payload.ReminderLeadHours == 0 {
-		payload.ReminderLeadHours = payload.NotifyMinutesBefore / 60
+		payload.ReminderLeadHours = calendarReminderLeadHours(payload.NotifyMinutesBefore)
 	}
 	event, errorValue := service.normalizeCalendarEventWriteRequest(request, payload, eventID)
 	return event, payload, errorValue
@@ -616,7 +251,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 	}
 	createdByEmail, createdByName := service.webMemberActorIdentity(request)
 	_, workspaceTimeZone := service.workspaceTimeLocation()
-	event := calendarEvent{
+	return calendarEvent{
 		ID:                id,
 		UID:               id + "@internkim",
 		Title:             title,
@@ -626,19 +261,12 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		EndISO:            endTime.UTC().Format(time.RFC3339),
 		TimeZone:          firstNonEmpty(strings.TrimSpace(payload.TimeZone), workspaceTimeZone),
 		IsAllDay:          payload.IsAllDay,
-		Color:             firstNonEmpty(strings.TrimSpace(payload.Color), "#2563eb"),
 		People:            people,
 		Participants:      participants,
 		ReminderLeadHours: normalizeCalendarReminderLeadHours(payload.ReminderLeadHours),
 		CreatedByEmail:    createdByEmail,
 		CreatedByName:     createdByName,
-	}
-	rawICS, errorValue := encodeCalendarObject(event)
-	if errorValue != nil {
-		return calendarEvent{}, errorValue
-	}
-	event.RawICS = rawICS
-	return event, nil
+	}, nil
 }
 
 func (service *Service) webMemberActorIdentity(request *http.Request) (string, string) {
@@ -729,67 +357,4 @@ func parseCalendarRange(request *http.Request) (time.Time, time.Time, error) {
 		return time.Time{}, time.Time{}, errors.New("endISO must be after startISO")
 	}
 	return startTime.UTC(), endTime.UTC(), nil
-}
-
-func (service *Service) ensureCalendarICSToken(ctx context.Context) (string, error) {
-	token, errorValue := service.readCalendarSetting(ctx, calendarSettingsICSKey)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	if strings.TrimSpace(token) != "" {
-		return token, nil
-	}
-	return service.writeCalendarICSToken(ctx, randomHex(32))
-}
-
-func (service *Service) writeCalendarICSToken(ctx context.Context, token string) (string, error) {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	defer database.Close()
-	_, errorValue = database.ExecContext(ctx, "INSERT INTO calendar_settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", calendarSettingsICSKey, token)
-	return token, errorValue
-}
-
-func (service *Service) readCalendarSetting(ctx context.Context, key string) (string, error) {
-	database, errorValue := service.openCalendarDatabase(ctx)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	defer database.Close()
-	var value string
-	errorValue = database.QueryRowContext(ctx, "SELECT value FROM calendar_settings WHERE key = ?", key).Scan(&value)
-	if errors.Is(errorValue, sql.ErrNoRows) {
-		return "", nil
-	}
-	return value, errorValue
-}
-
-func (service *Service) isValidCalendarICSToken(ctx context.Context, token string) bool {
-	expectedToken, errorValue := service.readCalendarSetting(ctx, calendarSettingsICSKey)
-	return errorValue == nil && expectedToken != "" && expectedToken == token
-}
-
-func (service *Service) calendarExternalBaseURL(request *http.Request) string {
-	if deviceURL := strings.TrimRight(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath)), "/"); deviceURL != "" {
-		return deviceURL
-	}
-	scheme := firstNonEmpty(request.Header.Get("X-Forwarded-Proto"), "https")
-	if isLocalRequest(request) {
-		scheme = "http"
-	}
-	return scheme + "://" + request.Host
-}
-
-func calendarDAVSubscriptionURL(baseURL string, token string) string {
-	parsedURL, errorValue := url.Parse(strings.TrimRight(strings.TrimSpace(baseURL), "/"))
-	if errorValue != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return strings.TrimRight(strings.TrimSpace(baseURL), "/") + calendarCollectionPath
-	}
-	parsedURL.User = url.UserPassword(calendarDAVUsername, token)
-	parsedURL.Path = calendarCollectionPath
-	parsedURL.RawQuery = ""
-	parsedURL.Fragment = ""
-	return parsedURL.String()
 }
