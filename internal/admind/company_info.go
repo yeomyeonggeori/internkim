@@ -5,335 +5,124 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
-type localizedText map[string]string
-
-type companyInfo struct {
-	Name                localizedText                `json:"name,omitempty"`
-	BrandName           localizedText                `json:"brandName,omitempty"`
-	Slogan              localizedText                `json:"slogan,omitempty"`
-	Description         localizedText                `json:"description,omitempty"`
-	Representative      localizedText                `json:"representative,omitempty"`
-	RepresentativeTitle localizedText                `json:"representativeTitle,omitempty"`
-	Address             localizedText                `json:"address,omitempty"`
-	OfficeAddress       localizedText                `json:"officeAddress,omitempty"`
-	Jurisdiction        localizedText                `json:"jurisdiction,omitempty"`
-	BankAccount         localizedText                `json:"bankAccount,omitempty"`
-	LegalAttributes     map[string]map[string]string `json:"legalAttributes,omitempty"`
-	FoundedDate         string                       `json:"foundedDate,omitempty"`
-	Capital             string                       `json:"capital,omitempty"`
-	FiscalYearEnd       string                       `json:"fiscalYearEnd,omitempty"`
-	EmployeeCount       int                          `json:"employeeCount,omitempty"`
-	Phone               string                       `json:"phone,omitempty"`
-	Fax                 string                       `json:"fax,omitempty"`
-	Email               string                       `json:"email,omitempty"`
-	Website             string                       `json:"website,omitempty"`
-	UpdatedAt           string                       `json:"updatedAt,omitempty"`
-}
-
-type companyInfoUpdate struct {
-	Language            string            `json:"language"`
-	Name                string            `json:"name"`
-	BrandName           string            `json:"brandName"`
-	Slogan              string            `json:"slogan"`
-	Description         string            `json:"description"`
-	Representative      string            `json:"representative"`
-	RepresentativeTitle string            `json:"representativeTitle"`
-	Address             string            `json:"address"`
-	OfficeAddress       string            `json:"officeAddress"`
-	Jurisdiction        string            `json:"jurisdiction"`
-	BankAccount         string            `json:"bankAccount"`
-	LegalAttributes     map[string]string `json:"legalAttributes"`
-	FoundedDate         string            `json:"foundedDate"`
-	Capital             string            `json:"capital"`
-	FiscalYearEnd       string            `json:"fiscalYearEnd"`
-	EmployeeCount       int               `json:"employeeCount"`
-	Phone               string            `json:"phone"`
-	Fax                 string            `json:"fax"`
-	Email               string            `json:"email"`
-	Website             string            `json:"website"`
-}
-
-type companyInfoView struct {
-	Language            string            `json:"language"`
-	Name                string            `json:"name"`
-	BrandName           string            `json:"brandName,omitempty"`
-	Slogan              string            `json:"slogan,omitempty"`
-	Description         string            `json:"description,omitempty"`
-	Representative      string            `json:"representative"`
-	RepresentativeTitle string            `json:"representativeTitle"`
-	Address             string            `json:"address"`
-	OfficeAddress       string            `json:"officeAddress,omitempty"`
-	Jurisdiction        string            `json:"jurisdiction,omitempty"`
-	BankAccount         string            `json:"bankAccount"`
-	LegalAttributes     map[string]string `json:"legalAttributes"`
-	FoundedDate         string            `json:"foundedDate,omitempty"`
-	Capital             string            `json:"capital,omitempty"`
-	FiscalYearEnd       string            `json:"fiscalYearEnd,omitempty"`
-	EmployeeCount       int               `json:"employeeCount,omitempty"`
-	Phone               string            `json:"phone"`
-	Fax                 string            `json:"fax,omitempty"`
-	Email               string            `json:"email"`
-	Website             string            `json:"website,omitempty"`
-	MissingFields       []string          `json:"missingFields"`
-	UpdatedAt           string            `json:"updatedAt,omitempty"`
-}
-
-func defaultRepresentativeTitle(language string) string {
-	if strings.EqualFold(language, "ko") {
-		return "대표이사"
+func (service *Service) companyProfile(ctx context.Context, requesterEmail string, language string) (centralplane.CompanyProfile, error) {
+	client := service.centralPlane()
+	if client == nil {
+		return centralplane.CompanyProfile{}, errNoCompanyDirectory
 	}
-	return "CEO"
+	return client.CompanyProfile(ctx, requesterEmail, language)
 }
 
 func (service *Service) writeCompanyInfo(responseWriter http.ResponseWriter, request *http.Request) {
-	info, errorValue := service.readCompanyInfo()
+	profile, errorValue := service.companyProfile(
+		request.Context(),
+		service.recordReaderEmail(request),
+		normalizeCompanyLanguage(request.URL.Query().Get("language")),
+	)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	language := strings.TrimSpace(request.URL.Query().Get("language"))
-	if language == "" {
-		service.writeJSON(responseWriter, info)
-		return
-	}
-	service.writeJSON(responseWriter, resolveCompanyInfoView(info, language))
+	service.writeJSON(responseWriter, profile)
 }
 
 func (service *Service) updateCompanyInfo(responseWriter http.ResponseWriter, request *http.Request) {
-	var update companyInfoUpdate
-	if errorValue := json.NewDecoder(request.Body).Decode(&update); errorValue != nil {
+	var asked map[string]any
+	if errorValue := json.NewDecoder(request.Body).Decode(&asked); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	language := normalizeCompanyLanguage(update.Language)
-	info, errorValue := service.readCompanyInfo()
+	client := service.centralPlane()
+	if client == nil {
+		http.Error(responseWriter, errNoCompanyDirectory.Error(), http.StatusBadGateway)
+		return
+	}
+	change, errorValue := companyProfileChange(asked)
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
-	applyCompanyInfoUpdate(&info, update, language)
-	info.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	if errorValue := service.writeCompanyInfoFile(info); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	profile, errorValue := client.WriteCompanyProfile(request.Context(), service.recordReaderEmail(request), change)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	if errorValue := service.syncCompanySnapshotToBlueclaw(request.Context(), info); errorValue != nil {
+	if errorValue := service.syncCompanySnapshotToBlueclaw(request.Context(), profile); errorValue != nil {
 		fmt.Printf("warning: company snapshot policy sync failed: %v\n", errorValue)
 	}
-	service.writeJSON(responseWriter, resolveCompanyInfoView(info, language))
+	service.writeJSON(responseWriter, profile)
 }
 
-func companyPolicySnapshot(info companyInfo, timeZone string) map[string]string {
-	primaryLanguage := "en"
+// company_info_set takes country-specific labels as a JSON object string, and
+// this route has always taken them as an object, so the one is written as the
+// other rather than the caller being asked to change.
+func companyProfileChange(asked map[string]any) (map[string]any, error) {
+	change := map[string]any{}
+	for field, value := range asked {
+		if field == "legalAttributes" {
+			continue
+		}
+		change[field] = value
+	}
+	language, _ := asked["language"].(string)
+	change["language"] = normalizeCompanyLanguage(language)
+	attributes, hasAttributes := asked["legalAttributes"]
+	if !hasAttributes || attributes == nil {
+		return change, nil
+	}
+	document, errorValue := json.Marshal(attributes)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	change["legalAttributes"] = string(document)
+	return change, nil
+}
+
+func companyPolicySnapshot(profile centralplane.CompanyProfile, timeZone string) map[string]string {
 	return map[string]string{
-		"name":           resolveAnyLocalized(info.Name, primaryLanguage),
-		"brandName":      resolveAnyLocalized(info.BrandName, primaryLanguage),
-		"slogan":         resolveAnyLocalized(info.Slogan, primaryLanguage),
-		"description":    resolveAnyLocalized(info.Description, primaryLanguage),
-		"representative": resolveAnyLocalized(info.Representative, primaryLanguage),
-		"website":        strings.TrimSpace(info.Website),
+		"name":           strings.TrimSpace(profile.Name),
+		"brandName":      strings.TrimSpace(profile.BrandName),
+		"slogan":         strings.TrimSpace(profile.Slogan),
+		"description":    strings.TrimSpace(profile.Description),
+		"representative": strings.TrimSpace(profile.Representative),
+		"website":        strings.TrimSpace(profile.Website),
 		"timeZone":       timeZone,
 	}
 }
 
-func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, info companyInfo) error {
+func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, profile centralplane.CompanyProfile) error {
 	var policyDocument map[string]any
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
 		return errorValue
 	}
-	policyDocument["company"] = companyPolicySnapshot(info, service.workspaceTimeZone().name)
+	policyDocument["company"] = companyPolicySnapshot(profile, service.workspaceTimeZone().name)
 	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 
-func applyCompanyInfoUpdate(info *companyInfo, update companyInfoUpdate, language string) {
-	setLocalized(&info.Name, language, update.Name)
-	setLocalized(&info.BrandName, language, update.BrandName)
-	setLocalized(&info.Slogan, language, update.Slogan)
-	setLocalized(&info.Description, language, update.Description)
-	setLocalized(&info.Representative, language, update.Representative)
-	setLocalized(&info.RepresentativeTitle, language, update.RepresentativeTitle)
-	setLocalized(&info.Address, language, update.Address)
-	setLocalized(&info.OfficeAddress, language, update.OfficeAddress)
-	setLocalized(&info.Jurisdiction, language, update.Jurisdiction)
-	setLocalized(&info.BankAccount, language, update.BankAccount)
-	if len(update.LegalAttributes) > 0 {
-		if info.LegalAttributes == nil {
-			info.LegalAttributes = map[string]map[string]string{}
-		}
-		if info.LegalAttributes[language] == nil {
-			info.LegalAttributes[language] = map[string]string{}
-		}
-		for label, value := range update.LegalAttributes {
-			label = strings.TrimSpace(label)
-			value = strings.TrimSpace(value)
-			if label == "" {
-				continue
-			}
-			if value == "" {
-				delete(info.LegalAttributes[language], label)
-				continue
-			}
-			info.LegalAttributes[language][label] = value
-		}
-	}
-	setPlain(&info.FoundedDate, update.FoundedDate)
-	setPlain(&info.Capital, update.Capital)
-	setPlain(&info.FiscalYearEnd, update.FiscalYearEnd)
-	if update.EmployeeCount > 0 {
-		info.EmployeeCount = update.EmployeeCount
-	}
-	setPlain(&info.Phone, update.Phone)
-	setPlain(&info.Fax, update.Fax)
-	setPlain(&info.Email, update.Email)
-	setPlain(&info.Website, update.Website)
-}
-
-func setLocalized(target *localizedText, language string, value string) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return
-	}
-	if *target == nil {
-		*target = localizedText{}
-	}
-	(*target)[language] = value
-}
-
-func setPlain(target *string, value string) {
-	value = strings.TrimSpace(value)
-	if value != "" {
-		*target = value
-	}
-}
-
-func resolveCompanyInfoView(info companyInfo, language string) companyInfoView {
-	language = normalizeCompanyLanguage(language)
-	missing := []string{}
-	resolveCore := func(fieldName string, text localizedText) string {
-		value, isExact := resolveLocalized(text, language)
-		if !isExact {
-			missing = append(missing, fieldName)
-		}
-		return value
-	}
-	view := companyInfoView{
-		Language:            language,
-		Name:                resolveCore("name", info.Name),
-		BrandName:           resolveAnyLocalized(info.BrandName, language),
-		Slogan:              resolveAnyLocalized(info.Slogan, language),
-		Description:         resolveAnyLocalized(info.Description, language),
-		Representative:      resolveCore("representative", info.Representative),
-		RepresentativeTitle: resolveAnyLocalized(info.RepresentativeTitle, language),
-		Address:             resolveCore("address", info.Address),
-		OfficeAddress:       resolveAnyLocalized(info.OfficeAddress, language),
-		Jurisdiction:        resolveAnyLocalized(info.Jurisdiction, language),
-		BankAccount:         resolveCore("bankAccount", info.BankAccount),
-		LegalAttributes:     resolveLegalAttributes(info.LegalAttributes, language),
-		FoundedDate:         info.FoundedDate,
-		Capital:             info.Capital,
-		FiscalYearEnd:       info.FiscalYearEnd,
-		EmployeeCount:       info.EmployeeCount,
-		Phone:               info.Phone,
-		Fax:                 info.Fax,
-		Email:               info.Email,
-		Website:             info.Website,
-		UpdatedAt:           info.UpdatedAt,
-	}
-	if view.RepresentativeTitle == "" {
-		view.RepresentativeTitle = defaultRepresentativeTitle(language)
-	}
-	if strings.TrimSpace(view.Phone) == "" {
-		missing = append(missing, "phone")
-	}
-	if strings.TrimSpace(view.Email) == "" {
-		missing = append(missing, "email")
-	}
-	view.MissingFields = missing
-	return view
-}
-
-func resolveLocalized(text localizedText, language string) (string, bool) {
-	if value := strings.TrimSpace(text[language]); value != "" {
-		return value, true
-	}
-	return resolveAnyLocalized(text, language), false
-}
-
-func resolveAnyLocalized(text localizedText, language string) string {
-	if value := strings.TrimSpace(text[language]); value != "" {
-		return value
-	}
-	if value := strings.TrimSpace(text["en"]); value != "" {
-		return value
-	}
-	for _, value := range text {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
-func resolveLegalAttributes(attributes map[string]map[string]string, language string) map[string]string {
-	if resolved := attributes[language]; len(resolved) > 0 {
-		return resolved
-	}
-	if resolved := attributes["en"]; len(resolved) > 0 {
-		return resolved
-	}
-	for _, resolved := range attributes {
-		if len(resolved) > 0 {
-			return resolved
-		}
-	}
-	return map[string]string{}
-}
-
 func normalizeCompanyLanguage(language string) string {
-	language = strings.ToLower(strings.TrimSpace(language))
-	if language == "" {
+	normalized := strings.ToLower(strings.TrimSpace(language))
+	if normalized == "" {
 		return "en"
 	}
-	return language
+	return normalized
 }
 
-func (service *Service) readCompanyInfo() (companyInfo, error) {
-	document, errorValue := os.ReadFile(service.companyInfoPath())
-	if os.IsNotExist(errorValue) {
-		return companyInfo{}, nil
+// The share page prints the profile in several languages, and the record
+// resolves one language per answer.
+func (service *Service) companyProfilesByLanguage(ctx context.Context, languages []string) (map[string]centralplane.CompanyProfile, error) {
+	profiles := map[string]centralplane.CompanyProfile{}
+	administratorEmail := service.claimedAdminEmail()
+	for _, language := range languages {
+		profile, errorValue := service.companyProfile(ctx, administratorEmail, language)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		profiles[language] = profile
 	}
-	if errorValue != nil {
-		return companyInfo{}, errorValue
-	}
-	var info companyInfo
-	if errorValue := json.Unmarshal(document, &info); errorValue != nil {
-		return companyInfo{}, nil
-	}
-	return info, nil
-}
-
-func (service *Service) writeCompanyInfoFile(info companyInfo) error {
-	document, errorValue := json.MarshalIndent(info, "", "  ")
-	if errorValue != nil {
-		return errorValue
-	}
-	path := service.companyInfoPath()
-	if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
-		return errorValue
-	}
-	temporaryPath := path + ".tmp"
-	if errorValue := os.WriteFile(temporaryPath, append(document, '\n'), 0o600); errorValue != nil {
-		return errorValue
-	}
-	return os.Rename(temporaryPath, path)
-}
-
-func (service *Service) companyInfoPath() string {
-	return filepath.Join(service.Configuration.StateDirectory, "company-info.json")
+	return profiles, nil
 }

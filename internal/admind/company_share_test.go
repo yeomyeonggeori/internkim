@@ -130,17 +130,10 @@ func TestCompanyShareSettingsNeverExposePasswordHash(t *testing.T) {
 }
 
 func TestCompanyShareSnapshotContainsOnlyPublishedProjection(t *testing.T) {
-	service := NewService(Configuration{StateDirectory: t.TempDir()})
-	info := companyInfo{
-		Name:            localizedText{"ko": "테스트 회사", "en": "Test Company"},
-		Description:     localizedText{"ko": "한국어 소개", "en": "English profile"},
-		BankAccount:     localizedText{"ko": "민감한 계좌"},
-		LegalAttributes: map[string]map[string]string{"ko": {"사업자번호": "000-00-00000"}},
-		Email:           "company@example.com",
-	}
-	if errorValue := service.writeCompanyInfoFile(info); errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	service := newCompanyShareProfileService(t, map[string]string{
+		"ko": `{"name":"테스트 회사","description":"한국어 소개","bankAccount":"민감한 계좌","legalAttributes":{"사업자번호":"000-00-00000"},"email":"company@example.com"}`,
+		"en": `{"name":"Test Company","description":"English profile","email":"company@example.com"}`,
+	})
 	insertCompanyShareTestData(t, service)
 	settings := defaultCompanyShareSettings()
 	settings.Languages = []string{"en", "ko"}
@@ -169,10 +162,7 @@ func TestCompanyShareSnapshotContainsOnlyPublishedProjection(t *testing.T) {
 }
 
 func TestCompanyShareSnapshotPublishesOnlyApprovedEvidence(t *testing.T) {
-	service := NewService(Configuration{StateDirectory: t.TempDir()})
-	if errorValue := service.writeCompanyInfoFile(companyInfo{Name: localizedText{"ko": "테스트 회사", "en": "Test Company"}}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	service := newCompanyShareProfileService(t, map[string]string{"ko": `{"name":"테스트 회사"}`, "en": `{"name":"Test Company"}`})
 	insertCompanyShareTestData(t, service)
 	settings := defaultCompanyShareSettings()
 	settings.MetricNames = []string{"annualRevenue"}
@@ -211,10 +201,7 @@ func TestCompanyShareSnapshotPublishesOnlyApprovedEvidence(t *testing.T) {
 }
 
 func TestCompanyShareNarrativesAreNormalizedAndPublished(t *testing.T) {
-	service := NewService(Configuration{StateDirectory: t.TempDir()})
-	if errorValue := service.writeCompanyInfoFile(companyInfo{Name: localizedText{"ko": "테스트 회사", "en": "Test Company"}}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	service := newCompanyShareProfileService(t, map[string]string{"ko": `{"name":"테스트 회사"}`, "en": `{"name":"Test Company"}`})
 	settings, errorValue := applyCompanyShareSettingsUpdate(defaultCompanyShareSettings(), companyShareSettingsUpdate{
 		SessionHours: 24,
 		Languages:    []string{"en", "ko"},
@@ -509,9 +496,7 @@ func TestCompanyShareCountsTheClocksTheCompanyHolds(t *testing.T) {
 		CentralPlanePublishableKey: "publishable",
 		CentralPlaneAgentKeyPath:   writeAgentKeyForTest(t, "agent-key"),
 	})
-	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul", Language: workspaceLanguageEnglish}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageEnglish)
 
 	activity, errorValue := service.buildCompanyShareTeamActivity(t.Context(), time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC))
 	if errorValue != nil {
@@ -534,3 +519,38 @@ func TestCompanyShareCountsTheClocksTheCompanyHolds(t *testing.T) {
 	}
 }
 
+func newCompanyShareProfileService(t *testing.T, profilesByLanguage map[string]string) *Service {
+	t.Helper()
+	company := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/api/agent/session":
+			_, _ = responseWriter.Write([]byte(`{"memberID":"member-admin","accessToken":"token","expiresAt":4102444800}`))
+		case "/api/v1/tools/company_info_get/invoke":
+			var payload struct {
+				Input struct {
+					Language string `json:"language"`
+				} `json:"input"`
+			}
+			_ = json.NewDecoder(request.Body).Decode(&payload)
+			profile, isAnswered := profilesByLanguage[payload.Input.Language]
+			if !isAnswered {
+				profile = `{}`
+			}
+			_, _ = responseWriter.Write([]byte(`{"tool":"company_info_get","result":` + profile + `}`))
+		default:
+			responseWriter.WriteHeader(http.StatusNotFound)
+			_, _ = responseWriter.Write([]byte(`{}`))
+		}
+	}))
+	t.Cleanup(company.Close)
+	service := NewService(Configuration{
+		StateDirectory:             t.TempDir(),
+		ClaimedAdminEmailPath:      writeTestFile(t, "admin@example.com"),
+		CentralPlaneAppURL:         company.URL,
+		CentralPlaneProjectURL:     company.URL,
+		CentralPlanePublishableKey: "publishable",
+		CentralPlaneAgentKeyPath:   writeAgentKeyForTest(t, "agent-key"),
+	})
+	return service
+}

@@ -1,7 +1,6 @@
 package admind
 
 import (
-	"errors"
 	"testing"
 	"time"
 )
@@ -21,7 +20,6 @@ func TestResolveWorkspaceTimeZoneUsesAuthoritativeSystemSetting(t *testing.T) {
 
 	resolved := resolveWorkspaceTimeZone(
 		workspaceSettings{TimeZone: workspaceSystemTimeZone},
-		nil,
 		func() resolvedTimeZone { return systemTimeZone },
 	)
 
@@ -30,24 +28,11 @@ func TestResolveWorkspaceTimeZoneUsesAuthoritativeSystemSetting(t *testing.T) {
 	}
 }
 
-func TestResolveWorkspaceTimeZoneRejectsUnreadableExplicitSetting(t *testing.T) {
-	systemTimeZone := authoritativeTestTimeZone(t, "Asia/Seoul")
-
-	resolved := resolveWorkspaceTimeZone(
-		workspaceSettings{},
-		errors.New("workspace settings unavailable"),
-		func() resolvedTimeZone { return systemTimeZone },
-	)
-
-	assertNonAuthoritativeWorkspaceTimeZone(t, resolved, systemTimeZone)
-}
-
 func TestResolveWorkspaceTimeZoneRejectsInvalidExplicitSetting(t *testing.T) {
 	systemTimeZone := authoritativeTestTimeZone(t, "Asia/Seoul")
 
 	resolved := resolveWorkspaceTimeZone(
 		workspaceSettings{TimeZone: "Missing/Time_Zone"},
-		nil,
 		func() resolvedTimeZone { return systemTimeZone },
 	)
 
