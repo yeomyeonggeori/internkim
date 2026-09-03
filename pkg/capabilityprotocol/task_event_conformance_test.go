@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	bluecollarTaskEventNamePath = "../../.dependency/blueclaw/.dependency/bluecollar/taskstate/task_event_name.go"
+	bluecollarTaskEventNamePath = "../../.dependency/blueclaw/.dependency/bluecollar/agentcontract/task_event_name.go"
 	bluecollarKernelToolsPath   = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go"
 	expensiveScenarioDirectory  = "../../tests/expensive"
 	scenarioEventCountField     = "expectedEventCounts"
