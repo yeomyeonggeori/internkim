@@ -4729,7 +4729,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_list",
-      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company.",
+      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -4743,6 +4743,10 @@
           "from": {
             "description": "Earliest day to include. The day it happened, as yyyy-mm-dd in the company time zone. Omit to start thirty days ago.",
             "type": "string"
+          },
+          "handWrittenOnly": {
+            "description": "Keep only the records somebody wrote or changed by hand, and drop the ones clocked live. A hand-written record carries the reason it was written, or the moment it was moved from, or both; a live clock carries neither. Use it for \"what has been written by hand this month\" or to review what an administrator entered for somebody. Omit for every record in the window.",
+            "type": "boolean"
           },
           "limit": {
             "description": "Maximum number of rows to return.",
@@ -4802,6 +4806,26 @@
                     }
                   ]
                 },
+                "originalDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "originalTime": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "person": {
                   "type": "string"
                 },
@@ -4830,6 +4854,8 @@
                 "time",
                 "location",
                 "wasCorrected",
+                "originalDate",
+                "originalTime",
                 "reason"
               ],
               "type": "object"
@@ -4910,6 +4936,26 @@
                       }
                     ]
                   },
+                  "originalDate": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "originalTime": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "person": {
                     "type": "string"
                   },
@@ -4938,6 +4984,8 @@
                   "time",
                   "location",
                   "wasCorrected",
+                  "originalDate",
+                  "originalTime",
                   "reason"
                 ],
                 "type": "object"
@@ -4986,7 +5034,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     {

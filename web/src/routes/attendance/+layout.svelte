@@ -18,6 +18,10 @@
 		setEmployeeLeaveState
 	} from './leave/employee-leave-state.svelte';
 	import {
+		HandWrittenState,
+		setHandWrittenState
+	} from './hand-written/hand-written-state.svelte';
+	import {
 		LeaveManagementState,
 		setLeaveManagementState
 	} from './management/leave-management-state.svelte';
@@ -65,11 +69,13 @@
 		text.management,
 		refreshAfterManagementMutation
 	);
+	const handWritten = new HandWrittenState(text.handWritten, () => attendance.load());
 	setAttendanceState(attendance);
 	setEmployeeLeaveState(employeeLeave);
 	setAttendanceViewState(attendanceView);
 	setLeaveApprovalState(leaveApproval);
 	setLeaveManagementState(leaveManagement);
+	setHandWrittenState(handWritten);
 	setWorkStatusState(workStatus);
 
 	function refreshServerClock(): void {
@@ -120,13 +126,16 @@
 	});
 
 	$effect(() => {
-		if (attendance.summary?.isAdmin) {
+		const summary = attendance.summary;
+		if (summary?.isAdmin) {
 			untrack(() => void leaveApproval.load());
 			untrack(() => void leaveManagement.load());
+			untrack(() => void handWritten.load(todayDateInTimeZone(summary.timeZone)));
 			return;
 		}
 		untrack(() => leaveApproval.clear());
 		untrack(() => leaveManagement.clear());
+		untrack(() => handWritten.clear());
 	});
 </script>
 
