@@ -3,196 +3,79 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"sort"
-	"strings"
-	"time"
+	"log/slog"
 )
 
-const attendanceEventSelectColumns = `
-id, mattermost_user_id, mattermost_username, email, display_name, kind, occurred_at, local_date, local_time,
-	time_zone_at_event, source, team_id, channel_id, action_post_id, result_post_id, location_id, location_name,
-	canceled_at, cancel_reason, repeated_click_at`
+const (
+	attendanceKindClockIn  = "clock_in"
+	attendanceKindClockOut = "clock_out"
+)
 
-func attendanceMonthlyEventsQuery(hasEmail bool) string {
-	query := `SELECT ` + attendanceEventSelectColumns + `
-FROM attendance_events
-WHERE (local_date >= ? AND local_date < ? OR id IN (
-	SELECT event_id
-	FROM attendance_event_overrides
-	WHERE override_local_date >= ? AND override_local_date < ?
-))`
-	if hasEmail {
-		query += " AND email = ?"
-	}
-	return query + " ORDER BY occurred_at DESC"
+// Caches and projections of rows held elsewhere in this same store. Nothing in
+// them is a record of anything, so they go whether or not the company holds
+// what they were derived from.
+var derivedAttendanceTables = []string{
+	"attendance_summary_cache_entries",
+	"attendance_summary_cache_revisions",
+	"attendance_absence_occurrences",
+	"attendance_leave_request_occurrences",
+	"attendance_leave_request_absence_ranges",
+	"attendance_leave_operations",
+}
+
+// What a device recorded before the company did. These drop only once the
+// record holds all of it.
+var carriedAttendanceTables = []string{
+	"attendance_events",
+	"attendance_event_overrides",
+	"attendance_leave_requests",
+	"attendance_leave_request_events",
+	"attendance_carried_rows",
+}
+
+// The record has no place for these yet, so a device holding any of them keeps
+// its store and says which decision is missing.
+var attendanceTablesWithNowhereToGo = map[string]string{
+	"attendance_leave_request_attachments": "https://github.com/yeomyeonggeori/internkim/issues/1394",
+	"attendance_leave_grant_lots":          "https://github.com/yeomyeonggeori/internkim/issues/1396",
+	"attendance_leave_ledger_entries":      "https://github.com/yeomyeonggeori/internkim/issues/1396",
+	"attendance_absence_ranges":            "https://github.com/yeomyeonggeori/internkim/issues/1396",
 }
 
 func (service *Service) openAttendanceDatabase(ctx context.Context) (*sql.DB, error) {
 	return service.openStateDatabase(ctx, "attendance", ensureAttendanceSchema, sqliteDatabaseOptions{})
 }
 
-func (service *Service) latestActiveAttendanceEvent(ctx context.Context, database *sql.DB, mattermostUserID string) (attendanceEvent, bool, error) {
-	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
-FROM attendance_events
-WHERE mattermost_user_id = ? AND canceled_at = ''
-ORDER BY occurred_at DESC
-LIMIT 1`, mattermostUserID)
-	event, errorValue := scanAttendanceEvent(row)
-	if errors.Is(errorValue, sql.ErrNoRows) {
-		return attendanceEvent{}, false, nil
-	}
-	if errorValue != nil {
-		return attendanceEvent{}, false, errorValue
-	}
-	return event, true, nil
+// The store is not created any more, only opened to be let go of. A device that
+// never held attendance has nothing here and the schema stays as it was found.
+func ensureAttendanceSchema(context.Context, *sql.DB) error {
+	return nil
 }
 
-func (service *Service) latestActiveAttendanceEventForLocalDate(ctx context.Context, database *sql.DB, mattermostUserID string, localDate string) (attendanceEvent, bool, error) {
-	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
-FROM attendance_events
-WHERE mattermost_user_id = ? AND local_date = ? AND canceled_at = ''
-ORDER BY occurred_at DESC
-LIMIT 1`, mattermostUserID, localDate)
-	event, errorValue := scanAttendanceEvent(row)
-	if errors.Is(errorValue, sql.ErrNoRows) {
-		return attendanceEvent{}, false, nil
-	}
-	if errorValue != nil {
-		return attendanceEvent{}, false, errorValue
-	}
-	return event, true, nil
+func (service *Service) startAttendanceSweep(ctx context.Context) {
+	go service.sweepTheAttendanceTheCompanyNowHolds(ctx)
 }
 
-func (service *Service) latestActiveAttendanceEventForLocalDateAtOrBefore(ctx context.Context, database *sql.DB, mattermostUserID string, localDate string, now time.Time) (attendanceEvent, bool, error) {
-	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
-FROM attendance_events
-WHERE mattermost_user_id = ? AND local_date = ? AND occurred_at <= ? AND canceled_at = ''
-ORDER BY occurred_at DESC
-LIMIT 1`, mattermostUserID, localDate, now.UTC().Format(time.RFC3339Nano))
-	event, errorValue := scanAttendanceEvent(row)
-	if errors.Is(errorValue, sql.ErrNoRows) {
-		return attendanceEvent{}, false, nil
-	}
-	if errorValue != nil {
-		return attendanceEvent{}, false, errorValue
-	}
-	return event, true, nil
-}
-
-func (service *Service) latestActiveAttendanceEventForUserAndKind(ctx context.Context, database *sql.DB, mattermostUserID string, kind string) (attendanceEvent, bool, error) {
-	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
-FROM attendance_events
-WHERE mattermost_user_id = ? AND kind = ? AND canceled_at = ''
-ORDER BY occurred_at DESC
-LIMIT 1`, mattermostUserID, kind)
-	event, errorValue := scanAttendanceEvent(row)
-	if errors.Is(errorValue, sql.ErrNoRows) {
-		return attendanceEvent{}, false, nil
-	}
-	if errorValue != nil {
-		return attendanceEvent{}, false, errorValue
-	}
-	return event, true, nil
-}
-
-func (service *Service) latestActiveAttendanceEventBefore(ctx context.Context, database *sql.DB, mattermostUserID string, kind string, occurredAt time.Time) (attendanceEvent, bool, error) {
-	row := database.QueryRowContext(ctx, "SELECT "+attendanceEventSelectColumns+`
-FROM attendance_events
-WHERE mattermost_user_id = ? AND kind = ? AND occurred_at < ? AND canceled_at = ''
-ORDER BY occurred_at DESC
-LIMIT 1`, mattermostUserID, kind, occurredAt.UTC().Format(time.RFC3339Nano))
-	event, errorValue := scanAttendanceEvent(row)
-	if errors.Is(errorValue, sql.ErrNoRows) {
-		return attendanceEvent{}, false, nil
-	}
-	if errorValue != nil {
-		return attendanceEvent{}, false, errorValue
-	}
-	return event, true, nil
-}
-
-func (service *Service) readAttendanceEvents(ctx context.Context, month string, email string) ([]attendanceEvent, error) {
-	database, errorValue := service.openAttendanceDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer database.Close()
-	startDate, endDate := attendanceEventContextDateRange(month)
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	hasEmail := normalizedEmail != ""
-	query := attendanceMonthlyEventsQuery(hasEmail)
-	arguments := []any{startDate, endDate, startDate, endDate}
-	if hasEmail {
-		arguments = append(arguments, normalizedEmail)
-	}
-	rows, errorValue := database.QueryContext(ctx, query, arguments...)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
-	events := []attendanceEvent{}
-	for rows.Next() {
-		event, errorValue := scanAttendanceEvent(rows)
-		if errorValue != nil {
-			return nil, errorValue
+func dropAttendanceTables(ctx context.Context, database *sql.DB, tableNames []string) error {
+	for _, tableName := range tableNames {
+		rowCount, held := countRowsInAttendanceTable(ctx, database, tableName)
+		if !held {
+			continue
 		}
-		events = append(events, event)
-	}
-	if errorValue := rows.Err(); errorValue != nil {
-		return nil, errorValue
-	}
-	events, errorValue = service.applyAttendanceEventOverrides(ctx, database, events)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	filteredEvents := make([]attendanceEvent, 0, len(events))
-	for _, event := range events {
-		if event.LocalDate >= startDate && event.LocalDate < endDate {
-			filteredEvents = append(filteredEvents, event)
+		if _, errorValue := database.ExecContext(ctx, "DROP TABLE IF EXISTS "+tableName); errorValue != nil {
+			return errorValue
 		}
+		slog.InfoContext(ctx, "dropped an attendance table the company now holds",
+			"table", tableName, "rows", rowCount)
 	}
-	sort.SliceStable(filteredEvents, func(firstIndex int, secondIndex int) bool {
-		return filteredEvents[firstIndex].OccurredAt > filteredEvents[secondIndex].OccurredAt
-	})
-	return filteredEvents, nil
+	return nil
 }
 
-func attendanceEventContextDateRange(month string) (string, string) {
-	monthStart, errorValue := time.Parse("2006-01", month)
+func countRowsInAttendanceTable(ctx context.Context, database *sql.DB, tableName string) (int, bool) {
+	var rowCount int
+	errorValue := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tableName).Scan(&rowCount)
 	if errorValue != nil {
-		return month + "-01", attendanceNextMonth(month) + "-01"
+		return 0, false
 	}
-	return monthStart.AddDate(0, 0, -1).Format("2006-01-02"), monthStart.AddDate(0, 1, 1).Format("2006-01-02")
-}
-
-type attendanceEventScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanAttendanceEvent(scanner attendanceEventScanner) (attendanceEvent, error) {
-	var event attendanceEvent
-	errorValue := scanner.Scan(
-		&event.ID,
-		&event.MattermostUserID,
-		&event.MattermostUsername,
-		&event.Email,
-		&event.DisplayName,
-		&event.Kind,
-		&event.OccurredAt,
-		&event.LocalDate,
-		&event.LocalTime,
-		&event.TimeZoneAtEvent,
-		&event.Source,
-		&event.TeamID,
-		&event.ChannelID,
-		&event.ActionPostID,
-		&event.ResultPostID,
-		&event.LocationID,
-		&event.LocationName,
-		&event.CanceledAt,
-		&event.CancelReason,
-		&event.RepeatedClickAt,
-	)
-	return event, errorValue
+	return rowCount, true
 }
