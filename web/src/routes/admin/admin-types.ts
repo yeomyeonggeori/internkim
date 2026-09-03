@@ -111,18 +111,6 @@ export type RestoreUploadResponse = {
 	chunkSize: number;
 };
 
-export type AgentIdentity = {
-	schemaVersion: 1;
-	name: string;
-	englishName?: string;
-	handle: string;
-	aliases?: string[];
-	role?: string;
-	creature?: string;
-	emoji?: string;
-	introduction?: string;
-};
-
 export type AgentToneRegister = 'formal' | 'polite' | 'casual';
 
 export type AgentSoul = {
@@ -132,6 +120,15 @@ export type AgentSoul = {
 	workingStyle?: string[];
 	tone?: { register?: AgentToneRegister; traits?: string[] };
 	language?: { default?: string; matchRequester?: boolean };
+};
+
+export type AgentUser = {
+	schemaVersion: 1;
+	callMe?: string;
+	about?: string;
+	preferences?: string[];
+	tone?: { register?: AgentToneRegister; traits?: string[] };
+	language?: { default?: string };
 };
 
 export type CredentialProviderStatus = {

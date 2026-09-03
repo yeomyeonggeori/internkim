@@ -18,7 +18,7 @@ const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
-const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.skills.'];
+const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.skills.', 'person.persona.'];
 export const apiRequestCapability = 'person.api.request';
 export const apiFileCapability = 'person.api.file';
 export const tellCapability = 'person.message.tell';
@@ -536,7 +536,9 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 	'person.runs.list': '/runs/api',
 	'person.runs.detail': '/runs/api/detail',
 	'person.buzz.claim': '/agent/api/buzz-claim',
-	'person.buzz.relay': '/agent/api/buzz-relay-config'
+	'person.buzz.relay': '/agent/api/buzz-relay-config',
+	'person.persona.user': '/persona/api/user',
+	'person.persona.soul': '/persona/api/soul'
 };
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
@@ -547,7 +549,9 @@ export const workspaceWriteCapabilityPaths: Record<string, string> = {
 	'person.memory.pinned_delete': '/memory/api/pinned/delete',
 	'person.memory.schedule_cancel': '/memory/api/schedules/cancel',
 	'person.memory.schedule_delete': '/memory/api/schedules/delete',
-	'person.memory.schedule_update': '/memory/api/schedules/update'
+	'person.memory.schedule_update': '/memory/api/schedules/update',
+	'person.persona.user.update': '/persona/api/user',
+	'person.persona.soul.update': '/persona/api/soul'
 };
 
 export function workspaceCallOf(

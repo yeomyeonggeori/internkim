@@ -459,6 +459,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/flow/", service.serveTaskPage)
 	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
 	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
+	multiplexer.HandleFunc("/persona/api/", service.handlePersona)
 	multiplexer.HandleFunc("/agent/api/dm", service.handleAgentDirectMessage)
 	multiplexer.HandleFunc("/agent/api/channels", service.handleAgentChannels)
 	multiplexer.HandleFunc("/agent/api/people", service.handleAgentPeople)
@@ -748,10 +749,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		service.writeCompanionReleases(responseWriter)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
 		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
-	case request.Method == http.MethodGet && path == "/identity":
-		service.writeIdentity(responseWriter, request)
-	case request.Method == http.MethodPut && path == "/identity":
-		service.updateIdentity(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/soul":
 		service.writeSoul(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/soul":
