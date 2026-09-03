@@ -2,73 +2,47 @@ package admind
 
 import (
 	"context"
-	"database/sql"
 )
 
-func ensureMailNotifyMarkTable(ctx context.Context, database *sql.DB) error {
-	_, errorValue := database.ExecContext(ctx, `
-CREATE TABLE IF NOT EXISTS mail_notify_mark (
-	actor_email TEXT PRIMARY KEY,
-	seen_up_to INTEGER NOT NULL
-)`)
-	return errorValue
-}
+const mailNotifyMarkFile = "mail-notify.json"
 
-func (service *Service) openMailNotifyDatabase(ctx context.Context) (*sql.DB, error) {
-	options := sqliteDatabaseOptions{transactionLock: "immediate"}
-	return service.openStateDatabase(ctx, "mail-notify", ensureMailNotifyMarkTable, options)
+type mailNotifyMarks struct {
+	SeenUpTo map[string]uint32 `json:"seenUpTo"`
 }
 
 func (service *Service) readMailNotifyMark(ctx context.Context, actorEmail string) (uint32, bool, error) {
-	database, errorValue := service.openMailNotifyDatabase(ctx)
+	service.mailNotifyMarkMutex.Lock()
+	defer service.mailNotifyMarkMutex.Unlock()
+
+	held, errorValue := service.heldMailNotifyMarks(ctx)
 	if errorValue != nil {
 		return 0, false, errorValue
 	}
-	defer database.Close()
-
-	seenUpTo := uint32(0)
-	errorValue = database.QueryRowContext(ctx,
-		"SELECT seen_up_to FROM mail_notify_mark WHERE actor_email = ?", actorEmail).Scan(&seenUpTo)
-	if errorValue == sql.ErrNoRows {
-		return 0, false, nil
-	}
-	return seenUpTo, errorValue == nil, errorValue
+	seenUpTo, marked := held.SeenUpTo[actorEmail]
+	return seenUpTo, marked, nil
 }
 
 func (service *Service) writeMailNotifyMark(ctx context.Context, actorEmail string, seenUpTo uint32) error {
-	database, errorValue := service.openMailNotifyDatabase(ctx)
+	service.mailNotifyMarkMutex.Lock()
+	defer service.mailNotifyMarkMutex.Unlock()
+
+	held, errorValue := service.heldMailNotifyMarks(ctx)
 	if errorValue != nil {
 		return errorValue
 	}
-	defer database.Close()
-
-	_, errorValue = database.ExecContext(ctx, `
-INSERT INTO mail_notify_mark (actor_email, seen_up_to) VALUES (?, ?)
-ON CONFLICT (actor_email) DO UPDATE SET seen_up_to = excluded.seen_up_to`, actorEmail, seenUpTo)
-	return errorValue
+	held.SeenUpTo[actorEmail] = seenUpTo
+	return service.writeMachineState(mailNotifyMarkFile, held)
 }
 
-func (service *Service) mailNotifyActorEmails(ctx context.Context) ([]string, error) {
-	database, errorValue := service.openMailDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
+func (service *Service) heldMailNotifyMarks(ctx context.Context) (mailNotifyMarks, error) {
+	var held mailNotifyMarks
+	found, errorValue := service.readMachineState(ctx, mailNotifyMarkFile, &held,
+		"the mail notifier's marks could not be read, so it adopts what is there now")
+	if errorValue != nil || !found {
+		return mailNotifyMarks{SeenUpTo: map[string]uint32{}}, errorValue
 	}
-	defer database.Close()
-
-	rows, errorValue := database.QueryContext(ctx,
-		"SELECT actor_email FROM mail_accounts WHERE imap_host <> '' ORDER BY actor_email")
-	if errorValue != nil {
-		return nil, errorValue
+	if held.SeenUpTo == nil {
+		held.SeenUpTo = map[string]uint32{}
 	}
-	defer rows.Close()
-
-	actorEmails := []string{}
-	for rows.Next() {
-		actorEmail := ""
-		if errorValue := rows.Scan(&actorEmail); errorValue != nil {
-			return nil, errorValue
-		}
-		actorEmails = append(actorEmails, actorEmail)
-	}
-	return actorEmails, rows.Err()
+	return held, nil
 }

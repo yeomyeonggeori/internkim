@@ -406,6 +406,16 @@
       ]
     },
     {
+      "name": "is_public_identity_credential",
+      "arguments": "kind text",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "is_work_hours",
       "arguments": "schedule jsonb",
       "returns": "boolean",

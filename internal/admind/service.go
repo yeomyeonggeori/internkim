@@ -160,6 +160,8 @@ type Service struct {
 	requestMetrics             *adminRequestMetrics
 	databaseSchemas            *adminDatabaseSchemas
 	legacyDatabaseMigration    sync.Once
+	mailNotifyMarkMutex        sync.Mutex
+	taskNotifyMarkMutex        sync.Mutex
 	removeTokenQuarantineFile  func(string) error
 	promoteCalendarTokenFile   func(string, string) error
 	startedAt                  time.Time
@@ -381,6 +383,7 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCompanyProfileSweep(ctx)
 	service.startCompanyLedgerSweep(ctx)
 	service.startAttendanceSweep(ctx)
+	service.startMailAccountSweep(ctx)
 	service.startTaskSweep(ctx)
 	service.startSiteRuntimeJanitor(ctx)
 	service.startScheduledBackups(ctx)
@@ -487,6 +490,7 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/organization-record-coverage", service.handleOrganizationRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/company-profile-carry", service.handleCompanyProfileCarry)
 	multiplexer.HandleFunc("/agent/api/company-ledger-coverage", service.handleCompanyLedgerCoverage)
+	multiplexer.HandleFunc("/agent/api/mail-account-carry", service.handleMailAccountCarry)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", service.handleBuzzChannelVisibilityRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)

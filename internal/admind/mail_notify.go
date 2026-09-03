@@ -33,21 +33,19 @@ func (service *Service) announceMailOnce(ctx context.Context) {
 	if client == nil {
 		return
 	}
-	actorEmails, errorValue := service.mailNotifyActorEmails(ctx)
+	accounts, errorValue := client.MailAccounts(ctx)
 	if errorValue != nil {
 		log.Printf("mail notify: the accounts are unreadable: %v", errorValue)
 		return
 	}
-	for _, actorEmail := range actorEmails {
-		service.announceMailFor(ctx, client, actorEmail)
+	for _, held := range accounts {
+		service.announceMailFor(ctx, client, accountOfRecord(held.ActorEmail, held))
 	}
 }
 
-func (service *Service) announceMailFor(ctx context.Context, client *centralplane.Client, actorEmail string) {
-	account, found, errorValue := service.readMailAccount(ctx, actorEmail)
-	if errorValue != nil || !found {
-		return
-	}
+func (service *Service) announceMailFor(ctx context.Context, client *centralplane.Client, account mail.Account) {
+	actorEmail := account.ActorEmail
+	account = mail.NormalizeAccount(account)
 	answered, errorValue := service.mailBackend.ListMessages(ctx, account, mail.MessageListRequest{
 		Mailbox: account.DefaultMailbox,
 		Limit:   mailNotifyBatch,
