@@ -14,6 +14,8 @@ func (service *Service) centralPlane() *centralplane.Client {
 			ProjectURL:     service.Configuration.CentralPlaneProjectURL,
 			PublishableKey: service.Configuration.CentralPlanePublishableKey,
 			HTTPClient:     service.HTTPClient,
+
+			ClaimedAdministratorEmail: service.claimedAdminEmail,
 		}
 		// The key is fetched over the network, so a device that names no central
 		// plane must not go asking for one to find out it has none.

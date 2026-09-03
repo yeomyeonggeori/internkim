@@ -1,16 +1,11 @@
 package admind
 
 import (
-	"net/http"
 	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
-
-func isCompanyTeamRequest(request *http.Request) bool {
-	return strings.HasPrefix(request.URL.String(), companyDirectoryURLForTest+"/api/agent/team")
-}
 
 func TestRenamingATeamInTheDirectoryDoesNotMakeASecondGroup(t *testing.T) {
 	held := []orgGroupRecord{{ID: "team-product", Name: "제품"}}

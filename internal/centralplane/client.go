@@ -22,6 +22,11 @@ type Settings struct {
 	ProjectURL     string
 	PublishableKey string
 	HTTPClient     *http.Client
+
+	// Who a directory write that no person asked for runs as. It is read at
+	// write time rather than held as a string, because this client is built
+	// once and the first administrator may be claimed after that.
+	ClaimedAdministratorEmail func() string
 }
 
 func (settings Settings) Configured() bool {
