@@ -159,6 +159,30 @@ test.describe('embedded calendar month layout', () => {
 	});
 });
 
+test.describe('embedded calendar month layout for a viewer west of the company', () => {
+	test.use({ locale: 'ko-KR', timezoneId: 'America/Los_Angeles' });
+
+	test('keeps a whole-day event on the company day for a Los Angeles viewer', async ({ page }) => {
+		const [allDayID] = await seedCalendarEvents([
+			{
+				title: 'Company Day Workshop',
+				startISO: '2026-06-20T00:00:00+09:00',
+				endISO: '2026-06-21T00:00:00+09:00',
+				isAllDay: true
+			}
+		]);
+
+		try {
+			await openMonthView(page, '2026-06-20');
+
+			await expect(page.locator(`[data-calendar-event-id="${allDayID}"]:visible`)).toHaveCount(1);
+			await expectEventWithinDateCell(page, allDayID, '2026-06-20');
+		} finally {
+			await cleanupCalendarEvents([allDayID]);
+		}
+	});
+});
+
 async function openMonthView(page: Page, dateKey: string): Promise<void> {
 	await page.clock.setFixedTime(new Date(`${dateKey}T12:00:00`));
 	await signInToCalendar(page);
