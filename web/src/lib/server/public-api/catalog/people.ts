@@ -68,7 +68,7 @@ const personUpdateObjectSchema = z.strictObject({
   personHint: personHintSchema,
   name: z.string().max(256).describe('The name every screen and every mention shows for them.').optional(),
   isAdmin: z.boolean().describe('Whether they administer the company. Only an administrator may raise or lower this.').optional(),
-  jobTitle: z.string().max(256).describe("Their job title, e.g. '편집장'. An empty string clears it.").optional(),
+  jobTitle: z.string().max(256).describe("Their job title, e.g. 'editor in chief'. An empty string clears it.").optional(),
   teamHint: teamMembershipHintSchema.optional(),
   supervisorHint: supervisorHintSchema.optional(),
   phoneNumber: z.string().max(64).describe('Their phone number as they write it. An empty string clears it.').optional(),
@@ -85,7 +85,7 @@ export const personUpdateInputSchema = personUpdateObjectSchema
 export const personUpdateInputIntentSchema = personUpdateObjectSchema.omit({ personHint: true });
 
 export const personInviteInputSchema = z.strictObject({
-  email: z.string().max(320).describe("The address they sign in with, e.g. '새사람@example.com'. One address belongs to one company."),
+  email: z.string().max(320).describe("The address they sign in with, e.g. 'newcomer@example.com'. One address belongs to one company."),
   name: z.string().min(1).max(256).describe('Their name as colleagues will see it.'),
   jobTitle: z.string().max(256).describe('Their job title, when it is known already.').optional(),
   teamHint: teamMembershipHintSchema.optional(),
@@ -120,7 +120,7 @@ export const teamListResultSchema = z.strictObject({
 });
 
 export const teamAddInputSchema = z.strictObject({
-  name: z.string().min(1).max(256).describe("The organization's name, e.g. '개발팀'."),
+  name: z.string().min(1).max(256).describe("The organization's name, e.g. 'Engineering'."),
   parentHint: parentHintSchema.optional(),
   position: z.number().int().describe('Where it sits among its siblings, counting from 0. Omit to put it last.').optional(),
 });
