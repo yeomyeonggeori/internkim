@@ -116,6 +116,7 @@ async function previewHere(request: Request, member: CallingMember, name: string
 
 	const answered = await previewToolOverTheRecord(
 		member.caller,
+		member.record,
 		member.memberID,
 		name,
 		input,
@@ -138,6 +139,7 @@ async function runHere(
 
 	const answered = await runToolOverTheRecord(
 		member.caller,
+		member.record,
 		member.memberID,
 		name,
 		input,

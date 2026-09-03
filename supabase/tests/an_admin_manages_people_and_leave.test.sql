@@ -133,15 +133,20 @@ end $$;$block$, 'leave days: an administrator stops at its own company');
 
 select lives_ok($block$do $$
 declare
-  saved jsonb;
   granted numeric;
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000002"}', true);
 
-  select public.member_profile_save_own('010-0000-0000', '2026-01-02') into saved;
-  assert saved->>'phoneNumber' = '010-0000-0000', 'a member keeps its own contact details';
-  assert saved->>'hireDate' = '2026-01-02', 'a member keeps its own hire date';
+  perform public.person_set(
+    '44000000-0000-0000-0000-0000000000a2',
+    '{}'::jsonb,
+    '{"phoneNumber": "010-0000-0000", "hireDate": "2026-01-02"}'::jsonb
+  );
+  assert (
+    select phone_number = '010-0000-0000' and joined_at = date '2026-01-02'
+    from public.member where id = '44000000-0000-0000-0000-0000000000a2'
+  ), 'a member keeps its own contact details and hire date';
 
   select leave_days into granted
     from public.member_hr_file('44000000-0000-0000-0000-0000000000a2');

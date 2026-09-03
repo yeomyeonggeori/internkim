@@ -69,13 +69,13 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 async function run(name: string, input: Record<string, unknown> = {}) {
-	const answered = await runToolOverTheRecord(caller, sampleID, name, input, new Date());
+	const answered = await runToolOverTheRecord(caller, client, sampleID, name, input, new Date());
 	if (answered.status === 200) holdToTheContract(name, (answered.body as { result: unknown }).result);
 	return answered;
 }
 
 function previewOf(name: string, input: Record<string, unknown>) {
-	return previewToolOverTheRecord(caller, sampleID, name, input, new Date());
+	return previewToolOverTheRecord(caller, client, sampleID, name, input, new Date());
 }
 
 function holdToTheContract(name: string, result: unknown): void {
@@ -100,7 +100,7 @@ describe('which tools run over the record', () => {
 			.map((tool) => tool.name)
 			.sort();
 
-		expect(answeredByTheRecord).toHaveLength(19);
+		expect(answeredByTheRecord).toHaveLength(25);
 		expect([...toolsTheRecordRuns()].sort()).toEqual(answeredByTheRecord);
 	});
 

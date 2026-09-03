@@ -145,7 +145,7 @@ export class OrganizationDirectoryController {
 		if (!record || !this.isOwnRecord(record)) return;
 		this.isSavingOwnProfile = true;
 		try {
-			const saved = await saveOwnOrganizationProfile(profile);
+			const saved = await saveOwnOrganizationProfile(record.memberID, profile);
 			this.records = this.records.map((candidate) =>
 				candidate.memberID === record.memberID ? { ...candidate, ...saved } : candidate
 			);

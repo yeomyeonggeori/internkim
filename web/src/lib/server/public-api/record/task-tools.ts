@@ -355,18 +355,4 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 	};
 }
 
-function listedPerson(person: RecordPerson) {
-	const mention = mentionOf(person.name);
-	return {
-		personID: person.personID,
-		name: person.name,
-		email: person.email,
-		...(mention ? { mention } : {})
-	};
-}
-
-export function personList(context: RecordContext) {
-	return { count: context.people.length, people: context.people.map(listedPerson) };
-}
-
 export { displayNameOf, personOfHint };

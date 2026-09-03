@@ -5,28 +5,40 @@ import { peopleOfCompany, type RecordPerson } from './people';
 
 export type RecordContext = {
 	caller: SupabaseClient;
+	accountDirectory: SupabaseClient;
 	requesterID: string;
+	companyID: string;
 	people: RecordPerson[];
 	labels: CompanyLabels;
 	leaveKinds: LeaveKind[];
 	now: Date;
 };
 
+type CompanyRow = {
+	id: string;
+	task_vocabulary: unknown;
+	timezone: string | null;
+	rules: unknown;
+};
+
 export async function recordContextOf(
 	caller: SupabaseClient,
+	accountDirectory: SupabaseClient,
 	requesterID: string,
 	now: Date
 ): Promise<RecordContext> {
 	const company = await caller
 		.from('company')
-		.select('task_vocabulary, timezone, rules')
+		.select('id, task_vocabulary, timezone, rules')
 		.limit(1)
-		.single<{ task_vocabulary: unknown; timezone: string | null; rules: unknown }>();
+		.single<CompanyRow>();
 	if (company.error) throw new Error(company.error.message);
 
 	return {
 		caller,
+		accountDirectory,
 		requesterID,
+		companyID: company.data.id,
 		people: await peopleOfCompany(caller),
 		labels: labelsOfVocabulary(company.data.task_vocabulary, company.data.timezone),
 		leaveKinds: leaveKindsOfPolicy(company.data.rules),

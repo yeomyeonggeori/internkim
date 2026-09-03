@@ -16,7 +16,8 @@ select is_empty(
     ('save_teams'), ('save_member_profiles'), ('save_own_member_profile'), ('set_member_leave_days'),
     ('set_my_notification_settings'), ('save_attendance_calendar'),
     ('save_attendance_reconciliation_settings'), ('save_attendance_work_policy'),
-    ('correct_attendance_events'), ('claim_push_device'), ('release_push_device')
+    ('correct_attendance_events'), ('claim_push_device'), ('release_push_device'),
+    ('member_profiles_save'), ('team_save'), ('member_profile_save_own')
   ) as retired(name)
   where n.nspname = 'public'
     and p.prosrc like '%public.' || retired.name || '(%'
@@ -38,7 +39,8 @@ select is_empty(
       'save_teams', 'save_member_profiles', 'save_own_member_profile', 'set_member_leave_days',
       'set_my_notification_settings', 'save_attendance_calendar',
       'save_attendance_reconciliation_settings', 'save_attendance_work_policy',
-      'correct_attendance_events', 'claim_push_device', 'release_push_device'
+      'correct_attendance_events', 'claim_push_device', 'release_push_device',
+      'member_profiles_save', 'team_save', 'member_profile_save_own'
     )
   $$,
   'the retired names are gone'
