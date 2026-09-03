@@ -133,7 +133,6 @@ export type CredentialProvidersResponse = {
 export type WorkspaceSettings = {
 	timeZone: string;
 	language: WorkspaceLanguage;
-	callingCode: string;
 	updatedAt?: string;
 };
 

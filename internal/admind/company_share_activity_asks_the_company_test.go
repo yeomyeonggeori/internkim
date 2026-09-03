@@ -51,9 +51,7 @@ func newCompanyShareCompanyService(t *testing.T) *Service {
 		AttendanceDatabasePath: filepath.Join(temporaryDirectory, "attendance.sqlite"),
 		ClaimedAdminEmailPath:  filepath.Join(temporaryDirectory, "claimed-admin-email"),
 	})
-	if errorValue := service.writeWorkspaceSettingsFile(workspaceSettings{TimeZone: "Asia/Seoul", Language: workspaceLanguageEnglish}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageEnglish)
 	return service
 }
 
@@ -64,3 +62,10 @@ func writeClaimedAdminEmailForTest(t *testing.T, service *Service, email string)
 	}
 }
 
+func holdWorkspaceSettingsForTest(service *Service, timeZone string, language string) {
+	service.workspaceSettingsCache.mutex.Lock()
+	defer service.workspaceSettingsCache.mutex.Unlock()
+	service.workspaceSettingsCache.settings = workspaceSettings{TimeZone: timeZone, Language: language}
+	service.workspaceSettingsCache.readAt = time.Now()
+	service.workspaceSettingsCache.isHeld = true
+}

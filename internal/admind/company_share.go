@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -374,7 +375,7 @@ func (service *Service) publishCompanyShareSnapshot(responseWriter http.Response
 }
 
 func (service *Service) buildCompanyShareSnapshot(ctx context.Context, settings companyShareSettings, now time.Time) (companyShareSnapshot, error) {
-	info, errorValue := service.readCompanyInfo()
+	profilesByLanguage, errorValue := service.companyProfilesByLanguage(ctx, settings.Languages)
 	if errorValue != nil {
 		return companyShareSnapshot{}, errorValue
 	}
@@ -402,7 +403,7 @@ func (service *Service) buildCompanyShareSnapshot(ctx context.Context, settings 
 		Revision:       settings.PublicationRevision + 1,
 		PublishedAt:    now.Format(time.RFC3339),
 		Languages:      append([]string{}, settings.Languages...),
-		Profiles:       buildCompanyShareProfiles(info, settings.ProfileFields, settings.Languages),
+		Profiles:       buildCompanyShareProfiles(profilesByLanguage, settings.ProfileFields, settings.Languages),
 		Metrics:        metrics,
 		PrimaryMetric:  settings.PrimaryMetric,
 		MetricContexts: settings.MetricContexts,
@@ -414,19 +415,20 @@ func (service *Service) buildCompanyShareSnapshot(ctx context.Context, settings 
 	}, nil
 }
 
-func buildCompanyShareProfiles(info companyInfo, fields []string, languages []string) map[string]companyShareProfile {
+func buildCompanyShareProfiles(profilesByLanguage map[string]centralplane.CompanyProfile, fields []string, languages []string) map[string]companyShareProfile {
 	included := stringSet(fields)
 	profiles := map[string]companyShareProfile{}
 	for _, language := range languages {
-		profile := companyShareProfile{Name: resolveAnyLocalized(info.Name, language)}
+		info := profilesByLanguage[language]
+		profile := companyShareProfile{Name: strings.TrimSpace(info.Name)}
 		if included["brandName"] {
-			profile.BrandName = resolveAnyLocalized(info.BrandName, language)
+			profile.BrandName = strings.TrimSpace(info.BrandName)
 		}
 		if included["slogan"] {
-			profile.Slogan = resolveAnyLocalized(info.Slogan, language)
+			profile.Slogan = strings.TrimSpace(info.Slogan)
 		}
 		if included["description"] {
-			profile.Description = resolveAnyLocalized(info.Description, language)
+			profile.Description = strings.TrimSpace(info.Description)
 		}
 		if included["website"] {
 			profile.Website = validCompanyShareWebsite(info.Website)
@@ -438,13 +440,13 @@ func buildCompanyShareProfiles(info companyInfo, fields []string, languages []st
 			profile.EmployeeCount = info.EmployeeCount
 		}
 		if included["jurisdiction"] {
-			profile.Jurisdiction = resolveAnyLocalized(info.Jurisdiction, language)
+			profile.Jurisdiction = strings.TrimSpace(info.Jurisdiction)
 		}
 		if included["representative"] {
-			profile.Representative = resolveAnyLocalized(info.Representative, language)
+			profile.Representative = strings.TrimSpace(info.Representative)
 		}
 		if included["representativeTitle"] {
-			profile.RepresentativeTitle = resolveAnyLocalized(info.RepresentativeTitle, language)
+			profile.RepresentativeTitle = strings.TrimSpace(info.RepresentativeTitle)
 		}
 		if included["capital"] {
 			profile.Capital = strings.TrimSpace(info.Capital)

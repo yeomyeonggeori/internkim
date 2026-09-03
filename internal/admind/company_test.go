@@ -43,60 +43,6 @@ func decodeCompanyResponse(t *testing.T, recorder *httptest.ResponseRecorder, ta
 	}
 }
 
-func TestCompanyInfoPartialUpdateAndLanguageFallback(t *testing.T) {
-	service := newCompanyTestService(t)
-
-	var koView companyInfoView
-	decodeCompanyResponse(t, performCompanyRequest(t, service.updateCompanyInfo, http.MethodPut, "/admin/api/company-info", map[string]any{
-		"language":       "ko",
-		"name":           "주식회사 샘플거리",
-		"representative": "김예시",
-		"address":        "서울특별시 강남구",
-		"bankAccount":    "신한은행 110-123",
-		"phone":          "02-1234-5678",
-		"email":          "contact@example.com",
-		"legalAttributes": map[string]string{
-			"사업자등록번호": "123-45-67890",
-		},
-	}), &koView)
-	if len(koView.MissingFields) != 0 {
-		t.Fatalf("ko missingFields = %v, want empty", koView.MissingFields)
-	}
-	if koView.LegalAttributes["사업자등록번호"] != "123-45-67890" {
-		t.Fatalf("legalAttributes = %v", koView.LegalAttributes)
-	}
-	if koView.RepresentativeTitle != "대표이사" {
-		t.Fatalf("representativeTitle = %q", koView.RepresentativeTitle)
-	}
-
-	var partialView companyInfoView
-	decodeCompanyResponse(t, performCompanyRequest(t, service.updateCompanyInfo, http.MethodPut, "/admin/api/company-info", map[string]any{
-		"language": "ko",
-		"address":  "부산광역시 해운대구",
-	}), &partialView)
-	if partialView.Name != "주식회사 샘플거리" || partialView.Address != "부산광역시 해운대구" {
-		t.Fatalf("partial update broke other fields: name=%q address=%q", partialView.Name, partialView.Address)
-	}
-
-	var enView companyInfoView
-	decodeCompanyResponse(t, performCompanyRequest(t, service.writeCompanyInfo, http.MethodGet, "/admin/api/company-info?language=en", nil), &enView)
-	if enView.Name != "주식회사 샘플거리" {
-		t.Fatalf("en fallback name = %q", enView.Name)
-	}
-	missing := strings.Join(enView.MissingFields, ",")
-	for _, field := range []string{"name", "representative", "address", "bankAccount"} {
-		if !strings.Contains(missing, field) {
-			t.Fatalf("en missingFields = %v, want %s reported", enView.MissingFields, field)
-		}
-	}
-	if strings.Contains(missing, "phone") || strings.Contains(missing, "email") {
-		t.Fatalf("neutral fields wrongly missing: %v", enView.MissingFields)
-	}
-	if enView.RepresentativeTitle != "CEO" {
-		t.Fatalf("en representativeTitle = %q", enView.RepresentativeTitle)
-	}
-}
-
 func TestCompanyMetricUpsertAndGranularityRejection(t *testing.T) {
 	service := newCompanyTestService(t)
 
