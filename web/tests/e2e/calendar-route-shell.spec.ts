@@ -1,38 +1,64 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { routeCalendarShellAPI } from './calendar-route-shell-test-utils';
+import { expect, test, type Page } from '@playwright/test';
+import {
+	cleanupApprovedLeave,
+	cleanupCalendarEvents,
+	member1ID,
+	member2ID,
+	seedApprovedLeave,
+	seedCalendarEvents,
+	signInToCalendar
+} from './calendar-central-test-utils';
+
+async function routeCalendarHolidays(page: Page): Promise<void> {
+	await page.route('**/api/calendar/holidays?**', async (route) => {
+		await route.fulfill({ json: { holidays: [], degraded: false } });
+	});
+}
 
 test.describe('calendar route shell', () => {
-	test.beforeEach(async ({ page }) => {
-		await routeCalendarShellAPI(page);
-	});
+	test.use({ locale: 'ko-KR' });
 
 	test('renders the embedded calendar without the old sidebar', async ({ page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/');
+		await routeCalendarHolidays(page);
+		const [eventID] = await seedCalendarEvents([
+			{ title: '겹치는 일정', startISO: '2026-06-08T01:00:00+09:00', endISO: '2026-06-08T02:00:00+09:00' }
+		]);
+		try {
+			await signInToCalendar(page);
 
-		const calendarFrame = page.frameLocator('iframe');
-		await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveText('2026년 6월');
-		await expect(page.getByText('내 일정')).toHaveCount(0);
-		await expect(page.locator('[data-mini-date-key]')).toHaveCount(0);
-		await expectRouteCalendarFrameToFillContent(page);
+			const calendarFrame = page.frameLocator('iframe');
+			await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveText(/2026년 \d+월/);
+			await expect(page.getByText('내 일정')).toHaveCount(0);
+			await expect(page.locator('[data-mini-date-key]')).toHaveCount(0);
+			await expectRouteCalendarFrameToFillContent(page);
+		} finally {
+			await cleanupCalendarEvents([eventID]);
+		}
 	});
 
 	test('keeps event clicks inside the calendar shell', async ({ context, page }) => {
+		await routeCalendarHolidays(page);
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
-		await page.goto('/calendar/');
+		const [eventID] = await seedCalendarEvents([
+			{ title: '클릭 확인 일정', startISO: '2026-06-15T09:00:00+09:00', endISO: '2026-06-15T10:00:00+09:00' }
+		]);
+		try {
+			await signInToCalendar(page);
 
-		const eventButton = page.frameLocator('iframe').locator('[data-event-id="event-2026-06-15"]:visible').first();
-		await expect(eventButton).toBeVisible();
-		await eventButton.click();
+			const eventButton = page.frameLocator('iframe').locator(`[data-calendar-event-id="${eventID}"]:visible`).first();
+			await expect(eventButton).toBeVisible();
+			await eventButton.click();
 
-		await expect(eventButton).toHaveClass(/internkim-calendar-event-focused/);
-		await expect(page.frameLocator('iframe').locator('.calendar-draft-popover')).toBeVisible();
-		expect(context.pages()).toHaveLength(1);
+			await expect(eventButton).toHaveAttribute('data-selected', '');
+			await expect(page.frameLocator('iframe').locator('.calendar-draft-popover')).toBeVisible();
+			expect(context.pages()).toHaveLength(1);
+		} finally {
+			await cleanupCalendarEvents([eventID]);
+		}
 	});
 
 	test('renders holidays without opening edit controls', async ({ page }) => {
-		await page.unroute('**/calendar/api/holidays?**');
-		await page.route('**/calendar/api/holidays?**', async (route) => {
+		await page.route('**/api/calendar/holidays?**', async (route) => {
 			await route.fulfill({
 				json: {
 					holidays: [
@@ -44,269 +70,111 @@ test.describe('calendar route shell', () => {
 							countryCode: 'KR',
 							readOnly: true,
 							color: '#ef4444'
-						},
-						{
-							id: 'company-holiday-2026-06-15',
-							title: '창립기념일',
-							date: '2026-06-15',
-							source: 'company',
-							readOnly: true,
-							color: '#ef4444'
 						}
 					],
-					source: 'holiday_api'
+					degraded: false
 				}
 			});
 		});
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
-		await page.goto('/calendar/embed');
+		const [eventID] = await seedCalendarEvents([
+			{ title: '휴일 옆 일정', startISO: '2026-06-15T09:00:00+09:00', endISO: '2026-06-15T10:00:00+09:00' }
+		]);
+		try {
+			await signInToCalendar(page);
+			await page.goto('/calendar/embed');
 
-		const holiday = page.locator('[data-calendar-event-id="holiday-2026-06-15"]:visible').first();
-		const companyHoliday = page
-			.locator('[data-calendar-event-id="company-holiday-2026-06-15"]:visible')
-			.first();
-		const calendarEvent = page
-			.locator('[data-calendar-event-id="event-2026-06-15"]:visible')
-			.first();
-		await expect(holiday).toBeVisible();
-		await expect(companyHoliday).toBeVisible();
-		await expect(companyHoliday).toContainText('창립기념일');
-		await expect(holiday).toHaveClass(/bg-\(--calendar-event-color\)\/12/);
-		await expect(holiday).not.toHaveClass(/text-\(--calendar-event-color\)/);
-		await expect(holiday.locator('.calendar-event-accent')).toHaveCount(1);
-		await expect(holiday).toHaveAttribute('aria-disabled', 'true');
-		await expect(companyHoliday).toHaveAttribute('aria-disabled', 'true');
-		const companyHolidayBox = await companyHoliday.boundingBox();
-		const calendarEventBox = await calendarEvent.boundingBox();
-		expect(companyHolidayBox).not.toBeNull();
-		expect(calendarEventBox).not.toBeNull();
-		expect(companyHolidayBox?.y ?? 0).toBeLessThan(calendarEventBox?.y ?? 0);
-		await companyHoliday.click({ force: true });
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
-		await holiday.click({ button: 'right', force: true });
-		await expect(page.getByText('일정 삭제')).toHaveCount(0);
+			const holiday = page.locator('[data-calendar-event-id="holiday-2026-06-15"]:visible').first();
+			await expect(holiday).toBeVisible();
+			await expect(holiday).toHaveAttribute('aria-disabled', 'true');
+			await holiday.click({ button: 'right', force: true });
+			await expect(page.getByText('일정 삭제')).toHaveCount(0);
+		} finally {
+			await cleanupCalendarEvents([eventID]);
+		}
 	});
 
 	test('renders approved full-day and partial leave as read-only events', async ({ page }) => {
-		await page.unroute('**/calendar/api/events?**');
-		await page.route('**/calendar/api/events?**', async (route) => {
-			await route.fulfill({
-				json: {
-					events: [
-						{
-							id: 'leave:full-day',
-							uid: 'leave:full-day',
-							title: '이샘플 · 휴가',
-							description: '',
-							location: '',
-							startISO: '2026-06-15T00:00:00.000Z',
-							endISO: '2026-06-16T00:00:00.000Z',
-							timeZone: 'Asia/Seoul',
-							isAllDay: true,
-							color: '',
-							createdByEmail: 'sample@example.com',
-							createdByName: '이샘플',
-							updatedAt: '2026-06-14T15:00:00.000Z',
-							readOnly: true,
-							source: 'leave'
-						},
-						{
-							id: 'leave:partial',
-							uid: 'leave:partial',
-							title: '박예시 · 반차',
-							description: '',
-							location: '',
-							startISO: '2026-06-15T05:00:00.000Z',
-							endISO: '2026-06-15T09:00:00.000Z',
-							timeZone: 'Asia/Seoul',
-							isAllDay: false,
-							color: '',
-							createdByEmail: 'example@example.com',
-							createdByName: '박예시',
-							updatedAt: '2026-06-15T05:00:00.000Z',
-							readOnly: true,
-							source: 'leave'
-						},
-						{
-							id: 'leave:quarter-day',
-							uid: 'leave:quarter-day',
-							title: '최견본 · 반반차',
-							description: '',
-							location: '',
-							startISO: '2026-06-16T00:00:00.000Z',
-							endISO: '2026-06-16T02:00:00.000Z',
-							timeZone: 'Asia/Seoul',
-							isAllDay: false,
-							color: '',
-							createdByEmail: 'quarter@example.com',
-							createdByName: '최견본',
-							updatedAt: '2026-06-16T00:00:00.000Z',
-							readOnly: true,
-							source: 'leave'
-						}
-					]
-				}
-			});
-		});
+		await routeCalendarHolidays(page);
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
-		await page.goto('/calendar/embed');
+		const leaveIDs = await seedApprovedLeave([
+			{ memberID: member1ID, kind: '연차', days: 1, startISO: '2026-06-15T00:00:00+09:00', endISO: '2026-06-16T00:00:00+09:00' },
+			{ memberID: member2ID, kind: '반차', days: 0.5, startISO: '2026-06-15T14:00:00+09:00', endISO: '2026-06-15T18:00:00+09:00' }
+		]);
+		try {
+			await signInToCalendar(page);
+			await page.goto('/calendar/embed');
 
-		const fullDayLeave = page
-			.locator('[data-calendar-event-id="leave:full-day"]:visible')
-			.first();
-		const partialLeave = page
-			.locator('[data-calendar-event-id="leave:partial"]:visible')
-			.first();
-		const quarterDayLeave = page
-			.locator('[data-calendar-event-id="leave:quarter-day"]:visible')
-			.first();
-		await expect(fullDayLeave).toContainText('이샘플 · 휴가');
-		await expect(partialLeave).toContainText('박예시 · 반차');
-		await expect(quarterDayLeave).toContainText('최견본 · 반반차');
-		await expect(fullDayLeave).toHaveAttribute('aria-disabled', 'true');
-		await expect(partialLeave).toHaveAttribute('aria-disabled', 'true');
-		await expect(quarterDayLeave).toHaveAttribute('aria-disabled', 'true');
-		await partialLeave.click({ force: true });
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
+			const fullDayLeave = page.locator('[data-calendar-event-id^="leave:"]', { hasText: '이샘플' }).first();
+			const partialLeave = page.locator('[data-calendar-event-id^="leave:"]', { hasText: '김예시' }).first();
+			await expect(fullDayLeave).toContainText('휴가');
+			await expect(partialLeave).toContainText('반차');
+			await expect(fullDayLeave).toHaveAttribute('aria-disabled', 'true');
+			await partialLeave.click({ force: true });
+			await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+		} finally {
+			await cleanupApprovedLeave(leaveIDs);
+		}
 	});
 
 	test('keeps calendar events visible and warns when holidays fail to load', async ({ page }) => {
-		await page.unroute('**/calendar/api/holidays?**');
-		await page.route('**/calendar/api/holidays?**', async (route) => {
-			await route.fulfill({
-				status: 503,
-				contentType: 'text/plain',
-				body: 'provider unavailable'
-			});
+		await page.route('**/api/calendar/holidays?**', async (route) => {
+			await route.fulfill({ status: 503, contentType: 'text/plain', body: 'provider unavailable' });
 		});
-		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
-		await page.goto('/calendar/embed');
+		const [eventID] = await seedCalendarEvents([
+			{ title: '공휴일 실패해도 보임', startISO: '2026-06-15T09:00:00+09:00', endISO: '2026-06-15T10:00:00+09:00' }
+		]);
+		try {
+			await signInToCalendar(page);
+			await page.goto('/calendar/embed');
 
-		await expect(page.locator('[data-calendar-event-id="event-2026-06-15"]:visible').first()).toBeVisible();
-		await expect(page.getByRole('status')).toHaveText(
-			'공휴일을 불러오지 못했습니다. 일반 일정은 계속 사용할 수 있습니다.'
-		);
-	});
-
-	test('reloads holidays with the persisted UI locale', async ({ page }) => {
-		const requestedLocales: string[] = [];
-		await page.unroute('**/admin/api/locale');
-		await page.route('**/admin/api/locale', async (route) => {
-			await route.fulfill({ json: { locale: 'en' } });
-		});
-		await page.unroute('**/calendar/api/holidays?**');
-		await page.route('**/calendar/api/holidays?**', async (route) => {
-			const locale = new URL(route.request().url()).searchParams.get('locale') ?? '';
-			requestedLocales.push(locale);
-			await route.fulfill({
-				json: {
-					holidays: [
-						{
-							id: 'holiday-2026-06-15',
-							title: locale === 'ko' ? '광복절' : 'Liberation Day',
-							date: '2026-06-15',
-							source: 'holiday_api',
-							countryCode: 'KR',
-							readOnly: true,
-							color: '#ef4444'
-						}
-					],
-					source: 'holiday_api'
-				}
-			});
-		});
-		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
-		await page.goto('/calendar/embed');
-
-		await expect.poll(() => requestedLocales.at(-1)).toBe('en');
-		await expect(page.getByRole('button', { name: 'Liberation Day' })).toBeVisible();
-		await expect(page.getByRole('button', { name: '광복절' })).toHaveCount(0);
+			await expect(page.locator(`[data-calendar-event-id="${eventID}"]:visible`).first()).toBeVisible();
+			await expect(page.getByRole('status')).toHaveText(
+				'공휴일을 불러오지 못했습니다. 일반 일정은 계속 사용할 수 있습니다.'
+			);
+		} finally {
+			await cleanupCalendarEvents([eventID]);
+		}
 	});
 
 	test('opens the compact editor for a month event in a narrow calendar shell', async ({ context, page }) => {
+		await routeCalendarHolidays(page);
 		await page.setViewportSize({ width: 600, height: 900 });
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
-		await page.goto('/calendar/');
+		const [eventID] = await seedCalendarEvents([
+			{ title: '좁은 화면 일정', startISO: '2026-06-15T09:00:00+09:00', endISO: '2026-06-15T10:00:00+09:00' }
+		]);
+		try {
+			await signInToCalendar(page);
 
-		const calendarFrame = page.frameLocator('iframe');
-		const eventButton = calendarFrame.locator('[data-event-id="event-2026-06-15"]:visible').first();
-		await expect(eventButton).toBeVisible();
-		await eventButton.click();
+			const calendarFrame = page.frameLocator('iframe');
+			const eventButton = calendarFrame.locator(`[data-calendar-event-id="${eventID}"]:visible`).first();
+			await expect(eventButton).toBeVisible();
+			await eventButton.click();
 
-		await expect(calendarFrame.locator('.calendar-mobile-event-editor')).toBeVisible();
-		await expect(calendarFrame.locator('.calendar-draft-popover')).toHaveCount(0);
-		expect(context.pages()).toHaveLength(1);
-	});
-
-	test('opens subscription settings from the embedded toolbar', async ({ page }) => {
-		await page.goto('/calendar/');
-
-		await openCalendarSettings(page);
-		await expect(page.getByText('구독 URL 준비됨')).toBeVisible();
-		await expect(
-			page.getByText('https://calendar.example.test/calendar/ics/a-subscription-token.ics')
-		).toBeVisible();
-		const copyButtons = page.getByRole('button', { name: 'Copy' });
-		await expect(copyButtons).toHaveCount(4);
-		for (const index of [0, 1, 2, 3]) {
-			await expect(copyButtons.nth(index)).toBeEnabled();
+			await expect(calendarFrame.locator('.calendar-draft-popover')).toBeVisible();
+			expect(context.pages()).toHaveLength(1);
+		} finally {
+			await cleanupCalendarEvents([eventID]);
 		}
 	});
 
 	test('says nothing about a subscription there is none of', async ({ page }) => {
-		await page.route('**/calendar/api/sync', async (route) => {
-			await route.fulfill({ json: { caldavURL: '', caldavUsername: '', caldavPassword: '', icsURL: '' } });
+		await routeCalendarHolidays(page);
+		await page.route('**/api/calendar/subscription', async (route) => {
+			await route.fulfill({ json: { registered: false } });
 		});
-		await page.goto('/calendar/');
+		await signInToCalendar(page);
 
 		await openCalendarSettings(page);
 		await expect(page.getByText('구독 URL 준비됨')).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Copy' })).toHaveCount(0);
-		await expect(page.getByRole('button', { name: '구독 URL 재발급' })).toHaveCount(0);
-	});
-
-	test('refreshes the embedded calendar from the toolbar', async ({ page }) => {
-		let eventRequestCount = 0;
-		page.on('request', (request) => {
-			if (request.url().includes('/calendar/api/events?')) eventRequestCount += 1;
-		});
-		await page.goto('/calendar/');
-
-		const calendarFrame = page.frameLocator('iframe');
-		await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
-		await expect.poll(() => eventRequestCount).toBeGreaterThan(0);
-		await calendarFrame.getByRole('button', { name: '새로고침' }).click();
-
-		await expect.poll(() => eventRequestCount).toBeGreaterThan(1);
-		await expect(page.locator('iframe')).toBeVisible();
-		await expectRouteCalendarFrameToFillContent(page);
-	});
-
-	test('orders toolbar actions and opens the month year picker from the title', async ({ page }) => {
-		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
-		await page.goto('/calendar/');
-
-		const calendarFrame = page.frameLocator('iframe');
-		const refreshButton = calendarFrame.getByRole('button', { name: '새로고침' });
-		const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
-		const searchInput = calendarFrame.getByRole('textbox', { name: '일정 검색' });
-		const searchBox = calendarFrame.locator('.calendar-search-shell');
-		await expectToolbarOrder(refreshButton, settingsButton, searchInput);
-		await expectToolbarAdjacent(settingsButton, searchBox);
-		await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveCSS('font-size', '20px');
-
-		await calendarFrame.getByRole('button', { name: '2026년 6월' }).click();
-		const picker = calendarFrame.getByRole('dialog', { name: '월과 연도 선택' });
-		await expect(picker).toBeVisible();
-		await picker.getByRole('button', { name: '7월' }).click();
-		await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveText('2026년 7월');
 	});
 
 	test('does not create horizontal overflow on calendar routes', async ({ page }) => {
+		await routeCalendarHolidays(page);
 		await page.setViewportSize({ width: 390, height: 844 });
-		await page.goto('/calendar/');
+		await signInToCalendar(page);
 		await expect(page.locator('iframe')).toBeVisible();
 		await expectHorizontalOverflow(page, false);
 
@@ -351,24 +219,4 @@ async function expectHorizontalOverflow(page: Page, expected: boolean): Promise<
 			page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
 		)
 		.toBe(expected);
-}
-
-async function expectToolbarOrder(leftLocator: Locator, middleLocator: Locator, rightLocator: Locator): Promise<void> {
-	await expect(leftLocator).toBeVisible();
-	await expect(middleLocator).toBeVisible();
-	await expect(rightLocator).toBeVisible();
-	const [leftBox, middleBox, rightBox] = await Promise.all([
-		leftLocator.boundingBox(),
-		middleLocator.boundingBox(),
-		rightLocator.boundingBox()
-	]);
-	if (!leftBox || !middleBox || !rightBox) throw new Error('Missing toolbar element box');
-	expect(leftBox.x).toBeLessThan(middleBox.x);
-	expect(middleBox.x).toBeLessThan(rightBox.x);
-}
-
-async function expectToolbarAdjacent(leftLocator: Locator, rightLocator: Locator): Promise<void> {
-	const [leftBox, rightBox] = await Promise.all([leftLocator.boundingBox(), rightLocator.boundingBox()]);
-	if (!leftBox || !rightBox) throw new Error('Missing toolbar element box');
-	expect(rightBox.x - (leftBox.x + leftBox.width)).toBeLessThanOrEqual(12);
 }

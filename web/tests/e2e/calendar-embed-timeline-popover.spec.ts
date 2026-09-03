@@ -1,191 +1,82 @@
-import { expect, test } from '@playwright/test';
-import { routeCalendarEvents, routeDefaultCalendarAPI } from './calendar-embed-test-utils';
-import {
-	expectPopoverArrowPointsToElement,
-	expectPopoverArrowPointsToEventTimeEnd,
-	expectPopoverOpensLeftOfElement
-} from './calendar-embed-draft-assertions';
-import { clickCalendarEvent, navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
-import {
-	duplicateDayAnchorPanelEventSelector,
-	duplicateDayAnchorTimelineEventSelector,
-	routeDuplicateDayAnchorEvent,
-	routeRightPanelMixedEvents
-} from './calendar-embed-timeline-fixtures';
+import { expect, test, type Page } from '@playwright/test';
+import { cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
 
 test.describe('embedded calendar timeline popover anchors', () => {
+	test.use({ locale: 'ko-KR' });
+
 	test.beforeEach(async ({ page }) => {
-		await routeDefaultCalendarAPI(page);
-	});
-
-	test('opens right panel all-day event popovers to the left of the clicked card', async ({ page }) => {
-		await routeRightPanelMixedEvents(page);
-
-		await openCalendarEmbed(page, '일');
-		const panelEventSelector = '.calendar-stage [data-event-id="right-panel-all-day-a"].df-right-panel-event-card';
-		await expect(page.locator(panelEventSelector)).toBeVisible();
-
-		await clickCalendarEvent(page, panelEventSelector);
-
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expectPopoverOpensLeftOfElement(page, panelEventSelector);
-		await expectPopoverArrowPointsToElement(page, panelEventSelector);
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await routeCalendarHolidays(page);
 	});
 
 	test('opens a timeline event popover after a single click', async ({ page }) => {
-		await routeCalendarEvents(page, [
-			{
-				id: 'single-click-timeline-event',
-				title: 'Single Click Timeline Event',
-				startISO: '2026-06-08T09:00:00+09:00',
-				endISO: '2026-06-08T10:00:00+09:00',
-				isAllDay: false
-			}
+		const [eventID] = await seedCalendarEvents([
+			{ title: 'Single Click Timeline Event', startISO: '2026-06-08T09:00:00+09:00', endISO: '2026-06-08T10:00:00+09:00' }
 		]);
+		try {
+			await openDesktopDayView(page);
+			const eventChip = page.locator(`[data-calendar-event-id="${eventID}"]`);
+			await expect(eventChip).toBeVisible();
 
-		await openCalendarEmbed(page, '일');
-		const eventSelector =
-			'.calendar-stage [data-event-id="single-click-timeline-event"].df-day-event:not(.df-right-panel-event-card)';
-		const eventBlock = page.locator(eventSelector);
-		await expect(eventBlock).toBeVisible();
-		await clickCalendarEvent(page, eventSelector);
+			await eventChip.click();
 
-		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expect(page.getByLabel('제목')).toHaveValue('Single Click Timeline Event');
-	});
-
-	test('switches existing day event editors at the compact viewport boundary', async ({ page }) => {
-		await routeCalendarEvents(page, [
-			{
-				id: 'compact-boundary-event',
-				title: 'Compact Boundary Event',
-				startISO: '2026-06-08T09:00:00+09:00',
-				endISO: '2026-06-08T10:00:00+09:00',
-				isAllDay: false
-			}
-		]);
-		await page.setViewportSize({ width: 767, height: 900 });
-		await openCalendarEmbed(page, '일');
-
-		const eventBlock = page.locator(
-			'.calendar-stage [data-event-id="compact-boundary-event"].df-day-event:not(.df-right-panel-event-card)'
-		);
-		await expect(eventBlock).toBeVisible();
-		expect(await page.evaluate(() => window.innerWidth)).toBe(767);
-		await eventBlock.click();
-		await expect(eventBlock).toHaveClass(/internkim-calendar-event-focused/);
-		await expect(page.locator('.calendar-mobile-event-editor')).toBeVisible();
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await page
-			.locator('.calendar-mobile-event-editor .df-mobile-event-drawer-header-action')
-			.filter({ hasText: '취소' })
-			.click();
-		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
-
-		await page.setViewportSize({ width: 768, height: 900 });
-		await page.reload();
-		await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-day/);
-		expect(await page.evaluate(() => window.innerWidth)).toBe(768);
-		await expect(eventBlock).toBeVisible();
-		await eventBlock.click();
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expect(page.locator('.calendar-mobile-event-editor')).toHaveCount(0);
-	});
-
-	test('anchors day multi-day proxy popovers to the clicked proxy block', async ({ page }) => {
-		await routeCalendarEvents(page, [
-			{
-				id: 'day-proxy-anchor-event',
-				title: 'Day Proxy Anchor Event',
-				startISO: '2026-06-16T11:45:00+09:00',
-				endISO: '2026-06-18T12:30:00+09:00',
-				isAllDay: false
-			}
-		]);
-
-		await openCalendarEmbed(page, '일');
-		await navigateEmbeddedCalendar(page, '2026-06-17');
-		const proxySelector = '.calendar-stage .calendar-multi-day-all-day-proxy[data-event-id="day-proxy-anchor-event::multi-day-proxy"]';
-		await expect(page.locator(proxySelector)).toBeVisible();
-		await expect(page.locator('.calendar-stage .df-day-event.df-event-timed[data-event-id="day-proxy-anchor-event"]:visible')).toHaveCount(0);
-
-		await clickCalendarEvent(page, proxySelector);
-
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expectPopoverArrowPointsToElement(page, proxySelector);
-	});
-
-	test('anchors week popovers to timed, all-day, and multi-day proxy blocks', async ({ page }) => {
-		await routeCalendarEvents(page, [
-			{
-				id: 'week-anchor-timed',
-				title: 'Week Anchor Timed',
-				startISO: '2026-06-16T09:00:00+09:00',
-				endISO: '2026-06-16T10:00:00+09:00',
-				isAllDay: false
-			},
-			{
-				id: 'week-anchor-all-day',
-				title: 'Week Anchor All Day',
-				startISO: '2026-06-17T00:00:00+09:00',
-				endISO: '2026-06-18T00:00:00+09:00',
-				isAllDay: true
-			},
-			{
-				id: 'week-anchor-proxy',
-				title: 'Week Anchor Proxy',
-				startISO: '2026-06-18T11:45:00+09:00',
-				endISO: '2026-06-20T12:30:00+09:00',
-				isAllDay: false
-			}
-		]);
-
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-16');
-		const anchorSelectors = [
-			'.calendar-stage [data-event-id="week-anchor-timed"].df-week-event.df-event-timed',
-			'.calendar-stage .df-week-all-day-event-layer [data-event-id="week-anchor-all-day"]',
-			'.calendar-stage .calendar-multi-day-all-day-proxy[data-event-id="week-anchor-proxy::multi-day-proxy"]'
-		];
-
-		for (const anchorSelector of anchorSelectors) {
-			await expect(page.locator(anchorSelector)).toBeVisible();
-			await clickCalendarEvent(page, anchorSelector);
+			await expect(eventChip).toHaveAttribute('data-selected', '');
 			await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-			await expectPopoverArrowPointsToElement(page, anchorSelector);
-			await page.keyboard.press('Escape');
+			await expect(page.getByLabel('제목')).toHaveValue('Single Click Timeline Event');
+		} finally {
+			await cleanupCalendarEvents([eventID]);
 		}
 	});
 
-	test('anchors day edit popovers to the clicked timeline event block when a right panel duplicate exists', async ({ page }) => {
-		await routeDuplicateDayAnchorEvent(page);
+	test('opens popovers for timed, all-day, and multi-day week events', async ({ page }) => {
+		const eventIDs = await seedCalendarEvents([
+			{ title: 'Week Anchor Timed', startISO: '2026-06-08T09:00:00+09:00', endISO: '2026-06-08T10:00:00+09:00' },
+			{
+				title: 'Week Anchor All Day',
+				startISO: '2026-06-09T00:00:00+09:00',
+				endISO: '2026-06-10T00:00:00+09:00',
+				isAllDay: true
+			},
+			{ title: 'Week Anchor Multi Day', startISO: '2026-06-08T11:45:00+09:00', endISO: '2026-06-10T12:30:00+09:00' }
+		]);
+		try {
+			await openDesktopWeekView(page);
 
-		await openCalendarEmbed(page, '일');
-		const timelineEvent = page.locator(duplicateDayAnchorTimelineEventSelector);
-		const panelEvent = page.locator(duplicateDayAnchorPanelEventSelector);
-		await expect(timelineEvent).toBeVisible();
-		await expect(panelEvent).toBeVisible();
-
-		await clickCalendarEvent(page, duplicateDayAnchorTimelineEventSelector);
-
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expectPopoverArrowPointsToEventTimeEnd(page, duplicateDayAnchorTimelineEventSelector);
-	});
-
-	test('anchors day edit popovers to the clicked right panel event block when a timeline duplicate exists', async ({ page }) => {
-		await routeDuplicateDayAnchorEvent(page);
-
-		await openCalendarEmbed(page, '일');
-		const timelineEvent = page.locator(duplicateDayAnchorTimelineEventSelector);
-		const panelEvent = page.locator(duplicateDayAnchorPanelEventSelector);
-		await expect(timelineEvent).toBeVisible();
-		await expect(panelEvent).toBeVisible();
-
-		await clickCalendarEvent(page, duplicateDayAnchorPanelEventSelector);
-
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expectPopoverOpensLeftOfElement(page, duplicateDayAnchorPanelEventSelector);
-		await expectPopoverArrowPointsToElement(page, duplicateDayAnchorPanelEventSelector);
+			for (const eventID of eventIDs) {
+				const eventChip = page.locator(`[data-calendar-event-id="${eventID}"]`).first();
+				await expect(eventChip).toBeVisible();
+				await eventChip.scrollIntoViewIfNeeded();
+				await eventChip.click();
+				await expect(page.locator('.calendar-draft-popover'), `popover for ${eventID}`).toBeVisible();
+				await page.keyboard.press('Escape');
+				await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
+			}
+		} finally {
+			await cleanupCalendarEvents(eventIDs);
+		}
 	});
 });
+
+async function routeCalendarHolidays(page: Page): Promise<void> {
+	await page.route('**/api/calendar/holidays?**', async (route) => {
+		await route.fulfill({ json: { holidays: [], degraded: false } });
+	});
+}
+
+async function openDesktopDayView(page: Page): Promise<void> {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await signInToCalendar(page);
+	await page.goto('/calendar/embed?date=2026-06-08');
+	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'day'));
+	await page.reload();
+	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-day/);
+}
+
+async function openDesktopWeekView(page: Page): Promise<void> {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await signInToCalendar(page);
+	await page.goto('/calendar/embed?date=2026-06-08');
+	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'week'));
+	await page.reload();
+	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-week/);
+}

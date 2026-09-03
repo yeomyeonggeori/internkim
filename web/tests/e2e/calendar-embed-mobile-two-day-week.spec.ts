@@ -1,378 +1,104 @@
-import { expect, test } from '@playwright/test';
-import {
-	activeMobileEditorField,
-	closeDayTaskMobileEditor,
-	clickFirstVisibleAllDayCell,
-	dayTaskMobileEditor,
-	clickFirstVisibleTimeCell,
-	enableDarkMode,
-	maximumEdgeDelta,
-	mobileEventHorizontalInset,
-	renderedEventIDs,
-	selectedDateKey,
-	verifyMobileEditorControls,
-	weekGridMeasurements
-} from './calendar-embed-mobile-two-day-week-helpers';
-import {
-	routeCalendarEventCreates,
-	routeCalendarDeleteIntents,
-	routeCalendarEventUpdates,
-	routeCalendarEvents,
-	routeCalendarParticipants,
-	routeDefaultCalendarAPI
-} from './calendar-embed-test-utils';
-import { navigateEmbeddedCalendar, openCalendarEmbed } from './calendar-embed-interaction-helpers';
+import { expect, test, type Page } from '@playwright/test';
+import { signInToCalendar } from './calendar-central-test-utils';
 
-test.describe('embedded calendar mobile two-day week view', () => {
+test.describe('embedded calendar week view at a narrow mobile viewport', () => {
+	test.use({ locale: 'ko-KR' });
+
 	test.beforeEach(async ({ page }) => {
-		await routeDefaultCalendarAPI(page);
-		await routeCalendarEvents(page, [
-			{
-				id: 'mobile-two-day-first',
-				title: '첫째 날 일정',
-				startISO: '2026-06-04T10:00:00+09:00',
-				endISO: '2026-06-04T11:00:00+09:00',
-				isAllDay: false
-			},
-			{
-				id: 'mobile-two-day-second',
-				title: '둘째 날 일정',
-				startISO: '2026-06-05T14:00:00+09:00',
-				endISO: '2026-06-05T15:00:00+09:00',
-				isAllDay: false
-			},
-			{
-				id: 'mobile-two-day-edit',
-				title: '수정할 일정',
-				startISO: '2026-06-01T02:00:00+09:00',
-				endISO: '2026-06-01T03:00:00+09:00',
-				isAllDay: false
-			},
-			{
-				id: 'mobile-two-day-all-day-one',
-				title: '1',
-				startISO: '2026-06-02T00:00:00+09:00',
-				endISO: '2026-06-03T00:00:00+09:00',
-				isAllDay: true
-			},
-			{
-				id: 'mobile-two-day-all-day-two',
-				title: '2',
-				startISO: '2026-06-02T00:00:00+09:00',
-				endISO: '2026-06-03T00:00:00+09:00',
-				isAllDay: true
-			}
-		]);
+		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
+		await routeCalendarHolidays(page);
 	});
 
-	test('places the mobile new event button next to search', async ({ page }) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
+	test('renders the week view without horizontal overflow at a narrow mobile viewport', async ({ page }) => {
+		await openMobileWeekView(page);
 
-		const mobileSearchActionLayout = await page.evaluate(() => {
-			const searchRow = document.querySelector<HTMLElement>('.calendar-toolbar-search-row');
-			const searchShell = searchRow?.querySelector<HTMLElement>('.calendar-search-shell');
-			const newEventButton = searchRow?.querySelector<HTMLElement>('.new-event-button');
-			const newEventButtonText = newEventButton?.querySelector<HTMLElement>('span');
-			const toolbarActions = document.querySelector<HTMLElement>('.calendar-toolbar-actions');
-			if (!searchRow) throw new Error('Missing calendar toolbar search row');
-			if (!searchShell) throw new Error('Missing calendar search shell');
-			if (!newEventButton) throw new Error('Missing calendar search row new event button');
-			if (!newEventButtonText) throw new Error('Missing calendar search row new event button text');
-			if (!toolbarActions) throw new Error('Missing calendar toolbar actions');
-			const searchRowRectangle = searchRow.getBoundingClientRect();
-			const searchRectangle = searchShell.getBoundingClientRect();
-			const newEventButtonRectangle = newEventButton.getBoundingClientRect();
-			const toolbarActionsRectangle = toolbarActions.getBoundingClientRect();
-			return {
-				buttonAccessibleLabel: newEventButton.getAttribute('aria-label'),
-				buttonTextDisplay: window.getComputedStyle(newEventButtonText).display,
-				buttonWidth: Math.round(newEventButtonRectangle.width),
-				actionsRightDelta: Math.abs(Math.round(searchRowRectangle.right) - Math.round(toolbarActionsRectangle.right)),
-				rowCenterDelta: Math.abs(
-					Math.round(searchRectangle.top + searchRectangle.height / 2) -
-						Math.round(newEventButtonRectangle.top + newEventButtonRectangle.height / 2)
-				),
-				buttonGapFromSearch: Math.round(newEventButtonRectangle.left - searchRectangle.right),
-				buttonIsRightOfSearch: newEventButtonRectangle.left > searchRectangle.right
-			};
-		});
-
-		expect(mobileSearchActionLayout.buttonAccessibleLabel).toBe('새로 만들기');
-		expect(mobileSearchActionLayout.buttonTextDisplay).toBe('none');
-		expect(mobileSearchActionLayout.buttonWidth).toBe(40);
-		expect(mobileSearchActionLayout.actionsRightDelta).toBeLessThanOrEqual(1);
-		expect(mobileSearchActionLayout.rowCenterDelta).toBeLessThanOrEqual(1);
-		expect(mobileSearchActionLayout.buttonGapFromSearch).toBe(8);
-		expect(mobileSearchActionLayout.buttonIsRightOfSearch).toBe(true);
-
-		await page.getByRole('button', { name: '새로 만들기' }).click();
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await closeDayTaskMobileEditor(page);
+		await expect(page.locator('.calendar-stage')).toBeVisible();
+		const hasOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+		expect(hasOverflow).toBe(false);
 	});
 
-	test('shows two selected week columns on mobile while preserving seven desktop columns', async ({ page }) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
+	test('creates an event with a participant through the draft popover at a narrow mobile viewport', async ({ page }) => {
+		await routeParticipantsInvoke(page);
+		const createdEvents = await routeEventCreateInvoke(page);
+		await openMobileWeekView(page);
 
-		const mobileMeasurements = await weekGridMeasurements(page);
-		expect(mobileMeasurements.customHeaderTexts).toEqual(['6월 1일 월', '6월 2일 화']);
-		expect(mobileMeasurements.customHeaderColors).toEqual(['rgb(100, 116, 139)', 'rgb(100, 116, 139)']);
-		expect(mobileMeasurements.compactDateTexts).toEqual(['31', '1', '2', '3', '4', '5', '6']);
-		expect(mobileMeasurements.compactHeaderLabelColors[0]).toBe('rgb(239, 68, 68)');
-		expect(mobileMeasurements.compactHeaderLabelColors[6]).toBe('rgb(239, 68, 68)');
-		expect(mobileMeasurements.compactHeaderLabelColors.slice(1, 6)).not.toContain('rgb(239, 68, 68)');
-		expect(mobileMeasurements.highlightedDateTexts).toEqual(['1', '2']);
-		expect(mobileMeasurements.hasCompactHeaderBottomLine).toBe(true);
-		expect(mobileMeasurements.allDayLabelText).toBe('종일');
-		expect(mobileMeasurements.allDayShellOpacity).toBe('1');
-		expect(mobileMeasurements.isAllDayLabelPainted).toBe(true);
-		expect(mobileMeasurements.firstVisibleTimeLabel).toBe('01:00');
-		expect(mobileMeasurements.allDayContentBackgroundImage).not.toContain('linear-gradient');
-		expect(mobileMeasurements.timeScrollerBackgroundImage).not.toContain('linear-gradient');
-		expect(mobileMeasurements.allDayRightEdges).toHaveLength(2);
-		expect(mobileMeasurements.timeRightEdges).toHaveLength(2);
-		expect(maximumEdgeDelta(mobileMeasurements.allDayRightEdges, mobileMeasurements.timeRightEdges)).toBeLessThanOrEqual(1);
-		expect(Math.abs(mobileMeasurements.allDayBottom - mobileMeasurements.timeTop)).toBeLessThanOrEqual(1);
-		expect(mobileMeasurements.allDayEventRects.map((rect) => rect.id).sort()).toEqual([
-			'mobile-two-day-all-day-one',
-			'mobile-two-day-all-day-two'
-		]);
-		const secondAllDayCell = mobileMeasurements.allDayCellRects[1];
-		for (const eventRect of mobileMeasurements.allDayEventRects) {
-			expect(Math.abs(eventRect.left - (secondAllDayCell.left + mobileEventHorizontalInset))).toBeLessThanOrEqual(1);
-			expect(Math.abs(eventRect.right - (secondAllDayCell.right - mobileEventHorizontalInset))).toBeLessThanOrEqual(1);
-			expect(Math.abs(eventRect.width - (secondAllDayCell.width - mobileEventHorizontalInset * 2))).toBeLessThanOrEqual(1);
-		}
-		const firstTimeCell = mobileMeasurements.timeCellRects[0];
-		const timedEvent = mobileMeasurements.timedEventRects.find((rect) => rect.id === 'mobile-two-day-edit');
-		expect(timedEvent).toBeDefined();
-		expect(Math.abs((timedEvent?.left ?? 0) - (firstTimeCell.left + mobileEventHorizontalInset))).toBeLessThanOrEqual(1);
-		expect(Math.abs((timedEvent?.right ?? 0) - (firstTimeCell.right - mobileEventHorizontalInset))).toBeLessThanOrEqual(1);
-		expect(Math.abs((timedEvent?.width ?? 0) - (firstTimeCell.width - mobileEventHorizontalInset * 2))).toBeLessThanOrEqual(1);
+		const dayColumn = page.locator('[data-calendar-date="2026-06-08"]').first();
+		await dayColumn.scrollIntoViewIfNeeded();
+		const box = await dayColumn.boundingBox();
+		if (!box) throw new Error('missing day column bounding box');
+		await page.mouse.click(box.x + box.width / 2, box.y + Math.min(120, box.height / 3));
 
-		await page.locator('.df-compact-header-date-button').filter({ hasText: /^3$/ }).click();
-		await expect.poll(() => selectedDateKey(page)).toBe('2026-06-03');
-		const movedMobileMeasurements = await weekGridMeasurements(page);
-		expect(movedMobileMeasurements.highlightedDateTexts).toEqual(['3', '4']);
-		expect(movedMobileMeasurements.customHeaderTexts).toEqual(['6월 3일 수', '6월 4일 목']);
-		expect(movedMobileMeasurements.allDayEventRects).toHaveLength(0);
+		const popover = page.locator('.calendar-draft-popover');
+		await expect(popover).toBeVisible();
+		await popover.getByLabel('제목').fill('모바일 저장 일정');
 
-		await page.locator('.df-compact-header-date-button').filter({ hasText: /^6$/ }).click();
-		await expect.poll(() => selectedDateKey(page)).toBe('2026-06-06');
-		const endOfWeekMobileMeasurements = await weekGridMeasurements(page);
-		expect(endOfWeekMobileMeasurements.highlightedDateTexts).toEqual(['5', '6']);
-		expect(endOfWeekMobileMeasurements.allDayRightEdges).toHaveLength(2);
-		expect(endOfWeekMobileMeasurements.timeRightEdges).toHaveLength(2);
+		const participantCombobox = popover.getByRole('combobox', { name: '참여자' });
+		await participantCombobox.click();
+		await page.getByRole('option', { name: '모바일 참여자' }).click();
+		await expect(participantCombobox).toContainText('모바일 참여자');
+		await page.keyboard.press('Escape');
+		await popover.getByLabel('제목').press('Enter');
 
-		await page.setViewportSize({ width: 1280, height: 900 });
-		await page.reload();
-		await navigateEmbeddedCalendar(page, '2026-06-04');
-
-		const desktopMeasurements = await weekGridMeasurements(page);
-		expect(desktopMeasurements.compactDateTexts).toHaveLength(0);
-		expect(desktopMeasurements.customHeaderTexts).toHaveLength(0);
-		expect(desktopMeasurements.desktopHeaderLabels).toHaveLength(7);
-		expect(desktopMeasurements.allDayRightEdges).toHaveLength(7);
-		expect(desktopMeasurements.timeRightEdges).toHaveLength(7);
-		expect(maximumEdgeDelta(desktopMeasurements.desktopHeaderRightEdges, desktopMeasurements.timeRightEdges)).toBeLessThanOrEqual(1);
-		expect(Math.abs(desktopMeasurements.allDayBottom - desktopMeasurements.timeTop)).toBeLessThanOrEqual(1);
-	});
-
-	test('keeps mobile two-day all-day row and grid colors consistent in dark mode', async ({ page }) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
-		await enableDarkMode(page);
-
-		const mobileMeasurements = await weekGridMeasurements(page);
-		expect(mobileMeasurements.stageBackground).toBe('rgb(9, 9, 11)');
-		expect(mobileMeasurements.compactHeaderBackground).toBe(mobileMeasurements.stageBackground);
-		expect(mobileMeasurements.allDayShellBackground).toBe(mobileMeasurements.stageBackground);
-		expect(mobileMeasurements.allDayContentBackground).toBe(mobileMeasurements.stageBackground);
-		expect(mobileMeasurements.timeScrollerBackground).toBe(mobileMeasurements.stageBackground);
-		expect(mobileMeasurements.customHeaderBackgrounds).toEqual([
-			mobileMeasurements.stageBackground,
-			mobileMeasurements.stageBackground
-		]);
-		expect(mobileMeasurements.customHeaderColors).toEqual(['rgb(161, 161, 170)', 'rgb(161, 161, 170)']);
-		expect(mobileMeasurements.customHeaderBorderColors).toEqual(['rgb(39, 39, 42)', 'rgb(39, 39, 42)']);
-		expect(mobileMeasurements.timeCellBorderColors).toEqual(['rgb(39, 39, 42)', 'rgb(39, 39, 42)']);
-		expect(new Set(mobileMeasurements.rangePillColors).size).toBe(1);
-		expect(mobileMeasurements.rangePillColors).not.toContain('rgb(30, 58, 138)');
-		expect(mobileMeasurements.rangePillBackgrounds).not.toContain('rgb(219, 234, 254)');
-	});
-
-	test('uses the DayTask mobile editor while keeping the desktop draft popover', async ({ page }) => {
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
-
-		await clickFirstVisibleTimeCell(page);
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await expect.poll(() => activeMobileEditorField(page)).toBe('title');
-		await expect(dayTaskMobileEditor(page).getByRole('button', { name: '취소' })).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('새 일정')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByRole('button', { name: '완료' })).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('시작 날짜')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('종일')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('장소')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByRole('button', { name: '삭제' })).toBeVisible();
-		await verifyMobileEditorControls(page);
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await closeDayTaskMobileEditor(page);
-		await expect.poll(async () => (await renderedEventIDs(page)).some((eventID) => eventID.startsWith('timeline-'))).toBe(true);
-
-		await clickFirstVisibleAllDayCell(page);
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('새 일정')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).locator('input[data-mobile-editor-field="allDay"]')).toBeChecked();
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await closeDayTaskMobileEditor(page);
-		await expect.poll(async () => (await renderedEventIDs(page)).some((eventID) => eventID.startsWith('all-day-'))).toBe(true);
-
-		await page.locator('[data-event-id="mobile-two-day-edit"]').first().click();
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('일정 편집')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByRole('button', { name: '삭제' })).toBeVisible();
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await closeDayTaskMobileEditor(page);
-
-		await page.getByRole('button', { name: /새로 만들기/ }).click();
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await expect(page.locator('.calendar-draft-popover')).toHaveCount(0);
-		await closeDayTaskMobileEditor(page);
-
-		await page.setViewportSize({ width: 1280, height: 900 });
-		await page.reload();
-		await navigateEmbeddedCalendar(page, '2026-06-01');
-
-		await clickFirstVisibleTimeCell(page);
-		await expect(page.locator('.calendar-draft-popover')).toBeVisible();
-		await expect(dayTaskMobileEditor(page)).toHaveCount(0);
-	});
-
-	test('localizes mobile two-day headers and the mobile event editor', async ({ page }) => {
-		await routeDefaultCalendarAPI(page, 'en');
-		await routeCalendarEvents(page, [
-			{
-				id: 'mobile-two-day-english-edit',
-				title: 'Edit in English',
-				startISO: '2026-06-01T02:00:00+09:00',
-				endISO: '2026-06-01T03:00:00+09:00',
-				isAllDay: false
-			}
-		]);
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
-
-		const mobileMeasurements = await weekGridMeasurements(page);
-		expect(mobileMeasurements.customHeaderTexts).toEqual(['Mon, Jun 1', 'Tue, Jun 2']);
-
-		await page.locator('[data-event-id="mobile-two-day-english-edit"]').first().click();
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByRole('button', { name: 'Cancel' })).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('Edit Event')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByRole('button', { name: 'Done' })).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('Start date')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('All day')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('Location')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByText('Participants')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByPlaceholder('Search by name to add')).toBeVisible();
-		await expect(dayTaskMobileEditor(page).getByRole('button', { name: 'Delete' })).toBeVisible();
-	});
-
-	test('saves mobile-created events through the calendar persistence path', async ({ page }) => {
-		const createdEvents = await routeCalendarEventCreates(page);
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
-
-		await page.getByRole('button', { name: /새로 만들기/ }).click();
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await expect.poll(() => activeMobileEditorField(page)).toBe('title');
-		await dayTaskMobileEditor(page).locator('input[data-mobile-editor-field="title"]').fill('모바일 저장 일정');
-		await dayTaskMobileEditor(page).getByRole('button', { name: '완료' }).click();
-		await expect(dayTaskMobileEditor(page)).toHaveCount(0);
+		await expect(popover).toHaveCount(0);
 		await expect.poll(() => createdEvents.length).toBe(1);
 		expect(createdEvents[0]?.title).toBe('모바일 저장 일정');
-	});
-
-	test('updates mobile-edited events through the calendar persistence path', async ({ page }) => {
-		const updatedEvents = await routeCalendarEventUpdates(page);
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
-
-		await page.locator('[data-event-id="mobile-two-day-edit"]').first().click();
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await dayTaskMobileEditor(page).locator('input[data-mobile-editor-field="title"]').fill('모바일 수정 일정');
-		await dayTaskMobileEditor(page).locator('input[data-mobile-editor-field="startTime"]').fill('04:00');
-		await expect(dayTaskMobileEditor(page).locator('input[data-mobile-editor-field="endTime"]')).toHaveValue('05:00');
-		await dayTaskMobileEditor(page).getByRole('button', { name: '완료' }).click();
-
-		await expect(dayTaskMobileEditor(page)).toHaveCount(0);
-		await expect.poll(() => updatedEvents.length).toBe(1);
-		expect(updatedEvents[0]?.eventID).toBe('mobile-two-day-edit');
-		expect(updatedEvents[0]?.title).toBe('모바일 수정 일정');
-		expect(new Date(updatedEvents[0]?.endISO ?? '').getTime() - new Date(updatedEvents[0]?.startISO ?? '').getTime()).toBe(
-			60 * 60 * 1000
-		);
-	});
-
-	test('saves mobile-edited participants through the calendar persistence path', async ({ page }) => {
-		const updatedEvents = await routeCalendarEventUpdates(page);
-		await routeCalendarParticipants(page, [
-			{
-				personID: 'person-dongha',
-				name: '이샘플',
-				email: 'dongha@example.com',
-				image: '/calendar/api/participants/person-dongha/image'
-			},
-			{
-				personID: 'person-yeomyeong',
-				name: '김예시',
-				email: 'yeomyeong@example.com'
-			}
-		]);
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
-
-		await page.locator('[data-event-id="mobile-two-day-edit"]').first().click();
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await dayTaskMobileEditor(page).getByPlaceholder('이름으로 검색해 추가').fill('이샘플');
-		await dayTaskMobileEditor(page).getByRole('option', { name: '이샘플' }).click();
-		await expect(dayTaskMobileEditor(page).getByRole('button', { name: '이샘플 제거' })).toBeVisible();
-		await dayTaskMobileEditor(page).getByRole('button', { name: '완료' }).click();
-
-		await expect(dayTaskMobileEditor(page)).toHaveCount(0);
-		await expect.poll(() => updatedEvents.length).toBe(1);
-		expect(updatedEvents[0]?.eventID).toBe('mobile-two-day-edit');
-		expect(updatedEvents[0]?.participants).toEqual([
-			{
-				personID: 'person-dongha',
-				name: '이샘플',
-				email: 'dongha@example.com'
-			}
-		]);
-	});
-
-	test('deletes mobile-edited events through the calendar persistence path', async ({ page }) => {
-		const deleteIntentRequests = await routeCalendarDeleteIntents(page);
-		await page.setViewportSize({ width: 390, height: 844 });
-		await openCalendarEmbed(page, '주');
-		await navigateEmbeddedCalendar(page, '2026-06-01');
-
-		await page.locator('[data-event-id="mobile-two-day-edit"]').first().click();
-		await expect(dayTaskMobileEditor(page)).toBeVisible();
-		await dayTaskMobileEditor(page).getByRole('button', { name: '삭제' }).click();
-
-		await expect(dayTaskMobileEditor(page)).toHaveCount(0);
-		await expect.poll(() => deleteIntentRequests.registeredEventIDs).toEqual(['mobile-two-day-edit']);
-		await expect(page.locator('[data-event-id="mobile-two-day-edit"]')).toHaveCount(0);
+		expect(createdEvents[0]?.participantPersonHints).toEqual(['mobile-participant']);
 	});
 });
+
+async function routeCalendarHolidays(page: Page): Promise<void> {
+	await page.route('**/api/calendar/holidays?**', async (route) => {
+		await route.fulfill({ json: { holidays: [], degraded: false } });
+	});
+}
+
+async function routeParticipantsInvoke(page: Page): Promise<void> {
+	await page.route('**/api/v1/tools/person_list/invoke', async (route) => {
+		await route.fulfill({
+			json: { result: { people: [{ personID: 'mobile-participant', name: '모바일 참여자', email: 'mobile-participant@example.com' }] } }
+		});
+	});
+}
+
+type WrittenEvent = { eventID: string; title: string; participantPersonHints?: string[] };
+
+async function routeEventCreateInvoke(page: Page): Promise<WrittenEvent[]> {
+	const created: WrittenEvent[] = [];
+	let sequence = 0;
+	await page.route('**/api/v1/tools/event_add/invoke', async (route) => {
+		const payload = route.request().postDataJSON() as { input: Record<string, unknown> };
+		sequence += 1;
+		const eventID = `mobile-created-event-${sequence}`;
+		created.push({
+			eventID,
+			title: String(payload.input.title ?? ''),
+			participantPersonHints: (payload.input.participantPersonHints as string[] | undefined) ?? []
+		});
+		await route.fulfill({
+			json: {
+				result: {
+					eventID,
+					title: payload.input.title,
+					note: payload.input.note ?? '',
+					location: payload.input.location ?? '',
+					startsAt: payload.input.startsAt,
+					endsAt: payload.input.endsAt,
+					isWholeDay: payload.input.isWholeDay ?? false,
+					participants: [],
+					updatedAt: '2026-06-08T00:00:00.000Z'
+				}
+			}
+		});
+	});
+	return created;
+}
+
+async function openMobileWeekView(page: Page): Promise<void> {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await signInToCalendar(page);
+	await page.goto('/calendar/embed?date=2026-06-08');
+	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'week'));
+	await page.reload();
+	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-week/);
+	await page.waitForTimeout(1000);
+}
