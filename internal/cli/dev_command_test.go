@@ -65,12 +65,11 @@ func TestParseDevFleetRunDefaultsToDisposablePredeploy(t *testing.T) {
 	}
 }
 
-func TestParseDevFleetRunMattermostScenarioUsesDisposableFleet(t *testing.T) {
+func TestParseDevFleetRunBuzzScenarioUsesDisposableFleet(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
 		"--keep",
 		"--run-id", "dm-smoke",
 		"--admin-port", "19080",
-		"--mattermost-port", "19065",
 		"--scenario", "buzz-direct-message",
 	})
 	if errorValue != nil {
@@ -79,7 +78,7 @@ func TestParseDevFleetRunMattermostScenarioUsesDisposableFleet(t *testing.T) {
 	if !configuration.ServiceOptions.IsEphemeral || configuration.ServiceOptions.RunID != "dm-smoke" {
 		t.Fatalf("service options = %+v", configuration.ServiceOptions)
 	}
-	if configuration.ServiceOptions.AdminHostPort != 19080 || configuration.ServiceOptions.MattermostHostPort != 19065 {
+	if configuration.ServiceOptions.AdminHostPort != 19080 {
 		t.Fatalf("ports = %+v", configuration.ServiceOptions)
 	}
 	if configuration.ServiceOptions.ShouldUseRealModels {
@@ -250,21 +249,21 @@ func TestParseDevFleetRunRejectsRunIDWithReusableFleet(t *testing.T) {
 	}
 }
 
-func TestParseDevFleetRunWithoutMattermostRequiresScenario(t *testing.T) {
+func TestParseDevFleetRunVirtualSessionRequiresScenario(t *testing.T) {
 	_, errorValue := parseDevFleetRunArguments([]string{
-		"--without-mattermost",
+		"--virtual-session",
 	})
 	if errorValue == nil {
-		t.Fatal("expected without-mattermost recipe to fail")
+		t.Fatal("expected virtual session recipe to fail")
 	}
 	if !strings.Contains(errorValue.Error(), "--scenario") {
 		t.Fatalf("expected scenario guidance, got %q", errorValue.Error())
 	}
 }
 
-func TestParseDevFleetRunWithoutMattermostScenario(t *testing.T) {
+func TestParseDevFleetRunVirtualSessionScenario(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
-		"--without-mattermost",
+		"--virtual-session",
 		"--scenario", "dm_send_confirm_acceptance",
 	})
 	if errorValue != nil {
@@ -273,7 +272,7 @@ func TestParseDevFleetRunWithoutMattermostScenario(t *testing.T) {
 	if !configuration.ServiceOptions.IsEphemeral {
 		t.Fatalf("expected ephemeral service options: %+v", configuration.ServiceOptions)
 	}
-	if !configuration.Request.WithoutMattermost || configuration.Request.Scenario != "dm_send_confirm_acceptance" {
+	if !configuration.Request.VirtualSession || configuration.Request.Scenario != "dm_send_confirm_acceptance" {
 		t.Fatalf("request = %+v", configuration.Request)
 	}
 }
