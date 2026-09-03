@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { keepMemberCredential, memberCredential } from './member-credential';
-
-export const mailCredentialKind = 'mail';
+import { mailAccountCredentialKind } from './public-api/catalog/credential';
 
 export type MailAccount = {
 	ActorEmail: string;
@@ -110,7 +109,7 @@ export async function mailAccountOfMember(
 	client: SupabaseClient,
 	memberID: string
 ): Promise<MailAccount | null> {
-	const credential = await memberCredential(client, memberID, mailCredentialKind);
+	const credential = await memberCredential(client, memberID, mailAccountCredentialKind);
 	if (!credential) return null;
 	return readStored(credential.secret);
 }
@@ -121,7 +120,7 @@ export async function keepMailAccount(
 	account: MailAccount
 ): Promise<void> {
 	await keepMemberCredential(client, memberID, {
-		kind: mailCredentialKind,
+		kind: mailAccountCredentialKind,
 		externalID: memberID,
 		secret: JSON.stringify(account)
 	});

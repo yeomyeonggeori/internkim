@@ -22,7 +22,8 @@ stale the first time. What the names do not say:
 
 - `task` is work, and also events and CRM activities — see §3.
 - `member` is one person in a company, and exists before they have an account.
-- `credential` is a member's identity or secret on an external system.
+- `credential` is a member's identity or secret on an external system. The kinds
+  one may be are declared in `web/src/lib/server/public-api/catalog/credential.ts`.
 - `contact` is an external person and their messenger accounts; `organization`
   is the institution they belong to and `opportunity` the deal with it.
 - `circle` is a named group a member is put in by hand, for sharing. It is named
@@ -193,7 +194,7 @@ go through the central API with the service role.
 |---|---|---|
 | `company` | company members | admins, own company only |
 | `member` | company members | central API only |
-| `credential` | company members | the owning member |
+| `credential` | the holder; their messenger identity also their colleagues | the owning member |
 | `task`, `task_participant` | company members | any company member |
 | `attendance` | company members | the member themselves |
 | `leave` | company members | requested by the member, approved by an admin |

@@ -95,6 +95,7 @@ GROUPS = [
             "pkg/capabilityprotocol/*",
             "web/src/lib/server/public-api/catalog/*",
             "web/scripts/generate-capability-protocol.ts",
+            "supabase/tests/the_record_names_*",
         ],
         [["make", "verify-generated-protocol"]],
     ),

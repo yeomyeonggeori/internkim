@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type buzzClaimResponse struct {
@@ -78,7 +80,7 @@ func (service *Service) rememberBuzzCredential(ctx context.Context, actorEmail s
 }
 
 // chatd asks for this kind by name (chatd/src/personal/buzz.ts).
-const buzzCredentialKind = "buzz-secret"
+var buzzCredentialKind = capabilityprotocol.MessengerIdentityCredentialKind()
 
 const buzzCredentialSweepInterval = 2 * time.Minute
 

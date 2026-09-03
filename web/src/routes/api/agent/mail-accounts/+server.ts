@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { mailAccountOfMember, mailCredentialKind } from '$lib/server/mail-account';
+import { mailAccountOfMember } from '$lib/server/mail-account';
+import { mailAccountCredentialKind } from '$lib/server/public-api/catalog/credential';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, platform }) => {
@@ -17,7 +18,7 @@ export const GET: RequestHandler = async ({ request, platform }) => {
 	const credentials = await client
 		.from('credential')
 		.select('member_id')
-		.eq('kind', mailCredentialKind)
+		.eq('kind', mailAccountCredentialKind)
 		.returns<{ member_id: string | null }[]>();
 	if (credentials.error) throw new Error(credentials.error.message);
 

@@ -1,5 +1,5 @@
 {
-  "aggregateHash": "a95279b76ced4ae9eb03cc2c68f2516bb51b5ab47dfda46c7660db0bc3100e34",
+  "aggregateHash": "ba8f8f0310ad0bada50a971bdbf99ae5f821e024701901988b7170d60cfa6a97",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
     "hash": "b8f97bbd92e49fd9e80001c86f8dd364ed33108ce36cda9cda64be3be8cc0a55"
@@ -50,6 +50,11 @@
       "fileName": "connector-runtime-result.schema.json",
       "hash": "1be4ac519bb90585b966475ea421ce62373f97896ea0d67c21d8dfec4d40522c",
       "name": "connector-runtime-result"
+    },
+    {
+      "fileName": "messenger-identity-credential-kind.schema.json",
+      "hash": "c1b5401f928a9a010b94410660551568609f87deb667114c1a8ec5822e1a8069",
+      "name": "messenger-identity-credential-kind"
     },
     {
       "fileName": "messenger-platform.schema.json",
