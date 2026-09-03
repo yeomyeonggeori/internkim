@@ -1,5 +1,5 @@
 import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
-import { dayIn, instantOfDay, instantWritten, isTheSameMoment, momentIn, weekWindow } from './days';
+import { dayIn, instantOfDay, instantWritten, isTheSameMoment, momentIn, momentWrittenOrCleared, weekWindow } from './days';
 import { peopleOfHints } from './people';
 import type { RecordContext } from './company';
 import {
@@ -138,9 +138,9 @@ function eventWriteArguments(
 ): Record<string, unknown> {
 	const timezone = context.labels.timezone;
 	const startsAt =
-		written.startsAt !== undefined ? instantWritten(timezone, written.startsAt) : row?.starts_at ?? '';
+		momentWrittenOrCleared(timezone, written.startsAt) ?? row?.starts_at ?? '';
 	const endsAt =
-		written.endsAt !== undefined ? instantWritten(timezone, written.endsAt, true) : row?.ends_at ?? '';
+		momentWrittenOrCleared(timezone, written.endsAt, true) ?? row?.ends_at ?? '';
 	if (!startsAt || !endsAt) throw new Error('an event runs from a moment to a moment');
 	if (endsAt <= startsAt) throw new Error('an event ends after it starts');
 

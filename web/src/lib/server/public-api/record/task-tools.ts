@@ -1,7 +1,7 @@
 import { compatibilityOwnerOf } from '$lib/task/central-task';
 import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
 import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
-import { dayOfInstant, instantWritten, isTheSameMoment, weekWindow } from './days';
+import { dayOfInstant, isTheSameMoment, momentWrittenOrCleared, weekWindow } from './days';
 import { labelOf } from './labels';
 import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
 import type { RecordContext } from './company';
@@ -119,12 +119,8 @@ function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRo
 		size: written.size,
 		business: labelOf(context.labels.businesses, written.business, row ? row.business : null),
 		type: labelOf(context.labels.types, written.type, row ? row.type : null),
-		startsAt:
-			written.startsAt === undefined ? undefined : instantWritten(context.labels.timezone, written.startsAt),
-		endsAt:
-			written.endsAt === undefined
-				? undefined
-				: instantWritten(context.labels.timezone, written.endsAt, true),
+		startsAt: momentWrittenOrCleared(context.labels.timezone, written.startsAt),
+		endsAt: momentWrittenOrCleared(context.labels.timezone, written.endsAt, true),
 		participantIDs: participantsOfHints(
 			context.people,
 			written.participantPersonHints,

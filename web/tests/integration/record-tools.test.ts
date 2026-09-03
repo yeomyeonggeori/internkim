@@ -4,7 +4,7 @@ import { asMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import { dayIn } from '../../src/lib/server/public-api/record/days';
-import { capabilityToolResultSchema } from '../../src/lib/server/public-api/catalog/tools';
+import { capabilityToolInputSchema, capabilityToolResultSchema } from '../../src/lib/server/public-api/catalog/tools';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -115,6 +115,48 @@ describe('which tools run over the record', () => {
 	});
 });
 
+// Every test above sends the fields it has values for, which is not how a model
+// calls a tool: asked for a task with no dates, it sends startsAt:"" as readily
+// as it leaves the field out. The schema says an empty string is valid there, so
+// the record has to take it — and for three days it did not, answering "is not a
+// date or a moment" to a request nobody could see was malformed, because it was
+// not.
+//
+// The blank fields are asked of the schema rather than listed here: a field is
+// blankable exactly when the published contract accepts "" for it, so a field
+// added later is covered without anybody remembering to add it.
+function blankableFieldsOf(name: string): string[] {
+	const schema = capabilityToolInputSchema(name);
+	if (!schema) throw new Error(`${name} publishes no input contract`);
+	const shape = (schema as unknown as { shape?: Record<string, { safeParse(value: unknown): { success: boolean } }> }).shape;
+	if (!shape) throw new Error(`${name} does not publish its fields`);
+	return Object.keys(shape).filter((field) => shape[field].safeParse('').success);
+}
+
+describe('a tool takes every shape its own contract calls valid', () => {
+	const knownGood: Record<string, Record<string, unknown>> = {
+		task_add: { title: '계약이 허용하는 모양' },
+		event_add: { title: '계약이 허용하는 일정', startsAt: `${companyDay}T10:00:00+09:00`, endsAt: `${companyDay}T11:00:00+09:00` }
+	};
+
+	for (const [name, input] of Object.entries(knownGood)) {
+		test(`${name} takes a blank in every field the schema lets be blank`, async () => {
+			const blanks = Object.fromEntries(
+				blankableFieldsOf(name)
+					.filter((field) => !(field in input))
+					.map((field) => [field, ''])
+			);
+			expect(Object.keys(blanks).length).toBeGreaterThan(0);
+
+			const answered = await run(name, { ...input, ...blanks });
+			expect({ tool: name, status: answered.status, body: answered.body }).toMatchObject({
+				tool: name,
+				status: 200
+			});
+		});
+	}
+});
+
 describe('person_list', () => {
 	test('answers the company from the record itself', async () => {
 		const result = resultOf(await run('person_list'));
@@ -178,6 +220,22 @@ describe('a task written through the record', () => {
 		});
 		expect(moved.status).toBe(200);
 		expect(resultOf(moved).status).toBe('in_progress');
+	});
+
+	test('takes a blank day the way it takes no day at all', async () => {
+		const made = await run('task_add', {
+			title: '하드웨어 기획서',
+			status: 'planned',
+			size: 'M',
+			business: '',
+			type: '',
+			startsAt: '',
+			endsAt: ''
+		});
+		expect(made.status).toBe(200);
+		expect(resultOf(made).content).toBe('하드웨어 기획서');
+		expect(resultOf(made).startDate).toBe('');
+		expect(resultOf(made).endDate).toBe('');
 	});
 
 	test('names the people a caller named, by part of a name', async () => {

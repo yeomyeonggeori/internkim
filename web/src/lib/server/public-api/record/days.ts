@@ -89,6 +89,19 @@ export function instantOfDay(timezone: string, day: string, endOfDay = false): s
 	return new Date(wall - offsetMilliseconds(timezone, guessed)).toISOString();
 }
 
+// Three things a caller can say about a moment, and they are not two. Leaving
+// the field out asks for no change; writing it blank asks for no moment, which
+// a model does as readily as it omits the field; writing one names it.
+export function momentWrittenOrCleared(
+	timezone: string,
+	written: string | null | undefined,
+	endOfDay = false
+): string | null | undefined {
+	if (written === undefined) return undefined;
+	if (written === null || written.trim() === '') return null;
+	return instantWritten(timezone, written, endOfDay);
+}
+
 // A caller writes either a moment or a whole day. A moment already says where it
 // is; a whole day is read where the company is.
 export function instantWritten(timezone: string, written: string, endOfDay = false): string {
