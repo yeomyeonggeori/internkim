@@ -9,6 +9,7 @@
 	import LeaveApprovalView from './approval/leave-approval-view.svelte';
 	import { getLeaveApprovalState } from './approval/leave-approval-state.svelte';
 	import LeaveHistoryView from './leave/leave-history-view.svelte';
+	import HandWrittenView from './hand-written/hand-written-view.svelte';
 	import LeaveManagementView from './management/leave-management-view.svelte';
 	import PersonalToolsPanel from './personal/personal-tools-panel.svelte';
 	import TeamView from './team/team-view.svelte';
@@ -24,7 +25,8 @@
 		if (
 			!attendance.summary?.isAdmin &&
 			(attendanceView.selected === 'approvals' ||
-				attendanceView.selected === 'leaveManagement')
+				attendanceView.selected === 'leaveManagement' ||
+				attendanceView.selected === 'handWritten')
 		) {
 			attendanceView.select(isMobile.current ? 'tools' : 'status');
 			return;
@@ -77,6 +79,12 @@
 			>
 				{text.management.mobileTab}
 			</Tabs.Trigger>
+			<Tabs.Trigger
+				value="handWritten"
+				class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+			>
+				{text.handWritten.mobileTab}
+			</Tabs.Trigger>
 		{/if}
 	</Tabs.List>
 	<Tabs.Content value="status" class="min-h-0 min-w-0">
@@ -102,6 +110,9 @@
 		</Tabs.Content>
 		<Tabs.Content value="leaveManagement" class="min-h-0 min-w-0">
 			<LeaveManagementView />
+		</Tabs.Content>
+		<Tabs.Content value="handWritten" class="min-h-0 min-w-0">
+			<HandWrittenView />
 		</Tabs.Content>
 	{/if}
 	</Tabs.Root>

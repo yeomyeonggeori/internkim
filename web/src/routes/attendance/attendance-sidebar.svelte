@@ -5,6 +5,7 @@
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
 	import HistoryIcon from '@lucide/svelte/icons/history';
+	import PencilLineIcon from '@lucide/svelte/icons/pencil-line';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import { getAttendanceState } from './attendance-context.svelte';
 	import { getAttendanceViewState } from './attendance-view-state.svelte';
@@ -57,6 +58,15 @@
 				>
 					<UsersRoundIcon />
 					{text.management.navigation}
+				</Button>
+				<Button
+					variant={attendanceView.selected === 'handWritten' ? 'secondary' : 'ghost'}
+					class="w-full justify-start"
+					onclick={() => attendanceView.select('handWritten')}
+					data-testid="hand-written-navigation"
+				>
+					<PencilLineIcon />
+					{text.handWritten.navigation}
 				</Button>
 			{/if}
 		</nav>
