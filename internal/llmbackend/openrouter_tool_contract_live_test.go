@@ -122,7 +122,7 @@ func TestOpenRouterLiveNativeEitherOrToolFilledInLargeToolSetFromEnv(t *testing.
 
 func TestOpenRouterLiveFullDeviceToolSetFitsAndFillsFromEnv(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
-	descriptors := capabilities.DeviceDescriptors()
+	descriptors := capabilities.DefaultToolDescriptors()
 	schemaDocument := testActionSchemaForDescriptors(t, descriptors)
 
 	for _, modelName := range toolContractModelsFromEnv() {

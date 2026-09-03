@@ -74,10 +74,11 @@ func DeviceBrowserDescriptors() []Descriptor {
 	return capabilityprotocol.DeviceBrowserDescriptors()
 }
 
-func DeviceDescriptors() []Descriptor {
-	descriptors := capabilityprotocol.MustGeneratedToolDescriptors("llm_text", "llm_structured", "embedding_create")
-	descriptors = append(descriptors, descriptorsTheRecordAndTheCompanyAnswer()...)
-	return canonicalizeDescriptors(descriptors)
+func RegistryDescriptors(registry RegistryResponse) []Descriptor {
+	if len(registry.Capabilities) > 0 {
+		return registry.Capabilities
+	}
+	return registry.DeviceCapabilities
 }
 
 func descriptorsTheRecordAndTheCompanyAnswer() []Descriptor {

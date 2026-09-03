@@ -46,7 +46,6 @@ func TestEverySetPublishesWhatItPublishedBeforeTheCatalogMove(t *testing.T) {
 		"CompanionToolDescriptors": CompanionToolDescriptors(),
 		"DefaultToolDescriptors":   DefaultToolDescriptors(),
 		"DeviceBrowserDescriptors": DeviceBrowserDescriptors(),
-		"DeviceDescriptors":        DeviceDescriptors(),
 	}
 
 	if len(sets) != len(snapshot.Membership) {
