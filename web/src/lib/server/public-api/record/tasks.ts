@@ -18,12 +18,13 @@ export type TaskRow = {
 	notify_minutes_before: number | null;
 	starts_at: string | null;
 	ends_at: string | null;
+	created_at: string;
 	updated_at: string;
 	task_participant: { member_id: string }[];
 };
 
 export const taskSelection =
-	'id, title, status, note, location, business, type, size, is_event, is_whole_day, notify_minutes_before, starts_at, ends_at, updated_at, task_participant (member_id)';
+	'id, title, status, note, location, business, type, size, is_event, is_whole_day, notify_minutes_before, starts_at, ends_at, created_at, updated_at, task_participant (member_id)';
 
 // Postgres says why it refused, and the three answers are different things: a
 // permission the caller does not hold, a row that moved under them, and a rule
@@ -31,7 +32,8 @@ export const taskSelection =
 export class RecordRefusedTheWrite extends Error {
 	constructor(
 		reason: string,
-		readonly status: number
+		readonly status: number,
+		readonly errorCode = 'record_refused'
 	) {
 		super(reason);
 		this.name = 'RecordRefusedTheWrite';
@@ -63,6 +65,25 @@ export function statusOfPostgresCode(code: string | undefined): number {
 	if (code === insufficientPrivilege) return 403;
 	if (code === serializationFailure) return 409;
 	return 422;
+}
+
+// Postgres answers 42501 without naming the policy that refused, so which rule
+// the caller broke has to come from what the write was trying to change.
+export function refusedWriteOf(reason: string, code: string | undefined, changesParticipants: boolean) {
+	const status = statusOfPostgresCode(code);
+	if (status !== 403) return new RecordRefusedTheWrite(reason, status);
+	if (changesParticipants) {
+		return new RecordRefusedTheWrite(
+			'only the owner of this task or an admin can change who takes part in it',
+			403,
+			'task_assignment_forbidden'
+		);
+	}
+	return new RecordRefusedTheWrite(
+		'only the owner of this task, somebody taking part in it, or an admin can change it',
+		403,
+		'task_write_forbidden'
+	);
 }
 
 export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean): Promise<TaskRow[]> {
@@ -143,9 +164,14 @@ export function taskWriteArguments(
 	};
 }
 
-export async function saveTask(caller: SupabaseClient, argumentsOfSave: Record<string, unknown>): Promise<string> {
+export async function saveTask(
+	caller: SupabaseClient,
+	argumentsOfSave: Record<string, unknown>
+): Promise<string> {
 	const { data, error } = await caller.rpc('task_save', argumentsOfSave);
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (error) {
+		throw refusedWriteOf(error.message, error.code, argumentsOfSave.target_participant_ids !== undefined);
+	}
 	if (typeof data !== 'string') throw new RecordRefusedTheWrite('the record named no task it saved', 502);
 	return data;
 }
@@ -155,9 +181,34 @@ export async function saveTask(caller: SupabaseClient, argumentsOfSave: Record<s
 export async function deleteTask(caller: SupabaseClient, taskID: string): Promise<void> {
 	const { data, error } = await caller.from('task').delete().eq('id', taskID).select('id').returns<{ id: string }[]>();
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	if ((data ?? []).length === 0) {
-		throw new RecordRefusedTheWrite('this deleted nothing, which its permissions do not allow', 403);
+
+	const deleted = data ?? [];
+	if (deleted.length === 1 && deleted[0].id === taskID) return;
+	if (deleted.length > 0) {
+		throw new RecordRefusedTheWrite('the record deleted something other than what was asked for', 502);
 	}
+	throw await refusalForNothingDeleted(caller, taskID);
+}
+
+// PostgREST answers an empty list whether the row is gone or row level security
+// refused it, so telling those apart takes a second read.
+async function refusalForNothingDeleted(
+	caller: SupabaseClient,
+	taskID: string
+): Promise<RecordRefusedTheWrite> {
+	const { data } = await caller.from('task').select('id').eq('id', taskID).returns<{ id: string }[]>();
+	if ((data ?? []).length > 0) {
+		return new RecordRefusedTheWrite(
+			'only the owner of this task, somebody taking part in it, or an admin can delete it',
+			403,
+			'task_write_forbidden'
+		);
+	}
+	return new RecordRefusedTheWrite(
+		'this task is gone; it was deleted after the list that named it',
+		404,
+		'task_not_found'
+	);
 }
 
 // A task nobody is named on has no owner, and the board reads the first
