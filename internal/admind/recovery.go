@@ -16,12 +16,15 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-// ensureBuzzRelayTerminator keeps the loopback TLS terminator (:443 -> relay
-// :3000) running whenever this box hosts the Buzz relay. The Debian SysV
-// stunnel4 service is not auto-restarted, so a native systemd unit is installed
-// and (re)started on every admind start. Runs detached from any request context.
+// ensureBuzzRelayTerminator keeps the TLS terminator (:443 -> relay :3000)
+// running whenever this box has a public host for Buzz to answer on. The
+// Debian SysV stunnel4 service is not auto-restarted, so a native systemd
+// unit is installed and (re)started on every admind start. BuzzRelayURL is
+// always the loopback address, public host or not, so the public URL
+// provisioning recorded is what tells the two apart. Runs detached from any
+// request context.
 func (service *Service) ensureBuzzRelayTerminator() {
-	if strings.TrimSpace(service.Configuration.BuzzRelayURL) == "" {
+	if strings.TrimSpace(service.buzzRelayPublicURL()) == "" {
 		return
 	}
 	go func() {
@@ -926,6 +929,7 @@ done
 func buzzRelayRepairCommand() string {
 	return strings.TrimSpace(fmt.Sprintf(`
 set +e
+command -v stunnel4 >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y stunnel4
 mkdir -p /root/.internkim/tls
 cat > /root/.internkim/tls/buzz-relay-stunnel.conf <<'STUNNELCONF'
 foreground = yes

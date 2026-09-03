@@ -71,6 +71,22 @@ func TestBuzzPublicHostRekeysTheCommunityFromTheNameItRecorded(t *testing.T) {
 	}
 }
 
+func TestBuzzPublicHostInstallsStunnelBeforeEnablingIt(t *testing.T) {
+	command := buzzRelayStunnelCommand()
+
+	installIndex := strings.Index(command, "command -v stunnel4")
+	enableIndex := strings.Index(command, "systemctl enable "+buzzRelayStunnelServiceName)
+	if installIndex == -1 {
+		t.Fatal("the step must install stunnel4 before it enables the unit that runs it")
+	}
+	if enableIndex == -1 {
+		t.Fatalf("expected the step to enable %s", buzzRelayStunnelServiceName)
+	}
+	if installIndex > enableIndex {
+		t.Fatalf("stunnel4 must be installed before the unit is enabled, install at %d enable at %d", installIndex, enableIndex)
+	}
+}
+
 func TestBuzzPublicHostIsUnsatisfiedWhenTheRecordedNameIsStale(t *testing.T) {
 	connection := &buzzPublicHostConnection{recordedPublicURL: "wss://old.example.test"}
 	context := &Context{Backend: BackendSSH, SSH: connection, RelayDomain: "new.example.test"}
