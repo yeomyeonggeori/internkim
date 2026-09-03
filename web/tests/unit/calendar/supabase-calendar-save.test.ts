@@ -14,6 +14,7 @@ function eventWith(fields: Partial<CalendarEventPayload> = {}): CalendarEventPay
 		timeZone: 'Asia/Seoul',
 		isAllDay: false,
 		color: '',
+		reminderMinutesBefore: null,
 		participants: [
 			{ personID: 'member-1', name: '첫 번째' },
 			{ personID: 'member-2', name: '두 번째' }
@@ -31,12 +32,18 @@ describe('what the calendar sends the record', () => {
 			startsAt: '2026-08-20T10:00:00.000Z',
 			endsAt: '2026-08-20T11:00:00.000Z',
 			isWholeDay: false,
+			notifyMinutesBefore: 0,
 			participantPersonHints: ['member-1', 'member-2']
 		});
 	});
 
 	test('sends the whole attendee set, so clearing one removes it', () => {
 		expect(calendarEventWritten(eventWith({ participants: [] })).participantPersonHints).toEqual([]);
+	});
+
+	test('names a reminder in minutes, and sends zero when the event has none', () => {
+		expect(calendarEventWritten(eventWith({ reminderMinutesBefore: 30 })).notifyMinutesBefore).toBe(30);
+		expect(calendarEventWritten(eventWith({ reminderMinutesBefore: null })).notifyMinutesBefore).toBe(0);
 	});
 
 	test('carries an empty note and location rather than dropping them', () => {

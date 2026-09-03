@@ -3,6 +3,7 @@ import type { CalendarEvent } from '../../routes/calendar/embed/calendar-event-p
 import type { CalendarParticipant } from '../../routes/calendar/embed/calendar-participants';
 import type { Locale } from '../i18n/locale.svelte';
 import { approvedLeaveCalendarEvents } from './supabase-calendar-leave';
+import { eventReminderLeadOf } from './event-reminder-lead';
 
 export type CalendarMember = { id: string; name: string | null; email: string | null };
 
@@ -14,12 +15,13 @@ type EventRow = {
 	starts_at: string;
 	ends_at: string;
 	is_whole_day: boolean;
+	notify_minutes_before: number | null;
 	updated_at: string;
 	task_participant: { member_id: string }[];
 };
 
 const eventSelection =
-	'id, title, note, location, starts_at, ends_at, is_whole_day, updated_at, task_participant (member_id)';
+	'id, title, note, location, starts_at, ends_at, is_whole_day, notify_minutes_before, updated_at, task_participant (member_id)';
 
 export async function companyCalendarEntries(
 	caller: SupabaseClient,
@@ -96,6 +98,7 @@ function scheduledEvent(
 		participants: event.task_participant.map((participant) => memberParticipant(participant.member_id, members)),
 		createdByEmail: '',
 		createdByName: '',
+		reminderMinutesBefore: eventReminderLeadOf(event.notify_minutes_before),
 		updatedAt: event.updated_at
 	};
 }

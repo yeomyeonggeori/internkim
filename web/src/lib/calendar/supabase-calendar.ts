@@ -1,4 +1,5 @@
 import { companySettings } from '$lib/company/company-settings';
+import { eventReminderLeadOf } from './event-reminder-lead';
 import { invokeTool } from '$lib/public-api-call';
 import { supabase } from '$lib/supabase';
 import type { CalendarEvent, CalendarEventPayload } from '../../routes/calendar/embed/calendar-event-persistence';
@@ -17,10 +18,13 @@ type AnsweredEvent = {
 	endsAt: string;
 	isWholeDay: boolean;
 	participants: AnsweredAttendee[];
+	notifyMinutesBefore?: number;
 	updatedAt: string;
 };
 
 type AnsweredPeople = { people: { personID: string; name: string; email: string }[] };
+
+const noReminder = 0;
 
 export async function supabaseCalendarEvents(
 	startDate: Date,
@@ -38,6 +42,7 @@ export function calendarEventWritten(payload: CalendarEventPayload): Record<stri
 		startsAt: payload.startISO,
 		endsAt: payload.endISO,
 		isWholeDay: payload.isAllDay,
+		notifyMinutesBefore: payload.reminderMinutesBefore ?? noReminder,
 		participantPersonHints: payload.participants.map((participant) => participant.personID)
 	};
 }
@@ -96,6 +101,7 @@ export function calendarEventFromAnswer(answered: AnsweredEvent, timeZone: strin
 		})),
 		createdByEmail: '',
 		createdByName: '',
+		reminderMinutesBefore: eventReminderLeadOf(answered.notifyMinutesBefore),
 		updatedAt: answered.updatedAt
 	};
 }

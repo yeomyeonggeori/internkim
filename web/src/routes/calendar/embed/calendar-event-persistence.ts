@@ -17,6 +17,7 @@ export type CalendarEvent = {
 	timeZone: string;
 	isAllDay: boolean;
 	color: string;
+	reminderMinutesBefore?: number | null;
 	participants?: CalendarParticipant[];
 	createdByEmail: string;
 	createdByName: string;
@@ -45,6 +46,7 @@ export type CalendarEventPayload = {
 	timeZone: string;
 	isAllDay: boolean;
 	color: string;
+	reminderMinutesBefore: number | null;
 	participants: CalendarParticipantInput[];
 };
 

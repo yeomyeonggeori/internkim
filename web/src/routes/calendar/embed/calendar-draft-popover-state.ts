@@ -1,6 +1,7 @@
 import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { calendarDateTimeRangeChangesForStart } from './calendar-date-time-range';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-anchor-types';
+import { eventReminderLeadOf } from '$lib/calendar/event-reminder-lead';
 import {
 	calendarParticipantsEqual,
 	calendarParticipantsFromUnknown,
@@ -23,6 +24,7 @@ export type DraftPopoverState = {
 	location: string;
 	description: string;
 	participants: CalendarParticipant[];
+	reminderMinutesBefore: number | null;
 	calendarID: string;
 	anchor: DraftPopoverAnchor | null;
 };
@@ -62,6 +64,7 @@ export function draftPopoverStateFromEvent(
 		location: typeof event.meta?.location === 'string' ? event.meta.location : '',
 		description: event.description ?? '',
 		participants: calendarParticipantsFromUnknown(event.meta?.participants),
+		reminderMinutesBefore: eventReminderLeadOf(event.meta?.reminderMinutesBefore),
 		calendarID: event.calendarId ?? 'internkim',
 		anchor
 	};
@@ -114,7 +117,8 @@ export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEve
 		calendarId: popover.calendarID,
 		meta: {
 			location: popover.location.trim(),
-			participants: popover.participants
+			participants: popover.participants,
+			reminderMinutesBefore: popover.reminderMinutesBefore
 		}
 	};
 }
@@ -129,7 +133,8 @@ export function hasDraftPopoverEventChanges(popover: DraftPopoverState, event: D
 		(event.allDay ?? false) !== changes.allDay ||
 		(event.calendarId ?? 'internkim') !== changes.calendarId ||
 		eventLocation(event) !== normalizedText(changes.meta.location) ||
-		!calendarParticipantsEqual(calendarParticipantsFromUnknown(event.meta?.participants), popover.participants)
+		!calendarParticipantsEqual(calendarParticipantsFromUnknown(event.meta?.participants), popover.participants) ||
+		eventReminderLeadOf(event.meta?.reminderMinutesBefore) !== popover.reminderMinutesBefore
 	);
 }
 
