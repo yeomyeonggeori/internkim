@@ -7,12 +7,17 @@ import type { CalendarEventActionsContext } from '../../../src/routes/calendar/e
 import type { CalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 import type { CalendarPersistedEventActions } from '../../../src/routes/calendar/embed/calendar-persisted-event-actions';
 import { CalendarProgrammaticUpdateState } from '../../../src/routes/calendar/embed/calendar-programmatic-updates';
+import { ToolRefused } from '../../../src/lib/public-api-call';
 
 export type { CalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-persistence';
 
 export const toastErrorMessages: string[] = [];
 export const saveFailureMessage = 'Could not save the event.';
 export const deleteFailureMessage = 'Could not delete the event.';
+export const saveVersionConflictMessage =
+	'This event changed elsewhere. The latest server version has been reloaded.';
+export const deleteVersionConflictMessage =
+	'This event changed elsewhere, so it could not be deleted. The latest server version has been reloaded.';
 
 mock.module('svelte-sonner', () => ({
 	toast: Object.assign(() => {}, {
@@ -81,6 +86,8 @@ export function createPersistenceScenario(
 			pendingLoadInvalidationCount += 1;
 		},
 		text: {
+			calendarDeleteVersionConflictError: deleteVersionConflictMessage,
+			calendarEventVersionConflictError: saveVersionConflictMessage,
 			deleteError: 'Could not delete the event.',
 			deleteUndoAction: 'Undo',
 			deleteUndoMessage: 'Event deleted.',
@@ -176,6 +183,14 @@ export function calendarVersionedTestEvent(
 
 export function unknownPersistenceError(): Error {
 	return new Error('the record refused the write');
+}
+
+export function versionConflictRefusal(): ToolRefused {
+	return new ToolRefused(
+		'this event changed since the version named here was read',
+		'calendar_event_version_conflict',
+		409
+	);
 }
 
 export function calendarServerEvent(eventID: string, title: string): CalendarEvent {

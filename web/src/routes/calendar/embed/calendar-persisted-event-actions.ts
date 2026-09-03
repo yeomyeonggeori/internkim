@@ -26,7 +26,7 @@ export type CalendarPersistedEventActions = {
 		mutationClientID?: string,
 		mutationSequence?: number
 	) => Promise<CalendarEvent>;
-	deleteEvent: (eventID: string) => Promise<void>;
+	deleteEvent: (eventID: string, expectedUpdatedAt?: string) => Promise<void>;
 	applyServerMetadata: (eventID: string, event: CalendarEvent) => Promise<void>;
 };
 
@@ -66,8 +66,8 @@ export function createCalendarPersistedEventActions(
 		return saved;
 	}
 
-	async function deleteEvent(eventID: string): Promise<void> {
-		await deletePersistedCalendarEvent(persistedEventID(eventID));
+	async function deleteEvent(eventID: string, expectedUpdatedAt?: string): Promise<void> {
+		await deletePersistedCalendarEvent(persistedEventID(eventID), expectedUpdatedAt);
 	}
 
 	async function applyServerMetadata(eventID: string, event: CalendarEvent): Promise<void> {

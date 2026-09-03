@@ -30,6 +30,8 @@ export type CalendarEvent = {
 	source?: string;
 };
 
+export const calendarEventVersionConflictErrorCode = 'calendar_event_version_conflict';
+
 export type CalendarEventPayload = {
 	eventID: string;
 	expectedUpdatedAt?: string;
@@ -61,6 +63,9 @@ export async function writeCalendarEvent(
 	return saveSupabaseCalendarEvent(payload, isNewEvent ? null : payload.eventID);
 }
 
-export async function deletePersistedCalendarEvent(eventID: string): Promise<void> {
-	return deleteSupabaseCalendarEvent(eventID);
+export async function deletePersistedCalendarEvent(
+	eventID: string,
+	expectedUpdatedAt?: string
+): Promise<void> {
+	return deleteSupabaseCalendarEvent(eventID, expectedUpdatedAt);
 }

@@ -1860,6 +1860,10 @@
             "description": "Set true when the event is open to the whole company, which leaves it with no attendee list. Leave it out when named people attend, or when nobody is named and the event is the requester’s own.",
             "type": "boolean"
           },
+          "expectedUpdatedAt": {
+            "description": "The updatedAt the caller last read; the update is refused when the event has changed since.",
+            "type": "string"
+          },
           "isWholeDay": {
             "description": "Whether the event takes the whole day.",
             "type": "boolean"
@@ -2096,6 +2100,10 @@
             "description": "Identifies the existing calendar event to act on: its exact event ID or its exact CURRENT title as it appears in a event_list result. Never a new or intended title. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list of matching events.",
             "maxLength": 256,
             "minLength": 1,
+            "type": "string"
+          },
+          "expectedUpdatedAt": {
+            "description": "The updatedAt the caller last read; the deletion is refused when the event has changed since.",
             "type": "string"
           }
         },

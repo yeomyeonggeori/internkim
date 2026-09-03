@@ -42,19 +42,30 @@ export function calendarEventWritten(payload: CalendarEventPayload): Record<stri
 	};
 }
 
+function versionNamed(expectedUpdatedAt: string | undefined): Record<string, string> {
+	return expectedUpdatedAt ? { expectedUpdatedAt } : {};
+}
+
 export async function saveSupabaseCalendarEvent(
 	payload: CalendarEventPayload,
 	targetEventID: string | null
 ): Promise<CalendarEvent> {
 	const written = calendarEventWritten(payload);
 	const saved = targetEventID
-		? await invokeTool<AnsweredEvent>('event_update', { eventHint: targetEventID, ...written })
+		? await invokeTool<AnsweredEvent>('event_update', {
+				eventHint: targetEventID,
+				...versionNamed(payload.expectedUpdatedAt),
+				...written
+			})
 		: await invokeTool<AnsweredEvent>('event_add', written);
 	return calendarEventFromAnswer(saved, await companyTimeZone());
 }
 
-export async function deleteSupabaseCalendarEvent(eventID: string): Promise<void> {
-	await invokeTool('event_delete', { eventHint: eventID });
+export async function deleteSupabaseCalendarEvent(
+	eventID: string,
+	expectedUpdatedAt?: string
+): Promise<void> {
+	await invokeTool('event_delete', { eventHint: eventID, ...versionNamed(expectedUpdatedAt) });
 }
 
 export async function supabaseCalendarParticipants(): Promise<CalendarParticipant[]> {
