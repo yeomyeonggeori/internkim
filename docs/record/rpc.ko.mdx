@@ -28,6 +28,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `calendar_subscription_company` | `target_token_hash text` | `uuid` | definer | service_role |
 | `calendar_subscription_save` | `target_token_hash text` | `void` | definer | authenticated |
 | `can_manage_task_relationship` | `target_task_id uuid` | `boolean` | definer | 없음 |
+| `company_documents_matching` | `target_query text, target_limit integer` | `SETOF company_document` | invoker | authenticated |
 | `company_holidays_merge` | `target_company uuid, target_holidays jsonb` | `jsonb` | invoker | service_role |
 | `company_holidays_save` | `target_holidays jsonb` | `jsonb` | definer | authenticated |
 | `company_of_circle` | `target_circle uuid` | `uuid` | invoker | anon, authenticated, service_role |

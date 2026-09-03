@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -466,95 +465,96 @@ func (service *Service) readCompanyShareMetrics(ctx context.Context, metricNames
 	if len(metricNames) == 0 {
 		return []companyShareMetric{}, nil
 	}
-	database, errorValue := service.openCompanyDatabase(ctx)
+	client := service.centralPlane()
+	if client == nil {
+		return nil, errors.New("this device names no company, so the metrics it would publish are not there")
+	}
+	held, errorValue := client.CompanyMetrics(ctx, service.claimedAdminEmail())
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `SELECT metric, year, quarter, month, value, currency, value_usd, unit, note FROM company_metrics ORDER BY metric, year, quarter, month`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
 	included := stringSet(metricNames)
 	metrics := []companyShareMetric{}
-	for rows.Next() {
-		var metric companyShareMetric
-		var source string
-		if errorValue := rows.Scan(&metric.Metric, &metric.Year, &metric.Quarter, &metric.Month, &metric.Value, &metric.Currency, &metric.ValueUSD, &metric.Unit, &source); errorValue != nil {
-			return nil, errorValue
+	for _, held := range held {
+		if !included[held.Metric] {
+			continue
 		}
-		if included[metric.Metric] {
-			if contexts[metric.Metric].ShowSource {
-				metric.Source = strings.TrimSpace(source)
-			}
-			metrics = append(metrics, metric)
+		metric := companyShareMetric{
+			Metric:   held.Metric,
+			Year:     held.Year,
+			Quarter:  held.Quarter,
+			Month:    held.Month,
+			Value:    held.Value,
+			Currency: companyMetricCurrency(held.Currency),
+			ValueUSD: held.ValueUSD,
+			Unit:     strings.TrimSpace(held.Unit),
 		}
+		if contexts[held.Metric].ShowSource {
+			metric.Source = strings.TrimSpace(held.Note)
+		}
+		metrics = append(metrics, metric)
 	}
-	return metrics, rows.Err()
+	return metrics, nil
 }
 
 func (service *Service) readCompanyShareRecords(ctx context.Context, recordIDs []string, contexts map[string]companyShareRecordContext) ([]companyShareRecord, error) {
 	if len(recordIDs) == 0 {
 		return []companyShareRecord{}, nil
 	}
-	database, errorValue := service.openCompanyDatabase(ctx)
+	client := service.centralPlane()
+	if client == nil {
+		return nil, errors.New("this device names no company, so the records it would publish are not there")
+	}
+	held, errorValue := client.CompanyRecords(ctx, service.claimedAdminEmail())
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `SELECT id, category, record_date, title, attributes FROM company_records ORDER BY record_date DESC, updated_at DESC`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
 	included := stringSet(recordIDs)
 	records := []companyShareRecord{}
-	for rows.Next() {
-		var recordID string
-		var record companyShareRecord
-		var attributesJSON string
-		if errorValue := rows.Scan(&recordID, &record.Category, &record.Date, &record.Title, &attributesJSON); errorValue != nil {
-			return nil, errorValue
+	for _, held := range held {
+		if !included[held.RecordID] {
+			continue
 		}
-		if included[recordID] {
-			recordContext := contexts[recordID]
-			record.Titles = recordContext.Titles
-			record.Descriptions = recordContext.Descriptions
-			record.Attributes = publicCompanyShareAttributes(attributesJSON, recordContext.AttributeKeys)
-			records = append(records, record)
-		}
+		recordContext := contexts[held.RecordID]
+		records = append(records, companyShareRecord{
+			Category:     held.Category,
+			Date:         held.Date,
+			Title:        held.Title,
+			Titles:       recordContext.Titles,
+			Descriptions: recordContext.Descriptions,
+			Attributes:   publicCompanyShareAttributes(held.Attributes, recordContext.AttributeKeys),
+		})
 	}
-	return records, rows.Err()
+	return records, nil
 }
 
 func (service *Service) readCompanyShareDocuments(ctx context.Context, documentIDs []string) ([]companyShareDocument, error) {
 	if len(documentIDs) == 0 {
 		return []companyShareDocument{}, nil
 	}
-	database, errorValue := service.openCompanyDatabase(ctx)
+	client := service.centralPlane()
+	if client == nil {
+		return nil, errors.New("this device names no company, so the documents it would publish are not there")
+	}
+	held, errorValue := client.CompanyDocuments(ctx, service.claimedAdminEmail())
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer database.Close()
-	rows, errorValue := database.QueryContext(ctx, `SELECT id, document_type, title, language, summary, issued_at FROM company_documents ORDER BY issued_at DESC`)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	defer rows.Close()
 	included := stringSet(documentIDs)
 	documents := []companyShareDocument{}
-	for rows.Next() {
-		var documentID string
-		var document companyShareDocument
-		if errorValue := rows.Scan(&documentID, &document.DocumentType, &document.Title, &document.Language, &document.Summary, &document.IssuedAt); errorValue != nil {
-			return nil, errorValue
+	for _, held := range held {
+		if !included[held.DocumentID] {
+			continue
 		}
-		if included[documentID] {
-			documents = append(documents, document)
-		}
+		documents = append(documents, companyShareDocument{
+			DocumentType: held.DocumentType,
+			Title:        held.Title,
+			Language:     held.Language,
+			Summary:      held.Summary,
+			IssuedAt:     held.IssuedAt,
+		})
 	}
-	return documents, rows.Err()
+	return documents, nil
 }
 
 func (service *Service) handleCompanyShare(responseWriter http.ResponseWriter, request *http.Request) {
@@ -1003,34 +1003,21 @@ func normalizeCompanyShareRecordContext(value companyShareRecordContext, languag
 	return companyShareRecordContext{Titles: titles, Descriptions: descriptions, AttributeKeys: attributeKeys}, nil
 }
 
-func publicCompanyShareAttributes(document string, attributeKeys []string) map[string]string {
+func publicCompanyShareAttributes(held []centralplane.CompanyRecordAttribute, attributeKeys []string) map[string]string {
 	if len(attributeKeys) == 0 {
 		return nil
 	}
-	var values map[string]any
-	if json.Unmarshal([]byte(document), &values) != nil {
-		return nil
+	values := map[string]string{}
+	for _, attribute := range held {
+		values[attribute.Label] = attribute.Value
 	}
 	attributes := map[string]string{}
 	for _, key := range attributeKeys {
-		if value, isPublic := publicCompanyShareAttributeValue(values[key]); isPublic {
+		if value := strings.TrimSpace(values[key]); value != "" {
 			attributes[key] = value
 		}
 	}
 	return attributes
-}
-
-func publicCompanyShareAttributeValue(value any) (string, bool) {
-	switch typedValue := value.(type) {
-	case string:
-		return strings.TrimSpace(typedValue), strings.TrimSpace(typedValue) != ""
-	case float64:
-		return strconv.FormatFloat(typedValue, 'f', -1, 64), true
-	case bool:
-		return strconv.FormatBool(typedValue), true
-	default:
-		return "", false
-	}
 }
 
 func normalizeCompanyShareLocalizedValues(values map[string]string, languages []string, maximumLength int) (map[string]string, error) {

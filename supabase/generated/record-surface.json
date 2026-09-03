@@ -203,6 +203,15 @@
       "callableBy": []
     },
     {
+      "name": "company_documents_matching",
+      "arguments": "target_query text, target_limit integer",
+      "returns": "SETOF company_document",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
       "name": "company_holidays_merge",
       "arguments": "target_company uuid, target_holidays jsonb",
       "returns": "jsonb",

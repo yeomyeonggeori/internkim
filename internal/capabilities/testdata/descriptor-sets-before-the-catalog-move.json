@@ -5762,23 +5762,25 @@
       "worksOffline": false
     },
     "company_document_list": {
-      "answeredBy": "company",
-      "availability": {
-        "state": "ok"
-      },
+      "name": "company_document_list",
       "canonicalName": "company_document_list",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_document_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
       "description": "List registered company documents newest first, with their numbers, counterparts, file paths, and summaries. Filter by type, counterpart, or keyword. Use to answer 'what quotes did we send to X'.",
+      "version": "1",
+      "privacyClass": "workspace_company",
       "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "counterpart": {
-            "description": "Counterpart name to filter by, e.g. 'ABC\ubb3c\uc0b0'.",
+            "description": "Counterpart name to filter by, e.g. 'ABC Trading'.",
             "type": "string"
           },
           "query": {
@@ -5792,141 +5794,268 @@
         },
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_document_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_document_list",
-      "namespace": "company",
       "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "effects": {
+          "documents": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "counterpart": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "documentID": {
                   "type": "string"
                 },
-                "durability": {
+                "documentNumber": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "documentType": {
                   "type": "string"
                 },
-                "effect": {
+                "filePath": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "issuedAt": {
                   "type": "string"
                 },
-                "filename": {
+                "kind": {
                   "type": "string"
                 },
-                "id": {
-                  "type": "string"
+                "language": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
+                "requesterID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "summary": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "title": {
                   "type": "string"
                 }
               },
               "required": [
-                "objectType",
-                "effect"
+                "documentID",
+                "documentNumber",
+                "kind",
+                "documentType",
+                "title",
+                "counterpart",
+                "language",
+                "filePath",
+                "summary",
+                "requesterID",
+                "issuedAt"
               ],
               "type": "object"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
+          "count",
+          "documents"
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "documents": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "counterpart": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documentID": {
+                    "type": "string"
+                  },
+                  "documentNumber": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documentType": {
+                    "type": "string"
+                  },
+                  "filePath": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "issuedAt": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "language": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requesterID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "summary": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "documentID",
+                  "documentNumber",
+                  "kind",
+                  "documentType",
+                  "title",
+                  "counterpart",
+                  "language",
+                  "filePath",
+                  "summary",
+                  "requesterID",
+                  "issuedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "documents"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_document_list",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
-      "worksOffline": true
-    },
-    "company_document_register": {
-      "answeredBy": "company",
+      "sideEffect": "read",
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "company_document_register",
-      "completionEvidence": {
-        "action": "write_company",
-        "mode": "success",
-        "targetKind": "company"
-      },
-      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file.",
-      "estimatedLatency": "low",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "company_document_register": {
+      "name": "company_document_register",
+      "canonicalName": "company_document_register",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_document_register",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "low",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "counterpart": {
-            "description": "Counterpart company or person name, e.g. 'ABC\ubb3c\uc0b0'.",
+            "description": "Counterpart company or person name, e.g. 'ABC Trading'.",
             "type": "string"
           },
           "documentType": {
@@ -5950,151 +6079,262 @@
             "type": "string"
           },
           "title": {
-            "description": "Document title including the counterpart, e.g. 'ABC\ubb3c\uc0b0 \uae40\uc778\ud134 \ub3c4\uc785 \ucee8\uc124\ud305 \uacac\uc801\uc11c'.",
+            "description": "Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'.",
             "type": "string"
           }
         },
         "required": [
           "documentType",
-          "title",
-          "summary"
+          "summary",
+          "title"
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_document_register",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_document_register",
-      "namespace": "company",
       "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
+          "counterpart": {
+            "anyOf": [
+              {
+                "type": "string"
               },
-              "required": [
-                "objectType",
-                "effect"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+              {
+                "type": "null"
+              }
+            ]
           },
-          "errorCode": {
+          "documentID": {
             "type": "string"
           },
-          "failureStage": {
+          "documentNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documentType": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
+          "filePath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "message": {
+          "issuedAt": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
+          "kind": {
             "type": "string"
           },
-          "provider": {
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requesterID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "storageDirectory": {
             "type": "string"
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
+          "documentID",
+          "documentNumber",
+          "kind",
+          "documentType",
+          "title",
+          "counterpart",
+          "language",
+          "filePath",
+          "summary",
+          "requesterID",
+          "issuedAt",
+          "storageDirectory"
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "counterpart": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documentID": {
+              "type": "string"
+            },
+            "documentNumber": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documentType": {
+              "type": "string"
+            },
+            "filePath": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "issuedAt": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "language": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "requesterID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "storageDirectory": {
+              "type": "string"
+            },
+            "summary": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "documentID",
+            "documentNumber",
+            "kind",
+            "documentType",
+            "title",
+            "counterpart",
+            "language",
+            "filePath",
+            "summary",
+            "requesterID",
+            "issuedAt",
+            "storageDirectory"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_document_register",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": true
-    },
-    "company_document_search": {
-      "answeredBy": "company",
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_company",
+        "targetKind": "company"
+      },
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "company_document_search",
-      "description": "Semantically search registered company documents by a natural-language question ('ABC\uc640 \ub9fa\uc740 \uacc4\uc57d \uc870\uac74'). Returns best-matching documents with summaries \u2014 answer from the summary first and open the file only when detail is needed.",
-      "estimatedLatency": "medium",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "company_document_search": {
+      "name": "company_document_search",
+      "canonicalName": "company_document_search",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_document_search",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Search registered company documents by a natural-language question ('the terms of the agreement with ABC'). Matches the question against each document's title, counterpart, summary and type, best match first. Answer from the summary first and open the file only when detail is needed.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "medium",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "limit": {
             "description": "Maximum documents to return. Defaults to 5.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
             "type": "integer"
           },
           "query": {
-            "description": "Natural-language question or topic, e.g. 'ABC\ubb3c\uc0b0\uc774\ub791 \ub9fa\uc740 \uc6a9\uc5ed \uacc4\uc57d \ub300\uae08 \uc870\uac74'.",
+            "description": "Natural-language question or topic, e.g. 'payment terms of the service agreement with ABC Trading'.",
             "type": "string"
           }
         },
@@ -6103,144 +6343,276 @@
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_document_search",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_document_search",
-      "namespace": "company",
       "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "effects": {
+          "documents": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "counterpart": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "documentID": {
                   "type": "string"
                 },
-                "durability": {
+                "documentNumber": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "documentType": {
                   "type": "string"
                 },
-                "effect": {
+                "filePath": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "issuedAt": {
                   "type": "string"
                 },
-                "filename": {
+                "kind": {
                   "type": "string"
                 },
-                "id": {
-                  "type": "string"
+                "language": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
+                "requesterID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "summary": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "title": {
                   "type": "string"
                 }
               },
               "required": [
-                "objectType",
-                "effect"
+                "documentID",
+                "documentNumber",
+                "kind",
+                "documentType",
+                "title",
+                "counterpart",
+                "language",
+                "filePath",
+                "summary",
+                "requesterID",
+                "issuedAt"
               ],
               "type": "object"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
+          "count",
+          "documents"
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "documents": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "counterpart": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documentID": {
+                    "type": "string"
+                  },
+                  "documentNumber": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "documentType": {
+                    "type": "string"
+                  },
+                  "filePath": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "issuedAt": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "language": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requesterID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "summary": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "documentID",
+                  "documentNumber",
+                  "kind",
+                  "documentType",
+                  "title",
+                  "counterpart",
+                  "language",
+                  "filePath",
+                  "summary",
+                  "requesterID",
+                  "issuedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "documents"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_document_search",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
-      "worksOffline": true
-    },
-    "company_document_update": {
-      "answeredBy": "company",
+      "sideEffect": "read",
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "company_document_update",
-      "description": "Update a registered document's file path, title, counterpart, or summary by id from a prior list/search result. Use when a file was moved or renamed so the ledger keeps tracking it.",
-      "estimatedLatency": "low",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "company_document_update": {
+      "name": "company_document_update",
+      "canonicalName": "company_document_update",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_document_update",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Update a registered document's file path, title, counterpart, or summary. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "low",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "counterpart": {
             "description": "Corrected counterpart. Omit to keep unchanged.",
             "type": "string"
           },
-          "filePath": {
-            "description": "New workspace path after the file was saved, moved, or renamed.",
+          "documentHint": {
+            "description": "The document to update: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Never the new title this call is about to set.",
             "type": "string"
           },
-          "id": {
-            "description": "Document id from a prior company_document_list or search result.",
+          "filePath": {
+            "description": "New workspace path after the file was saved, moved, or renamed.",
             "type": "string"
           },
           "summary": {
@@ -6253,121 +6625,215 @@
           }
         },
         "required": [
-          "id"
+          "documentHint"
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_document_update",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_document_update",
-      "namespace": "company",
       "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
+          "counterpart": {
+            "anyOf": [
+              {
+                "type": "string"
               },
-              "required": [
-                "objectType",
-                "effect"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+              {
+                "type": "null"
+              }
+            ]
           },
-          "errorCode": {
+          "documentID": {
             "type": "string"
           },
-          "failureStage": {
+          "documentNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documentType": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
+          "filePath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "message": {
+          "issuedAt": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
+          "kind": {
             "type": "string"
           },
-          "provider": {
-            "type": "string"
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
+          "requesterID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "safeRetry": {
-            "type": "boolean"
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
+          "documentID",
+          "documentNumber",
+          "kind",
+          "documentType",
+          "title",
+          "counterpart",
+          "language",
+          "filePath",
+          "summary",
+          "requesterID",
+          "issuedAt"
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "counterpart": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documentID": {
+              "type": "string"
+            },
+            "documentNumber": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documentType": {
+              "type": "string"
+            },
+            "filePath": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "issuedAt": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "language": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "requesterID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "summary": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "documentID",
+            "documentNumber",
+            "kind",
+            "documentType",
+            "title",
+            "counterpart",
+            "language",
+            "filePath",
+            "summary",
+            "requesterID",
+            "issuedAt"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_document_update",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": true
+      "sideEffect": "workspace_write",
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
+      }
     },
     "company_info_get": {
       "name": "company_info_get",
@@ -7010,23 +7476,27 @@
       }
     },
     "company_metric_list": {
-      "answeredBy": "company",
-      "availability": {
-        "state": "ok"
-      },
+      "name": "company_metric_list",
       "canonicalName": "company_metric_list",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_metric_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
       "description": "List recorded company metrics sorted by period. Filter by metric key and year range. Use for IR decks, business plans, and grant applications that need revenue/headcount/usage time series.",
+      "version": "1",
+      "privacyClass": "workspace_company",
       "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "fromYear": {
             "description": "Earliest year to include.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
             "type": "integer"
           },
           "metric": {
@@ -7035,142 +7505,255 @@
           },
           "toYear": {
             "description": "Latest year to include.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
             "type": "integer"
           }
         },
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_metric_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_metric_list",
-      "namespace": "company",
       "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "effects": {
+          "metrics": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "currency": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "metric": {
                   "type": "string"
                 },
-                "durability": {
+                "metricID": {
                   "type": "string"
                 },
-                "effect": {
+                "month": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "note": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "quarter": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "unit": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "updatedAt": {
                   "type": "string"
                 },
-                "filename": {
-                  "type": "string"
+                "value": {
+                  "type": "number"
                 },
-                "id": {
-                  "type": "string"
+                "valueUSD": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
+                "year": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
                 }
               },
               "required": [
-                "objectType",
-                "effect"
+                "metricID",
+                "metric",
+                "year",
+                "quarter",
+                "month",
+                "value",
+                "currency",
+                "valueUSD",
+                "unit",
+                "note",
+                "updatedAt"
               ],
               "type": "object"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
+          "count",
+          "metrics"
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "metrics": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "currency": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metric": {
+                    "type": "string"
+                  },
+                  "metricID": {
+                    "type": "string"
+                  },
+                  "month": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "quarter": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "unit": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "number"
+                  },
+                  "valueUSD": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "year": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "metricID",
+                  "metric",
+                  "year",
+                  "quarter",
+                  "month",
+                  "value",
+                  "currency",
+                  "valueUSD",
+                  "unit",
+                  "note",
+                  "updatedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "metrics"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_metric_list",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
-      "worksOffline": true
-    },
-    "company_metric_record": {
-      "answeredBy": "company",
+      "sideEffect": "read",
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "company_metric_record",
-      "completionEvidence": {
-        "action": "write_company",
-        "mode": "success",
-        "targetKind": "company"
-      },
-      "description": "Record or correct one company metric value for a period \u2014 annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Monetary values use an allowed currency plus a stable USD equivalent; non-monetary values use unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
-      "estimatedLatency": "low",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "company_metric_record": {
+      "name": "company_metric_record",
+      "canonicalName": "company_metric_record",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_metric_record",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Record or correct one company metric value for a period \u2014 annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Monetary values use an allowed currency plus a stable USD equivalent; non-monetary values use unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "low",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "currency": {
@@ -7197,22 +7780,26 @@
           },
           "month": {
             "description": "Month 1-12 for a monthly value. Leave out for annual or quarterly values; never combine with quarter.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
             "type": "integer"
           },
           "note": {
-            "description": "Source or context note, e.g. '\uc7ac\ubb34\uc81c\ud45c \uae30\uc900'.",
+            "description": "Source or context note, e.g. 'from the audited financial statements'.",
             "type": "string"
           },
           "quarter": {
             "description": "Quarter 1-4 for a quarterly value. Leave out for annual or monthly values; never combine with month.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
             "type": "integer"
           },
           "unit": {
-            "description": "Unit for a non-monetary value, e.g. '\uba85', '\uac74', 'sites'. Do not combine with currency.",
+            "description": "Unit for a non-monetary value, e.g. 'people', 'orders', 'sites'. Do not combine with currency.",
             "type": "string"
           },
           "value": {
-            "description": "Numeric value, e.g. 1200000000 for 12\uc5b5 \uc6d0. Use the raw number, not a formatted string.",
+            "description": "Numeric value, e.g. 1200000000 for 1.2 billion. Use the raw number, not a formatted string.",
             "type": "number"
           },
           "valueUSD": {
@@ -7221,155 +7808,237 @@
           },
           "year": {
             "description": "Four-digit year the value belongs to, e.g. 2025.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
             "type": "integer"
           }
         },
         "required": [
           "metric",
+          "value",
+          "year"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metric": {
+            "type": "string"
+          },
+          "metricID": {
+            "type": "string"
+          },
+          "month": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quarter": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "valueUSD": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "year": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "metricID",
+          "metric",
           "year",
-          "value"
+          "quarter",
+          "month",
+          "value",
+          "currency",
+          "valueUSD",
+          "unit",
+          "note",
+          "updatedAt"
         ],
         "type": "object"
       },
       "inputSchemaStrict": true,
-      "modelName": "company_metric_record",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_metric_record",
-      "namespace": "company",
-      "outputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "objectType",
-                "effect"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
-        ],
-        "type": "object"
-      },
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "currency": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "metric": {
+              "type": "string"
+            },
+            "metricID": {
+              "type": "string"
+            },
+            "month": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "quarter": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "unit": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "value": {
+              "type": "number"
+            },
+            "valueUSD": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "year": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "metricID",
+            "metric",
+            "year",
+            "quarter",
+            "month",
+            "value",
+            "currency",
+            "valueUSD",
+            "unit",
+            "note",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_metric_record",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": true
-    },
-    "company_record_add": {
-      "answeredBy": "company",
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_company",
+        "targetKind": "company"
+      },
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "company_record_add",
-      "completionEvidence": {
-        "action": "write_company",
-        "mode": "success",
-        "targetKind": "company"
-      },
-      "description": "Add one company history/asset record: milestones (\uc5f0\ud601), funding rounds, products, patents, certifications, awards, client references, government grants. Set category, date, title; put structured details (amount, investors, round \u2026) into attributes as a label-to-value JSON object string.",
-      "estimatedLatency": "low",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "company_record_add": {
+      "name": "company_record_add",
+      "canonicalName": "company_record_add",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_record_add",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Add one company history/asset record: milestones, funding rounds, products, patents, certifications, awards, client references, government grants. Set category, date, title; put structured details (amount, investors, round \u2026) into attributes as a label-to-value JSON object string.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "low",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "attributes": {
-            "description": "JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"20\uc5b5 \uc6d0\", \"investors\": \"ABC\ubca4\ucc98\uc2a4\"}.",
+            "description": "JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"2,000,000 USD\", \"investors\": \"ABC Ventures\"}.",
             "type": "string"
           },
           "category": {
-            "description": "Record category: 'history' (\uc5f0\ud601), 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.",
+            "description": "Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.",
             "type": "string"
           },
           "date": {
@@ -7381,7 +8050,7 @@
             "type": "string"
           },
           "title": {
-            "description": "Short title, e.g. '\uc2dc\ub4dc \ud22c\uc790 \uc720\uce58' or '\uae40\uc778\ud134 \uc815\uc2dd \ucd9c\uc2dc'.",
+            "description": "Short title, e.g. 'Seed round closed' or 'Product launched'.",
             "type": "string"
           }
         },
@@ -7391,271 +8060,356 @@
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_record_add",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_record_add",
-      "namespace": "company",
       "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
+          "attributes": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "label": {
                   "type": "string"
                 },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "value": {
                   "type": "string"
                 }
               },
               "required": [
-                "objectType",
-                "effect"
+                "label",
+                "value"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
+          "category": {
             "type": "string"
           },
-          "failureStage": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordID": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
+          "title": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:company_record_add",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": true
-    },
-    "company_record_delete": {
-      "answeredBy": "company",
-      "availability": {
-        "state": "ok"
-      },
-      "canonicalName": "company_record_delete",
-      "description": "Delete a company record by id from a prior company_record_list result. Use only when the user asks to remove a wrong entry.",
-      "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "description": "Record id from a prior company_record_list result. Never invent an id.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
+          "recordID",
+          "category",
+          "date",
+          "title",
+          "detail",
+          "attributes",
+          "updatedAt"
         ],
         "type": "object"
       },
       "inputSchemaStrict": true,
+      "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attributes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "category": {
+              "type": "string"
+            },
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recordID": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "category",
+            "date",
+            "title",
+            "detail",
+            "attributes",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "policyResource": "tool:company_record_add",
+      "sideEffectClass": "workspace_write",
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_company",
+        "targetKind": "company"
+      },
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
+      }
+    },
+    "company_record_delete": {
+      "name": "company_record_delete",
+      "canonicalName": "company_record_delete",
+      "namespace": "company",
+      "answeredBy": "record",
       "modelName": "company_record_delete",
       "modelVisibility": "hidden",
       "modelVisible": false,
-      "name": "company_record_delete",
-      "namespace": "company",
-      "outputSchema": {
+      "description": "Delete a company record named by recordHint from a prior company_record_list result. Use only when the user asks to remove a wrong entry.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "low",
+      "requiresUserPresence": false,
+      "worksOffline": false,
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "recordHint": {
+            "description": "The record to delete: its id from a prior company_record_list result, or its exact CURRENT title. Never invent an id.",
             "type": "string"
-          },
-          "effects": {
+          }
+        },
+        "required": [
+          "recordHint"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "label": {
                   "type": "string"
                 },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "value": {
                   "type": "string"
                 }
               },
               "required": [
-                "objectType",
-                "effect"
+                "label",
+                "value"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
+          "category": {
             "type": "string"
           },
-          "failureStage": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordID": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
+          "title": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
+          "recordID",
+          "category",
+          "date",
+          "title",
+          "detail",
+          "attributes",
+          "updatedAt"
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attributes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "category": {
+              "type": "string"
+            },
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recordID": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "category",
+            "date",
+            "title",
+            "detail",
+            "attributes",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_record_delete",
-      "privacyClass": "workspace_company",
-      "requiresApproval": true,
-      "requiresUserPresence": false,
-      "sideEffect": "destructive",
       "sideEffectClass": "destructive",
-      "version": "1",
-      "worksOffline": true
-    },
-    "company_record_list": {
-      "answeredBy": "company",
+      "sideEffect": "destructive",
+      "requiresApproval": true,
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "company_record_list",
-      "description": "List company history/asset records, newest first. Filter by category (history, funding, product, certification, ip, award, reference, grant \u2026) or keyword query. Use to build \uc5f0\ud601 sections, funding tables, and product overviews.",
-      "estimatedLatency": "low",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "company_record_list": {
+      "name": "company_record_list",
+      "canonicalName": "company_record_list",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_record_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "List company history/asset records, newest first. Filter by category (history, funding, product, certification, ip, award, reference, grant \u2026) or keyword query. Use to build company timelines, funding tables, and product overviews.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "low",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "category": {
@@ -7669,132 +8423,208 @@
         },
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_record_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_record_list",
-      "namespace": "company",
       "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "effects": {
+          "records": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "attributes": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "value"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "category": {
                   "type": "string"
                 },
-                "durability": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "detail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recordID": {
                   "type": "string"
                 },
-                "effect": {
+                "title": {
                   "type": "string"
                 },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "updatedAt": {
                   "type": "string"
                 }
               },
               "required": [
-                "objectType",
-                "effect"
+                "recordID",
+                "category",
+                "date",
+                "title",
+                "detail",
+                "attributes",
+                "updatedAt"
               ],
               "type": "object"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
+          "count",
+          "records"
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "records": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "attributes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "category": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "detail": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "recordID": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "recordID",
+                  "category",
+                  "date",
+                  "title",
+                  "detail",
+                  "attributes",
+                  "updatedAt"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "count",
+            "records"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_record_list",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
-      "worksOffline": true
-    },
-    "company_record_update": {
-      "answeredBy": "company",
+      "sideEffect": "read",
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "company_record_update",
-      "description": "Update fields on an existing company record identified by id from a prior company_record_list result. Only provided fields change.",
-      "estimatedLatency": "low",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "company_record_update": {
+      "name": "company_record_update",
+      "canonicalName": "company_record_update",
+      "namespace": "company",
+      "answeredBy": "record",
+      "modelName": "company_record_update",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Update fields on an existing company record named by recordHint from a prior company_record_list result. Only provided fields change.",
+      "version": "1",
+      "privacyClass": "workspace_company",
+      "estimatedLatency": "low",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
           "attributes": {
@@ -7813,8 +8643,8 @@
             "description": "New detail text. Omit to keep unchanged.",
             "type": "string"
           },
-          "id": {
-            "description": "Record id from a prior company_record_list result.",
+          "recordHint": {
+            "description": "The record to update: its id from a prior company_record_list result, or its exact CURRENT title. Never the new title this call is about to set.",
             "type": "string"
           },
           "title": {
@@ -7823,121 +8653,159 @@
           }
         },
         "required": [
-          "id"
+          "recordHint"
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "company_record_update",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "company_record_update",
-      "namespace": "company",
       "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
+          "attributes": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "label": {
                   "type": "string"
                 },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
+                "value": {
                   "type": "string"
                 }
               },
               "required": [
-                "objectType",
-                "effect"
+                "label",
+                "value"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
+          "category": {
             "type": "string"
           },
-          "failureStage": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordID": {
             "type": "string"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
+          "title": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "updatedAt": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "selectedBackend",
-          "toolName",
-          "result"
+          "recordID",
+          "category",
+          "date",
+          "title",
+          "detail",
+          "attributes",
+          "updatedAt"
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attributes": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "category": {
+              "type": "string"
+            },
+            "date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "detail": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recordID": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "recordID",
+            "category",
+            "date",
+            "title",
+            "detail",
+            "attributes",
+            "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
       "policyResource": "tool:company_record_update",
-      "privacyClass": "workspace_company",
-      "requiresUserPresence": false,
-      "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": true
+      "sideEffect": "workspace_write",
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
+      }
     },
     "document_read": {
       "answeredBy": "company",
