@@ -284,11 +284,11 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/identity.resolve", service.handleIdentityResolve)
 	multiplexer.HandleFunc("POST /v1/directory/person", service.handleDirectoryPerson)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/reply.send", service.handleReplySend)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleReactionAdd)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.remove", service.handleReactionRemove)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.add", service.handleWhatThePlatformDoesNotKeep)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/reaction.remove", service.handleWhatThePlatformDoesNotKeep)
 	multiplexer.HandleFunc("POST /v1/platform/{platform}/history.fetch", service.handleHistoryFetch)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleProgressStart)
-	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleProgressStop)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.start", service.handleWhatThePlatformDoesNotKeep)
+	multiplexer.HandleFunc("POST /v1/platform/{platform}/progress.stop", service.handleWhatThePlatformDoesNotKeep)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/target.resolve", service.handleToolTargetResolve)
 	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
@@ -383,101 +383,68 @@ func (service Service) handleEmbeddingCreate(responseWriter http.ResponseWriter,
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
-func (service Service) handleIdentityResolve(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "slack":
-		response, errorValue = service.slackLookupUserFromRequest(request.Context(), request.Body)
-	case "signal":
-		response, errorValue = service.signalLookupUserFromRequest(request.Context(), request.Body)
-	default:
+type platformCall func(context.Context, io.Reader) (any, error)
+
+type platformConnector struct {
+	resolveIdentity platformCall
+	sendReply       platformCall
+	fetchHistory    platformCall
+}
+
+func (service Service) platformConnectors() map[string]platformConnector {
+	return map[string]platformConnector{
+		"slack": {
+			resolveIdentity: service.slackLookupUserFromRequest,
+			sendReply:       service.slackReplyFromRequest,
+			fetchHistory:    service.slackHistoryFromRequest,
+		},
+		"signal": {
+			resolveIdentity: service.signalLookupUserFromRequest,
+			sendReply:       service.signalReplyFromRequest,
+			fetchHistory:    service.signalHistoryFromRequest,
+		},
+	}
+}
+
+func (service Service) platformConnectorFor(platform string) (platformConnector, bool) {
+	connector, isServed := service.platformConnectors()[platform]
+	return connector, isServed
+}
+
+func (service Service) answerForPlatform(responseWriter http.ResponseWriter, request *http.Request, callOf func(platformConnector) platformCall) {
+	connector, isServed := service.platformConnectorFor(request.PathValue("platform"))
+	if !isServed {
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
 	}
+	response, errorValue := callOf(connector)(request.Context(), request.Body)
 	service.writeResponse(responseWriter, response, errorValue)
+}
+
+func (service Service) handleIdentityResolve(responseWriter http.ResponseWriter, request *http.Request) {
+	service.answerForPlatform(responseWriter, request, func(connector platformConnector) platformCall {
+		return connector.resolveIdentity
+	})
 }
 
 func (service Service) handleReplySend(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "slack":
-		response, errorValue = service.slackReplyFromRequest(request.Context(), request.Body)
-	case "signal":
-		response, errorValue = service.signalReplyFromRequest(request.Context(), request.Body)
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) handleReactionAdd(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "slack", "signal":
-		response = map[string]string{"status": "noop"}
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) handleReactionRemove(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "slack", "signal":
-		response = map[string]string{"status": "noop"}
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
+	service.answerForPlatform(responseWriter, request, func(connector platformConnector) platformCall {
+		return connector.sendReply
+	})
 }
 
 func (service Service) handleHistoryFetch(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "slack":
-		response, errorValue = service.slackHistoryFromRequest(request.Context(), request.Body)
-	case "signal":
-		response, errorValue = service.signalHistoryFromRequest(request.Context(), request.Body)
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
+	service.answerForPlatform(responseWriter, request, func(connector platformConnector) platformCall {
+		return connector.fetchHistory
+	})
 }
 
-func (service Service) handleProgressStart(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "slack", "signal":
-		response = map[string]string{"status": "noop"}
-	default:
+func (service Service) handleWhatThePlatformDoesNotKeep(responseWriter http.ResponseWriter, request *http.Request) {
+	if _, isServed := service.platformConnectorFor(request.PathValue("platform")); !isServed {
 		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
 		return
 	}
-	service.writeResponse(responseWriter, response, errorValue)
-}
-
-func (service Service) handleProgressStop(responseWriter http.ResponseWriter, request *http.Request) {
-	var response any
-	var errorValue error
-	switch request.PathValue("platform") {
-	case "slack", "signal":
-		response = map[string]string{"status": "noop"}
-	default:
-		http.Error(responseWriter, "platform is not supported", http.StatusNotFound)
-		return
-	}
-	service.writeResponse(responseWriter, response, errorValue)
+	service.writeJSON(responseWriter, map[string]string{"status": "noop"})
 }
 
 func (service Service) writeResponse(responseWriter http.ResponseWriter, response any, errorValue error) {

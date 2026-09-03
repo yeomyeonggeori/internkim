@@ -303,11 +303,6 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	if _, isFound := terminal["commandRewrite"]; isFound {
 		t.Fatalf("expected RTK hook not to be exposed as runtime config, got %+v", terminal)
 	}
-	connectors := runtimeConfiguration["connectors"].(map[string]any)
-	mattermost := connectors["mattermost"].(map[string]any)
-	if _, isFound := mattermost["botTokenPath"]; isFound {
-		t.Fatal("expected Mattermost bot token path to be omitted")
-	}
 	forbiddenFragments := []string{"apiKeyPath", "botTokenPath", "signingSecretPath", "wrapperPath", "modelPath"}
 	for _, fragment := range forbiddenFragments {
 		if strings.Contains(document, fragment) {
@@ -561,7 +556,6 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 		CapabilitySocketPath:     "/srv/internkim/tenants/pilot-01/internkim/run/capability.sock",
 		CapabilityVSockPort:      17100,
 		GraphitiEndpoint:         "http://127.0.0.1:18791",
-		MattermostBaseURL:        "http://127.0.0.1:18065",
 		HostWorkspacePath:        "/srv/internkim/tenants/pilot-01/blueclaw/workspace",
 		RootFilesystemImagePath:  "/srv/internkim/tenants/pilot-01/blueclaw/guest/rootfs.ext4",
 		WorkspaceImagePath:       "/srv/internkim/tenants/pilot-01/blueclaw/guest/workspace.ext4",
@@ -599,7 +593,6 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 	}
 	assertNestedValue(t, runtimeConfiguration, []string{"languageModel", "capability", "model"}, "x-ai/grok-4.3")
 	assertNestedValue(t, runtimeConfiguration, []string{"memory", "graphitiEndpoint"}, "http://127.0.0.1:18791")
-	assertNestedValue(t, runtimeConfiguration, []string{"connectors", "mattermost", "baseURL"}, "http://127.0.0.1:18065")
 	assertNestedValue(t, runtimeConfiguration, []string{"guest", "hostWorkspacePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/workspace")
 	assertNestedValue(t, runtimeConfiguration, []string{"guest", "workspaceImagePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/guest/workspace.ext4")
 	assertNestedValue(t, runtimeConfiguration, []string{"guest", "hostHTTPListenAddress"}, "127.0.0.1:18100")
