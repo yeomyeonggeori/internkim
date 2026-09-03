@@ -31,7 +31,7 @@ rejected or stopped work stays in the week it ended in. `query` matches the
 title, business, type, owner's name and status, ignoring case and spacing.
 
 Adding the same title for the same owner twice within ten minutes updates the
-first task rather than making a second, and answers with it.
+first task and answers with it. No second task is made.
 
 ## People [#person]
 
@@ -50,7 +50,7 @@ candidates to choose between.
 Answered on the central plane by
 `web/src/lib/server/public-api/record/event-tools.ts`; a calendar event is a
 task with a time span. Times are ISO
-timestamps with a time zone, answered where the company is rather than in UTC,
+timestamps with a time zone, answered where the company is,
 and `eventHint` follows the same resolution rule as `taskHint`.
 
 `event_list` answers what is coming when no window is given: from the start of
