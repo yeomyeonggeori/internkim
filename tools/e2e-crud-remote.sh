@@ -156,7 +156,7 @@ download_post_files() { # token post-json
 
 extract_public_url() { # bot-post-json task-detail-json
 	local bot_post="$1" detail="$2" public_url
-	public_url="$(printf "%s" "$detail" | jq -r '[.taskEvents[]? | select(.name == "tool.capability.invoke.result") | (.body | fromjson? // {}) | .output.content // "" | fromjson? // {} | .publishedURL // empty] | last // empty' 2>/dev/null || true)"
+	public_url="$(printf "%s" "$detail" | jq -r '[.taskEvents[]? | select(.name | startswith("tool.") and endswith(".result")) | (.body | fromjson? // {}) | .output.content // "" | fromjson? // {} | .publishedURL // empty] | last // empty' 2>/dev/null || true)"
 	if [ -n "$public_url" ]; then
 		printf "%s" "$public_url"
 		return
@@ -244,19 +244,16 @@ build_case_result() { # channel_id e2e_token task_run_id root_post_id root_post_
 	reason="$(printf '%s' "$detail" | jq -r '.taskRun.failureReason // ""')"
 	steps="$(printf '%s' "$detail" | jq -r '[.taskSteps[]|select(.taskStepID|test("turn-"))]|length')"
 	expected_operation_observed="$(printf '%s' "$detail" | jq -r --arg expected_op "$expected_op" '
-		any((.taskEvents // [])[];
-			(.name == ("tool." + $expected_op + ".requested")) or
-			(.name == "tool.capability.invoke.requested" and ((.body // "") | tostring | contains("\"operation\":\"" + $expected_op + "\"")))
-		)')"
+		any((.taskEvents // [])[]; .name == ("tool." + $expected_op + ".requested"))')"
 	# The case passes on final state: an earlier transient tool error that the
 	# agent recovers from must not fail a case whose expected operation went on
-	# to succeed. A success is a tool.capability.invoke.result (or a direct
-	# tool.<op>.result) event whose observation names the expected operation and
-	# carries no failure — see turnObservation.tool/turnObservation.failure in
-	# .dependency/blueclaw/internal/agent/turn_runner.go.
+	# to succeed. A success is a tool.<op>.result event whose observation names
+	# the expected operation and carries no failure — see
+	# turnObservation.tool/turnObservation.failure in
+	# .dependency/blueclaw/.dependency/bluecollar/loop/turn_runner.go.
 	expected_operation_succeeded="$(printf '%s' "$detail" | jq -r --arg expected_op "$expected_op" '
 		any((.taskEvents // [])[];
-			(.name == "tool.capability.invoke.result" or .name == ("tool." + $expected_op + ".result")) and
+			.name == ("tool." + $expected_op + ".result") and
 			((.body | fromjson? // {}) as $observation | $observation.tool == $expected_op and ($observation.failure // null) == null)
 		)')"
 	recovered_error_count="$(printf '%s' "$detail" | jq -r '
