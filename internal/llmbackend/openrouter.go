@@ -405,6 +405,22 @@ func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {
 	request.Header.Set(headerName, gatewaySecret)
 }
 
+// OpenRouter serves one model from several providers and picks for itself
+// unless it is told an order. These two are named first because they are the
+// ones this company wants serving it; allow_fallbacks leaves the rest reachable,
+// so naming them is a preference and never an outage when they are busy.
+//
+// https://openrouter.ai/docs/features/provider-routing
+var openRouterPreferredProviders = []string{"modal", "baseten"}
+
+func openRouterProviderRouting() map[string]any {
+	return map[string]any{
+		"require_parameters": true,
+		"order":              openRouterPreferredProviders,
+		"allow_fallbacks":    true,
+	}
+}
+
 func buildOpenRouterStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
 	document := map[string]any{
 		"model":    modelName,
@@ -420,7 +436,7 @@ func buildOpenRouterStructuredRequest(request StructuredRequest, modelName strin
 		"stream": false,
 	}
 	if request.RequireParameters {
-		document["provider"] = map[string]bool{"require_parameters": true}
+		document["provider"] = openRouterProviderRouting()
 	}
 	if request.EnableResponseHealing {
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
@@ -441,7 +457,7 @@ func buildOpenRouterPromptedStructuredRequest(request StructuredRequest, modelNa
 		"stream":   false,
 	}
 	if request.RequireParameters {
-		document["provider"] = map[string]bool{"require_parameters": true}
+		document["provider"] = openRouterProviderRouting()
 	}
 	if request.EnableResponseHealing {
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
@@ -518,7 +534,7 @@ func buildOpenRouterTextRequest(request TextRequest, modelName string) ([]byte, 
 		"stream":   false,
 	}
 	if request.RequireParameters {
-		document["provider"] = map[string]bool{"require_parameters": true}
+		document["provider"] = openRouterProviderRouting()
 	}
 	if request.EnableResponseHealing {
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
