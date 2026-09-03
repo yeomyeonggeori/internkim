@@ -151,8 +151,20 @@ GROUPS = [
     ),
     Group(
         "web-e2e",
-        ["web/src/routes/calendar/**", "web/tests/e2e/calendar*"],
-        [["bun", "run", "test:e2e:calendar:central"]],
+        [
+            "web/src/routes/calendar/*",
+            "web/tests/e2e/calendar*",
+            "web/src/routes/attendance/*",
+            "web/src/lib/attendance/*",
+            "web/src/routes/admin/attendance-*",
+            "web/tests/e2e/attendance*",
+            "web/tests/e2e/central-test-utils.ts",
+            "web/scripts/e2e-central.sh",
+        ],
+        [
+            ["bun", "run", "test:e2e:calendar:central"],
+            ["bun", "run", "test:e2e:attendance:central"],
+        ],
         working_directory="web",
     ),
     Group(
