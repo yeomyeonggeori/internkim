@@ -64,7 +64,6 @@ function taskSummary(overrides: Partial<TaskSummary>): TaskSummary {
 		currentUserEmail: 'member@example.com',
 		currentUserName: '김철수',
 		isAdmin: false,
-		source: 'test',
 		...overrides
 	};
 }

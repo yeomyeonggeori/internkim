@@ -16,7 +16,7 @@ export type TaskBoardSaveInput = {
 
 export async function saveTaskBoardMove(input: TaskBoardSaveInput): Promise<TaskBoardSaveResult> {
 	try {
-		await moveTaskOnBoard(input.request, input.saveErrorMessage);
+		await moveTaskOnBoard(input.request);
 	} catch (error) {
 		if (input.currentWeek() === input.week) {
 			input.setPageErrorMessage(errorMessage(error, input.saveErrorMessage));

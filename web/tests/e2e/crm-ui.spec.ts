@@ -923,7 +923,6 @@ async function installSessionRoutes(page: Page): Promise<void> {
 	await page.route('**/admin/api/session**', (route) => route.fulfill({ json: { email: 'crm@example.com', role: 'admin' } }));
 	await page.route('**/admin/api/locale**', (route) => route.fulfill({ json: { locale: 'ko' } }));
 	await page.route('**/calendar/api/**', (route) => route.fulfill({ json: { events: [] } }));
-	await page.route('**/task/api/**', (route) => route.fulfill({ json: {} }));
 	await page.route('**/agent/api/**', (route) => {
 		const path = new URL(route.request().url()).pathname;
 		return route.fulfill({ json: path === '/agent/api/buzz-vault' ? { found: true } : {} });
