@@ -164,9 +164,9 @@ function duplicateJustAdded(
 	);
 }
 
-function addedWithinTheDuplicateWindow(createdAt: string, now: Date): boolean {
+export function addedWithinTheDuplicateWindow(createdAt: string, now: Date): boolean {
 	const since = now.getTime() - new Date(createdAt).getTime();
-	return since >= 0 && since <= duplicateWindowMilliseconds;
+	return Math.abs(since) <= duplicateWindowMilliseconds;
 }
 
 async function mergedIntoDuplicate(
