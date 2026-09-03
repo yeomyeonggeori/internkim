@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { localeOf, type Locale } from '$lib/i18n/locale';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { leaveKindsOfPolicy, type LeaveKind } from './leave';
 import { peopleOfCompany, type RecordPerson } from './people';
@@ -11,6 +12,7 @@ export type RecordContext = {
 	people: RecordPerson[];
 	labels: CompanyLabels;
 	leaveKinds: LeaveKind[];
+	locale: Locale;
 	now: Date;
 };
 
@@ -18,6 +20,7 @@ type CompanyRow = {
 	id: string;
 	task_vocabulary: unknown;
 	timezone: string | null;
+	locale: string | null;
 	rules: unknown;
 };
 
@@ -29,7 +32,7 @@ export async function recordContextOf(
 ): Promise<RecordContext> {
 	const company = await caller
 		.from('company')
-		.select('id, task_vocabulary, timezone, rules')
+		.select('id, task_vocabulary, timezone, locale, rules')
 		.limit(1)
 		.single<CompanyRow>();
 	if (company.error) throw new Error(company.error.message);
@@ -42,6 +45,7 @@ export async function recordContextOf(
 		people: await peopleOfCompany(caller),
 		labels: labelsOfVocabulary(company.data.task_vocabulary, company.data.timezone),
 		leaveKinds: leaveKindsOfPolicy(company.data.rules),
+		locale: localeOf(company.data.locale),
 		now
 	};
 }

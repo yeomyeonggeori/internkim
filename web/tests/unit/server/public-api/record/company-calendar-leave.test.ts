@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { calendarEventFromApprovedLeave } from '../../../src/lib/calendar/supabase-calendar-leave';
+import { calendarEntryOfApprovedLeave } from '../../../../../src/lib/server/public-api/record/company-calendar';
 
 const members = new Map([
 	['member-1', { id: 'member-1', name: '이샘플', email: 'sample@example.com' }]
 ]);
 
-describe('calendarEventFromApprovedLeave', () => {
+describe('calendarEntryOfApprovedLeave', () => {
 	test('ends an all-day leave on the last day it covers, not the midnight after it', () => {
-		const event = calendarEventFromApprovedLeave(
+		const event = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-1',
 				member_id: 'member-1',
@@ -35,7 +35,7 @@ describe('calendarEventFromApprovedLeave', () => {
 	});
 
 	test('ends a whole day on the day it covers, west of UTC as well', () => {
-		const event = calendarEventFromApprovedLeave(
+		const event = calendarEntryOfApprovedLeave(
 			{
 				id: 'full-day-west',
 				member_id: 'member-1',
@@ -58,7 +58,7 @@ describe('calendarEventFromApprovedLeave', () => {
 	});
 
 	test('maps partial leave to a timed event without a note field', () => {
-		const event = calendarEventFromApprovedLeave(
+		const event = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-2',
 				member_id: 'member-1',
@@ -81,7 +81,7 @@ describe('calendarEventFromApprovedLeave', () => {
 	});
 
 	test('labels half-day and quarter-day leave by their deduction', () => {
-		const halfDay = calendarEventFromApprovedLeave(
+		const halfDay = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-half-day',
 				member_id: 'member-1',
@@ -94,7 +94,7 @@ describe('calendarEventFromApprovedLeave', () => {
 			members,
 			'Asia/Seoul'
 		);
-		const quarterDay = calendarEventFromApprovedLeave(
+		const quarterDay = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-quarter-day',
 				member_id: 'member-1',
@@ -113,7 +113,7 @@ describe('calendarEventFromApprovedLeave', () => {
 	});
 
 	test('localizes full-day and partial leave labels in English', () => {
-		const fullDay = calendarEventFromApprovedLeave(
+		const fullDay = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-full-day-en',
 				member_id: 'member-1',
@@ -127,7 +127,7 @@ describe('calendarEventFromApprovedLeave', () => {
 			'Asia/Seoul',
 			'en'
 		);
-		const halfDay = calendarEventFromApprovedLeave(
+		const halfDay = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-half-day-en',
 				member_id: 'member-1',
@@ -141,7 +141,7 @@ describe('calendarEventFromApprovedLeave', () => {
 			'Asia/Seoul',
 			'en'
 		);
-		const quarterDay = calendarEventFromApprovedLeave(
+		const quarterDay = calendarEntryOfApprovedLeave(
 			{
 				id: 'leave-quarter-day-en',
 				member_id: 'member-1',
@@ -162,7 +162,7 @@ describe('calendarEventFromApprovedLeave', () => {
 	});
 
 	test('localizes the fallback member name in English', () => {
-		const event = calendarEventFromApprovedLeave(
+		const event = calendarEntryOfApprovedLeave(
 			{
 				id: 'unknown-member-en',
 				member_id: 'unknown-member',
@@ -181,7 +181,7 @@ describe('calendarEventFromApprovedLeave', () => {
 	});
 
 	test('keeps leave IDs separate from task IDs', () => {
-		const event = calendarEventFromApprovedLeave(
+		const event = calendarEntryOfApprovedLeave(
 			{
 				id: 'same-id',
 				member_id: 'member-1',

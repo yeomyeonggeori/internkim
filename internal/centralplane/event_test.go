@@ -9,37 +9,6 @@ import (
 	"testing"
 )
 
-func TestTheCalendarAsksOnlyForEventsThatOverlapTheWindow(t *testing.T) {
-	asked := map[string]string{}
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == "/api/agent/session" {
-			writeJSON(writer, map[string]any{"memberID": "member-1", "accessToken": "token-1", "expiresAt": 4102444800})
-			return
-		}
-		for name, values := range request.URL.Query() {
-			asked[name] = values[0]
-		}
-		writeJSON(writer, []any{})
-	}))
-	defer server.Close()
-	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
-
-	if _, errorValue := client.EventsBetween(context.Background(), "mattermost", "owner-account",
-		"2026-08-23T00:00:00+09:00", "2026-09-01T00:00:00+09:00"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	if asked["is_event"] != "eq.true" {
-		t.Fatalf("a calendar reads the tasks the company marked as events, got is_event=%q", asked["is_event"])
-	}
-	if asked["starts_at"] != "lt.2026-09-01T00:00:00+09:00" {
-		t.Fatalf("an event that starts after the window is not in it, got starts_at=%q", asked["starts_at"])
-	}
-	if asked["ends_at"] != "gte.2026-08-23T00:00:00+09:00" {
-		t.Fatalf("an event that began earlier and has not ended overlaps the window, got ends_at=%q", asked["ends_at"])
-	}
-}
-
 func TestACalendarEventCarriesItsPeopleAsAddresses(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path == "/api/agent/session" {
@@ -63,14 +32,13 @@ func TestACalendarEventCarriesItsPeopleAsAddresses(t *testing.T) {
 	defer server.Close()
 	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
-	events, errorValue := client.EventsBetween(context.Background(), "mattermost", "owner-account", "", "")
+	event, found, errorValue := client.EventByID(context.Background(), "mattermost", "owner-account", "task-1")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(events) != 1 {
-		t.Fatalf("expected the one event the company holds, got %+v", events)
+	if !found {
+		t.Fatal("expected the one event the company holds")
 	}
-	event := events[0]
 	if event.Title != "포틀랜드 출장" || event.Location != "Portland" || !event.IsWholeDay {
 		t.Fatalf("event = %+v", event)
 	}

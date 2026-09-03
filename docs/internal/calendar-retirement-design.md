@@ -17,7 +17,7 @@ Everything currently working keeps working. That is the constraint, not an aspir
 
 ## 1. What the device has now
 
-> Superseded 2026-09-03 by #1347 and #1301: Google Workspace was removed entirely, and then the device's own calendar store went with it. admind keeps no calendar table but the holidays, serves no CalDAV, and answers `/calendar/api/events` from the company's record. The tables below describe a device that no longer exists.
+> Superseded 2026-09-03 by #1347 and #1301: Google Workspace was removed entirely, and then the device's own calendar store went with it. admind keeps no calendar table but the holidays, serves no CalDAV, and lists no events at all: what is on the calendar is answered by `event_list` on the company's record. The tables below describe a device that no longer exists.
 
 | Table | Holds |
 |---|---|

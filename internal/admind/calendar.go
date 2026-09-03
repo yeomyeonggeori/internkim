@@ -54,10 +54,6 @@ type calendarEventWriteRequest struct {
 	ExpectedUpdatedAt         string `json:"expectedUpdatedAt"`
 }
 
-type calendarEventsResponse struct {
-	Events []calendarEvent `json:"events"`
-}
-
 type calendarPeopleInput []string
 
 func (service *Service) serveCalendarPage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -102,8 +98,6 @@ func (service *Service) handleCalendar(responseWriter http.ResponseWriter, reque
 		return
 	}
 	switch {
-	case request.Method == http.MethodGet && path == "/events":
-		service.listCalendarEvents(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/participants":
 		service.listCalendarParticipants(responseWriter, request)
 	case request.Method == http.MethodGet && strings.HasPrefix(escapedPath, "/events/"):
@@ -128,29 +122,6 @@ func (service *Service) authorizeCalendarAPIRequest(request *http.Request, path 
 
 func (service *Service) authorizeCalendarRequest(request *http.Request) bool {
 	return isLocalRequest(request) || service.authorizeWebMemberRequest(request)
-}
-
-func (service *Service) listCalendarEvents(responseWriter http.ResponseWriter, request *http.Request) {
-	startTime, endTime, errorValue := parseCalendarRange(request)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	if startTime.IsZero() && endTime.IsZero() && request.URL.Query().Get("window") == "upcoming" {
-		startTime, endTime = service.upcomingCalendarWindow(time.Now())
-	}
-	events, answered, readError := service.centralCalendarEvents(request, startTime, endTime)
-	if !answered {
-		writeCalendarBelongsToTheCompany(responseWriter)
-		return
-	}
-	if readError != nil {
-		writeCalendarCentralError(responseWriter, request, "", readError)
-		return
-	}
-	service.writeJSON(responseWriter, calendarEventsResponse{
-		Events: calendarEventsWithNormalizedParticipants(events),
-	})
 }
 
 func (service *Service) createCalendarEvent(responseWriter http.ResponseWriter, request *http.Request) {
@@ -324,31 +295,4 @@ func normalizeCalendarReminderLeadHours(value int) int {
 	default:
 		return calendarDefaultReminderLeadHours
 	}
-}
-
-func (service *Service) upcomingCalendarWindow(now time.Time) (time.Time, time.Time) {
-	location, _ := service.workspaceTimeLocation()
-	local := now.In(location)
-	startOfToday := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
-	return startOfToday.UTC(), startOfToday.AddDate(0, 0, 7).UTC()
-}
-
-func parseCalendarRange(request *http.Request) (time.Time, time.Time, error) {
-	startValue := strings.TrimSpace(request.URL.Query().Get("startISO"))
-	endValue := strings.TrimSpace(request.URL.Query().Get("endISO"))
-	if startValue == "" && endValue == "" {
-		return time.Time{}, time.Time{}, nil
-	}
-	startTime, errorValue := time.Parse(time.RFC3339, startValue)
-	if errorValue != nil {
-		return time.Time{}, time.Time{}, errors.New("startISO must be RFC3339")
-	}
-	endTime, errorValue := time.Parse(time.RFC3339, endValue)
-	if errorValue != nil {
-		return time.Time{}, time.Time{}, errors.New("endISO must be RFC3339")
-	}
-	if !endTime.After(startTime) {
-		return time.Time{}, time.Time{}, errors.New("endISO must be after startISO")
-	}
-	return startTime.UTC(), endTime.UTC(), nil
 }
