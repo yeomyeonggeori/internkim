@@ -98,7 +98,7 @@ tells browsers whether the company's computer is currently connected at all.
 | Process | Answers on | Job | Code |
 |---|---|---|---|
 | the relay (`internkim-relay`) | outbound only; arrivals on `127.0.0.1:18091` | answers the app's calls, carries messenger arrivals | `host/relay/` |
-| the connector (`chatd`) | `127.0.0.1:18090` | messenger adapters: Buzz, Mattermost | `.dependency/blueclaw/chatd/` |
+| the connector (`chatd`) | `127.0.0.1:18090` | the messenger adapter: Buzz | `.dependency/blueclaw/chatd/` |
 | the agent (`blueclaw`) | `127.0.0.1:8080` | the loop, the task ledger, approval, the workspace | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | the typed capability boundary: calendar, tasks, mail, sites | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
 | `internkim-admind` | `127.0.0.1:18080` | the workspace screens, and the tools the plane cannot run itself | `cmd/internkim-admind/`, `internal/admind/` |
@@ -183,8 +183,8 @@ The diagram puts it outside the host, which is one of three places it can be.
 | Your own installation on your network | people on that network or its VPN |
 | The host computer itself | people on that network, and nobody else |
 
-The last row is ordinary. A company that runs its own Buzz relay or
-Mattermost often runs it on the machine already kept awake for the agent, and the
+The last row is ordinary. A company that runs its own Buzz relay
+often runs it on the machine already kept awake for the agent, and the
 connector reaches it over loopback; `host/buzz/` is a compose file that brings
 the Buzz stack up exactly there. Because the chat screen always goes through
 the relay, one screen works wherever the messenger lives, and the

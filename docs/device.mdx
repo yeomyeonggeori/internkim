@@ -9,10 +9,11 @@ keep working, and this page is its map. It is the older half of the product;
 the direction is the host and central plane the rest of this documentation
 describes.
 
-The appliance we ship runs on a Jetson Orin Nano Super, which is where its
-model sizes and its Cloud Hypervisor guest come from. Nothing here needs that
-particular board — [the host](/docs/running-the-host) is the same software on
-whatever computer a company already leaves on.
+Nothing here needs a particular board. The model sizes below and the Cloud
+Hypervisor guest come from the Jetson Orin Nano Super this path was built on,
+and the board it is worked against now is a Raspberry Pi CM5.
+[The host](/docs/running-the-host) is the same software on any macOS or Linux
+computer a company already leaves on.
 
 ## What runs on the box
 
@@ -55,16 +56,6 @@ The agent's side is `/root/.blueclaw/`: `config/runtime.json` and
 into the guest as `/workspace`. The workspace's permission model is in
 [Boundaries](/docs/boundaries).
 
-## Where Mattermost fits
-
-An appliance set up before Buzz ran Mattermost on the box, and setup still
-installs it so that history has somewhere to come from: `buzz-migrate` imports
-those channels and messages into the relay. Once a company is reading Buzz,
-`internkim recover stop-mattermost` and `retire-mattermost-mirror` end it. A
-company that would rather keep chatting on Mattermost still can — `chatd` has
-an adapter for it, and `MESSENGER_PLATFORM` names which of the two the box
-runs.
-
 ## The companion
 
 `internkim-companion` runs on a user's own computer and provides what needs a
@@ -92,7 +83,7 @@ make build
 
 The rules that repay knowing before anything else:
 
-- **The Jetson agent component is `blueclawPayload`**, and it ships the
+- **The device's agent component is `blueclawPayload`**, and it ships the
   pre-built artifact at `.dependency/blueclaw-payload/`. Any agent change
   needs `make prepare-blueclaw-payload` first; the deploy fails loudly when
   the artifact's revision does not match the submodule's HEAD.
