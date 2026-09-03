@@ -281,12 +281,31 @@ and delete the duplicates.
   surface. Never add an HR attribute to the account payload:
   `TestFleetAccountUpsertPayloadCarriesNoOrganizationFields` fails when the
   account upsert starts carrying one.
-- One source of truth per shared vocabulary or contract. A value list
-  (emoji names, enum options, capability names, component sets) consumed by
-  more than one role, package, or service is defined exactly once and derived
-  everywhere else; when a consumer is in another language, a conformance test
-  reads the canonical source and fails on drift. Parallel hand-kept copies are
-  a defect — merge them on discovery instead of extending one of them.
+- **One source of truth, always.** Anything two places can disagree about is
+  written down once. This covers value lists (emoji names, enum options,
+  capability names, component sets), and equally covers rules ("a reason is
+  required when a record is written by hand"), configuration a build reads from
+  two files, and any inventory of what exists. A copy does not stay in step
+  because someone means it to. It stays in step only while nothing changes.
+
+  A second copy is allowed only when the first cannot be imported, and then it
+  carries a test that fails when the two disagree. Three remedies, best first:
+
+  1. **Delete the copy** and read the original.
+  2. **Derive it** from the canonical source — at build time into a committed
+     artifact when the consumer cannot reach that source at runtime.
+  3. **Guard it** with a conformance test that reads both and fails on drift.
+     For a consumer in another language, this is the only option.
+
+  How to find them: a comment saying "kept in step with", "must match", or
+  "mirrors"; the same list spelled twice; a validation in application code
+  repeating one the database or the schema already performs. Merge them on
+  discovery instead of extending one of them.
+
+  The failure is always silent, which is why this is worth the trouble. A
+  schema stricter than the record it fronts refuses calls the record would have
+  taken. A glob added to one config and not its twin builds clean and ships
+  nothing.
 
 ## Runtime Test Hygiene
 
