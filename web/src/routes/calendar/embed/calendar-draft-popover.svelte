@@ -15,6 +15,11 @@
 	import type { DraftPopoverText } from './calendar-draft-popover-text';
 	import CalendarParticipantSelector from './calendar-participant-selector.svelte';
 	import type { CalendarParticipant } from './calendar-participants';
+	import {
+		defaultEventReminderLead,
+		eventReminderLeadLabel,
+		eventReminderLeads
+	} from '$lib/calendar/event-reminder-lead';
 
 	type CalendarOption = {
 		id: string;
@@ -56,6 +61,8 @@
 		}
 	});
 	const canSavePopover = $derived(isDraftPopoverValid(popover));
+	const reminderLeadName = (minutesBeforeStart: number) =>
+		eventReminderLeadLabel(minutesBeforeStart, localeCode, text.reminderLead);
 	const selectedCalendarName = $derived(
 		calendarOptions.find((option) => option.id === popover.calendarID)?.name ?? popover.calendarID
 	);
@@ -180,6 +187,36 @@
 					checked={popover.allDay}
 					onCheckedChange={(allDay) => updatePopover({ allDay })}
 				/>
+			</div>
+
+			<div class="flex items-center gap-2 px-1">
+				<Label for="draft-reminder" class="text-muted-foreground font-normal">{text.reminder}</Label>
+				<div class="ml-auto flex items-center gap-2">
+					{#if popover.reminderMinutesBefore !== null}
+						<Select.Root
+							type="single"
+							value={String(popover.reminderMinutesBefore)}
+							onValueChange={(chosen) => updatePopover({ reminderMinutesBefore: Number(chosen) })}
+						>
+							<Select.Trigger size="sm" aria-label={text.reminder}>
+								{reminderLeadName(popover.reminderMinutesBefore)}
+							</Select.Trigger>
+							<Select.Content portalProps={{ disabled: true }}>
+								{#each eventReminderLeads as lead (lead)}
+									<Select.Item value={String(lead)} label={reminderLeadName(lead)}>
+										{reminderLeadName(lead)}
+									</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					{/if}
+					<Switch
+						id="draft-reminder"
+						checked={popover.reminderMinutesBefore !== null}
+						onCheckedChange={(wanted) =>
+							updatePopover({ reminderMinutesBefore: wanted ? defaultEventReminderLead : null })}
+					/>
+				</div>
 			</div>
 
 			{#if popover.allDay}

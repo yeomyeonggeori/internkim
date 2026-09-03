@@ -2,6 +2,7 @@ import { createCalendarModelEvent as createEvent, type CalendarModelEvent as Day
 import type { CalendarEvent, CalendarEventPayload } from './calendar-event-persistence';
 import type { CalendarHoliday } from './calendar-holiday-persistence';
 import { calendarParticipantInputs, calendarParticipantsFromUnknown } from './calendar-participants';
+import { eventReminderLeadOf } from '$lib/calendar/event-reminder-lead';
 
 export type CalendarDateParts = {
 	year: number;
@@ -23,6 +24,7 @@ export function dayTaskEventFromCalendarEvent(event: CalendarEvent): DayTaskEven
 			location: event.location,
 			color: event.color,
 			participants: calendarParticipantsFromUnknown(event.participants),
+			reminderMinutesBefore: eventReminderLeadOf(event.reminderMinutesBefore),
 			timeZone: event.timeZone,
 			createdByEmail: event.createdByEmail,
 			createdByName: event.createdByName,
@@ -74,6 +76,7 @@ export function calendarEventPayloadFromDayTaskEvent(
 		timeZone,
 		isAllDay: event.allDay ?? false,
 		color,
+		reminderMinutesBefore: eventReminderLeadOf(event.meta?.reminderMinutesBefore),
 		participants: calendarParticipantInputs(calendarParticipantsFromUnknown(event.meta?.participants))
 	};
 }
