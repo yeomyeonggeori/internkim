@@ -15,22 +15,9 @@ import (
 
 // These tools live in the record, so this carries the call to admind, which
 // runs it on the plane as the person who asked. Nothing is decided here.
-var toolsTheRecordRuns = map[string]bool{
-	"leave_list":        true,
-	"leave_balance":     true,
-	"leave_request":     true,
-	"leave_update":      true,
-	"leave_delete":      true,
-	"leave_decide":      true,
-	"attendance_list":   true,
-	"attendance_add":    true,
-	"attendance_update": true,
-	"attendance_delete": true,
-}
-
 func (service Service) invokeRecordTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	toolName := strings.TrimSpace(request.ToolName)
-	if !toolsTheRecordRuns[toolName] {
+	if !theRecordAnswers(toolName) {
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("record tool is not configured: %s", toolName)
 	}
 
