@@ -74,31 +74,41 @@ begin
 end $$;$block$, 'an ordinary member asking about a colleague is told nothing');
 
 -- And the same member asking about themselves gets what they always got, so
--- the wrapper is a caller check rather than a narrower answer.
+-- the wrapper is a caller check rather than a narrower answer. The bodies are
+-- read into the declarations, which run before the role is set, because a
+-- request role no longer reaches them: that is what 20260904000001 closed.
 select lives_ok($block$do $$
 declare
   self uuid := '79000000-0000-0000-0000-0000000000a1';
+  body_leave_remaining numeric := internal.member_leave_remaining('79000000-0000-0000-0000-0000000000a1', 2026);
+  body_leave_days numeric := internal.member_leave_days('79000000-0000-0000-0000-0000000000a1');
+  body_work_hours jsonb := internal.member_work_hours('79000000-0000-0000-0000-0000000000a1');
+  body_work_hours_on jsonb := internal.member_work_hours_on('79000000-0000-0000-0000-0000000000a1', date '2026-03-02');
+  body_minimum integer := internal.member_minimum_daily_minutes('79000000-0000-0000-0000-0000000000a1');
+  body_timezone text := internal.member_timezone('79000000-0000-0000-0000-0000000000a1');
+  body_today date := internal.member_today('79000000-0000-0000-0000-0000000000a1');
+  body_locale text := internal.member_locale('79000000-0000-0000-0000-0000000000a1');
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"79000000-0000-0000-0000-000000000011"}', true);
 
-  assert public.member_leave_remaining(self, 2026) = internal.member_leave_remaining(self, 2026)
+  assert public.member_leave_remaining(self, 2026) = body_leave_remaining
      and public.member_leave_remaining(self, 2026) = 12,
     'a member is told their own leave balance, unchanged';
-  assert public.member_leave_days(self) = internal.member_leave_days(self),
+  assert public.member_leave_days(self) = body_leave_days,
     'a member is told their own granted days, unchanged';
-  assert public.member_work_hours(self) = internal.member_work_hours(self),
+  assert public.member_work_hours(self) = body_work_hours,
     'a member is told their own working hours, unchanged';
   assert public.member_work_hours_on(self, date '2026-03-02')
-      is not distinct from internal.member_work_hours_on(self, date '2026-03-02'),
+      is not distinct from body_work_hours_on,
     'a member is told their own hours on a day, unchanged';
-  assert public.member_minimum_daily_minutes(self) = internal.member_minimum_daily_minutes(self),
+  assert public.member_minimum_daily_minutes(self) = body_minimum,
     'a member is told their own minimum, unchanged';
-  assert public.member_timezone(self) = internal.member_timezone(self),
+  assert public.member_timezone(self) = body_timezone,
     'a member is told their own timezone, unchanged';
-  assert public.member_today(self) = internal.member_today(self),
+  assert public.member_today(self) = body_today,
     'a member is told what day it is for them, unchanged';
-  assert public.member_locale(self) = internal.member_locale(self),
+  assert public.member_locale(self) = body_locale,
     'a member is told their own locale, unchanged';
 
   reset role;
