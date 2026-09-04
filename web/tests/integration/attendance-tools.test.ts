@@ -22,7 +22,7 @@ let admin: ReturnType<typeof asMember>;
 
 async function signedInMember(memberID: string, email: string): Promise<ReturnType<typeof asMember>> {
 	const { data: account } = await client.auth.admin.createUser({ email, email_confirm: true });
-	await client.from('member').update({ user_id: account.user!.id }).eq('id', memberID);
+	await client.from('member').update({ user_id: account.user!.id, status: 'active' }).eq('id', memberID);
 	const session = await sessionForMember({ projectURL, serviceRoleKey }, memberID);
 	return asMember({ projectURL, publishableKey }, session.accessToken);
 }
