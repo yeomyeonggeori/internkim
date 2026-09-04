@@ -4,19 +4,34 @@ import {
 	ndJsonStream,
 	PROTOCOL_VERSION,
 	type Agent,
+	type LoadSessionRequest,
 	type NewSessionRequest,
-	type PromptRequest
+	type PromptRequest,
+	type RequestPermissionResponse
 } from '@agentclientprotocol/sdk';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BlueclawACPClient, sessionMetaKey } from './acp-session';
+import { BlueclawACPClient, sessionMetaKey, type Addressing } from './acp-session';
+import { HeldQuestionStore } from './held-question-store';
+
+function aQuestionStore(directoryPath?: string): HeldQuestionStore {
+	return new HeldQuestionStore({ directoryPath: directoryPath ?? mkdtempSync(join(tmpdir(), 'acp-questions-')) });
+}
+
+function neverAskedAgain(): (addressing: Addressing) => Promise<string> {
+	return () => new Promise<string>(() => {});
+}
 
 type AnAgentThatRecords = {
 	socketPath: string;
 	sessionsOpened: NewSessionRequest[];
+	sessionsLoaded: LoadSessionRequest[];
 	promptsTaken: PromptRequest[];
 	approvalRepliesRead: string[];
+	connectionsOpened: number;
+	/** Simulates blueclaw re-issuing a call it stopped on, over the connection currently held. */
+	reissuePermission: (sessionID: string, toolCallID: string, question: string) => Promise<RequestPermissionResponse>;
 };
 
 type AgentBehaviour = {
@@ -35,8 +50,11 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 	const directory = mkdtempSync(join(tmpdir(), 'acp-relay-'));
 	const socketPath = join(directory, 'agent.sock');
 	const sessionsOpened: NewSessionRequest[] = [];
+	const sessionsLoaded: LoadSessionRequest[] = [];
 	const promptsTaken: PromptRequest[] = [];
 	const approvalRepliesRead: string[] = [];
+	let connectionsOpened = 0;
+	let latestConnection: AgentSideConnection | null = null;
 
 	const server = Bun.listen<{ deliver: (chunk: Uint8Array) => void }>({
 		unix: socketPath,
@@ -59,6 +77,8 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 					() => theAgent(() => held),
 					ndJsonStream(writable, readable)
 				);
+				connectionsOpened += 1;
+				latestConnection = held;
 			},
 			data(socket, chunk) {
 				socket.data.deliver(new Uint8Array(chunk));
@@ -80,6 +100,9 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 			newSession: async (request: NewSessionRequest) => {
 				sessionsOpened.push(request);
 				return { sessionId: 'session-1' };
+			},
+			loadSession: async (request: LoadSessionRequest) => {
+				sessionsLoaded.push(request);
 			},
 			prompt: async (request: PromptRequest) => {
 				promptsTaken.push(request);
@@ -120,7 +143,36 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 		};
 	}
 
-	return { socketPath, sessionsOpened, promptsTaken, approvalRepliesRead };
+	return {
+		socketPath,
+		sessionsOpened,
+		sessionsLoaded,
+		promptsTaken,
+		approvalRepliesRead,
+		get connectionsOpened() {
+			return connectionsOpened;
+		},
+		reissuePermission: (sessionID, toolCallID, question) => {
+			if (!latestConnection) throw new Error('no connection to the agent yet');
+			return latestConnection.requestPermission({
+				sessionId: sessionID,
+				toolCall: { toolCallId: toolCallID, title: question },
+				options: [
+					{ optionId: 'approve_once', kind: 'allow_once', name: 'approve this call' },
+					{ optionId: 'reject_once', kind: 'reject_once', name: 'decline this call' }
+				]
+			});
+		}
+	};
+}
+
+async function waitUntil(isReady: () => boolean | Promise<boolean>, waitedFor: string): Promise<void> {
+	const deadline = Date.now() + 3_000;
+	while (Date.now() < deadline) {
+		if (await isReady()) return;
+		await Bun.sleep(1);
+	}
+	throw new Error(`waited too long for ${waitedFor}`);
 }
 
 const sampleRequester = { email: 'sample@example.test', name: '이샘플' };
@@ -131,7 +183,9 @@ test('a session names the requester and the conversation it answers in', async (
 	const client = new BlueclawACPClient({
 		socketPath: agent.socketPath,
 		workspaceRootPath: '/workspace',
-		askThePerson: async () => ''
+		questions: aQuestionStore(),
+		askThePerson: async () => '',
+		awaitAnAlreadyAskedQuestion: neverAskedAgain()
 	});
 	cleanUps.push(() => client.close());
 
@@ -149,7 +203,9 @@ test('a second message in the same conversation reuses the session', async () =>
 	const client = new BlueclawACPClient({
 		socketPath: agent.socketPath,
 		workspaceRootPath: '/workspace',
-		askThePerson: async () => ''
+		questions: aQuestionStore(),
+		askThePerson: async () => '',
+		awaitAnAlreadyAskedQuestion: neverAskedAgain()
 	});
 	cleanUps.push(() => client.close());
 
@@ -167,13 +223,16 @@ test('the person is asked, and the agent reads what they wrote', async () => {
 		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }]
 	});
 	const asked: string[] = [];
+	const questions = aQuestionStore();
 	const client = new BlueclawACPClient({
 		socketPath: agent.socketPath,
 		workspaceRootPath: '/workspace',
+		questions,
 		askThePerson: async (question) => {
 			asked.push(question.question);
 			return '응 보내줘';
-		}
+		},
+		awaitAnAlreadyAskedQuestion: neverAskedAgain()
 	});
 	cleanUps.push(() => client.close());
 
@@ -184,4 +243,92 @@ test('the person is asked, and the agent reads what they wrote', async () => {
 	// from the agent, which is the only side allowed to judge what they meant.
 	expect(agent.approvalRepliesRead).toEqual(['응 보내줘']);
 	expect(answered.reply).toBe('보냈습니다');
+	// Delivered to blueclaw, so nothing is left for a restart to find.
+	expect(await questions.read('held-1')).toBeNull();
+});
+
+test('an already-answered question survives a restart and is delivered without asking again', async () => {
+	const agent = anAgentOnASocket({
+		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }]
+	});
+	const questions = aQuestionStore();
+	await questions.keep({
+		toolCallID: 'held-1',
+		sessionID: 'session-1',
+		requester: sampleRequester,
+		addressing: sampleAddressing,
+		question: '박예시에게 보낼까요?',
+		askedAt: new Date().toISOString()
+	});
+	await questions.answer('held-1', '응 보내줘');
+
+	const asked: string[] = [];
+	const client = new BlueclawACPClient({
+		socketPath: agent.socketPath,
+		workspaceRootPath: '/workspace',
+		questions,
+		askThePerson: async (question) => {
+			asked.push(question.question);
+			return 'not what a restart should ask again';
+		},
+		awaitAnAlreadyAskedQuestion: neverAskedAgain()
+	});
+	cleanUps.push(() => client.close());
+
+	await client.restoreOutstandingQuestions();
+	await waitUntil(() => agent.connectionsOpened > 0, 'the relay to reconnect after the restart');
+
+	const answered = await agent.reissuePermission('session-1', 'held-1', '박예시에게 보낼까요?');
+
+	expect(asked).toEqual([]);
+	expect(answered.outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
+	expect(agent.approvalRepliesRead).toEqual(['응 보내줘']);
+	await waitUntil(async () => (await questions.read('held-1')) === null, 'the delivered question to be forgotten');
+});
+
+test('an unanswered question is not asked again after a restart, and is delivered once the person answers', async () => {
+	const agent = anAgentOnASocket({
+		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }]
+	});
+	const questions = aQuestionStore();
+	await questions.keep({
+		toolCallID: 'held-1',
+		sessionID: 'session-1',
+		requester: sampleRequester,
+		addressing: sampleAddressing,
+		question: '박예시에게 보낼까요?',
+		askedAt: new Date().toISOString()
+	});
+
+	const asked: string[] = [];
+	const answerTheQuestion: { resolve: ((words: string) => void) | null } = { resolve: null };
+	const client = new BlueclawACPClient({
+		socketPath: agent.socketPath,
+		workspaceRootPath: '/workspace',
+		questions,
+		askThePerson: async (question) => {
+			asked.push(question.question);
+			return 'not what a restart should ask again';
+		},
+		awaitAnAlreadyAskedQuestion: () =>
+			new Promise<string>((resolve) => {
+				answerTheQuestion.resolve = resolve;
+			})
+	});
+	cleanUps.push(() => client.close());
+
+	await client.restoreOutstandingQuestions();
+	await waitUntil(() => answerTheQuestion.resolve !== null, 'the relay to wait on the question already asked');
+	await waitUntil(() => agent.connectionsOpened > 0, 'the relay to reconnect after the restart');
+
+	const answering = agent.reissuePermission('session-1', 'held-1', '박예시에게 보낼까요?');
+	await Bun.sleep(10);
+	expect(asked, 'the relay asked the person again instead of waiting').toEqual([]);
+
+	answerTheQuestion.resolve?.('응 보내줘');
+	const answered = await answering;
+
+	expect(answered.outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
+	expect(agent.approvalRepliesRead).toEqual(['응 보내줘']);
+	await waitUntil(async () => (await questions.read('held-1')) === null, 'the delivered question to be forgotten');
 });
