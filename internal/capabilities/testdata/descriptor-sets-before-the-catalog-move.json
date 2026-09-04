@@ -41,6 +41,7 @@
       "task_list",
       "task_update",
       "task_delete",
+      "task_vocabulary_set",
       "person_list",
       "person_update",
       "person_invite",
@@ -14514,91 +14515,19 @@
       "worksOffline": false
     },
     "task_add": {
-      "answeredBy": "record",
-      "availability": {
-        "state": "ok"
-      },
+      "name": "task_add",
       "canonicalName": "task_add",
-      "completionEvidence": {
-        "action": "write_task",
-        "mode": "success",
-        "targetKind": "task"
-      },
-      "description": "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task \u2014 use task.update.",
+      "namespace": "task",
+      "answeredBy": "record",
+      "modelName": "task_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "description": "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.",
+      "version": "6",
+      "privacyClass": "workspace_task",
       "estimatedLatency": "medium",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "business": {
-            "description": "Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.",
-            "type": "string"
-          },
-          "endsAt": {
-            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
-            "type": "string"
-          },
-          "opportunityHint": {
-            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "organizationHint": {
-            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester\u2019s own.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "size": {
-            "description": "Effort size using the work-size rubric. Omit when the request does not support a useful estimate.",
-            "enum": [
-              "XS",
-              "S",
-              "M",
-              "L",
-              "XL",
-              "XXL"
-            ],
-            "type": "string"
-          },
-          "startsAt": {
-            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
-            "type": "string"
-          },
-          "status": {
-            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
-            "enum": [
-              "planned",
-              "in_progress",
-              "completed",
-              "paused",
-              "rejected",
-              "stopped"
-            ],
-            "type": "string"
-          },
-          "title": {
-            "description": "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
-            "type": "string"
-          },
-          "type": {
-            "description": "Task type label, taken from registeredLabels.types in a task_list result. Omit when unsure.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14621,8 +14550,13 @@
             "maxLength": 256,
             "type": "string"
           },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
+            "maxLength": 256,
+            "type": "string"
+          },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester\u2019s own.",
+            "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester’s own.",
             "items": {
               "type": "string"
             },
@@ -14670,12 +14604,79 @@
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "task_add",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "task_add",
-      "namespace": "task",
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "business": {
+            "description": "Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.",
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "participantPersonHints": {
+            "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester’s own.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "size": {
+            "description": "Effort size using the work-size rubric. Omit when the request does not support a useful estimate.",
+            "enum": [
+              "XS",
+              "S",
+              "M",
+              "L",
+              "XL",
+              "XXL"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
+            "enum": [
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "stopped"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Task type label, taken from registeredLabels.types in a task_list result. Omit when unsure.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14684,6 +14685,9 @@
             "type": "string"
           },
           "content": {
+            "type": "string"
+          },
+          "createdAt": {
             "type": "string"
           },
           "endDate": {
@@ -14699,6 +14703,9 @@
             "type": "string"
           },
           "ownerName": {
+            "type": "string"
+          },
+          "parentTaskID": {
             "type": "string"
           },
           "participantIDs": {
@@ -14734,6 +14741,12 @@
             },
             "type": "array"
           },
+          "requesterID": {
+            "type": "string"
+          },
+          "requesterName": {
+            "type": "string"
+          },
           "size": {
             "type": "string"
           },
@@ -14760,19 +14773,9 @@
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
-      "policyResource": "tool:task_add",
-      "privacyClass": "workspace_task",
-      "requiresUserPresence": false,
       "resultContract": {
-        "effects": [
-          {
-            "effect": "created",
-            "effectIdentity": "id",
-            "objectType": "task",
-            "resultField": "taskID"
-          }
-        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -14781,6 +14784,9 @@
               "type": "string"
             },
             "content": {
+              "type": "string"
+            },
+            "createdAt": {
               "type": "string"
             },
             "endDate": {
@@ -14796,6 +14802,9 @@
               "type": "string"
             },
             "ownerName": {
+              "type": "string"
+            },
+            "parentTaskID": {
               "type": "string"
             },
             "participantIDs": {
@@ -14831,6 +14840,12 @@
               },
               "type": "array"
             },
+            "requesterID": {
+              "type": "string"
+            },
+            "requesterName": {
+              "type": "string"
+            },
             "size": {
               "type": "string"
             },
@@ -14856,12 +14871,32 @@
             "taskID"
           ],
           "type": "object"
-        }
+        },
+        "effects": [
+          {
+            "objectType": "task",
+            "effect": "created",
+            "resultField": "taskID",
+            "effectIdentity": "id"
+          }
+        ]
       },
-      "sideEffect": "workspace_write",
+      "policyResource": "tool:task_add",
       "sideEffectClass": "workspace_write",
-      "version": "5",
-      "worksOffline": false
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_task",
+        "targetKind": "task"
+      },
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
+      }
     },
     "task_delete": {
       "answeredBy": "record",
@@ -14970,22 +15005,27 @@
       "worksOffline": false
     },
     "task_list": {
-      "answeredBy": "record",
-      "availability": {
-        "state": "ok"
-      },
+      "name": "task_list",
       "canonicalName": "task_list",
+      "namespace": "task",
+      "answeredBy": "record",
+      "modelName": "task_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.",
+      "version": "4",
+      "privacyClass": "workspace_task",
       "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "everyWeek": {
+            "description": "Every week there is, ignoring weekFrom and weekTo. Use it to search the whole history or to total work across all time.",
+            "type": "boolean"
+          },
           "limit": {
             "description": "Maximum number of tasks to return. Defaults to 50.",
             "type": "number"
@@ -15005,7 +15045,7 @@
             "type": "string"
           },
           "query": {
-            "description": "Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here \u2014 use the dedicated fields instead.",
+            "description": "Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.",
             "type": "string"
           },
           "scope": {
@@ -15040,12 +15080,6 @@
         },
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "task_list",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "task_list",
-      "namespace": "task",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -15078,6 +15112,12 @@
                   "type": "object"
                 },
                 "type": "array"
+              },
+              "etcBusinessColor": {
+                "type": "string"
+              },
+              "etcTypeColor": {
+                "type": "string"
               },
               "sizes": {
                 "items": {
@@ -15134,6 +15174,9 @@
                 "content": {
                   "type": "string"
                 },
+                "createdAt": {
+                  "type": "string"
+                },
                 "endDate": {
                   "type": "string"
                 },
@@ -15147,6 +15190,9 @@
                   "type": "string"
                 },
                 "ownerName": {
+                  "type": "string"
+                },
+                "parentTaskID": {
                   "type": "string"
                 },
                 "participantIDs": {
@@ -15181,6 +15227,12 @@
                     "type": "object"
                   },
                   "type": "array"
+                },
+                "requesterID": {
+                  "type": "string"
+                },
+                "requesterName": {
+                  "type": "string"
                 },
                 "size": {
                   "type": "string"
@@ -15229,10 +15281,8 @@
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
-      "policyResource": "tool:task_list",
-      "privacyClass": "workspace_task",
-      "requiresUserPresence": false,
       "resultContract": {
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -15266,6 +15316,12 @@
                     "type": "object"
                   },
                   "type": "array"
+                },
+                "etcBusinessColor": {
+                  "type": "string"
+                },
+                "etcTypeColor": {
+                  "type": "string"
                 },
                 "sizes": {
                   "items": {
@@ -15322,6 +15378,9 @@
                   "content": {
                     "type": "string"
                   },
+                  "createdAt": {
+                    "type": "string"
+                  },
                   "endDate": {
                     "type": "string"
                   },
@@ -15335,6 +15394,9 @@
                     "type": "string"
                   },
                   "ownerName": {
+                    "type": "string"
+                  },
+                  "parentTaskID": {
                     "type": "string"
                   },
                   "participantIDs": {
@@ -15369,6 +15431,12 @@
                       "type": "object"
                     },
                     "type": "array"
+                  },
+                  "requesterID": {
+                    "type": "string"
+                  },
+                  "requesterName": {
+                    "type": "string"
                   },
                   "size": {
                     "type": "string"
@@ -15418,98 +15486,32 @@
           "type": "object"
         }
       },
-      "sideEffect": "read",
+      "policyResource": "tool:task_list",
       "sideEffectClass": "read",
-      "version": "3",
-      "worksOffline": false
-    },
-    "task_update": {
-      "answeredBy": "record",
+      "sideEffect": "read",
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "task_update",
-      "completionEvidence": {
-        "action": "write_task",
-        "mode": "success",
-        "targetKind": "task"
-      },
-      "description": "Update explicit fields on an existing task, including who takes part in it. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.",
-      "estimatedLatency": "medium",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "business": {
-            "description": "Business label, taken from registeredLabels.businesses in a task_list result.",
-            "type": "string"
-          },
-          "endsAt": {
-            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
-            "type": "string"
-          },
-          "opportunityHint": {
-            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with. An empty string takes the work off the deal it belonged to.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "organizationHint": {
-            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company. An empty string takes the work off the organization it was for.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "participantPersonHints": {
-            "description": "Names, @handles, or emails of everyone taking part, replacing the current participants. Send the whole set, not just additions.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "size": {
-            "description": "Effort size estimate.",
-            "enum": [
-              "XS",
-              "S",
-              "M",
-              "L",
-              "XL",
-              "XXL"
-            ],
-            "type": "string"
-          },
-          "startsAt": {
-            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
-            "type": "string"
-          },
-          "status": {
-            "description": "New task status.",
-            "enum": [
-              "planned",
-              "in_progress",
-              "completed",
-              "requested",
-              "paused",
-              "rejected",
-              "stopped"
-            ],
-            "type": "string"
-          },
-          "title": {
-            "description": "New task title.",
-            "type": "string"
-          },
-          "type": {
-            "description": "Task type label, taken from registeredLabels.types in a task_list result.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
+        "scope": "operation"
+      }
+    },
+    "task_update": {
+      "name": "task_update",
+      "canonicalName": "task_update",
+      "namespace": "task",
+      "answeredBy": "record",
+      "modelName": "task_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "description": "Update explicit fields on an existing task, including who takes part in it. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.",
+      "version": "5",
+      "privacyClass": "workspace_task",
+      "estimatedLatency": "medium",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -15519,8 +15521,15 @@
             "description": "Business label, taken from registeredLabels.businesses in a task_list result.",
             "type": "string"
           },
+          "childTaskHints": {
+            "description": "Tasks to move under taskHint, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; the whole set moves or none of it does.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "endsAt": {
-            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
+            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
             "type": "string"
           },
           "opportunityHint": {
@@ -15530,6 +15539,11 @@
           },
           "organizationHint": {
             "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company. An empty string takes the work off the organization it was for.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own. An empty string takes it out from under the task it was under.",
             "maxLength": 256,
             "type": "string"
           },
@@ -15553,7 +15567,7 @@
             "type": "string"
           },
           "startsAt": {
-            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
+            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
             "type": "string"
           },
           "status": {
@@ -15589,12 +15603,87 @@
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "task_update",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "task_update",
-      "namespace": "task",
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "business": {
+            "description": "Business label, taken from registeredLabels.businesses in a task_list result.",
+            "type": "string"
+          },
+          "childTaskHints": {
+            "description": "Tasks to move under taskHint, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; the whole set moves or none of it does.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "endsAt": {
+            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with. An empty string takes the work off the deal it belonged to.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company. An empty string takes the work off the organization it was for.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own. An empty string takes it out from under the task it was under.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "participantPersonHints": {
+            "description": "Names, @handles, or emails of everyone taking part, replacing the current participants. Send the whole set, not just additions.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "size": {
+            "description": "Effort size estimate.",
+            "enum": [
+              "XS",
+              "S",
+              "M",
+              "L",
+              "XL",
+              "XXL"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
+            "type": "string"
+          },
+          "status": {
+            "description": "New task status.",
+            "enum": [
+              "planned",
+              "in_progress",
+              "completed",
+              "requested",
+              "paused",
+              "rejected",
+              "stopped"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "New task title.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Task type label, taken from registeredLabels.types in a task_list result.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -15603,6 +15692,9 @@
             "type": "string"
           },
           "content": {
+            "type": "string"
+          },
+          "createdAt": {
             "type": "string"
           },
           "endDate": {
@@ -15618,6 +15710,9 @@
             "type": "string"
           },
           "ownerName": {
+            "type": "string"
+          },
+          "parentTaskID": {
             "type": "string"
           },
           "participantIDs": {
@@ -15653,6 +15748,12 @@
             },
             "type": "array"
           },
+          "requesterID": {
+            "type": "string"
+          },
+          "requesterName": {
+            "type": "string"
+          },
           "size": {
             "type": "string"
           },
@@ -15679,19 +15780,9 @@
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
-      "policyResource": "tool:task_update",
-      "privacyClass": "workspace_task",
-      "requiresUserPresence": false,
       "resultContract": {
-        "effects": [
-          {
-            "effect": "updated",
-            "effectIdentity": "id",
-            "objectType": "task",
-            "resultField": "taskID"
-          }
-        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -15700,6 +15791,9 @@
               "type": "string"
             },
             "content": {
+              "type": "string"
+            },
+            "createdAt": {
               "type": "string"
             },
             "endDate": {
@@ -15715,6 +15809,9 @@
               "type": "string"
             },
             "ownerName": {
+              "type": "string"
+            },
+            "parentTaskID": {
               "type": "string"
             },
             "participantIDs": {
@@ -15750,6 +15847,12 @@
               },
               "type": "array"
             },
+            "requesterID": {
+              "type": "string"
+            },
+            "requesterName": {
+              "type": "string"
+            },
             "size": {
               "type": "string"
             },
@@ -15775,12 +15878,266 @@
             "taskID"
           ],
           "type": "object"
+        },
+        "effects": [
+          {
+            "objectType": "task",
+            "effect": "updated",
+            "resultField": "taskID",
+            "effectIdentity": "id"
+          }
+        ]
+      },
+      "policyResource": "tool:task_update",
+      "sideEffectClass": "workspace_write",
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_task",
+        "targetKind": "task"
+      },
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
+      }
+    },
+    "task_vocabulary_set": {
+      "name": "task_vocabulary_set",
+      "canonicalName": "task_vocabulary_set",
+      "namespace": "task",
+      "answeredBy": "record",
+      "modelName": "task_vocabulary_set",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Set the business and task type labels this company files work under. Each list is written at once, so read registeredLabels from a task_list result first and send it back with what changes. A label a task still carries cannot be dropped. This is an administrator’s.",
+      "version": "1",
+      "privacyClass": "workspace_task",
+      "estimatedLatency": "medium",
+      "requiresUserPresence": false,
+      "worksOffline": false,
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "businesses": {
+            "description": "The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "CSS colour the board paints this label in. Omit to let one be derived from the name.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The label as people read it on a task.",
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "etcBusinessColor": {
+            "description": "Colour for work carrying no business label.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "etcTypeColor": {
+            "description": "Colour for work carrying no type label.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "types": {
+            "description": "The task type labels this company runs, replacing the whole list.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "CSS colour the board paints this label in. Omit to let one be derived from the name.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The label as people read it on a task.",
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "businesses": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "etcBusinessColor": {
+            "type": "string"
+          },
+          "etcTypeColor": {
+            "type": "string"
+          },
+          "sizes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "businesses",
+          "types",
+          "sizes",
+          "statuses"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "outputSchemaStrict": true,
+      "resultContract": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "businesses": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "etcBusinessColor": {
+              "type": "string"
+            },
+            "etcTypeColor": {
+              "type": "string"
+            },
+            "sizes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "statuses": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "types": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "businesses",
+            "types",
+            "sizes",
+            "statuses"
+          ],
+          "type": "object"
         }
       },
-      "sideEffect": "workspace_write",
+      "policyResource": "tool:task_vocabulary_set",
       "sideEffectClass": "workspace_write",
-      "version": "4",
-      "worksOffline": false
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_task",
+        "targetKind": "task_vocabulary"
+      },
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
+      }
     },
     "web_fetch": {
       "answeredBy": "company",
@@ -24111,6 +24468,12 @@
                 },
                 "type": "array"
               },
+              "etcBusinessColor": {
+                "type": "string"
+              },
+              "etcTypeColor": {
+                "type": "string"
+              },
               "sizes": {
                 "items": {
                   "type": "string"
@@ -24294,6 +24657,12 @@
                     "type": "object"
                   },
                   "type": "array"
+                },
+                "etcBusinessColor": {
+                  "type": "string"
+                },
+                "etcTypeColor": {
+                  "type": "string"
                 },
                 "sizes": {
                   "items": {

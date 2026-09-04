@@ -12,6 +12,7 @@ import { personInTheDirectory } from './directory-fixture';
 function row(overrides: Partial<TaskRow> = {}): TaskRow {
 	return {
 		id: 't1',
+		parent_task_id: null,
 		title: '분기 보고서 초안',
 		status: 'in_progress',
 		note: '작년 것을 참고',
@@ -127,6 +128,18 @@ describe('writing a task that already exists', () => {
 	test('writes a field the caller emptied on purpose', () => {
 		expect(taskWriteArguments(row(), { size: null }).target_size).toBeNull();
 	});
+
+	test('keeps what no task caller names: where it is, whether it takes a whole day, when it warns', () => {
+		const written = taskWriteArguments(
+			row({ location: { name: '사무실' }, is_whole_day: true, notify_minutes_before: 30 }),
+			{ status: 'completed' }
+		);
+		expect(written).toMatchObject({
+			target_location: { name: '사무실' },
+			target_is_whole_day: true,
+			target_notify_minutes_before: 30
+		});
+	});
 });
 
 describe('writing a task that is new', () => {
@@ -136,6 +149,13 @@ describe('writing a task that is new', () => {
 		expect(written.target_expected_updated_at).toBeUndefined();
 		expect(written.target_write_dates).toBe(true);
 		expect(written.target_status).toBe('planned');
+	});
+
+	test('goes under the task it names, and under nothing when it names none', () => {
+		expect(
+			taskWriteArguments(null, { title: '딸린 업무', parentTaskID: 'parent-1' }).target_parent_task_id
+		).toBe('parent-1');
+		expect(taskWriteArguments(null, { title: '홀로 선 업무' }).target_parent_task_id).toBeNull();
 	});
 });
 

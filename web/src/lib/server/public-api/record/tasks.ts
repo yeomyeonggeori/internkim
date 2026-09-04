@@ -6,6 +6,7 @@ import { peopleOfHints, personOfHint, type RecordPerson } from './people';
 
 export type TaskRow = {
 	id: string;
+	parent_task_id: string | null;
 	title: string;
 	status: string;
 	note: string | null;
@@ -29,7 +30,7 @@ export type TaskRow = {
 };
 
 export const taskSelection =
-	'id, title, status, note, location, business, type, size, is_event, is_whole_day, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id)';
+	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id)';
 
 // Postgres says why it refused, and the three answers are different things: a
 // permission the caller does not hold, a row that moved under them, and a rule
@@ -94,15 +95,28 @@ export function refusedWriteOf(reason: string, code: string | undefined, changes
 	);
 }
 
+// PostgREST caps an unbounded select and says nothing about having done it, so
+// a company past the cap would quietly lose tasks. Rows come a page at a time
+// ordered by id, because ordering by anything that repeats drops rows at a page
+// boundary; the answer is ordered by recency once every page is in.
+const rowsPerPage = 500;
+
 export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean): Promise<TaskRow[]> {
-	const { data, error } = await caller
-		.from('task')
-		.select(taskSelection)
-		.eq('is_event', areEvents)
-		.order('updated_at', { ascending: false })
-		.returns<TaskRow[]>();
-	if (error) throw new Error(error.message);
-	return data ?? [];
+	const rows: TaskRow[] = [];
+	for (let from = 0; ; from += rowsPerPage) {
+		const { data, error } = await caller
+			.from('task')
+			.select(taskSelection)
+			.eq('is_event', areEvents)
+			.order('id')
+			.range(from, from + rowsPerPage - 1)
+			.returns<TaskRow[]>();
+		if (error) throw new Error(error.message);
+		const page = data ?? [];
+		rows.push(...page);
+		if (page.length < rowsPerPage) break;
+	}
+	return rows.sort((left, right) => right.updated_at.localeCompare(left.updated_at));
 }
 
 const taskMatcher: HintMatcher<TaskRow> = {
@@ -151,6 +165,7 @@ export function taskWriteArguments(
 		startsAt?: string | null;
 		endsAt?: string | null;
 		participantIDs?: string[];
+		parentTaskID?: string | null;
 	}
 ): Record<string, unknown> {
 	const held = (name: keyof TaskRow) => (row ? row[name] : null);
@@ -166,9 +181,12 @@ export function taskWriteArguments(
 		target_starts_at: written.startsAt !== undefined ? written.startsAt : row?.starts_at ?? null,
 		target_ends_at: written.endsAt !== undefined ? written.endsAt : row?.ends_at ?? null,
 		target_write_dates: writesDates,
-		target_is_event: false,
+		target_is_event: row?.is_event ?? false,
+		target_location: row?.location ?? null,
+		target_is_whole_day: row?.is_whole_day ?? false,
+		target_notify_minutes_before: row?.notify_minutes_before ?? null,
 		target_participant_ids: written.participantIDs ?? row?.task_participant.map((one) => one.member_id) ?? [],
-		...(row ? { target_expected_updated_at: row.updated_at } : {})
+		...(row ? { target_expected_updated_at: row.updated_at } : { target_parent_task_id: written.parentTaskID ?? null })
 	};
 }
 
