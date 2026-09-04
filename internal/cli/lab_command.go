@@ -104,6 +104,10 @@ func runSetupSimulationArguments(setupArguments []string) error {
 	if !shouldVerify && !shouldVerifyBrowser {
 		return nil
 	}
+	return verifySimulationTarget(ctx, service, configuration, shouldVerifyBrowser)
+}
+
+func verifySimulationTarget(ctx context.Context, service internkimlab.Service, configuration internkimlab.Configuration, shouldVerifyBrowser bool) error {
 	virtualMachineIPAddress, errorValue := service.VirtualMachineIPAddress(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -185,6 +189,10 @@ func runLabArgumentsForTarget(arguments []string, boardType string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	return runLabSubcommand(ctx, service, subcommand, boardType, flagSet.Args())
+}
+
+func runLabSubcommand(ctx context.Context, service internkimlab.Service, subcommand string, boardType string, remainingArguments []string) error {
 	switch subcommand {
 	case "image-build":
 		return service.ImageBuild(ctx)
@@ -200,7 +208,7 @@ func runLabArgumentsForTarget(arguments []string, boardType string) error {
 	case "vm-down":
 		return service.VirtualMachineDown(ctx)
 	case "vm-ssh":
-		return service.VirtualMachineSSH(ctx, flagSet.Args())
+		return service.VirtualMachineSSH(ctx, remainingArguments)
 	case "runtime-builder-prepare":
 		return service.RuntimeBuilderPrepare(ctx)
 	case "runtime-builder-check":

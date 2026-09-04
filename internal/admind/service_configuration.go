@@ -167,6 +167,17 @@ func companyAddressFrom(apiBaseURL string) string {
 
 func (configuration Configuration) withDefaults() Configuration {
 	defaultConfiguration := DefaultConfiguration()
+	configuration = configuration.withEndpointDefaults(defaultConfiguration)
+	configuration = configuration.withDatabaseDefaults(defaultConfiguration)
+	configuration = configuration.withCredentialDefaults(defaultConfiguration)
+	configuration = configuration.withCentralPlaneDefaults(defaultConfiguration)
+	configuration = configuration.withFleetDefaults(defaultConfiguration)
+	configuration = configuration.withSiteDefaults(defaultConfiguration)
+	configuration = configuration.withPersonaDefaults(defaultConfiguration)
+	return configuration
+}
+
+func (configuration Configuration) withEndpointDefaults(defaultConfiguration Configuration) Configuration {
 	if configuration.ListenAddress == "" {
 		configuration.ListenAddress = defaultConfiguration.ListenAddress
 	}
@@ -191,6 +202,10 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.StateDirectory == "" {
 		configuration.StateDirectory = defaultConfiguration.StateDirectory
 	}
+	return configuration
+}
+
+func (configuration Configuration) withDatabaseDefaults(defaultConfiguration Configuration) Configuration {
 	configuration.DatabasePath = resolvedStateDatabasePath(configuration, defaultConfiguration)
 	if configuration.CompanionJobPath == "" {
 		if configuration.StateDirectory == defaultConfiguration.StateDirectory {
@@ -234,6 +249,10 @@ func (configuration Configuration) withDefaults() Configuration {
 			configuration.BridgeMapDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bridge-map.sqlite")
 		}
 	}
+	return configuration
+}
+
+func (configuration Configuration) withCredentialDefaults(defaultConfiguration Configuration) Configuration {
 	if configuration.MattermostAdminPasswordPath == "" {
 		configuration.MattermostAdminPasswordPath = defaultConfiguration.MattermostAdminPasswordPath
 	}
@@ -273,6 +292,10 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.APIBaseURL == "" {
 		configuration.APIBaseURL = strings.TrimSpace(readTrimmedFile(configuration.APIURLPath))
 	}
+	return configuration
+}
+
+func (configuration Configuration) withCentralPlaneDefaults(defaultConfiguration Configuration) Configuration {
 	if configuration.CentralPlaneAppURLPath == "" {
 		configuration.CentralPlaneAppURLPath = defaultConfiguration.CentralPlaneAppURLPath
 	}
@@ -306,6 +329,10 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.CentralPlaneAppURL == "" {
 		configuration.CentralPlaneAppURL = companyAddressFrom(configuration.APIBaseURL)
 	}
+	return configuration
+}
+
+func (configuration Configuration) withFleetDefaults(defaultConfiguration Configuration) Configuration {
 	if configuration.ReleaseRegistryURL == "" {
 		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
 	}
@@ -333,6 +360,10 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
 	}
+	return configuration
+}
+
+func (configuration Configuration) withSiteDefaults(defaultConfiguration Configuration) Configuration {
 	if configuration.SiteScaffoldPath == "" {
 		configuration.SiteScaffoldPath = defaultConfiguration.SiteScaffoldPath
 	}
@@ -348,6 +379,10 @@ func (configuration Configuration) withDefaults() Configuration {
 	if configuration.SiteSystemdDirectory == "" {
 		configuration.SiteSystemdDirectory = defaultConfiguration.SiteSystemdDirectory
 	}
+	return configuration
+}
+
+func (configuration Configuration) withPersonaDefaults(defaultConfiguration Configuration) Configuration {
 	if configuration.IdentityDocumentPath == "" {
 		configuration.IdentityDocumentPath = personaDocumentPath(configuration, defaultConfiguration, defaultConfiguration.IdentityDocumentPath, "identity.json")
 	}
