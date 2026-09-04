@@ -29,6 +29,8 @@
         <string>ANSWER_BYTE_CEILING_VALUE</string>
         <key>ARRIVALS_PORT</key>
         <string>ARRIVALS_PORT_VALUE</string>
+        <key>BLUECLAW_ACP_SOCKET_PATH</key>
+        <string>BLUECLAW_ACP_SOCKET_PATH_VALUE</string>
         <key>CHATD_BASE_URL</key>
         <string>CHATD_BASE_URL_VALUE</string>
         <key>GATEWAY_SERVER_KEY</key>
@@ -47,6 +49,8 @@
         <string>SUPABASE_PUBLISHABLE_KEY_VALUE</string>
         <key>SUPABASE_URL</key>
         <string>SUPABASE_URL_VALUE</string>
+        <key>WORKSPACE_ROOT_PATH</key>
+        <string>WORKSPACE_ROOT_PATH_VALUE</string>
         <!-- END GENERATED -->
     </dict>
 </dict>

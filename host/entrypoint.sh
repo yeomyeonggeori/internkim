@@ -8,6 +8,7 @@
 set -e
 
 capabilitySocketPath="/run/internkim/capability.sock"
+blueclawACPSocketPath="/run/internkim/blueclaw-acp.sock"
 bundledSkillsPath="${BLUECLAW_BUNDLED_SKILLS_PATH:-/opt/internkim/skills}"
 blueclawAddress="127.0.0.1:8080"
 chatdPort="${CHATD_LISTEN_PORT:-18090}"
@@ -62,7 +63,8 @@ keepRelayRunning() {
   while true; do
     AGENT_API_KEY_PATH="${agentKeyPath}" CHATD_BASE_URL="http://127.0.0.1:${chatdPort}" \
       MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" ARRIVALS_PORT="${arrivalsPort}" \
-      MAILD_BASE_URL="http://127.0.0.1:${maildPort}" internkim-relay &
+      MAILD_BASE_URL="http://127.0.0.1:${maildPort}" \
+      BLUECLAW_ACP_SOCKET_PATH="${blueclawACPSocketPath}" internkim-relay &
     relayChild="$!"
     trap 'kill "${relayChild}" 2>/dev/null; exit 0' TERM
     wait "${relayChild}" || true
@@ -128,7 +130,7 @@ done
 
 echo "[host] starting blueclaw"
 BLUECLAW_BUNDLED_SKILLS_PATH="${bundledSkillsPath}" \
-  blueclaw -runtime "${runtimeConfigurationPath}" -policy "${policyPath}" &
+  blueclaw -runtime "${runtimeConfigurationPath}" -policy "${policyPath}" -acp-socket "${blueclawACPSocketPath}" &
 blueclawPid="$!"
 
 until nc -z 127.0.0.1 8080 >/dev/null 2>&1; do

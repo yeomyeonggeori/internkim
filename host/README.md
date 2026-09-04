@@ -107,6 +107,7 @@ read, whether required or optional, in one table:
 | `AGENT_API_KEY_PATH` | relay | the path to the file holding the company agent key, so the key never lands in the process environment (ps eww) |
 | `ANSWER_BYTE_CEILING` | relay | maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit |
 | `ARRIVALS_PORT` | relay | the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091 |
+| `BLUECLAW_ACP_SOCKET_PATH` | relay | the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/blueclaw-acp.sock |
 | `BLUECLAW_BUNDLED_SKILLS_PATH` | host | where host/entrypoint.sh and blueclaw look for the bundled skills directory; defaults to /opt/internkim/skills |
 | `CHATD_BASE_URL` | relay | chatd's base URL the relay calls; defaults to http://127.0.0.1:18090 |
 | `CHATD_BOT_USER_NAME` | host | the messenger bot's display name, required by host/entrypoint.sh |
@@ -121,6 +122,7 @@ read, whether required or optional, in one table:
 | `MESSENGER_PLATFORM` | relay + host | which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it |
 | `SUPABASE_PUBLISHABLE_KEY` | relay + host | the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
 | `SUPABASE_URL` | relay + host | the Supabase project URL; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
+| `WORKSPACE_ROOT_PATH` | relay | the workspace root rendered into the company plane's runtime document, and the cwd the relay opens an ACP session with; defaults to /workspace |
 
 <!-- END GENERATED -->
 
