@@ -178,7 +178,11 @@ test('an administrator moves the company onto another base currency', async ({ p
 	await currency.click();
 	await chooseCurrencyOption(page, 'USD');
 	await expect(currency).toContainText('USD');
-	await page.getByRole('button', { name: '저장', exact: true }).first().click();
+	const currencyCard = page.locator('[data-slot="card"]').filter({ has: currency });
+	const saveCurrency = currencyCard.getByRole('button', { name: '저장', exact: true });
+	const saved = page.waitForResponse((response) => response.url().includes('/api/v1/tools/company_settings_update/invoke'));
+	await saveCurrency.click();
+	await saved;
 
 	await page.reload();
 	await expect(page.getByLabel('기준 통화')).toContainText('USD', { timeout: 20000 });
