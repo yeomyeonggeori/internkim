@@ -222,7 +222,7 @@ func TestEveryToolThatResolvesATargetAheadNamesARequiredFieldOfItsOwnInputSchema
 			descriptor, _ := capabilityToolDescriptorFor(fixture.toolName)
 
 			narrowedInput := approvalTargetToolInput(target.InputField, target.ID)
-			if errorValue := capabilityschema.Validate(descriptor.InputSchema, narrowedInput); errorValue != nil {
+			if errorValue := capabilityschema.ValidateInput(descriptor.InputSchema, narrowedInput); errorValue != nil {
 				t.Fatalf("the narrowed call has to be a call the tool accepts: %v", errorValue)
 			}
 		})

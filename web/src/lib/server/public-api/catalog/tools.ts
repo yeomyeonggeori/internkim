@@ -25,6 +25,17 @@ import { modelToolDefinitions } from './model';
 import { settingsToolDefinitions } from './settings';
 
 const dateDescription = 'Date in YYYY-MM-DD format.';
+// Whose records to read is one question with three answers, and the commonest
+// one costs nothing to ask for. A company-wide read is a constant rather than a
+// roll call of every member.
+function personHintsDescription(records: string): string {
+  return `Names, @handles, or emails of the people whose ${records} to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.`;
+}
+
+function whoseScopeDescription(records: string): string {
+  return `Set to all to read the whole company's ${records}. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.`;
+}
+
 const momentDescription = 'ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.';
 const resourceIDSchema = z.string()
   .min(1)
@@ -251,7 +262,7 @@ export const taskAddInputSchema = z.strictObject({
   startsAt: z.string().describe(`When the work starts. ${momentDescription} Resolve relative dates from the current date. Omit when the user did not specify one.`).optional(),
   endsAt: z.string().describe(`When the work is due. ${momentDescription} Resolve relative dates from the current date. Omit when the user did not specify one.`).optional(),
   participantPersonHints: z.array(z.string())
-    .describe('Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester\u2019s own.')
+    .describe('Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester\u2019s own, which is the usual case; the name the requester used to address you is not a participant.')
     .optional(),
   parentTaskHint: z.string().max(256).describe(parentTaskHintDescription).optional(),
   organizationHint: z.string().max(256).describe(crmOrganizationHintDescription).optional(),
@@ -264,10 +275,8 @@ export const taskListInputSchema = z.strictObject({
   query: z.string()
     .describe("Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.")
     .optional(),
-  participantPersonHint: z.string().describe('Name or email of a specific person whose tasks to list. Leave empty to use scope.').optional(),
-  scope: z.enum(WorkspaceTaskScope)
-    .describe('Whose tasks to list when participantPersonHint is empty. Defaults to self. Use all only for an explicit workspace-wide request.')
-    .optional(),
+  personHints: z.array(z.string()).describe(personHintsDescription('tasks')).optional(),
+  scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('tasks')).optional(),
   weekFrom: z.number()
     .describe('Start of the week range as an offset from this week: 0 this week, -1 last week, 1 next week. Omit both weekFrom and weekTo to list the current week; widen the range for other periods.')
     .optional(),
@@ -824,7 +833,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_list',
-    description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.",
+    description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all.",
     version: '4',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: taskListInputSchema,
@@ -911,10 +920,8 @@ const leaveHintSchema = z.string().min(1).max(256).describe(
 );
 
 export const leaveListInputSchema = z.strictObject({
-  personHint: z.string().describe('Name or email of the person whose leave to list. Omit for the requester.').optional(),
-  scope: z.enum(WorkspaceTaskScope)
-    .describe('Whose leave to list when personHint is empty. Defaults to self. Use all only for an explicit company-wide request.')
-    .optional(),
+  personHints: z.array(z.string()).describe(personHintsDescription('leave')).optional(),
+  scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('leave')).optional(),
   from: z.string().describe(`Earliest day to include. ${momentDescription} Omit for no lower bound.`).optional(),
   to: z.string().describe(`Latest day to include. ${momentDescription} Omit for no upper bound.`).optional(),
   status: z.enum(WorkspaceLeaveStatus).describe('Filter by status. Omit the field to return every status.').optional(),
@@ -922,10 +929,8 @@ export const leaveListInputSchema = z.strictObject({
 });
 
 export const leaveBalanceInputSchema = z.strictObject({
-  personHint: z.string().describe('Name or email of the person whose balance to read. Omit for the requester.').optional(),
-  scope: z.enum(WorkspaceTaskScope)
-    .describe('Whose balance to read when personHint is empty. Defaults to self. Use all for everybody who works here, which is what reviewing entitlements wants.')
-    .optional(),
+  personHints: z.array(z.string()).describe(personHintsDescription('leave balance')).optional(),
+  scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('leave balances')).optional(),
   year: z.number().describe('The leave year to count against. Omit for the year the requester is in now.').optional(),
 });
 
@@ -1046,10 +1051,8 @@ const attendanceHintSchema = z.string().min(1).max(256).describe(
 const attendanceReasonSchema = z.string();
 
 export const attendanceListInputSchema = z.strictObject({
-  personHint: z.string().describe('Name or email of the person whose attendance to list. Omit for the requester.').optional(),
-  scope: z.enum(WorkspaceTaskScope)
-    .describe('Whose attendance to list when personHint is empty. Defaults to self. Use all only for an explicit company-wide request.')
-    .optional(),
+  personHints: z.array(z.string()).describe(personHintsDescription('attendance')).optional(),
+  scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('attendance')).optional(),
   from: z.string().describe(`Earliest day to include. ${attendanceDayDescription} Omit to start thirty days ago.`).optional(),
   to: z.string().describe(`Latest day to include. ${attendanceDayDescription} Omit to end today.`).optional(),
   handWrittenOnly: z.boolean().describe('Keep only the records somebody wrote or changed by hand, and drop the ones clocked live. A hand-written record carries the reason it was written, or the moment it was moved from, or both; a live clock carries neither. Use it for "what has been written by hand this month" or to review what an administrator entered for somebody. Omit for every record in the window.').optional(),
@@ -1568,7 +1571,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_list',
-    description: "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. The default scope is the requester; set scope to all for the whole company. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
+    description: "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. It reads the requester's own leave unless personHints names other people or scope is all. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: leaveListInputSchema,
@@ -1722,7 +1725,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_list',
-    description: "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
+    description: "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
     version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: attendanceListInputSchema,

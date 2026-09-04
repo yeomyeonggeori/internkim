@@ -65,6 +65,7 @@ import {
 	pushReachabilityGet
 } from './notification-tools';
 import { LabelUnresolved } from './labels';
+import { WhoseRecordsContradicted } from './whose';
 import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
 import {
@@ -82,6 +83,8 @@ import { taskAdd, taskDelete, taskList, taskUpdate, taskVocabularySet } from './
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
+import { capabilityToolResultSchema } from '../catalog/tools';
+import { sentencesOfSchemaRefusal } from '../schema-sentences';
 
 type ToolInput = Record<string, unknown>;
 type ToolRun = (context: RecordContext, input: ToolInput) => Promise<unknown> | unknown;
@@ -213,10 +216,36 @@ export async function runToolOverTheRecord(
 
 	try {
 		const context = await recordContextOf(caller, accountDirectory, requesterID, now);
-		return { status: 200, body: { tool: name, result: await run(context, input) } };
+		const result = await run(context, input);
+		noteWhereTheAnswerLeftItsContract(name, result);
+		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {
 		return refusalAnswer(name, refusal);
 	}
+}
+
+// The contract these tools answer under is written here, and a device reads it
+// through a copy that arrives only with an OTA release, so this is the only
+// side that can be fixed when an answer and the contract disagree. A device
+// that refused the disagreement would report it to a machine that can do
+// nothing but refuse, and would take every record tool on the fleet down until
+// the next release; capabilityd therefore reads the answer by name and leaves
+// the judgement here (#1486).
+//
+// Naming it is the whole job. The answer still goes out: the record has
+// already been written by the time this runs, and losing a completed write to
+// a fault no caller can fix trades one defect for a worse one. The suites hold
+// the same answers to the same schema through heldToTheContract, so a shape a
+// test covers fails before it ships and a shape only production reaches is
+// named in the log with the field that broke.
+function noteWhereTheAnswerLeftItsContract(name: string, result: unknown): void {
+	const schema = capabilityToolResultSchema(name);
+	if (!schema) return;
+	const parsed = schema.safeParse(result);
+	if (parsed.success) return;
+	console.error(
+		`tool.answer_left_its_contract: tool=${name} ${sentencesOfSchemaRefusal(parsed.error.issues, result, 'result')}`
+	);
 }
 
 // A caller who named something the record could not place gets the candidates
@@ -271,6 +300,18 @@ function refusalAnswer(name: string, refusal: unknown): ToolAnswer {
 				retryable: refusal.retryable,
 				safeRetry: refusal.safeRetry,
 				...(refusal.eventID ? { eventID: refusal.eventID } : {})
+			}
+		};
+	}
+	if (refusal instanceof WhoseRecordsContradicted) {
+		return {
+			status: 400,
+			body: {
+				error: refusal.message,
+				errorCode: refusal.errorCode,
+				failureStage: refusal.failureStage,
+				retryable: refusal.retryable,
+				safeRetry: refusal.safeRetry
 			}
 		};
 	}

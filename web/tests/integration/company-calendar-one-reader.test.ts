@@ -8,6 +8,7 @@ import {
 } from '../../src/lib/server/control-plane';
 import { dayOffColor } from '../../src/lib/calendar/day-off-color';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -170,13 +171,16 @@ type AnsweredEntry = {
 };
 
 async function entriesTheToolAnswers(): Promise<AnsweredEntry[]> {
-	const answered = await runToolOverTheRecord(
-		caller,
-		client,
-		adminID,
+	const answered = heldToTheContract(
 		'event_list',
-		{ startsAt: inDays(-1).toISOString(), endsAt: inDays(7).toISOString() },
-		now
+		await runToolOverTheRecord(
+			caller,
+			client,
+			adminID,
+			'event_list',
+			{ startsAt: inDays(-1).toISOString(), endsAt: inDays(7).toISOString() },
+			now
+		)
 	);
 	expect(answered.status).toBe(200);
 	return (answered.body as { result: { events: AnsweredEntry[] } }).result.events;

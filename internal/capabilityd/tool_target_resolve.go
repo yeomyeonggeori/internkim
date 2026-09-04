@@ -43,7 +43,7 @@ func (service Service) resolveCapabilityToolTarget(ctx context.Context, toolName
 	if !hasDescriptor || !hasTargetRoute {
 		return capabilityToolWithoutTargetResponse(request.ToolName), nil
 	}
-	if errorValue := capabilityschema.Validate(descriptor.InputSchema, request.Input); errorValue != nil {
+	if errorValue := capabilityschema.ValidateInput(descriptor.InputSchema, request.Input); errorValue != nil {
 		return capabilityInvalidInputResponse(request.ToolName, errorValue), nil
 	}
 	return targetRoute.Resolver(service, ctx, request)

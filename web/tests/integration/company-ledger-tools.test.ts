@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -54,12 +55,12 @@ afterAll(async () => {
 	}
 }, networkHookTimeout);
 
-function asSample(name: string, input: Record<string, unknown> = {}) {
-	return runToolOverTheRecord(sample, client, sampleID, name, input, now);
+async function asSample(name: string, input: Record<string, unknown> = {}) {
+	return heldToTheContract(name, await runToolOverTheRecord(sample, client, sampleID, name, input, now));
 }
 
-function asAdmin(name: string, input: Record<string, unknown> = {}) {
-	return runToolOverTheRecord(admin, client, adminID, name, input, now);
+async function asAdmin(name: string, input: Record<string, unknown> = {}) {
+	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now));
 }
 
 function resultOf(answer: { body: unknown }): Record<string, unknown> {
