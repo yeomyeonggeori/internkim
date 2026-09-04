@@ -345,7 +345,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			},
 		},
 		"agentProfiles": blueclawAgentProfiles(options.AllowAdminTaskDiagnostic),
-		"mcpServers":    []map[string]any{},
 		"terminal": map[string]any{
 			"mode":              terminalMode,
 			"sandboxProvider":   "",
