@@ -23,6 +23,19 @@ import { notificationToolDefinitions } from './notifications';
 import { peopleToolDefinitions } from './people';
 import { modelToolDefinitions } from './model';
 import { settingsToolDefinitions } from './settings';
+import {
+  WorkspaceTaskInitialStatus,
+  WorkspaceTaskScope,
+  WorkspaceTaskSize,
+  WorkspaceTaskStatus,
+} from './workspace-task';
+
+export {
+  WorkspaceTaskInitialStatus,
+  WorkspaceTaskScope,
+  WorkspaceTaskSize,
+  WorkspaceTaskStatus,
+};
 
 const dateDescription = 'Date in YYYY-MM-DD format.';
 // Whose records to read is one question with three answers, and the commonest
@@ -41,39 +54,6 @@ const resourceIDSchema = z.string()
   .min(1)
   .regex(/^\S(?:.*\S)?$/, 'Resource identity must not have leading or trailing whitespace.');
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
-
-export enum WorkspaceTaskSize {
-  ExtraSmall = 'XS',
-  Small = 'S',
-  Medium = 'M',
-  Large = 'L',
-  ExtraLarge = 'XL',
-  ExtraExtraLarge = 'XXL',
-}
-
-export enum WorkspaceTaskStatus {
-  Planned = 'planned',
-  InProgress = 'in_progress',
-  Completed = 'completed',
-  Requested = 'requested',
-  Paused = 'paused',
-  Rejected = 'rejected',
-  Stopped = 'stopped',
-}
-
-export enum WorkspaceTaskInitialStatus {
-  Planned = WorkspaceTaskStatus.Planned,
-  InProgress = WorkspaceTaskStatus.InProgress,
-  Completed = WorkspaceTaskStatus.Completed,
-  Paused = WorkspaceTaskStatus.Paused,
-  Rejected = WorkspaceTaskStatus.Rejected,
-  Stopped = WorkspaceTaskStatus.Stopped,
-}
-
-export enum WorkspaceTaskScope {
-  Self = 'self',
-  All = 'all',
-}
 
 export enum CalendarToolName {
   Add = 'event_add',

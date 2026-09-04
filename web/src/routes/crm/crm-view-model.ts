@@ -5,7 +5,6 @@ import type {
 	CRMActionUrgency,
 	CRMActivity,
 	CRMNextAction,
-	CRMNextActionStatus,
 	CRMOpportunity,
 	CRMOpportunityStage,
 	CRMPipelineStage,
@@ -13,6 +12,7 @@ import type {
 } from './crm-types';
 import { crmOrganizationTypes } from './crm-types';
 import { crmStageOutcomes } from '$lib/crm/crm-stage';
+import { taskStatus } from '$lib/task/central-task';
 import type { CRMText } from './text';
 import type { Locale } from '$lib/i18n/locale.svelte';
 export { formatMoney, formatMoneyTotals } from './crm-money';
@@ -23,7 +23,6 @@ export type CRMOrganizationStatusFilter = CRMOrganizationStatus | 'all';
 export type CRMOrganizationTypeFilter = CRMOrganizationType | 'all';
 export type CRMBadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
-export const crmNextActionStatusOrder: CRMNextActionStatus[] = ['todo', 'in_progress', 'waiting', 'done'];
 export const crmOrganizationStatusOptions: CRMOrganizationStatusFilter[] = ['all', 'prospect', 'active', 'paused'];
 export const crmOrganizationTypeOptions: CRMOrganizationTypeFilter[] = ['all', ...crmOrganizationTypes];
 export const crmPrototypeToday = '2026-07-22';
@@ -115,7 +114,7 @@ export function getActionVariant(action: CRMNextAction): CRMBadgeVariant {
 }
 
 export function getActionUrgency(action: CRMNextAction, today = crmPrototypeToday): CRMActionUrgency {
-	if (action.status === 'done') return 'done';
+	if (action.status === taskStatus.completed) return 'done';
 	const dueTime = Date.parse(`${action.dueDate}T00:00:00Z`);
 	const todayTime = Date.parse(`${today}T00:00:00Z`);
 	if (Number.isNaN(dueTime) || Number.isNaN(todayTime)) return 'scheduled';

@@ -73,7 +73,7 @@
 						<Table.Cell class="hidden whitespace-normal text-center md:table-cell">
 							<div class="flex justify-center">
 								{#if activity.taskStatus}
-									<Badge variant="secondary" data-crm-centered-pill>{crmLabel(text.nextActionStatuses, activity.taskStatus)}</Badge>
+									<Badge variant="secondary" data-crm-centered-pill>{crmLabel(text.taskStatuses, activity.taskStatus)}</Badge>
 								{:else if activity.taskID}
 									<Badge variant="outline" data-crm-centered-pill>{text.linkedTask}</Badge>
 								{:else}

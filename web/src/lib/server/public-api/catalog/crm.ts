@@ -10,6 +10,7 @@ import {
 } from './protocol';
 
 import { taskLabelVocabularySchema } from './labels';
+import { WorkspaceTaskStatus } from './workspace-task';
 
 import type { CapabilityToolDefinition } from './definition';
 
@@ -222,7 +223,7 @@ export const crmActivitySaveInputSchema = z.strictObject({
   kind: z.string().max(64).describe('The kind of work it was: a note, a call, a meeting, an email, a task.').optional(),
   business: z.string().max(128).describe('Business label, from registeredLabels.businesses.').optional(),
   note: z.string().max(8192).describe('What was said or decided.').optional(),
-  status: z.string().max(32).describe('The status the task stands at.').optional(),
+  status: z.enum(WorkspaceTaskStatus).describe('The status the task stands at.').optional(),
   occurredAt: z.string().describe(`When it happened. ${momentDescription}`).optional(),
   ownerPersonHint: z.string().max(256).describe('Name, @handle or email of the colleague it belongs to.').optional(),
   isEvent: z.boolean().describe('Set true for work that goes in the calendar, which then needs startsAt and endsAt.').optional(),

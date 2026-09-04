@@ -631,12 +631,12 @@ describe('canonical capability tools', () => {
     expect(taskAddInputSchema.parse({
       title: 'customer support quarterly settlement gap check',
       size: WorkspaceTaskSize.Small,
-      status: WorkspaceTaskInitialStatus.Planned,
+      status: WorkspaceTaskInitialStatus.planned,
       endsAt: '2026-07-24',
     })).toEqual({
       title: 'customer support quarterly settlement gap check',
       size: WorkspaceTaskSize.Small,
-      status: WorkspaceTaskInitialStatus.Planned,
+      status: WorkspaceTaskInitialStatus.planned,
       endsAt: '2026-07-24',
     });
     expect(taskListInputSchema.safeParse({ query: 'settlement', scope: 'self' }).success).toBe(true);

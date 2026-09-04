@@ -13,6 +13,8 @@ import type {
 } from './crm-api-types';
 import type { CRMVocabulary } from './crm-api-types';
 import type { TaskVocabulary } from '$lib/task/task-vocabulary';
+import { centralStatusFromWord, taskStatus } from '$lib/task/central-task';
+import { isTaskStatusFinished } from '../task/task-status';
 import { crmStages } from './crm-stages';
 import type {
 	CRMOrganization,
@@ -197,7 +199,7 @@ export function activityPayload(activity: CRMActivity): CRMActivityPayload {
 		title: activity.title,
 		occurredAt: activity.occurredAt,
 		content: activity.summary,
-		taskStatus: activity.taskStatus ?? 'todo',
+		taskStatus: activity.taskStatus || taskStatus.planned,
 		taskOwnerID: activity.taskOwnerID ?? '',
 		isEvent: Boolean(activity.calendarEventID),
 		isWholeDay: activity.isWholeDay ?? false,
@@ -218,7 +220,7 @@ export function activityPayloadFromDraft(draft: Extract<CRMCreateDraft, { kind: 
 		title: draft.title,
 		occurredAt: new Date(draft.occurredAt).toISOString(),
 		content: draft.summary,
-		taskStatus: draft.taskStatus || 'todo',
+		taskStatus: draft.taskStatus || taskStatus.planned,
 		taskOwnerID: draft.taskOwnerID,
 		isEvent: draft.calendar.isRequested,
 		isWholeDay: draft.calendar.isAllDay,
@@ -356,11 +358,9 @@ function mapOpportunity(
 	};
 }
 
-const closedTaskStatuses = ['done', 'cancelled'];
-
 function nextActionsOf(activities: CRMActivity[], timeZone: string): CRMNextAction[] {
 	return activities
-		.filter((activity) => activity.organizationID !== '' && !closedTaskStatuses.includes(activity.taskStatus ?? ''))
+		.filter((activity) => activity.organizationID !== '' && !isTaskStatusFinished(activity.taskStatus ?? ''))
 		.map((activity) => ({
 			id: activity.id,
 			organizationID: activity.organizationID,
@@ -368,7 +368,7 @@ function nextActionsOf(activities: CRMActivity[], timeZone: string): CRMNextActi
 			title: activity.title,
 			ownerName: activity.taskOwnerName ?? '',
 			dueDate: utcToLocalDate(activity.occurredAt, timeZone),
-			status: (activity.taskStatus ?? 'todo') as CRMNextAction['status']
+			status: centralStatusFromWord(activity.taskStatus || taskStatus.planned)
 		}));
 }
 

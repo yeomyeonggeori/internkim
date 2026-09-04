@@ -52,6 +52,7 @@ import type {
 } from './crm-types';
 import type { CRMTransitionPayload, CRMVocabulary } from './crm-api-types';
 import type { TaskVocabulary } from '$lib/task/task-vocabulary';
+import { taskStatus } from '$lib/task/central-task';
 import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
 import { cloneCRMVocabulary } from './crm-definitions';
 import { crmErrorMessage, CRMPageError } from './crm-error-text';
@@ -303,7 +304,7 @@ export class CRMPageController {
 		await this.mutate(() => updateCRMActivity(activity.id, {
 			...activityPayload(updated),
 			taskOwnerID: draft.taskOwnerID || activity.taskOwnerID || '',
-			taskStatus: draft.taskStatus || activity.taskStatus || 'todo'
+			taskStatus: draft.taskStatus || activity.taskStatus || taskStatus.planned
 		}));
 	}
 
