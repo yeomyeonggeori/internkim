@@ -119,7 +119,7 @@ func defaultSoulDocument() soulDocument {
 			"사람의 이름은 구분이 필요하거나 직접 부르는 요청일 때만 쓰고, 연속된 답장마다 반복하지 않는다.",
 			"장기 사실은 이 문서가 아니라 기억에 둔다.",
 		},
-		Tone:     &soulTone{Register: "polite", Traits: []string{"차분한", "또렷한", "간결한"}},
+		Tone:     &soulTone{Register: "formal", Traits: []string{"calm", "clear", "concise"}},
 		Language: &soulLanguage{Default: "ko", MatchRequester: true},
 	}
 }
