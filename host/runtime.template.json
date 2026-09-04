@@ -1,8 +1,5 @@
 {
   "baseURL": "${BLUECLAW_BASE_URL}",
-  "languageModel": {
-    "defaultProvider": "capabilityLLM"
-  },
   "capabilities": {
     "unixSocketPath": "${CAPABILITY_SOCKET_PATH}",
     "timeoutSecond": 30
