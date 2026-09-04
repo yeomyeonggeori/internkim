@@ -18,6 +18,7 @@ let refuseWith: ToolRefused | null = null;
 mock.module('../../../src/lib/public-api-call', () => ({
 	ToolRefused,
 	invokeTool: async (name: string, input: Record<string, unknown>) => {
+		if (name === 'company_settings_get') return { timeZone: 'Asia/Seoul' };
 		if (refuseWith) throw refuseWith;
 		asked.push({ name, input });
 		return {};
@@ -26,16 +27,6 @@ mock.module('../../../src/lib/public-api-call', () => ({
 
 mock.module('../../../src/lib/attendance/announce-attendance', () => ({
 	announceToTheCompany: async () => undefined
-}));
-
-mock.module('../../../src/lib/supabase', () => ({
-	supabase: () => ({
-		from: () => ({
-			select: () => ({
-				limit: () => ({ single: async () => ({ data: { timezone: 'Asia/Seoul' } }) })
-			})
-		})
-	})
 }));
 
 const { cancelSupabaseLeaveRequest, createSupabaseLeaveRequest, leaveSpanAsked } = await import(
@@ -95,26 +86,26 @@ describe('a leave the browser files', () => {
 	// for it.
 	test('names a whole day by its dates whatever the leave deducts', async () => {
 		for (const days of [0, 0.5, 3]) {
-			const span = await leaveSpanAsked({
+			const span = leaveSpanAsked({
 				leaveTypeID: 'unpaid',
 				unit: 'fullDay',
 				startDate: '2026-08-03',
 				endDate: '2026-08-05',
 				days
-			} as never);
+			} as never, 'Asia/Seoul');
 			expect(span).toEqual({ startsAt: '2026-08-03', endsAt: '2026-08-05' });
 		}
 	});
 
 	test('names a part of a day by its moments whatever the leave deducts', async () => {
-		const span = await leaveSpanAsked({
+		const span = leaveSpanAsked({
 			leaveTypeID: 'annual',
 			unit: 'quarterDay',
 			startDate: '2026-08-03',
 			partialPeriod: 'custom',
 			startTime: '14:00',
 			days: 3
-		} as never);
+		} as never, 'Asia/Seoul');
 		expect(new Date(span.startsAt).toISOString()).toBe('2026-08-03T05:00:00.000Z');
 		expect(new Date(span.endsAt).toISOString()).toBe('2026-08-03T07:00:00.000Z');
 	});

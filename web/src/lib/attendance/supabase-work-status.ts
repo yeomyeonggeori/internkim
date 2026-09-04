@@ -1,6 +1,13 @@
-import { supabase } from '$lib/supabase';
 import { membersInReadingOrder } from '$lib/member-order';
-import { shiftedDay, supabaseWorkStatusTimeRange } from '$lib/attendance/supabase-work-status-range';
+import {
+	approvedLeaveBetween,
+	attendanceBetween,
+	companyDirectory,
+	companySettings,
+	orderablePersonOf,
+	type RecordPerson
+} from '$lib/attendance/attendance-record';
+import { shiftedDay } from '$lib/attendance/supabase-work-status-range';
 import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import {
 	supabaseWorkedDay,
@@ -37,10 +44,8 @@ export type SupabaseWorkStatusMember = {
 	name: string | null;
 	email: string | null;
 	is_admin: boolean;
-	user_id: string | null;
 	joined_at: string | null;
 };
-type CompanyRow = { timezone: string };
 export type SupabaseWorkStatusAttendance = {
 	member_id: string;
 	kind: 'clock_in' | 'clock_out';
@@ -77,60 +82,44 @@ export type SupabaseWorkStatusInputs = {
 	now: Date;
 };
 
+export function workStatusMemberOf(person: RecordPerson): SupabaseWorkStatusMember {
+	return { ...orderablePersonOf(person), is_admin: person.isAdmin === true };
+}
+
 export async function supabaseWorkStatusInputs(
 	requests: AttendanceWorkStatusRequest[]
 ): Promise<SupabaseWorkStatusInputs> {
 	const requestNow = new Date();
-	const client = supabase();
-	const { data: auth } = await client.auth.getSession();
-	const accountID = auth.session?.user.id ?? '';
-
-	const company = await client
-		.from('company')
-		.select('timezone')
-		.limit(1)
-		.single<CompanyRow>();
-	if (company.error) throw new Error(company.error.message);
-
-	const members = await client
-		.from('member')
-		.select('id, name, email, is_admin, user_id, joined_at')
-		.neq('status', 'withdrawn')
-		.returns<SupabaseWorkStatusMember[]>();
-	if (members.error) throw new Error(members.error.message);
-
-	const timeZone = company.data.timezone;
+	const settings = await companySettings();
+	const timeZone = settings.timeZone;
 	const coveredDays = coveredDaysOf(requests, timeZone, requestNow);
-	const { from, until } = supabaseWorkStatusTimeRange(coveredDays, timeZone);
-	const attendanceFrom = supabaseWorkStatusTimeRange(
-		[shiftedDay(coveredDays[0], -1)],
-		timeZone
-	).from;
+	const firstDay = coveredDays[0];
+	const lastDay = coveredDays[coveredDays.length - 1];
 
-	const attendance = await client
-		.from('attendance')
-		.select('member_id, kind, occurred_at, location')
-		.gte('occurred_at', attendanceFrom)
-		.lt('occurred_at', until)
-		.order('occurred_at')
-		.returns<SupabaseWorkStatusAttendance[]>();
-	if (attendance.error) throw new Error(attendance.error.message);
-
-	const leave = await client
-		.from('leave')
-		.select('member_id, days, starts_at, ends_at, status')
-		.eq('status', 'approved')
-		.lt('starts_at', until)
-		.gte('ends_at', from)
-		.returns<SupabaseWorkStatusLeave[]>();
-	if (leave.error) throw new Error(leave.error.message);
+	const [directory, attendance, leave] = await Promise.all([
+		companyDirectory(),
+		attendanceBetween(shiftedDay(firstDay, -1), lastDay),
+		approvedLeaveBetween(firstDay, lastDay)
+	]);
+	const members = directory.people.map(workStatusMemberOf);
 
 	return {
 		timeZone,
-		members: members.data,
-		me: members.data.find((member) => member.user_id === accountID),
-		attendance: attendance.data,
-		leave: leave.data,
+		members,
+		me: members.find((member) => member.id === directory.requesterID),
+		attendance: attendance.attendance.map((event) => ({
+			member_id: event.personID,
+			kind: event.kind,
+			occurred_at: event.occurredAt,
+			location: event.location
+		})),
+		leave: leave.leave.map((taken) => ({
+			member_id: taken.personID,
+			days: taken.days,
+			starts_at: taken.startsAt,
+			ends_at: taken.endsAt,
+			status: taken.status
+		})),
 		policiesByMember: await supabaseWorkPolicies(),
 		holidays: await workStatusHolidays(coveredDays),
 		coveredDays,

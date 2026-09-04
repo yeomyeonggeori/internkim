@@ -1,15 +1,24 @@
 import { announceToTheCompany } from './announce-attendance';
-import { companyDateOf, companyTimeOf } from '$lib/company-time';
-import { companyMonthTimeRange, shiftedDay, supabaseWorkStatusTimeRange } from './supabase-work-status-range';
+import { companyDateOf } from '$lib/company-time';
+import { shiftedDay } from './supabase-work-status-range';
 import {
 	attendanceWriteResultFrom,
 	type AttendanceWriteResult
 } from './attendance-write';
 import { invokeTool } from '$lib/public-api-call';
-import { supabase } from '$lib/supabase';
+import {
+	approvedLeaveBetween,
+	attendanceBetween,
+	companyDirectory,
+	companySettings,
+	orderablePersonOf,
+	type RecordAttendance,
+	type RecordLeave,
+	type RecordWorkLocation
+} from './attendance-record';
 import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
-import { colourOf, type NamedColour } from '$lib/task/task-vocabulary';
-import { membersInReadingOrder } from '$lib/member-order';
+import { colourOf } from '$lib/task/task-vocabulary';
+import { membersInReadingOrder, type OrderableMember } from '$lib/member-order';
 import type {
 	AttendanceAbsence,
 	AttendanceEvent,
@@ -18,26 +27,6 @@ import type {
 	AttendanceMember,
 	AttendanceSummary
 } from '../../routes/attendance/attendance-context.svelte';
-
-type MemberRow = { id: string; name: string | null; email: string | null; is_admin: boolean; user_id: string | null; joined_at: string | null };
-type CompanyRow = { id: string; timezone: string; work_locations: NamedColour[] | null; rules: { teamViewVisibleToAll?: boolean } };
-type AttendanceRow = {
-	id: string;
-	member_id: string;
-	kind: AttendanceKind;
-	location: string | null;
-	occurred_at: string;
-	original_occurred_at: string | null;
-};
-type LeaveRow = {
-	id: string;
-	member_id: string;
-	kind: string;
-	is_paid: boolean;
-	starts_at: string;
-	ends_at: string;
-	note: string | null;
-};
 
 export type SupabaseAttendanceCorrection = {
 	eventID: string;
@@ -56,113 +45,65 @@ export type SupabaseAttendanceAddition = {
 };
 
 export async function supabaseAttendanceSummary(month: string): Promise<AttendanceSummary> {
-	const client = supabase();
-	const { data: auth } = await client.auth.getSession();
-	const accountID = auth.session?.user.id ?? '';
-
-	const company = await client.from('company').select('id, timezone, work_locations, rules').limit(1).single<CompanyRow>();
-	if (company.error) throw new Error(company.error.message);
-
-	const members = await client
-		.from('member')
-		.select('id, name, email, is_admin, user_id, joined_at')
-		.neq('status', 'withdrawn')
-		.returns<MemberRow[]>();
-	if (members.error) throw new Error(members.error.message);
-
-	const timeZone = company.data.timezone;
+	const settings = await companySettings();
+	const timeZone = settings.timeZone;
 	const selectedMonth = month || monthIn(new Date(), timeZone);
-	const { from, until } = companyMonthTimeRange(selectedMonth, timeZone);
-	const attendanceFrom = supabaseWorkStatusTimeRange(
-		[shiftedDay(`${selectedMonth}-01`, -1)],
-		timeZone
-	).from;
+	const firstDay = `${selectedMonth}-01`;
+	const lastDay = lastDayOfMonth(selectedMonth);
 
-	const attendance = await client
-		.from('attendance')
-		.select('id, member_id, kind, location, occurred_at, original_occurred_at')
-		.gte('occurred_at', attendanceFrom)
-		.lt('occurred_at', until)
-		.order('occurred_at')
-		.returns<AttendanceRow[]>();
-	if (attendance.error) throw new Error(attendance.error.message);
-
-	const leave = await client
-		.from('leave')
-		.select('id, member_id, kind, is_paid, starts_at, ends_at')
-		.eq('status', 'approved')
-		.lt('starts_at', until)
-		.gte('ends_at', from)
-		.returns<LeaveRow[]>();
-	if (leave.error) throw new Error(leave.error.message);
-	const [serverTime, backdatedAfter] = await Promise.all([
-		client.rpc('attendance_server_time'),
-		client.rpc('attendance_backdated_after_minutes')
+	const [directory, attendance, leave] = await Promise.all([
+		companyDirectory(),
+		attendanceBetween(shiftedDay(firstDay, -1), lastDay),
+		approvedLeaveBetween(firstDay, lastDay)
 	]);
-	if (serverTime.error) throw new Error(serverTime.error.message);
-	if (backdatedAfter.error) throw new Error(backdatedAfter.error.message);
-	const backdatedAfterMinutes = Number(backdatedAfter.data);
-	if (!Number.isInteger(backdatedAfterMinutes) || backdatedAfterMinutes <= 0) {
-		throw new Error('the backdated attendance threshold must be a positive integer');
-	}
 
-	const byID = new Map(members.data.map((member) => [member.id, member]));
-	const me = members.data.find((member) => member.user_id === accountID);
-	const events = attendance.data.map((row) => eventOf(row, byID.get(row.member_id), timeZone));
+	const me = directory.people.find((person) => person.personID === directory.requesterID);
+	const emailOf = new Map(directory.people.map((person) => [person.personID, person.email]));
+	const events = attendance.attendance.map((row) =>
+		eventOf(row, emailOf.get(row.personID) ?? '', timeZone)
+	);
+	const myEmail = me?.email ?? '';
 
 	return {
 		month: selectedMonth,
-		serverTime: serverTime.data,
+		serverTime: attendance.serverTime,
 		timeZoneAuthoritative: true,
-		backdatedAfterMinutes,
-		currentUserEmail: me?.email ?? '',
-		currentMemberID: me?.id,
-		isAdmin: me?.is_admin ?? false,
+		backdatedAfterMinutes: attendance.backdatedAfterMinutes,
+		currentUserEmail: myEmail,
+		currentMemberID: me?.personID,
+		isAdmin: me?.isAdmin === true,
 		timeZone,
 		events,
-		absences: leave.data.flatMap((row) => absencesOf(row, byID.get(row.member_id), timeZone)),
-		members: membersInReadingOrder(members.data, me?.id).map(memberOf),
-		todayStatus: todayStatusOf(events, me?.email ?? '', timeZone),
-		activeLeave: me ? await supabaseActiveLeave(me.id, timeZone, new Date(serverTime.data)) : undefined,
-		locations: locationsOf(company.data.work_locations),
-		teamViewVisibleToAll: company.data.rules.teamViewVisibleToAll !== false,
+		absences: leave.leave.flatMap((row) => absencesOf(row, emailOf.get(row.personID) ?? '')),
+		members: membersInReadingOrder(
+			directory.people.map(orderablePersonOf),
+			me?.personID
+		).map(memberOf),
+		todayStatus: todayStatusOf(events, myEmail, timeZone),
+		activeLeave: me ? await supabaseActiveLeave(timeZone, new Date(attendance.serverTime)) : undefined,
+		locations: locationsOf(settings.workLocations),
+		teamViewVisibleToAll: settings.teamViewVisibleToAll,
 		teamViewBlocked: false
 	};
 }
 
 export async function setSupabaseTeamViewVisibility(visible: boolean): Promise<void> {
-	const client = supabase();
-	const company = await client.from('company').select('id, rules').limit(1).single<{ id: string; rules: Record<string, unknown> }>();
-	if (company.error) throw new Error(company.error.message);
-	const { error } = await client
-		.from('company')
-		.update({ rules: { ...company.data.rules, teamViewVisibleToAll: visible } })
-		.eq('id', company.data.id);
-	if (error) throw new Error(error.message);
+	await invokeTool('company_settings_update', { teamViewVisibleToAll: visible });
 }
 
 export async function recordSupabaseAttendance(
-	kind?: AttendanceKind,
+	kind: AttendanceKind,
 	locationID?: string,
 	confirmedEarlyReturn = false
 ): Promise<void> {
-	const client = supabase();
-	const { data: auth } = await client.auth.getSession();
-	const accountID = auth.session?.user.id;
-	if (!accountID) throw new Error('sign in first');
-
-	const member = await client.from('member').select('id').eq('user_id', accountID).single<{ id: string }>();
-	if (member.error) throw new Error(member.error.message);
-
-	const recorded = kind ?? (await nextKindFor(member.data.id));
-	if (confirmedEarlyReturn && recorded === 'clock_in') {
+	if (confirmedEarlyReturn && kind === 'clock_in') {
 		await returnEarlyFromSupabaseLeave(locationID);
 		void announceToTheCompany('clock');
 		return;
 	}
 	await invokeTool('attendance_add', {
-		kind: recorded,
-		location: recorded === 'clock_in' ? locationID || undefined : undefined
+		kind,
+		location: kind === 'clock_in' ? locationID || undefined : undefined
 	});
 }
 
@@ -207,36 +148,23 @@ export async function removeSupabaseAttendanceEvent(
 	return attendanceWriteResultFrom(await invokeTool('attendance_delete', { eventHint: eventID, reason }));
 }
 
-async function nextKindFor(memberID: string): Promise<AttendanceKind> {
-	const last = await supabase()
-		.from('attendance')
-		.select('kind')
-		.eq('member_id', memberID)
-		.order('occurred_at', { ascending: false })
-		.limit(1)
-		.maybeSingle<{ kind: AttendanceKind }>();
-	if (last.error) throw new Error(last.error.message);
-	return last.data?.kind === 'clock_in' ? 'clock_out' : 'clock_in';
-}
-
-function memberOf(member: MemberRow): AttendanceMember {
+function memberOf(member: OrderableMember): AttendanceMember {
 	const email = member.email ?? '';
 	return { email, displayName: member.name || email.split('@')[0], mattermostUsername: '' };
 }
 
-function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: string): AttendanceEvent {
-	const email = member?.email ?? '';
+function eventOf(row: RecordAttendance, email: string, timeZone: string): AttendanceEvent {
 	return {
-		id: row.id,
+		id: row.eventID,
 		mattermostUserID: '',
 		mattermostUsername: '',
 		email,
-		displayName: member?.name || email.split('@')[0],
+		displayName: row.person,
 		kind: row.kind,
-		occurredAt: row.occurred_at,
-		originalOccurredAt: row.original_occurred_at ?? undefined,
-		localDate: companyDateOf(new Date(row.occurred_at), timeZone),
-		localTime: companyTimeOf(new Date(row.occurred_at), timeZone),
+		occurredAt: row.occurredAt,
+		originalOccurredAt: row.originalOccurredAt ?? undefined,
+		localDate: row.date,
+		localTime: row.time,
 		timeZoneAtEvent: timeZone,
 		source: 'web',
 		resultPostID: '',
@@ -245,23 +173,22 @@ function eventOf(row: AttendanceRow, member: MemberRow | undefined, timeZone: st
 	};
 }
 
-function absencesOf(row: LeaveRow, member: MemberRow | undefined, timeZone: string): AttendanceAbsence[] {
-	const startDate = companyDateOf(new Date(row.starts_at), timeZone);
-	const endDate = lastLeaveDate(startDate, row.ends_at, timeZone);
-	const email = member?.email ?? '';
+function absencesOf(row: RecordLeave, email: string): AttendanceAbsence[] {
+	const startDate = row.startDate;
+	const endDate = row.endDate < startDate ? startDate : row.endDate;
 	const days: AttendanceAbsence[] = [];
 	for (let date = startDate; date <= endDate; date = nextDate(date)) {
 		days.push({
-			id: `${row.id}:${date}`,
-			rangeID: row.id,
+			id: `${row.leaveID}:${date}`,
+			rangeID: row.leaveID,
 			email,
 			kind: 'leave',
 			labelKey: 'leave',
 			date,
 			startDate,
 			endDate,
-			reason: row.note ?? row.kind,
-			createdAt: row.starts_at,
+			reason: row.note ?? row.kindID,
+			createdAt: row.startsAt,
 			isRangeStart: date === startDate,
 			isRangeEnd: date === endDate
 		});
@@ -269,11 +196,11 @@ function absencesOf(row: LeaveRow, member: MemberRow | undefined, timeZone: stri
 	return days;
 }
 
-function locationsOf(workLocations: NamedColour[] | null): AttendanceLocation[] {
-	return (workLocations ?? []).map((location, index) => ({
+function locationsOf(workLocations: RecordWorkLocation[]): AttendanceLocation[] {
+	return workLocations.map((location, index) => ({
 		id: location.name,
 		name: location.name,
-		color: colourOf(location),
+		color: colourOf({ name: location.name, ...(location.color ? { color: location.color } : {}) }),
 		isDefault: index === 0
 	}));
 }
@@ -290,10 +217,10 @@ function monthIn(instant: Date, timeZone: string): string {
 	return companyDateOf(instant, timeZone).slice(0, 7);
 }
 
-function lastLeaveDate(startDate: string, endsAt: string, timeZone: string): string {
-	const lastCoveredInstant = new Date(new Date(endsAt).getTime() - 1);
-	const lastDate = companyDateOf(lastCoveredInstant, timeZone);
-	return lastDate < startDate ? startDate : lastDate;
+function lastDayOfMonth(month: string): string {
+	const [year, monthNumber] = month.split('-').map(Number);
+	const dayCount = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+	return `${month}-${String(dayCount).padStart(2, '0')}`;
 }
 
 function nextDate(date: string): string {

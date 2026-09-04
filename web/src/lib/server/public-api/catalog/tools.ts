@@ -897,6 +897,7 @@ export const leaveBalanceInputSchema = z.strictObject({
 });
 
 export const leaveRequestInputSchema = z.strictObject({
+  personHint: z.string().describe('Name or email of the person the leave belongs to. Only an administrator files leave for somebody else. Omit for the requester.').optional(),
   kind: z.string().describe('The kind of leave, named as this company registers it. leave_list returns registeredKinds; a kind outside that list fails with the registered ones.'),
   startsAt: z.string().describe(`First day of the leave. ${momentDescription}`),
   endsAt: z.string().describe(`Last day of the leave. ${momentDescription}`),
@@ -934,7 +935,9 @@ export const leaveDeleteInputIntentSchema = z.strictObject({});
 
 export const leaveResultSchema = z.strictObject({
   leaveID: resourceIDSchema,
+  personID: z.string(),
   person: z.string(),
+  kindID: z.string(),
   kind: z.string(),
   days: z.number(),
   status: z.string(),
@@ -942,6 +945,8 @@ export const leaveResultSchema = z.strictObject({
   isDeducted: z.boolean(),
   startDate: z.string(),
   endDate: z.string(),
+  startsAt: z.string(),
+  endsAt: z.string(),
   note: z.string().nullable(),
 });
 
@@ -1029,14 +1034,17 @@ export const attendanceDeleteInputIntentSchema = z.strictObject({
 
 export const attendanceResultSchema = z.strictObject({
   eventID: resourceIDSchema,
+  personID: z.string(),
   person: z.string(),
   kind: z.string(),
   date: z.string(),
   time: z.string(),
+  occurredAt: z.string(),
   location: z.string().nullable(),
   wasCorrected: z.boolean(),
   originalDate: z.string().nullable(),
   originalTime: z.string().nullable(),
+  originalOccurredAt: z.string().nullable(),
   reason: z.string().nullable(),
 });
 
@@ -1046,6 +1054,8 @@ export const attendanceListResultSchema = z.strictObject({
   personName: z.string(),
   from: z.string(),
   to: z.string(),
+  serverTime: z.string(),
+  backdatedAfterMinutes: z.number().int(),
   count: z.number().int(),
   attendance: z.array(attendanceResultSchema),
 });
@@ -1498,7 +1508,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_list',
     description: "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. The default scope is the requester; set scope to all for the whole company. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
-    version: '1',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: leaveListInputSchema,
     result: { schema: leaveListResultSchema, effects: [] },
@@ -1523,8 +1533,8 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_request',
-    description: 'File a leave request for the requester. It is filed as requested and grants nothing until somebody decides it. Whether the leave is paid and whether it consumes the entitlement follow from the kind, so do not ask the requester for either.',
-    version: '1',
+    description: 'File a leave request. It is filed as requested and grants nothing until somebody decides it. Whether the leave is paid and whether it consumes the entitlement follow from the kind, so do not ask the requester for either. It is the requester\'s own leave unless personHint names somebody else, which only an administrator may do.',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveRequestInputSchema,
     inputIntentSchema: leaveRequestInputIntentSchema,
@@ -1547,7 +1557,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_update',
     description: 'Correct a leave that was filed wrong: its days, its kind, how much entitlement it consumes, or the note. A person corrects their own while it is still waiting on a decision; an administrator corrects anybody\'s at any time, which is how a leave filed for the wrong year is moved to the right one. Only the fields you pass change.',
-    version: '1',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveUpdateInputSchema,
     inputIntentSchema: leaveUpdateInputIntentSchema,
@@ -1571,7 +1581,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_delete',
     description: 'Take a leave back out of the record entirely, as though it was never filed. A person takes back their own while it is still waiting on a decision; an administrator takes back anybody\'s. Entitlement an approved leave spent comes back with it. To refuse a leave rather than erase it, decide it rejected.',
-    version: '1',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveDeleteInputSchema,
     inputIntentSchema: leaveDeleteInputIntentSchema,
@@ -1595,7 +1605,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_decide',
     description: 'Approve or reject a leave request. Only an administrator may, and the record refuses anybody else. An approval is what spends the entitlement, so it requires approval from the person asking for it.',
-    version: '1',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveDecideInputSchema,
     inputIntentSchema: leaveDecideInputIntentSchema,
@@ -1621,8 +1631,8 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_list',
-    description: "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone.",
-    version: '2',
+    description: "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
+    version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: attendanceListInputSchema,
     result: { schema: attendanceListResultSchema, effects: [] },

@@ -14,17 +14,20 @@ import { EmployeeLeaveAPIError } from '../../routes/attendance/leave/employee-le
 import {
 	companyDateOfTimestamp,
 	companyDateTimeISO,
-	leaveDisplayRange,
-	leaveTimestampRange
+	leaveDisplayRange
 } from './supabase-leave-range';
 import { annualLeaveTypeID } from './leave-policy-defaults';
 import { leaveDaysInYear } from './leave-year-share';
 import { leaveCountsAsUsage } from './supabase-leave-summary';
 import {
+	askTheRecord,
 	employeeLeaveRequestOfRow,
+	leaveInFull,
+	leaveSpanAsked,
 	supabaseLeavePreview,
 	type LeaveRow
 } from './supabase-leave';
+import { companySettings, type RecordLeave } from './attendance-record';
 import { supabaseLeaveTypeDirectory, type LeaveTypeDirectory } from './supabase-leave-types';
 
 type CompanyRow = { timezone: string; leave_days: number | null };
@@ -45,8 +48,6 @@ type LeaveManagementSource = {
 };
 
 type LeaveManagementRows = { members: MemberRow[]; leaves: LeaveRow[] };
-
-const leaveColumns = 'id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at';
 
 function timeZoneOf(member: MemberRow, source: LeaveManagementSource): string {
 	return member.timezone || source.company.timezone;
@@ -94,7 +95,6 @@ export async function adjustSupabaseManagedLeave(input: LeaveManagementAdjustmen
 }
 
 export async function createSupabaseManagedPastLeave(input: LeaveManagementPastLeave): Promise<void> {
-	const directory = await supabaseLeaveTypeDirectory();
 	const company = await readCompany();
 	const member = await readMemberByEmail(input.employeeEmail);
 	const request: EmployeeLeavePreviewRequest = {
@@ -106,36 +106,21 @@ export async function createSupabaseManagedPastLeave(input: LeaveManagementPastL
 		startTime: input.startTime || undefined
 	};
 	const preview = await supabaseLeavePreview(request);
-	const range = leaveTimestampRange(request, member.timezone || company.timezone);
+	const span = leaveSpanAsked(request, member.timezone || company.timezone);
 
-	const recorded = await supabase()
-		.from('leave')
-		.insert({
-			member_id: member.id,
-			kind: input.leaveTypeID,
-			is_paid: directory.isPaid(input.leaveTypeID),
-			is_deducted: directory.deductsAnnualBalance(input.leaveTypeID),
-			days: preview.totalDeductionMilliDays / 1000,
-			status: 'approved',
-			starts_at: range.startsAt,
-			ends_at: range.endsAt,
-			note: input.reason
-		})
-		.select('id')
-		.returns<{ id: string }[]>();
-	if (recorded.error) throw new Error(recorded.error.message);
-	if (recorded.data.length === 0) throw new EmployeeLeaveAPIError(null, 403);
+	const filed = await askTheRecord<RecordLeave>('leave_request', {
+		personHint: input.employeeEmail,
+		kind: input.leaveTypeID,
+		startsAt: span.startsAt,
+		endsAt: span.endsAt,
+		days: preview.totalDeductionMilliDays / 1000,
+		note: input.reason
+	});
+	await askTheRecord('leave_decide', { leaveHint: filed.leaveID, decision: 'approved' });
 }
 
 export async function cancelSupabaseManagedLeaveRequest(requestID: string): Promise<void> {
-	const withdrawn = await supabase()
-		.from('leave')
-		.delete()
-		.eq('id', requestID)
-		.select('id')
-		.returns<{ id: string }[]>();
-	if (withdrawn.error) throw new Error(withdrawn.error.message);
-	if (withdrawn.data.length === 0) throw new EmployeeLeaveAPIError('requestNotFound', 404);
+	await askTheRecord('leave_delete', { leaveHint: requestID });
 }
 
 export async function correctSupabaseManagedLeaveTime(
@@ -145,25 +130,15 @@ export async function correctSupabaseManagedLeaveTime(
 	const company = await readCompany();
 	const member = await readMemberByEmail(input.employeeEmail);
 	const timeZone = member.timezone || company.timezone;
-	const existing = await supabase()
-		.from('leave')
-		.select(leaveColumns)
-		.eq('id', requestID)
-		.single<LeaveRow>();
-	if (existing.error) throw new EmployeeLeaveAPIError('requestNotFound', 404);
-	const localDate = companyDateOfTimestamp(existing.data.starts_at, timeZone);
+	const existing = (await leaveInFull()).find((leave) => leave.id === requestID);
+	if (!existing) throw new EmployeeLeaveAPIError('requestNotFound', 404);
+	const localDate = companyDateOfTimestamp(existing.starts_at, timeZone);
 
-	const corrected = await supabase()
-		.from('leave')
-		.update({
-			starts_at: companyDateTimeISO(localDate, input.startTime, timeZone),
-			ends_at: companyDateTimeISO(localDate, input.endTime, timeZone)
-		})
-		.eq('id', requestID)
-		.select('id')
-		.returns<{ id: string }[]>();
-	if (corrected.error) throw new Error(corrected.error.message);
-	if (corrected.data.length === 0) throw new EmployeeLeaveAPIError(null, 403);
+	await askTheRecord('leave_update', {
+		leaveHint: requestID,
+		startsAt: companyDateTimeISO(localDate, input.startTime, timeZone),
+		endsAt: companyDateTimeISO(localDate, input.endTime, timeZone)
+	});
 }
 
 async function readLeaveManagementSource(): Promise<LeaveManagementSource> {
@@ -182,30 +157,27 @@ async function readLeaveManagementSource(): Promise<LeaveManagementSource> {
 }
 
 async function readCompany(): Promise<CompanyRow> {
-	const company = await supabase()
-		.from('company')
-		.select('timezone, leave_days')
-		.limit(1)
-		.single<CompanyRow>();
-	if (company.error) throw new Error(company.error.message);
-	return company.data;
+	const settings = await companySettings();
+	return { timezone: settings.timeZone, leave_days: settings.leaveDays };
+}
+
+async function leaveManagementMembers(): Promise<MemberRow[]> {
+	const source = await supabase().rpc('leave_management_source');
+	if (source.error) throw new Error(source.error.message);
+	const rows = source.data as { members: MemberRow[] } | null;
+	if (!rows) throw new Error('the leave management source returned nothing');
+	return [...rows.members].sort((left, right) =>
+		(left.email ?? '').localeCompare(right.email ?? '')
+	);
 }
 
 async function leaveManagementRows(): Promise<LeaveManagementRows> {
-	const source = await supabase().rpc('leave_management_source');
-	if (source.error) throw new Error(source.error.message);
-	const rows = source.data as LeaveManagementRows | null;
-	if (!rows) throw new Error('the leave management source returned nothing');
-	return {
-		members: [...rows.members].sort((left, right) =>
-			(left.email ?? '').localeCompare(right.email ?? '')
-		),
-		leaves: rows.leaves
-	};
+	const [members, leaves] = await Promise.all([leaveManagementMembers(), leaveInFull()]);
+	return { members, leaves };
 }
 
 async function readMemberByEmail(email: string): Promise<MemberRow> {
-	const member = (await leaveManagementRows()).members.find((row) => row.email === email);
+	const member = (await leaveManagementMembers()).find((row) => row.email === email);
 	if (!member) throw new EmployeeLeaveAPIError('requestNotFound', 404);
 	return member;
 }
