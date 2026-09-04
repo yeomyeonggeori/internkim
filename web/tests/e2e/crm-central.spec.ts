@@ -312,6 +312,11 @@ test('a definition added while an earlier save runs is not lost', async ({ page 
 		await route.continue();
 	});
 
+	let completedSaves = 0;
+	page.on('response', (response) => {
+		if (response.url().includes('/tools/crm_vocabulary_set/invoke')) completedSaves += 1;
+	});
+
 	const addName = card.getByPlaceholder('관계처 유형');
 	const addButton = card.getByRole('button', { name: '추가' });
 	await addName.fill(queuedTypeNames[0]);
@@ -319,6 +324,7 @@ test('a definition added while an earlier save runs is not lost', async ({ page 
 	await addName.fill(queuedTypeNames[1]);
 	await addButton.click();
 	releaseFirstSave();
+	await expect.poll(() => completedSaves).toBe(2);
 
 	await page.reload();
 	await page.getByRole('tab', { name: '정의' }).click();
