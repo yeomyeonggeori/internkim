@@ -44,6 +44,9 @@ export type ACompanyPlane = {
 	messenger: ARecordingMessenger;
 	model: AModelNobodyPaysFor;
 	messengerPlatform: string;
+	/** Stops one daemon and starts it again, leaving the rest of the plane up. */
+	restartBlueclaw: () => Promise<void>;
+	restartRelay: () => Promise<void>;
 	stop: () => Promise<void>;
 };
 
@@ -122,6 +125,24 @@ async function runPostgres(statement: string): Promise<void> {
 function logsTo(path: string): { stdout: number; stderr: number } {
 	const descriptor = openSync(path, 'a');
 	return { stdout: descriptor, stderr: descriptor };
+}
+
+// The replacement takes the old one's place in the list the plane shuts down, so
+// a restarted daemon is still killed on the way out.
+async function startAgain(
+	started: Bun.Subprocess[],
+	running: Bun.Subprocess,
+	start: () => Bun.Subprocess
+): Promise<Bun.Subprocess> {
+	running.kill('SIGTERM');
+	await Promise.race([running.exited, Bun.sleep(5000)]);
+	running.kill('SIGKILL');
+	await running.exited;
+	const replacement = start();
+	const index = started.indexOf(running);
+	if (index === -1) started.push(replacement);
+	else started[index] = replacement;
+	return replacement;
 }
 
 async function untilReady(what: string, ready: () => Promise<boolean>, seconds = 30): Promise<void> {
@@ -334,19 +355,16 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			throw new Error(`render-company-runtime failed: ${render.stderr.toString()}`);
 		}
 
-		started.push(
+		const startBlueclaw = () =>
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'blueclaw'),
-					...theArgumentsThatStart(
-						'blueclaw',
-						{
-							'-runtime': runtimeConfigurationPath,
-							'-policy': policyPath,
-							'-acp-socket': blueclawACPSocketPath
-						},
-						{ '-inbound': request.inbound ?? 'connectors' }
-					)
+					...theArgumentsThatStart('blueclaw', {
+						'-runtime': runtimeConfigurationPath,
+						'-policy': policyPath,
+						'-acp-socket': blueclawACPSocketPath,
+						'-inbound': request.inbound ?? 'acp'
+					})
 				],
 				{
 					...logsTo(join(runDirectory, 'blueclaw.log')),
@@ -355,12 +373,24 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						BLUECLAW_BUNDLED_SKILLS_PATH: environmentValue('COMPANY_PLANE_SKILLS')
 					}
 				}
-			)
-		);
-		await untilReady('blueclaw', async () => {
-			const answer = await fetch(`${blueclawURL}/admin/api/health`).catch(() => null);
-			return answer?.ok ?? false;
-		}, 60);
+			);
+		const blueclawIsUp = () =>
+			untilReady(
+				'blueclaw',
+				async () => {
+					const answer = await fetch(`${blueclawURL}/admin/api/health`).catch(() => null);
+					return answer?.ok ?? false;
+				},
+				60
+			);
+		let blueclaw = startBlueclaw();
+		started.push(blueclaw);
+		await blueclawIsUp();
+
+		const restartBlueclaw = async () => {
+			blueclaw = await startAgain(started, blueclaw, startBlueclaw);
+			await blueclawIsUp();
+		};
 
 		started.push(
 			Bun.spawn(
@@ -411,34 +441,44 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// inbound message to. It is started last because it opens a session against
 		// blueclaw's socket, and admind has to have put the roster on blueclaw first
 		// or the requester the session names resolves to nobody.
-		started.push(
-			Bun.spawn(
-				['bun', 'run', join(repositoryRoot, 'host', 'relay', 'relay.ts')],
-				{
-					...logsTo(join(runDirectory, 'relay.log')),
-					env: {
-						...theBoxEnvironment(),
-						SUPABASE_URL: projectURL,
-						SUPABASE_PUBLISHABLE_KEY: environmentValue('SUPABASE_PUBLISHABLE_KEY'),
-						INTERNKIM_APP_URL: environmentValue('INTERNKIM_APP_URL'),
-						MESSENGER_PLATFORM: messengerPlatform,
-						AGENT_API_KEY_PATH: agentKeyPath,
-						CHATD_BASE_URL: connector.url,
-						ADMIND_SOCKET_PATH: requesterSocketPath,
-						ADMIND_BASE_URL: admindURL,
-						BLUECLAW_ACP_SOCKET_PATH: blueclawACPSocketPath,
-						WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
-						ARRIVALS_PORT: String(arrivalsPort)
-					}
+		const startRelay = () =>
+			Bun.spawn(['bun', 'run', join(repositoryRoot, 'host', 'relay', 'relay.ts')], {
+				...logsTo(join(runDirectory, 'relay.log')),
+				env: {
+					...theBoxEnvironment(),
+					SUPABASE_URL: projectURL,
+					SUPABASE_PUBLISHABLE_KEY: environmentValue('SUPABASE_PUBLISHABLE_KEY'),
+					INTERNKIM_APP_URL: environmentValue('INTERNKIM_APP_URL'),
+					MESSENGER_PLATFORM: messengerPlatform,
+					AGENT_API_KEY_PATH: agentKeyPath,
+					CHATD_BASE_URL: connector.url,
+					ADMIND_SOCKET_PATH: requesterSocketPath,
+					ADMIND_BASE_URL: admindURL,
+					BLUECLAW_ACP_SOCKET_PATH: blueclawACPSocketPath,
+					WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
+					RELAY_STATE_DIR: join(runDirectory, 'state', 'relay'),
+					ARRIVALS_PORT: String(arrivalsPort)
 				}
-			)
-		);
+			});
 		// The inbound door answers 405 to anything but a POST, which is the cheapest
 		// proof that this relay is listening and not somebody else's.
-		await untilReady('the relay', async () => {
-			const answer = await fetch(relayInboundURL, { method: 'GET' }).catch(() => null);
-			return answer?.status === 405;
-		}, 60);
+		const relayIsUp = () =>
+			untilReady(
+				'the relay',
+				async () => {
+					const answer = await fetch(relayInboundURL, { method: 'GET' }).catch(() => null);
+					return answer?.status === 405;
+				},
+				60
+			);
+		let relay = startRelay();
+		started.push(relay);
+		await relayIsUp();
+
+		const restartRelay = async () => {
+			relay = await startAgain(started, relay, startRelay);
+			await relayIsUp();
+		};
 
 		// A plane is not up when its processes are: it is up when it can say who works
 		// here.
@@ -470,6 +510,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			runtimeConfigurationPath,
 			messenger,
 			messengerPlatform,
+			restartBlueclaw,
+			restartRelay,
 			stop
 		};
 	} catch (failure) {
