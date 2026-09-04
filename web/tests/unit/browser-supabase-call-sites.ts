@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 type CallSiteCounts = Record<string, Record<string, number>>;
+type RecordedInventory = { record: CallSiteCounts; allowed: Record<string, CallSiteCounts> };
 
 const webRoot = join(import.meta.dir, '..', '..');
 const sourceRoot = join(webRoot, 'src');
@@ -84,8 +85,35 @@ function isCallSiteCounts(value: unknown): value is CallSiteCounts {
 	);
 }
 
-export function recordedCallSites(): CallSiteCounts {
+function isRecordedInventory(value: unknown): value is RecordedInventory {
+	if (typeof value !== 'object' || value === null) return false;
+	const { record, allowed } = value as Record<string, unknown>;
+	if (!isCallSiteCounts(record)) return false;
+	if (typeof allowed !== 'object' || allowed === null) return false;
+	return Object.values(allowed).every(isCallSiteCounts);
+}
+
+export function recordedInventory(): RecordedInventory {
 	const parsed: unknown = JSON.parse(readFileSync(inventoryPath, 'utf8'));
-	if (!isCallSiteCounts(parsed)) throw new Error(`${inventoryPath} is not a map of file to call to count`);
+	if (!isRecordedInventory(parsed)) {
+		throw new Error(`${inventoryPath} is not { record, allowed } of file to call to count`);
+	}
 	return parsed;
+}
+
+export function recordedCallSites(): CallSiteCounts {
+	const { record, allowed } = recordedInventory();
+	const merged: CallSiteCounts = {};
+	for (const bucket of [record, ...Object.values(allowed)]) {
+		for (const [path, calls] of Object.entries(bucket)) {
+			merged[path] ??= {};
+			for (const [call, count] of Object.entries(calls)) {
+				if (merged[path][call] !== undefined) {
+					throw new Error(`${inventoryPath}: ${path} ${call} is recorded in more than one place`);
+				}
+				merged[path][call] = count;
+			}
+		}
+	}
+	return merged;
 }
