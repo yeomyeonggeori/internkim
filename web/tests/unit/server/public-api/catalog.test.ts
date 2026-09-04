@@ -8,10 +8,10 @@ import {
 
 describe('the permission a tool asks for', () => {
 	test('comes from its side effect class, and an unknown class asks for the most', () => {
-		expect(permissionForTool({ name: 'task_list', sideEffectClass: 'read' })).toBe('read');
-		expect(permissionForTool({ name: 'task_add', sideEffectClass: 'workspace_write' })).toBe('write');
-		expect(permissionForTool({ name: 'task_delete', sideEffectClass: 'destructive' })).toBe('delete');
-		expect(permissionForTool({ name: 'someday', sideEffectClass: 'a class nobody wrote yet' })).toBe('delete');
+		expect(permissionForTool({ sideEffectClass: 'read' })).toBe('read');
+		expect(permissionForTool({ sideEffectClass: 'workspace_write' })).toBe('write');
+		expect(permissionForTool({ sideEffectClass: 'destructive' })).toBe('delete');
+		expect(permissionForTool({ sideEffectClass: 'a class nobody wrote yet' })).toBe('delete');
 	});
 });
 
