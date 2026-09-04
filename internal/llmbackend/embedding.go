@@ -9,11 +9,13 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 )
 
 const (
 	EmbeddingGemmaModelName   = "embeddinggemma"
-	DefaultEmbeddingModelName = "baai/bge-m3"
+	DefaultEmbeddingModelName = modelladder.EmbeddingModel
 )
 
 type EmbeddingRequest struct {

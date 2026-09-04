@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 )
 
 const (
@@ -71,7 +71,7 @@ const (
 	LiteRTModelSourceURL                  = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm"
 	LiteRTModelRepository                 = "litert-community/gemma-4-E4B-it-litert-lm"
 	LiteRTModelFilename                   = "gemma-4-E4B-it.litertlm"
-	BlueclawDefaultModelName              = llmbackend.DefaultActionModelName
+	BlueclawDefaultModelName              = modelladder.PrimaryModel
 	BlueclawDefaultModelContextTokens     = 1048576
 	BlueclawCloudHypervisorPath           = "/usr/local/bin/cloud-hypervisor"
 	BlueclawVirtiofsdPath                 = "/usr/local/bin/virtiofsd"

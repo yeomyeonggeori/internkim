@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
@@ -91,11 +92,8 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	}
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	if languageModel["defaultProvider"] != "capabilityLLM" {
-		t.Fatalf("expected direct execution to reach the model through capabilityd, got %+v", languageModel)
-	}
-	if _, namesLLMD := languageModel["llmd"]; namesLLMD {
-		t.Fatalf("expected no llmd endpoint, because naming one makes blueclaw check a bridge that is gone: %+v", languageModel)
+	if _, namesEndpoints := languageModel["tiers"]; namesEndpoints {
+		t.Fatalf("expected a device to reach its model through capabilityd rather than an endpoint of its own, got %+v", languageModel)
 	}
 	capabilityLanguageModel := languageModel["capability"].(map[string]any)
 	if capabilityLanguageModel["executionMode"] != "remote" {
@@ -126,8 +124,11 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	}
 
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	if languageModel["defaultProvider"] != "capabilityLLM" {
-		t.Fatalf("expected capability default provider, got %q", languageModel["defaultProvider"])
+	capabilityLadder := languageModel["capability"].(map[string]any)
+	for _, tier := range modelladder.Tiers {
+		if capabilityLadder[tier+"Model"] != modelladder.PrimaryModel {
+			t.Fatalf("expected the %s tier to name the ladder's model, got %+v", tier, capabilityLadder)
+		}
 	}
 	capabilityConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
 	if capabilityConfiguration["transport"] != "vsock" {
@@ -178,11 +179,16 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 			t.Fatalf("expected %s to omit backend selection, got %+v", sectionName, section)
 		}
 	}
-	if _, hasHighModel := capabilityLanguageModel["highModel"]; hasHighModel {
-		t.Fatalf("expected no per-tier highModel in production config; tier defaults are owned by blueclaw, got %+v", capabilityLanguageModel)
+	for _, tier := range modelladder.Tiers {
+		if capabilityLanguageModel[tier+"Model"] != modelladder.PrimaryModel {
+			t.Fatalf("expected the %s tier to be named here, because blueclaw has no model of its own to fall back on, got %+v", tier, capabilityLanguageModel)
+		}
 	}
-	if capabilityLanguageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
-		t.Fatalf("expected default runtime context window %d, got %+v", BlueclawDefaultModelContextTokens, capabilityLanguageModel)
+	if languageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
+		t.Fatalf("expected default runtime context window %d, got %+v", BlueclawDefaultModelContextTokens, languageModel)
+	}
+	if languageModel["embedding"].(map[string]any)["model"] != modelladder.EmbeddingModel {
+		t.Fatalf("expected the embedding model to be named here too, got %+v", languageModel)
 	}
 	agentConfiguration := runtimeConfiguration["agent"].(map[string]any)
 	if _, isFound := agentConfiguration["generationOptions"]; isFound {
@@ -471,9 +477,8 @@ func TestBlueclawRuntimeConfigIncludesMaximumModelTier(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	languageModel := runtimeConfiguration["languageModel"].(map[string]any)
-	capabilityLanguageModel := languageModel["capability"].(map[string]any)
-	if capabilityLanguageModel["maximumModelTier"] != "low" {
-		t.Fatalf("expected low maximum model tier, got %+v", capabilityLanguageModel)
+	if languageModel["maximumModelTier"] != "low" {
+		t.Fatalf("expected low maximum model tier, got %+v", languageModel)
 	}
 }
 
@@ -511,12 +516,12 @@ func TestBlueclawRuntimeConfigSupportsOptionalModelOverride(t *testing.T) {
 		t.Fatalf("expected explicit model override, got %+v", capabilityLanguageModel)
 	}
 	for _, tierModelField := range []string{"highModel", "mediumModel", "lowModel", "xlowModel"} {
-		if _, isFound := capabilityLanguageModel[tierModelField]; isFound {
-			t.Fatalf("expected ordinary model override to omit %s, got %+v", tierModelField, capabilityLanguageModel)
+		if capabilityLanguageModel[tierModelField] != modelladder.PrimaryModel {
+			t.Fatalf("expected an ordinary model override to leave %s on the ladder, got %+v", tierModelField, capabilityLanguageModel)
 		}
 	}
-	if capabilityLanguageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
-		t.Fatalf("expected context window to remain tied to default runtime model, got %+v", capabilityLanguageModel)
+	if languageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
+		t.Fatalf("expected context window to remain tied to default runtime model, got %+v", languageModel)
 	}
 }
 

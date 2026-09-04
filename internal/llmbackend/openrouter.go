@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 )
 
 type OpenRouterBackend struct {
@@ -24,16 +25,9 @@ type OpenRouterBackend struct {
 	HTTPClient          *http.Client
 }
 
-// DefaultActionModelName is the single source of truth for the model the agent
-// runs on. Every default-model reference across the codebase points here.
-const DefaultActionModelName = "google/gemini-3.1-flash-lite"
-const defaultXLowModelName = "deepseek/deepseek-v4-flash"
+const DefaultActionModelName = modelladder.PrimaryModel
 
-// Action turns try the primary model first, then these degraded fallbacks.
-var DefaultOpenRouterActionFallbackModels = []string{
-	DefaultActionModelName,
-	"z-ai/glm-5.2",
-}
+var DefaultOpenRouterActionFallbackModels = modelladder.DegradedModels
 
 func (backend OpenRouterBackend) Name() string { return "openrouter" }
 
