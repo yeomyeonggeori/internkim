@@ -7,6 +7,7 @@
 	import CRMCurrencyComparisonChart from './crm-currency-comparison-chart.svelte';
 	import { buildCRMReportPeriodBounds } from './crm-date';
 	import { crmLabel } from './crm-labels';
+	import { isTaskStatusFinished } from '../task/task-status';
 	import type { CRMOrganization, CRMMoneyTotals, CRMNextAction, CRMOpportunity, CRMPipelineStage, CRMProgressKind } from './crm-types';
 	import { formatViewMoneyTotals, sumOpportunityMoney } from './crm-money';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
@@ -114,7 +115,7 @@
 					missingActionCount: ownerOpportunities.filter(
 						(opportunity) =>
 							!opportunity.nextActionID ||
-							!nextActions.some((action) => action.id === opportunity.nextActionID && action.status !== 'done')
+							!nextActions.some((action) => action.id === opportunity.nextActionID && !isTaskStatusFinished(action.status))
 					).length
 				};
 			})

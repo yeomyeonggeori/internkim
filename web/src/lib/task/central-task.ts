@@ -1,5 +1,6 @@
 import { taskStatus, type TaskStatus } from '../../routes/task/task-status';
 
+export { taskStatus };
 export type CentralTaskStatus = TaskStatus;
 
 const centralStatuses: readonly CentralTaskStatus[] = [

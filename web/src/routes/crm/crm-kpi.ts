@@ -1,5 +1,6 @@
 import type { CRMOrganization, CRMCurrency, CRMNextAction, CRMOpportunity, CRMPipeline, CRMPipelineStage } from './crm-types';
 import { currentCRMDate, shiftCRMDate } from './crm-date';
+import { isTaskStatusFinished } from '../task/task-status';
 import { collapsedViewMoneyTotal, formatMoney, formatMoneyTotals, formatViewMoney, sumOpportunityMoney } from './crm-money';
 import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
 import type { Locale } from '$lib/i18n/locale.svelte';
@@ -135,7 +136,7 @@ function buildRelationshipHealth(organizations: CRMOrganization[], text: CRMText
 }
 
 function buildFollowUpHealth(nextActions: CRMNextAction[], text: CRMText, today: string): CRMKPICardData {
-	const openActions = nextActions.filter((action) => action.status !== 'done');
+	const openActions = nextActions.filter((action) => !isTaskStatusFinished(action.status));
 	const overdue = openActions.filter((action) => getActionUrgency(action, today) === 'overdue');
 	const dueSoon = openActions.filter((action) => ['today', 'due_soon'].includes(getActionUrgency(action, today)));
 	const scheduled = openActions.filter((action) => getActionUrgency(action, today) === 'scheduled');

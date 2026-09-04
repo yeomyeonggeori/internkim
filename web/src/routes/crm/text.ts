@@ -1,4 +1,5 @@
 import type { PageText } from '$lib/i18n/page-text.svelte';
+import { taskText } from '../task/text';
 
 export const crmText = {
 	ko: {
@@ -254,14 +255,7 @@ export const crmText = {
 			on_hold: '중단',
 			lost: '무산'
 		},
-		nextActionStatuses: {
-			todo: '해야 할 일',
-			in_progress: '진행 중',
-			waiting: '회신 대기',
-			done: '완료',
-			paused: '일시정지',
-			cancelled: '중단'
-		},
+		taskStatuses: taskText.ko.status,
 		actionUrgencies: {
 			overdue: '지연',
 			today: '오늘',
@@ -533,14 +527,7 @@ export const crmText = {
 			on_hold: 'On hold',
 			lost: 'Lost'
 		},
-		nextActionStatuses: {
-			todo: 'To do',
-			in_progress: 'In progress',
-			waiting: 'Waiting',
-			done: 'Done',
-			paused: 'Paused',
-			cancelled: 'Cancelled'
-		},
+		taskStatuses: taskText.en.status,
 		actionUrgencies: {
 			overdue: 'Overdue',
 			today: 'Today',
