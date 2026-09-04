@@ -620,13 +620,6 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 			t.Fatalf("expected circle %q, got %+v", expectedCircle, circles)
 		}
 	}
-	circleSync := policyDocument["circleSync"].(map[string]any)
-	mattermostPrivateChannels := circleSync["mattermostPrivateChannels"].([]any)
-	for _, expectedChannel := range []string{"circle-c-level", "circle-representative", "circle-admin", "circle-hr"} {
-		if !containsPolicyMattermostChannel(mattermostPrivateChannels, expectedChannel) {
-			t.Fatalf("expected Mattermost circle channel %q, got %+v", expectedChannel, mattermostPrivateChannels)
-		}
-	}
 	resourceAccess := policyDocument["resourceAccess"].([]any)
 	if !containsPolicyResource(resourceAccess, "file:circle:c-level", "c-level") {
 		t.Fatalf("expected c-level file resource rule, got %+v", resourceAccess)
@@ -760,16 +753,6 @@ func containsPolicyCircle(values []any, expectedCircleID string) bool {
 			continue
 		}
 		return circle["workspaceDirectoryPath"] == "/workspace/circles/"+expectedCircleID
-	}
-	return false
-}
-
-func containsPolicyMattermostChannel(values []any, expectedChannelName string) bool {
-	for _, value := range values {
-		channel, isChannel := value.(map[string]any)
-		if isChannel && channel["channelName"] == expectedChannelName {
-			return true
-		}
 	}
 	return false
 }

@@ -7,7 +7,6 @@ type taskMember struct {
 	MattermostUsername string `json:"mattermostUsername,omitempty"`
 	HireDate           string `json:"hireDate,omitempty"`
 	Role               string `json:"role"`
-	MattermostStatus   string `json:"mattermostStatus"`
 }
 
 type Task struct {

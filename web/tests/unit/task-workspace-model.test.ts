@@ -258,7 +258,6 @@ function taskMember(overrides: Partial<TaskMember>): TaskMember {
 		name: '최견본',
 		email: 'member1@example.com',
 		role: 'member',
-		mattermostStatus: '',
 		activeTaskCount: 0,
 		completeTaskCount: 0,
 		...overrides

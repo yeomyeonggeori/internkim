@@ -34,7 +34,6 @@ export type AdminPageText = PageText<typeof adminText>;
 export type CircleRecord = {
 	circleID: string;
 	displayName: string;
-	isMattermostManaged?: boolean;
 };
 
 export type UsersResponse = {
