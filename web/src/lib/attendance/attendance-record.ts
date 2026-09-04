@@ -83,11 +83,17 @@ export type RecordLeaveList = {
 export type RecordLeaveBalance = {
 	personID: string;
 	personName: string;
-	year: number;
 	grantedDays: number | null;
 	remainingDays: number | null;
 	usedDays: number | null;
 	tracking: string;
+};
+
+export type RecordLeaveBalances = {
+	scope: string;
+	year: number;
+	count: number;
+	balances: RecordLeaveBalance[];
 };
 
 export function companySettings(): Promise<RecordCompanySettings> {
@@ -110,8 +116,16 @@ export function everyLeaveOfTheCompany(): Promise<RecordLeaveList> {
 	return invokeTool('leave_list', { scope: 'all' });
 }
 
-export function myLeaveBalance(): Promise<RecordLeaveBalance> {
+export function myLeaveBalance(): Promise<RecordLeaveBalances> {
 	return invokeTool('leave_balance', {});
+}
+
+export function everyLeaveBalance(): Promise<RecordLeaveBalances> {
+	return invokeTool('leave_balance', { scope: 'all' });
+}
+
+export function leaveBalanceOfPerson(personHint: string): Promise<RecordLeaveBalances> {
+	return invokeTool('leave_balance', { personHint });
 }
 
 export function timeZoneOfPerson(person: RecordPerson | undefined, companyZone: string): string {

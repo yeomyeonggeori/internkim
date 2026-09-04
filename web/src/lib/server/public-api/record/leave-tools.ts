@@ -2,6 +2,7 @@ import { dayIn, dayOfInstant, dayShifted, instantOfDay, instantWritten } from '.
 import { personOfHint } from './people';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import {
+	leaveBalancesOfCompany,
 	leaveDaysGranted,
 	leaveDaysRemaining,
 	leaveKindOf,
@@ -124,22 +125,103 @@ export async function leaveList(context: RecordContext, input: LeaveListInput) {
 	};
 }
 
-export type LeaveBalanceInput = { personHint?: string; year?: number };
+export type AnsweredBalance = {
+	personID: string;
+	personName: string;
+	grantedDays: number | null;
+	remainingDays: number | null;
+	usedDays: number | null;
+	tracking: string;
+};
 
-export async function leaveBalance(context: RecordContext, input: LeaveBalanceInput) {
-	const memberID = targetMember(context, input.personHint);
-	const year = input.year ?? Number(dayIn(context.labels.timezone, context.now).slice(0, 4));
-	const granted = await leaveDaysGranted(context.caller, memberID);
-	const remaining = await leaveDaysRemaining(context.caller, memberID, year);
-
+function answeredBalance(
+	context: RecordContext,
+	memberID: string,
+	granted: number | null,
+	remaining: number | null
+): AnsweredBalance {
 	return {
 		personID: memberID,
 		personName: context.people.find((one) => one.personID === memberID)?.name ?? '',
-		year,
 		grantedDays: granted,
 		remainingDays: remaining,
 		usedDays: granted === null || remaining === null ? null : Number((granted - remaining).toFixed(2)),
 		tracking: granted === null ? 'unlimited' : 'managed'
+	};
+}
+
+async function balanceOfOne(
+	context: RecordContext,
+	memberID: string,
+	year: number
+): Promise<AnsweredBalance> {
+	const granted = await leaveDaysGranted(context.caller, memberID);
+	const remaining = await leaveDaysRemaining(context.caller, memberID, year);
+	return answeredBalance(context, memberID, granted, remaining);
+}
+
+export type LeaveBalanceInput = { personHint?: string; scope?: string; year?: number };
+
+export async function leaveBalance(context: RecordContext, input: LeaveBalanceInput) {
+	const year = input.year ?? Number(dayIn(context.labels.timezone, context.now).slice(0, 4));
+	const everyone = input.scope === 'all' && !input.personHint;
+	const balances = everyone
+		? (await leaveBalancesOfCompany(context.caller, year)).map((row) =>
+				answeredBalance(context, row.memberID, row.grantedDays, row.remainingDays)
+			)
+		: [await balanceOfOne(context, targetMember(context, input.personHint), year)];
+
+	return {
+		scope: everyone ? 'everyone' : 'person',
+		year,
+		count: balances.length,
+		balances
+	};
+}
+
+export type LeaveGrantSetInput = { personHint?: string; days?: number };
+
+export async function leaveGrantSet(
+	context: RecordContext,
+	input: LeaveGrantSetInput
+): Promise<AnsweredBalance> {
+	if (!input.personHint?.trim()) throw new Error('a leave grant names the person it is for');
+	if (input.days === undefined || input.days < 0) {
+		throw new Error('a leave grant is a number of days, and never fewer than none');
+	}
+
+	const memberID = personOfHint(context.people, input.personHint).personID;
+	const { error } = await context.caller.rpc('member_leave_days_set', {
+		target_member: memberID,
+		granted_days: input.days
+	});
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+
+	const year = Number(dayIn(context.labels.timezone, context.now).slice(0, 4));
+	return balanceOfOne(context, memberID, year);
+}
+
+export type LeaveReturnEarlyInput = { location?: string };
+
+type ReturnedEarly = {
+	shortened?: boolean;
+	leaveID?: string | null;
+	endsAt?: string | null;
+	days?: number | string | null;
+};
+
+export async function leaveReturnEarly(context: RecordContext, input: LeaveReturnEarlyInput) {
+	const { data, error } = await context.caller.rpc('leave_return_early', {
+		work_location: input.location?.trim() || ''
+	});
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+
+	const answered = (data ?? {}) as ReturnedEarly;
+	return {
+		shortened: answered.shortened === true,
+		leaveID: answered.leaveID ?? null,
+		endsAt: answered.endsAt ? new Date(answered.endsAt).toISOString() : null,
+		days: answered.days === null || answered.days === undefined ? null : Number(answered.days)
 	};
 }
 

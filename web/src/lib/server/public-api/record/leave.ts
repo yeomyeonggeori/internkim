@@ -90,6 +90,35 @@ export async function leaveDaysGranted(caller: SupabaseClient, memberID: string)
 	return data === null ? null : Number(data);
 }
 
+export type LeaveBalanceRow = {
+	memberID: string;
+	grantedDays: number | null;
+	remainingDays: number | null;
+};
+
+type LeaveBalanceAnswer = {
+	member_id: string;
+	granted_days: number | string | null;
+	remaining_days: number | string | null;
+};
+
+function daysAnswered(value: number | string | null): number | null {
+	return value === null ? null : Number(value);
+}
+
+export async function leaveBalancesOfCompany(
+	caller: SupabaseClient,
+	year: number
+): Promise<LeaveBalanceRow[]> {
+	const { data, error } = await caller.rpc('leave_balances', { target_year: year });
+	if (error) throw new Error(error.message);
+	return ((data ?? []) as LeaveBalanceAnswer[]).map((row) => ({
+		memberID: row.member_id,
+		grantedDays: daysAnswered(row.granted_days),
+		remainingDays: daysAnswered(row.remaining_days)
+	}));
+}
+
 export async function leaveDaysRemaining(
 	caller: SupabaseClient,
 	memberID: string,

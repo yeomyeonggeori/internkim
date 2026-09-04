@@ -33,7 +33,7 @@ func TestRecordCallsReachTheRecordAsTheRequester(t *testing.T) {
 		reachedRequester = request.Header.Get(admindRequesterEmailHeader)
 		reachedBody = string(body)
 		responseWriter.Header().Set("Content-Type", "application/json")
-		_, _ = responseWriter.Write([]byte(`{"tool":"leave_balance","result":{"personID":"p1","personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`))
+		_, _ = responseWriter.Write([]byte(`{"tool":"leave_balance","result":{"scope":"person","year":2026,"count":1,"balances":[{"personID":"p1","personName":"이샘플","grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}]}}`))
 	}))
 	service := Service{Configuration: Configuration{
 		AdmindBaseURL:    admindOnLoopbackThatFailsTheTest(t),
