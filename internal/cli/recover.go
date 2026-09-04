@@ -49,6 +49,15 @@ type recoveryResult struct {
 
 const recoveryResponseBodyLimitBytes = 256 * 1024
 
+var (
+	recoveryHTTPClient = &http.Client{
+		Timeout: 10 * time.Minute,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+)
+
 func runRecover() {
 	if errorValue := runRecoverArguments(os.Args[2:]); errorValue != nil {
 		fatal(errorValue.Error())

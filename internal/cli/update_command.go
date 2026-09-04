@@ -17,6 +17,12 @@ var resolveUpdateExecutablePath = currentExecutablePath
 var runUpdateSimulationGate = runSimGateArguments
 var stopUpdateSimulation = stopSimulationBeforePhysicalDeploy
 
+func runUpdate() {
+	if errorValue := runUpdateArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
 func runUpdateArguments(arguments []string) error {
 	if hasCommandArgument(arguments, "--help") || hasCommandArgument(arguments, "-h") {
 		printUpdateUsage()
