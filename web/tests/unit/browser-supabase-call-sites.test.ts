@@ -1,5 +1,18 @@
 import { describe, expect, test } from 'bun:test';
-import { browserSupabaseCallSites, dataCallsIn, isBrowserReachable, recordedCallSites } from './browser-supabase-call-sites';
+import {
+	browserSupabaseCallSites,
+	dataCallsIn,
+	isBrowserReachable,
+	recordedCallSites,
+	recordedInventory
+} from './browser-supabase-call-sites';
+
+const allowedReasons: Record<string, string> = {
+	auth: 'resolves the Supabase auth session itself into who is signed in, not a business record.',
+	realtime: 'a Realtime channel name or subscription, not a table read.',
+	storage: 'a Storage bucket handle, which the from(...)/rpc(...) scanner cannot tell apart from a table.',
+	messenger: 'the messenger account-routing map (member.messenger, contact.messenger), which record/people.ts and record/crm.ts deliberately never select.'
+};
 
 describe('direct Supabase calls in browser-reachable modules', () => {
 	test('a table read is a call site', () => {
@@ -42,5 +55,12 @@ describe('direct Supabase calls in browser-reachable modules', () => {
 
 	test('the inventory holds every call site and nothing new appears', () => {
 		expect(browserSupabaseCallSites()).toEqual(recordedCallSites());
+	});
+
+	test('every allowed call site names a declared reason', () => {
+		const { allowed } = recordedInventory();
+		for (const reason of Object.keys(allowed)) {
+			expect(allowedReasons).toHaveProperty(reason);
+		}
 	});
 });
