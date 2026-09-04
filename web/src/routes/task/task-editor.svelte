@@ -114,7 +114,7 @@
 <Sheet.Root open={taskDraft !== null} onOpenChange={(open) => {
 	if (!open) closeEditor();
 }}>
-	<Sheet.Content class="w-full gap-0 sm:max-w-xl">
+	<Sheet.Content class="w-full gap-0">
 		<Sheet.Header>
 			<Sheet.Title>{sheetTitle()}</Sheet.Title>
 			<Sheet.Description>{formatTaskWeekCodeRange(taskDraft?.weekCode ?? '')} · {pageTitle}</Sheet.Description>

@@ -39,7 +39,7 @@
 </script>
 
 <Sheet.Root bind:open={isOpen}>
-	<Sheet.Content class="w-full sm:max-w-md">
+	<Sheet.Content class="w-full">
 		<Sheet.Header>
 			<Sheet.Title>{text.syncTitle}</Sheet.Title>
 			<Sheet.Description>{text.syncDescription}</Sheet.Description>

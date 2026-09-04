@@ -32,7 +32,7 @@
 		side={isMobile.current ? 'bottom' : 'right'}
 		class={isMobile.current
 			? 'max-h-[92vh] gap-0 rounded-t-xl p-0'
-			: 'w-full gap-0 p-0 sm:max-w-[34rem]'}
+			: 'w-full gap-0 p-0'}
 		closeLabel={text.close}
 		data-testid={isMobile.current ? 'team-status-day-detail-sheet' : 'team-status-day-detail-dialog'}
 	>

@@ -81,7 +81,7 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content side="right" closeLabel={text.cancel} class="w-full gap-0 overflow-hidden p-0 sm:max-w-xl">
+	<Sheet.Content side="right" closeLabel={text.cancel} class="w-full gap-0 overflow-hidden p-0">
 		<form onsubmit={save} class="flex min-h-0 flex-1 flex-col">
 			<Sheet.Header class="border-b px-4 py-4 pr-12">
 				<Sheet.Title>{text.editContact}</Sheet.Title>

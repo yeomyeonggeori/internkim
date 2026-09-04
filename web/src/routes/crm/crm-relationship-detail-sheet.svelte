@@ -27,7 +27,7 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content side="right" class="w-full sm:max-w-xl">
+	<Sheet.Content side="right" class="w-full">
 		{#if organization}
 			<Sheet.Header class="border-b pb-4">
 				<div class="flex items-start justify-between gap-3 pr-8">
