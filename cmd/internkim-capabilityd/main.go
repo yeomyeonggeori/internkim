@@ -9,7 +9,6 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilityd"
 	"gitlab.com/eastriver/internkim/internal/modelladder"
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func main() {
@@ -79,20 +78,12 @@ func printModelLadder(endpointURL string, apiKeyPath string) {
 	printJSONDocument(modelladder.LanguageModelDocument(endpointURL, apiKeyPath))
 }
 
-// The capability contract belongs to this binary: the agent refuses to boot
-// against a runtime document that does not name the same protocol, so the
-// document has to be written from whatever capabilityd is actually installed
-// rather than copied into a template that ages.
 func printCapabilities(socketPath string) {
-	contract := blueclawruntime.CurrentCapabilityContract()
 	printJSONDocument(map[string]any{
-		"transport":             "unix",
-		"unixSocketPath":        socketPath,
-		"endpoint":              "http://internkim-capability",
-		"timeoutSecond":         30,
-		"protocolVersion":       contract.ProtocolVersion,
-		"aggregateProtocolHash": contract.AggregateProtocolHash,
-		"toolDescriptors":       contract.ToolDescriptors,
+		"transport":      "unix",
+		"unixSocketPath": socketPath,
+		"endpoint":       "http://internkim-capability",
+		"timeoutSecond":  30,
 	})
 }
 
