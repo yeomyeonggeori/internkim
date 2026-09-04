@@ -253,22 +253,7 @@ func (service *Service) createPlainBackup(ctx context.Context, plainPath string,
 	if errorValue := os.MkdirAll(filepath.Dir(plainPath), 0o700); errorValue != nil {
 		return nil, errorValue
 	}
-	manifest := &BackupManifest{
-		FormatVersion: 1,
-		FleetID:       readTrimmedFile(service.Configuration.FleetIDPath),
-		CreatedAt:     time.Now().UTC(),
-		Components: []string{
-			"internkim",
-			"blueclaw",
-			"mattermost",
-			"cloudflared",
-		},
-		Checksums: map[string]string{},
-		InternKim: map[string]string{
-			"backupFormat": "internkim-admin-v1",
-		},
-		Blueclaw: blueclawManifest,
-	}
+	manifest := service.newBackupManifest(blueclawManifest)
 
 	plainFile, errorValue := os.Create(plainPath)
 	if errorValue != nil {
@@ -285,32 +270,58 @@ func (service *Service) createPlainBackup(ctx context.Context, plainPath string,
 			return nil, errorValue
 		}
 	}
-	dumpPath, errorValue := service.dumpMattermostDatabase(ctx)
-	if errorValue != nil {
+	if errorValue := service.addDatabaseDumpsToTar(ctx, tarWriter, manifest); errorValue != nil {
 		return nil, errorValue
-	}
-	if dumpPath != "" {
-		defer os.Remove(dumpPath)
-		manifest.MattermostDump = true
-		if errorValue := addNamedFileToTar(tarWriter, dumpPath, "mattermost-db.sql", manifest); errorValue != nil {
-			return nil, errorValue
-		}
-	}
-	blueclawDumpPath, errorValue := service.dumpBlueclawDatabase(ctx)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if blueclawDumpPath != "" {
-		defer os.Remove(blueclawDumpPath)
-		manifest.BlueclawDump = true
-		if errorValue := addNamedFileToTar(tarWriter, blueclawDumpPath, "blueclaw-db.sql", manifest); errorValue != nil {
-			return nil, errorValue
-		}
 	}
 	if errorValue := addManifestToTar(tarWriter, manifest); errorValue != nil {
 		return nil, errorValue
 	}
 	return manifest, nil
+}
+
+func (service *Service) newBackupManifest(blueclawManifest map[string]any) *BackupManifest {
+	return &BackupManifest{
+		FormatVersion: 1,
+		FleetID:       readTrimmedFile(service.Configuration.FleetIDPath),
+		CreatedAt:     time.Now().UTC(),
+		Components: []string{
+			"internkim",
+			"blueclaw",
+			"mattermost",
+			"cloudflared",
+		},
+		Checksums: map[string]string{},
+		InternKim: map[string]string{
+			"backupFormat": "internkim-admin-v1",
+		},
+		Blueclaw: blueclawManifest,
+	}
+}
+
+func (service *Service) addDatabaseDumpsToTar(ctx context.Context, tarWriter *tar.Writer, manifest *BackupManifest) error {
+	dumpPath, errorValue := service.dumpMattermostDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	if dumpPath != "" {
+		defer os.Remove(dumpPath)
+		manifest.MattermostDump = true
+		if errorValue := addNamedFileToTar(tarWriter, dumpPath, "mattermost-db.sql", manifest); errorValue != nil {
+			return errorValue
+		}
+	}
+	blueclawDumpPath, errorValue := service.dumpBlueclawDatabase(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	if blueclawDumpPath != "" {
+		defer os.Remove(blueclawDumpPath)
+		manifest.BlueclawDump = true
+		if errorValue := addNamedFileToTar(tarWriter, blueclawDumpPath, "blueclaw-db.sql", manifest); errorValue != nil {
+			return errorValue
+		}
+	}
+	return nil
 }
 
 func (service *Service) runRestoreJob(ctx context.Context, jobID string, encryptedPath string, passphrase string) {

@@ -147,69 +147,70 @@ func resolveRepositoryRootPath() (string, error) {
 
 func Main() {
 	loadEnvFile()
-
-	if len(os.Args) > 1 {
-		if os.Args[1] == "--help" || os.Args[1] == "-h" {
-			printUsage()
-			return
-		}
-		switch os.Args[1] {
-		case "setup":
-			runSetup()
-		case "flash":
-			runFlash()
-		case "wifi":
-			runWiFi()
-		case "ssh":
-			runDeviceSSH()
-		case "model":
-			runModel()
-		case "sync-tools":
-			runSyncTools()
-		case "migrate":
-			runMigrate()
-		case "invite":
-			runInvite()
-		case "users":
-			runUsers()
-		case "run":
-			runTaskRun()
-		case "reset":
-			runReset()
-		case "recover":
-			runRecover()
-		case "release":
-			runRelease()
-		case "status":
-			runStatus()
-		case "update":
-			runUpdate()
-		case "deploy":
-			runDeploy()
-		case "doctor":
-			runDoctor()
-		case "verify":
-			runVerify()
-		case "test":
-			runTest()
-		case "llm":
-			runLLM()
-		case "ops":
-			runOps()
-		case "dev":
-			runDev()
-		case "mac":
-			runMac()
-		case "lab":
-			runLab()
-		case "sim":
-			runSim()
-		default:
-			printUsage()
-		}
+	if len(os.Args) < 2 {
+		printUsage()
 		return
 	}
-	printUsage()
+	runNamedCommand(os.Args[1])
+}
+
+func runNamedCommand(name string) {
+	switch name {
+	case "--help", "-h":
+		printUsage()
+	case "setup":
+		runSetup()
+	case "flash":
+		runFlash()
+	case "wifi":
+		runWiFi()
+	case "ssh":
+		runDeviceSSH()
+	case "model":
+		runModel()
+	case "sync-tools":
+		runSyncTools()
+	case "migrate":
+		runMigrate()
+	case "invite":
+		runInvite()
+	case "users":
+		runUsers()
+	case "run":
+		runTaskRun()
+	case "reset":
+		runReset()
+	case "recover":
+		runRecover()
+	case "release":
+		runRelease()
+	case "status":
+		runStatus()
+	case "update":
+		runUpdate()
+	case "deploy":
+		runDeploy()
+	case "doctor":
+		runDoctor()
+	case "verify":
+		runVerify()
+	case "test":
+		runTest()
+	case "llm":
+		runLLM()
+	case "ops":
+		runOps()
+	case "dev":
+		runDev()
+	case "mac":
+		runMac()
+	case "lab":
+		runLab()
+	case "sim":
+		runSim()
+	default:
+		printUsage()
+	}
 }
 
 func printUsage() {
