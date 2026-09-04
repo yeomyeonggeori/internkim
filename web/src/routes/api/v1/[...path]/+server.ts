@@ -1,9 +1,6 @@
 import { environmentOf, type Environment } from '$lib/server/agent-request';
-import { askWhoAnswersFor, type AttendanceAsked } from '$lib/server/ask-who-answers';
 import { callingMember, type CallingMember } from '$lib/server/member-request';
-import { askTheProject } from '$lib/server/project-function';
 import { baseCatalogAnswer, liveParameter, toolReachableBy } from '$lib/server/public-api/catalog';
-import { fullPublicAPIPermission } from '$lib/public-api-permission';
 import { callCompany } from '$lib/server/public-api/company-call';
 import {
 	companyPictureFormats,
@@ -24,18 +21,18 @@ import {
 	oversizeRefusal,
 	sizeTheHeaderClaims,
 } from '$lib/server/public-api/files';
+import { previewToolOverTheRecord, recordRunsTheTool } from '$lib/server/public-api/record';
+import { destroysSomething } from '$lib/server/public-api/catalog';
 import {
-	previewToolOverTheRecord,
-	recordRunsTheTool,
-	runToolOverTheRecord
-} from '$lib/server/public-api/record';
-import { answererOfTool, destroysSomething, permissionForTool } from '$lib/server/public-api/catalog';
-import { refusalOfToolInput, toolInputRecovered } from '$lib/server/public-api/tool-input';
-import { reachesPermission } from '$lib/public-api-permission';
+	apiRequestCapability,
+	descriptorTheTokenReaches,
+	inputTheToolWillRead,
+	refusalOfALocalTool,
+	toolCalledByMember
+} from '$lib/server/public-api/tool-call';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-const apiRequestCapability = 'person.api.request';
 const filesPath = '/files';
 const readableForOneHour = 60 * 60;
 const catalogHeader = 'X-INTERNKIM-CATALOG';
@@ -63,47 +60,12 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 
 	const invoked = invokedToolName(request.method, path);
 	if (invoked) {
-		const refusal = refusalToCarry(invoked);
-		if (refusal) return refusal;
-		if (recordRunsTheTool(invoked)) return runHere(request, environment, member, invoked);
+		const refusal = refusalOfALocalTool(invoked);
+		if (refusal) return json(refusal.body, { status: refusal.status });
+		return runHere(request, url, environment, member, invoked);
 	}
-	return carryToTheCompany(request, url, environment, member, path, invoked);
+	return carryToTheCompany(request, url, environment, member, path);
 };
-
-function refusalToCarry(name: string): Response | null {
-	if (answererOfTool(name) !== 'local') return null;
-	return json(
-		{
-			error: `${name} is answered by a runtime beside the agent, which this API has no way to reach`
-		},
-		{ status: 400 }
-	);
-}
-
-function descriptorTheTokenReaches(name: string, member: CallingMember) {
-	const descriptor = toolReachableBy(name, member.permission);
-	if (!descriptor) {
-		const known = toolReachableBy(name, fullPublicAPIPermission);
-		if (!known) error(404, `no tool here goes by ${name}`);
-		error(403, `this token may only ${member.permission}, and ${name} ${permissionForTool(known)}s`);
-	}
-	if (!reachesPermission(member.permission, permissionForTool(descriptor))) {
-		error(403, `this token may not ${permissionForTool(descriptor)}`);
-	}
-	return descriptor;
-}
-
-// The gate answers for the input the tool is then handed, so what it read and
-// what runs are the same object rather than two readings of one body.
-function inputTheToolWillRead(name: string, input: unknown): Record<string, unknown> {
-	if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) {
-		error(400, 'input is the object the tool reads');
-	}
-	const read = toolInputRecovered(name, input);
-	const refusal = refusalOfToolInput(name, read);
-	if (refusal) error(400, refusal);
-	return read;
-}
 
 function invokedToolName(method: string, path: string): string | null {
 	if (method !== 'POST') return null;
@@ -143,76 +105,16 @@ async function previewHere(request: Request, member: CallingMember, name: string
 
 async function runHere(
 	request: Request,
+	url: URL,
 	environment: Environment,
 	member: CallingMember,
 	name: string
 ): Promise<Response> {
-	descriptorTheTokenReaches(name, member);
-
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
-	const input = inputTheToolWillRead(name, payload.input);
 
-	const answered = await runToolOverTheRecord(
-		member.caller,
-		member.record,
-		member.memberID,
-		name,
-		input,
-		new Date()
-	);
-	return json(
-		await withTheCompanyTold(environment, member, name, input as AttendanceAsked, answered.body),
-		{ status: answered.status }
-	);
-}
-
-type AttendanceWrite = { status: string; eventID: string | null; backdated: boolean };
-
-async function withTheCompanyTold(
-	environment: Environment,
-	member: CallingMember,
-	name: string,
-	asked: AttendanceAsked,
-	body: unknown
-): Promise<unknown> {
-	const written = attendanceWrittenIn(body);
-	if (!written) return body;
-	try {
-		return {
-			...(body as Record<string, unknown>),
-			notified: await announce(environment, member, name, asked, written)
-		};
-	} catch (refusal) {
-		const reason = refusal instanceof Error ? refusal.message : String(refusal);
-		return { ...(body as Record<string, unknown>), notified: { failures: [reason] } };
-	}
-}
-
-async function announce(
-	environment: Environment,
-	member: CallingMember,
-	name: string,
-	asked: AttendanceAsked,
-	written: AttendanceWrite
-): Promise<unknown> {
-	if (written.status === 'asked') {
-		return askWhoAnswersFor(environment, member.record, member.memberID, name, asked);
-	}
-	if (written.backdated || written.status !== 'added') return { told: 0, reached: 0 };
-	const answer = await askTheProject(environment, 'announce-attendance', { what: 'clock' }, member.accessToken);
-	if (answer.status >= 300) return { told: 0, reached: 0 };
-	return answer.body;
-}
-
-function attendanceWrittenIn(body: unknown): AttendanceWrite | null {
-	const result = (body as { result?: Partial<AttendanceWrite> } | null)?.result;
-	if (!result || typeof result.status !== 'string' || typeof result.backdated !== 'boolean') return null;
-	return {
-		status: result.status,
-		eventID: typeof result.eventID === 'string' ? result.eventID : null,
-		backdated: result.backdated
-	};
+	const answered = await toolCalledByMember(environment, member, name, payload, queryTheCompanySees(url));
+	return json(answered.body, { status: answered.status });
 }
 
 function discoveryAnswer(path: string, member: CallingMember): Response | null {
@@ -230,14 +132,10 @@ async function carryToTheCompany(
 	url: URL,
 	environment: Environment,
 	member: CallingMember,
-	path: string,
-	invoked: string | null
+	path: string
 ): Promise<Response> {
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');
-	const carried = invoked
-		? { ...payload, input: inputTheToolWillRead(invoked, payload.input) }
-		: payload;
 
 	const answer = await callCompany(environment, member.companyID, apiRequestCapability, {
 		method: request.method,
@@ -245,7 +143,7 @@ async function carryToTheCompany(
 		query: queryTheCompanySees(url),
 		permission: member.permission,
 		requester: member.email,
-		payload: carried
+		payload
 	});
 	return json(answer.body, { status: answer.status });
 }

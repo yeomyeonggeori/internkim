@@ -42,6 +42,7 @@ type ApiCopy = {
 		| 'readReplies'
 		| 'listTools'
 		| 'readTool'
+		| 'speakMCP'
 		| 'invokeTool'
 	| 'previewTool'
 		| 'saveCompanyPicture'
@@ -122,6 +123,11 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 					'토큰의 권한으로 부를 수 있는 도구만 돌려줍니다. 컴패니언 도구처럼 상황에 따라 생기고 사라지는 도구는 여기에서 확인합니다.'
 			},
 			readTool: { summary: '도구 하나의 명세', description: '입력 스키마와 부작용 등급을 포함합니다.' },
+			speakMCP: {
+				summary: 'MCP로 같은 도구 쓰기',
+				description:
+					'같은 도구를 Model Context Protocol의 Streamable HTTP로 제공합니다. 인증은 다른 곳과 같은 Bearer 토큰이고, 도구 목록과 스키마는 MCP의 tools/list로 받습니다. 그래서 여기에는 그 형식을 적지 않습니다.'
+			},
 			invokeTool: {
 				summary: '도구 부르기',
 				description:
@@ -230,6 +236,11 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			readTool: {
 				summary: 'Read one tool',
 				description: 'Includes the input schema and the side-effect class.'
+			},
+			speakMCP: {
+				summary: 'Reach the same tools over MCP',
+				description:
+					'The same tools, served over the Model Context Protocol on Streamable HTTP. It takes the same Bearer token as the rest of this API, and a client reads the tool list and the schemas with MCP\'s own tools/list, which is why neither is written out here.'
 			},
 			invokeTool: {
 				summary: 'Invoke a tool',
@@ -540,6 +551,21 @@ function toolByNamePath(copy: ApiCopy) {
 	};
 }
 
+function mcpPath(copy: ApiCopy) {
+	return {
+		post: {
+			tags: [copy.tags.tools],
+			operationId: 'speakMCP',
+			summary: copy.endpoints.speakMCP.summary,
+			description: copy.endpoints.speakMCP.description,
+			responses: {
+				'200': jsonResponse(copy.endpoints.speakMCP.summary, 'MCPMessage'),
+				'401': errorResponse(copy.errors.unauthorized)
+			}
+		}
+	};
+}
+
 function invokeToolPath(copy: ApiCopy) {
 	return {
 		post: {
@@ -729,6 +755,7 @@ function createPaths(copy: ApiCopy) {
 		'/agent/replies': agentRepliesPath(copy),
 		'/tools': listToolsPath(copy),
 		'/tools/{name}': toolByNamePath(copy),
+		'/mcp': mcpPath(copy),
 		'/tools/{name}/invoke': invokeToolPath(copy),
 		'/tools/{name}/target': previewToolPath(copy)
 	};
@@ -828,6 +855,18 @@ function createComponents(copy: ApiCopy) {
 				type: 'object',
 				properties: {
 					tools: { type: 'array', items: { $ref: '#/components/schemas/ToolDescriptor' } }
+				}
+			},
+			MCPMessage: {
+				type: 'object',
+				description: 'A JSON-RPC message as the Model Context Protocol specifies it.',
+				properties: {
+					jsonrpc: { type: 'string' },
+					id: {},
+					method: { type: 'string' },
+					params: { type: 'object' },
+					result: { type: 'object' },
+					error: { type: 'object' }
 				}
 			},
 			ToolDescriptor: {

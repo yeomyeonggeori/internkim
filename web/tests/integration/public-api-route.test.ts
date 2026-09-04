@@ -16,6 +16,7 @@ mock.module('$env/dynamic/private', () => ({
 const { GET: listTokens } = await import('../../src/routes/api/v1/tokens/+server');
 const { POST: mintToken, DELETE: revokeToken } = await import('../../src/routes/api/v1/token/+server');
 const { fallback: reachTheAPI } = await import('../../src/routes/api/v1/[...path]/+server');
+const { fallback: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -612,6 +613,7 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 	const method = operation.method.toUpperCase();
 	const carriesBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
 	const path = operation.path.replace('{name}', 'task_list');
+	if (path === '/mcp') return speakMCP(holdersToken);
 	if (path === '/tokens') return tokens(holdersToken);
 	if (path === '/token' && method === 'POST') return mint(holdersToken, {});
 	if (path === '/token' && method === 'DELETE') return revoke(holdersToken, revocableName);
@@ -620,6 +622,29 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 		headers: { 'Content-Type': 'application/json' },
 		...(carriesBody ? { body: '{}' } : {})
 	});
+}
+
+function speakMCP(token: string): Promise<RouteAnswer> {
+	const request = asking('/mcp', token, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+		body: JSON.stringify({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'conformance', version: '1' } }
+		})
+	});
+	return answerOf(() =>
+		Promise.resolve(
+			reachMCP({
+				request,
+				url: new URL(request.url),
+				params: {},
+				platform: undefined
+			} as unknown as Parameters<typeof reachMCP>[0])
+		)
+	);
 }
 
 describe('the documented endpoints', () => {
@@ -650,6 +675,7 @@ describe('the documented endpoints', () => {
 		const served = [
 			'get /tools',
 			'get /tools/{name}',
+			'post /mcp',
 			'post /tools/{name}/invoke',
 			'post /tools/{name}/target',
 			'get /tokens',
