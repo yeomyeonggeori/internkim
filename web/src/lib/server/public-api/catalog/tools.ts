@@ -893,6 +893,9 @@ export const leaveListInputSchema = z.strictObject({
 
 export const leaveBalanceInputSchema = z.strictObject({
   personHint: z.string().describe('Name or email of the person whose balance to read. Omit for the requester.').optional(),
+  scope: z.enum(WorkspaceTaskScope)
+    .describe('Whose balance to read when personHint is empty. Defaults to self. Use all for everybody who works here, which is what reviewing entitlements wants.')
+    .optional(),
   year: z.number().describe('The leave year to count against. Omit for the year the requester is in now.').optional(),
 });
 
@@ -960,14 +963,42 @@ export const leaveListResultSchema = z.strictObject({
   registeredKinds: z.array(z.string()),
 });
 
-export const leaveBalanceResultSchema = z.strictObject({
+const leaveBalanceEntrySchema = z.strictObject({
   personID: z.string(),
   personName: z.string(),
-  year: z.number().int(),
   grantedDays: z.number().nullable(),
   remainingDays: z.number().nullable(),
   usedDays: z.number().nullable(),
   tracking: z.string(),
+});
+
+export const leaveBalanceResultSchema = z.strictObject({
+  scope: z.string(),
+  year: z.number().int(),
+  count: z.number().int(),
+  balances: z.array(leaveBalanceEntrySchema),
+});
+
+export const leaveGrantSetInputSchema = z.strictObject({
+  personHint: z.string().describe('Name or email of the person whose entitlement to set.'),
+  days: z.number().describe('The leave they are entitled to in a year, in days. It replaces the number they had rather than adding to it, so a request for so many days more is read with leave_balance first and written as the total.'),
+});
+
+export const leaveGrantSetInputIntentSchema = leaveGrantSetInputSchema.partial();
+
+export const leaveGrantSetResultSchema = leaveBalanceEntrySchema;
+
+export const leaveReturnEarlyInputSchema = z.strictObject({
+  location: z.string().describe('The registered workplace they came back to, named as company_settings_get lists them. Omit when they did not say where.').optional(),
+});
+
+export const leaveReturnEarlyInputIntentSchema = leaveReturnEarlyInputSchema.partial();
+
+export const leaveReturnEarlyResultSchema = z.strictObject({
+  shortened: z.boolean(),
+  leaveID: z.string().nullable(),
+  endsAt: z.string().nullable(),
+  days: z.number().nullable(),
 });
 
 export enum WorkspaceAttendanceKind {
@@ -1520,8 +1551,8 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_balance',
-    description: "Read how much leave someone has left for a year. Use this to answer 'how many days do I have left'. tracking is unlimited when the company grants no fixed entitlement, and then the day counts are null rather than zero.",
-    version: '1',
+    description: "Read how much leave is left for a year. Use this to answer 'how many days do I have left'. The default scope is the requester; scope all is everybody who works here, which is what reviewing entitlements wants. tracking is unlimited when the company grants no fixed entitlement, and then the day counts are null rather than zero. Somebody whose balance the requester may not read comes back with null day counts rather than failing.",
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: leaveBalanceInputSchema,
     result: { schema: leaveBalanceResultSchema, effects: [] },
@@ -1620,6 +1651,36 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
+    completionEvidence: { mode: 'success', action: 'write_leave', targetKind: 'leave' },
+  },
+  {
+    name: 'leave_grant_set',
+    namespace: 'leave',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_leave',
+    policyResource: 'tool:leave_grant_set',
+    description: "Set how much leave one person is entitled to in a year. Only an administrator may, and the record refuses anybody else. The number replaces the one they had, so 'give them three more days' is read with leave_balance first and written as the total. Somebody with no number of their own is on the company's, which company_settings_get answers as leaveDays. Requires approval; an entitlement is what every later leave is spent against.",
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: leaveGrantSetInputSchema,
+    inputIntentSchema: leaveGrantSetInputIntentSchema,
+    result: { schema: leaveGrantSetResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    requiresApproval: true,
+  },
+  {
+    name: 'leave_return_early',
+    namespace: 'leave',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_leave',
+    policyResource: 'tool:leave_return_early',
+    description: 'Come back to work before the leave was due to end. The leave the requester is on stops at this moment, the entitlement it no longer spends comes back to them, and they are clocked in. Use it when somebody who is away says they are back; clocking in on an ordinary day is attendance_add. It is the requester\'s own leave and nobody else\'s. shortened is false when no leave was covering the moment, and they are clocked in either way.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: leaveReturnEarlyInputSchema,
+    inputIntentSchema: leaveReturnEarlyInputIntentSchema,
+    result: { schema: leaveReturnEarlyResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_leave', targetKind: 'leave' },
   },
 ];

@@ -84,7 +84,9 @@ export async function leaveInFull(): Promise<LeaveRow[]> {
 
 export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 	const directory = await supabaseLeaveTypeDirectory();
-	const balanceOfMine = await myLeaveBalance();
+	const answeredBalance = await myLeaveBalance();
+	const balanceOfMine = answeredBalance.balances[0];
+	if (!balanceOfMine) throw new Error('the record answered no balance for the requester');
 	const memberID = balanceOfMine.personID;
 	const rows = (await leaveInFull())
 		.filter((row) => row.member_id === memberID)
@@ -95,7 +97,7 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 		request: employeeLeaveRequestOfRow(row, timeZone, directory.nameOf)
 	}));
 	const requests = mappedLeave.map(({ request }) => request);
-	const targetYear = balanceOfMine.year;
+	const targetYear = answeredBalance.year;
 	const remainingDays = balanceOfMine.remainingDays;
 	const balance = summarizeSupabaseLeave(
 		mappedLeave.map(({ row, request }) => ({

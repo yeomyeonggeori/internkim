@@ -67,7 +67,16 @@ import {
 import { LabelUnresolved } from './labels';
 import { RecordRefusedTheWrite, WriteNotReadBack } from './tasks';
 import { NoSuchLeave, NoSuchLeaveKind } from './leave';
-import { leaveBalance, leaveDecide, leaveDelete, leaveList, leaveRequest, leaveUpdate } from './leave-tools';
+import {
+	leaveBalance,
+	leaveDecide,
+	leaveDelete,
+	leaveGrantSet,
+	leaveList,
+	leaveRequest,
+	leaveReturnEarly,
+	leaveUpdate
+} from './leave-tools';
 import { personInvite, personList, personUpdate } from './people-tools';
 import { taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
@@ -99,6 +108,8 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	leave_update: (context, input) => leaveUpdate(context, input),
 	leave_delete: (context, input) => leaveDelete(context, input),
 	leave_decide: (context, input) => leaveDecide(context, input),
+	leave_grant_set: (context, input) => leaveGrantSet(context, input),
+	leave_return_early: (context, input) => leaveReturnEarly(context, input),
 	attendance_list: (context, input) => attendanceList(context, input),
 	attendance_add: (context, input) => attendanceAdd(context, input),
 	attendance_update: (context, input) => attendanceUpdate(context, input),

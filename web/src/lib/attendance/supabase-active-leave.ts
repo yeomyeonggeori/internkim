@@ -1,5 +1,4 @@
 import { invokeTool } from '$lib/public-api-call';
-import { supabase } from '$lib/supabase';
 import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import { supabaseLeaveTypeDirectory } from './supabase-leave-types';
 import type { RecordLeave, RecordLeaveList } from './attendance-record';
@@ -40,8 +39,5 @@ function coversTheMoment(taken: RecordLeave, now: Date): boolean {
 }
 
 export async function returnEarlyFromSupabaseLeave(locationID?: string): Promise<void> {
-	const { error } = await supabase().rpc('leave_return_early', {
-		work_location: locationID ?? ''
-	});
-	if (error) throw new Error(error.message);
+	await invokeTool('leave_return_early', { location: locationID || undefined });
 }
