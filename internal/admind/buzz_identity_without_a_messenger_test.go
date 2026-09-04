@@ -34,7 +34,7 @@ func serviceWhoseRecordAnswers(t *testing.T, policyDocument string) *Service {
 			return jsonResponse(http.StatusOK, policyDocument, nil), nil
 		}
 		if strings.Contains(request.URL.String(), ":8065") {
-			t.Fatalf("the identity path asked Mattermost: %s", request.URL.String())
+			t.Fatalf("the identity path asked a messenger: %s", request.URL.String())
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -51,7 +51,7 @@ func serviceWhoseRecordIsDown(t *testing.T) *Service {
 	return service
 }
 
-func TestPersonBuzzSecretResolvesWithNoMattermostAnywhere(t *testing.T) {
+func TestPersonBuzzSecretResolvesWithNoMessengerAnywhere(t *testing.T) {
 	service := serviceWhoseRecordAnswers(t, `{"people":[{"personID":"p-1","emails":["sample@example.com"]}]}`)
 
 	secretHex, errorValue := service.personBuzzSecret(context.Background(), "sample@example.com")

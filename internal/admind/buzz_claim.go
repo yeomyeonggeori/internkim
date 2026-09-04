@@ -22,7 +22,7 @@ type buzzClaimResponse struct {
 // passkey or password and stores only the sealed blob (POST /agent/api/buzz-
 // vault); the raw key never persists server-side beyond the derivation seed.
 // The gate is Cloudflare Access — an authentication layer, not a messaging
-// platform — so the Buzz identity stays independent of Mattermost or any client.
+// platform — so the Buzz identity stays independent of any messenger client.
 func (service *Service) handleBuzzClaim(responseWriter http.ResponseWriter, request *http.Request) {
 	// Deriving a key changes nothing, and the relay bridge a company browser
 	// comes through asks with GET. The secret is in the answer, never the URL.

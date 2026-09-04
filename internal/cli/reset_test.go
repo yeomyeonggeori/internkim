@@ -47,7 +47,6 @@ func TestBlueclawHistoryResetScriptLeavesTheMessengerAlone(t *testing.T) {
 		"DELETE FROM reactions",
 		"DELETE FROM threadmemberships",
 		"DELETE FROM threads",
-		"systemctl stop mattermost",
 	}
 	for _, fragment := range forbiddenFragments {
 		if strings.Contains(script, fragment) {

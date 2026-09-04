@@ -9,18 +9,14 @@ import (
 	"testing"
 )
 
-func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
+func TestMemoryAPIResolvesTheSessionUserGraph(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
@@ -53,18 +49,14 @@ func TestMemoryAPIUsesMattermostSessionUserGraph(t *testing.T) {
 	}
 }
 
-func TestMemoryAPIUsesMattermostSessionUserSchedules(t *testing.T) {
+func TestMemoryAPIResolvesTheSessionUserSchedules(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
@@ -152,16 +144,12 @@ func TestMemorySchedulesQueryPreservesExpiredVisibilityFilter(t *testing.T) {
 
 func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
@@ -199,16 +187,12 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 
 func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
@@ -246,16 +230,12 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 
 func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
@@ -299,11 +279,10 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 
 func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
@@ -342,16 +321,12 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 
 func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
@@ -383,16 +358,12 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 
 func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"id":"mattermost-user-1","email":"member@example.com","username":"member"}`, nil), nil
-		}
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
 		}
@@ -424,11 +395,10 @@ func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 
 func TestMemoryAPIGraphHidesIdentityFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
@@ -458,11 +428,10 @@ func TestMemoryAPIGraphHidesIdentityFailureDetails(t *testing.T) {
 
 func TestMemoryAPIScheduleMutationHidesDecodeFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
-		APIBaseURL:        "https://api.example.test",
-		BlueclawBaseURL:   "http://blueclaw.local",
-		FleetIDPath:       writeTestFile(t, "device-1"),
-		FleetSecretPath:   writeTestFile(t, "secret-1"),
-		MattermostBaseURL: "http://mattermost.local",
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 
 	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/update", strings.NewReader(`{`))

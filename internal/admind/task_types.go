@@ -24,7 +24,6 @@ type Task struct {
 	StartDate        string   `json:"startDate,omitempty"`
 	EndDate          string   `json:"endDate,omitempty"`
 	WeekCode         string   `json:"weekCode"`
-	MattermostPostID string   `json:"mattermostPostID,omitempty"`
 	CalendarEventID  string   `json:"calendarEventID,omitempty"`
 	CreatedAt        string   `json:"createdAt,omitempty"`
 }

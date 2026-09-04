@@ -11,8 +11,8 @@ import (
 
 // A messenger that cannot name somebody draws the first bytes of their key
 // instead, which is what everyone invited here has looked like: the import
-// wrote a profile for each person it carried over from Mattermost, and nothing
-// wrote one for anybody who arrived afterwards. The company directory is what
+// wrote a profile for each person it carried over, and nothing wrote one for
+// anybody who arrived afterwards. The company directory is what
 // names a person, so a member the relay cannot name gets a profile in their own
 // name, signed by their own key.
 func (service *Service) nameMembersTheRelayCannotName(ctx context.Context, relay *sql.DB) {

@@ -467,13 +467,13 @@ func TestSetupPassesSelectorArgumentsWithoutDefaultForce(t *testing.T) {
 	}
 	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
 
-	errorValue := service.Setup(context.Background(), "/repo/internkim", []string{"--only", "mattermost"})
+	errorValue := service.Setup(context.Background(), "/repo/internkim", []string{"--only", "blueclaw-config"})
 	if errorValue != nil {
 		t.Fatalf("expected setup to succeed: %v", errorValue)
 	}
 
 	setupCommand := commandRunner.runCommands[4]
-	if strings.Join(setupCommand.Arguments, " ") != "setup --board lab --ssh --host 192.168.65.10 --user admin --password admin --only mattermost" {
+	if strings.Join(setupCommand.Arguments, " ") != "setup --board lab --ssh --host 192.168.65.10 --user admin --password admin --only blueclaw-config" {
 		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
 	}
 }

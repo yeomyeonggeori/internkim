@@ -63,10 +63,10 @@ func (service *Service) taskLinkBaseURL() string {
 	if written := strings.TrimSpace(readTrimmedFile(service.Configuration.TaskPublicURLPath)); written != "" {
 		return written
 	}
-	return service.mattermostTaskBaseURL()
+	return service.deviceTaskBaseURL()
 }
 
-func (service *Service) mattermostTaskBaseURL() string {
+func (service *Service) deviceTaskBaseURL() string {
 	if deviceURL := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath)); deviceURL != "" {
 		return deviceURL
 	}

@@ -35,12 +35,12 @@ func TestMissingRelaySettingsAreReportedRatherThanIgnored(t *testing.T) {
 }
 
 func TestTheSettingsLandWhereTheUnitReadsThem(t *testing.T) {
-	command := placeForTheRelay(blueclaw.RelayEnvironmentFilePath, "MESSENGER_PLATFORM=mattermost\n")
+	command := placeForTheRelay(blueclaw.RelayEnvironmentFilePath, "MESSENGER_PLATFORM=buzz\n")
 
 	for _, expected := range []string{
 		"install -d -m 755 " + filepath.Dir(blueclaw.RelayEnvironmentFilePath),
 		"cat > " + blueclaw.RelayEnvironmentFilePath,
-		"MESSENGER_PLATFORM=mattermost",
+		"MESSENGER_PLATFORM=buzz",
 		"chown internkim:internkim " + blueclaw.RelayEnvironmentFilePath,
 		"chmod 600 " + blueclaw.RelayEnvironmentFilePath,
 	} {
@@ -62,7 +62,7 @@ func TestTheAgentKeyIsPlacedWhereOnlyTheRelayCanReadIt(t *testing.T) {
 }
 
 func TestTheRelayIsToldWhereAdmindHonoursARequester(t *testing.T) {
-	settings := relaySettingsNamingTheAdmindSocket("MESSENGER_PLATFORM=mattermost\n")
+	settings := relaySettingsNamingTheAdmindSocket("MESSENGER_PLATFORM=buzz\n")
 
 	if !strings.Contains(settings, admindSocketSettingName+"="+blueclaw.AdmindSocketPath) {
 		t.Fatalf("the relay would fall back to its own spelling of the socket path:\n%s", settings)
@@ -141,7 +141,7 @@ func TestALatchedUnitIsClearedBeforeItIsRestarted(t *testing.T) {
 func TestSettingsAreCarriedAcrossExactly(t *testing.T) {
 	directory := t.TempDir()
 	settingsPath := filepath.Join(directory, "relay.env")
-	settings := "SUPABASE_URL=https://example.supabase.co\nMESSENGER_PLATFORM=mattermost\n"
+	settings := "SUPABASE_URL=https://example.supabase.co\nMESSENGER_PLATFORM=buzz\n"
 	if errorValue := os.WriteFile(settingsPath, []byte(settings), 0o600); errorValue != nil {
 		t.Fatalf("write the settings: %v", errorValue)
 	}

@@ -32,7 +32,7 @@ func TestACalendarEventCarriesItsPeopleAsAddresses(t *testing.T) {
 	defer server.Close()
 	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
-	event, found, errorValue := client.EventByID(context.Background(), "mattermost", "owner-account", "task-1")
+	event, found, errorValue := client.EventByID(context.Background(), "buzz", "owner-account", "task-1")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
