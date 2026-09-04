@@ -201,8 +201,8 @@
 			<p class="mt-1 text-xs text-muted-foreground">{text.workSettings.commonRulesDescription}</p>
 		</div>
 		<div class="grid gap-5 md:grid-cols-2">
-			<Field.Field>
-				<Field.Label>{text.workSettings.nightHours}</Field.Label>
+			<Field.Field class="gap-3">
+				<Field.Label class="min-h-7 items-center">{text.workSettings.nightHours}</Field.Label>
 				<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
 					<Input
 						type="time"
@@ -222,7 +222,7 @@
 				</div>
 			</Field.Field>
 			<div class="space-y-3">
-				<div class="grid grid-cols-[1fr_auto] items-center gap-2">
+				<div class="grid min-h-7 grid-cols-[1fr_auto] items-center gap-2">
 					<Field.Label>{text.workSettings.breakPeriods}</Field.Label>
 					<Button type="button" variant="outline" size="sm" {disabled} onclick={addBreakPeriod}>
 						{text.workSettings.addBreak}
