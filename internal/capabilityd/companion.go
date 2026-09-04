@@ -172,7 +172,7 @@ func (service Service) invokeCapabilityTool(ctx context.Context, toolName string
 	if response, isDenied := service.capabilityToolApprovalDeniedResponse(ctx, request, descriptor); isDenied {
 		return response, nil
 	}
-	if errorValue := capabilityschema.Validate(descriptor.InputSchema, request.Input); errorValue != nil {
+	if errorValue := capabilityschema.ValidateInput(descriptor.InputSchema, request.Input); errorValue != nil {
 		return capabilityInvalidInputResponse(request.ToolName, errorValue), nil
 	}
 	toolRoute, hasToolRoute := capabilityToolRouteFor(descriptor.CanonicalName)
@@ -230,8 +230,8 @@ func validateContractedCapabilityResponse(descriptor capabilities.Descriptor, re
 	if errorValue := validateCapabilityResponseIdentity(descriptor, response, expectedProvider, expectedBackend); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := capabilityschema.Validate(descriptor.ResultContract.Schema, response.Result); errorValue != nil {
-		return fmt.Errorf("capability tool result violates %s contract: %w", descriptor.CanonicalName, errorValue)
+	if errorValue := holdResultToContract(descriptor, response.Result); errorValue != nil {
+		return errorValue
 	}
 	expectedEffects, errorValue := capabilities.ProjectResourceEffects(descriptor.ResultContract, response.Result)
 	if errorValue != nil {

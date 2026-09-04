@@ -1,5 +1,6 @@
 import { dayIn, dayOfInstant, dayShifted, instantOfDay, instantWritten } from './days';
 import { personOfHint } from './people';
+import { ownerNamedBy, whoseRecords, whoseRecordsHolds } from './whose';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import {
 	leaveBalancesOfCompany,
@@ -84,12 +85,17 @@ async function leaveByID(context: RecordContext, leaveID: string): Promise<Leave
 	return written;
 }
 
+function personNameOf(context: RecordContext, personID: string): string {
+	if (!personID) return '';
+	return context.people.find((person) => person.personID === personID)?.name ?? '';
+}
+
 function targetMember(context: RecordContext, personHint: string | undefined): string {
 	return personHint ? personOfHint(context.people, personHint).personID : context.requesterID;
 }
 
 export type LeaveListInput = {
-	personHint?: string;
+	personHints?: string[];
 	scope?: string;
 	from?: string;
 	to?: string;
@@ -98,13 +104,12 @@ export type LeaveListInput = {
 };
 
 export async function leaveList(context: RecordContext, input: LeaveListInput) {
-	const everyone = input.scope === 'all' && !input.personHint;
-	const memberID = everyone ? null : targetMember(context, input.personHint);
+	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
 	const from = input.from ? dayIn(context.labels.timezone, new Date(instantWritten(context.labels.timezone, input.from))) : '';
 	const to = input.to ? dayIn(context.labels.timezone, new Date(instantWritten(context.labels.timezone, input.to, true))) : '';
 
 	const rows = (await leaveOfCompany(context.caller)).filter((row) => {
-		if (memberID && row.member_id !== memberID) return false;
+		if (!whoseRecordsHolds(whose, row.member_id)) return false;
 		if (input.status && row.status !== input.status) return false;
 		const startDate = dayOfInstant(context.labels.timezone, row.starts_at);
 		const endDate = dayOfInstant(context.labels.timezone, row.ends_at);
@@ -115,9 +120,9 @@ export async function leaveList(context: RecordContext, input: LeaveListInput) {
 
 	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
 	return {
-		scope: memberID ? 'person' : 'everyone',
-		personID: memberID,
-		personName: memberID ? context.people.find((one) => one.personID === memberID)?.name ?? '' : '',
+		scope: whose.everyone ? 'everyone' : 'person',
+		personID: ownerNamedBy(whose) || null,
+		personName: personNameOf(context, ownerNamedBy(whose)),
 		statusFilter: input.status ?? null,
 		count: kept.length,
 		leave: kept.map((row) => answeredLeave(context, row)),
@@ -160,19 +165,19 @@ async function balanceOfOne(
 	return answeredBalance(context, memberID, granted, remaining);
 }
 
-export type LeaveBalanceInput = { personHint?: string; scope?: string; year?: number };
+export type LeaveBalanceInput = { personHints?: string[]; scope?: string; year?: number };
 
 export async function leaveBalance(context: RecordContext, input: LeaveBalanceInput) {
 	const year = input.year ?? Number(dayIn(context.labels.timezone, context.now).slice(0, 4));
-	const everyone = input.scope === 'all' && !input.personHint;
-	const balances = everyone
+	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
+	const balances = whose.everyone
 		? (await leaveBalancesOfCompany(context.caller, year)).map((row) =>
 				answeredBalance(context, row.memberID, row.grantedDays, row.remainingDays)
 			)
-		: [await balanceOfOne(context, targetMember(context, input.personHint), year)];
+		: await Promise.all(whose.personIDs.map((personID) => balanceOfOne(context, personID, year)));
 
 	return {
-		scope: everyone ? 'everyone' : 'person',
+		scope: whose.everyone ? 'everyone' : 'person',
 		year,
 		count: balances.length,
 		balances

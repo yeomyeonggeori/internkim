@@ -4228,7 +4228,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_list",
-      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
+      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -4251,12 +4251,15 @@
             "description": "Maximum number of rows to return.",
             "type": "number"
           },
-          "personHint": {
-            "description": "Name or email of the person whose attendance to list. Omit for the requester.",
-            "type": "string"
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose attendance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "scope": {
-            "description": "Whose attendance to list when personHint is empty. Defaults to self. Use all only for an explicit company-wide request.",
+            "description": "Set to all to read the whole company's attendance. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
             "enum": [
               "self",
               "all"
@@ -9703,12 +9706,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "personHint": {
-            "description": "Name or email of the person whose balance to read. Omit for the requester.",
-            "type": "string"
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose leave balance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "scope": {
-            "description": "Whose balance to read when personHint is empty. Defaults to self. Use all for everybody who works here, which is what reviewing entitlements wants.",
+            "description": "Set to all to read the whole company's leave balances. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
             "enum": [
               "self",
               "all"
@@ -10677,7 +10683,7 @@
         "state": "ok"
       },
       "canonicalName": "leave_list",
-      "description": "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. The default scope is the requester; set scope to all for the whole company. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
+      "description": "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. It reads the requester's own leave unless personHints names other people or scope is all. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -10696,12 +10702,15 @@
             "description": "Maximum number of rows to return.",
             "type": "number"
           },
-          "personHint": {
-            "description": "Name or email of the person whose leave to list. Omit for the requester.",
-            "type": "string"
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose leave to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "scope": {
-            "description": "Whose leave to list when personHint is empty. Defaults to self. Use all only for an explicit company-wide request.",
+            "description": "Set to all to read the whole company's leave. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
             "enum": [
               "self",
               "all"
@@ -14515,19 +14524,96 @@
       "worksOffline": false
     },
     "task_add": {
-      "name": "task_add",
-      "canonicalName": "task_add",
-      "namespace": "task",
       "answeredBy": "record",
-      "modelName": "task_add",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "description": "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.",
-      "version": "6",
-      "privacyClass": "workspace_task",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "task_add",
+      "completionEvidence": {
+        "action": "write_task",
+        "mode": "success",
+        "targetKind": "task"
+      },
+      "description": "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task \u2014 use task.update.",
       "estimatedLatency": "medium",
-      "requiresUserPresence": false,
-      "worksOffline": false,
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "business": {
+            "description": "Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.",
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "participantPersonHints": {
+            "description": "Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester\u2019s own, which is the usual case; the name the requester used to address you is not a participant.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "size": {
+            "description": "Effort size using the work-size rubric. Omit when the request does not support a useful estimate.",
+            "enum": [
+              "XS",
+              "S",
+              "M",
+              "L",
+              "XL",
+              "XXL"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
+            "enum": [
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "stopped"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Task type label, taken from registeredLabels.types in a task_list result. Omit when unsure.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14556,7 +14642,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester’s own.",
+            "description": "Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester\u2019s own, which is the usual case; the name the requester used to address you is not a participant.",
             "items": {
               "type": "string"
             },
@@ -14604,79 +14690,12 @@
         ],
         "type": "object"
       },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "business": {
-            "description": "Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.",
-            "type": "string"
-          },
-          "endsAt": {
-            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
-            "type": "string"
-          },
-          "opportunityHint": {
-            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "organizationHint": {
-            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "parentTaskHint": {
-            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester’s own.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "size": {
-            "description": "Effort size using the work-size rubric. Omit when the request does not support a useful estimate.",
-            "enum": [
-              "XS",
-              "S",
-              "M",
-              "L",
-              "XL",
-              "XXL"
-            ],
-            "type": "string"
-          },
-          "startsAt": {
-            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
-            "type": "string"
-          },
-          "status": {
-            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
-            "enum": [
-              "planned",
-              "in_progress",
-              "completed",
-              "paused",
-              "rejected",
-              "stopped"
-            ],
-            "type": "string"
-          },
-          "title": {
-            "description": "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
-            "type": "string"
-          },
-          "type": {
-            "description": "Task type label, taken from registeredLabels.types in a task_list result. Omit when unsure.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
+      "inputSchemaStrict": true,
+      "modelName": "task_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "task_add",
+      "namespace": "task",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14773,9 +14792,19 @@
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "policyResource": "tool:task_add",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
       "resultContract": {
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "task",
+            "resultField": "taskID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -14871,32 +14900,12 @@
             "taskID"
           ],
           "type": "object"
-        },
-        "effects": [
-          {
-            "objectType": "task",
-            "effect": "created",
-            "resultField": "taskID",
-            "effectIdentity": "id"
-          }
-        ]
+        }
       },
-      "policyResource": "tool:task_add",
-      "sideEffectClass": "workspace_write",
       "sideEffect": "workspace_write",
-      "completionEvidence": {
-        "mode": "success",
-        "action": "write_task",
-        "targetKind": "task"
-      },
-      "availability": {
-        "state": "ok"
-      },
-      "idempotency": {
-        "supported": false,
-        "required": false,
-        "scope": "operation"
-      }
+      "sideEffectClass": "workspace_write",
+      "version": "6",
+      "worksOffline": false
     },
     "task_delete": {
       "answeredBy": "record",
@@ -15005,19 +15014,18 @@
       "worksOffline": false
     },
     "task_list": {
-      "name": "task_list",
-      "canonicalName": "task_list",
-      "namespace": "task",
       "answeredBy": "record",
-      "modelName": "task_list",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.",
-      "version": "4",
-      "privacyClass": "workspace_task",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "task_list",
+      "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all.",
       "estimatedLatency": "low",
-      "requiresUserPresence": false,
-      "worksOffline": false,
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -15040,16 +15048,19 @@
             "maxLength": 256,
             "type": "string"
           },
-          "participantPersonHint": {
-            "description": "Name or email of a specific person whose tasks to list. Leave empty to use scope.",
-            "type": "string"
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose tasks to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "query": {
-            "description": "Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.",
+            "description": "Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here \u2014 use the dedicated fields instead.",
             "type": "string"
           },
           "scope": {
-            "description": "Whose tasks to list when participantPersonHint is empty. Defaults to self. Use all only for an explicit workspace-wide request.",
+            "description": "Set to all to read the whole company's tasks. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
             "enum": [
               "self",
               "all"
@@ -15080,6 +15091,12 @@
         },
         "type": "object"
       },
+      "inputSchemaStrict": true,
+      "modelName": "task_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "task_list",
+      "namespace": "task",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -15281,8 +15298,10 @@
         ],
         "type": "object"
       },
-      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
+      "policyResource": "tool:task_list",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
       "resultContract": {
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -15486,17 +15505,10 @@
           "type": "object"
         }
       },
-      "policyResource": "tool:task_list",
-      "sideEffectClass": "read",
       "sideEffect": "read",
-      "availability": {
-        "state": "ok"
-      },
-      "idempotency": {
-        "supported": false,
-        "required": false,
-        "scope": "operation"
-      }
+      "sideEffectClass": "read",
+      "version": "4",
+      "worksOffline": false
     },
     "task_update": {
       "name": "task_update",

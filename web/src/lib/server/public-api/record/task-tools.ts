@@ -18,7 +18,6 @@ import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './peo
 import type { RecordContext } from './company';
 import {
 	deleteTask,
-	ownerOfScope,
 	participantsOfHints,
 	RecordRefusedTheWrite,
 	rowOfSavedID,
@@ -29,6 +28,7 @@ import {
 	taskWriteArguments,
 	type TaskRow
 } from './tasks';
+import { ownerNamedBy, whoseRecords, whoseRecordsHoldsAny } from './whose';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 
 type TaskWritten = {
@@ -389,7 +389,7 @@ function matchesQuery(context: RecordContext, row: TaskRow, query: string | unde
 
 export type TaskListInput = {
 	query?: string;
-	participantPersonHint?: string;
+	personHints?: string[];
 	scope?: string;
 	weekFrom?: number;
 	weekTo?: number;
@@ -401,7 +401,7 @@ export type TaskListInput = {
 };
 
 export async function taskList(context: RecordContext, input: TaskListInput) {
-	const ownerID = ownerOfScope(context.people, input.scope, input.participantPersonHint, context.requesterID);
+	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
 	const weeks = weeksAsked(context, input.weekFrom ?? 0, input.weekTo ?? input.weekFrom ?? 0);
 	const thisWeek = weekCodeOfOffset(context, 0);
 	const deal = input.opportunityHint ? await opportunityOfCRMHint(context, input.opportunityHint) : null;
@@ -413,7 +413,7 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 		(Boolean(deal || organization) && input.weekFrom === undefined && input.weekTo === undefined);
 
 	const rows = (await tasksOfCompany(context.caller, false)).filter((row) => {
-		if (ownerID && !row.task_participant.some(({ member_id }) => member_id === ownerID)) return false;
+		if (!whoseRecordsHoldsAny(whose, row.task_participant.map(({ member_id }) => member_id))) return false;
 		if (input.status && row.status !== input.status) return false;
 		if (deal && row.opportunity_id !== deal.id) return false;
 		if (organization && row.organization_id !== organization.id) return false;
@@ -423,8 +423,8 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 
 	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
 	return {
-		scope: ownerID ? 'person' : 'everyone',
-		ownerID: ownerID ?? '',
+		scope: whose.everyone ? 'everyone' : 'person',
+		ownerID: ownerNamedBy(whose),
 		weekFrom: input.weekFrom ?? 0,
 		weekTo: input.weekTo ?? input.weekFrom ?? 0,
 		statusFilter: input.status ?? '',

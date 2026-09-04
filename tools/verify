@@ -104,8 +104,9 @@ GROUPS = [
             "web/src/lib/server/public-api/catalog/*",
             "web/scripts/generate-capability-protocol.ts",
             "supabase/tests/the_record_names_*",
+            "tools/verify-protocol-compatibility",
         ],
-        [["make", "verify-generated-protocol"]],
+        [["make", "verify-generated-protocol"], ["tools/verify-protocol-compatibility"]],
     ),
     Group(
         "go",
@@ -136,6 +137,7 @@ GROUPS = [
             "web/*",
             ".dependency/blueclaw/protocol/*",
             "pkg/capabilityprotocol/generated/*",
+            "pkg/capabilityprotocol/refusal-sentences.json",
             "docs/web/app/lib/openapi.ts",
             "supabase/functions/_shared/*",
             "supabase/tests/*",

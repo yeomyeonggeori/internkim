@@ -261,18 +261,6 @@ func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testin
 			message: "toolName does not match",
 		},
 		{
-			name: "invalid result schema",
-			response: capabilities.ToolInvokeResponse{
-				Provider:        "internkim",
-				SelectedBackend: "device",
-				ToolName:        "task_add",
-				Outcome:         capabilities.ToolOutcomeSucceeded,
-				Result:          json.RawMessage(`{"status":"created"}`),
-				Effects:         validEffects,
-			},
-			message: "violates task_add contract",
-		},
-		{
 			name: "mismatched effects",
 			response: capabilities.ToolInvokeResponse{
 				Provider:        "internkim",
@@ -293,6 +281,26 @@ func TestValidateContractedCapabilityResponseRejectsContractViolations(t *testin
 				t.Fatalf("expected %q, got %v", testCase.message, errorValue)
 			}
 		})
+	}
+}
+
+// A tool this machine answers is written and checked in the same release, so a
+// contract this side can act on is held on this side. task_add is answered on
+// the plane and is carried instead, which the resource-effect suite covers.
+func TestValidateContractedCapabilityResponseRejectsAnAnswerThisMachineWrote(t *testing.T) {
+	descriptor, found := capabilityToolDescriptorFor("message_send")
+	if !found {
+		t.Fatal("message_send has no descriptor")
+	}
+	errorValue := validateContractedCapabilityResponse(descriptor, capabilities.ToolInvokeResponse{
+		Provider:        "internkim",
+		SelectedBackend: "device",
+		ToolName:        "message_send",
+		Outcome:         capabilities.ToolOutcomeSucceeded,
+		Result:          json.RawMessage(`{"deliveryStatus":"sent"}`),
+	}, "", "")
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "result.messageIDs is required and is missing") {
+		t.Fatalf("expected the contract to name the missing field, got %v", errorValue)
 	}
 }
 
