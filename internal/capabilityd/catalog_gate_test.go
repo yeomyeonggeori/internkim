@@ -257,11 +257,29 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_balance": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_balance","result":{"personID":"p1","personName":"이샘플","year":2026,"grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_balance","result":{"scope":"person","year":2026,"count":1,"balances":[{"personID":"p1","personName":"이샘플","grantedDays":15,"remainingDays":13,"usedDays":2,"tracking":"managed"}]}}`)},
 			input:   `{"year":2026}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"remainingDays":13`)
+			},
+		},
+		"leave_grant_set": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_grant_set","result":{"personID":"p1","personName":"이샘플","grantedDays":18,"remainingDays":16,"usedDays":2,"tracking":"managed"}}`)},
+			input:   `{"personHint":"이샘플","days":18}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"grantedDays":18`)
+			},
+		},
+		"leave_return_early": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_return_early","result":{"shortened":true,"leaveID":"l1","endsAt":"2026-09-01T04:00:00Z","days":0.5}}`)},
+			input:   `{"location":"사무실"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"shortened":true`)
 			},
 		},
 		"leave_request": {

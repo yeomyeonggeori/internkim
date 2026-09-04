@@ -3785,7 +3785,7 @@
         "state": "ok"
       },
       "canonicalName": "leave_balance",
-      "description": "Read how much leave someone has left for a year. Use this to answer 'how many days do I have left'. tracking is unlimited when the company grants no fixed entitlement, and then the day counts are null rather than zero.",
+      "description": "Read how much leave is left for a year. Use this to answer 'how many days do I have left'. The default scope is the requester; scope all is everybody who works here, which is what reviewing entitlements wants. tracking is unlimited when the company grants no fixed entitlement, and then the day counts are null rather than zero. Somebody whose balance the requester may not read comes back with null day counts rather than failing.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -3798,6 +3798,14 @@
         "properties": {
           "personHint": {
             "description": "Name or email of the person whose balance to read. Omit for the requester.",
+            "type": "string"
+          },
+          "scope": {
+            "description": "Whose balance to read when personHint is empty. Defaults to self. Use all for everybody who works here, which is what reviewing entitlements wants.",
+            "enum": [
+              "self",
+              "all"
+            ],
             "type": "string"
           },
           "year": {
@@ -3817,44 +3825,69 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "grantedDays": {
-            "anyOf": [
-              {
-                "type": "number"
+          "balances": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "grantedDays": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "personID": {
+                  "type": "string"
+                },
+                "personName": {
+                  "type": "string"
+                },
+                "remainingDays": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "tracking": {
+                  "type": "string"
+                },
+                "usedDays": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
               },
-              {
-                "type": "null"
-              }
-            ]
+              "required": [
+                "personID",
+                "personName",
+                "grantedDays",
+                "remainingDays",
+                "usedDays",
+                "tracking"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
-          "personID": {
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "scope": {
             "type": "string"
-          },
-          "personName": {
-            "type": "string"
-          },
-          "remainingDays": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "tracking": {
-            "type": "string"
-          },
-          "usedDays": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "year": {
             "maximum": 9007199254740991,
@@ -3863,13 +3896,10 @@
           }
         },
         "required": [
-          "personID",
-          "personName",
+          "scope",
           "year",
-          "grantedDays",
-          "remainingDays",
-          "usedDays",
-          "tracking"
+          "count",
+          "balances"
         ],
         "type": "object"
       },
@@ -3883,44 +3913,69 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "grantedDays": {
-              "anyOf": [
-                {
-                  "type": "number"
+            "balances": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "grantedDays": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "personID": {
+                    "type": "string"
+                  },
+                  "personName": {
+                    "type": "string"
+                  },
+                  "remainingDays": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tracking": {
+                    "type": "string"
+                  },
+                  "usedDays": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
                 },
-                {
-                  "type": "null"
-                }
-              ]
+                "required": [
+                  "personID",
+                  "personName",
+                  "grantedDays",
+                  "remainingDays",
+                  "usedDays",
+                  "tracking"
+                ],
+                "type": "object"
+              },
+              "type": "array"
             },
-            "personID": {
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "scope": {
               "type": "string"
-            },
-            "personName": {
-              "type": "string"
-            },
-            "remainingDays": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "tracking": {
-              "type": "string"
-            },
-            "usedDays": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             },
             "year": {
               "maximum": 9007199254740991,
@@ -3929,20 +3984,17 @@
             }
           },
           "required": [
-            "personID",
-            "personName",
+            "scope",
             "year",
-            "grantedDays",
-            "remainingDays",
-            "usedDays",
-            "tracking"
+            "count",
+            "balances"
           ],
           "type": "object"
         }
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     {
@@ -4909,6 +4961,330 @@
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "2",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "leave_grant_set",
+      "description": "Set how much leave one person is entitled to in a year. Only an administrator may, and the record refuses anybody else. The number replaces the one they had, so 'give them three more days' is read with leave_balance first and written as the total. Somebody with no number of their own is on the company's, which company_settings_get answers as leaveDays. Requires approval; an entitlement is what every later leave is spent against.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "description": "The leave they are entitled to in a year, in days. It replaces the number they had rather than adding to it, so a request for so many days more is read with leave_balance first and written as the total.",
+            "type": "number"
+          },
+          "personHint": {
+            "description": "Name or email of the person whose entitlement to set.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "description": "The leave they are entitled to in a year, in days. It replaces the number they had rather than adding to it, so a request for so many days more is read with leave_balance first and written as the total.",
+            "type": "number"
+          },
+          "personHint": {
+            "description": "Name or email of the person whose entitlement to set.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personHint",
+          "days"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "leave_grant_set",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "leave_grant_set",
+      "namespace": "leave",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "grantedDays": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "personID": {
+            "type": "string"
+          },
+          "personName": {
+            "type": "string"
+          },
+          "remainingDays": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tracking": {
+            "type": "string"
+          },
+          "usedDays": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "personID",
+          "personName",
+          "grantedDays",
+          "remainingDays",
+          "usedDays",
+          "tracking"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:leave_grant_set",
+      "privacyClass": "workspace_leave",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "grantedDays": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "personID": {
+              "type": "string"
+            },
+            "personName": {
+              "type": "string"
+            },
+            "remainingDays": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tracking": {
+              "type": "string"
+            },
+            "usedDays": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "personID",
+            "personName",
+            "grantedDays",
+            "remainingDays",
+            "usedDays",
+            "tracking"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "leave_return_early",
+      "completionEvidence": {
+        "action": "write_leave",
+        "mode": "success",
+        "targetKind": "leave"
+      },
+      "description": "Come back to work before the leave was due to end. The leave the requester is on stops at this moment, the entitlement it no longer spends comes back to them, and they are clocked in. Use it when somebody who is away says they are back; clocking in on an ordinary day is attendance_add. It is the requester's own leave and nobody else's. shortened is false when no leave was covering the moment, and they are clocked in either way.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "location": {
+            "description": "The registered workplace they came back to, named as company_settings_get lists them. Omit when they did not say where.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "location": {
+            "description": "The registered workplace they came back to, named as company_settings_get lists them. Omit when they did not say where.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "leave_return_early",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "leave_return_early",
+      "namespace": "leave",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endsAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaveID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shortened": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "shortened",
+          "leaveID",
+          "endsAt",
+          "days"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:leave_return_early",
+      "privacyClass": "workspace_leave",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "days": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "endsAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "leaveID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "shortened": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "shortened",
+            "leaveID",
+            "endsAt",
+            "days"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
       "worksOffline": false
     },
     {

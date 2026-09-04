@@ -1,4 +1,3 @@
-import { supabase } from '$lib/supabase';
 import type {
 	EmployeeLeaveBalanceTrackingMode,
 	EmployeeLeavePreviewRequest,
@@ -27,17 +26,24 @@ import {
 	supabaseLeavePreview,
 	type LeaveRow
 } from './supabase-leave';
-import { companySettings, type RecordLeave } from './attendance-record';
+import {
+	companyDirectory,
+	companySettings,
+	everyLeaveBalance,
+	leaveBalanceOfPerson,
+	type RecordLeave
+} from './attendance-record';
 import { supabaseLeaveTypeDirectory, type LeaveTypeDirectory } from './supabase-leave-types';
 
 type CompanyRow = { timezone: string; leave_days: number | null };
-type MemberRow = {
+type DirectoryMember = {
 	id: string;
 	email: string | null;
 	name: string | null;
-	leave_days: number | null;
 	timezone: string | null;
 };
+
+type MemberRow = DirectoryMember & { leave_days: number | null };
 
 type LeaveManagementSource = {
 	company: CompanyRow;
@@ -81,17 +87,13 @@ export async function supabaseLeaveManagement(employeeEmail = ''): Promise<Leave
 
 export async function adjustSupabaseManagedLeave(input: LeaveManagementAdjustment): Promise<void> {
 	const company = await readCompany();
-	const member = await readMemberByEmail(input.employeeEmail);
-	const granted = member.leave_days ?? company.leave_days;
+	const answered = await leaveBalanceOfPerson(input.employeeEmail);
+	const granted = answered.balances[0]?.grantedDays ?? company.leave_days;
 	if (granted === null) throw new EmployeeLeaveAPIError('invalidStatus', 409);
 	const next = granted + input.amountMilliDays / 1000;
 	if (next < 0) throw new EmployeeLeaveAPIError('insufficientBalance', 409);
 
-	const saved = await supabase().rpc('member_leave_days_set', {
-		target_member: member.id,
-		granted_days: next
-	});
-	if (saved.error) throw new EmployeeLeaveAPIError(null, 403);
+	await askTheRecord('leave_grant_set', { personHint: input.employeeEmail, days: next });
 }
 
 export async function createSupabaseManagedPastLeave(input: LeaveManagementPastLeave): Promise<void> {
@@ -161,22 +163,34 @@ async function readCompany(): Promise<CompanyRow> {
 	return { timezone: settings.timeZone, leave_days: settings.leaveDays };
 }
 
-async function leaveManagementMembers(): Promise<MemberRow[]> {
-	const source = await supabase().rpc('leave_management_source');
-	if (source.error) throw new Error(source.error.message);
-	const rows = source.data as { members: MemberRow[] } | null;
-	if (!rows) throw new Error('the leave management source returned nothing');
-	return [...rows.members].sort((left, right) =>
-		(left.email ?? '').localeCompare(right.email ?? '')
-	);
+async function leaveManagementMembers(): Promise<DirectoryMember[]> {
+	const directory = await companyDirectory();
+	return directory.people
+		.map((person) => ({
+			id: person.personID,
+			email: person.email || null,
+			name: person.name || null,
+			timezone: person.timeZone || null
+		}))
+		.sort((left, right) => (left.email ?? '').localeCompare(right.email ?? ''));
 }
 
 async function leaveManagementRows(): Promise<LeaveManagementRows> {
-	const [members, leaves] = await Promise.all([leaveManagementMembers(), leaveInFull()]);
-	return { members, leaves };
+	const [members, balances, leaves] = await Promise.all([
+		leaveManagementMembers(),
+		everyLeaveBalance(),
+		leaveInFull()
+	]);
+	const grantedTo = new Map(
+		balances.balances.map((balance) => [balance.personID, balance.grantedDays])
+	);
+	return {
+		members: members.map((member) => ({ ...member, leave_days: grantedTo.get(member.id) ?? null })),
+		leaves
+	};
 }
 
-async function readMemberByEmail(email: string): Promise<MemberRow> {
+async function readMemberByEmail(email: string): Promise<DirectoryMember> {
 	const member = (await leaveManagementMembers()).find((row) => row.email === email);
 	if (!member) throw new EmployeeLeaveAPIError('requestNotFound', 404);
 	return member;
