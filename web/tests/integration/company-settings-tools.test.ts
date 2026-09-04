@@ -127,6 +127,19 @@ describe('what the company is set to', () => {
 		]);
 	});
 
+	test('says whether everybody may see the whole company, and lets it be turned off', async () => {
+		expect(resultOf(await asSample('company_settings_get')).teamViewVisibleToAll).toBe(true);
+
+		const hidden = await asAdmin('company_settings_update', { teamViewVisibleToAll: false });
+		expect(hidden.status).toBe(200);
+		expect(resultOf(hidden).teamViewVisibleToAll).toBe(false);
+		expect(resultOf(await asSample('company_settings_get')).teamViewVisibleToAll).toBe(false);
+		expect(resultOf(await asAdmin('company_settings_get')).currencyCode).toBe('USD');
+
+		const shown = await asAdmin('company_settings_update', { teamViewVisibleToAll: true });
+		expect(resultOf(shown).teamViewVisibleToAll).toBe(true);
+	});
+
 	test('refuses a change that names nothing, and a time zone that is not one', async () => {
 		expect((await asAdmin('company_settings_update', {})).status).toBe(400);
 		expect((await asAdmin('company_settings_update', { timeZone: 'Mars/Olympus' })).status).toBe(422);
@@ -287,6 +300,18 @@ describe('the days the company is closed', () => {
 	test('are not a colleague to add or remove', async () => {
 		expect((await asSample('company_holiday_add', { date: '2026-12-25', name: '성탄절' })).status).toBe(403);
 		expect((await asSample('company_holiday_delete', { holidayHint: '2026-10-03' })).status).toBe(403);
+	});
+
+	// The holidays and the team view rule share one column, so a write of either
+	// that does not merge takes the other with it.
+	test('outlive a change to whether the team view is visible to everybody', async () => {
+		await asAdmin('company_settings_update', { teamViewVisibleToAll: false });
+
+		const listed = await asAdmin('company_holiday_list');
+		const holidays = resultOf(listed).holidays as { date: string }[];
+		expect(holidays.map((holiday) => holiday.date)).toEqual(['2026-01-01', '2026-10-03']);
+
+		await asAdmin('company_settings_update', { teamViewVisibleToAll: true });
 	});
 });
 

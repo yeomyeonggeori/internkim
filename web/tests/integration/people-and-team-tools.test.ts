@@ -185,6 +185,11 @@ describe('a directory entry written through the two homes it lives in', () => {
 		expect(written?.handle).toBe(`@${slug}-sample`);
 	}, networkHookTimeout);
 
+	test('names which of them is asking', async () => {
+		expect(resultOf(await asSample('person_list')).requesterID).toBe(sampleID);
+		expect(resultOf(await asAdmin('person_list')).requesterID).toBe(adminID);
+	}, networkHookTimeout);
+
 	test('lets a person correct their own phone number and start date', async () => {
 		const written = resultOf(
 			await asSample('person_update', { personHint: sampleID, phoneNumber: '010-1111-2222', hireDate: '2026-04-01' })
