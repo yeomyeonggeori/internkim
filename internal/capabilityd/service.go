@@ -23,6 +23,7 @@ import (
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
@@ -139,7 +140,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterWebBaseURL:          "https://openrouter.ai/api/v1/chat/completions",
 		OpenRouterEmbeddingBaseURL:    "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:      llmbackend.DefaultEmbeddingModelName,
-		OpenRouterImageModel:          "google/gemini-3.1-flash-lite-image",
+		OpenRouterImageModel:          modelladder.ImageModel,
 		EmbeddingProviderOrder:        llmbackend.DefaultLocalEmbeddingProviderOrder,
 		OllamaBaseURL:                 "http://127.0.0.1:11434",
 		OllamaModel:                   "gemma3:1b",

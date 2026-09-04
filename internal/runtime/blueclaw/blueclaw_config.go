@@ -8,6 +8,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 )
 
 const (
@@ -16,7 +18,7 @@ const (
 	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
 	BlueclawGuestDefaultVirtualCPUCount                 = 2
 	BlueclawGuestDefaultMemoryMiB                       = 4096
-	BlueclawTestEscalationModelName                     = "z-ai/glm-5.3-flash"
+	BlueclawTestEscalationModelName                     = modelladder.PrimaryModel
 	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
 	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
 	BlueclawTestMaximumModelTierEnvironment             = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
@@ -160,11 +162,11 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	}
 
 	capabilityLanguageModel := map[string]any{
-		"executionMode":         languageModelExecutionMode,
-		"model":                 BlueclawDefaultModelName,
-		"contextWindowTokens":   BlueclawDefaultModelContextTokens,
-		"requireParameters":     true,
-		"enableResponseHealing": true,
+		"executionMode": languageModelExecutionMode,
+		"model":         BlueclawDefaultModelName,
+	}
+	for tier, modelName := range modelladder.TierModelNames() {
+		capabilityLanguageModel[tier+"Model"] = modelName
 	}
 	if strings.TrimSpace(options.ModelName) != "" {
 		modelName := strings.TrimSpace(options.ModelName)
@@ -175,12 +177,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			}
 			capabilityLanguageModel["mediumModel"] = BlueclawTestEscalationModelName
 		}
-	}
-	if maximumModelTier := strings.TrimSpace(options.MaximumModelTier); maximumModelTier != "" {
-		capabilityLanguageModel["maximumModelTier"] = maximumModelTier
-	}
-	if minimumModelTier := strings.TrimSpace(options.MinimumModelTier); minimumModelTier != "" {
-		capabilityLanguageModel["minimumModelTier"] = minimumModelTier
 	}
 
 	capabilityVSockPort := firstPositiveInt(options.CapabilityVSockPort, CapabilityVSockPort)
@@ -257,9 +253,15 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 		agentConfiguration["generationOptions"] = generationOptions
 	}
 	languageModelConfiguration := map[string]any{
-		"defaultProvider":  "capabilityLLM",
-		"fallbackProvider": "",
-		"capability":       capabilityLanguageModel,
+		"contextWindowTokens": BlueclawDefaultModelContextTokens,
+		"embedding":           map[string]any{"model": modelladder.EmbeddingModel},
+		"capability":          capabilityLanguageModel,
+	}
+	if maximumModelTier := strings.TrimSpace(options.MaximumModelTier); maximumModelTier != "" {
+		languageModelConfiguration["maximumModelTier"] = maximumModelTier
+	}
+	if minimumModelTier := strings.TrimSpace(options.MinimumModelTier); minimumModelTier != "" {
+		languageModelConfiguration["minimumModelTier"] = minimumModelTier
 	}
 	capabilityContract := CurrentCapabilityContract()
 

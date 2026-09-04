@@ -177,6 +177,8 @@
   "MEASURE_TOPIC": {"process": "relay diagnostics", "description": "the Realtime topic host/relay/measure-broadcast-ceiling.ts binary-searches the broadcast size ceiling against; defaults to \"size-probe\""},
   "MESSENGER_PLATFORM": {"process": "relay, host", "description": "which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it"},
   "MIGRATION_DIRECTORY_PATH": {"process": "tools/render-company-runtime", "description": "the Blueclaw migrations directory rendered into the company plane's runtime document; defaults to /opt/blueclaw/migrations"},
+  "MODEL_API_KEY_PATH": {"process": "tools/render-company-runtime", "description": "the path to the file holding the key the rendered model ladder names on every endpoint, so the key never lands in the runtime document; defaults to the file capabilityd is given"},
+  "MODEL_ENDPOINT": {"process": "tools/render-company-runtime", "description": "the OpenAI-compatible endpoint the rendered model ladder reaches, for a company running its models through a gateway of its own; defaults to the ladder's own endpoint"},
   "OLLAMA_INSTALL_HOST": {"process": "tools/install-ollama-jetson", "description": "the remote Jetson host Ollama is installed on"},
   "OLLAMA_INSTALL_PASSWORD": {"process": "tools/install-ollama-jetson", "description": "the SSH password for the remote Jetson host"},
   "OLLAMA_INSTALL_USER": {"process": "tools/install-ollama-jetson", "description": "the SSH user for the remote Jetson host"},
