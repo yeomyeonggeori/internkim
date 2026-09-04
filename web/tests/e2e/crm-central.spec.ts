@@ -179,9 +179,14 @@ async function settledNoteOf(page: Page): Promise<string> {
 	return (await note.innerText()).trim();
 }
 
+async function openAdministratorSettings(page: Page): Promise<void> {
+	await page.getByRole('tab', { name: '관리자' }).click();
+}
+
 test('an administrator moves the company onto another base currency', async ({ page }) => {
 	await signIn(page);
 	await page.goto('/example-co/settings');
+	await openAdministratorSettings(page);
 	const currency = page.getByLabel('기준 통화');
 	await expect(currency).toContainText('KRW', { timeout: 20000 });
 
@@ -195,6 +200,7 @@ test('an administrator moves the company onto another base currency', async ({ p
 	await saved;
 
 	await page.reload();
+	await openAdministratorSettings(page);
 	await expect(page.getByLabel('기준 통화')).toContainText('USD', { timeout: 20000 });
 });
 
