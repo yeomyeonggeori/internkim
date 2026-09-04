@@ -15,7 +15,7 @@ long-lived bidirectional JSON-RPC stream, so they cannot share a listener.
 `github.com/coder/acp-go-sdk` is pinned at **v0.13.5**, already in blueclaw's
 `go.mod`; the relay takes `@agentclientprotocol/sdk@1.4.0`. Both speak protocol
 version 1. blueclaw implements `acp.Agent`; the restart path below adds the
-optional `acp.AgentLoader`. The SDK lacks nothing this design needs.
+optional `acp.AgentLoader`.
 
 `internal/acpharness`, where blueclaw is the client driving an external agent,
 is the harness axis (`harness-split-design.md` §3) and is untouched. This is
@@ -103,11 +103,10 @@ call carrying neither.
 ## Restart
 
 The held call is persisted exactly as today, as `agentcontract.HeldCall` on the
-task event ledger, and nothing new is written down. Its id is derived from it —
-`approvalgate.HeldCallID`, a digest of `CanonicalToolCallKey` — so it is the
-same value in the ledger, in `RequestPermissionRequest.ToolCall.ToolCallId` and
-in `approvedCallID` on the wire, and a restarted daemon recomputes it from the
-record it already has.
+task event ledger. Its id is derived from it — `approvalgate.HeldCallID`, a
+digest of `CanonicalToolCallKey` — so it is the same value in the ledger, in
+`RequestPermissionRequest.ToolCall.ToolCallId` and in `approvedCallID` on the
+wire, and a restarted daemon recomputes it from the record it already has.
 
 So that a restart finds something, the ACP gate records the held call and
 pauses the run to `waiting_approval` before it blocks on `RequestPermission`,
@@ -123,10 +122,9 @@ blueclaw persists nothing about the session. blueclaw reads the ledger, finds
 every task run in `waiting_approval` for that conversation, and re-issues
 `RequestPermission` with the same held-call id — after answering the load,
 since the client is blocked on that response. The relay deduplicates on that
-id, holding the person's raw words and not the agent's reading of them: a
-question it already asked is not asked again, and an answer it already has goes
-to the new agent to read for itself. An approving answer relaunches the run as
-an approval continuation.
+id, holding the person's raw words and not the agent's reading of them, so an
+answer it already has goes to the new agent to read for itself. An approving
+answer relaunches the run as an approval continuation.
 
 The relay's own restart is symmetric: `held-question-store.ts` persists each
 question beside the inbound queue and reloads it at boot, so a re-issued call
@@ -138,9 +136,9 @@ is answered from the store, or waits, without asking again.
 flag `-inbound` taking `connectors` or `acp`. The binary's default stays
 **`connectors`** and `host/entrypoint.sh` passes `-inbound acp`, so which path
 a company runs is decided where a company is brought up, and the frozen device
-passes no such flag. Under
-`acp`, `/connectors/{platform}/events` answers 409 naming the flag, so a chatd
-still posting is loud rather than quietly doubling the turn.
+passes no such flag. Under `acp`, `/connectors/{platform}/events` answers 409
+naming the flag, so a chatd still posting is loud rather than quietly doubling
+the turn.
 
 3c stops the plane stamping: `--print-capabilities` prints capabilityd's
 address, and a document that stamps nothing takes its descriptors from
@@ -153,5 +151,4 @@ pairing rule are the frozen device's, and stay until it is retired.
 
 The MCP endpoint and per-session token on `session/new`, and the ladder on
 `_meta`. Carrying a value nothing reads is dead configuration, so `session/new`
-carries the requester and the addressing and nothing else. Until the endpoint is carried, the catalog is
-reached through capabilityd's `/v1/mcp`.
+carries the requester and the addressing and nothing else.
