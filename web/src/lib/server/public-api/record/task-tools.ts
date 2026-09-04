@@ -1,6 +1,11 @@
 import { compatibilityOwnerOf } from '$lib/task/central-task';
 import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
-import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
+import {
+	WorkspaceTaskSize,
+	WorkspaceTaskStatus,
+	type TaskLabelVocabulary,
+	type TaskVocabularySetInput
+} from '../catalog/tools';
 import {
 	crmColumnsWritten,
 	opportunityOfCRMHint,
@@ -24,6 +29,7 @@ import {
 	taskWriteArguments,
 	type TaskRow
 } from './tasks';
+import { labelsOfVocabulary, type CompanyLabels } from './labels';
 
 type TaskWritten = {
 	title?: string;
@@ -39,6 +45,7 @@ type TaskWritten = {
 	opportunityHint?: string;
 	contactHint?: string;
 	dueAt?: string;
+	parentTaskHint?: string;
 };
 
 export type AnsweredPerson = {
@@ -50,8 +57,12 @@ export type AnsweredPerson = {
 
 export type AnsweredTask = {
 	taskID: string;
+	parentTaskID: string;
 	organizationID: string;
 	opportunityID: string;
+	requesterID: string;
+	requesterName: string;
+	createdAt: string;
 	content: string;
 	ownerID: string;
 	ownerName: string;
@@ -97,10 +108,15 @@ function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 	const participants = participantsOf(context, row);
 	const owner = ownerOf(context, row);
 	const endDate = dayOfInstant(context.labels.timezone, row.ends_at);
+	const requesterID = row.requester_id ?? '';
 	return {
 		taskID: row.id,
+		parentTaskID: row.parent_task_id ?? '',
 		organizationID: row.organization_id ?? '',
 		opportunityID: row.opportunity_id ?? '',
+		requesterID,
+		requesterName: context.people.find((person) => person.personID === requesterID)?.name ?? '',
+		createdAt: row.created_at,
 		content: row.title,
 		ownerID: owner.id,
 		ownerName: owner.name,
@@ -119,6 +135,11 @@ function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 
 type WrittenTaskFields = ReturnType<typeof writtenFields>;
 
+function instantOrNothing(timezone: string, written: string | undefined, endOfDay = false): string | null | undefined {
+	if (written === undefined) return undefined;
+	return written.trim() ? instantWritten(timezone, written, endOfDay) : null;
+}
+
 export async function taskRowOfHint(context: RecordContext, hint: string): Promise<TaskRow> {
 	const tasks = await tasksOfCompany(context.caller, false);
 	return taskOfHint(tasks, hint, 'task', context.requesterID);
@@ -136,12 +157,8 @@ function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRo
 		note: written.note,
 		business: labelOf(context.labels.businesses, written.business, row ? row.business : null),
 		type: labelOf(context.labels.types, written.type, row ? row.type : null),
-		startsAt:
-			written.startsAt === undefined ? undefined : instantWritten(context.labels.timezone, written.startsAt),
-		endsAt:
-			written.endsAt === undefined
-				? undefined
-				: instantWritten(context.labels.timezone, written.endsAt, true),
+		startsAt: instantOrNothing(context.labels.timezone, written.startsAt),
+		endsAt: instantOrNothing(context.labels.timezone, written.endsAt, true),
 		participantIDs: participantsOfHints(
 			context.people,
 			written.participantPersonHints,
@@ -156,10 +173,11 @@ export async function taskAdd(context: RecordContext, input: TaskWritten): Promi
 	const participantIDs = written.participantIDs ?? [context.requesterID];
 
 	const tasks = await tasksOfCompany(context.caller, false);
+	const parentTaskID = input.parentTaskHint?.trim() ? taskOfHint(tasks, input.parentTaskHint, 'task').id : null;
 	const duplicate = duplicateJustAdded(context, tasks, participantIDs, input.title.trim());
 	const saved = duplicate
 		? (await mergedIntoDuplicate(context, duplicate, input)).id
-		: await saveTask(context.caller, taskWriteArguments(null, { ...written, participantIDs }));
+		: await saveTask(context.caller, taskWriteArguments(null, { ...written, participantIDs, parentTaskID }));
 
 	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, duplicate ?? null));
 	return answeredTask(context, await taskByID(context, saved));
@@ -222,18 +240,52 @@ function isNewMoment(written: string | null | undefined, held: string | null): b
 	return held === null || !isTheSameMoment(held, written);
 }
 
-export async function taskUpdate(
-	context: RecordContext,
-	input: TaskWritten & { taskHint?: string }
-): Promise<AnsweredTask> {
+type TaskUpdateInput = TaskWritten & { taskHint?: string; childTaskHints?: string[] };
+
+// Everything else the caller can name is a column task_save writes. These three
+// are not, so an update naming only these has no column to write.
+const fieldsThatAreNotColumns = new Set(['taskHint', 'parentTaskHint', 'childTaskHints']);
+
+function namesAColumn(input: TaskUpdateInput): boolean {
+	return Object.keys(input).some((field) => !fieldsThatAreNotColumns.has(field));
+}
+
+export async function taskUpdate(context: RecordContext, input: TaskUpdateInput): Promise<AnsweredTask> {
 	if (!input.taskHint) throw new Error('an update names the task it changes');
 	const row = await taskRowOfHint(context, input.taskHint);
+
+	if (input.parentTaskHint !== undefined) await writeTaskParent(context, row, input.parentTaskHint);
+	if (input.childTaskHints !== undefined) await linkTaskChildren(context, row, input.childTaskHints);
+	if (!namesAColumn(input)) return answeredTask(context, await taskByID(context, row.id));
+
 	const written = writtenFields(context, input, row);
 	const saved = await saveTask(context.caller, taskWriteArguments(row, written));
 	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, row));
 	const patched = await taskByID(context, saved);
 	refuseUnlessPatched(written, patched);
 	return answeredTask(context, patched);
+}
+
+async function writeTaskParent(context: RecordContext, row: TaskRow, hint: string): Promise<void> {
+	const named = hint.trim();
+	const parent = named ? taskOfHint(await tasksOfCompany(context.caller, false), named, 'task').id : null;
+	if (parent === row.id) throw new Error('a task cannot be its own parent');
+	const { error } = await context.caller.rpc('task_parent_set', {
+		target_task_id: row.id,
+		target_parent_task_id: parent
+	});
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+}
+
+async function linkTaskChildren(context: RecordContext, row: TaskRow, hints: string[]): Promise<void> {
+	if (hints.length === 0) return;
+	const tasks = await tasksOfCompany(context.caller, false);
+	const childIDs = hints.map((hint) => taskOfHint(tasks, hint, 'task').id);
+	const { error } = await context.caller.rpc('task_children_link', {
+		parent_id: row.id,
+		child_ids: childIDs
+	});
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 }
 
 // supabase/migrations/20260831000011_dates_drive_the_status_and_guard_it.sql
@@ -344,6 +396,7 @@ export type TaskListInput = {
 	status?: string;
 	organizationHint?: string;
 	opportunityHint?: string;
+	everyWeek?: boolean;
 	limit?: number;
 };
 
@@ -355,7 +408,9 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 	const organization = input.organizationHint
 		? await organizationOfCRMHint(context, input.organizationHint)
 		: null;
-	const everyWeek = Boolean(deal || organization) && input.weekFrom === undefined && input.weekTo === undefined;
+	const everyWeek =
+		input.everyWeek === true ||
+		(Boolean(deal || organization) && input.weekFrom === undefined && input.weekTo === undefined);
 
 	const rows = (await tasksOfCompany(context.caller, false)).filter((row) => {
 		if (ownerID && !row.task_participant.some(({ member_id }) => member_id === ownerID)) return false;
@@ -375,13 +430,54 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 		statusFilter: input.status ?? '',
 		count: kept.length,
 		tasks: kept.map((row) => answeredTask(context, row)),
-		registeredLabels: {
-			businesses: context.labels.businesses,
-			types: context.labels.types,
-			sizes: Object.values(WorkspaceTaskSize),
-			statuses: Object.values(WorkspaceTaskStatus)
-		}
+		registeredLabels: registeredLabelsOf(context.labels)
 	};
+}
+
+function registeredLabelsOf(labels: CompanyLabels): TaskLabelVocabulary {
+	return {
+		businesses: labels.businesses,
+		types: labels.types,
+		sizes: Object.values(WorkspaceTaskSize),
+		statuses: Object.values(WorkspaceTaskStatus),
+		...(labels.etcBusinessColor ? { etcBusinessColor: labels.etcBusinessColor } : {}),
+		...(labels.etcTypeColor ? { etcTypeColor: labels.etcTypeColor } : {})
+	};
+}
+
+const dependentObjectsStillExist = '2BP01';
+
+export async function taskVocabularySet(
+	context: RecordContext,
+	input: TaskVocabularySetInput
+): Promise<TaskLabelVocabulary> {
+	const { error } = await context.caller.rpc('task_vocabulary_save', {
+		target_vocabulary: {
+			businesses: input.businesses ?? [],
+			types: input.types ?? [],
+			...(input.etcBusinessColor ? { etcBusinessColor: input.etcBusinessColor } : {}),
+			...(input.etcTypeColor ? { etcTypeColor: input.etcTypeColor } : {})
+		}
+	});
+	if (error) throw refusedVocabularyWrite(error.message, error.code);
+	return registeredLabelsOf(await labelsAfterTheWrite(context));
+}
+
+async function labelsAfterTheWrite(context: RecordContext): Promise<CompanyLabels> {
+	const company = await context.caller
+		.from('company')
+		.select('task_vocabulary')
+		.limit(1)
+		.single<{ task_vocabulary: unknown }>();
+	if (company.error) throw new Error(company.error.message);
+	return labelsOfVocabulary(company.data.task_vocabulary, context.labels.timezone);
+}
+
+function refusedVocabularyWrite(reason: string, code: string | undefined): RecordRefusedTheWrite {
+	if (code === dependentObjectsStillExist) {
+		return new RecordRefusedTheWrite(reason, 409, 'task_label_in_use');
+	}
+	return new RecordRefusedTheWrite(reason, statusOfPostgresCode(code));
 }
 
 export { displayNameOf, personOfHint };

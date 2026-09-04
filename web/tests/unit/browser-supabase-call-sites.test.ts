@@ -36,7 +36,7 @@ describe('direct Supabase calls in browser-reachable modules', () => {
 		expect(isBrowserReachable('src/routes/task/+page.server.ts')).toBe(false);
 		expect(isBrowserReachable('src/routes/api/v1/[...path]/+server.ts')).toBe(false);
 		expect(isBrowserReachable('src/hooks.server.ts')).toBe(false);
-		expect(isBrowserReachable('src/lib/task/supabase-task.ts')).toBe(true);
+		expect(isBrowserReachable('src/lib/task/task-record.ts')).toBe(true);
 		expect(isBrowserReachable('src/routes/task/+page.svelte')).toBe(true);
 	});
 

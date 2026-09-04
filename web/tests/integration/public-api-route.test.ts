@@ -261,6 +261,33 @@ describe('a tool whose rows live in the record', () => {
 		expect((answered.body as { tool: string }).tool).toBe('person_list');
 	});
 
+	// The route reads a blank as a field left out wherever the field refuses one,
+	// so a clearing this side of it has to survive that read to reach the record.
+	test('takes a task out from under its parent, which is a blank the route must not swallow', async () => {
+		const parent = await invoke('task_add', holdersToken, { title: '경로를 지나는 상위 업무' });
+		const child = await invoke('task_add', holdersToken, {
+			title: '경로를 지나는 하위 업무',
+			parentTaskHint: resultOf(parent).taskID as string
+		});
+		expect(resultOf(child).parentTaskID).toBe(resultOf(parent).taskID as string);
+
+		const released = await invoke('task_update', holdersToken, {
+			taskHint: resultOf(child).taskID as string,
+			parentTaskHint: ''
+		});
+		expect(released.status).toBe(200);
+		expect(resultOf(released).parentTaskID).toBe('');
+	});
+
+	test('is reachable even when the model is never shown it, which is how the board writes labels', async () => {
+		const answered = await invoke('task_vocabulary_set', administratorsToken, {
+			businesses: [{ name: '사업하나', color: '#2563eb' }],
+			types: [{ name: '개선' }]
+		});
+		expect(answered.status).toBe(200);
+		expect((resultOf(answered).businesses as { name: string }[]).map((label) => label.name)).toEqual(['사업하나']);
+	});
+
 	test('is refused by rung before it runs', async () => {
 		const answered = await reach('/tools/task_delete/invoke', readersToken, {
 			method: 'POST',

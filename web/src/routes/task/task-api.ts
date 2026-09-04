@@ -1,17 +1,15 @@
 import type { TaskDefinitions, TaskState, TaskSummary, Task, TaskWeeklySummary } from './task-types';
 import type { TaskBoardMoveRequest } from './task-board-drag';
 import {
-	deleteSupabaseTask,
-	moveSupabaseTask,
-	saveSupabaseTask,
-	saveSupabaseTaskVocabulary,
-	supabaseTaskState,
-	supabaseTaskWeeklySummary
-} from '$lib/task/supabase-task';
-import {
-	updateSupabaseTaskParent,
-	updateSupabaseTaskParents
-} from '$lib/task/supabase-task-relationships';
+	moveTask,
+	removeTask,
+	saveTask as saveTaskOnRecord,
+	saveTaskVocabulary,
+	taskState,
+	taskWeeklySummary,
+	updateTaskParent as setTaskParentOnRecord,
+	updateTaskParents as setTaskParentsOnRecord
+} from '$lib/task/task-state';
 import { callCompanyApp } from '$lib/host-bridge';
 
 export type TaskQuickTaskRequest = {
@@ -28,11 +26,11 @@ export type TaskQuickTaskResult = {
 };
 
 export function fetchTaskWeeklySummary(week: string): Promise<TaskWeeklySummary> {
-	return supabaseTaskWeeklySummary(week);
+	return taskWeeklySummary(week);
 }
 
 export function fetchTaskState(): Promise<TaskState> {
-	return supabaseTaskState();
+	return taskState();
 }
 
 export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySummary): TaskSummary {
@@ -78,24 +76,24 @@ function companyAppErrorMessage(body: unknown, fallback: string): string {
 }
 
 export function saveTask(task: Task, statusBefore: string | null): Promise<void> {
-	return saveSupabaseTask(task, statusBefore);
+	return saveTaskOnRecord(task, statusBefore);
 }
 
 export function moveTaskOnBoard(request: TaskBoardMoveRequest): Promise<void> {
-	return moveSupabaseTask(request.taskID, request.targetStatus);
+	return moveTask(request.taskID, request.targetStatus);
 }
 
 export function deleteTask(taskID: string): Promise<void> {
-	return deleteSupabaseTask(taskID);
+	return removeTask(taskID);
 }
 
 export function updateTaskParent(taskID: string, parentTaskID: string | undefined): Promise<void> {
-	return updateSupabaseTaskParent(taskID, parentTaskID ?? null);
+	return setTaskParentOnRecord(taskID, parentTaskID ?? null);
 }
 
 export async function updateTaskParents(taskIDs: string[], parentTaskID: string): Promise<void> {
 	if (taskIDs.length === 0) return;
-	return updateSupabaseTaskParents(taskIDs, parentTaskID);
+	return setTaskParentsOnRecord(taskIDs, parentTaskID);
 }
 
 export function saveTaskDefinitions(
@@ -103,7 +101,7 @@ export function saveTaskDefinitions(
 	fallbackMessage: string,
 	inUseMessage: string
 ): Promise<void> {
-	return saveSupabaseTaskVocabulary(definitions, { failure: fallbackMessage, inUse: inUseMessage });
+	return saveTaskVocabulary(definitions, { failure: fallbackMessage, inUse: inUseMessage });
 }
 
 function quickTaskResultFromResponse(value: unknown): TaskQuickTaskResult {

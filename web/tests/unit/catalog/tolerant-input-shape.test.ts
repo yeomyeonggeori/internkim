@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { capabilityToolInputSchema } from '../../../src/lib/server/public-api/catalog/tools';
-import { refusalOfToolInput } from '../../../src/lib/server/public-api/tool-input';
+import { refusalOfToolInput, toolInputRecovered } from '../../../src/lib/server/public-api/tool-input';
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
 
 type FieldSchema = { safeParse(value: unknown): { success: boolean } };
@@ -67,5 +67,34 @@ describe('a whole call written the way a model writes one', () => {
 	test('a field that must be given is refused by name when it is sent empty', () => {
 		expect(refusalOfToolInput('task_add', { title: null })).toContain('input.title');
 		expect(refusalOfToolInput('task_add', { title: '' })).toBeNull();
+	});
+});
+
+describe('a blank the field itself takes', () => {
+	test('is kept, because it is what takes a task out from under its parent', () => {
+		expect(toolInputRecovered('task_update', { taskHint: 'a-task', parentTaskHint: '' })).toEqual({
+			taskHint: 'a-task',
+			parentTaskHint: ''
+		});
+		expect(refusalOfToolInput('task_update', { taskHint: 'a-task', parentTaskHint: '' })).toBeNull();
+	});
+
+	test('is kept for a date, which is what takes the date off', () => {
+		expect(toolInputRecovered('task_update', { taskHint: 'a-task', endsAt: '' })).toEqual({
+			taskHint: 'a-task',
+			endsAt: ''
+		});
+	});
+
+	test('is dropped where the field refuses one, so a blank size is a size left out', () => {
+		expect(toolInputRecovered('task_update', { taskHint: 'a-task', size: '', status: '' })).toEqual({
+			taskHint: 'a-task'
+		});
+	});
+
+	test('is dropped when it is null, which no field here takes', () => {
+		expect(toolInputRecovered('task_update', { taskHint: 'a-task', parentTaskHint: null })).toEqual({
+			taskHint: 'a-task'
+		});
 	});
 });

@@ -94,15 +94,13 @@ test('a card dragged into another column carries that status on the record', asy
 
 test('a move the record refuses puts the card back and says why', async ({ page }) => {
 	const [refusedTaskID] = await seedForThisRun([{ title: 'E2E 보드 거절 대상', status: 'planned' }]);
-	await page.route('**/rest/v1/rpc/task_save', async (route) => {
+	await page.route('**/api/v1/tools/task_update/invoke', async (route) => {
 		await route.fulfill({
 			status: 409,
 			contentType: 'application/json',
 			body: JSON.stringify({
-				code: '40001',
-				details: null,
-				hint: null,
-				message: 'task changed since it was read'
+				error: 'task changed since it was read',
+				errorCode: 'record_refused'
 			})
 		});
 	});

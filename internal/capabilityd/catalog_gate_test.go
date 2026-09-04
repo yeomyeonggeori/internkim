@@ -768,6 +768,15 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"id":"partnership"`)
 			},
 		},
+		"task_vocabulary_set": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"task_vocabulary_set","result":{"businesses":[{"name":"\uc0ac\uc5c5\ud558\ub098","color":"#2563eb"}],"types":[{"name":"\uac1c\uc120"}],"sizes":["XS","S","M","L","XL","XXL"],"statuses":["planned","in_progress","completed","requested","paused","rejected","stopped"],"etcBusinessColor":"#94a3b8"}}`)},
+			input:   `{"businesses":[{"name":"\uc0ac\uc5c5\ud558\ub098","color":"#2563eb"}],"types":[{"name":"\uac1c\uc120"}],"etcBusinessColor":"#94a3b8"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"etcBusinessColor":"#94a3b8"`)
+			},
+		},
 		"person_update": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_update","result":{"personID":"person-1","name":"\uc774\uc0d8\ud50c","email":"member@example.com","handle":"sample","mention":"@\uc774\uc0d8\ud50c","jobTitle":"\ud3b8\uc9d1\uc7a5","teamID":"team-1","teamName":"\ud3b8\uc9d1\ud300","supervisorID":"","supervisorName":"","phoneNumber":"","hireDate":"2026-03-02","isAdmin":false,"employmentStatus":"active"}}`)},
