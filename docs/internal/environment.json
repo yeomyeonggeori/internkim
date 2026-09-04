@@ -200,6 +200,7 @@
   "SMOKE_RELAY_URL": {"process": "host smoke test", "description": "the relay's Buzz websocket URL host/smoke.sh connects to"},
   "SMOKE_SENDER_KEY_PATH": {"process": "host smoke test", "description": "path to the private key host/smoke.sh signs its smoke message with"},
   "SMOKE_WAIT_SECONDS": {"process": "host smoke test", "description": "how long host/smoke.sh and host/smoke-listen.ts wait for the smoke message's answer; defaults to 90"},
+  "RELAY_STATE_DIR": {"process": "relay, host", "description": "where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay"},
   "SUPABASE_ACCESS_TOKEN": {"process": "web scripts", "description": "a Supabase management API access token, read by web/scripts/remote-query.ts"},
   "SUPABASE_DB_URL": {"process": "tooling", "description": "the database supabase/scripts/generate-record-surface.ts reads pg_proc from; defaults to the local Supabase at postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"},
   "SUPABASE_JWKS_URL": {"process": "connection-gateway worker", "description": "override JWKS URL the connection-gateway worker verifies member tokens against, instead of deriving it from SUPABASE_URL"},
