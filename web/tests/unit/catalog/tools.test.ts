@@ -57,6 +57,8 @@ import {
   siteServeResultSchema,
   siteUnserveInputSchema,
   siteUnserveResultSchema,
+  leaveGrantSetInputSchema,
+  leaveReturnEarlyInputSchema,
   taskAddInputSchema,
   taskDeleteInputSchema,
   taskDeleteInputIntentSchema,
@@ -146,8 +148,10 @@ describe('canonical capability tools', () => {
       'leave_balance',
       'leave_decide',
       'leave_delete',
+      'leave_grant_set',
       'leave_list',
       'leave_request',
+      'leave_return_early',
       'leave_update',
       'llm_structured',
       'llm_text',
@@ -262,6 +266,8 @@ describe('canonical capability tools', () => {
       'leave_update',
       'leave_delete',
       'leave_decide',
+      'leave_grant_set',
+      'leave_return_early',
       'attendance_add',
       'attendance_update',
       'attendance_delete',
@@ -867,6 +873,26 @@ describe('canonical capability tools', () => {
     expect(imageTool?.resultContract?.schema.required).toEqual(['status', 'path', 'attachments']);
     expect(documentTool?.inputSchema.properties).not.toHaveProperty('materialID');
     expect(imageTool?.inputSchema.properties).not.toHaveProperty('materialID');
+  });
+});
+
+describe('the leave tools that write an entitlement and a return', () => {
+  test('ask before a grant is set and not before somebody says they are back', () => {
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const grantTool = catalog.tools.find(tool => tool.name === 'leave_grant_set');
+    const returnTool = catalog.tools.find(tool => tool.name === 'leave_return_early');
+
+    expect(grantTool?.requiresApproval).toBe(true);
+    expect(returnTool?.requiresApproval).toBeUndefined();
+    expect(grantTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);
+    expect(returnTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);
+  });
+
+  test('take a person for a grant and nobody for a return', () => {
+    expect(leaveGrantSetInputSchema.safeParse({ personHint: '이샘플', days: 18 }).success).toBe(true);
+    expect(leaveGrantSetInputSchema.safeParse({ days: 18 }).success).toBe(false);
+    expect(leaveReturnEarlyInputSchema.safeParse({}).success).toBe(true);
+    expect(leaveReturnEarlyInputSchema.safeParse({ personHint: '이샘플' }).success).toBe(false);
   });
 });
 

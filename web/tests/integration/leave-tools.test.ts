@@ -35,7 +35,10 @@ beforeAll(async () => {
 	);
 	companyID = provisioned.companyID;
 	adminID = provisioned.adminMemberID;
-	await client.from('company').update({ leave_days: grantedDays }).eq('id', companyID);
+	await client
+		.from('company')
+		.update({ leave_days: grantedDays, work_locations: [{ name: '사무실' }] })
+		.eq('id', companyID);
 
 	sampleID = await addMember(client, companyID, `${slug}-sample@example.test`);
 	await client.from('member').update({ name: '이샘플' }).eq('id', sampleID);
@@ -76,9 +79,47 @@ function resultOf(answer: { status: number; body: unknown }): Record<string, unk
 	return (answer.body as { result: Record<string, unknown> }).result;
 }
 
+type AnsweredBalance = {
+	personID: string;
+	personName: string;
+	grantedDays: number | null;
+	remainingDays: number | null;
+	usedDays: number | null;
+	tracking: string;
+};
+
+const anHour = 60 * 60 * 1000;
+
+// The record clocks a return in against its own clock, not the fixed moment
+// the rest of this suite reads dates at.
+function momentShiftedBy(milliseconds: number): string {
+	return new Date(Date.now() + milliseconds).toISOString();
+}
+
+function todayWhereTheCompanyIs(): string {
+	return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
+}
+
+function balancesOf(answer: { status: number; body: unknown }): AnsweredBalance[] {
+	return resultOf(answer).balances as AnsweredBalance[];
+}
+
+function theOnlyBalanceIn(answer: { status: number; body: unknown }): AnsweredBalance {
+	const balances = balancesOf(answer);
+	expect(balances).toHaveLength(1);
+	return balances[0];
+}
+
 describe('which leave tools run over the record', () => {
-	test('are the four of them', () => {
-		for (const name of ['leave_list', 'leave_balance', 'leave_request', 'leave_decide']) {
+	test('are the six of them', () => {
+		for (const name of [
+			'leave_list',
+			'leave_balance',
+			'leave_request',
+			'leave_decide',
+			'leave_grant_set',
+			'leave_return_early'
+		]) {
 			expect(recordRunsTheTool(name)).toBe(true);
 		}
 	});
@@ -142,7 +183,7 @@ describe('a leave the record has not decided', () => {
 	});
 
 	test('spends nothing until somebody decides it', async () => {
-		const balance = resultOf(await asSample('leave_balance', { year: 2026 }));
+		const balance = theOnlyBalanceIn(await asSample('leave_balance', { year: 2026 }));
 		expect(balance.grantedDays).toBe(grantedDays);
 		expect(balance.remainingDays).toBe(grantedDays);
 		expect(balance.tracking).toBe('managed');
@@ -173,7 +214,7 @@ describe('deciding a leave', () => {
 		);
 		expect(decided.status).toBe('approved');
 
-		const balance = resultOf(await asSample('leave_balance', { year: 2026 }));
+		const balance = theOnlyBalanceIn(await asSample('leave_balance', { year: 2026 }));
 		expect(balance.remainingDays).toBe(grantedDays - 2);
 		expect(balance.usedDays).toBe(2);
 	});
@@ -304,5 +345,82 @@ describe('what the leave screens need out of an answer', () => {
 			days: 1
 		});
 		expect(refused.status).toBeGreaterThanOrEqual(400);
+	});
+});
+
+describe('what a person is entitled to', () => {
+	test('is read for everybody in one call, an administrator asking', async () => {
+		const answer = await asAdmin('leave_balance', { scope: 'all', year: 2026 });
+		expect(resultOf(answer).scope).toBe('everyone');
+
+		const everybody = balancesOf(answer);
+		expect(everybody.map((balance) => balance.personID).sort()).toEqual([adminID, sampleID].sort());
+		expect(everybody.find((balance) => balance.personID === sampleID)?.grantedDays).toBe(grantedDays);
+	});
+
+	test('is read as null for the colleagues a colleague may not read', async () => {
+		const everybody = balancesOf(await asSample('leave_balance', { scope: 'all', year: 2026 }));
+		expect(everybody.find((balance) => balance.personID === sampleID)?.grantedDays).toBe(grantedDays);
+		expect(everybody.find((balance) => balance.personID === adminID)?.grantedDays).toBeNull();
+	});
+
+	test('is set by an administrator, and the answer carries what it became', async () => {
+		const written = resultOf(await asAdmin('leave_grant_set', { personHint: '이샘플', days: 20 }));
+		expect(written.personID).toBe(sampleID);
+		expect(written.grantedDays).toBe(20);
+
+		expect(theOnlyBalanceIn(await asSample('leave_balance', { year: 2026 })).grantedDays).toBe(20);
+	});
+
+	test('is not a colleague to set, for anybody', async () => {
+		expect((await asSample('leave_grant_set', { personHint: '이샘플', days: 30 })).status).toBe(403);
+		expect((await asSample('leave_grant_set', { personHint: '최견본', days: 30 })).status).toBe(403);
+
+		expect(theOnlyBalanceIn(await asSample('leave_balance', { year: 2026 })).grantedDays).toBe(20);
+	});
+
+	test('is refused a number of days below none', async () => {
+		expect((await asAdmin('leave_grant_set', { personHint: '이샘플', days: -1 })).status).toBe(400);
+	});
+});
+
+describe('coming back from leave early', () => {
+	test('stops the leave at this moment, gives the unspent days back, and clocks the person in', async () => {
+		const covering = resultOf(
+			await asSample('leave_request', {
+				kind: '연차',
+				startsAt: momentShiftedBy(-2 * anHour),
+				endsAt: momentShiftedBy(6 * anHour),
+				days: 0.5
+			})
+		);
+		await asAdmin('leave_decide', { leaveHint: covering.leaveID as string, decision: 'approved' });
+
+		const returned = resultOf(await asSample('leave_return_early', { location: '사무실' }));
+		expect(returned.shortened).toBe(true);
+		expect(returned.leaveID).toBe(covering.leaveID);
+		expect(Number(returned.days)).toBeLessThan(0.5);
+		expect(new Date(String(returned.endsAt)).toISOString()).toBe(String(returned.endsAt));
+
+		const today = todayWhereTheCompanyIs();
+		const clocked = resultOf(
+			await asSample('attendance_list', { from: today, to: today, limit: 1 })
+		);
+		const attendance = clocked.attendance as { kind: string; location: string | null }[];
+		expect(attendance[0].kind).toBe('clock_in');
+		expect(attendance[0].location).toBe('사무실');
+	});
+
+	test('clocks somebody in who was not away, and says nothing was shortened', async () => {
+		const returned = resultOf(await asAdmin('leave_return_early', {}));
+		expect(returned.shortened).toBe(false);
+		expect(returned.leaveID).toBeNull();
+		expect(returned.days).toBeNull();
+
+		const today = todayWhereTheCompanyIs();
+		const clocked = resultOf(
+			await asAdmin('attendance_list', { from: today, to: today, limit: 1 })
+		);
+		expect((clocked.attendance as { kind: string }[])[0].kind).toBe('clock_in');
 	});
 });

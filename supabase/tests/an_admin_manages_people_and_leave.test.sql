@@ -99,7 +99,7 @@ begin
 
   begin
     perform public.member_leave_days_set('44000000-0000-0000-0000-0000000000a2', 99);
-  exception when raise_exception then
+  exception when insufficient_privilege then
     own_grant_blocked := true;
   end;
   assert own_grant_blocked, 'a member must not grant leave days to itself';
@@ -122,7 +122,7 @@ begin
 
   begin
     perform public.member_leave_days_set('44000000-0000-0000-0000-0000000000a2', 40);
-  exception when raise_exception then
+  exception when insufficient_privilege then
     reach_blocked := true;
   end;
   assert reach_blocked, 'an administrator must not reach a member of another company';
