@@ -18,8 +18,6 @@ type adminUserMutation struct {
 	GroupID                string   `json:"groupID,omitempty"`
 	PhoneNumber            string   `json:"phoneNumber,omitempty"`
 	SupervisorID           string   `json:"supervisorID,omitempty"`
-	MattermostUserID       string   `json:"mattermostUserID,omitempty"`
-	MattermostUsername     string   `json:"mattermostUsername,omitempty"`
 	Status                 string   `json:"status,omitempty"`
 	TemporaryPassword      string   `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string   `json:"temporaryPasswordEmail,omitempty"`

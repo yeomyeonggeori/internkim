@@ -66,7 +66,7 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 };
 
 export const POST: RequestHandler = async ({ request, platform }) => {
-	const { fleet_id, handle, name, email, hireDate, note, role, admin_token, mattermostUserID, mattermostUsername, status } = (await request.json()) as {
+	const { fleet_id, handle, name, email, hireDate, note, role, admin_token, status } = (await request.json()) as {
 		fleet_id?: string;
 		handle?: string;
 		name?: string;
@@ -75,8 +75,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		note?: string;
 		role?: UserRole;
 		admin_token: string;
-		mattermostUserID?: string;
-		mattermostUsername?: string;
 		status?: string;
 	};
 	const fleetID = normalizeFleetID(fleet_id ?? '');
@@ -107,8 +105,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		email: normalizedEmail,
 		note: note === undefined ? existingRecord?.note : (note ?? '').trim(),
 		role: normalizedRole,
-		mattermostUserID,
-		mattermostUsername,
 		status: askedStatus(status)
 	});
 

@@ -5,8 +5,6 @@ import type { AttendanceEvent } from '../../../src/routes/attendance/attendance-
 function event(kind: 'clock_in' | 'clock_out', occurredAt: string, canceledAt?: string): AttendanceEvent {
 	return {
 		id: `${kind}-${occurredAt}`,
-		mattermostUserID: '',
-		mattermostUsername: '',
 		email: 'sample@example.com',
 		displayName: '이샘플',
 		kind,

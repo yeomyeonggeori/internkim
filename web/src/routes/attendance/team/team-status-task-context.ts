@@ -44,7 +44,7 @@ function taskMatchesMemberIDs(task: Task, memberIDs: string[]): boolean {
 }
 
 function personMatchTokens(person: TeamStatusDayContextPerson): Set<string> {
-	return new Set([person.email, person.displayName, person.mattermostUsername ?? ''].map(normalizeToken).filter(Boolean));
+	return new Set([person.email, person.displayName].map(normalizeToken).filter(Boolean));
 }
 
 function normalizeToken(value: string): string {

@@ -307,8 +307,6 @@ function attendanceEvent(
 ): AttendanceEvent {
 	return {
 		id,
-		mattermostUserID: 'user-1',
-		mattermostUsername: 'user',
 		email: 'user@example.com',
 		displayName: 'User',
 		kind,

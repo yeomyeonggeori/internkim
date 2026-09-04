@@ -95,9 +95,6 @@ func membersFromUserRecords(records []adminUserMutation) []taskMember {
 		}
 		name := strings.TrimSpace(record.Name)
 		if name == "" {
-			name = strings.TrimSpace(record.MattermostUsername)
-		}
-		if name == "" {
 			name = strings.TrimSuffix(email, "@"+emailDomain(email))
 		}
 		id := stableTaskID(email)
@@ -105,7 +102,6 @@ func membersFromUserRecords(records []adminUserMutation) []taskMember {
 			ID:                 id,
 			Name:               name,
 			Email:              email,
-			MattermostUsername: strings.TrimSpace(firstNonEmpty(record.MattermostUsername, record.Handle)),
 			HireDate:           strings.TrimSpace(record.HireDate),
 			Role:               normalizeAdminUserRole(record.Role),
 			MattermostStatus:   firstNonEmpty(record.Status, "active"),

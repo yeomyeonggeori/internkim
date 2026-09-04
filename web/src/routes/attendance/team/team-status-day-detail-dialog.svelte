@@ -52,7 +52,7 @@
 					<div class="min-w-0">
 						<p class="truncate text-sm font-semibold" data-testid="team-status-day-detail-person">{detail.displayName}</p>
 						<p class="truncate text-xs text-muted-foreground">
-							{detail.mattermostUsername ? `@${detail.mattermostUsername}` : detail.email}
+							{detail.email}
 						</p>
 					</div>
 				</div>
