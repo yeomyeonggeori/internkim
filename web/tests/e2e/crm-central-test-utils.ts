@@ -4,7 +4,7 @@ import { centralPlaneAdminClient, exampleCompanyID } from './central-test-utils'
 
 export async function signInToTheCRM(page: Page, email?: string): Promise<void> {
 	await signInToTheCentralPlane(page, '/example-co/crm', email);
-	await page.getByRole('button', { name: '빠른 추가' }).waitFor({ state: 'visible', timeout: 20000 });
+	await page.locator('[data-crm-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
 }
 
 export async function openQuickAdd(page: Page, kind: string): Promise<void> {
