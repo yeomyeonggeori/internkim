@@ -70,7 +70,7 @@ export type TeamStatusPersonDay = {
 	timelineSegments: TeamStatusPersonDayTimelineSegment[];
 };
 
-export type TeamStatusPersonRow = Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'> & {
+export type TeamStatusPersonRow = Pick<PersonToday, 'memberID' | 'email' | 'displayName' | 'image'> & {
 	currentLocationName?: string;
 	currentLocationColor?: string;
 	days: TeamStatusPersonDay[];
@@ -158,7 +158,7 @@ function buildTeamRowsForDates(
 function buildTeamPeopleForDates(
 	summary: AttendanceSummary,
 	dates: string[]
-): Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'>[] {
+): Pick<PersonToday, 'memberID' | 'email' | 'displayName' | 'image'>[] {
 	if ((summary.members?.length ?? 0) > 0) {
 		return summary.members.map(attendanceMemberToTeamPerson);
 	}
@@ -172,12 +172,12 @@ function buildTeamPeopleForDates(
 	return uniquePeople(events, absences);
 }
 
-function attendanceMemberToTeamPerson(member: AttendanceMember): Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'> {
+function attendanceMemberToTeamPerson(member: AttendanceMember): Pick<PersonToday, 'memberID' | 'email' | 'displayName' | 'image'> {
 	return {
+		memberID: member.memberID,
 		email: member.email,
-		displayName: member.displayName || member.mattermostUsername || member.email,
-		image: member.image,
-		mattermostUsername: member.mattermostUsername,
+		displayName: member.displayName || member.email,
+		image: member.image
 	};
 }
 

@@ -3,7 +3,6 @@ import type { AttendancePresence, AttendanceSummary } from './src/routes/attenda
 export type DevAttendancePerson = {
 	email: string;
 	name: string;
-	mattermostUsername: string;
 	baseHour: number;
 	baseMinute: number;
 };
@@ -11,12 +10,12 @@ export type DevAttendancePerson = {
 export type DevAttendanceLocation = AttendanceSummary['locations'][number];
 
 export const devAttendancePeople: DevAttendancePerson[] = [
-	{ email: 'kim@example.com', name: '김철수', mattermostUsername: 'kim', baseHour: 8, baseMinute: 50 },
-	{ email: 'member1@example.com', name: '이영희', mattermostUsername: 'leesample', baseHour: 8, baseMinute: 45 },
-	{ email: 'park@example.com', name: '박지민', mattermostUsername: 'park', baseHour: 9, baseMinute: 5 },
-	{ email: 'choi@example.com', name: '최민준', mattermostUsername: 'choi', baseHour: 9, baseMinute: 10 },
-	{ email: 'jung@example.com', name: '정수아', mattermostUsername: 'jung', baseHour: 8, baseMinute: 55 },
-	{ email: 'kang@example.com', name: '강민호', mattermostUsername: 'kang', baseHour: 9, baseMinute: 20 },
+	{ email: 'kim@example.com', name: '김철수', baseHour: 8, baseMinute: 50 },
+	{ email: 'member1@example.com', name: '이영희', baseHour: 8, baseMinute: 45 },
+	{ email: 'park@example.com', name: '박지민', baseHour: 9, baseMinute: 5 },
+	{ email: 'choi@example.com', name: '최민준', baseHour: 9, baseMinute: 10 },
+	{ email: 'jung@example.com', name: '정수아', baseHour: 8, baseMinute: 55 },
+	{ email: 'kang@example.com', name: '강민호', baseHour: 9, baseMinute: 20 },
 ];
 
 export const devAttendanceLocations: AttendanceSummary['locations'] = [

@@ -304,7 +304,7 @@ export type NewUserRequest = {
 	role: UserRole;
 };
 
-export type UserSaveRequest = Pick<UserRecord, 'memberID' | 'handle' | 'email' | 'mattermostUserID' | 'mattermostUsername' | 'status'> & {
+export type UserSaveRequest = Pick<UserRecord, 'memberID' | 'handle' | 'email' | 'status'> & {
 	name: string;
 	hireDate: string;
 	note: string;

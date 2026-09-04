@@ -27,8 +27,6 @@ type commandUserRecord struct {
 	Name                   string `json:"name,omitempty"`
 	Email                  string `json:"email,omitempty"`
 	Role                   string `json:"role,omitempty"`
-	MattermostUserID       string `json:"mattermostUserID,omitempty"`
-	MattermostUsername     string `json:"mattermostUsername,omitempty"`
 	Status                 string `json:"status,omitempty"`
 	TemporaryPassword      string `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string `json:"temporaryPasswordEmail,omitempty"`

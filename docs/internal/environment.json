@@ -156,7 +156,6 @@
   "LIVE_PLANE_APP_URL": {"process": "admind live tests", "description": "the central plane app URL internal/admind/task_notify_live_test.go (a live/manual test) sends a real task notification through"},
   "LIVE_PLANE_PROJECT_URL": {"process": "admind live tests", "description": "the Supabase project URL internal/admind/task_notify_live_test.go (a live/manual test) connects to"},
   "LIVE_PLANE_PUBLISHABLE_KEY": {"process": "admind live tests", "description": "the Supabase publishable key internal/admind/task_notify_live_test.go (a live/manual test) connects with"},
-  "LIVE_REQUESTER_EXTERNAL_ID": {"process": "admind live tests", "description": "the requester's external (messenger) ID internal/admind/task_notify_live_test.go (a live/manual test) sends the notification as"},
   "LIVE_REQUESTER_PERSON_ID": {"process": "admind live tests", "description": "the requester's person ID internal/admind/task_notify_live_test.go (a live/manual test) sends the notification as"},
   "LLAMA_CPP_BUILD_HOST": {"process": "tools/build-llama-cpp-jetson", "description": "the remote build host llama.cpp is cross-built on for the Jetson"},
   "LLAMA_CPP_BUILD_JOBS": {"process": "tools/build-llama-cpp-jetson", "description": "the parallel job count for the remote llama.cpp build"},

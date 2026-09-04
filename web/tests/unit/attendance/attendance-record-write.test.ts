@@ -190,8 +190,6 @@ function createSummary(): AttendanceSummary {
 function createEvent(id: string, kind: AttendanceEvent['kind'], occurredAt: string): AttendanceEvent {
 	return {
 		id,
-		mattermostUserID: '',
-		mattermostUsername: '',
 		email: 'member@example.com',
 		displayName: '구성원',
 		kind,

@@ -4,7 +4,6 @@ type taskMember struct {
 	ID                 string `json:"id"`
 	Name               string `json:"name"`
 	Email              string `json:"email"`
-	MattermostUsername string `json:"mattermostUsername,omitempty"`
 	HireDate           string `json:"hireDate,omitempty"`
 	Role               string `json:"role"`
 	MattermostStatus   string `json:"mattermostStatus"`

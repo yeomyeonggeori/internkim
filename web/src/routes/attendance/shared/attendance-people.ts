@@ -7,10 +7,10 @@ import type { AttendanceWorkSegment } from './attendance-work-segments';
 export type PersonStatus = 'working' | 'finished' | 'absence' | 'absent' | 'weekend' | 'upcoming';
 
 export type PersonToday = {
+	memberID?: string;
 	email: string;
 	displayName: string;
 	image?: string;
-	mattermostUsername: string;
 	status: PersonStatus;
 	clockIn?: AttendanceEvent;
 	clockOut?: AttendanceEvent;
@@ -26,14 +26,13 @@ export type PersonToday = {
 export function uniquePeople(
 	events: AttendanceEvent[],
 	absences: AttendanceAbsence[] = []
-): Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'>[] {
-	const map = new Map<string, Pick<PersonToday, 'email' | 'displayName' | 'image' | 'mattermostUsername'>>();
+): Pick<PersonToday, 'memberID' | 'email' | 'displayName' | 'image'>[] {
+	const map = new Map<string, Pick<PersonToday, 'memberID' | 'email' | 'displayName' | 'image'>>();
 	for (const event of events) {
 		if (!map.has(event.email)) {
 			map.set(event.email, {
 				email: event.email,
-				displayName: event.displayName || event.mattermostUsername || event.email,
-				mattermostUsername: event.mattermostUsername,
+				displayName: event.displayName || event.email
 			});
 		}
 	}
@@ -41,8 +40,7 @@ export function uniquePeople(
 		if (!map.has(absence.email)) {
 			map.set(absence.email, {
 				email: absence.email,
-				displayName: absence.email,
-				mattermostUsername: ''
+				displayName: absence.email
 			});
 		}
 	}

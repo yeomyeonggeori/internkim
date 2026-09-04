@@ -210,8 +210,6 @@ function createEvent(
 ): AttendanceEvent {
 	return {
 		id,
-		mattermostUserID: 'sample',
-		mattermostUsername: 'sample',
 		email: 'sample@example.com',
 		displayName: '이샘플',
 		kind,

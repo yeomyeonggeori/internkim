@@ -220,8 +220,6 @@ function buildFixtureEvent(options: {
 	const { id, person, date, kind, localTime, location, annotation, idSeed } = options;
 	return {
 		id,
-		mattermostUserID: person.mattermostUsername,
-		mattermostUsername: person.mattermostUsername,
 		email: person.email,
 		displayName: person.name,
 		kind,

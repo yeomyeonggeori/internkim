@@ -81,10 +81,10 @@
 		const selectedDay = selectedRow?.days.find((day) => day.date === selectedDetailKey?.date);
 		if (!selectedRow || !selectedDay) return null;
 		return {
+			memberID: selectedRow.memberID,
 			displayName: selectedRow.displayName,
 			email: selectedRow.email,
 			image: selectedRow.image,
-			mattermostUsername: selectedRow.mattermostUsername,
 			day: selectedDay
 		};
 	});

@@ -109,8 +109,6 @@ function summaryWith(...overrides: Partial<AttendanceEvent>[]): AttendanceSummar
 function eventOf(overrides: Partial<AttendanceEvent>): AttendanceEvent {
 	return {
 		id: 'clock-in',
-		mattermostUserID: '',
-		mattermostUsername: '',
 		email: 'member@example.com',
 		displayName: '구성원',
 		kind: 'clock_in',

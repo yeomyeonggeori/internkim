@@ -48,7 +48,7 @@
 			<PersonAvatar
 				name={row.displayName}
 				email={row.email}
-				seed={row.email || row.mattermostUsername || row.displayName}
+				seed={row.email || row.displayName}
 				image={row.image ?? ''}
 				class="size-7 shrink-0"
 			/>
