@@ -81,7 +81,7 @@ func (service *Service) deliverRosterReconciledWith(ctx context.Context, records
 	}
 	reconcileRosterPeople(policyDocument, records, service.alwaysRetainedRosterEmails())
 	if profile, errorValue := service.companyProfile(ctx, service.claimedAdminEmail(), ""); errorValue == nil {
-		policyDocument["company"] = companyPolicySnapshot(profile, service.workspaceTimeZone().name)
+		policyDocument["company"] = companyPolicySnapshot(profile, service.workspaceTimeZone().name, service.workspaceLanguage())
 	}
 	reconciledRoster, errorValue := json.Marshal(policyDocument)
 	if errorValue != nil {
