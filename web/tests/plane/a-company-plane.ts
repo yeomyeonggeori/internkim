@@ -36,6 +36,7 @@ export type ACompanyPlane = {
 	admindURL: string;
 	blueclawURL: string;
 	requesterSocketPath: string;
+	capabilitySocketPath: string;
 	runtimeConfigurationPath: string;
 	connector: ARecordingMessenger;
 	messenger: ARecordingMessenger;
@@ -264,7 +265,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 							'--admind-url': admindURL,
 							'--chatd-endpoint': connector.url,
 							'--chatd-platform': capabilitydPlatform
-						}
+						},
+						{ '--admind-socket': requesterSocketPath }
 					)
 				],
 				{ ...logsTo(join(runDirectory, 'capabilityd.log')), env: theBoxEnvironment() }
@@ -415,6 +417,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			admindURL,
 			blueclawURL,
 			requesterSocketPath,
+			capabilitySocketPath,
 			connector,
 			model,
 			runtimeConfigurationPath,

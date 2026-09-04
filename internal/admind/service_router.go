@@ -48,6 +48,7 @@ func (service *Service) registerTaskRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/task", service.serveTaskPage)
 	multiplexer.HandleFunc(taskAPIPrefix+"/", service.handleQuickTask)
 	multiplexer.HandleFunc(recordToolPathPrefix, service.handleRecordTool)
+	multiplexer.HandleFunc(mcpCarryPath, service.handleMCPCarry)
 	multiplexer.HandleFunc(tellDirectMessagePath, service.handleTellDirectMessage)
 	multiplexer.HandleFunc("/task/", service.serveTaskPage)
 	multiplexer.HandleFunc(retiredTaskAPIPrefix+"/", http.NotFound)

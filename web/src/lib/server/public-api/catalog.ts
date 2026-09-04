@@ -3,7 +3,13 @@ import descriptorSchema from '../../../../../pkg/capabilityprotocol/generated/js
 import type { PublicAPIPermission } from '$lib/public-api-permission';
 import { statesAResultContract } from './catalog/contract';
 
-export type ToolDescriptor = { name: string; sideEffectClass: string };
+export type ToolDescriptor = {
+	name: string;
+	sideEffectClass: string;
+	description: string;
+	inputSchema: Record<string, unknown>;
+	outputSchema: Record<string, unknown>;
+};
 
 type CatalogEntry = ToolDescriptor & { answeredBy: string; resultContract?: unknown };
 
@@ -42,11 +48,11 @@ export function toolNamesAnsweredBy(answerer: Answerer): string[] {
 	return catalog.tools.filter((tool) => tool.answeredBy === answerer).map((tool) => tool.name);
 }
 
-export function destroysSomething(descriptor: ToolDescriptor): boolean {
+export function destroysSomething(descriptor: Pick<ToolDescriptor, 'sideEffectClass'>): boolean {
 	return deletingSideEffectClasses.has(descriptor.sideEffectClass);
 }
 
-export function permissionForTool(descriptor: ToolDescriptor): PublicAPIPermission {
+export function permissionForTool(descriptor: Pick<ToolDescriptor, 'sideEffectClass'>): PublicAPIPermission {
 	if (readingSideEffectClasses.has(descriptor.sideEffectClass)) return 'read';
 	if (writingSideEffectClasses.has(descriptor.sideEffectClass)) return 'write';
 	return 'delete';
