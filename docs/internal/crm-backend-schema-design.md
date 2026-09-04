@@ -216,8 +216,12 @@ by the 16 record specs in `crm-central.spec.ts`, which run against a real
 database. Two invariants moved: a contact needs an email address or a phone number,
 which `crm_contact_add` and `crm_contact_update` refuse without, and a
 foreign-currency close needs a converted amount, which `crm_opportunity_close`
-now raises. What is uncovered until
-somebody retargets it is the screen's own geometry and chrome: donut sizing,
-column ratios, the tab list, popover stacking above its sheet, the searchable
-owner menu's alignment, the mobile create flow, and a refresh failing after a
-create succeeds. None of those depend on which backend answers.
+now raises. The screen's own geometry and chrome — donut sizing, column
+ratios, the tab list, popover stacking above its sheet, the searchable owner
+menu's alignment, the mobile create flow, and a refresh failing after a create
+succeeds — moved to seven record specs: `crm-donut-central.spec.ts`,
+`crm-column-ratios-central.spec.ts`, `crm-tab-list-central.spec.ts`,
+`crm-popover-stacking-central.spec.ts`, `crm-owner-menu-central.spec.ts`,
+`crm-mobile-create-central.spec.ts`, and
+`crm-refresh-after-create-central.spec.ts`. None of those depend on which
+backend answers.
