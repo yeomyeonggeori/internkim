@@ -69,7 +69,7 @@ export function weekEndInstant(): string {
 
 export async function signInToTheTaskBoard(page: Page, email?: string): Promise<void> {
 	await signInToTheCentralPlane(page, '/example-co/task', email);
-	await page.getByRole('tab', { name: '보드', exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+	await page.locator('[data-task-ready="true"]').waitFor({ state: 'visible', timeout: 30000 });
 	await expect(taskColumn(page, 'in_progress')).toBeVisible();
 }
 

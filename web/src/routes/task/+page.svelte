@@ -22,7 +22,7 @@
 	let activeTab = $state('tasks');
 	let pendingTaskID = $state('');
 	let focusedTaskID = $state('');
-	let isLoading = $state(false);
+	let isLoading = $state(true);
 	let errorMessage = $state('');
 	const weeklySummaryCache = new Map<string, TaskWeeklySummary>();
 
@@ -128,7 +128,7 @@
 	<title>{text.pageTitle}</title>
 </svelte:head>
 
-<main class="min-h-screen min-w-0 flex-1 bg-background text-foreground">
+<main data-task-ready={!isLoading && !errorMessage} class="min-h-screen min-w-0 flex-1 bg-background text-foreground">
 	<div class="flex w-full min-w-0 flex-col gap-6 px-4 py-6 md:px-8">
 		{#if errorMessage}
 			<div class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
