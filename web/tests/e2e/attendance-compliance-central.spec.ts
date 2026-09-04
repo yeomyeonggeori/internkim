@@ -39,6 +39,7 @@ test.afterAll(async () => {
 
 async function openSettings(page: Page): Promise<void> {
 	await signInToTheCentralPlane(page, '/example-co/settings');
+	await page.getByRole('tab', { name: '관리자' }).click();
 	await page
 		.getByTestId('attendance-work-settings')
 		.waitFor({ state: 'visible', timeout: 20000 });
