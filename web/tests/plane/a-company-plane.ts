@@ -37,6 +37,8 @@ export type ACompanyPlane = {
 	blueclawURL: string;
 	requesterSocketPath: string;
 	capabilitySocketPath: string;
+	blueclawACPSocketPath: string;
+	relayInboundURL: string;
 	runtimeConfigurationPath: string;
 	connector: ARecordingMessenger;
 	messenger: ARecordingMessenger;
@@ -50,6 +52,8 @@ type PlaneRequest = {
 	messengerPlatform?: string;
 	/** Tell one process a different name, to prove the plane refuses to start. */
 	disagreeAbout?: 'capabilityd' | 'admind';
+	/** Which path admits an inbound message. The relay starts either way. */
+	inbound?: 'connectors' | 'acp';
 	keepRunDirectory?: boolean;
 };
 
@@ -247,6 +251,9 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		const blueclawURL = `http://127.0.0.1:${blueclawPort}`;
 		const admindURL = `http://127.0.0.1:${admindPort}`;
 		const capabilitySocketPath = join(socketDirectory, 'capability.sock');
+		const blueclawACPSocketPath = join(socketDirectory, 'blueclaw-acp.sock');
+		const arrivalsPort = await aFreePort();
+		const relayInboundURL = `http://127.0.0.1:${arrivalsPort}/inbound`;
 		// The public API only trusts a requester that arrived on this socket, which is
 		// the door the relay uses; over TCP the same call is an anonymous 401.
 		const requesterSocketPath = join(socketDirectory, 'admind.sock');
@@ -331,10 +338,15 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'blueclaw'),
-					...theArgumentsThatStart('blueclaw', {
-						'-runtime': runtimeConfigurationPath,
-						'-policy': policyPath
-					})
+					...theArgumentsThatStart(
+						'blueclaw',
+						{
+							'-runtime': runtimeConfigurationPath,
+							'-policy': policyPath,
+							'-acp-socket': blueclawACPSocketPath
+						},
+						{ '-inbound': request.inbound ?? 'connectors' }
+					)
 				],
 				{
 					...logsTo(join(runDirectory, 'blueclaw.log')),
@@ -383,7 +395,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		await untilReady('admind', async () => {
 			const answer = await fetch(`${admindURL}/admin/api/health`).catch(() => null);
 			return answer?.ok ?? false;
-		});
+		}, 60);
 
 		// admind reconciles the company's roster onto blueclaw as it starts, which is
 		// why it starts after it. Nobody here is written by hand: they arrive the way
@@ -393,6 +405,39 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 				.then((answer) => (answer.ok ? (answer.json() as Promise<{ people?: unknown[] }>) : null))
 				.catch(() => null);
 			return (policy?.people?.length ?? 0) >= 2;
+		}, 60);
+
+		// The relay is the ACP client, and the door a messenger connector hands an
+		// inbound message to. It is started last because it opens a session against
+		// blueclaw's socket, and admind has to have put the roster on blueclaw first
+		// or the requester the session names resolves to nobody.
+		started.push(
+			Bun.spawn(
+				['bun', 'run', join(repositoryRoot, 'host', 'relay', 'relay.ts')],
+				{
+					...logsTo(join(runDirectory, 'relay.log')),
+					env: {
+						...theBoxEnvironment(),
+						SUPABASE_URL: projectURL,
+						SUPABASE_PUBLISHABLE_KEY: environmentValue('SUPABASE_PUBLISHABLE_KEY'),
+						INTERNKIM_APP_URL: environmentValue('INTERNKIM_APP_URL'),
+						MESSENGER_PLATFORM: messengerPlatform,
+						AGENT_API_KEY_PATH: agentKeyPath,
+						CHATD_BASE_URL: connector.url,
+						ADMIND_SOCKET_PATH: requesterSocketPath,
+						ADMIND_BASE_URL: admindURL,
+						BLUECLAW_ACP_SOCKET_PATH: blueclawACPSocketPath,
+						WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
+						ARRIVALS_PORT: String(arrivalsPort)
+					}
+				}
+			)
+		);
+		// The inbound door answers 405 to anything but a POST, which is the cheapest
+		// proof that this relay is listening and not somebody else's.
+		await untilReady('the relay', async () => {
+			const answer = await fetch(relayInboundURL, { method: 'GET' }).catch(() => null);
+			return answer?.status === 405;
 		}, 60);
 
 		// A plane is not up when its processes are: it is up when it can say who works
@@ -418,6 +463,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			blueclawURL,
 			requesterSocketPath,
 			capabilitySocketPath,
+			blueclawACPSocketPath,
+			relayInboundURL,
 			connector,
 			model,
 			runtimeConfigurationPath,
