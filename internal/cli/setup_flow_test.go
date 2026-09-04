@@ -14,6 +14,7 @@ import (
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
 func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
@@ -399,27 +400,39 @@ func TestCommandControlArgumentsStopAtSeparator(t *testing.T) {
 	}
 }
 
-func TestLocalLLMBuildArgumentsUseCurrentSSHTarget(t *testing.T) {
-	arguments := localLLMBuildArguments(newSSH("sshpass", "internkim", "ssh-password", "172.30.1.46"))
-	expectedArguments := []string{"--host", "172.30.1.46", "--user", "internkim"}
-	if strings.Join(arguments, "\n") != strings.Join(expectedArguments, "\n") {
-		t.Fatalf("expected build arguments %+v, got %+v", expectedArguments, arguments)
+func TestInstallLocalLLMBinarySSHRefusesMissingArtifact(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	cacheRoot := filepath.Join(temporaryDirectory, ".dependency", "llama-cpp")
+	otherVersionDirectory := filepath.Join(cacheRoot, "b8995-aarch64")
+	if errorValue := os.MkdirAll(filepath.Join(otherVersionDirectory, "lib"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
 	}
-}
-
-func TestLocalLLMBuildArgumentsOmitEmptyPassword(t *testing.T) {
-	arguments := localLLMBuildArguments(newSSH("sshpass", "root", "", "172.30.1.46"))
-	if strings.Contains(strings.Join(arguments, "\n"), "--password") {
-		t.Fatalf("expected empty password to be omitted, got %+v", arguments)
+	if errorValue := os.WriteFile(filepath.Join(otherVersionDirectory, "llama-server"), []byte("binary"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
 	}
-}
 
-func TestLocalLLMBuildEnvironmentPassesPasswordOutsideArguments(t *testing.T) {
-	environment := localLLMBuildEnvironment([]string{"PATH=/usr/bin"}, newSSH("sshpass", "internkim", "ssh-password", "172.30.1.46"))
-	joinedEnvironment := strings.Join(environment, "\n")
-	for _, expectedValue := range []string{"LLAMA_CPP_BUILD_PASSWORD=ssh-password", "LITERT_LM_BUILD_PASSWORD=ssh-password"} {
-		if !strings.Contains(joinedEnvironment, expectedValue) {
-			t.Fatalf("expected environment to include %s, got %+v", expectedValue, environment)
+	state := &setupFlowState{scriptDir: temporaryDirectory}
+	errorValue := state.installLocalLLMBinarySSH(
+		locallm.LlamaCppDisplayName,
+		locallm.LlamaCppBuildTool,
+		locallm.LlamaCppCacheRelative,
+		locallm.LlamaCppCacheKey,
+		locallm.LlamaCppBinaryPath,
+		locallm.LlamaCppLibraryDir,
+	)
+	if errorValue == nil {
+		t.Fatal("expected a refusal for the missing artifact")
+	}
+
+	expectedCacheDirectory := filepath.Join(cacheRoot, locallm.LlamaCppCacheKey)
+	message := errorValue.Error()
+	for _, expectedSubstring := range []string{
+		locallm.LlamaCppCacheKey,
+		expectedCacheDirectory,
+		"tools/" + locallm.LlamaCppBuildTool,
+	} {
+		if !strings.Contains(message, expectedSubstring) {
+			t.Fatalf("expected refusal to name %q, got %q", expectedSubstring, message)
 		}
 	}
 }

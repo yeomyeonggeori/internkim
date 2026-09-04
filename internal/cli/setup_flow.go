@@ -1980,11 +1980,7 @@ func (state *setupFlowState) installLocalLLMBinarySSH(displayName, buildTool, ca
 	libraryDirectory := filepath.Join(cacheDirectory, "lib")
 
 	if !cachedArtifactsPresent(binaryPath, libraryDirectory) {
-		fmt.Println("  " + state.messenger.t(displayName+" 빌드 캐시 준비 중...", "Preparing "+displayName+" build cache..."))
-		command := state.localLLMBuildCommand(buildTool)
-		if buildError := command.Run(); buildError != nil {
-			return fmt.Errorf("%s build failed: %w", displayName, buildError)
-		}
+		return missingLocalLLMArtifactError(displayName, buildTool, cacheKey, cacheDirectory)
 	}
 	libraryPaths, errorValue := libraryAssetPathsIn(libraryDirectory)
 	if errorValue != nil {
@@ -2025,46 +2021,11 @@ func (state *setupFlowState) installLocalLLMBinarySSH(displayName, buildTool, ca
 	return nil
 }
 
-func (state *setupFlowState) localLLMBuildCommand(buildTool string) *exec.Cmd {
-	command := exec.Command(filepath.Join(state.scriptDir, "tools", buildTool), localLLMBuildArguments(state.sshClient)...)
-	command.Dir = state.scriptDir
-	command.Env = localLLMBuildEnvironment(os.Environ(), state.sshClient)
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	return command
-}
-
-func localLLMBuildArguments(sshClient *sshClient) []string {
-	if sshClient == nil {
-		return nil
-	}
-	arguments := []string{}
-	arguments = appendLocalLLMBuildArgument(arguments, "--host", sshClient.host)
-	arguments = appendLocalLLMBuildArgument(arguments, "--user", sshClient.user)
-	return arguments
-}
-
-func localLLMBuildEnvironment(environment []string, sshClient *sshClient) []string {
-	if sshClient == nil {
-		return environment
-	}
-	password := strings.TrimSpace(sshClient.pass)
-	if password == "" {
-		return environment
-	}
-	return append(
-		environment,
-		"LLAMA_CPP_BUILD_PASSWORD="+password,
-		"LITERT_LM_BUILD_PASSWORD="+password,
+func missingLocalLLMArtifactError(displayName, buildTool, cacheKey, cacheDirectory string) error {
+	return fmt.Errorf(
+		"%s artifact %s not found in %s; publish it with tools/%s --host <device ip> --user <device user> before running setup",
+		displayName, cacheKey, cacheDirectory, buildTool,
 	)
-}
-
-func appendLocalLLMBuildArgument(arguments []string, name string, value string) []string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return arguments
-	}
-	return append(arguments, name, value)
 }
 
 func (state *setupFlowState) pruneLocalLLMBuildCaches(cacheRelative string, cacheKey string) error {
