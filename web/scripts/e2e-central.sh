@@ -5,11 +5,16 @@ if [ "$#" -lt 2 ]; then
   echo "usage: $0 <space-separated spec paths relative to web> <dev server port> [playwright arguments]" >&2
   exit 2
 fi
+repository="$(cd "$(dirname "$0")/../.." && pwd)"
+
+if [ -z "${LOCAL_PLANE_LOCK_HOLDER:-}" ]; then
+  exec "$repository/tools/with-local-plane" "$0" "$@"
+fi
+
 spec="$1"
 port="$2"
 shift 2
 
-repository="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$repository"
 
 supabase db reset

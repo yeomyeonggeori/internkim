@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
+withLocalPlane="$repositoryRoot/tools/with-local-plane"
+lockPath="$(sed -n 's/^lockPath="\(.*\)"$/\1/p' "$withLocalPlane")"
+runDirectory="$(mktemp -d)"
+trap 'rm -rf "$runDirectory"' EXIT
+
+if [ -z "$lockPath" ]; then
+  echo "tools/with-local-plane no longer declares a lock path this test can read" >&2
+  exit 1
+fi
+
+unset LOCAL_PLANE_LOCK_HOLDER
+
+failures=0
+
+fail() {
+  printf 'FAIL %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+heldByALivingProcess() {
+  local processID
+  processID="$(sed -n 1p "$lockPath" 2>/dev/null || true)"
+  if [ -z "$processID" ]; then
+    return 1
+  fi
+  kill -0 "$processID" 2>/dev/null
+}
+
+isAbandoned() {
+  [ -e "$lockPath" ] && ! heldByALivingProcess
+}
+
+waitUntilTheFirstCommandHoldsTheLock() {
+  local deadline=$(($(date +%s) + 1200))
+  while [ ! -e "$runDirectory/first-holding" ]; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      return 1
+    fi
+    sleep 0.2
+  done
+}
+
+"$withLocalPlane" sh -c "touch '$runDirectory/first-holding' && sleep 3" &
+firstHolder=$!
+if ! waitUntilTheFirstCommandHoldsTheLock; then
+  fail "the first command never took the lock"
+fi
+
+secondStartedAt="$(date +%s)"
+"$withLocalPlane" sh -c 'true' 2> "$runDirectory/second-diagnostics"
+secondFinishedAt="$(date +%s)"
+wait "$firstHolder" || fail "the first command failed while it held the lock"
+
+secondWaitedSeconds=$((secondFinishedAt - secondStartedAt))
+if [ "$secondWaitedSeconds" -lt 1 ]; then
+  fail "the second command did not wait for the first, it finished in ${secondWaitedSeconds}s"
+fi
+
+if ! grep -q "waiting for the local plane held by .* in $repositoryRoot" "$runDirectory/second-diagnostics"; then
+  fail "the second command did not name the holder it waited for"
+  cat "$runDirectory/second-diagnostics" >&2
+fi
+
+if ! "$withLocalPlane" "$withLocalPlane" sh -c 'true'; then
+  fail "a command run inside a command already holding the lock deadlocked"
+fi
+
+if isAbandoned; then
+  fail "the lock outlived the commands that took it"
+fi
+
+"$withLocalPlane" sh -c 'kill -TERM $$' 2> "$runDirectory/killed-diagnostics" && killedStatus=0 || killedStatus=$?
+if [ "$killedStatus" -eq 0 ]; then
+  fail "a command killed by a signal reported success"
+fi
+if isAbandoned; then
+  fail "the lock outlived a command killed by a signal"
+fi
+
+if [ "$failures" -ne 0 ]; then
+  printf '%s check(s) failed\n' "$failures" >&2
+  exit 1
+fi
+
+echo "the local plane lock queues concurrent commands"

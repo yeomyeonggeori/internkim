@@ -3,6 +3,10 @@ set -euo pipefail
 
 repository="$(cd "$(dirname "$0")/../.." && pwd)"
 
+if [ -z "${LOCAL_PLANE_LOCK_HOLDER:-}" ]; then
+  exec "$repository/tools/with-local-plane" "$0" "$@"
+fi
+
 names="SUPABASE_URL, SUPABASE_SECRET_KEY and SUPABASE_PUBLISHABLE_KEY"
 
 if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SECRET_KEY:-}" ] || [ -z "${SUPABASE_PUBLISHABLE_KEY:-}" ]; then

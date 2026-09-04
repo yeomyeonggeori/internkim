@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  echo "usage: $0 <command> [arguments...]" >&2
+  echo "Runs the command while holding this machine's one local Supabase stack." >&2
+  exit 2
+fi
+
+if [ -n "${LOCAL_PLANE_LOCK_HOLDER:-}" ]; then
+  exec "$@"
+fi
+
+repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
+lockPath="/tmp/internkim-local-plane.lock"
+holderPath="${lockPath}.holder.$$"
+weHoldTheLock=0
+
+releaseLock() {
+  rm -f "$holderPath"
+  if [ "$weHoldTheLock" -eq 1 ]; then
+    weHoldTheLock=0
+    rm -f "$lockPath"
+  fi
+}
+
+trap releaseLock EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+holderProcessID() {
+  sed -n 1p "$1" 2>/dev/null || true
+}
+
+holderWorktree() {
+  sed -n 2p "$1" 2>/dev/null || true
+}
+
+holderIsRunning() {
+  local processID
+  processID="$(holderProcessID "$1")"
+  if [ -z "$processID" ]; then
+    return 1
+  fi
+  kill -0 "$processID" 2>/dev/null
+}
+
+claimLock() {
+  printf '%s\n%s\n' "$$" "$repositoryRoot" > "$holderPath"
+  ln "$holderPath" "$lockPath" 2>/dev/null
+}
+
+releaseStaleHolder() {
+  if holderIsRunning "$lockPath"; then
+    return 0
+  fi
+  local claimPath="${lockPath}.claim.$$"
+  if ! mv "$lockPath" "$claimPath" 2>/dev/null; then
+    return 0
+  fi
+  if holderIsRunning "$claimPath"; then
+    ln "$claimPath" "$lockPath" 2>/dev/null || true
+  fi
+  rm -f "$claimPath"
+}
+
+announceWait() {
+  local processID worktree
+  processID="$(holderProcessID "$lockPath")"
+  worktree="$(holderWorktree "$lockPath")"
+  printf 'waiting for the local plane held by %s in %s\n' \
+    "${processID:-another process}" "${worktree:-another worktree}" >&2
+}
+
+acquireLock() {
+  local waitedSeconds=0
+  while ! claimLock; do
+    releaseStaleHolder
+    if claimLock; then
+      break
+    fi
+    if [ "$((waitedSeconds % 30))" -eq 0 ]; then
+      announceWait
+    fi
+    sleep 1
+    waitedSeconds=$((waitedSeconds + 1))
+  done
+  weHoldTheLock=1
+  rm -f "$holderPath"
+}
+
+localPlaneProjectIdentifier() {
+  sed -n 's/^project_id = "\(.*\)"$/\1/p' "$repositoryRoot/supabase/config.toml"
+}
+
+removeStoppedStackContainers() {
+  if ! command -v docker >/dev/null 2>&1; then
+    return 0
+  fi
+  local projectIdentifier
+  projectIdentifier="$(localPlaneProjectIdentifier)"
+  if [ -z "$projectIdentifier" ]; then
+    return 0
+  fi
+  local stoppedContainers
+  stoppedContainers="$(
+    docker ps --all \
+      --filter "label=com.supabase.cli.project=$projectIdentifier" \
+      --filter 'status=exited' \
+      --filter 'status=dead' \
+      --format '{{.Names}}' 2>/dev/null || true
+  )"
+  if [ -z "$stoppedContainers" ]; then
+    return 0
+  fi
+  while IFS= read -r containerName; do
+    if [ -z "$containerName" ]; then
+      continue
+    fi
+    printf 'removing the stopped local plane container %s\n' "$containerName" >&2
+    docker rm --force "$containerName" >/dev/null 2>&1 || true
+  done <<< "$stoppedContainers"
+}
+
+acquireLock
+removeStoppedStackContainers
+
+export LOCAL_PLANE_LOCK_HOLDER="$$"
+"$@"
