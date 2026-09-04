@@ -5,7 +5,6 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { getAttendanceState } from '../attendance-context.svelte';
-	import type { AttendanceKind } from '../attendance-context.svelte';
 	import type { AttendanceText } from '../text';
 	import type { AttendanceRecordAdditionState } from './attendance-record-addition.svelte';
 	import { attendanceWriteIntent, attendanceWriteSubmitLabel } from './attendance-write-notice';
@@ -32,17 +31,15 @@
 	const locationName = $derived(
 		locations.find((location) => location.id === addition.locationID)?.name ?? text.location
 	);
-	const kindName = $derived(
-		addition.kind === 'clock_in' ? text.records.clockInLabel : text.records.clockOutLabel
-	);
 
-	function chooseKind(value: string): void {
-		addition.kind = value === 'clock_out' ? 'clock_out' : ('clock_in' satisfies AttendanceKind);
+	function updateStartTimeInput(event: Event): void {
+		if (!(event.currentTarget instanceof HTMLInputElement)) return;
+		event.currentTarget.value = addition.updateStartTime(event.currentTarget.value);
 	}
 
-	function updateTimeInput(event: Event): void {
+	function updateEndTimeInput(event: Event): void {
 		if (!(event.currentTarget instanceof HTMLInputElement)) return;
-		event.currentTarget.value = addition.updateLocalTime(event.currentTarget.value);
+		event.currentTarget.value = addition.updateEndTime(event.currentTarget.value);
 	}
 </script>
 
@@ -78,45 +75,34 @@
 			{/if}
 
 			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-				<span>{text.records.kind}</span>
-				<Select.Root
-					type="single"
-					value={addition.kind}
-					onValueChange={chooseKind}
-					disabled={addition.isSaving}
-				>
-					<Select.Trigger class="w-full">{kindName}</Select.Trigger>
-					<Select.Content>
-						<Select.Group>
-							<Select.Item value="clock_in" label={text.records.clockInLabel}>
-								{text.records.clockInLabel}
-							</Select.Item>
-							<Select.Item value="clock_out" label={text.records.clockOutLabel}>
-								{text.records.clockOutLabel}
-							</Select.Item>
-						</Select.Group>
-					</Select.Content>
-				</Select.Root>
+				<span>{text.records.date}</span>
+				<Input type="date" bind:value={addition.localDate} disabled={addition.isSaving} />
 			</label>
 
 			<div class="grid grid-cols-2 gap-2">
 				<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-					<span>{text.records.date}</span>
-					<Input type="date" bind:value={addition.localDate} disabled={addition.isSaving} />
-				</label>
-				<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-					<span>{text.records.time}</span>
+					<span>{text.records.startTime}</span>
 					<Input
 						type="time"
-						value={addition.localTime}
+						value={addition.startTime}
 						max={addition.maximumTime}
 						disabled={addition.isSaving}
-						oninput={updateTimeInput}
+						oninput={updateStartTimeInput}
+					/>
+				</label>
+				<label class="grid gap-1 text-xs font-medium text-muted-foreground">
+					<span>{text.records.endTime}</span>
+					<Input
+						type="time"
+						value={addition.endTime}
+						max={addition.maximumTime}
+						disabled={addition.isSaving}
+						oninput={updateEndTimeInput}
 					/>
 				</label>
 			</div>
 
-			{#if addition.kind === 'clock_in' && locations.length > 0}
+			{#if addition.startTime !== '' && locations.length > 0}
 				<label class="grid gap-1 text-xs font-medium text-muted-foreground">
 					<span>{text.location}</span>
 					<Select.Root
@@ -138,7 +124,7 @@
 			{/if}
 
 			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-				<span>{text.records.reason}</span>
+				<span>{text.records.reasonOptional}</span>
 				<Textarea
 					bind:value={addition.reason}
 					placeholder={text.records.reasonPlaceholder}
@@ -147,9 +133,15 @@
 				/>
 			</label>
 
-			<p class="text-xs text-muted-foreground" data-testid="attendance-record-add-notice">
-				{noticeMessage}
-			</p>
+			{#if addition.isSpanInverted}
+				<p class="text-xs text-destructive" data-testid="attendance-record-add-span-error">
+					{text.records.endBeforeStart}
+				</p>
+			{:else}
+				<p class="text-xs text-muted-foreground" data-testid="attendance-record-add-notice">
+					{noticeMessage}
+				</p>
+			{/if}
 			{#if addition.errorMessage}
 				<p class="text-xs text-destructive">{addition.errorMessage}</p>
 			{/if}

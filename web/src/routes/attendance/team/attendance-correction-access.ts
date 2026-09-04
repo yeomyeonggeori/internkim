@@ -41,6 +41,24 @@ export function attendanceAdditionWriteOutcome(
 	);
 }
 
+export function attendanceSpanAdditionWriteOutcome(
+	summary: AttendanceSummary,
+	addition: { email: string; localDate: string; startTime: string; endTime: string },
+	currentTime: Date
+): AttendanceWriteOutcome {
+	const localTimes = [addition.startTime, addition.endTime].filter((localTime) => localTime !== '');
+	if (localTimes.length === 0) return 'blocked';
+	return combineAttendanceWriteOutcomes(
+		localTimes.map((localTime) =>
+			attendanceAdditionWriteOutcome(
+				summary,
+				{ email: addition.email, localDate: addition.localDate, localTime },
+				currentTime
+			)
+		)
+	);
+}
+
 export function attendanceEventsWriteOutcome(
 	summary: AttendanceSummary,
 	eventIDs: Iterable<string>,
