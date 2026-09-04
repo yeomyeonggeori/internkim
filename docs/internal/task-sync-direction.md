@@ -292,6 +292,8 @@ table remembers which, and a store that cannot be read is a store that is kept.
 The carry writes each row as the person it belongs to; the record's insert
 policy asks only that the writer be a colleague, so no row needs an
 administrator. What it will not do is let the record reshape history: a
-completed row ending in the future, a reversed pair of dates, and a 요청 or
-기각 row whose requester the device never recorded are each refused and named,
-because the record would take them and quietly rewrite them.
+completed row ending in the future and a reversed pair of dates are refused and
+named, because the record would take them and quietly rewrite them. A 요청 or
+기각 row lands with nobody named as having asked, which is what the device
+recorded: the write carries the device mirror, and `lock_task_requester` reads
+it and stamps no one. The carry counts those rows in `withoutRequester`.

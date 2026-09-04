@@ -35,46 +35,67 @@ func TestATaskNobodyHasCarriedOverIsNotAFailure(t *testing.T) {
 	}
 }
 
-func TestATaskTheCentralPlaneMadeRecordsWhereItCameFrom(t *testing.T) {
+// lock_task_requester reads the mirror before the row exists, so a mirror
+// written afterwards is a mirror it never saw.
+func TestATaskCarriedOffADeviceSaysSoOnTheWriteThatMakesIt(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 
-	if errorValue := stub.client().MarkCarriedFrom(context.Background(), "buzz", "owner-account",
-		"central-task-1", "device-task-1"); errorValue != nil {
+	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
+		DeviceTaskID:    "device-task-1",
+		ActorPlatform:   "buzz",
+		ActorExternalID: "owner-account",
+		Title:           "Carried over",
+		Status:          "requested",
+	}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	carried := stub.patched["central-task-1"]
-	if !strings.Contains(carried, DeviceMirrorSource) || !strings.Contains(carried, "device-task-1") {
-		t.Fatalf("without this the link dies with the device's own record, got %q", carried)
+	mirrors, written := stub.savedArguments["target_mirrors"].([]any)
+	if !written || len(mirrors) != 1 {
+		t.Fatalf("target_mirrors = %+v", stub.savedArguments["target_mirrors"])
+	}
+	mirror, named := mirrors[0].(map[string]any)
+	if !named || mirror["source"] != DeviceMirrorSource || mirror["externalID"] != "device-task-1" {
+		t.Fatalf("mirror = %+v", mirrors[0])
+	}
+}
+
+func TestATaskAskedForHereCarriesNoDeviceMirror(t *testing.T) {
+	stub := newCentralPlaneStub(t)
+
+	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
+		ActorPlatform:   "buzz",
+		ActorExternalID: "owner-account",
+		Title:           "Asked here",
+		Status:          "requested",
+	}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if stub.savedArguments["target_mirrors"] != nil {
+		t.Fatalf("a request made here must still record who asked, got %+v", stub.savedArguments["target_mirrors"])
 	}
 }
 
 func mirrorStubRoutes(stub *centralPlaneStub, writer http.ResponseWriter, request *http.Request) bool {
-	switch {
-	case request.Method == http.MethodGet && request.URL.Path == "/rest/v1/task":
-		var asked struct {
-			Mirrors []struct {
-				ExternalID string `json:"externalID"`
-			} `json:"mirrors"`
-		}
-		_ = json.Unmarshal([]byte(strings.TrimPrefix(request.URL.Query().Get("calendar"), "cs.")), &asked)
-		if len(asked.Mirrors) == 0 {
-			writeJSON(writer, []any{})
-			return true
-		}
-		centralID, carried := stub.tasksByDeviceID[asked.Mirrors[0].ExternalID]
-		if !carried {
-			writeJSON(writer, []any{})
-			return true
-		}
-		writeJSON(writer, []map[string]string{{"id": centralID}})
-		return true
-	case request.Method == http.MethodPatch && request.URL.Path == "/rest/v1/task":
-		body := make([]byte, request.ContentLength)
-		_, _ = request.Body.Read(body)
-		stub.patched[strings.TrimPrefix(request.URL.Query().Get("id"), "eq.")] = string(body)
-		writer.WriteHeader(http.StatusNoContent)
+	if request.Method != http.MethodGet || request.URL.Path != "/rest/v1/task" {
+		return false
+	}
+	var asked struct {
+		Mirrors []struct {
+			ExternalID string `json:"externalID"`
+		} `json:"mirrors"`
+	}
+	_ = json.Unmarshal([]byte(strings.TrimPrefix(request.URL.Query().Get("calendar"), "cs.")), &asked)
+	if len(asked.Mirrors) == 0 {
+		writeJSON(writer, []any{})
 		return true
 	}
-	return false
+	centralID, carried := stub.tasksByDeviceID[asked.Mirrors[0].ExternalID]
+	if !carried {
+		writeJSON(writer, []any{})
+		return true
+	}
+	writeJSON(writer, []map[string]string{{"id": centralID}})
+	return true
 }

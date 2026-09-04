@@ -152,8 +152,9 @@ func (service *Service) uncarriedTasks(ctx context.Context, database *sql.DB) ([
 }
 
 type taskCarryReport struct {
-	Tasks   int      `json:"tasks"`
-	Refused []string `json:"refused"`
+	Tasks            int      `json:"tasks"`
+	WithoutRequester int      `json:"withoutRequester"`
+	Refused          []string `json:"refused"`
 }
 
 // Every task is written as the person it belongs to: the record's insert policy
@@ -184,8 +185,19 @@ func (service *Service) carryTasksIntoTheRecord(ctx context.Context) (taskCarryR
 			continue
 		}
 		report.Tasks++
+		if namesNobodyWhoAsked(task) {
+			report.WithoutRequester++
+		}
 	}
+	slog.InfoContext(ctx, "carried the tasks the record did not hold",
+		"tasks", report.Tasks, "without_requester", report.WithoutRequester, "refused", len(report.Refused))
 	return report, nil
+}
+
+// flow_tasks has no requester column, so a row the device recorded as asked for
+// or turned down names nobody who asked.
+func namesNobodyWhoAsked(task deviceTask) bool {
+	return task.Status == taskStatusRequested || task.Status == taskStatusRejected
 }
 
 func (service *Service) carryOneTask(
@@ -217,7 +229,8 @@ func (service *Service) carryOneTask(
 		return refusal
 	}
 
-	savedID, errorValue := client.SaveTask(carryContext, centralplane.Task{
+	carried := centralplane.Task{
+		DeviceTaskID:     task.ID,
 		ActorPlatform:    "email",
 		ActorExternalID:  addresses[0],
 		Title:            task.Title,
@@ -229,12 +242,9 @@ func (service *Service) carryOneTask(
 		EndsAt:           task.EndDate,
 		WritesDates:      task.StartDate != "" || task.EndDate != "",
 		ParticipantMails: addresses,
-	})
-	if errorValue != nil {
-		return errorValue.Error()
 	}
-	if errorValue := client.MarkCarriedFrom(carryContext, "email", addresses[0], savedID, task.ID); errorValue != nil {
-		return "the record took it as " + savedID + " but would not mark where it came from: " + errorValue.Error()
+	if _, errorValue := client.SaveTask(carryContext, carried); errorValue != nil {
+		return errorValue.Error()
 	}
 	rememberCarriedTaskRow(ctx, database, task.ID)
 	return ""
@@ -242,9 +252,8 @@ func (service *Service) carryOneTask(
 
 // The record accepts a task whose history it cannot represent by quietly
 // rewriting it: a completed row with a future or missing end is restamped with
-// today, a reversed pair of dates is swapped, and a requested row is given the
-// writer as its requester. The device never recorded a requester, so each of
-// these is a row this carry refuses rather than invents.
+// today, and a reversed pair of dates is swapped. Each of these is refused and
+// named rather than written and silently changed.
 func taskTheRecordWouldReshape(task deviceTask, companyToday time.Time) string {
 	if !isAllowedTaskStatus(task.Status) {
 		return "status " + task.Status + " is not one the record keeps"
@@ -260,10 +269,6 @@ func taskTheRecordWouldReshape(task deviceTask, companyToday time.Time) string {
 	if !startsAt.IsZero() && !endsAt.IsZero() && endsAt.Before(startsAt) {
 		return "it ends on " + task.EndDate + ", before it starts on " + task.StartDate
 	}
-	if task.Status == taskStatusRequested || task.Status == taskStatusRejected {
-		return "a " + task.Status + " task names a requester the record demands and this device never recorded (" +
-			taskRequesterIssueURL + ")"
-	}
 	if task.Status != taskStatusCompleted {
 		return ""
 	}
@@ -275,8 +280,6 @@ func taskTheRecordWouldReshape(task deviceTask, companyToday time.Time) string {
 	}
 	return ""
 }
-
-const taskRequesterIssueURL = "https://github.com/yeomyeonggeori/internkim/issues/1457"
 
 func carriedTaskDay(day string, name string) (time.Time, string) {
 	trimmed := strings.TrimSpace(day)
@@ -348,10 +351,11 @@ func rememberCarriedTaskRow(ctx context.Context, database *sql.DB, id string) {
 }
 
 type taskRecordCoverage struct {
-	Tasks   int      `json:"tasks"`
-	Pinned  []string `json:"pinned"`
-	Carried int      `json:"carried"`
-	Refused []string `json:"refused"`
+	Tasks            int      `json:"tasks"`
+	Pinned           []string `json:"pinned"`
+	Carried          int      `json:"carried"`
+	WithoutRequester int      `json:"withoutRequester"`
+	Refused          []string `json:"refused"`
 }
 
 func (service *Service) handleTaskRecordCoverage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -391,6 +395,7 @@ func (service *Service) taskCoverageOfTheRecord(request *http.Request) (taskReco
 		return coverage, errorValue
 	}
 	coverage.Carried = report.Tasks
+	coverage.WithoutRequester = report.WithoutRequester
 	coverage.Refused = report.Refused
 	return coverage, nil
 }
