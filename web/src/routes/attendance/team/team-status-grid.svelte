@@ -32,9 +32,12 @@
 			: []
 	);
 	const filteredRows = $derived(filterRows(rows, searchText));
-	const memberOptions = $derived(
-		rows.map((row) => ({ value: row.displayName, label: row.displayName, email: row.email, image: row.image ?? '' }))
-	);
+	const memberOptions = $derived([
+		{ value: '', label: text.allTeamMembers, email: '', image: '' },
+		...rows
+			.filter((row) => row.displayName)
+			.map((row) => ({ value: row.displayName, label: row.displayName, email: row.email, image: row.image ?? '' }))
+	]);
 
 	function selectMonth(month: string) {
 		attendance.selectedMonth = month;
@@ -68,7 +71,9 @@
 				class="w-full min-w-0 sm:w-48"
 			>
 				{#snippet optionContent(option)}
-					<PersonAvatar name={option.label} email={option.email} image={option.image} class="size-6" />
+					{#if option.value}
+						<PersonAvatar name={option.label} email={option.email} image={option.image} class="size-6" />
+					{/if}
 					<span class="min-w-0 truncate">{option.label}</span>
 				{/snippet}
 			</FilterCombobox>
