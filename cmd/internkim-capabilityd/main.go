@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/capabilityd"
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -47,9 +48,15 @@ func main() {
 	flag.StringVar(&configuration.LocalInferenceMode, "local-inference-mode", defaultConfiguration.LocalInferenceMode, "local inference mode: device, companion_preferred, companion_only, remote")
 	flag.BoolVar(&configuration.LocalOnly, "local-only", defaultConfiguration.LocalOnly, "disable remote LLM fallback")
 	shouldPrintCapabilities := flag.Bool("print-capabilities", false, "print the capabilities block the agent's runtime document needs, and exit")
+	modelLadderKeyPath := flag.String("print-model-ladder", "", "print the languageModel block the agent's runtime document needs, with this path named as each endpoint's key file, and exit")
+	modelLadderEndpoint := flag.String("model-endpoint", "", "the OpenAI-compatible endpoint the printed ladder reaches, when this company runs its models somewhere of its own")
 	flag.Parse()
 	if *shouldPrintCapabilities {
 		printCapabilities(configuration.SocketPath)
+		return
+	}
+	if strings.TrimSpace(*modelLadderKeyPath) != "" {
+		printModelLadder(*modelLadderEndpoint, *modelLadderKeyPath)
 		return
 	}
 	if environmentDeviceBrowserPath := os.Getenv("INTERNKIM_DEVICE_BROWSER_PATH"); environmentDeviceBrowserPath != "" {
@@ -67,13 +74,17 @@ func main() {
 	}
 }
 
+func printModelLadder(endpointURL string, apiKeyPath string) {
+	printJSONDocument(modelladder.LanguageModelDocument(endpointURL, apiKeyPath))
+}
+
 // The capability contract belongs to this binary: the agent refuses to boot
 // against a runtime document that does not name the same protocol, so the
 // document has to be written from whatever capabilityd is actually installed
 // rather than copied into a template that ages.
 func printCapabilities(socketPath string) {
 	contract := blueclawruntime.CurrentCapabilityContract()
-	document := map[string]any{
+	printJSONDocument(map[string]any{
 		"transport":             "unix",
 		"unixSocketPath":        socketPath,
 		"endpoint":              "http://internkim-capability",
@@ -81,7 +92,10 @@ func printCapabilities(socketPath string) {
 		"protocolVersion":       contract.ProtocolVersion,
 		"aggregateProtocolHash": contract.AggregateProtocolHash,
 		"toolDescriptors":       contract.ToolDescriptors,
-	}
+	})
+}
+
+func printJSONDocument(document any) {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	if errorValue := encoder.Encode(document); errorValue != nil {

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Writes the runtime document a company plane runs on: the template with this
-# box's addresses filled in, and the capabilities block read out of the installed
-# capabilityd rather than kept in the template, where it would age out of step.
+# box's addresses filled in, and the capabilities and languageModel blocks read
+# out of the installed capabilityd rather than kept in the template, where they
+# would age out of step.
 #
 # The container calls this and so does the sandbox, because a sandbox that
 # renders its own document proves nothing about the one a company runs.
@@ -22,6 +23,8 @@ container gets:
   WORKSPACE_ROOT_PATH       /workspace
   MIGRATION_DIRECTORY_PATH  /opt/blueclaw/migrations
   LOG_DIRECTORY_PATH        /var/log/internkim
+  MODEL_API_KEY_PATH        /secrets/openrouter-key
+  MODEL_ENDPOINT            the ladder's own endpoint
 USAGE
   exit 2
 }
@@ -45,9 +48,8 @@ done
 : "${DATABASE_URL:?set DATABASE_URL}"
 : "${MESSENGER_PLATFORM:?set MESSENGER_PLATFORM}"
 
-templateProvider="$(jq -r '.languageModel.defaultProvider // ""' "${templatePath}")"
-if [ "${templateProvider}" != "capabilityLLM" ]; then
-  echo "render-company-runtime: ${templatePath} asks the agent for its model through \"${templateProvider}\"; a company plane reaches one only through capabilityd, which is capabilityLLM" >&2
+if [ "$(jq -r 'has("languageModel")' "${templatePath}")" != "false" ]; then
+  echo "render-company-runtime: ${templatePath} carries its own languageModel block; the ladder is read out of the installed capabilityd so the two cannot drift" >&2
   exit 1
 fi
 
@@ -57,6 +59,7 @@ fi
 : "${WORKSPACE_ROOT_PATH:=/workspace}"
 : "${MIGRATION_DIRECTORY_PATH:=/opt/blueclaw/migrations}"
 : "${LOG_DIRECTORY_PATH:=/var/log/internkim}"
+: "${MODEL_API_KEY_PATH:=/secrets/openrouter-key}"
 
 if [ -z "${workDirectory}" ]; then
   workDirectory="$(dirname "${outputPath}")"
@@ -64,6 +67,7 @@ fi
 mkdir -p "${workDirectory}"
 renderedPath="${workDirectory}/runtime.rendered.json"
 capabilitiesPath="${workDirectory}/capabilities.json"
+languageModelPath="${workDirectory}/language-model.json"
 
 sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
     -e "s|\${MESSENGER_PLATFORM}|${MESSENGER_PLATFORM}|g" \
@@ -76,4 +80,5 @@ sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
     "${templatePath}" > "${renderedPath}"
 
 "${capabilitydPath}" --print-capabilities --socket "${CAPABILITY_SOCKET_PATH}" > "${capabilitiesPath}"
-jq -s '.[0] * {capabilities: .[1]}' "${renderedPath}" "${capabilitiesPath}" > "${outputPath}"
+"${capabilitydPath}" --print-model-ladder "${MODEL_API_KEY_PATH}" --model-endpoint "${MODEL_ENDPOINT:-}" > "${languageModelPath}"
+jq -s '.[0] * {capabilities: .[1], languageModel: .[2]}' "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}" > "${outputPath}"
