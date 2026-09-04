@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { readFile } from 'node:fs/promises';
 import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
 
 // The agent used to learn its record tools at deploy time, from descriptors
@@ -69,10 +70,21 @@ test('the agent takes its record tools from the catalog it discovered, and leave
 	expect(inventory.providerByTool.message_send).toBe('capabilityd');
 }, 60_000);
 
-test('a session nobody asked for keeps the descriptors stamped at deploy time', async () => {
+test('a session nobody asked for keeps the tools the running host serves', async () => {
 	const inventory = await theToolsOfTheSessionFor('');
 	expect(inventory.providerByTool.task_add).toBe('capabilityd');
 }, 60_000);
+
+test('the rendered runtime document stamps no capability descriptors', async () => {
+	const runtimeDocument = JSON.parse(await readFile(plane.runtimeConfigurationPath, 'utf8')) as {
+		capabilities: Record<string, unknown>;
+	};
+
+	expect(runtimeDocument.capabilities.unixSocketPath).toBeTruthy();
+	expect(runtimeDocument.capabilities.toolDescriptors).toBeUndefined();
+	expect(runtimeDocument.capabilities.protocolVersion).toBeUndefined();
+	expect(runtimeDocument.capabilities.aggregateProtocolHash).toBeUndefined();
+});
 
 test('a record tool called over MCP writes to the record and says what it wrote', async () => {
 	const [sender] = plane.people;

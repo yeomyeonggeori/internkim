@@ -132,17 +132,22 @@ an approval continuation.
 
 `internal/connectors` stays as the second inbound path, behind a new blueclaw
 flag `-inbound` taking `connectors` or `acp`. The binary's default stays
-**`connectors`** and `host/entrypoint.sh` passes `-inbound acp`, so the path a
-company runs is written where a company is brought up and the frozen device,
-which passes no such flag, needs no file changed to keep the old one. Under
+**`connectors`** and `host/entrypoint.sh` passes `-inbound acp`, so which path
+a company runs is decided where a company is brought up, and the frozen device
+passes no such flag. Under
 `acp`, `/connectors/{platform}/events` answers 409 naming the flag, so a chatd
-still posting is loud rather than quietly doubling the turn. 3c deletes the
-package, the flag, `internal/protocolidentity`, the runtime.json `capabilities`
-block and its stamp sources, and the pairing rule.
+still posting is loud rather than quietly doubling the turn.
+
+3c stops the plane stamping: `--print-capabilities` prints capabilityd's
+address, and a document that stamps nothing takes its descriptors from
+`/v1/capabilities` and pins no identity. The package, the flag,
+`internal/protocolidentity`, the per-turn audit, admind's restamp and the
+pairing rule are the frozen device's, and stay until it is retired.
+`/v1/mcp` stays until `session/new` carries the endpoint and a token.
 
 ## What is not built yet
 
-Two pieces are written here and built later: the MCP endpoint and per-session
-token on `session/new`, and the ladder on `_meta`. Carrying a value nothing
-reads is dead configuration, so `session/new` carries the requester and the
-addressing and nothing else.
+The MCP endpoint and per-session token on `session/new`, and the ladder on
+`_meta`. Carrying a value nothing reads is dead configuration, so `session/new`
+carries the requester and the addressing and nothing else. Until the endpoint is carried, the catalog is
+reached through capabilityd's `/v1/mcp`.
