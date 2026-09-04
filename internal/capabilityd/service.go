@@ -223,6 +223,7 @@ func (service Service) router() http.Handler {
 	multiplexer.HandleFunc("POST /v1/directory/person", service.handleDirectoryPerson)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/target.resolve", service.handleToolTargetResolve)
+	multiplexer.HandleFunc("POST /v1/mcp", service.handleMCP)
 	multiplexer.HandleFunc("GET /v1/capabilities", service.handleCapabilities)
 	multiplexer.HandleFunc("GET /health", service.handleHealth)
 	return multiplexer
