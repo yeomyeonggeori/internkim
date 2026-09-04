@@ -246,9 +246,6 @@ func (service Service) buzzAttachmentScenarioPlans() []CommandPlan {
 	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-attachment"))
 }
 
-// Outbound direct messages were only ever driven through Mattermost, so the one
-// door a company's own people use — the public API, and the messenger the
-// company reads — had no scenario at all.
 func (service Service) buzzDirectMessageScenarioPlans() []CommandPlan {
 	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-direct-message"))
 }

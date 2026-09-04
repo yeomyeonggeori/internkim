@@ -165,6 +165,21 @@ const (
 	BuzzPremigrateSnapshotPath = "/root/.internkim/state/buzz-premigrate.sql"
 )
 
+var secretsTheBlueclawUserMustNotRead = []string{
+	"/root/.internkim/secrets/openrouter-api-key",
+	BlueclawMattermostTokenPath,
+	"/root/.internkim/secrets/device-secret",
+	LiteRTModelPath,
+}
+
+func SecretIsolationShellTest() string {
+	readabilityTests := make([]string, 0, len(secretsTheBlueclawUserMustNotRead))
+	for _, path := range secretsTheBlueclawUserMustNotRead {
+		readabilityTests = append(readabilityTests, "test -r "+path)
+	}
+	return strings.Join(readabilityTests, " || ")
+}
+
 func BlueclawHealthCheckURL() string {
 	return BlueclawBaseURL + BlueclawHealthCheckPath
 }

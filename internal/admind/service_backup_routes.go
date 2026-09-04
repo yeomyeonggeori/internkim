@@ -287,7 +287,6 @@ func (service *Service) newBackupManifest(blueclawManifest map[string]any) *Back
 		Components: []string{
 			"internkim",
 			"blueclaw",
-			"mattermost",
 			"cloudflared",
 		},
 		Checksums: map[string]string{},
@@ -299,17 +298,6 @@ func (service *Service) newBackupManifest(blueclawManifest map[string]any) *Back
 }
 
 func (service *Service) addDatabaseDumpsToTar(ctx context.Context, tarWriter *tar.Writer, manifest *BackupManifest) error {
-	dumpPath, errorValue := service.dumpMattermostDatabase(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	if dumpPath != "" {
-		defer os.Remove(dumpPath)
-		manifest.MattermostDump = true
-		if errorValue := addNamedFileToTar(tarWriter, dumpPath, "mattermost-db.sql", manifest); errorValue != nil {
-			return errorValue
-		}
-	}
 	blueclawDumpPath, errorValue := service.dumpBlueclawDatabase(ctx)
 	if errorValue != nil {
 		return errorValue
@@ -352,13 +340,13 @@ func (service *Service) runRestoreJob(ctx context.Context, jobID string, encrypt
 
 func (service *Service) applyRestore(ctx context.Context, extractDirectory string) error {
 	commands := [][]string{
-		{"systemctl", "stop", "blueclaw", "internkim-capabilityd", "mattermost", "internkim-users-sync.timer", "internkim-users-sync.service"},
+		{"systemctl", "stop", "blueclaw", "internkim-capabilityd", "internkim-users-sync.timer", "internkim-users-sync.service"},
 	}
 	for _, arguments := range commands {
 		_, _ = service.runCommand(ctx, arguments[0], arguments[1:]...)
 	}
 
-	for _, relativePath := range []string{"root/.internkim", "root/.blueclaw", "opt/mattermost/config", "opt/mattermost/data", "etc/cloudflared"} {
+	for _, relativePath := range []string{"root/.internkim", "root/.blueclaw", "etc/cloudflared"} {
 		sourcePath := filepath.Join(extractDirectory, relativePath)
 		if _, errorValue := os.Stat(sourcePath); errorValue == nil {
 			targetPath := "/" + relativePath
@@ -376,16 +364,6 @@ func (service *Service) applyRestore(ctx context.Context, extractDirectory strin
 		}
 	}
 
-	databaseDumpPath := filepath.Join(extractDirectory, "mattermost-db.sql")
-	if _, errorValue := os.Stat(databaseDumpPath); errorValue == nil {
-		_, _ = service.runCommand(ctx, "systemctl", "start", "postgresql")
-		if _, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", "dropdb --if-exists mattermost && createdb mattermost"); errorValue != nil {
-			return errorValue
-		}
-		if _, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", "psql mattermost < "+shellQuote(databaseDumpPath)); errorValue != nil {
-			return errorValue
-		}
-	}
 	blueclawDatabaseDumpPath := filepath.Join(extractDirectory, "blueclaw-db.sql")
 	if _, errorValue := os.Stat(blueclawDatabaseDumpPath); errorValue == nil {
 		_, _ = service.runCommand(ctx, "systemctl", "start", "postgresql")
@@ -399,7 +377,7 @@ func (service *Service) applyRestore(ctx context.Context, extractDirectory strin
 	}
 
 	_, _ = service.runCommand(ctx, "systemctl", "daemon-reload")
-	_, _ = service.runCommand(ctx, "systemctl", "restart", "mattermost", "internkim-capabilityd", "blueclaw", "cloudflared")
+	_, _ = service.runCommand(ctx, "systemctl", "restart", "internkim-capabilityd", "blueclaw", "cloudflared")
 	_, _ = service.runCommand(ctx, "systemctl", "enable", "--now", "internkim-users-sync.timer")
 	return nil
 }
@@ -527,16 +505,6 @@ func (service *Service) updateJobManifest(jobID string, manifest *BackupManifest
 
 func (service *Service) jobDirectory(jobID string) string {
 	return filepath.Join(service.Configuration.StateDirectory, "jobs", jobID)
-}
-
-func (service *Service) dumpMattermostDatabase(ctx context.Context) (string, error) {
-	dumpPath := filepath.Join(os.TempDir(), "internkim-mattermost-"+randomHex(8)+".sql")
-	command := "pg_dump mattermost > " + shellQuote(dumpPath)
-	_, errorValue := service.runCommand(ctx, "su", "-", "postgres", "-c", command)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	return dumpPath, nil
 }
 
 func (service *Service) dumpBlueclawDatabase(ctx context.Context) (string, error) {

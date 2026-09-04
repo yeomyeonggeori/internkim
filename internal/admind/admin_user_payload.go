@@ -1,9 +1,7 @@
 package admind
 
 import (
-	"encoding/json"
 	"errors"
-	"net/http"
 	"strings"
 )
 
@@ -25,20 +23,6 @@ type adminUserMutation struct {
 	Status                 string   `json:"status,omitempty"`
 	TemporaryPassword      string   `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string   `json:"temporaryPasswordEmail,omitempty"`
-}
-
-func localAdminUserPayload(responseWriter http.ResponseWriter, request *http.Request) (adminUserMutation, bool, bool) {
-	var rawPayload adminUserMutation
-	if errorValue := json.NewDecoder(request.Body).Decode(&rawPayload); errorValue != nil {
-		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-		return adminUserMutation{}, false, false
-	}
-	payload, hasExplicitCircleMutation, errorValue := normalizeAdminUserPayload(rawPayload)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return adminUserMutation{}, false, false
-	}
-	return payload, hasExplicitCircleMutation, true
 }
 
 func normalizeAdminUserPayload(payload adminUserMutation) (adminUserMutation, bool, error) {

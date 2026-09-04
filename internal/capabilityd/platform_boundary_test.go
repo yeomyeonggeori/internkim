@@ -124,9 +124,9 @@ func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, 
 func TestRouterDoesNotRegisterDeprecatedPlatformEndpoints(t *testing.T) {
 	service := Service{Configuration: DefaultConfiguration()}
 	for _, path := range []string{
-		"/v1/platform/mattermost/bot.resolve",
-		"/v1/platform/mattermost/conversation.kind",
-		"/v1/platform/mattermost/typing.publish",
+		"/v1/platform/buzz/bot.resolve",
+		"/v1/platform/buzz/conversation.kind",
+		"/v1/platform/buzz/typing.publish",
 	} {
 		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
 		responseRecorder := httptest.NewRecorder()

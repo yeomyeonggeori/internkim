@@ -36,14 +36,14 @@ func TestSiteServePublishPropagatesContextAndBundle(t *testing.T) {
 		Transport: transport,
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail: "owner@example.com",
-			Platform:       "mattermost",
+			Platform:       "buzz",
 			ConversationID: "thread-1",
 		},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if requestBody["requestedBy"] != "owner@example.com" || requestBody["platform"] != "mattermost" || requestBody["conversationID"] != "thread-1" {
+	if requestBody["requestedBy"] != "owner@example.com" || requestBody["platform"] != "buzz" || requestBody["conversationID"] != "thread-1" {
 		t.Fatalf("context was not propagated: %+v", requestBody)
 	}
 	if requestBody["title"] != "Demo Site" || requestBody["mode"] != "publish" || requestBody["sourceWorkspacePath"] != "~/sites/demo-site" {
@@ -429,7 +429,7 @@ func TestSiteAppInputUsesOnlyRuntimeIdentity(t *testing.T) {
 		capabilities.ToolInvokeContext{
 			RequesterPersonID: "person-1",
 			RequesterEmail:    "owner@example.com",
-			Platform:          "mattermost",
+			Platform:          "buzz",
 			ConversationID:    "thread-1",
 		},
 	)
@@ -439,7 +439,7 @@ func TestSiteAppInputUsesOnlyRuntimeIdentity(t *testing.T) {
 	if strings.Contains(string(input), "attacker") {
 		t.Fatalf("expected caller identity to be discarded, got %s", input)
 	}
-	for _, expected := range []string{`"requestedBy":"owner@example.com"`, `"personID":"person-1"`, `"platform":"mattermost"`, `"conversationID":"thread-1"`} {
+	for _, expected := range []string{`"requestedBy":"owner@example.com"`, `"personID":"person-1"`, `"platform":"buzz"`, `"conversationID":"thread-1"`} {
 		if !strings.Contains(string(input), expected) {
 			t.Fatalf("expected %s in %s", expected, input)
 		}

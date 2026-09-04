@@ -16,7 +16,7 @@ import (
 
 // capabilityd reaches everything it does not do itself through one field of its
 // configuration naming an address: admind over HTTP or over the requester
-// socket, blueclaw, Mattermost, the companion, OpenRouter. There is no other
+// socket, blueclaw, chatd, the companion, OpenRouter. There is no other
 // shape. So a gate does not need a setup per tool — it needs one stand-in per
 // address, and a case that says which addresses its call reaches.
 type gateBackend string

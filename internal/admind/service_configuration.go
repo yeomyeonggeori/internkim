@@ -20,7 +20,6 @@ type Configuration struct {
 	ChatdPlatform                  string
 	MattermostTeamName             string
 	BotUsername                    string
-	MattermostPublicURL            string
 	TaskPublicURL                  string
 	APIBaseURL                     string
 	BlueclawBaseURL                string
@@ -43,15 +42,12 @@ type Configuration struct {
 	BridgeMapDatabasePath          string
 	MattermostAdminPasswordPath    string
 	MattermostTokenPath            string
-	MattermostInteractiveTokenPath string
-	MattermostOAuthClientPath      string
 	OpenRouterKeyPath              string
 	OpenRouterModelsURL            string
 	ReleaseRegistryURL             string
 	ReleaseDownloadTokenPath       string
 	ReleaseSigningKeyPath          string
 	MattermostBotTokenPath         string
-	MattermostConfigFilePath       string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
 	APIURLPath                     string
@@ -114,14 +110,11 @@ func DefaultConfiguration() Configuration {
 		BuzzKeySeedPath:                "/root/.internkim/secrets/buzz-key-seed",
 		MattermostAdminPasswordPath:    "/root/.internkim/secrets/mm-admin-pass",
 		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
-		MattermostInteractiveTokenPath: "/root/.internkim/state/admin/mattermost-interactive-token",
-		MattermostOAuthClientPath:      "/root/.internkim/secrets/mattermost-oauth-client.json",
 		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:            "https://openrouter.ai/api/v1/models",
 		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		ReleaseSigningKeyPath:          "/root/.internkim/secrets/release-signing-key",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
-		MattermostConfigFilePath:       "/opt/mattermost/config/config.json",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
 		APIURLPath:                     "/root/.internkim/env/api-url",
@@ -258,12 +251,6 @@ func (configuration Configuration) withCredentialDefaults(defaultConfiguration C
 	}
 	if configuration.MattermostTokenPath == "" {
 		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
-	}
-	if configuration.MattermostInteractiveTokenPath == "" {
-		configuration.MattermostInteractiveTokenPath = defaultConfiguration.MattermostInteractiveTokenPath
-	}
-	if configuration.MattermostOAuthClientPath == "" {
-		configuration.MattermostOAuthClientPath = defaultConfiguration.MattermostOAuthClientPath
 	}
 	if configuration.OpenRouterKeyPath == "" {
 		configuration.OpenRouterKeyPath = defaultConfiguration.OpenRouterKeyPath

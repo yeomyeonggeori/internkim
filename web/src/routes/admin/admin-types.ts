@@ -66,7 +66,6 @@ export type BackupManifest = {
 	fleetID?: string;
 	createdAt?: string;
 	components?: string[];
-	mattermostDump?: boolean;
 };
 
 export type AdminJob = {

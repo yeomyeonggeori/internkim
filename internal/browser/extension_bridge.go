@@ -39,7 +39,7 @@ type ExtensionBridge interface {
 // browser extension connection and exchanges ExtensionBridgeMessage frames
 // with it. It accepts the WebSocket upgrade by hand (RFC 6455) rather than
 // pulling in a websocket dependency, mirroring the client-side frame codec
-// already used for the Mattermost forwarder in internal/capabilityd.
+// already used for the messenger forwarder in internal/capabilityd.
 type ExtensionWebSocketBridge struct {
 	ListenAddress  string
 	RequestTimeout time.Duration

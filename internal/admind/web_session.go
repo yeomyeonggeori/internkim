@@ -17,8 +17,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 const (
@@ -32,11 +30,10 @@ const (
 )
 
 type webSessionPayload struct {
-	Email            string `json:"email"`
-	MattermostUserID string `json:"mattermostUserID"`
-	IssuedAt         int64  `json:"issuedAt"`
-	ExpiresAt        int64  `json:"expiresAt"`
-	PolicyVersion    string `json:"policyVersion"`
+	Email         string `json:"email"`
+	IssuedAt      int64  `json:"issuedAt"`
+	ExpiresAt     int64  `json:"expiresAt"`
+	PolicyVersion string `json:"policyVersion"`
 }
 
 type webSessionResponse struct {
@@ -135,8 +132,7 @@ func (service *Service) handleEmailVerifyCallback(responseWriter http.ResponseWr
 		logAuditEvent("cloudflare auth callback denied: non_member")
 		return
 	}
-	userRecord := mattermostadmin.UserRecord{Email: email}
-	if errorValue := service.issueWebSessionCookie(responseWriter, request, userRecord); errorValue != nil {
+	if errorValue := service.issueWebSessionCookie(responseWriter, request, email); errorValue != nil {
 		respondWebAuthError(responseWriter, http.StatusInternalServerError, "웹 세션을 만들지 못했습니다.")
 		logAuditEvent("cloudflare auth callback failed: session")
 		return
@@ -158,8 +154,7 @@ func (service *Service) renewWebSessionCookieIfExpiringSoon(responseWriter http.
 	if time.Unix(payload.ExpiresAt, 0).UTC().Sub(now) > webSessionRenewalWindow {
 		return
 	}
-	userRecord := mattermostadmin.UserRecord{Email: payload.Email, ID: payload.MattermostUserID}
-	if errorValue := service.issueWebSessionCookie(responseWriter, request, userRecord); errorValue != nil {
+	if errorValue := service.issueWebSessionCookie(responseWriter, request, payload.Email); errorValue != nil {
 		logAuditEvent("web session renewal failed: " + errorValue.Error())
 		return
 	}
@@ -179,18 +174,17 @@ func (service *Service) webSessionActorEmail(request *http.Request) string {
 	return payload.Email
 }
 
-func (service *Service) issueWebSessionCookie(responseWriter http.ResponseWriter, request *http.Request, userRecord mattermostadmin.UserRecord) error {
+func (service *Service) issueWebSessionCookie(responseWriter http.ResponseWriter, request *http.Request, email string) error {
 	now := time.Now().UTC()
 	policyVersion, errorValue := service.currentWebPolicyVersion(request.Context())
 	if errorValue != nil {
 		return errorValue
 	}
 	payload := webSessionPayload{
-		Email:            strings.ToLower(strings.TrimSpace(userRecord.Email)),
-		MattermostUserID: strings.TrimSpace(userRecord.ID),
-		IssuedAt:         now.Unix(),
-		ExpiresAt:        now.Add(webSessionDuration).Unix(),
-		PolicyVersion:    policyVersion,
+		Email:         strings.ToLower(strings.TrimSpace(email)),
+		IssuedAt:      now.Unix(),
+		ExpiresAt:     now.Add(webSessionDuration).Unix(),
+		PolicyVersion: policyVersion,
 	}
 	cookieValue, errorValue := service.signWebSessionPayload(payload)
 	if errorValue != nil {

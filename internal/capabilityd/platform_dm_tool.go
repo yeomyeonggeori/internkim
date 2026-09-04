@@ -21,12 +21,12 @@ type platformDMFailure struct {
 }
 
 type platformDMRecipient struct {
-	PersonID           string   `json:"personID"`
-	DisplayName        string   `json:"displayName"`
-	Emails             []string `json:"emails"`
-	MattermostUserID   string   `json:"mattermostUserID"`
-	MattermostUsername string   `json:"mattermostUsername"`
-	Mention            string   `json:"mention,omitempty"`
+	PersonID       string   `json:"personID"`
+	DisplayName    string   `json:"displayName"`
+	Emails         []string `json:"emails"`
+	ExternalUserID string   `json:"externalUserID"`
+	Username       string   `json:"username"`
+	Mention        string   `json:"mention,omitempty"`
 }
 
 type platformDMResolvedRecipient struct {
@@ -47,7 +47,7 @@ func isPlatformDMSelfRecipient(toolContext capabilities.ToolInvokeContext, recip
 	if strings.TrimSpace(toolContext.RequesterPersonID) != "" && strings.TrimSpace(toolContext.RequesterPersonID) == recipient.PersonID {
 		return true
 	}
-	if strings.TrimSpace(toolContext.RequesterPlatformUserID) != "" && strings.TrimSpace(toolContext.RequesterPlatformUserID) == recipient.MattermostUserID {
+	if strings.TrimSpace(toolContext.RequesterPlatformUserID) != "" && strings.TrimSpace(toolContext.RequesterPlatformUserID) == recipient.ExternalUserID {
 		return true
 	}
 	return false
@@ -69,7 +69,7 @@ func (service Service) resolvePlatformDMRecipient(ctx context.Context, personHin
 	switch resolution.Status {
 	case "resolved":
 		recipient := platformDMRecipientFromResolution(resolution.Recipient)
-		if strings.TrimSpace(recipient.MattermostUserID) == "" {
+		if strings.TrimSpace(recipient.ExternalUserID) == "" {
 			return platformDMRecipient{}, platformDMRecipientNotFoundFailure(personHint), true
 		}
 		return recipient, platformDMFailure{}, false
@@ -118,12 +118,12 @@ func platformDMRecipientFromResolution(recipient *platformDMResolvedRecipient) p
 		return platformDMRecipient{}
 	}
 	return platformDMRecipient{
-		PersonID:           strings.TrimSpace(recipient.PersonID),
-		DisplayName:        strings.TrimSpace(recipient.DisplayName),
-		Emails:             normalizedPlatformDMEmails(recipient.Emails),
-		MattermostUserID:   strings.TrimSpace(recipient.ExternalUserID),
-		MattermostUsername: strings.TrimSpace(recipient.Username),
-		Mention:            platformMentionForUsername(recipient.Username),
+		PersonID:       strings.TrimSpace(recipient.PersonID),
+		DisplayName:    strings.TrimSpace(recipient.DisplayName),
+		Emails:         normalizedPlatformDMEmails(recipient.Emails),
+		ExternalUserID: strings.TrimSpace(recipient.ExternalUserID),
+		Username:       strings.TrimSpace(recipient.Username),
+		Mention:        platformMentionForUsername(recipient.Username),
 	}
 }
 
