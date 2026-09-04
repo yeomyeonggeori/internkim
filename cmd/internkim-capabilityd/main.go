@@ -39,6 +39,7 @@ func main() {
 	flag.StringVar(&configuration.FleetIDPath, "fleet-id-path", defaultConfiguration.FleetIDPath, "fleet id path for public companion pairing links")
 	flag.StringVar(&configuration.BlueclawWorkspacePath, "blueclaw-workspace", defaultConfiguration.BlueclawWorkspacePath, "Blueclaw host workspace path")
 	flag.StringVar(&configuration.AdmindBaseURL, "admind-url", defaultConfiguration.AdmindBaseURL, "admind base URL, which holds the seed a message is signed with")
+	flag.StringVar(&configuration.AdmindSocketPath, "admind-socket", defaultConfiguration.AdmindSocketPath, "admind requester socket, the only door that honours an asserted requester")
 	flag.StringVar(&configuration.ChatdEndpoint, "chatd-endpoint", defaultConfiguration.ChatdEndpoint, "chatd base URL for platform message delivery")
 	flag.StringVar(&configuration.ChatdPlatform, "chatd-platform", defaultConfiguration.ChatdPlatform, "platform name chatd serves for message delivery")
 	flag.StringVar(&configuration.FileReadPythonPath, "file-read-python", defaultConfiguration.FileReadPythonPath, "Python executable for file_read conversions")
