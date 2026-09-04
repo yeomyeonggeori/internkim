@@ -27,6 +27,7 @@ type Configuration struct {
 	CapabilitySocketPath           string
 	StateDirectory                 string
 	CompanionJobPath               string
+	UsersSyncStatePath             string
 	DatabasePath                   string
 	TaskDatabasePath               string
 	CalendarDatabasePath           string
@@ -102,6 +103,7 @@ func DefaultConfiguration() Configuration {
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
 		StateDirectory:                 "/root/.internkim/state/admin",
 		CompanionJobPath:               "/root/.internkim/state/companion-jobs.json",
+		UsersSyncStatePath:             blueclawruntime.InternKimUsersSyncStatePath,
 		TaskDatabasePath:               "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:           "/root/.internkim/state/calendar.sqlite",
 		MailDatabasePath:               "/root/.internkim/state/mail.sqlite",
@@ -194,6 +196,9 @@ func (configuration Configuration) withEndpointDefaults(defaultConfiguration Con
 	}
 	if configuration.StateDirectory == "" {
 		configuration.StateDirectory = defaultConfiguration.StateDirectory
+	}
+	if configuration.UsersSyncStatePath == "" {
+		configuration.UsersSyncStatePath = defaultConfiguration.UsersSyncStatePath
 	}
 	return configuration
 }

@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -577,8 +576,7 @@ func (service *Service) allMemberEmails(ctx context.Context) []string {
 }
 
 func (service *Service) usersSyncCacheEmails() []string {
-	stateDirectory := filepath.Dir(service.stateDatabasePath())
-	content, errorValue := os.ReadFile(filepath.Join(stateDirectory, "users-sync.json"))
+	content, errorValue := os.ReadFile(service.Configuration.UsersSyncStatePath)
 	if errorValue != nil {
 		return nil
 	}

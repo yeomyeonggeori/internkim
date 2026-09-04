@@ -71,3 +71,12 @@ func TestUsersSyncInstallCarriesTheScriptThisReleaseWasBuiltWith(t *testing.T) {
 		t.Fatalf("commands = %#v", commands)
 	}
 }
+
+func TestUsersSyncStatePathMatchesWhatTheScriptWrites(t *testing.T) {
+	if !strings.Contains(blueclawruntime.InternKimUsersSyncScript(), `STATE_PATH="`+blueclawruntime.InternKimUsersSyncStatePath+`"`) {
+		t.Fatalf("the installed script no longer writes InternKimUsersSyncStatePath (%s)", blueclawruntime.InternKimUsersSyncStatePath)
+	}
+	if DefaultConfiguration().UsersSyncStatePath != blueclawruntime.InternKimUsersSyncStatePath {
+		t.Fatalf("UsersSyncStatePath default = %s, want %s", DefaultConfiguration().UsersSyncStatePath, blueclawruntime.InternKimUsersSyncStatePath)
+	}
+}

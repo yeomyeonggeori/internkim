@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -147,8 +146,7 @@ func (service *Service) isEmailInUsersSyncCache(actorEmail string) bool {
 	if normalizedEmail == "" {
 		return false
 	}
-	stateDirectory := filepath.Dir(service.stateDatabasePath())
-	content, errorValue := os.ReadFile(filepath.Join(stateDirectory, "users-sync.json"))
+	content, errorValue := os.ReadFile(service.Configuration.UsersSyncStatePath)
 	if errorValue != nil {
 		return false
 	}
