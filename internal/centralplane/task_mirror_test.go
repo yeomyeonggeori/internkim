@@ -12,7 +12,7 @@ func TestATaskAlreadyCarriedOverIsFoundByItsDeviceIdentifier(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 	stub.tasksByDeviceID["ee260bdacb3d"] = "150a49cd-6b5e-43e4-8731-2e3da76694a3"
 
-	found, errorValue := stub.client().TaskCarrying(context.Background(), "mattermost", "owner-account", "ee260bdacb3d")
+	found, errorValue := stub.client().TaskCarrying(context.Background(), "buzz", "owner-account", "ee260bdacb3d")
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -25,7 +25,7 @@ func TestATaskAlreadyCarriedOverIsFoundByItsDeviceIdentifier(t *testing.T) {
 func TestATaskNobodyHasCarriedOverIsNotAFailure(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 
-	found, errorValue := stub.client().TaskCarrying(context.Background(), "mattermost", "owner-account", "never-carried")
+	found, errorValue := stub.client().TaskCarrying(context.Background(), "buzz", "owner-account", "never-carried")
 
 	if errorValue != nil {
 		t.Fatalf("nothing there yet is an ordinary answer: %v", errorValue)
@@ -38,7 +38,7 @@ func TestATaskNobodyHasCarriedOverIsNotAFailure(t *testing.T) {
 func TestATaskTheCentralPlaneMadeRecordsWhereItCameFrom(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 
-	if errorValue := stub.client().MarkCarriedFrom(context.Background(), "mattermost", "owner-account",
+	if errorValue := stub.client().MarkCarriedFrom(context.Background(), "buzz", "owner-account",
 		"central-task-1", "device-task-1"); errorValue != nil {
 		t.Fatal(errorValue)
 	}

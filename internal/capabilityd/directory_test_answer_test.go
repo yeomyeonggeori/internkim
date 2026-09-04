@@ -34,7 +34,7 @@ var directoryPeopleTestDocument = defaultDirectoryPeopleTestDocument
 
 const defaultDirectoryPeopleTestDocument = `{"people":[
 	{"memberID":"member","email":"member@example.com","name":"Member"},
-	{"memberID":"person-sample","email":"sample@example.com","name":"이샘플","messenger":{"mattermost":"gamyeong"}},
+	{"memberID":"person-sample","email":"sample@example.com","name":"이샘플","messenger":{"buzz":"gamyeong"}},
 	{"memberID":"person-one","email":"one@example.com","name":"Lee One"},
 	{"memberID":"person-jungkook","email":"jungkook@example.com","name":"정국"},
 	{"memberID":"person-two","email":"two@example.com","name":"Lee Two"},

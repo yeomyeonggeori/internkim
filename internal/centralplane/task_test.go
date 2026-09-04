@@ -84,7 +84,7 @@ func TestATaskIsWrittenAsThePersonItBelongsTo(t *testing.T) {
 	stub.membersByEmail["colleague@example.test"] = "member-colleague"
 
 	savedID, errorValue := stub.client().SaveTask(context.Background(), Task{
-		ActorPlatform:    "mattermost",
+		ActorPlatform:    "buzz",
 		ActorExternalID:  "owner-account",
 		Title:            "Write the report",
 		Status:           "planned",
@@ -109,7 +109,7 @@ func TestTheAttendeeListIsTheOneThatWasAskedFor(t *testing.T) {
 	stub.membersByEmail["colleague@example.test"] = "member-colleague"
 
 	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
-		ActorPlatform:    "mattermost",
+		ActorPlatform:    "buzz",
 		ActorExternalID:  "owner-account",
 		Title:            "Write the report",
 		ParticipantMails: []string{"colleague@example.test"},
@@ -129,7 +129,7 @@ func TestATaskThatNamesNobodySeatsWhoeverWroteIt(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 
 	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
-		ActorPlatform:   "mattermost",
+		ActorPlatform:   "buzz",
 		ActorExternalID: "owner-account",
 		Title:           "Write the report",
 	}); errorValue != nil {
@@ -146,7 +146,7 @@ func TestSomebodyTheCompanyDoesNotKnowIsLeftOutRatherThanFailingTheWrite(t *test
 	stub := newCentralPlaneStub(t)
 
 	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
-		ActorPlatform:    "mattermost",
+		ActorPlatform:    "buzz",
 		ActorExternalID:  "owner-account",
 		Title:            "Write the report",
 		ParticipantMails: []string{"nobody@example.test"},
@@ -165,7 +165,7 @@ func TestATaskTheCentralPlaneAlreadyHoldsIsUpdatedRatherThanRemade(t *testing.T)
 
 	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
 		CentralID:       "central-task-1",
-		ActorPlatform:   "mattermost",
+		ActorPlatform:   "buzz",
 		ActorExternalID: "owner-account",
 		Title:           "Write the report again",
 	}); errorValue != nil {
@@ -181,7 +181,7 @@ func TestADateNobodySetIsSentAsNothing(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 
 	if _, errorValue := stub.client().SaveTask(context.Background(), Task{
-		ActorPlatform:   "mattermost",
+		ActorPlatform:   "buzz",
 		ActorExternalID: "owner-account",
 		Title:           "Write the report",
 	}); errorValue != nil {
@@ -196,7 +196,7 @@ func TestADateNobodySetIsSentAsNothing(t *testing.T) {
 func TestRemovingATaskNamesItToTheCentralPlane(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 
-	if errorValue := stub.client().DeleteTask(context.Background(), "mattermost", "owner-account", "central-task-1"); errorValue != nil {
+	if errorValue := stub.client().DeleteTask(context.Background(), "buzz", "owner-account", "central-task-1"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
@@ -211,7 +211,7 @@ func TestATaskNobodyWasAllowedToRemoveIsNotReportedAsRemoved(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 	stub.removedRows = []map[string]any{}
 
-	errorValue := stub.client().DeleteTask(context.Background(), "mattermost", "owner-account", "central-task-1")
+	errorValue := stub.client().DeleteTask(context.Background(), "buzz", "owner-account", "central-task-1")
 
 	if errorValue == nil {
 		t.Fatal("the company removed nothing and said so, and that was taken for success")
@@ -221,7 +221,7 @@ func TestATaskNobodyWasAllowedToRemoveIsNotReportedAsRemoved(t *testing.T) {
 func TestATaskTheCentralPlaneNeverTookIsNotRemoved(t *testing.T) {
 	stub := newCentralPlaneStub(t)
 
-	if errorValue := stub.client().DeleteTask(context.Background(), "mattermost", "owner-account", ""); errorValue != nil {
+	if errorValue := stub.client().DeleteTask(context.Background(), "buzz", "owner-account", ""); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 

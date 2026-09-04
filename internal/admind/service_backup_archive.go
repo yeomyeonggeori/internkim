@@ -26,7 +26,6 @@ type BackupManifest struct {
 	Checksums      map[string]string `json:"checksums"`
 	InternKim      map[string]string `json:"internKim"`
 	Blueclaw       map[string]any    `json:"blueclaw,omitempty"`
-	MattermostDump bool              `json:"mattermostDump"`
 	BlueclawDump   bool              `json:"blueclawDump"`
 }
 
@@ -40,8 +39,6 @@ func backupIncludedPaths() []string {
 		"/root/.blueclaw/config",
 		"/root/.blueclaw/workspace",
 		"/var/lib/blueclaw/workspace.ext4",
-		"/opt/mattermost/config",
-		"/opt/mattermost/data",
 		"/etc/cloudflared",
 	}
 }

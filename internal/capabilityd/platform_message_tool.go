@@ -207,14 +207,13 @@ func (service Service) resolvePlatformMessageAttachments(request capabilities.To
 }
 
 type platformMessageBroadcastResult struct {
-	PersonHint         string `json:"personHint"`
-	PersonID           string `json:"personID,omitempty"`
-	DisplayName        string `json:"displayName,omitempty"`
-	MattermostUsername string `json:"mattermostUsername,omitempty"`
-	DispatchID         string `json:"dispatchID,omitempty"`
-	Status             string `json:"status"`
-	ErrorCode          string `json:"errorCode,omitempty"`
-	Message            string `json:"message,omitempty"`
+	PersonHint  string `json:"personHint"`
+	PersonID    string `json:"personID,omitempty"`
+	DisplayName string `json:"displayName,omitempty"`
+	DispatchID  string `json:"dispatchID,omitempty"`
+	Status      string `json:"status"`
+	ErrorCode   string `json:"errorCode,omitempty"`
+	Message     string `json:"message,omitempty"`
 }
 
 func canonicalPlatformMessageBroadcastResult(results []platformMessageBroadcastResult) ([]string, []platformMessageFailureResult) {

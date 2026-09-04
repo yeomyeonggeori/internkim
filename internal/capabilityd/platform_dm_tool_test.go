@@ -61,7 +61,7 @@ func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
 	if requestBody["platform"] != "buzz" || requestBody["hint"] != "sample@example.com" {
 		t.Fatalf("unexpected resolve request body: %+v", requestBody)
 	}
-	if recipient.PersonID != "person-gamyeong" || recipient.MattermostUserID != "user-gamyeong" || recipient.MattermostUsername != "gamyeong" || recipient.Mention != "@gamyeong" {
+	if recipient.PersonID != "person-gamyeong" || recipient.ExternalUserID != "user-gamyeong" || recipient.Username != "gamyeong" || recipient.Mention != "@gamyeong" {
 		t.Fatalf("unexpected resolved recipient: %+v", recipient)
 	}
 	if strings.Join(recipient.Emails, ",") != "gamyeong@example.com" {

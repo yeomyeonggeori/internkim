@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strings"
-
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func (service *Service) localBlueclawPersonIDByEmail(ctx context.Context, email string) (string, error) {
@@ -44,23 +42,4 @@ func (service *Service) localBlueclawPersonIDsByEmail(ctx context.Context) (map[
 		}
 	}
 	return personIDs, nil
-}
-
-func (service *Service) demoteLocalBlueclawPersonBeforeRemoval(ctx context.Context, userRecord mattermostadmin.UserRecord) error {
-	personID, errorValue := service.localBlueclawPersonIDByEmail(ctx, userRecord.Email)
-	if errorValue != nil {
-		return errorValue
-	}
-	if personID == "" {
-		return nil
-	}
-	name := firstNonEmpty(userRecord.Nickname, userRecord.DisplayName, userRecord.Username)
-	return service.upsertBlueclawPerson(ctx, personID, userRecord.Email, name, "member", []string{"member"}, nil)
-}
-
-func (service *Service) localSaveBlueclawPerson(ctx context.Context, payload adminUserMutation, hasExplicitCircleMutation bool) error {
-	if hasExplicitCircleMutation {
-		return service.upsertBlueclawPerson(ctx, payload.MemberID, payload.Email, payload.Name, payload.Role, payload.Circles, &payload.Note)
-	}
-	return service.inviteBlueclawPerson(ctx, payload.MemberID, payload.Email, payload.Name)
 }

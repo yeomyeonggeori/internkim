@@ -97,8 +97,8 @@ func TestTaskNotifyAddressByPersonIDSkipsWhoTheDirectoryCannotName(t *testing.T)
 	}
 }
 
-// Somebody added since the company left Mattermost has no account there, and a
-// task run they asked for is not a thing to go quiet about.
+// Somebody added since the company left its old messenger has no account there,
+// and a task run they asked for is not a thing to go quiet about.
 func TestTaskNotifyAddressByPersonIDReachesSomebodyWithNoMessengerAccount(t *testing.T) {
 	byPersonID := taskNotifyAddressByPersonID([]adminUserMutation{{MemberID: "person-1", Email: "new@example.com"}})
 	if byPersonID["person-1"] != "new@example.com" {

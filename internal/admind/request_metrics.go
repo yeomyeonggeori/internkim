@@ -19,7 +19,6 @@ const (
 	adminEndpointReadAPI  adminEndpointClass = "read_api"
 	adminEndpointWriteAPI adminEndpointClass = "write_api"
 	adminEndpointProxy    adminEndpointClass = "proxy"
-	adminEndpointControl  adminEndpointClass = "control"
 )
 
 type adminRequestRecord struct {
@@ -180,8 +179,6 @@ func shouldKeepSlowAdminRequest(record adminRequestRecord, duration time.Duratio
 		return duration > 300*time.Millisecond
 	case adminEndpointReadAPI:
 		return duration > time.Second
-	case adminEndpointControl:
-		return duration > 500*time.Millisecond
 	default:
 		return duration > 2*time.Second
 	}
@@ -189,9 +186,6 @@ func shouldKeepSlowAdminRequest(record adminRequestRecord, duration time.Duratio
 
 func adminEndpointClassForRequest(request *http.Request) adminEndpointClass {
 	path := request.URL.Path
-	if isAdminControlPath(path) {
-		return adminEndpointControl
-	}
 	if isAdminStaticPath(path) {
 		return adminEndpointStatic
 	}
@@ -202,10 +196,6 @@ func adminEndpointClassForRequest(request *http.Request) adminEndpointClass {
 		return adminEndpointWriteAPI
 	}
 	return adminEndpointProxy
-}
-
-func isAdminControlPath(path string) bool {
-	return path == "/_internkim/mattermost/actions" || path == "/_internkim/mattermost/commands"
 }
 
 func isAdminStaticPath(path string) bool {

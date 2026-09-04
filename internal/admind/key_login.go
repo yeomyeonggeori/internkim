@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
-
 	nostr "github.com/nbd-wtf/go-nostr"
 )
 
@@ -154,7 +152,7 @@ func (service *Service) handleKeyLogin(responseWriter http.ResponseWriter, reque
 		http.Error(responseWriter, "account not invited", http.StatusForbidden)
 		return
 	}
-	if errorValue := service.issueWebSessionCookie(responseWriter, request, mattermostadmin.UserRecord{Email: email}); errorValue != nil {
+	if errorValue := service.issueWebSessionCookie(responseWriter, request, email); errorValue != nil {
 		http.Error(responseWriter, "session_failed", http.StatusInternalServerError)
 		return
 	}
