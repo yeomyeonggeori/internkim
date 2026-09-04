@@ -183,8 +183,12 @@ func savedRemoteSSHHostname(target commandTarget) string {
 }
 
 func updateRemoteDeviceRegistration(connection *sshClient, configuration config, response *registerResponse) {
+	connection.run(remoteDeviceRegistrationScript(configuration, response))
+}
+
+func remoteDeviceRegistrationScript(configuration config, response *registerResponse) string {
 	nodeTunnelToken := firstNonEmptyString(response.NodeTunnelToken, response.TunnelToken)
-	connection.run(fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
+	return fmt.Sprintf(`mkdir -p /root/.internkim/secrets /root/.internkim/env
 printf '%%s' %s > /root/.internkim/env/fleet-id
 printf '%%s' %s > /root/.internkim/env/device-url
 printf '%%s' %s > /root/.internkim/secrets/tunnel-token
@@ -197,40 +201,8 @@ chown root:root /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/n
 chmod 600 /root/.internkim/secrets/tunnel-token /root/.internkim/secrets/node-tunnel-token
 chown root:blueclaw /root/.internkim/env/fleet-id /root/.internkim/env/device-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url /root/.internkim/env/tls-certificate-status
 chmod 640 /root/.internkim/env/fleet-id /root/.internkim/env/device-url /root/.internkim/env/tunnel-origin /root/.internkim/env/tunnel-revision /root/.internkim/env/api-url /root/.internkim/env/tls-certificate-status
-cat > /etc/systemd/system/cloudflared.service <<'SVCEOF'
-[Unit]
-Description=Cloudflare Tunnel
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
-
-[Service]
-Type=simple
-ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat /root/.internkim/secrets/tunnel-token)"'
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-cat > /etc/systemd/system/cloudflared-node-ssh.service <<'SVCEOF'
-[Unit]
-Description=Cloudflare Node SSH Tunnel
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
-
-[Service]
-Type=simple
-ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat /root/.internkim/secrets/node-tunnel-token)"'
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
+%s
+%s
 rm -f /etc/init.d/S98cloudflared 2>/dev/null
 systemctl daemon-reload
 systemctl enable cloudflared cloudflared-node-ssh
@@ -243,7 +215,29 @@ systemctl restart cloudflared cloudflared-node-ssh`,
 		quoteShellValue(setup.TunnelConfigurationRevision),
 		quoteShellValue(configuration.APIBaseURL),
 		quoteShellValue(response.TLSStatus),
-	))
+		cloudflaredTunnelUnitFile("cloudflared", "Cloudflare Tunnel", "/root/.internkim/secrets/tunnel-token"),
+		cloudflaredTunnelUnitFile("cloudflared-node-ssh", "Cloudflare Node SSH Tunnel", "/root/.internkim/secrets/node-tunnel-token"),
+	)
+}
+
+func cloudflaredTunnelUnitFile(unitName string, description string, tokenPath string) string {
+	return fmt.Sprintf(`cat > /etc/systemd/system/%s.service <<'SVCEOF'
+[Unit]
+Description=%s
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c '/usr/local/bin/cloudflared tunnel run --protocol quic --token "$(cat %s)"'
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF`, unitName, description, tokenPath)
 }
 
 func saveDefaultFleetNode(stateDir string, response *registerResponse) {

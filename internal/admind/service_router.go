@@ -15,10 +15,36 @@ import (
 
 func (service *Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
+	service.registerAdminRoutes(multiplexer)
+	service.registerPublicAPIRoutes(multiplexer)
+	service.registerTaskRoutes(multiplexer)
+	service.registerMemoryRoutes(multiplexer)
+	service.registerAgentRoutes(multiplexer)
+	service.registerCalendarRoutes(multiplexer)
+	service.registerAuthenticationRoutes(multiplexer)
+	service.registerMailRoutes(multiplexer)
+	service.registerOrganizationRoutes(multiplexer)
+	service.registerBuzzRoutes(multiplexer)
+	service.registerFileRoutes(multiplexer)
+	service.registerTaskRunRoutes(multiplexer)
+	service.registerCompanyRoutes(multiplexer)
+	service.registerAssetRoutes(multiplexer)
+	service.registerBoardRoutes(multiplexer)
+	multiplexer.Handle("/", service.mattermostProxy())
+	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(service.withSiteGateway(multiplexer))))
+}
+
+func (service *Service) registerAdminRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/admin", service.serveAdminPage)
 	multiplexer.HandleFunc("/admin/api/", service.handleAdmin)
 	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
+}
+
+func (service *Service) registerPublicAPIRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/api/v1/", service.handlePublicAPI)
+}
+
+func (service *Service) registerTaskRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/task", service.serveTaskPage)
 	multiplexer.HandleFunc(taskAPIPrefix+"/", service.handleQuickTask)
 	multiplexer.HandleFunc(recordToolPathPrefix, service.handleRecordTool)
@@ -27,9 +53,16 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc(retiredTaskAPIPrefix+"/", http.NotFound)
 	multiplexer.HandleFunc("/flow", service.serveTaskPage)
 	multiplexer.HandleFunc("/flow/", service.serveTaskPage)
+}
+
+func (service *Service) registerMemoryRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
 	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
 	multiplexer.HandleFunc("/persona/api/", service.handlePersona)
+	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
+}
+
+func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/agent/api/dm", service.handleAgentDirectMessage)
 	multiplexer.HandleFunc("/agent/api/channels", service.handleAgentChannels)
 	multiplexer.HandleFunc("/agent/api/people", service.handleAgentPeople)
@@ -63,10 +96,15 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)
 	multiplexer.HandleFunc("/agent/api/circle-room-membership", service.handleCircleRoomMembership)
 	multiplexer.HandleFunc("/agent/api/buzz-whose-key", service.handleBuzzWhoseKey)
-	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
+}
+
+func (service *Service) registerCalendarRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
 	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
+}
+
+func (service *Service) registerAuthenticationRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/auth/session", service.handleWebSession)
 	multiplexer.HandleFunc("/auth/vault", service.handleAuthVault)
 	multiplexer.HandleFunc("/auth/challenge", service.handleKeyLoginChallenge)
@@ -75,39 +113,61 @@ func (service *Service) router() http.Handler {
 	multiplexer.HandleFunc("/auth/verify/start", service.handleEmailVerifyStart)
 	multiplexer.HandleFunc("/auth/verify/callback", service.handleEmailVerifyCallback)
 	multiplexer.HandleFunc("/auth/logout", service.handleWebLogout)
+}
+
+func (service *Service) registerMailRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)
 	multiplexer.HandleFunc("/mail/", service.serveMailPage)
+}
+
+func (service *Service) registerOrganizationRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/organization", service.serveOrganizationPage)
 	multiplexer.HandleFunc("/organization/api/", service.handleOrganization)
 	multiplexer.HandleFunc("/organization/", service.serveOrganizationPage)
+}
+
+func (service *Service) registerBuzzRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/buzz/api/", service.handleBuzz)
 	multiplexer.HandleFunc("/bridge/api/", service.handleBridgeMap)
+}
+
+func (service *Service) registerFileRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
 	multiplexer.HandleFunc("/files/", service.serveFilesPage)
 	multiplexer.HandleFunc(skillInventoryPath, service.handleSkillInventory)
+}
+
+func (service *Service) registerTaskRunRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/runs", service.serveTaskRunsPage)
 	multiplexer.HandleFunc("/runs/api", service.handleTaskRuns)
 	multiplexer.HandleFunc("/runs/api/", service.handleTaskRuns)
 	multiplexer.HandleFunc("/runs/", service.serveTaskRunsPage)
+}
+
+func (service *Service) registerCompanyRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/company", service.serveCompanySharePage)
 	multiplexer.HandleFunc("/company/api/", service.handleCompanyShare)
 	multiplexer.HandleFunc("/company/", service.serveCompanySharePage)
+}
+
+func (service *Service) registerAssetRoutes(multiplexer *http.ServeMux) {
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
 	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.Handle(relayProxyPrefix, service.handleRelayProxy())
 	multiplexer.Handle(relayProxyPrefix+"/", service.handleRelayProxy())
+}
+
+func (service *Service) registerBoardRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/messenger", service.serveBoardSection("messenger"))
 	multiplexer.HandleFunc("/messenger/", service.serveBoardSection("messenger"))
 	multiplexer.HandleFunc("/settings", service.serveBoardSection("settings"))
 	multiplexer.HandleFunc("/settings/", service.serveBoardSection("settings"))
 	multiplexer.HandleFunc("/assistant", service.serveBoardSection("assistant"))
 	multiplexer.HandleFunc("/assistant/", service.serveBoardSection("assistant"))
-	multiplexer.Handle("/", service.mattermostProxy())
-	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(service.withSiteGateway(multiplexer))))
 }
 
 func (service *Service) withCORS(next http.Handler) http.Handler {
