@@ -25,6 +25,12 @@ var runSimLocalFleet = runLocalFleetRequest
 var runSimDisposableLocalFleet = runDisposableLocalFleetRequest
 var printSimLocalFleetStatus = printLocalFleetStatus
 
+func runSim() {
+	if errorValue := runSimArguments(os.Args[2:]); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
 func runSimArguments(arguments []string) error {
 	command := "gate"
 	commandArguments := arguments
