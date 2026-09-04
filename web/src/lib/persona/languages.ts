@@ -11,7 +11,7 @@ export function languageAutonym(tag: string): string {
 
 export function defaultCallMe(name: string, languageTag: string): string {
 	if (!name) return '';
-	return languageTag.toLowerCase().startsWith('ko') ? `${name}님` : name;
+	return languageTag.toLowerCase().startsWith('ko') ? `${name} 님` : name;
 }
 
 export function replyLanguageOptions(selected: string): { value: string; label: string }[] {
