@@ -16,7 +16,7 @@ mock.module('$env/dynamic/private', () => ({
 const { GET: listTokens } = await import('../../src/routes/api/v1/tokens/+server');
 const { POST: mintToken, DELETE: revokeToken } = await import('../../src/routes/api/v1/token/+server');
 const { fallback: reachTheAPI } = await import('../../src/routes/api/v1/[...path]/+server');
-const { fallback: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
+const { POST: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
