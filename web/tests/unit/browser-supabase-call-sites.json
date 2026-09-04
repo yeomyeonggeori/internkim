@@ -1,11 +1,4 @@
 {
-	"src/lib/attendance/supabase-active-leave.ts": {
-		"rpc('leave_return_early')": 1
-	},
-	"src/lib/attendance/supabase-leave-management.ts": {
-		"rpc('member_leave_days_set')": 1,
-		"rpc('leave_management_source')": 1
-	},
 	"src/lib/host-bridge.ts": {
 		"from('member')": 1
 	},
