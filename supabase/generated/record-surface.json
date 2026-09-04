@@ -235,7 +235,6 @@
       "returns": "uuid",
       "security": "invoker",
       "callableBy": [
-        "anon",
         "authenticated",
         "service_role"
       ]
@@ -246,7 +245,6 @@
       "returns": "uuid",
       "security": "invoker",
       "callableBy": [
-        "anon",
         "authenticated",
         "service_role"
       ]
@@ -257,7 +255,6 @@
       "returns": "uuid",
       "security": "invoker",
       "callableBy": [
-        "anon",
         "authenticated",
         "service_role"
       ]
@@ -268,7 +265,6 @@
       "returns": "uuid",
       "security": "invoker",
       "callableBy": [
-        "anon",
         "authenticated",
         "service_role"
       ]
@@ -409,7 +405,7 @@
       "name": "is_public_identity_credential",
       "arguments": "kind text",
       "returns": "boolean",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "authenticated",
         "service_role"
@@ -422,6 +418,16 @@
       "security": "invoker",
       "callableBy": [
         "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "leave_balances",
+      "arguments": "target_year integer",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
         "authenticated",
         "service_role"
       ]
@@ -755,7 +761,7 @@
     },
     {
       "name": "task_save",
-      "arguments": "target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone",
+      "arguments": "target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb",
       "returns": "uuid",
       "security": "definer",
       "callableBy": [
