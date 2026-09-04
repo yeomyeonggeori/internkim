@@ -21,6 +21,7 @@ export type CentralTaskRow = {
 	starts_at: string | null;
 	ends_at: string | null;
 	due_at: string | null;
+	created_at: string;
 	updated_at: string;
 	requester_id: string | null;
 	requester: CentralRequesterIdentity | CentralRequesterIdentity[] | null;
@@ -38,7 +39,7 @@ const centralStatuses: readonly CentralTaskStatus[] = [
 ];
 
 export const centralTaskSelection =
-	'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester:member!task_requester_id_fkey (name, email), task_participant (member_id)';
+	'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, created_at, updated_at, requester_id, requester:member!task_requester_id_fkey (name, email), task_participant (member_id)';
 
 export const centralTaskStatusOptions: string[] = [...centralStatuses];
 
@@ -70,9 +71,9 @@ export function centralTaskFromRow(
 		content: row.title,
 		size: row.size ?? '',
 		status: centralStatusWord(row.status),
-		statusRank: 0,
 		startDate: dayOf(row.starts_at),
 		endDate,
+		createdAt: row.created_at,
 		weekCode: endDate ? weekCodeOfDay(endDate) : '',
 		isEvent: row.is_event
 	};

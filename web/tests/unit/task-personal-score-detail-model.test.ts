@@ -104,7 +104,6 @@ function task(overrides: Partial<Task>): Task {
 		content: '업무',
 		size: 'D2',
 		status: 'completed',
-		statusRank: 0,
 		startDate: '2026-06-01',
 		endDate: '2026-06-03',
 		weekCode: '26W23',

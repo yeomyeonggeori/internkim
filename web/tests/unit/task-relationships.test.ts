@@ -104,7 +104,6 @@ function task(overrides: Partial<Task>): Task {
 		content: '업무',
 		size: 'M',
 		status: 'planned',
-		statusRank: 0,
 		weekCode: '2026-08-10',
 		...overrides
 	};

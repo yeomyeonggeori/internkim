@@ -45,8 +45,7 @@ describe('task board save', () => {
 		const result = await saveTaskBoardMove({
 			request: {
 				taskID: 'requested',
-				targetStatus: 'in_progress',
-				beforeTaskID: null
+				targetStatus: 'in_progress'
 			},
 			week: '26W23',
 			currentWeek: () => '26W23',

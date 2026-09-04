@@ -11,8 +11,6 @@ type TaskBoardDragControllerInput = {
 const boardDragDataType = 'application/x-internkim-task-id';
 
 export class TaskBoardDragController {
-	dropTarget = $state<TaskBoardMoveRequest | null>(null);
-
 	private draggedTaskID = $state('');
 	private pendingTaskIDs: string[] = [];
 	private canUpdateTask: (task: Task) => boolean;
@@ -44,99 +42,33 @@ export class TaskBoardDragController {
 
 	handleTaskDragEnd = (): void => {
 		this.draggedTaskID = '';
-		this.dropTarget = null;
 	};
 
 	handleColumnDragOver = (event: DragEvent, status: string, columnTasks: Task[]): void => {
 		const taskID = this.currentDragTaskID(event);
 		if (!taskID || this.isTaskPending(taskID) || !isTaskBoardStatus(status)) return;
-		if (this.isSameColumnDropNoOp(taskID, null, columnTasks)) {
-			this.dropTarget = null;
-			return;
-		}
+		if (this.isSameColumnDrag(taskID, columnTasks)) return;
 		event.preventDefault();
 		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-		this.dropTarget = { taskID, targetStatus: status, beforeTaskID: null };
 	};
 
 	handleColumnDrop = (event: DragEvent, status: string, columnTasks: Task[]): void => {
 		event.preventDefault();
 		const taskID = this.currentDragTaskID(event);
 		if (!taskID || this.isTaskPending(taskID) || !isTaskBoardStatus(status)) return;
-		if (this.isSameColumnDropNoOp(taskID, null, columnTasks)) {
+		if (this.isSameColumnDrag(taskID, columnTasks)) {
 			this.handleTaskDragEnd();
 			return;
 		}
-		void this.moveTask({ taskID, targetStatus: status, beforeTaskID: null });
+		void this.moveTask({ taskID, targetStatus: status });
 		this.handleTaskDragEnd();
 	};
-
-	handleCardDragOver = (event: DragEvent, status: string, columnTasks: Task[], task: Task): void => {
-		const nextDropTarget = this.cardDropTarget(event, status, columnTasks, task);
-		if (!nextDropTarget) {
-			if (this.currentDragTaskID(event)) {
-				event.stopPropagation();
-				this.dropTarget = null;
-			}
-			return;
-		}
-		event.preventDefault();
-		event.stopPropagation();
-		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-		this.dropTarget = nextDropTarget;
-	};
-
-	handleCardDrop = (event: DragEvent, status: string, columnTasks: Task[], task: Task): void => {
-		const nextDropTarget = this.cardDropTarget(event, status, columnTasks, task);
-		if (!nextDropTarget) {
-			if (this.currentDragTaskID(event)) {
-				event.preventDefault();
-				event.stopPropagation();
-				this.handleTaskDragEnd();
-			}
-			return;
-		}
-		event.preventDefault();
-		event.stopPropagation();
-		void this.moveTask(nextDropTarget);
-		this.handleTaskDragEnd();
-	};
-
-	shouldShowCardInsertionLine = (status: string, taskID: string): boolean =>
-		this.dropTarget?.targetStatus === status && this.dropTarget.beforeTaskID === taskID;
-
-	shouldShowAppendInsertionLine = (status: string): boolean =>
-		this.dropTarget?.targetStatus === status && this.dropTarget.beforeTaskID === null;
-
-	private cardDropTarget(
-		event: DragEvent,
-		status: string,
-		columnTasks: Task[],
-		task: Task
-	): TaskBoardMoveRequest | null {
-		const taskID = this.currentDragTaskID(event);
-		if (!taskID || taskID === task.id || this.isTaskPending(taskID) || !isTaskBoardStatus(status)) return null;
-		const currentTarget = event.currentTarget;
-		if (!(currentTarget instanceof HTMLElement)) return null;
-		const bounds = currentTarget.getBoundingClientRect();
-		const isAfterTask = event.clientY > bounds.top + bounds.height / 2;
-		const taskIndex = columnTasks.findIndex((candidate) => candidate.id === task.id);
-		if (taskIndex < 0) return null;
-		const nextTask = isAfterTask ? columnTasks[taskIndex + 1] : task;
-		const beforeTaskID = nextTask?.id ?? null;
-		if (this.isSameColumnDropNoOp(taskID, beforeTaskID, columnTasks)) return null;
-		return { taskID, targetStatus: status, beforeTaskID };
-	}
 
 	private currentDragTaskID(event: DragEvent): string {
 		return this.draggedTaskID || event.dataTransfer?.getData(boardDragDataType) || '';
 	}
 
-	private isSameColumnDropNoOp(taskID: string, beforeTaskID: string | null, columnTasks: Task[]): boolean {
-		const draggedTaskIndex = columnTasks.findIndex((task) => task.id === taskID);
-		if (draggedTaskIndex < 0) return false;
-		if (beforeTaskID === null) return draggedTaskIndex === columnTasks.length - 1;
-		const beforeTaskIndex = columnTasks.findIndex((task) => task.id === beforeTaskID);
-		return beforeTaskIndex === draggedTaskIndex || beforeTaskIndex === draggedTaskIndex + 1;
+	private isSameColumnDrag(taskID: string, columnTasks: Task[]): boolean {
+		return columnTasks.some((task) => task.id === taskID);
 	}
 }
