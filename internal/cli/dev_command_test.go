@@ -362,3 +362,38 @@ func TestDevVirtualSessionScriptedRunOmitsLiveGenerationFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestDevPlaneHoldsTheLocalPlaneLock(t *testing.T) {
+	command := devPlaneCommand("/repository", []string{"-t", "leaves on the messenger"})
+
+	expected := []string{
+		"/repository/tools/with-local-plane",
+		"/repository/tools/company-plane",
+		"-t",
+		"leaves on the messenger",
+	}
+	if !slices.Equal(command.Args, expected) {
+		t.Fatalf("dev plane runs %v, expected %v", command.Args, expected)
+	}
+}
+
+func TestDevFleetRunHoldsTheLocalPlaneLock(t *testing.T) {
+	command := holdingTheLocalPlane(
+		"/repository",
+		"/repository/internkim",
+		[]string{"dev", "fleet", "run", "--scenario", "buzz-attachment"},
+	)
+
+	expected := []string{
+		"/repository/tools/with-local-plane",
+		"/repository/internkim",
+		"dev",
+		"fleet",
+		"run",
+		"--scenario",
+		"buzz-attachment",
+	}
+	if !slices.Equal(command.Args, expected) {
+		t.Fatalf("dev fleet run runs %v, expected %v", command.Args, expected)
+	}
+}

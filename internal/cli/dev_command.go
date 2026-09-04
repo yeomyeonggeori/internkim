@@ -141,6 +141,9 @@ func runDevFleetArguments(arguments []string) error {
 		defer stop()
 		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionReset})
 	case "run":
+		if os.Getenv("LOCAL_PLANE_LOCK_HOLDER") == "" {
+			return runDevFleetRunHoldingTheLocalPlane()
+		}
 		return runDevFleetRunArguments(commandArguments)
 	case "reprovision":
 		return runDevFleetReprovision(commandArguments)
@@ -278,6 +281,22 @@ func goModuleCachePath() string {
 		return ""
 	}
 	return strings.TrimSpace(string(output))
+}
+
+func runDevFleetRunHoldingTheLocalPlane() error {
+	repositoryRootPath, errorValue := os.Getwd()
+	if errorValue != nil {
+		return errorValue
+	}
+	executablePath, errorValue := os.Executable()
+	if errorValue != nil {
+		return errorValue
+	}
+	command := holdingTheLocalPlane(repositoryRootPath, executablePath, os.Args[1:])
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Run()
 }
 
 func runDevFleetRunArguments(arguments []string) error {
@@ -641,6 +660,23 @@ func flagWasPassed(flagSet *flag.FlagSet, name string) bool {
 	return isFound
 }
 
+func holdingTheLocalPlane(repositoryRootPath string, commandPath string, arguments []string) *exec.Cmd {
+	command := exec.Command(
+		filepath.Join(repositoryRootPath, "tools", "with-local-plane"),
+		append([]string{commandPath}, arguments...)...,
+	)
+	command.Dir = repositoryRootPath
+	return command
+}
+
+func devPlaneCommand(repositoryRootPath string, arguments []string) *exec.Cmd {
+	return holdingTheLocalPlane(
+		repositoryRootPath,
+		filepath.Join(repositoryRootPath, "tools", "company-plane"),
+		arguments,
+	)
+}
+
 // The company plane a customer runs: admind, capabilityd and blueclaw against the
 // local record, with the two messengers standing in as recorders. It answers what
 // the fleet gate cannot answer quickly — which messenger a message leaves on, who
@@ -651,8 +687,7 @@ func runDevPlaneArguments(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	command := exec.Command(filepath.Join(repositoryRootPath, "tools", "company-plane"), arguments...)
-	command.Dir = repositoryRootPath
+	command := devPlaneCommand(repositoryRootPath, arguments)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr

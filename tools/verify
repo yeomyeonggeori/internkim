@@ -14,6 +14,7 @@ fails, because the ones after it have their own verdict to give.
 import argparse
 import concurrent.futures
 import fnmatch
+import shlex
 import subprocess
 import sys
 import time
@@ -39,6 +40,13 @@ class Group:
 
 
 BUN_INSTALL = ["bun", "install", "--frozen-lockfile"]
+
+WITH_LOCAL_PLANE = str(REPOSITORY_ROOT / "tools" / "with-local-plane")
+
+
+def holding_the_local_plane(*commands):
+    return [WITH_LOCAL_PLANE, "sh", "-c", " && ".join(shlex.join(command) for command in commands)]
+
 
 GROUPS = [
     Group(
@@ -114,12 +122,11 @@ GROUPS = [
     ),
     Group(
         "schema",
-        ["supabase/*", "tools/verify-migration-versions"],
+        ["supabase/*", "tools/verify-migration-versions", "tools/with-local-plane*"],
         [
             ["tools/verify-migration-versions"],
             ["bun", "run", "web/scripts/check-supabase-config.ts"],
-            ["supabase", "db", "reset"],
-            ["supabase", "test", "db"],
+            holding_the_local_plane(["supabase", "db", "reset"], ["supabase", "test", "db"]),
         ],
         lane="web",
     ),
@@ -141,7 +148,7 @@ GROUPS = [
             ["bun", "install", "--frozen-lockfile", "--cwd", "../.dependency/blueclaw/protocol"],
             ["bun", "run", "check"],
             ["bun", "test", "tests/unit"],
-            ["bun", "run", "test:integration"],
+            holding_the_local_plane(["bun", "run", "test:integration"]),
             # Only the Cloudflare build reads what a route exports, and a route that
             # exports a helper is refused there and nowhere else. build:board uses the
             # static adapter, which never looks.
@@ -170,10 +177,10 @@ GROUPS = [
             "web/scripts/e2e-central.sh",
         ],
         [
-            ["bun", "run", "test:e2e:calendar:central"],
-            ["bun", "run", "test:e2e:attendance:central"],
-            ["bun", "run", "test:e2e:task:central"],
-            ["bun", "run", "test:e2e:crm:central"],
+            holding_the_local_plane(["bun", "run", "test:e2e:calendar:central"]),
+            holding_the_local_plane(["bun", "run", "test:e2e:attendance:central"]),
+            holding_the_local_plane(["bun", "run", "test:e2e:task:central"]),
+            holding_the_local_plane(["bun", "run", "test:e2e:crm:central"]),
         ],
         working_directory="web",
     ),
@@ -212,6 +219,12 @@ GROUPS = [
             ["bun", "test"],
         ],
         working_directory="docs/web",
+    ),
+    Group(
+        "local-plane-lock",
+        ["tools/with-local-plane*"],
+        [["tools/with-local-plane-test"]],
+        lane="web",
     ),
     Group(
         "doc-budgets",
