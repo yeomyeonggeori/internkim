@@ -596,15 +596,23 @@ describe('deleting', () => {
 });
 
 describe('what the board reads a task by', () => {
-	test('is its parent, who asked for it, and when it was made', async () => {
+	test('is its parent and when it was made', async () => {
 		const parent = resultOf(await run('task_add', { title: '묶음이 되는 일' }));
 		await run('task_add', { title: '묶음에 딸린 일', parentTaskHint: parent.taskID as string });
 
 		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
 		const child = (listed.tasks as Record<string, string>[]).find((task) => task.content === '묶음에 딸린 일');
 		expect(child?.parentTaskID).toBe(parent.taskID as string);
-		expect(child?.requesterID).toBe(sampleID);
 		expect(Number.isNaN(Date.parse(child?.createdAt ?? ''))).toBe(false);
+	});
+
+	test('is also who asked, on the work that was asked of somebody', async () => {
+		await run('task_add', { title: '박예시에게 부탁한 일', status: 'requested', participantPersonHints: ['박예시'] });
+
+		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
+		const asked = (listed.tasks as Record<string, string>[]).find((task) => task.content === '박예시에게 부탁한 일');
+		expect(asked?.requesterID).toBe(sampleID);
+		expect(asked?.requesterName).toBe('이샘플');
 	});
 });
 
@@ -674,11 +682,11 @@ describe('a date taken off a task', () => {
 
 describe('task_vocabulary_set', () => {
 	beforeAll(async () => {
-		await client.from('member').update({ is_admin: true }).eq('id', sampleID);
+		await client.from('member').update({ is_admin: true, status: 'active' }).eq('id', sampleID);
 	});
 
 	afterAll(async () => {
-		await client.from('member').update({ is_admin: false }).eq('id', sampleID);
+		await client.from('member').update({ is_admin: false, status: 'pending' }).eq('id', sampleID);
 	});
 
 	test('writes the labels the company files work under and reads them back', async () => {

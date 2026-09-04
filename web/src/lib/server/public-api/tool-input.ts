@@ -17,15 +17,23 @@ type FieldSchema = { safeParse(value: unknown): { success: boolean } };
 //
 // A field that must be given is untouched: dropping a blank there would turn
 // "you sent nothing" into "you forgot this", and the caller needs the first.
-function fieldsTheToolLetsBeLeftOut(name: string): Set<string> {
+function fieldsTheToolLetsBeLeftOut(name: string): Map<string, FieldSchema> {
 	const schema = capabilityToolInputSchema(name);
 	const shape = (schema as unknown as { shape?: Record<string, FieldSchema> })?.shape;
-	if (!shape) return new Set();
-	return new Set(Object.keys(shape).filter((field) => shape[field].safeParse(undefined).success));
+	if (!shape) return new Map();
+	return new Map(Object.entries(shape).filter(([, field]) => field.safeParse(undefined).success));
 }
 
-function saysNothing(value: unknown): boolean {
-	return value === null || (typeof value === 'string' && value.trim() === '');
+// null is not a value any of these schemas take, so it is always the caller
+// saying nothing. An empty string is one only where the field refuses it: "" is
+// not one of XS|S|M, so it means the size was left out. A field that takes an
+// empty string takes it as a value, and the catalog says what it means on the
+// fields that do — an empty organizationHint takes the work off the
+// organization rather than leaving it where it was.
+function saysNothing(value: unknown, field: FieldSchema): boolean {
+	if (value === null) return true;
+	if (typeof value !== 'string' || value.trim() !== '') return false;
+	return !field.safeParse(value).success;
 }
 
 export function toolInputRecovered(name: string, input: unknown): Record<string, unknown> {
@@ -33,9 +41,10 @@ export function toolInputRecovered(name: string, input: unknown): Record<string,
 	if (typeof input !== 'object' || Array.isArray(input)) return input as Record<string, unknown>;
 	const mayBeLeftOut = fieldsTheToolLetsBeLeftOut(name);
 	return Object.fromEntries(
-		Object.entries(input as Record<string, unknown>).filter(
-			([field, value]) => !(saysNothing(value) && mayBeLeftOut.has(field))
-		)
+		Object.entries(input as Record<string, unknown>).filter(([field, value]) => {
+			const schema = mayBeLeftOut.get(field);
+			return !schema || !saysNothing(value, schema);
+		})
 	);
 }
 
