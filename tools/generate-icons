@@ -3,9 +3,11 @@
 
 assets/internkim.icon.png is the finished app icon, drawn in Icon Composer,
 and takes the slots that show a file as it is: the manifest icons Chrome
-installs from, and the Companion Tauri set. assets/internkim.square.png is the
-same face drawn full bleed, and takes the slots that shrink it: the tab
-favicon, the docs favicon, the menu-bar tray, and the bot avatar.
+installs from, and the Companion Tauri set. The square master is the same face
+drawn full bleed, and takes the slots a platform recuts or shrinks: the tab
+favicon, the docs favicon, the menu-bar tray, and the bot avatar. It is two
+files: internkim.square.svg, which the tab favicon is cut straight from, and
+internkim.square.png, which every raster is cut from. Replace them together.
 
 The two slots a platform reshapes take one each. iOS paints an icon's
 transparency black and then cuts its own squircle, less round than the
@@ -19,15 +21,19 @@ narrowing.
 Android cannot take the same crop, which magnifies the artwork by 18% into a
 mask that cuts more than the iOS one, so the maskable icon is the square
 master whole and a circular mask reads as a crop of the face. The tray icon is
-the square's white silhouette as alpha, which macOS tints as a template. The
-16px favicon.ico entry is cut from the centre so the glasses survive.
+the square's white silhouette as alpha, which macOS tints as a template.
+
+A tab favicon is drawn at 16 to 32 pixels, and the whole square is unreadable
+there: the face lands on a dozen pixels and the frame around it takes the rest.
+Both favicons are cut to FAVICON_FRAME instead, which fills the tile with the
+sprout, head and glasses. The vector one carries that frame as a viewBox, so it
+stays a vector.
 
 Needs Pillow and numpy on the running Python, and bun for the Tauri set.
 """
 
-import base64
-import io
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -40,10 +46,12 @@ except ImportError as error:
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 ICON_MASTER = REPOSITORY_ROOT / "assets" / "internkim.icon.png"
 SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
+SQUARE_VECTOR_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.svg"
 FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
 TEMPLATE_DARKEST_WHITE = 150
 TEMPLATE_LIGHTEST_WHITE = 240
-FAVICON_16_CROP = 0.72
+MASTER_SIDE = 1024
+FAVICON_FRAME = (122, 178, 780)
 
 
 def save(image: Image.Image, relative_path: str, size: int, mode: str) -> None:
@@ -74,33 +82,37 @@ def template_from_square(image: Image.Image, size: int) -> Image.Image:
     return Image.fromarray(output, "RGBA")
 
 
-def center_crop(image: Image.Image, keep: float) -> Image.Image:
-    width, height = image.size
-    inset = int(width * (1 - keep) / 2)
-    return image.crop((inset, inset, width - inset, height - inset))
+def framed_face(square: Image.Image) -> Image.Image:
+    if square.size != (MASTER_SIDE, MASTER_SIDE):
+        sys.exit(f"{SQUARE_MASTER} is {square.size[0]}x{square.size[1]}; FAVICON_FRAME reads {MASTER_SIDE}")
+    left, top, side = FAVICON_FRAME
+    return square.crop((left, top, left + side, top + side))
 
 
 def write_favicon(square: Image.Image) -> None:
+    face = framed_face(square)
     largest, *rest = FAVICON_SIZES
-    frames = [square.resize(largest, Image.LANCZOS).convert("RGBA")]
-    for size in rest:
-        source = center_crop(square, FAVICON_16_CROP) if size == (16, 16) else square
-        frames.append(source.resize(size, Image.LANCZOS).convert("RGBA"))
+    frames = [face.resize(size, Image.LANCZOS).convert("RGBA") for size in (largest, *rest)]
     frames[0].save(REPOSITORY_ROOT / "docs/web/public/favicon.ico", append_images=frames[1:], sizes=FAVICON_SIZES)
     print("docs/web/public/favicon.ico", FAVICON_SIZES)
 
 
-def write_logo_svg(square: Image.Image) -> None:
-    buffer = io.BytesIO()
-    square.resize((256, 256), Image.LANCZOS).save(buffer, format="PNG", optimize=True)
-    encoded = base64.b64encode(buffer.getvalue()).decode()
-    svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
-        'viewBox="0 0 256 256" width="256" height="256">'
-        f'<image width="256" height="256" xlink:href="data:image/png;base64,{encoded}"/></svg>\n'
+def write_logo_svg() -> None:
+    left, top, side = FAVICON_FRAME
+    vector = SQUARE_VECTOR_MASTER.read_text()
+    opening = re.search(r'<svg\b[^>]*[^/]>', vector)
+    if opening is None or "viewBox" in opening.group():
+        sys.exit(f"{SQUARE_VECTOR_MASTER} must open with a <svg> tag that is not self-closing and declares no viewBox")
+    declared = re.search(rf'\bwidth="{MASTER_SIDE}"\s+height="{MASTER_SIDE}"', opening.group())
+    if declared is None:
+        sys.exit(f"{SQUARE_VECTOR_MASTER} must declare width and height {MASTER_SIDE}; FAVICON_FRAME reads that")
+    framed = vector.replace(
+        opening.group(),
+        opening.group()[:-1] + f' viewBox="{left} {top} {side} {side}">',
+        1,
     )
-    (REPOSITORY_ROOT / "web/static/logo.svg").write_text(svg)
-    print("web/static/logo.svg", len(svg), "bytes")
+    (REPOSITORY_ROOT / "web/static/logo.svg").write_text(framed)
+    print("web/static/logo.svg", len(framed), "bytes")
 
 
 def write_tauri_set() -> None:
@@ -123,7 +135,7 @@ def main() -> None:
     save(square, "web/static/icon-maskable-512.png", 512, "RGB")
     save(square, "assets/internkim.png", 512, "RGB")
     write_favicon(square)
-    write_logo_svg(square)
+    write_logo_svg()
 
     write_tauri_set()
     tray = template_from_square(square, 128)
