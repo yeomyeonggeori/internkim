@@ -1,4 +1,5 @@
 import { gatewayURL, supabase } from '$lib/supabase';
+import { supabaseMember } from '$lib/supabase-session';
 
 export type HostCall = {
 	capability: string;
@@ -51,14 +52,10 @@ async function openWire(): Promise<WebSocket> {
 	const token = data.session?.access_token;
 	if (!token) throw new Error('sign in first');
 
-	const member = await client
-		.from('member')
-		.select('company_id')
-		.eq('user_id', data.session?.user.id ?? '')
-		.single<{ company_id: string }>();
-	if (member.error) throw new Error(member.error.message);
+	const { companyID } = await supabaseMember();
+	if (!companyID) throw new Error('sign in first');
 
-	const url = `${address.replace(/\/+$/, '')}/company/${encodeURIComponent(member.data.company_id)}/client`;
+	const url = `${address.replace(/\/+$/, '')}/company/${encodeURIComponent(companyID)}/client`;
 	const socket = new WebSocket(url, [tokenProtocol + token]);
 	socket.addEventListener('message', (message) => receive(message.data));
 	socket.addEventListener('close', dropTheWire);
