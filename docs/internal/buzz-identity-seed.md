@@ -70,3 +70,43 @@ was to inject a viewer membership so the messages could be *read*, not *owned*.
   it can be retired — after which the server can no longer derive (or impersonate)
   any identity. Retire the seed **only after everyone has claimed**, or unclaimed
   members lose access to their history.
+
+## Who belongs in a room
+
+Circle membership comes from the company (`circle_member` in Supabase, synced
+into `policy.json`), and two passes in `internal/admind` keep a room to what
+that says:
+
+| room | who is in it | what puts them there |
+| --- | --- | --- |
+| an open room this device opened (e.g. 광장, 잡담, welcome-everyone) | every directory member, plus the agent | the member sync (`ensureMemberChannelMembership`), at admind start and every 24 hours |
+| a room named after a declared circle | exactly that circle's members, plus the company account until an admin administers the room | the circle room sync (`keepCircleRoomsToTheirCircles`), every two minutes |
+| any other private room | whoever its members invited | nothing automatic |
+
+**A circle nobody carries holds nobody**, not everybody.
+
+Both syncs sign with the same three-key ladder (`buzzRoomActorSecret`): the
+agent first if it already administers the room, a human admin next, the
+company account only as the last resort a room neither has reached yet. The
+company account is exempt from the circle sync's own sweep until one of the
+other two takes over; the agent carries no such exemption, and a circle room
+that does not hold it removes it like anyone else the circle does not carry.
+
+## What a client reads a room from
+
+| kind | carries |
+| --- | --- |
+| 39000 | the room's name, visibility, and type, plus a `p` tag per participant for a DM |
+| 39001 | its admins |
+| 39002 | its members |
+
+**A Buzz client never reads `channels` or `channel_members`; anything that
+changes a room's row owes its clients a new event.** Every room writer in
+`internal/admind` deletes a changed room's 39000/39001/39002 rows in the same
+statement or call that changes it, then republishes them
+(`tellClientsWhoIsInTheRoom`, or `buzz-admin reconcile-channels` for a room
+with none yet): the two syncs above, the seat and stranger sweeps, ghost-room
+and named-room retirement, and the SSH recovery commands in `recovery.go`. A
+DM's kind 39000 carries participants only the relay's own emitter knows to
+add, so nothing here rewrites one: `buzz-republish-rooms` and
+`reconcile-channels` both touch `channel_type = 'stream'` alone.
