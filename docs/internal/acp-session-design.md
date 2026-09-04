@@ -43,8 +43,25 @@ place a model is named.
 ## A message becomes a prompt
 
 chatd posts the inbound event to the relay's loopback listener, at `/inbound`
-beside the arrivals it already takes. The relay opens one session per
-conversation and sends `session/prompt` carrying the message text.
+beside the arrivals it already takes. The body is the one chatd already builds
+for `/connectors/{platform}/events`, unchanged, so neither path has a shape of
+its own: the requester is read off `context.sender`, which chatd fills from the
+adapter that knows the platform's users.
+
+`/inbound` is durable, because the connectors inbox it replaces was. An event
+is keyed `platform:conversationID:messageID`, written under the relay's state
+directory, and answered **202** only once those bytes are on disk; a key
+already there is answered 202 and kept once. chatd retries with backoff until
+it gets that 202, and the relay drains the queue itself, bounded by an attempt
+ceiling that logs the drop by key.
+
+The relay opens one session per conversation and sends `session/prompt`. What
+the conversation is rides `session/new`; what one message brought with it — its
+id, its reply target, and chatd's visible context, so history, attachments and
+whether the agent was named — rides the prompt's `_meta` under
+`kim.intern/message`, because those change every time somebody writes. A
+message in a room runs the addressing gate through `internal/inboundengagement`,
+which both inbound paths now call.
 
 blueclaw runs a real turn: `internal/acpsession` builds the
 `AgentTurnRequest` the connector runtime builds today and calls
@@ -92,32 +109,40 @@ same value in the ledger, in `RequestPermissionRequest.ToolCall.ToolCallId` and
 in `approvedCallID` on the wire, and a restarted daemon recomputes it from the
 record it already has.
 
-When blueclaw restarts, the relay reconnects and calls `session/load` with
-the session id it holds. blueclaw reads the ledger, finds every task run in
-`waiting_approval` for that conversation, and re-issues `RequestPermission`
-with the same held-call id. The relay deduplicates on that id: a question it
-already asked is not asked again, and an answer it already has is returned at
-once.
+So that a restart finds something, the ACP gate records the held call and
+pauses the run to `waiting_approval` before it blocks on `RequestPermission`,
+and advances the run again on the answer. The events are the ones the
+connectors path already writes; only their order changed. A daemon killed
+mid-question leaves what a connectors turn would have left, and the
+interrupted-run auto-resume passes it over: a run that is waiting was never
+interrupted.
+
+When blueclaw restarts, the relay notices the socket end, opens a new one, and
+calls `session/load` with the session id it holds and the same `_meta`, so
+blueclaw persists nothing about the session. blueclaw reads the ledger, finds
+every task run in `waiting_approval` for that conversation, and re-issues
+`RequestPermission` with the same held-call id — after answering the load,
+since the client is blocked on that response. The relay deduplicates on that
+id, holding the person's raw words and not the agent's reading of them: a
+question it already asked is not asked again, and an answer it already has goes
+to the new agent to read for itself. An approving answer relaunches the run as
+an approval continuation.
 
 ## What 3b leaves for 3c
 
 `internal/connectors` stays as the second inbound path, behind a new blueclaw
-flag `-inbound` taking `connectors` or `acp`, defaulting to **`connectors`**.
-Under `acp`, `/connectors/{platform}/events` answers 409 naming the flag, so a
-chatd still posting is loud rather than quietly doubling the turn. 3c deletes
-the package, the flag, `internal/protocolidentity`, the runtime.json
-`capabilities` block and its stamp sources, and the pairing rule.
+flag `-inbound` taking `connectors` or `acp`. The binary's default stays
+**`connectors`** and `host/entrypoint.sh` passes `-inbound acp`, so the path a
+company runs is written where a company is brought up and the frozen device,
+which passes no such flag, needs no file changed to keep the old one. Under
+`acp`, `/connectors/{platform}/events` answers 409 naming the flag, so a chatd
+still posting is loud rather than quietly doubling the turn. 3c deletes the
+package, the flag, `internal/protocolidentity`, the runtime.json `capabilities`
+block and its stamp sources, and the pairing rule.
 
-## The first slice
+## What is not built yet
 
-Only this: blueclaw serves ACP on the socket; `session/new` and
-`session/prompt` produce a real turn whose reply streams back;
-`RequestPermission` round-trips for `message_send`; and a plane scenario drives
-one Buzz direct message through the relay end to end, reading the delivery from
-the recipient's inbox. Only the plane posts to `/inbound` so far; pointing a
-company's chatd at it comes with `-inbound acp`.
-
-Three pieces are written here and built in later slices: the MCP endpoint and
-per-session token on `session/new`, the ladder on `_meta`, and restart survival
-through `session/load`. Carrying a value nothing reads is dead configuration,
-so `session/new` carries the requester and the addressing and nothing else.
+Two pieces are written here and built later: the MCP endpoint and per-session
+token on `session/new`, and the ladder on `_meta`. Carrying a value nothing
+reads is dead configuration, so `session/new` carries the requester and the
+addressing and nothing else.
