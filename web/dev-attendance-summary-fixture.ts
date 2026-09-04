@@ -62,8 +62,7 @@ function buildSummary(
 		absences,
 		members: devAttendancePeople.map((person) => ({
 			email: person.email,
-			displayName: person.name,
-			mattermostUsername: person.mattermostUsername,
+			displayName: person.name
 		})),
 		todayStatus: attendanceStatusForToday(events, absences, currentUserEmail, serverTime),
 		locations: devAttendanceLocations,

@@ -24,14 +24,13 @@ func livePlaneOrSkip(t *testing.T) (appURL string, projectURL string, publishabl
 	return appURL, projectURL, publishableKey, agentKey
 }
 
-func liveRequesterOrSkip(t *testing.T) (personID string, externalID string) {
+func liveRequesterOrSkip(t *testing.T) string {
 	t.Helper()
-	personID = os.Getenv("LIVE_REQUESTER_PERSON_ID")
-	externalID = os.Getenv("LIVE_REQUESTER_EXTERNAL_ID")
-	if personID == "" || externalID == "" {
-		t.Skip("no live requester named; set LIVE_REQUESTER_PERSON_ID and LIVE_REQUESTER_EXTERNAL_ID")
+	personID := os.Getenv("LIVE_REQUESTER_PERSON_ID")
+	if personID == "" {
+		t.Skip("no live requester named; set LIVE_REQUESTER_PERSON_ID")
 	}
-	return personID, externalID
+	return personID
 }
 
 func directoryServing(t *testing.T, records []adminUserMutation) *httptest.Server {
@@ -84,7 +83,7 @@ func writeLiveFile(t *testing.T, directory string, name string, contents string)
 
 func TestALiveApprovalReachesTheRequestersDevices(t *testing.T) {
 	appURL, projectURL, publishableKey, agentKey := livePlaneOrSkip(t)
-	personID, externalID := liveRequesterOrSkip(t)
+	personID := liveRequesterOrSkip(t)
 
 	waiting := []taskNotifyRun{{
 		TaskRunID:         "live-run-1",
@@ -101,7 +100,7 @@ func TestALiveApprovalReachesTheRequestersDevices(t *testing.T) {
 
 	blueclaw := blueclawServingRunsAndPolicy(t, running, waiting, waiting)
 	directory := directoryServing(t, []adminUserMutation{
-		{MemberID: personID, MattermostUserID: externalID, Email: "live@example.com", Status: "active"},
+		{MemberID: personID, Email: "live@example.com", Status: "active"},
 	})
 
 	state := t.TempDir()
@@ -133,11 +132,9 @@ func TestALiveApprovalReachesTheRequestersDevices(t *testing.T) {
 
 func TestALiveMailArrivalReachesTheOwnersDevices(t *testing.T) {
 	appURL, projectURL, publishableKey, agentKey := livePlaneOrSkip(t)
-	_, externalID := liveRequesterOrSkip(t)
-
 	actorEmail := "live@example.com"
 	directory := directoryServing(t, []adminUserMutation{
-		{MemberID: "live-member", MattermostUserID: externalID, Email: actorEmail, Status: "active"},
+		{MemberID: "live-member", Email: actorEmail, Status: "active"},
 	})
 	blueclaw := blueclawServingRunsAndPolicy(t, nil)
 

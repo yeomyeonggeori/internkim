@@ -6,8 +6,6 @@ describe('work time chart data', () => {
 	test('counts an open overnight segment from midnight on its second day', () => {
 		const clockIn: AttendanceEvent = {
 			id: 'remote-in',
-			mattermostUserID: 'member-1',
-			mattermostUsername: 'member',
 			email: 'member@example.com',
 			displayName: 'Member',
 			kind: 'clock_in',

@@ -14,8 +14,6 @@ export type UserRecord = {
 	groupID?: string;
 	phoneNumber?: string;
 	supervisorID?: string;
-	mattermostUserID?: string;
-	mattermostUsername?: string;
 	status?: string;
 	isIncomplete?: boolean;
 };

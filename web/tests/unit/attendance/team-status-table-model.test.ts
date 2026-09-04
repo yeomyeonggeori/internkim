@@ -212,9 +212,9 @@ describe('team status table model', () => {
 				}),
 			],
 			[
-				attendanceMember('kim@example.com', '김철수', 'kim'),
+				attendanceMember('kim@example.com', '김철수'),
 				{
-					...attendanceMember('park@example.com', '박지민', 'park'),
+					...attendanceMember('park@example.com', '박지민'),
 					image: '/calendar/api/participants/park/image',
 				},
 			]
@@ -362,23 +362,19 @@ function attendanceSummaryForMonth(month: string, events: AttendanceEvent[], abs
 	};
 }
 
-function attendanceMember(email: string, displayName: string, mattermostUsername: string, image?: string): AttendanceMember {
-	return { email, displayName, image, mattermostUsername };
+function attendanceMember(email: string, displayName: string, image?: string): AttendanceMember {
+	return { email, displayName, image };
 }
 
 function attendanceMembersFromRecords(events: AttendanceEvent[], absences: AttendanceAbsence[]): AttendanceMember[] {
 	const members = new Map<string, AttendanceMember>();
 	for (const event of events) {
 		if (members.has(event.email)) continue;
-		members.set(event.email, attendanceMember(
-			event.email,
-			event.displayName || event.mattermostUsername || event.email,
-			event.mattermostUsername
-		));
+		members.set(event.email, attendanceMember(event.email, event.displayName || event.email));
 	}
 	for (const absence of absences) {
 		if (members.has(absence.email)) continue;
-		members.set(absence.email, attendanceMember(absence.email, absence.email, ''));
+		members.set(absence.email, attendanceMember(absence.email, absence.email));
 	}
 	return [...members.values()].sort((first, second) => first.displayName.localeCompare(second.displayName));
 }
@@ -395,8 +391,6 @@ function attendanceEvent(
 ): AttendanceEvent {
 	return {
 		id,
-		mattermostUserID: email,
-		mattermostUsername: email.split('@')[0] ?? email,
 		email,
 		displayName,
 		kind,

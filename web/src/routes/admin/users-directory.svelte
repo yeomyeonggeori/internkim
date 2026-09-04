@@ -86,9 +86,6 @@
 											<p class="truncate text-sm font-medium">{record.email}</p>
 											<UserNoteControl note={record.note} text={text.users} isSaving={isSavingUser} onSave={(note) => onSaveNote(record, note)} />
 										</div>
-										<p class="truncate text-xs text-muted-foreground">
-											{record.mattermostUsername ? `Mattermost: ${record.mattermostUsername}` : text.users.noMattermost}
-										</p>
 										{#if record.isIncomplete}
 											<p class="text-xs text-destructive">{text.users.incomplete}</p>
 										{/if}
@@ -154,9 +151,6 @@
 							<div class="min-w-0">
 								<p class="truncate text-sm font-medium">{record.name || record.email}</p>
 								<p class="truncate text-xs text-muted-foreground">{record.email}</p>
-								{#if record.mattermostUsername}
-									<p class="truncate text-xs text-muted-foreground">Mattermost: {record.mattermostUsername}</p>
-								{/if}
 							</div>
 						</div>
 						<div class="flex shrink-0 items-center gap-2">

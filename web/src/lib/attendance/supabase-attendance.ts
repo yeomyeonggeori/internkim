@@ -150,14 +150,12 @@ export async function removeSupabaseAttendanceEvent(
 
 function memberOf(member: OrderableMember): AttendanceMember {
 	const email = member.email ?? '';
-	return { email, displayName: member.name || email.split('@')[0], mattermostUsername: '' };
+	return { memberID: member.id, email, displayName: member.name || email.split('@')[0] };
 }
 
 function eventOf(row: RecordAttendance, email: string, timeZone: string): AttendanceEvent {
 	return {
 		id: row.eventID,
-		mattermostUserID: '',
-		mattermostUsername: '',
 		email,
 		displayName: row.person,
 		kind: row.kind,

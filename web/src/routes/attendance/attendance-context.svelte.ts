@@ -36,8 +36,6 @@ export type AttendanceLocation = {
 
 export type AttendanceEvent = {
 	id: string;
-	mattermostUserID: string;
-	mattermostUsername: string;
 	email: string;
 	displayName: string;
 	kind: AttendanceKind;
@@ -106,10 +104,10 @@ export type AttendanceAbsence = {
 };
 
 export type AttendanceMember = {
+	memberID?: string;
 	email: string;
 	displayName: string;
 	image?: string;
-	mattermostUsername: string;
 };
 
 export type AttendanceActiveLeave = {

@@ -3,9 +3,9 @@ import type { AttendanceMember } from '../../../src/routes/attendance/attendance
 import { leaveApprovalEmployeeName } from '../../../src/routes/attendance/approval/leave-approval-employee-name';
 
 const members: AttendanceMember[] = [
-	{ email: 'member1@example.com', displayName: '이샘플', mattermostUsername: 'leesample' },
-	{ email: 'Park@example.com', displayName: '박예시', mattermostUsername: 'park' },
-	{ email: 'choi@example.com', displayName: '', mattermostUsername: 'choi' }
+	{ email: 'member1@example.com', displayName: '이샘플' },
+	{ email: 'Park@example.com', displayName: '박예시' },
+	{ email: 'choi@example.com', displayName: '' }
 ];
 
 describe('leaveApprovalEmployeeName', () => {

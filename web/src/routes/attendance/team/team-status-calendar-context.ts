@@ -71,11 +71,11 @@ function exactParticipantMatchTokens(participant: CalendarParticipant): string[]
 }
 
 function exactPersonMatchTokens(person: TeamStatusDayContextPerson): Set<string> {
-	return new Set([person.email, person.mattermostUsername ?? ''].map(normalizeToken).filter(Boolean));
+	return new Set([person.email, person.memberID ?? ''].map(normalizeToken).filter(Boolean));
 }
 
 function fallbackPersonNameTokens(person: TeamStatusDayContextPerson): Set<string> {
-	return new Set([person.displayName, person.mattermostUsername ?? ''].map(normalizeToken).filter(Boolean));
+	return new Set([person.displayName].map(normalizeToken).filter(Boolean));
 }
 
 function normalizeToken(value: string): string {

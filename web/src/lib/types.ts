@@ -40,8 +40,6 @@ export interface FleetUserRecord {
 	note?: string;
 	role: UserRole;
 	circles?: string[];
-	mattermostUserID?: string;
-	mattermostUsername?: string;
 	status?: MemberStatus;
 	isIncomplete?: boolean;
 }

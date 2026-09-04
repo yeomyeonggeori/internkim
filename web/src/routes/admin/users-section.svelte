@@ -212,8 +212,6 @@
 					email: record.email,
 					role,
 					circles: normalizeUserCircles(record.circles, role),
-					mattermostUserID: record.mattermostUserID,
-					mattermostUsername: record.mattermostUsername,
 					status: record.status
 				},
 				text.messages.userSaveError
