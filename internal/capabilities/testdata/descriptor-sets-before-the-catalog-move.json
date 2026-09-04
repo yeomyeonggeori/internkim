@@ -4225,7 +4225,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_list",
-      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone.",
+      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -4302,7 +4302,20 @@
                     }
                   ]
                 },
+                "occurredAt": {
+                  "type": "string"
+                },
                 "originalDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "originalOccurredAt": {
                   "anyOf": [
                     {
                       "type": "string"
@@ -4325,6 +4338,9 @@
                 "person": {
                   "type": "string"
                 },
+                "personID": {
+                  "type": "string"
+                },
                 "reason": {
                   "anyOf": [
                     {
@@ -4344,19 +4360,27 @@
               },
               "required": [
                 "eventID",
+                "personID",
                 "person",
                 "kind",
                 "date",
                 "time",
+                "occurredAt",
                 "location",
                 "wasCorrected",
                 "originalDate",
                 "originalTime",
+                "originalOccurredAt",
                 "reason"
               ],
               "type": "object"
             },
             "type": "array"
+          },
+          "backdatedAfterMinutes": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
           "count": {
             "maximum": 9007199254740991,
@@ -4382,6 +4406,9 @@
           "scope": {
             "type": "string"
           },
+          "serverTime": {
+            "type": "string"
+          },
           "to": {
             "type": "string"
           }
@@ -4392,6 +4419,8 @@
           "personName",
           "from",
           "to",
+          "serverTime",
+          "backdatedAfterMinutes",
           "count",
           "attendance"
         ],
@@ -4431,7 +4460,20 @@
                       }
                     ]
                   },
+                  "occurredAt": {
+                    "type": "string"
+                  },
                   "originalDate": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "originalOccurredAt": {
                     "anyOf": [
                       {
                         "type": "string"
@@ -4454,6 +4496,9 @@
                   "person": {
                     "type": "string"
                   },
+                  "personID": {
+                    "type": "string"
+                  },
                   "reason": {
                     "anyOf": [
                       {
@@ -4473,19 +4518,27 @@
                 },
                 "required": [
                   "eventID",
+                  "personID",
                   "person",
                   "kind",
                   "date",
                   "time",
+                  "occurredAt",
                   "location",
                   "wasCorrected",
                   "originalDate",
                   "originalTime",
+                  "originalOccurredAt",
                   "reason"
                 ],
                 "type": "object"
               },
               "type": "array"
+            },
+            "backdatedAfterMinutes": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
             },
             "count": {
               "maximum": 9007199254740991,
@@ -4511,6 +4564,9 @@
             "scope": {
               "type": "string"
             },
+            "serverTime": {
+              "type": "string"
+            },
             "to": {
               "type": "string"
             }
@@ -4521,6 +4577,8 @@
             "personName",
             "from",
             "to",
+            "serverTime",
+            "backdatedAfterMinutes",
             "count",
             "attendance"
           ],
@@ -4529,7 +4587,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "2",
+      "version": "3",
       "worksOffline": false
     },
     "attendance_update": {
@@ -9836,7 +9894,7 @@
             "type": "string"
           },
           "leaveHint": {
-            "description": "Identifies the leave to decide: its exact leave ID, or enough of the line leave_list shows for that row \u2014 the person, the kind, and the start date \u2014 to name exactly one. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
+            "description": "Identifies the leave to decide: its exact leave ID, or enough of the line leave_list shows for that row — the person, the kind, and the start date — to name exactly one. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -9864,6 +9922,9 @@
           "endDate": {
             "type": "string"
           },
+          "endsAt": {
+            "type": "string"
+          },
           "isDeducted": {
             "type": "boolean"
           },
@@ -9871,6 +9932,9 @@
             "type": "boolean"
           },
           "kind": {
+            "type": "string"
+          },
+          "kindID": {
             "type": "string"
           },
           "leaveID": {
@@ -9891,7 +9955,13 @@
           "person": {
             "type": "string"
           },
+          "personID": {
+            "type": "string"
+          },
           "startDate": {
+            "type": "string"
+          },
+          "startsAt": {
             "type": "string"
           },
           "status": {
@@ -9900,7 +9970,9 @@
         },
         "required": [
           "leaveID",
+          "personID",
           "person",
+          "kindID",
           "kind",
           "days",
           "status",
@@ -9908,6 +9980,8 @@
           "isDeducted",
           "startDate",
           "endDate",
+          "startsAt",
+          "endsAt",
           "note"
         ],
         "type": "object"
@@ -9936,6 +10010,9 @@
             "endDate": {
               "type": "string"
             },
+            "endsAt": {
+              "type": "string"
+            },
             "isDeducted": {
               "type": "boolean"
             },
@@ -9943,6 +10020,9 @@
               "type": "boolean"
             },
             "kind": {
+              "type": "string"
+            },
+            "kindID": {
               "type": "string"
             },
             "leaveID": {
@@ -9963,7 +10043,13 @@
             "person": {
               "type": "string"
             },
+            "personID": {
+              "type": "string"
+            },
             "startDate": {
+              "type": "string"
+            },
+            "startsAt": {
               "type": "string"
             },
             "status": {
@@ -9972,7 +10058,9 @@
           },
           "required": [
             "leaveID",
+            "personID",
             "person",
+            "kindID",
             "kind",
             "days",
             "status",
@@ -9980,6 +10068,8 @@
             "isDeducted",
             "startDate",
             "endDate",
+            "startsAt",
+            "endsAt",
             "note"
           ],
           "type": "object"
@@ -9987,7 +10077,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     "leave_delete": {
@@ -10019,7 +10109,7 @@
         "additionalProperties": false,
         "properties": {
           "leaveHint": {
-            "description": "Identifies the leave to decide: its exact leave ID, or enough of the line leave_list shows for that row \u2014 the person, the kind, and the start date \u2014 to name exactly one. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
+            "description": "Identifies the leave to decide: its exact leave ID, or enough of the line leave_list shows for that row — the person, the kind, and the start date — to name exactly one. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -10046,6 +10136,9 @@
           "endDate": {
             "type": "string"
           },
+          "endsAt": {
+            "type": "string"
+          },
           "isDeducted": {
             "type": "boolean"
           },
@@ -10053,6 +10146,9 @@
             "type": "boolean"
           },
           "kind": {
+            "type": "string"
+          },
+          "kindID": {
             "type": "string"
           },
           "leaveID": {
@@ -10073,7 +10169,13 @@
           "person": {
             "type": "string"
           },
+          "personID": {
+            "type": "string"
+          },
           "startDate": {
+            "type": "string"
+          },
+          "startsAt": {
             "type": "string"
           },
           "status": {
@@ -10082,7 +10184,9 @@
         },
         "required": [
           "leaveID",
+          "personID",
           "person",
+          "kindID",
           "kind",
           "days",
           "status",
@@ -10090,6 +10194,8 @@
           "isDeducted",
           "startDate",
           "endDate",
+          "startsAt",
+          "endsAt",
           "note"
         ],
         "type": "object"
@@ -10118,6 +10224,9 @@
             "endDate": {
               "type": "string"
             },
+            "endsAt": {
+              "type": "string"
+            },
             "isDeducted": {
               "type": "boolean"
             },
@@ -10125,6 +10234,9 @@
               "type": "boolean"
             },
             "kind": {
+              "type": "string"
+            },
+            "kindID": {
               "type": "string"
             },
             "leaveID": {
@@ -10145,7 +10257,13 @@
             "person": {
               "type": "string"
             },
+            "personID": {
+              "type": "string"
+            },
             "startDate": {
+              "type": "string"
+            },
+            "startsAt": {
               "type": "string"
             },
             "status": {
@@ -10154,7 +10272,9 @@
           },
           "required": [
             "leaveID",
+            "personID",
             "person",
+            "kindID",
             "kind",
             "days",
             "status",
@@ -10162,6 +10282,8 @@
             "isDeducted",
             "startDate",
             "endDate",
+            "startsAt",
+            "endsAt",
             "note"
           ],
           "type": "object"
@@ -10169,7 +10291,7 @@
       },
       "sideEffect": "destructive",
       "sideEffectClass": "destructive",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     "leave_list": {
@@ -10250,6 +10372,9 @@
                 "endDate": {
                   "type": "string"
                 },
+                "endsAt": {
+                  "type": "string"
+                },
                 "isDeducted": {
                   "type": "boolean"
                 },
@@ -10257,6 +10382,9 @@
                   "type": "boolean"
                 },
                 "kind": {
+                  "type": "string"
+                },
+                "kindID": {
                   "type": "string"
                 },
                 "leaveID": {
@@ -10277,7 +10405,13 @@
                 "person": {
                   "type": "string"
                 },
+                "personID": {
+                  "type": "string"
+                },
                 "startDate": {
+                  "type": "string"
+                },
+                "startsAt": {
                   "type": "string"
                 },
                 "status": {
@@ -10286,7 +10420,9 @@
               },
               "required": [
                 "leaveID",
+                "personID",
                 "person",
+                "kindID",
                 "kind",
                 "days",
                 "status",
@@ -10294,6 +10430,8 @@
                 "isDeducted",
                 "startDate",
                 "endDate",
+                "startsAt",
+                "endsAt",
                 "note"
               ],
               "type": "object"
@@ -10368,6 +10506,9 @@
                   "endDate": {
                     "type": "string"
                   },
+                  "endsAt": {
+                    "type": "string"
+                  },
                   "isDeducted": {
                     "type": "boolean"
                   },
@@ -10375,6 +10516,9 @@
                     "type": "boolean"
                   },
                   "kind": {
+                    "type": "string"
+                  },
+                  "kindID": {
                     "type": "string"
                   },
                   "leaveID": {
@@ -10395,7 +10539,13 @@
                   "person": {
                     "type": "string"
                   },
+                  "personID": {
+                    "type": "string"
+                  },
                   "startDate": {
+                    "type": "string"
+                  },
+                  "startsAt": {
                     "type": "string"
                   },
                   "status": {
@@ -10404,7 +10554,9 @@
                 },
                 "required": [
                   "leaveID",
+                  "personID",
                   "person",
+                  "kindID",
                   "kind",
                   "days",
                   "status",
@@ -10412,6 +10564,8 @@
                   "isDeducted",
                   "startDate",
                   "endDate",
+                  "startsAt",
+                  "endsAt",
                   "note"
                 ],
                 "type": "object"
@@ -10465,7 +10619,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     "leave_request": {
@@ -10479,7 +10633,7 @@
         "mode": "success",
         "targetKind": "leave"
       },
-      "description": "File a leave request for the requester. It is filed as requested and grants nothing until somebody decides it. Whether the leave is paid and whether it consumes the entitlement follow from the kind, so do not ask the requester for either.",
+      "description": "File a leave request. It is filed as requested and grants nothing until somebody decides it. Whether the leave is paid and whether it consumes the entitlement follow from the kind, so do not ask the requester for either. It is the requester's own leave unless personHint names somebody else, which only an administrator may do.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -10504,6 +10658,10 @@
           },
           "note": {
             "description": "The reason, in the requester's own words. Omit when they gave none.",
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Name or email of the person the leave belongs to. Only an administrator files leave for somebody else. Omit for the requester.",
             "type": "string"
           },
           "startsAt": {
@@ -10531,6 +10689,10 @@
           },
           "note": {
             "description": "The reason, in the requester's own words. Omit when they gave none.",
+            "type": "string"
+          },
+          "personHint": {
+            "description": "Name or email of the person the leave belongs to. Only an administrator files leave for somebody else. Omit for the requester.",
             "type": "string"
           },
           "startsAt": {
@@ -10562,6 +10724,9 @@
           "endDate": {
             "type": "string"
           },
+          "endsAt": {
+            "type": "string"
+          },
           "isDeducted": {
             "type": "boolean"
           },
@@ -10569,6 +10734,9 @@
             "type": "boolean"
           },
           "kind": {
+            "type": "string"
+          },
+          "kindID": {
             "type": "string"
           },
           "leaveID": {
@@ -10589,7 +10757,13 @@
           "person": {
             "type": "string"
           },
+          "personID": {
+            "type": "string"
+          },
           "startDate": {
+            "type": "string"
+          },
+          "startsAt": {
             "type": "string"
           },
           "status": {
@@ -10598,7 +10772,9 @@
         },
         "required": [
           "leaveID",
+          "personID",
           "person",
+          "kindID",
           "kind",
           "days",
           "status",
@@ -10606,6 +10782,8 @@
           "isDeducted",
           "startDate",
           "endDate",
+          "startsAt",
+          "endsAt",
           "note"
         ],
         "type": "object"
@@ -10633,6 +10811,9 @@
             "endDate": {
               "type": "string"
             },
+            "endsAt": {
+              "type": "string"
+            },
             "isDeducted": {
               "type": "boolean"
             },
@@ -10640,6 +10821,9 @@
               "type": "boolean"
             },
             "kind": {
+              "type": "string"
+            },
+            "kindID": {
               "type": "string"
             },
             "leaveID": {
@@ -10660,7 +10844,13 @@
             "person": {
               "type": "string"
             },
+            "personID": {
+              "type": "string"
+            },
             "startDate": {
+              "type": "string"
+            },
+            "startsAt": {
               "type": "string"
             },
             "status": {
@@ -10669,7 +10859,9 @@
           },
           "required": [
             "leaveID",
+            "personID",
             "person",
+            "kindID",
             "kind",
             "days",
             "status",
@@ -10677,6 +10869,8 @@
             "isDeducted",
             "startDate",
             "endDate",
+            "startsAt",
+            "endsAt",
             "note"
           ],
           "type": "object"
@@ -10684,7 +10878,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     "leave_update": {
@@ -10722,7 +10916,7 @@
             "type": "string"
           },
           "leaveHint": {
-            "description": "Identifies the leave to decide: its exact leave ID, or enough of the line leave_list shows for that row \u2014 the person, the kind, and the start date \u2014 to name exactly one. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
+            "description": "Identifies the leave to decide: its exact leave ID, or enough of the line leave_list shows for that row — the person, the kind, and the start date — to name exactly one. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -10755,7 +10949,7 @@
             "type": "string"
           },
           "leaveHint": {
-            "description": "Identifies the leave to decide: its exact leave ID, or enough of the line leave_list shows for that row \u2014 the person, the kind, and the start date \u2014 to name exactly one. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
+            "description": "Identifies the leave to decide: its exact leave ID, or enough of the line leave_list shows for that row — the person, the kind, and the start date — to name exactly one. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
@@ -10790,6 +10984,9 @@
           "endDate": {
             "type": "string"
           },
+          "endsAt": {
+            "type": "string"
+          },
           "isDeducted": {
             "type": "boolean"
           },
@@ -10797,6 +10994,9 @@
             "type": "boolean"
           },
           "kind": {
+            "type": "string"
+          },
+          "kindID": {
             "type": "string"
           },
           "leaveID": {
@@ -10817,7 +11017,13 @@
           "person": {
             "type": "string"
           },
+          "personID": {
+            "type": "string"
+          },
           "startDate": {
+            "type": "string"
+          },
+          "startsAt": {
             "type": "string"
           },
           "status": {
@@ -10826,7 +11032,9 @@
         },
         "required": [
           "leaveID",
+          "personID",
           "person",
+          "kindID",
           "kind",
           "days",
           "status",
@@ -10834,6 +11042,8 @@
           "isDeducted",
           "startDate",
           "endDate",
+          "startsAt",
+          "endsAt",
           "note"
         ],
         "type": "object"
@@ -10862,6 +11072,9 @@
             "endDate": {
               "type": "string"
             },
+            "endsAt": {
+              "type": "string"
+            },
             "isDeducted": {
               "type": "boolean"
             },
@@ -10869,6 +11082,9 @@
               "type": "boolean"
             },
             "kind": {
+              "type": "string"
+            },
+            "kindID": {
               "type": "string"
             },
             "leaveID": {
@@ -10889,7 +11105,13 @@
             "person": {
               "type": "string"
             },
+            "personID": {
+              "type": "string"
+            },
             "startDate": {
+              "type": "string"
+            },
+            "startsAt": {
               "type": "string"
             },
             "status": {
@@ -10898,7 +11120,9 @@
           },
           "required": [
             "leaveID",
+            "personID",
             "person",
+            "kindID",
             "kind",
             "days",
             "status",
@@ -10906,6 +11130,8 @@
             "isDeducted",
             "startDate",
             "endDate",
+            "startsAt",
+            "endsAt",
             "note"
           ],
           "type": "object"
@@ -10913,7 +11139,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     "mail_connection_start": {
@@ -13219,7 +13445,7 @@
         "state": "ok"
       },
       "canonicalName": "person_list",
-      "description": "Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.",
+      "description": "Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough. requesterID names which of them is asking.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -13296,6 +13522,9 @@
                 },
                 "teamName": {
                   "type": "string"
+                },
+                "timeZone": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -13306,9 +13535,13 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "requesterID": {
+            "type": "string"
           }
         },
         "required": [
+          "requesterID",
           "count",
           "people"
         ],
@@ -13371,6 +13604,9 @@
                   },
                   "teamName": {
                     "type": "string"
+                  },
+                  "timeZone": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -13381,9 +13617,13 @@
                 "type": "object"
               },
               "type": "array"
+            },
+            "requesterID": {
+              "type": "string"
             }
           },
           "required": [
+            "requesterID",
             "count",
             "people"
           ],
@@ -13392,7 +13632,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "3",
+      "version": "4",
       "worksOffline": false
     },
     "site_list": {
@@ -15513,7 +15753,7 @@
         "state": "ok"
       },
       "canonicalName": "company_settings_get",
-      "description": "What the company is set to: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
+      "description": "What the company is set to: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -15568,6 +15808,9 @@
               }
             ]
           },
+          "teamViewVisibleToAll": {
+            "type": "boolean"
+          },
           "timeZone": {
             "type": "string"
           },
@@ -15606,6 +15849,7 @@
           "currencyCode",
           "workLocations",
           "leaveDays",
+          "teamViewVisibleToAll",
           "profileImageURL"
         ],
         "type": "object"
@@ -15615,7 +15859,6 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -15651,6 +15894,9 @@
                   "type": "null"
                 }
               ]
+            },
+            "teamViewVisibleToAll": {
+              "type": "boolean"
             },
             "timeZone": {
               "type": "string"
@@ -15690,6 +15936,7 @@
             "currencyCode",
             "workLocations",
             "leaveDays",
+            "teamViewVisibleToAll",
             "profileImageURL"
           ],
           "type": "object"
@@ -15697,7 +15944,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     "company_settings_update": {
@@ -15743,6 +15990,10 @@
             "maxLength": 256,
             "minLength": 1,
             "type": "string"
+          },
+          "teamViewVisibleToAll": {
+            "description": "Whether everybody sees the whole company's attendance, or only the administrators do.",
+            "type": "boolean"
           },
           "timeZone": {
             "description": "The company's time zone as an IANA name, e.g. 'Asia/Seoul'. Every date and time the record answers is read in it.",
@@ -15819,6 +16070,9 @@
               }
             ]
           },
+          "teamViewVisibleToAll": {
+            "type": "boolean"
+          },
           "timeZone": {
             "type": "string"
           },
@@ -15857,6 +16111,7 @@
           "currencyCode",
           "workLocations",
           "leaveDays",
+          "teamViewVisibleToAll",
           "profileImageURL"
         ],
         "type": "object"
@@ -15867,7 +16122,6 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -15903,6 +16157,9 @@
                   "type": "null"
                 }
               ]
+            },
+            "teamViewVisibleToAll": {
+              "type": "boolean"
             },
             "timeZone": {
               "type": "string"
@@ -15942,6 +16199,7 @@
             "currencyCode",
             "workLocations",
             "leaveDays",
+            "teamViewVisibleToAll",
             "profileImageURL"
           ],
           "type": "object"
@@ -15949,7 +16207,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     "company_holiday_list": {
@@ -24214,6 +24472,9 @@
           },
           "teamName": {
             "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
           }
         },
         "required": [
@@ -24281,6 +24542,9 @@
             },
             "teamName": {
               "type": "string"
+            },
+            "timeZone": {
+              "type": "string"
             }
           },
           "required": [
@@ -24293,7 +24557,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     "person_invite": {

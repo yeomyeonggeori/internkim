@@ -65,6 +65,7 @@ export const companySettingsUpdateInputSchema = z.strictObject({
   currencyCode: z.string().length(3).describe("The currency amounts are held in, as an ISO 4217 code, e.g. 'KRW'.").optional(),
   workLocations: z.array(workLocationSchema).describe('The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.').optional(),
   leaveDays: z.number().describe("The annual leave a person is granted, in days. This is the same number the leave policy's annual grant carries.").optional(),
+  teamViewVisibleToAll: z.boolean().describe("Whether everybody sees the whole company's attendance, or only the administrators do.").optional(),
 });
 
 export const companySettingsResultSchema = z.strictObject({
@@ -75,6 +76,7 @@ export const companySettingsResultSchema = z.strictObject({
   currencyCode: z.string(),
   workLocations: z.array(z.strictObject({ name: z.string(), color: z.string().nullable() })),
   leaveDays: z.number().nullable(),
+  teamViewVisibleToAll: z.boolean(),
   profileImageURL: z.string().nullable(),
 });
 
@@ -251,8 +253,8 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_company',
     policyResource: 'tool:company_settings_get',
-    description: "What the company is set to: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
-    version: '1',
+    description: "What the company is set to: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companySettingsGetInputSchema,
     result: { schema: companySettingsResultSchema, effects: [] },
@@ -265,7 +267,7 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_company',
     policyResource: 'tool:company_settings_update',
     description: 'Change what the company is set to. Only the fields the call names change. This is an administrator\'s, and it is company-wide: the time zone and the language decide what every colleague sees, so put it to the requester before calling.',
-    version: '1',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companySettingsUpdateInputSchema,

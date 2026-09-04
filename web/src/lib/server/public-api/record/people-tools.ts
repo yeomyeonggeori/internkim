@@ -77,13 +77,15 @@ export function answeredPerson(
 		...(person.supervisorID ? { supervisorID: person.supervisorID } : {}),
 		...(supervisor ? { supervisorName: supervisor.name } : {}),
 		...(person.phoneNumber ? { phoneNumber: person.phoneNumber } : {}),
-		...(person.hireDate ? { hireDate: person.hireDate } : {})
+		...(person.hireDate ? { hireDate: person.hireDate } : {}),
+		...(person.timeZone ? { timeZone: person.timeZone } : {})
 	};
 }
 
 export async function personList(context: RecordContext) {
 	const teams = await teamsOfCompany(context.caller);
 	return {
+		requesterID: context.requesterID,
 		count: context.people.length,
 		people: context.people.map((person) => answeredPerson(person, context.people, teams))
 	};

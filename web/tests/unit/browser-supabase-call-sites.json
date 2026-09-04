@@ -1,34 +1,10 @@
 {
 	"src/lib/attendance/supabase-active-leave.ts": {
-		"from('leave')": 1,
 		"rpc('leave_return_early')": 1
-	},
-	"src/lib/attendance/supabase-attendance.ts": {
-		"from('company')": 3,
-		"from('member')": 2,
-		"from('attendance')": 2,
-		"from('leave')": 1,
-		"rpc('attendance_server_time')": 1,
-		"rpc('attendance_backdated_after_minutes')": 1
 	},
 	"src/lib/attendance/supabase-leave-management.ts": {
 		"rpc('member_leave_days_set')": 1,
-		"from('leave')": 4,
-		"from('company')": 1,
 		"rpc('leave_management_source')": 1
-	},
-	"src/lib/attendance/supabase-leave.ts": {
-		"rpc('leave_in_full')": 1,
-		"from('member')": 3,
-		"from('company')": 1,
-		"rpc('member_today')": 1,
-		"rpc('member_leave_remaining')": 1
-	},
-	"src/lib/attendance/supabase-work-status.ts": {
-		"from('company')": 1,
-		"from('member')": 1,
-		"from('attendance')": 1,
-		"from('leave')": 1
 	},
 	"src/lib/host-bridge.ts": {
 		"from('member')": 1

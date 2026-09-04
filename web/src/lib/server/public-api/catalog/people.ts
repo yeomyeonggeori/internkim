@@ -57,9 +57,11 @@ const directoryPersonSchema = z.strictObject({
   supervisorName: z.string().optional(),
   phoneNumber: z.string().optional(),
   hireDate: z.string().optional(),
+  timeZone: z.string().optional(),
 });
 
 export const personListResultSchema = z.strictObject({
+  requesterID: z.string(),
   count: z.number(),
   people: z.array(directoryPersonSchema),
 });
@@ -160,8 +162,8 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:person_list',
-    description: 'Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough.',
-    version: '3',
+    description: 'Everyone who works here, with their exact name, email and mention, and what the company directory holds about them: their job title, their organization, who they report to, and when they started. Call this when somebody asks who a person is or who works here, and when a person hint was refused with a list of candidates to choose between. Do not call it to turn a fragment into a name before another call: person hints take the fragment as it was written and the server resolves it, so a name given partly or by a given name alone is already enough. requesterID names which of them is asking.',
+    version: '4',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: personListInputSchema,
     inputIntentSchema: personListInputIntentSchema,
@@ -175,7 +177,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_task',
     policyResource: 'tool:person_update',
     description: "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
-    version: '1',
+    version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: personUpdateInputSchema,
     inputIntentSchema: personUpdateInputIntentSchema,

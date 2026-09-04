@@ -11,6 +11,7 @@ export function personInTheDirectory(person: NamedPerson): RecordPerson {
 		supervisorID: '',
 		phoneNumber: '',
 		hireDate: '',
+		timeZone: '',
 		...person
 	};
 }

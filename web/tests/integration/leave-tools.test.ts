@@ -243,3 +243,66 @@ describe('listing leave', () => {
 		expect(approved.count).toBe(1);
 	});
 });
+
+// The attendance screens draw a part of a day against the working hours and key
+// every row by the person it belongs to, and neither a display name nor a date
+// can say either.
+describe('what the leave screens need out of an answer', () => {
+	test('a row names the person and the kind by id and says the moments it covers', async () => {
+		const filed = resultOf(
+			await asSample('leave_request', {
+				kind: '연차',
+				startsAt: '2026-07-06T09:00:00+09:00',
+				endsAt: '2026-07-06T14:00:00+09:00',
+				days: 0.5
+			})
+		);
+
+		expect(filed.personID).toBe(sampleID);
+		expect(filed.kindID).toBeString();
+		expect(filed.kindID).not.toBe('');
+		expect(new Date(String(filed.startsAt)).toISOString()).toBe('2026-07-06T00:00:00.000Z');
+		expect(new Date(String(filed.endsAt)).toISOString()).toBe('2026-07-06T05:00:00.000Z');
+
+		const listed = resultOf(await asSample('leave_list', { from: '2026-07-01', to: '2026-07-31' }));
+		const row = (listed.leave as Record<string, unknown>[]).find(
+			(each) => each.leaveID === filed.leaveID
+		);
+		expect(row?.personID).toBe(sampleID);
+		expect(row?.kindID).toBe(filed.kindID);
+		expect(row?.startsAt).toBe(filed.startsAt);
+		expect(row?.endsAt).toBe(filed.endsAt);
+	});
+
+	test('an administrator files leave for somebody else and decides it', async () => {
+		const filed = resultOf(
+			await asAdmin('leave_request', {
+				personHint: '이샘플',
+				kind: '연차',
+				startsAt: '2026-07-20',
+				endsAt: '2026-07-21',
+				days: 2,
+				note: '지난 휴가를 뒤늦게 기록합니다'
+			})
+		);
+		expect(filed.personID).toBe(sampleID);
+		expect(filed.status).toBe('requested');
+
+		const decided = resultOf(
+			await asAdmin('leave_decide', { leaveHint: filed.leaveID as string, decision: 'approved' })
+		);
+		expect(decided.status).toBe('approved');
+		expect(decided.personID).toBe(sampleID);
+	});
+
+	test('a colleague may not file leave for anybody but themselves', async () => {
+		const refused = await asSample('leave_request', {
+			personHint: '최견본',
+			kind: '연차',
+			startsAt: '2026-07-27',
+			endsAt: '2026-07-27',
+			days: 1
+		});
+		expect(refused.status).toBeGreaterThanOrEqual(400);
+	});
+});

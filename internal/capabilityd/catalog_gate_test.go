@@ -212,7 +212,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_list","result":{"count":1,"scope":"person","personID":"p1","personName":"이샘플","statusFilter":"approved","registeredKinds":["연차"],"leave":[{"leaveID":"l1","person":"이샘플","kind":"연차","days":2,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-01","endDate":"2026-09-02","note":null}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_list","result":{"count":1,"scope":"person","personID":"p1","personName":"이샘플","statusFilter":"approved","registeredKinds":["연차"],"leave":[{"leaveID":"l1","personID":"p1","person":"이샘플","kindID":"annual","kind":"연차","days":2,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-01","endDate":"2026-09-02","startsAt":"2026-08-31T15:00:00Z","endsAt":"2026-09-02T15:00:00Z","note":null}]}}`)},
 			input:   `{"status":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -266,7 +266,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_request": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_request","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_request","result":{"leaveID":"l2","personID":"p1","person":"이샘플","kindID":"annual","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","startsAt":"2026-09-03T15:00:00Z","endsAt":"2026-09-04T15:00:00Z","note":null}}`)},
 			input:   `{"kind":"연차","startsAt":"2026-09-04","endsAt":"2026-09-04","days":1}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -275,7 +275,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_update","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"requested","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_update","result":{"leaveID":"l2","personID":"p1","person":"이샘플","kindID":"annual","kind":"연차","days":1,"status":"requested","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","startsAt":"2026-09-03T15:00:00Z","endsAt":"2026-09-04T15:00:00Z","note":null}}`)},
 			input:   `{"leaveHint":"l2","startsAt":"2026-09-04","endsAt":"2026-09-04"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -284,7 +284,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_delete": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_delete","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"requested","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_delete","result":{"leaveID":"l2","personID":"p1","person":"이샘플","kindID":"annual","kind":"연차","days":1,"status":"requested","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","startsAt":"2026-09-03T15:00:00Z","endsAt":"2026-09-04T15:00:00Z","note":null}}`)},
 			input:   `{"leaveHint":"l2"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -293,7 +293,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"leave_decide": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_decide","result":{"leaveID":"l2","person":"이샘플","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","note":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"leave_decide","result":{"leaveID":"l2","personID":"p1","person":"이샘플","kindID":"annual","kind":"연차","days":1,"status":"approved","isPaid":true,"isDeducted":true,"startDate":"2026-09-04","endDate":"2026-09-04","startsAt":"2026-09-03T15:00:00Z","endsAt":"2026-09-04T15:00:00Z","note":null}}`)},
 			input:   `{"leaveHint":"이샘플 · 연차 · 2026-09-04","decision":"approved"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -302,7 +302,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"attendance_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_list","result":{"scope":"person","personID":"p1","personName":"이샘플","from":"2026-08-02","to":"2026-09-01","count":1,"attendance":[{"eventID":"a1","person":"이샘플","kind":"clock_in","date":"2026-09-01","time":"09:02","location":"본사","wasCorrected":false,"originalDate":null,"originalTime":null,"reason":null}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_list","result":{"scope":"person","personID":"p1","personName":"이샘플","from":"2026-08-02","to":"2026-09-01","serverTime":"2026-09-01T00:02:00Z","backdatedAfterMinutes":4320,"count":1,"attendance":[{"eventID":"a1","personID":"p1","person":"이샘플","kind":"clock_in","date":"2026-09-01","time":"09:02","occurredAt":"2026-09-01T00:02:00Z","location":"본사","wasCorrected":false,"originalDate":null,"originalTime":null,"originalOccurredAt":null,"reason":null}]}}`)},
 			input:   `{"scope":"self","handWrittenOnly":true}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -329,7 +329,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_settings_get": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_settings_get","result":{"name":"\uc5ec\uba85\uac70\ub9ac","country":"KR","locale":"ko","timeZone":"Asia/Seoul","currencyCode":"KRW","workLocations":[{"name":"\uc0ac\ubb34\uc2e4","color":null}],"leaveDays":15,"profileImageURL":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_settings_get","result":{"name":"\uc5ec\uba85\uac70\ub9ac","country":"KR","locale":"ko","timeZone":"Asia/Seoul","currencyCode":"KRW","workLocations":[{"name":"\uc0ac\ubb34\uc2e4","color":null}],"leaveDays":15,"teamViewVisibleToAll":true,"profileImageURL":null}}`)},
 			input:   `{}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -338,7 +338,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_settings_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_settings_update","result":{"name":"\uc5ec\uba85\uac70\ub9ac","country":"KR","locale":"ko","timeZone":"Asia/Tokyo","currencyCode":"KRW","workLocations":[],"leaveDays":15,"profileImageURL":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_settings_update","result":{"name":"\uc5ec\uba85\uac70\ub9ac","country":"KR","locale":"ko","timeZone":"Asia/Tokyo","currencyCode":"KRW","workLocations":[],"leaveDays":15,"teamViewVisibleToAll":true,"profileImageURL":null}}`)},
 			input:   `{"timeZone":"Asia/Tokyo"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
