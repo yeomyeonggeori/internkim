@@ -78,9 +78,9 @@ func TestUsersPromoteReusesExistingRecord(t *testing.T) {
 	client := &fakeUsersAdminAPIClient{
 		response: commandUsersResponse{
 			Records: []commandUserRecord{{
-				Email:            "person@example.com",
-				Role:             "member",
-				MattermostUserID: "mattermost-user",
+				Email:  "person@example.com",
+				Role:   "member",
+				Handle: "person",
 			}},
 		},
 	}
@@ -94,7 +94,7 @@ func TestUsersPromoteReusesExistingRecord(t *testing.T) {
 		t.Fatalf("requests = %+v", client.requests)
 	}
 	record := client.requests[1].body.(commandUserRecord)
-	if record.Role != "admin" || record.MattermostUserID != "mattermost-user" {
+	if record.Role != "admin" || record.Handle != "person" {
 		t.Fatalf("record = %+v", record)
 	}
 }

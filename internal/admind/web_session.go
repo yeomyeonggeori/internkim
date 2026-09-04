@@ -354,7 +354,6 @@ func (service *Service) currentWebPolicyVersion(ctx context.Context) (string, er
 			strings.TrimSpace(record.MemberID),
 			strings.ToLower(strings.TrimSpace(record.Role)),
 			strings.ToLower(strings.TrimSpace(record.Status)),
-			strings.TrimSpace(record.MattermostUserID),
 		}, "\x00"))
 	}
 	return hashWebPolicyRecords(values), nil

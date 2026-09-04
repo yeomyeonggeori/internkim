@@ -4,9 +4,9 @@ import { calendarEventDetailsForPersonDay } from './team-status-calendar-context
 import { completedTasksForPersonDay } from './team-status-task-context';
 
 export type TeamStatusDayContextPerson = {
+	memberID?: string;
 	email: string;
 	displayName: string;
-	mattermostUsername?: string;
 };
 
 export type TeamStatusCalendarEventDetail = {

@@ -192,8 +192,6 @@ func fleetAccountUpsertPayload(payload adminUserMutation, fleetID string) map[st
 		"fleet_id":           fleetID,
 		"email":              payload.Email,
 		"role":               payload.Role,
-		"mattermostUserID":   payload.MattermostUserID,
-		"mattermostUsername": payload.MattermostUsername,
 		"status":             payload.Status,
 	}
 }

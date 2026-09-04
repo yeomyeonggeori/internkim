@@ -6,7 +6,7 @@ import { buildTeamStatusDayContext, type TeamStatusDayContextLoadState } from '.
 describe('team status day context', () => {
 	test('shows only personal calendar events and hides all-participant events', () => {
 		const context = buildTeamStatusDayContext(
-			{ email: 'kim@example.com', displayName: '김철수', mattermostUsername: 'kim' },
+			{ email: 'kim@example.com', displayName: '김철수' },
 			'2026-06-16',
 			[
 				calendarEvent('personal-email', '개인 일정', '2026-06-16T01:00:00.000Z', '2026-06-16T02:00:00.000Z', [
@@ -57,7 +57,7 @@ describe('team status day context', () => {
 
 	test('uses exact calendar participant tokens before name fallback', () => {
 		const context = buildTeamStatusDayContext(
-			{ email: 'kim@example.com', displayName: '김철수', mattermostUsername: 'kim' },
+			{ memberID: 'kim', email: 'kim@example.com', displayName: '김철수' },
 			'2026-06-16',
 			[
 				calendarEvent('same-name-other-email', '동명이인 일정', '2026-06-16T01:00:00.000Z', '2026-06-16T02:00:00.000Z', [

@@ -178,8 +178,6 @@ function normalizeUserRecord(parsed: Record<string, unknown>, existingRecord: Us
 		circles: normalizeCircles(circles, role),
 		jobTitle: existingRecord?.jobTitle,
 		groupID: existingRecord?.groupID,
-		mattermostUserID: stringField(parsed, 'mattermostUserID') || existingRecord?.mattermostUserID,
-		mattermostUsername: stringField(parsed, 'mattermostUsername') || existingRecord?.mattermostUsername,
 		status: stringField(parsed, 'status') || existingRecord?.status
 	};
 }
@@ -197,8 +195,6 @@ function createDevUserRecords(): UserRecord[] {
 			circles: ['member', 'admin', 'c-level', 'representative', 'hr'],
 			jobTitle: 'Representative',
 			groupID: 'c-level',
-			mattermostUserID: 'dev-mm-gyeonbon',
-			mattermostUsername: 'gyeonbon',
 			status: 'active'
 		}
 	];
