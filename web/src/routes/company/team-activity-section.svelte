@@ -72,7 +72,7 @@
 			participantNames: [memberLabel(member.surname, member.jobTitle)],
 			business: work.business ?? '',
 			type: work.type ?? '',
-			content: work.title, size: work.size ?? '', status: work.status, statusRank: 0,
+			content: work.title, size: work.size ?? '', status: work.status,
 			startDate: work.startDate, endDate: work.endDate, weekCode: ''
 		};
 	}

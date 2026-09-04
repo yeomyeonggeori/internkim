@@ -37,7 +37,6 @@ export type Task = {
 	content: string;
 	size: string;
 	status: string;
-	statusRank: number;
 	startDate?: string;
 	endDate?: string;
 	createdAt?: string;

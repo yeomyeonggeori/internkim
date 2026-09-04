@@ -42,7 +42,6 @@ function task(fields: Partial<Task>): Task {
 		content: '',
 		size: '',
 		status: 'planned',
-		statusRank: 0,
 		weekCode: '',
 		...fields
 	};

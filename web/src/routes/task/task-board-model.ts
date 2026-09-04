@@ -76,9 +76,20 @@ export function isTaskBoardStatus(status: string): status is TaskBoardStatus {
 }
 
 function compareTaskBoardOrder(left: Task, right: Task): number {
-	const rankDifference = left.statusRank - right.statusRank;
-	if (rankDifference !== 0) return rankDifference;
+	const endDateComparison = compareAscendingOptionalDate(left.endDate, right.endDate);
+	if (endDateComparison !== 0) return endDateComparison;
+	const createdAtComparison = compareAscendingOptionalDate(left.createdAt, right.createdAt);
+	if (createdAtComparison !== 0) return createdAtComparison;
 	return left.id.localeCompare(right.id);
+}
+
+function compareAscendingOptionalDate(left: string | undefined, right: string | undefined): number {
+	const leftValue = left?.trim() ?? '';
+	const rightValue = right?.trim() ?? '';
+	if (leftValue === rightValue) return 0;
+	if (leftValue === '') return 1;
+	if (rightValue === '') return -1;
+	return leftValue.localeCompare(rightValue);
 }
 
 export function isOverdueTaskPlan(task: Task, weekStartISO: string): boolean {

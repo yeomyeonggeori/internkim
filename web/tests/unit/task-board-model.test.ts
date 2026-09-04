@@ -5,33 +5,55 @@ import type { Task } from '../../src/routes/task/task-types';
 describe('flow task board model', () => {
 	test('groups only board statuses and excludes rejected or stopped tasks', () => {
 		const board = buildTaskBoard([
-			task({ id: 'requested-1', status: 'requested', statusRank: 100 }),
-			task({ id: 'rejected-1', status: 'rejected', statusRank: 100 }),
-			task({ id: 'stopped-1', status: 'stopped', statusRank: 100 }),
-			task({ id: 'paused-1', status: 'paused', statusRank: 100 })
+			task({ id: 'requested-1', status: 'requested' }),
+			task({ id: 'rejected-1', status: 'rejected' }),
+			task({ id: 'stopped-1', status: 'stopped' }),
+			task({ id: 'paused-1', status: 'paused' })
 		]);
 
 		expect(board.map((column) => column.status)).toEqual([...BOARD_STATUS_VALUES]);
 		expect(board.flatMap((column) => column.tasks.map((task) => task.id))).toEqual(['requested-1', 'paused-1']);
 	});
 
-	test('sorts tasks from top to bottom by status rank inside each column', () => {
+	test('sorts tasks from top to bottom by end date, earliest first', () => {
 		const board = buildTaskBoard([
-			task({ id: 'bottom', status: 'in_progress', statusRank: 300 }),
-			task({ id: 'top', status: 'in_progress', statusRank: 100 }),
-			task({ id: 'middle', status: 'in_progress', statusRank: 200 })
+			task({ id: 'last', status: 'in_progress', endDate: '2026-06-10' }),
+			task({ id: 'first', status: 'in_progress', endDate: '2026-06-01' }),
+			task({ id: 'middle', status: 'in_progress', endDate: '2026-06-05' })
 		]);
 
 		const progressColumn = board.find((column) => column.status === 'in_progress');
 
-		expect(progressColumn?.tasks.map((task) => task.id)).toEqual(['top', 'middle', 'bottom']);
+		expect(progressColumn?.tasks.map((task) => task.id)).toEqual(['first', 'middle', 'last']);
 	});
 
-	test('uses task id as a stable tie-break when status ranks match', () => {
+	test('breaks a tie on end date by creation time, earliest first', () => {
 		const board = buildTaskBoard([
-			task({ id: 'task-c', status: 'in_progress', statusRank: 100 }),
-			task({ id: 'task-a', status: 'in_progress', statusRank: 100 }),
-			task({ id: 'task-b', status: 'in_progress', statusRank: 100 })
+			task({ id: 'created-later', status: 'in_progress', endDate: '2026-06-05', createdAt: '2026-06-01T12:00:00Z' }),
+			task({ id: 'created-first', status: 'in_progress', endDate: '2026-06-05', createdAt: '2026-06-01T09:00:00Z' })
+		]);
+
+		const progressColumn = board.find((column) => column.status === 'in_progress');
+
+		expect(progressColumn?.tasks.map((task) => task.id)).toEqual(['created-first', 'created-later']);
+	});
+
+	test('sorts a task with no end date after every dated task in the column', () => {
+		const board = buildTaskBoard([
+			task({ id: 'undated', status: 'in_progress', endDate: '' }),
+			task({ id: 'dated', status: 'in_progress', endDate: '2026-06-05' })
+		]);
+
+		const progressColumn = board.find((column) => column.status === 'in_progress');
+
+		expect(progressColumn?.tasks.map((task) => task.id)).toEqual(['dated', 'undated']);
+	});
+
+	test('uses task id as a stable tie-break when end date and creation time match', () => {
+		const board = buildTaskBoard([
+			task({ id: 'task-c', status: 'in_progress' }),
+			task({ id: 'task-a', status: 'in_progress' }),
+			task({ id: 'task-b', status: 'in_progress' })
 		]);
 
 		const progressColumn = board.find((column) => column.status === 'in_progress');
@@ -137,7 +159,6 @@ function task(overrides: Partial<Task>): Task {
 		content: '업무',
 		size: 'M',
 		status: 'planned',
-		statusRank: 0,
 		weekCode: '26W23',
 		...overrides
 	};

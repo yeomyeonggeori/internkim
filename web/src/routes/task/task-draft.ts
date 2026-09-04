@@ -18,11 +18,10 @@ export function createTaskDraft(owner: TaskMember, definitions: TaskDefinitions,
 		business: definitions.categories[0] ?? null,
 		type: definitions.types[0] ?? null,
 		content: '',
-			size: 'M',
+		size: 'M',
 		status: 'planned',
-		statusRank: 0,
-		weekCode,
-		};
+		weekCode
+	};
 }
 
 export function cloneTask(task: Task): Task {

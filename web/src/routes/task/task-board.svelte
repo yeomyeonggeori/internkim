@@ -70,8 +70,6 @@
 		'overflow-x-auto overflow-y-hidden px-4 pb-2 scroll-px-4 md:px-8 md:scroll-px-8',
 		'snap-x snap-mandatory'
 	].join(' ');
-	const insertionLineWrapperClass = 'flex h-4 items-center px-1';
-	const insertionLineClass = 'h-0.5 w-full rounded-full bg-primary shadow-sm ring-1 ring-primary/20';
 	const boardDrag = new TaskBoardDragController();
 
 	let columns = $derived(buildTaskBoard(tasks, {
@@ -92,10 +90,6 @@
 
 	function isTaskPending(taskID: string): boolean {
 		return boardDrag.isTaskPending(taskID);
-	}
-
-	function insertionIndicatorID(status: string, beforeTaskID: string): string {
-		return `${status}:${beforeTaskID}`;
 	}
 
 	function taskCountLabel(count: number): string {
@@ -163,15 +157,6 @@
 					>
 						<div class="space-y-2">
 							{#each column.tasks as task (task.id)}
-								{#if boardDrag.shouldShowCardInsertionLine(column.status, task.id)}
-									<div
-										class={insertionLineWrapperClass}
-										data-task-board-drop-indicator={insertionIndicatorID(column.status, task.id)}
-									>
-										<div class={insertionLineClass}></div>
-									</div>
-								{/if}
-
 								<div role="listitem">
 									<TaskBoardCard
 										{task}
@@ -187,8 +172,6 @@
 										isReadOnly={!canUpdateTask(task)}
 										onTaskDragStart={boardDrag.handleTaskDragStart}
 										onTaskDragEnd={boardDrag.handleTaskDragEnd}
-										onTaskDragOver={(event, value) => boardDrag.handleCardDragOver(event, column.status, column.tasks, value)}
-										onTaskDrop={(event, value) => boardDrag.handleCardDrop(event, column.status, column.tasks, value)}
 									/>
 								</div>
 							{/each}
@@ -200,14 +183,6 @@
 								ondragover={(event) => boardDrag.handleColumnDragOver(event, column.status, column.tasks)}
 								ondrop={(event) => boardDrag.handleColumnDrop(event, column.status, column.tasks)}
 							>
-								{#if boardDrag.shouldShowAppendInsertionLine(column.status)}
-									<div
-										class={insertionLineWrapperClass}
-										data-task-board-drop-indicator={insertionIndicatorID(column.status, 'append')}
-									>
-										<div class={insertionLineClass}></div>
-									</div>
-								{/if}
 								<Button
 									type="button"
 									variant="ghost"

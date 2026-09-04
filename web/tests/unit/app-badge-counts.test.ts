@@ -34,7 +34,6 @@ function task(id: string, status: string, ownerID: string, participantIDs: strin
 		content: id,
 		size: '',
 		status,
-		statusRank: 0,
 		weekCode: '2026-W31'
 	};
 }

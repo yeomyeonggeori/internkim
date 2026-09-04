@@ -18,7 +18,6 @@ function taskWith(fields: Partial<Task> = {}): Task {
 		content: '마켓컬리 CMO 미팅',
 		size: 'XS',
 		status: 'planned',
-		statusRank: 0,
 		startDate: '2026-08-20',
 		endDate: '2026-08-20',
 		weekCode: '26W34',
