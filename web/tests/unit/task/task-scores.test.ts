@@ -22,7 +22,6 @@ function completedTask(memberIDs: string[], endDate: string, size: string): Task
 		content: '완료된 업무',
 		size,
 		status: 'completed',
-		statusRank: 0,
 		endDate,
 		weekCode: ''
 	};

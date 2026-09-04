@@ -304,7 +304,6 @@ function task(
 		content: `${id} 업무`,
 		size: 'M',
 		status,
-		statusRank: 0,
 		startDate: '2026-06-15',
 		endDate,
 		weekCode: '2026-W25'

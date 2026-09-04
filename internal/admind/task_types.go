@@ -1,9 +1,5 @@
 package admind
 
-
-
-
-
 type taskMember struct {
 	ID                 string `json:"id"`
 	Name               string `json:"name"`
@@ -15,29 +11,23 @@ type taskMember struct {
 }
 
 type Task struct {
-	ID                 string   `json:"id"`
-	OwnerID            string   `json:"ownerID"`
-	OwnerName          string   `json:"ownerName"`
-	ParticipantIDs     []string `json:"participantIDs"`
-	ParticipantNames   []string `json:"participantNames"`
-	Business           string   `json:"business"`
-	Type               string   `json:"type"`
-	Content            string   `json:"content"`
-	Size               string   `json:"size"`
-	Status             string   `json:"status"`
-	StatusRank         int      `json:"statusRank"`
-	StatusRankProvided bool     `json:"-"`
-	StartDate          string   `json:"startDate,omitempty"`
-	EndDate            string   `json:"endDate,omitempty"`
-	WeekCode           string   `json:"weekCode"`
-	MattermostPostID   string   `json:"mattermostPostID,omitempty"`
-	CalendarEventID    string   `json:"calendarEventID,omitempty"`
-	CreatedAt          string   `json:"createdAt,omitempty"`
+	ID               string   `json:"id"`
+	OwnerID          string   `json:"ownerID"`
+	OwnerName        string   `json:"ownerName"`
+	ParticipantIDs   []string `json:"participantIDs"`
+	ParticipantNames []string `json:"participantNames"`
+	Business         string   `json:"business"`
+	Type             string   `json:"type"`
+	Content          string   `json:"content"`
+	Size             string   `json:"size"`
+	Status           string   `json:"status"`
+	StartDate        string   `json:"startDate,omitempty"`
+	EndDate          string   `json:"endDate,omitempty"`
+	WeekCode         string   `json:"weekCode"`
+	MattermostPostID string   `json:"mattermostPostID,omitempty"`
+	CalendarEventID  string   `json:"calendarEventID,omitempty"`
+	CreatedAt        string   `json:"createdAt,omitempty"`
 }
-
-
-
-
 
 type taskDefinitions struct {
 	Categories     []string             `json:"categories"`
@@ -68,7 +58,6 @@ type taskWriteRequest struct {
 	Goal            string   `json:"goal"`
 	Size            string   `json:"size"`
 	Status          string   `json:"status"`
-	StatusRank      *int     `json:"statusRank"`
 	StartDate       string   `json:"startDate"`
 	EndDate         string   `json:"endDate"`
 	WeekCode        string   `json:"weekCode"`
@@ -78,7 +67,6 @@ type taskWriteRequest struct {
 	EventLocation   string   `json:"eventLocation"`
 	EventAllDay     bool     `json:"eventAllDay"`
 }
-
 
 type taskQuickTaskRequest struct {
 	Prompt         string   `json:"prompt"`
@@ -91,7 +79,6 @@ type taskQuickTaskRequest struct {
 	Source         string   `json:"source"`
 	AllowDuplicate bool     `json:"allowDuplicate"`
 }
-
 
 type inferredTask struct {
 	Category       string   `json:"category"`
