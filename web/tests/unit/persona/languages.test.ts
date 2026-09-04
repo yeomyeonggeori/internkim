@@ -24,9 +24,9 @@ describe('reply languages', () => {
 });
 
 describe('default call-me', () => {
-	test('a korean reply language addresses the name with 님', () => {
-		expect(defaultCallMe('이샘플', 'ko')).toBe('이샘플님');
-		expect(defaultCallMe('이샘플', 'ko-KR')).toBe('이샘플님');
+	test('a korean reply language addresses the name with a spaced 님', () => {
+		expect(defaultCallMe('이샘플', 'ko')).toBe('이샘플 님');
+		expect(defaultCallMe('이샘플', 'ko-KR')).toBe('이샘플 님');
 	});
 
 	test('other languages keep the bare name', () => {
