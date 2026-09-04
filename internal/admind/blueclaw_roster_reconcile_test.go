@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
 func rosterPolicyWithEmails(emails ...string) map[string]any {
@@ -285,5 +287,16 @@ func TestTheDeviceReadsTheTimeZoneTheCompanyKeeps(t *testing.T) {
 	}
 	if language := service.workspaceLanguage(); language != workspaceLanguageEnglish {
 		t.Fatalf("the device works in the language the company keeps, got %q", language)
+	}
+}
+
+func TestTheDeliveredPolicyCarriesTheLocaleBesideTheTimeZone(t *testing.T) {
+	snapshot := companyPolicySnapshot(centralplane.CompanyProfile{Name: "예시회사"}, "America/Los_Angeles", workspaceLanguageEnglish)
+
+	if snapshot["timeZone"] != "America/Los_Angeles" {
+		t.Fatalf("expected the time zone on the delivered company snapshot, got %v", snapshot)
+	}
+	if snapshot["locale"] != workspaceLanguageEnglish {
+		t.Fatalf("expected the locale beside the time zone on the delivered company snapshot, got %v", snapshot)
 	}
 }
