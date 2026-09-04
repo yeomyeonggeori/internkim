@@ -1,15 +1,33 @@
 package admind
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestARoomIsAdministeredByAnAdminStandingInIt(t *testing.T) {
+func TestTheAgentSignsARoomItAdministersEvenWithAnAdminAlsoElevated(t *testing.T) {
+	service := &Service{}
+	heldRoles := map[string]string{"admin-pubkey": "owner", "agent-pubkey": "owner"}
+
+	secret := service.pickBuzzRoomActor(heldRoles, map[string]string{"admin-pubkey": "admin-secret"}, "agent-secret", "agent-pubkey", "bootstrap-secret")
+
+	if secret != "agent-secret" {
+		t.Fatalf("actor = %q, want the agent to sign a room it administers rather than an admin who did not act", secret)
+	}
+}
+
+func TestAnAdminSignsOnlyAsALastResortAndTheFallbackIsLogged(t *testing.T) {
 	service := &Service{}
 	heldRoles := map[string]string{"admin-pubkey": "owner", "someone-pubkey": "member"}
+	output := captureBlueclawTaskDrainLogs(t)
 
 	secret := service.pickBuzzRoomActor(heldRoles, map[string]string{"admin-pubkey": "admin-secret"}, "agent-secret", "agent-pubkey", "bootstrap-secret")
 
 	if secret != "admin-secret" {
-		t.Fatalf("actor = %q, want the admin in the room", secret)
+		t.Fatalf("actor = %q, want the admin in the room while the agent does not administer it yet", secret)
+	}
+	if !strings.Contains(output.String(), "the agent does not administer this room yet") {
+		t.Fatalf("log = %q, want one line naming the fallback to an admin", output.String())
 	}
 }
 

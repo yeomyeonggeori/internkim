@@ -87,6 +87,18 @@ func TestTheMemberSyncSkipsWhoIsAlreadyIn(t *testing.T) {
 	}
 }
 
+func TestTheUserSyncSkipsWhoIsAlreadyIn(t *testing.T) {
+	source, errorValue := os.ReadFile("buzz_channel_membership.go")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	body := string(source)
+
+	if !strings.Contains(body, `if heldRole, isHeld := heldRoles[pubkey]; isHeld && (role == "" || heldRole == role) {`) {
+		t.Fatal("a rerun for someone already in the room must not ask the relay to add them again, or every rerun announces a joining that already happened")
+	}
+}
+
 func TestARoomKeepsOnlyItsLatestJoiningNotices(t *testing.T) {
 	source, errorValue := os.ReadFile("buzz_circle_room_membership.go")
 	if errorValue != nil {
