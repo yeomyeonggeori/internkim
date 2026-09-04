@@ -1,3 +1,4 @@
+import { defaultEventEndDate } from '$lib/calendar/default-event-duration';
 import type { DraftEventParams } from './calendar-draft-events';
 import { orderedDateKeys, type MonthRangeSelection } from './calendar-month-range-action';
 import { dateFromDateKey } from './calendar-month-selection';
@@ -56,12 +57,10 @@ export function allDaySingleDraftEventParams(dateKey: string): DraftEventParams 
 
 export function timelineSingleDraftEventParams(startDate: Date): DraftEventParams {
 	const normalizedStartDate = normalizedTimelineDate(startDate);
-	const endDate = new Date(normalizedStartDate);
-	endDate.setHours(normalizedStartDate.getHours() + 1, normalizedStartDate.getMinutes(), 0, 0);
 	return {
 		id: draftEventID('timeline'),
 		start: normalizedStartDate,
-		end: endDate,
+		end: defaultEventEndDate(normalizedStartDate),
 		allDay: false,
 		calendarId: 'internkim'
 	};
