@@ -32,7 +32,6 @@ type adminSessionResponse struct {
 	BootstrapError         string `json:"bootstrapError,omitempty"`
 	TemporaryPassword      string `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string `json:"temporaryPasswordEmail,omitempty"`
-	MattermostURL          string `json:"mattermostURL,omitempty"`
 	DeviceManaged          bool   `json:"deviceManaged"`
 }
 
@@ -190,8 +189,6 @@ func (service *Service) handleAdminDiagnosticsRoute(responseWriter http.Response
 		service.handleAttachmentCleanup(responseWriter, request, true)
 	case request.Method == http.MethodGet && path == "/diagnostics/service-logs":
 		service.writeServiceLogs(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/diagnostics/mattermost-post":
-		service.writeMattermostPostDiagnostic(responseWriter, request)
 	default:
 		return false
 	}
@@ -355,7 +352,6 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
-		MattermostURL:     strings.TrimRight(strings.TrimSpace(service.Configuration.MattermostPublicURL), "/"),
 		DeviceManaged:     service.hasDeviceAuth(),
 	}
 	if isClaimedAdmin {

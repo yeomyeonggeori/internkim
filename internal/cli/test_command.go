@@ -63,8 +63,8 @@ func parseTestArguments(arguments []string, now time.Time) (testCommandConfigura
 	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
 	runID := flagSet.String("run-id", "", "Optional disposable Local Fleet run identifier")
 	timeoutSeconds := flagSet.Int("timeout", 0, "Maximum seconds to observe scenario work; 0 disables the deadline")
-	generationSeed := flagSet.Int64("seed", 0, "Generation seed to apply before the Mattermost prompt")
-	generationTemperature := flagSet.Float64("temperature", 0, "Generation temperature to apply before the Mattermost prompt")
+	generationSeed := flagSet.Int64("seed", 0, "Generation seed to apply before the scenario prompt")
+	generationTemperature := flagSet.Float64("temperature", 0, "Generation temperature to apply before the scenario prompt")
 	maximumModelTier := flagSet.String("maximum-model-tier", "", "Maximum model tier for costed tests: xlow, low, medium, high, xhigh, or max")
 	languageModelProviderDefault := strings.TrimSpace(os.Getenv("BLUECLAW_E2E_LLM_PROVIDER"))
 	if languageModelProviderDefault == "" {
@@ -233,7 +233,7 @@ func runCheapTestSuite(contextValue context.Context, repositoryRootPath string) 
 }
 
 func refuseTheExpensiveSuite() error {
-	return errors.New("the expensive suite drove tests/expensive through a real Mattermost, and that driver is gone with Mattermost. " +
+	return errors.New("the expensive suite drove tests/expensive through the messenger it was written for, and that driver is gone. " +
 		"The Linux acceptance gate is now `internkim dev fleet run --scenario buzz-attachment` and `--scenario buzz-direct-message`; " +
 		"tests/expensive stays as the specification a Buzz driver has to satisfy")
 }

@@ -23,11 +23,10 @@ type firstAdminPasswordDocument struct {
 }
 
 type firstAdminBootstrapResult struct {
-	Email                     string `json:"email"`
-	Status                    string `json:"status"`
-	MattermostPasswordVersion string `json:"mattermostPasswordVersion,omitempty"`
-	PolicyVersion             string `json:"policyVersion,omitempty"`
-	Error                     string `json:"error,omitempty"`
+	Email         string `json:"email"`
+	Status        string `json:"status"`
+	PolicyVersion string `json:"policyVersion,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 const firstAdminBootstrapPending = "pending"
@@ -39,8 +38,6 @@ const firstAdminBootstrapIdentityMissing = "identity_missing"
 const firstAdminBootstrapRejected = "rejected"
 
 const firstAdminBootstrapFailed = "failed"
-
-const firstAdminMattermostPasswordVersion = "api-v4-users-password-sidebar-v2"
 
 const firstAdminPolicyVersion = "blueclaw-admin-claim-v1"
 
@@ -78,7 +75,7 @@ func (service *Service) ensureFirstAdminClaim(ctx context.Context, callerEmail s
 func (service *Service) ensureClaimedFirstAdminAccount(ctx context.Context, email string) firstAdminBootstrapResult {
 	currentResult := service.readFirstAdminBootstrapResult()
 	isCurrentAdmin := service.isCurrentAdminEmail(ctx, email)
-	if currentResult.MattermostPasswordVersion == firstAdminMattermostPasswordVersion && currentResult.PolicyVersion == firstAdminPolicyVersion && isCurrentAdmin {
+	if currentResult.PolicyVersion == firstAdminPolicyVersion && isCurrentAdmin {
 		currentResult.Email = email
 		currentResult.Status = firstAdminBootstrapClaimed
 		return currentResult

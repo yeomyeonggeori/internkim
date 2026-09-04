@@ -166,7 +166,7 @@ func TestChatdMessageSearchReadsAChannelsOwnRecord(testContext *testing.T) {
 	}
 }
 
-// The edit contract is a quoted span, the same one the Mattermost path holds:
+// The edit contract is a quoted span:
 // the current text comes from the platform's record of that exact message, the
 // span is applied once, and the whole result is sent.
 func TestChatdMessageUpdateAppliesTheQuotedSpan(testContext *testing.T) {
@@ -652,7 +652,7 @@ func TestChatdMessageChangeNamesTheRequesterByKeyAlone(testContext *testing.T) {
 
 // A caller with no conversation — the public API, a telling, a scheduled run —
 // names a person and nothing else. The messenger is the device's, so the
-// message goes where the company reads instead of falling back to Mattermost.
+// message goes where the company reads instead of falling back to a default.
 func TestADirectMessageWithNoConversationStillReachesTheCompanyMessenger(testContext *testing.T) {
 	memberPubkey := strings.Repeat("3", 64)
 	admindServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

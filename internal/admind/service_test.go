@@ -65,7 +65,6 @@ func TestAdminRequestMetricsClassifiesAndRecordsSlowRequests(t *testing.T) {
 	staticRequest := httptest.NewRequest(http.MethodGet, "/flow/", nil)
 	apiRequest := httptest.NewRequest(http.MethodGet, "/calendar/api/events", nil)
 	writeRequest := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", nil)
-	controlRequest := httptest.NewRequest(http.MethodPost, "/_internkim/mattermost/actions", nil)
 	proxyRequest := httptest.NewRequest(http.MethodGet, "/team/channels/town-square", nil)
 
 	if adminEndpointClassForRequest(staticRequest) != adminEndpointStatic {
@@ -76,9 +75,6 @@ func TestAdminRequestMetricsClassifiesAndRecordsSlowRequests(t *testing.T) {
 	}
 	if adminEndpointClassForRequest(writeRequest) != adminEndpointWriteAPI {
 		t.Fatalf("expected write api class")
-	}
-	if adminEndpointClassForRequest(controlRequest) != adminEndpointControl {
-		t.Fatalf("expected control class")
 	}
 	if adminEndpointClassForRequest(proxyRequest) != adminEndpointProxy {
 		t.Fatalf("expected proxy class")
@@ -392,7 +388,6 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 		StateDirectory:        t.TempDir(),
 		CompanionJobPath:      filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:           t.TempDir(),
-		MattermostBaseURL:     "http://mattermost.local",
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
@@ -432,26 +427,22 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
 	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	adminPasswordPath := filepath.Join(deviceDirectory, "mm-admin-pass")
 	writeFile(t, fleetIDPath, "dc719d8e")
 	writeFile(t, fleetSecretPath, "secret-value")
-	writeFile(t, adminPasswordPath, "admin-pass")
 	adminUIPath := t.TempDir()
 	writeFile(t, filepath.Join(adminUIPath, "index.html"), "admin ui")
 
 	deliveredPolicyPath := filepath.Join(t.TempDir(), "policy.json")
 	service := NewService(Configuration{
-		BlueclawPolicyDeliveryPath:  deliveredPolicyPath,
-		APIBaseURL:                  "https://api.example.test",
-		MattermostBaseURL:           "http://mattermost.local",
-		MattermostAdminPasswordPath: adminPasswordPath,
-		AdminEmailPath:              filepath.Join(deviceDirectory, "admin-email"),
-		ClaimedAdminEmailPath:       claimedAdminEmailPath,
-		FleetIDPath:                 fleetIDPath,
-		FleetSecretPath:             fleetSecretPath,
-		StateDirectory:              t.TempDir(),
-		CompanionJobPath:            filepath.Join(t.TempDir(), "jobs.json"),
-		AdminUIPath:                 adminUIPath,
+		BlueclawPolicyDeliveryPath: deliveredPolicyPath,
+		APIBaseURL:                 "https://api.example.test",
+		AdminEmailPath:             filepath.Join(deviceDirectory, "admin-email"),
+		ClaimedAdminEmailPath:      claimedAdminEmailPath,
+		FleetIDPath:                fleetIDPath,
+		FleetSecretPath:            fleetSecretPath,
+		StateDirectory:             t.TempDir(),
+		CompanionJobPath:           filepath.Join(t.TempDir(), "jobs.json"),
+		AdminUIPath:                adminUIPath,
 	})
 	blueclawInvited := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -460,31 +451,6 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
 		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
-			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/config/patch" && request.Method == http.MethodPut:
-			assertFirstAdminPasswordPolicyPatch(t, request)
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/email/member1@example.com":
-			return jsonResponse(http.StatusNotFound, `{"message":"not found"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusCreated, `{"id":"user-1","email":"member1@example.com","username":"member1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/members":
-			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/town-square":
-			return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/members":
-			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case isMattermostTaskSetupRequest(request):
-			return mattermostTaskSetupResponse(t, request), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/user-1/roles":
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","email":"internkim@localhost","username":"internkim","roles":"system_user"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusCreated, `{"id":"dm-1"}`, nil), nil
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
 		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
@@ -548,7 +514,6 @@ func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
-		MattermostBaseURL:     "http://mattermost.local",
 		AdminEmailPath:        filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
 		FleetIDPath:           fleetIDPath,
@@ -595,7 +560,6 @@ func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
 		StateDirectory:        t.TempDir(),
 		CompanionJobPath:      filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:           t.TempDir(),
-		MattermostBaseURL:     "http://mattermost.local",
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() != "https://api.example.test/api/users?fleet_id=dc719d8e" {
@@ -768,11 +732,11 @@ func TestWebLogoutSuppressesImplicitCloudflareSession(t *testing.T) {
 	}
 }
 
-func TestWebLogoutSuppressesMattermostSessionCookie(t *testing.T) {
+func TestWebLogoutSuppressesAuthenticationWithMarkerCookie(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/session?return=/flow/", nil)
 	request.RemoteAddr = "198.51.100.10:443"
-	request.AddCookie(&http.Cookie{Name: "MMAUTHTOKEN", Value: "session-token"})
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
 	request.AddCookie(webLogoutMarkerCookie(true))
 	response := httptest.NewRecorder()
 
@@ -794,8 +758,7 @@ func TestTasksPageRefreshServesApplicationShell(t *testing.T) {
 	adminUIPath := t.TempDir()
 	writeFile(t, filepath.Join(adminUIPath, "index.html"), "application shell")
 	service := NewService(Configuration{
-		AdminUIPath:       adminUIPath,
-		MattermostBaseURL: "http://mattermost.local",
+		AdminUIPath: adminUIPath,
 	})
 	request := httptest.NewRequest(http.MethodGet, "/runs/run-1", nil)
 	request.RemoteAddr = "198.51.100.10:443"
@@ -987,124 +950,6 @@ func TestTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
 	}
 }
 
-type taskNotificationRequests struct {
-	createdMessages   []string
-	updatedMessages   []string
-	deletedPostIDs    []string
-	directChannelUser []string
-}
-
-func newTaskNotificationTestService(t *testing.T) (*Service, *taskNotificationRequests) {
-	t.Helper()
-	requests := &taskNotificationRequests{}
-	service := NewService(Configuration{
-		MattermostBaseURL:           "http://mattermost.local",
-		MattermostAdminPasswordPath: writeTestFile(t, "admin-pass"),
-		MattermostBotTokenPath:      writeTestFile(t, "bot-token"),
-		TaskDatabasePath:            filepath.Join(t.TempDir(), "flow.sqlite"),
-	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.String() == "http://mattermost.local/api/v4/users/login":
-			return jsonResponse(http.StatusOK, `{"id":"admin"}`, http.Header{"Token": []string{"admin-token"}}), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/me":
-			assertMattermostBearerToken(t, request, "bot-token")
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/username/internkim":
-			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/teams/name/internkim":
-			return jsonResponse(http.StatusOK, `{"id":"team-1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users/me":
-			assertMattermostBearerToken(t, request, "bot-token")
-			return jsonResponse(http.StatusOK, `{"id":"bot-1","username":"internkim"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
-			assertMattermostChannelMember(t, request, "bot-1")
-			return jsonResponse(http.StatusCreated, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
-			assertMattermostChannelSchemeRoles(t, request)
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
-			assertMattermostChannelSchemeRoles(t, request)
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/users?per_page=200" && request.Method == http.MethodGet:
-			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `[{"id":"user-kimyesi","username":"member2","first_name":"","last_name":"","nickname":"김민수","email":"member2@example.com"}]`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/channels/direct" && request.Method == http.MethodPost:
-			assertMattermostBearerToken(t, request, "admin-token")
-			requests.directChannelUser = append(requests.directChannelUser, mattermostDirectChannelOtherUserID(t, request, "bot-1"))
-			return jsonResponse(http.StatusCreated, `{"id":"direct-channel-1"}`, nil), nil
-		case strings.HasSuffix(request.URL.Path, "/preferences") && request.Method == http.MethodPut:
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
-			assertMattermostBearerToken(t, request, "bot-token")
-			requests.createdMessages = append(requests.createdMessages, mattermostPostMessage(t, request))
-			return jsonResponse(http.StatusCreated, `{"id":"flow-post-1"}`, nil), nil
-		case isMattermostTaskSetupRequest(request):
-			return mattermostExistingTaskSetupResponse(t, request), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-post-1" && request.Method == http.MethodGet:
-			assertMattermostBearerToken(t, request, "admin-token")
-			return jsonResponse(http.StatusOK, `{"id":"flow-post-1","user_id":"bot-1"}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-post-1/patch" && request.Method == http.MethodPut:
-			assertMattermostBearerToken(t, request, "bot-token")
-			requests.updatedMessages = append(requests.updatedMessages, mattermostPostMessage(t, request))
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-post-1" && request.Method == http.MethodDelete:
-			assertMattermostBearerToken(t, request, "admin-token")
-			requests.deletedPostIDs = append(requests.deletedPostIDs, "flow-post-1")
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-	return service, requests
-}
-
-func mattermostExistingTaskSetupResponse(t *testing.T, request *http.Request) *http.Response {
-	t.Helper()
-	switch {
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
-		return jsonResponse(http.StatusOK, `{"id":"flow-channel"}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
-		assertMattermostTaskChannelModerationPatch(t, request)
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
-		return jsonResponse(http.StatusOK, `{"order":["flow-entry"],"posts":{"flow-entry":{"id":"flow-entry","user_id":"bot-1","message":"Flow에서 이번 주 업무를 보고, 요청하고, 정리합니다.","props":{"internkim_flow_entry":true}}}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-entry" && request.Method == http.MethodDelete:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
-		return jsonResponse(http.StatusOK, `{"order":["system-add"],"posts":{"system-add":{"id":"system-add","type":"system_add_to_channel","message":"leesample added to the channel by admin."}}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/system-add" && request.Method == http.MethodDelete:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
-		return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
-		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
-		assertMattermostTaskChannelModerationPatch(t, request)
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members" && request.Method == http.MethodPost:
-		return jsonResponse(http.StatusCreated, `{}`, nil)
-	default:
-		t.Fatalf("unexpected existing Flow setup request %s %s", request.Method, request.URL.String())
-		return nil
-	}
-}
-
-func mattermostPostMessage(t *testing.T, request *http.Request) string {
-	t.Helper()
-	var payload map[string]any
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return strings.TrimSpace(payload["message"].(string))
-}
-
 func taskNotificationTestTask(status string) Task {
 	return Task{
 		ID:               "task-1",
@@ -1150,17 +995,10 @@ func newTaskAuthorizationTestService(t *testing.T) *Service {
 		FleetIDPath:           fleetIDPath,
 		FleetSecretPath:       fleetSecretPath,
 		TaskDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
-		MattermostBaseURL:     "http://mattermost.local",
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-member","email":"member@example.com","name":"Member","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
-		}
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet && strings.Contains(request.Header.Get("Cookie"), "MMAUTHTOKEN=session-token") {
-			return jsonResponse(http.StatusOK, `{"id":"member-mm","email":"member@example.com","username":"member"}`, nil), nil
-		}
-		if request.URL.String() == "http://mattermost.local/api/v4/users/me" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusUnauthorized, `{}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
@@ -1206,13 +1044,6 @@ func writeFile(t *testing.T, path string, document string) {
 	}
 }
 
-func assertMattermostBearerToken(t *testing.T, request *http.Request, expectedToken string) {
-	t.Helper()
-	if request.Header.Get("Authorization") != "Bearer "+expectedToken {
-		t.Fatalf("authorization = %q, expected Bearer %s", request.Header.Get("Authorization"), expectedToken)
-	}
-}
-
 func jsonResponse(statusCode int, body string, header http.Header) *http.Response {
 	if header == nil {
 		header = http.Header{}
@@ -1222,148 +1053,6 @@ func jsonResponse(statusCode int, body string, header http.Header) *http.Respons
 		StatusCode: statusCode,
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     header,
-	}
-}
-
-func isMattermostTaskSetupRequest(request *http.Request) bool {
-	switch {
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/patch" && request.Method == http.MethodPut:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/posts?per_page=100":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/off-topic":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/patch" && request.Method == http.MethodPut:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/posts?per_page=100":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/members":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/flow-entry" && request.Method == http.MethodDelete:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/system-add" && request.Method == http.MethodDelete:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/attendance":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/patch" && request.Method == http.MethodPut:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=100":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry" && request.Method == http.MethodDelete:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry/pin" && request.Method == http.MethodPost:
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members":
-		return true
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
-		return true
-	default:
-		return false
-	}
-}
-
-func mattermostTaskSetupResponse(t *testing.T, request *http.Request) *http.Response {
-	t.Helper()
-	switch {
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1":
-		return jsonResponse(http.StatusOK, `{"id":"channel-1"}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/patch" && request.Method == http.MethodPut:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/channel-1/posts?per_page=100":
-		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/flow":
-		return jsonResponse(http.StatusOK, `{"id":"flow-channel"}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/off-topic":
-		return jsonResponse(http.StatusOK, `{"id":"off-topic-channel"}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/patch" && request.Method == http.MethodPut:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/posts?per_page=100":
-		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/off-topic-channel/members":
-		return jsonResponse(http.StatusCreated, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/patch" && request.Method == http.MethodPut:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/moderations/patch" && request.Method == http.MethodPut:
-		assertMattermostTaskChannelModerationPatch(t, request)
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=50":
-		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/posts?per_page=100":
-		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/flow-channel/members":
-		return jsonResponse(http.StatusCreated, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/calendar":
-		return jsonResponse(http.StatusOK, `{"id":"calendar-channel"}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/patch" && request.Method == http.MethodPut:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/posts?per_page=100":
-		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/moderations/patch" && request.Method == http.MethodPut:
-		assertMattermostTaskChannelModerationPatch(t, request)
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/calendar-channel/members":
-		return jsonResponse(http.StatusCreated, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/teams/team-1/channels/name/attendance":
-		return jsonResponse(http.StatusOK, `{"id":"attendance-channel"}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/patch" && request.Method == http.MethodPut:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=100":
-		return jsonResponse(http.StatusOK, `{"order":[],"posts":{}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/posts?per_page=50":
-		return jsonResponse(http.StatusOK, `{"order":["attendance-entry"],"posts":{"attendance-entry":{"id":"attendance-entry","props":{"internkim_attendance_entry":true}}}}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry" && request.Method == http.MethodDelete:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members/bot-1/schemeRoles" && request.Method == http.MethodPut:
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/posts" && request.Method == http.MethodPost:
-		var payload map[string]any
-		if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if payload["channel_id"] == "attendance-channel" {
-			assertMattermostBearerToken(t, request, "bot-token")
-			return jsonResponse(http.StatusCreated, `{"id":"attendance-entry"}`, nil)
-		}
-		if payload["channel_id"] == "flow-channel" {
-			t.Fatalf("unexpected flow entry post payload: %+v", payload)
-		}
-		return jsonResponse(http.StatusCreated, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/posts/attendance-entry/pin" && request.Method == http.MethodPost:
-		assertMattermostBearerToken(t, request, "bot-token")
-		return jsonResponse(http.StatusOK, `{}`, nil)
-	case request.URL.String() == "http://mattermost.local/api/v4/channels/attendance-channel/members":
-		return jsonResponse(http.StatusCreated, `{}`, nil)
-	default:
-		t.Fatalf("unexpected Flow setup request %s %s", request.Method, request.URL.String())
-		return nil
 	}
 }
 
@@ -1378,79 +1067,6 @@ func newWorkspaceSettingsTestService(t *testing.T) *Service {
 		return nil, nil
 	})}
 	return service
-}
-
-func assertMattermostChannelSchemeRoles(t *testing.T, request *http.Request) {
-	t.Helper()
-	var payload map[string]bool
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !payload["scheme_admin"] || !payload["scheme_user"] {
-		t.Fatalf("channel scheme roles = %#v", payload)
-	}
-}
-
-func assertMattermostTaskChannelModerationPatch(t *testing.T, request *http.Request) {
-	t.Helper()
-	var payload []struct {
-		Name  string          `json:"name"`
-		Roles map[string]bool `json:"roles"`
-	}
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	expectedRolesByName := map[string]map[string]bool{
-		"create_post":          {"members": true, "guests": false},
-		"create_reactions":     {"members": false, "guests": false},
-		"manage_members":       {"members": false},
-		"use_channel_mentions": {"members": false, "guests": false},
-	}
-	if len(payload) != len(expectedRolesByName) {
-		t.Fatalf("flow moderation patch = %#v", payload)
-	}
-	for _, patch := range payload {
-		expectedRoles, found := expectedRolesByName[patch.Name]
-		if !found || !reflect.DeepEqual(patch.Roles, expectedRoles) {
-			t.Fatalf("flow moderation patch = %#v", payload)
-		}
-	}
-}
-
-func mattermostChannelMemberID(t *testing.T, request *http.Request) string {
-	t.Helper()
-	return mattermostChannelMemberUserID(t, request)
-}
-
-func assertMattermostChannelMember(t *testing.T, request *http.Request, expectedUserID string) {
-	t.Helper()
-	userID := mattermostChannelMemberUserID(t, request)
-	if userID != expectedUserID {
-		t.Fatalf("channel member = %q", userID)
-	}
-}
-
-func mattermostChannelMemberUserID(t *testing.T, request *http.Request) string {
-	t.Helper()
-	var payload map[string]string
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return payload["user_id"]
-}
-
-func assertMattermostTaskEntryPost(t *testing.T, request *http.Request, expectedMessages ...string) {
-	t.Helper()
-	assertMattermostBearerToken(t, request, "bot-token")
-	var payload map[string]any
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	props, _ := payload["props"].(map[string]any)
-	message, _ := payload["message"].(string)
-	if payload["channel_id"] != "flow-channel" || !containsString(expectedMessages, message) || props["internkim_flow_entry"] != true {
-		t.Fatalf("flow entry post = %#v", payload)
-	}
 }
 
 func TestEncryptDecryptRoundTrip(t *testing.T) {
@@ -1674,12 +1290,12 @@ func TestCompanionPairHeartbeatAndJobLifecycle(t *testing.T) {
 	}
 }
 
-func TestLocalCompanionPairingCodeStoresMattermostOwner(t *testing.T) {
+func TestLocalCompanionPairingCodeStoresTheOwnersPlatform(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	handler := service.router()
 
 	pairingRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/pairing-codes", strings.NewReader(`{
-		"ownerPlatform":"mattermost",
+		"ownerPlatform":"buzz",
 		"ownerPlatformUserID":"user-1",
 		"ownerEmail":"Alice@Example.com",
 		"ownerName":"Alice",
@@ -1716,7 +1332,7 @@ func TestLocalCompanionPairingCodeStoresMattermostOwner(t *testing.T) {
 		t.Fatalf("expected one companion, got %+v", statuses)
 	}
 	status := statuses[0]
-	if status.OwnerPlatform != "mattermost" || status.OwnerPlatformUserID != "user-1" || status.OwnerEmail != "alice@example.com" || status.OwnerName != "Alice" {
+	if status.OwnerPlatform != "buzz" || status.OwnerPlatformUserID != "user-1" || status.OwnerEmail != "alice@example.com" || status.OwnerName != "Alice" {
 		t.Fatalf("unexpected owner status: %+v", status)
 	}
 }
@@ -1724,14 +1340,14 @@ func TestLocalCompanionPairingCodeStoresMattermostOwner(t *testing.T) {
 func TestCORSHeaderIsLimitedToInternKimPaths(t *testing.T) {
 	service := NewService(Configuration{})
 	handler := service.withCORS(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		responseWriter.Header().Set("Access-Control-Allow-Origin", "https://mattermost.example")
+		responseWriter.Header().Set("Access-Control-Allow-Origin", "https://messenger.example")
 		responseWriter.WriteHeader(http.StatusOK)
 	}))
 	request := httptest.NewRequest(http.MethodGet, "/api/v4/system/ping", nil)
 	request.Header.Set("Origin", "https://device.example.test")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
-	if origins := response.Result().Header.Values("Access-Control-Allow-Origin"); !reflect.DeepEqual(origins, []string{"https://mattermost.example"}) {
+	if origins := response.Result().Header.Values("Access-Control-Allow-Origin"); !reflect.DeepEqual(origins, []string{"https://messenger.example"}) {
 		t.Fatalf("unexpected proxy CORS origins: %#v", origins)
 	}
 }
@@ -2047,9 +1663,9 @@ func TestCompanionJobClaimMatchesPlatformUserIDOwner(t *testing.T) {
 	service := NewService(Configuration{StateDirectory: t.TempDir(), AdminEmailPath: writeTestFile(t, "admin@example.com")})
 	now := time.Now().UTC()
 	companion := &CompanionRecord{
-		CompanionID:         "mattermost-companion",
-		OwnerPlatform:       "mattermost",
-		OwnerPlatformUserID: "mattermost-user-1",
+		CompanionID:         "buzz-companion",
+		OwnerPlatform:       "buzz",
+		OwnerPlatformUserID: "buzz-user-1",
 		Capabilities: []capabilities.Descriptor{
 			{Name: "browser_open"},
 		},
@@ -2063,8 +1679,8 @@ func TestCompanionJobClaimMatchesPlatformUserIDOwner(t *testing.T) {
 		Request: capabilities.ToolInvokeRequest{
 			ToolName: "browser_open",
 			Context: capabilities.ToolInvokeContext{
-				RequesterPlatformUserID: "mattermost-user-1",
-				Platform:                "mattermost",
+				RequesterPlatformUserID: "buzz-user-1",
+				Platform:                "buzz",
 			},
 		},
 		CreatedAt: now,
@@ -2757,23 +2373,6 @@ func requestAdminSession(t *testing.T, service *Service, email string) map[strin
 	return document
 }
 
-func assertFirstAdminPasswordPolicyPatch(t *testing.T, request *http.Request) {
-	t.Helper()
-	var payload map[string]map[string]any
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	passwordSettings := payload["PasswordSettings"]
-	if passwordSettings["MinimumLength"] != float64(5) {
-		t.Fatalf("minimum password length = %#v", passwordSettings["MinimumLength"])
-	}
-	for _, key := range []string{"Lowercase", "Uppercase", "Number", "Symbol"} {
-		if passwordSettings[key] != false {
-			t.Fatalf("password setting %s = %#v", key, passwordSettings[key])
-		}
-	}
-}
-
 func isBlueclawInviteRequest(t *testing.T, request *http.Request, expectedEmail string) bool {
 	t.Helper()
 	_ = expectedEmail
@@ -2929,32 +2528,4 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return function(request)
-}
-
-func mattermostDirectChannelOtherUserID(t *testing.T, request *http.Request, botUserID string) string {
-	t.Helper()
-	body, errorValue := io.ReadAll(request.Body)
-	if errorValue != nil {
-		t.Fatalf("read direct channel body: %v", errorValue)
-	}
-	var userIDs []string
-	if errorValue := json.Unmarshal(body, &userIDs); errorValue != nil {
-		t.Fatalf("decode direct channel body: %v", errorValue)
-	}
-	for _, userID := range userIDs {
-		if userID != botUserID {
-			return userID
-		}
-	}
-	t.Fatalf("direct channel body has no recipient: %s", string(body))
-	return ""
-}
-
-func mattermostChannelCreateName(t *testing.T, request *http.Request) string {
-	t.Helper()
-	var payload map[string]string
-	if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return payload["name"]
 }

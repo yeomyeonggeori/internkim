@@ -27,7 +27,7 @@ func TestSiteGatewayLifecycle(t *testing.T) {
 		Slug:           "demo",
 		Title:          "Demo",
 		RequestedBy:    "owner@example.com",
-		Platform:       "mattermost",
+		Platform:       "buzz",
 		ConversationID: "thread-1",
 	})
 	if errorValue != nil {
@@ -1290,7 +1290,7 @@ func TestSiteCreateStoresMetadataOwnershipAndIdeaMirror(t *testing.T) {
 		RequestedBy:    "owner@example.com",
 		Requester: siteIdentity{
 			PersonID:       "person-1",
-			Platform:       "mattermost",
+			Platform:       "buzz",
 			PlatformUserID: "user-1",
 			DisplayName:    "Owner",
 		},
@@ -1897,7 +1897,6 @@ func newTestSiteService(t *testing.T) (*Service, *[]string) {
 		SiteSystemdDirectory:  filepath.Join(rootPath, "systemd"),
 		CompanionJobPath:      filepath.Join(rootPath, "state", "admin", "jobs.json"),
 		TaskDatabasePath:      filepath.Join(rootPath, "state", "admin", "flow.sqlite"),
-		MattermostBaseURL:     "http://mattermost.local",
 		BlueclawWorkspacePath: filepath.Join(rootPath, "blueclaw"),
 		SiteScaffoldPath:      repositoryPath(".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app"),
 	})

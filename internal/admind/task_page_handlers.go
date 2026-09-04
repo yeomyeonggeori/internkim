@@ -55,7 +55,7 @@ func (service *Service) serveTaskIndex(responseWriter http.ResponseWriter, reque
 
 // serveBoardSection serves a prerendered board-UI section (its own index.html,
 // falling back to the SPA shell) so a refresh on a client-side route is handled
-// by the app instead of falling through to the Mattermost proxy on "/".
+// by the app instead of falling through to the catch-all proxy on "/".
 func (service *Service) serveBoardSection(section string) http.HandlerFunc {
 	prefix := "/" + section
 	return func(responseWriter http.ResponseWriter, request *http.Request) {

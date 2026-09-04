@@ -100,9 +100,6 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
 		}
 	}
-	if strings.Contains(joinedPlans, "mattermost") {
-		t.Fatalf("expected the predeploy gate to provision no mattermost:\n%s", joinedPlans)
-	}
 }
 
 func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) {
@@ -286,7 +283,7 @@ func TestStartTunnelCommandUsesConfiguredHostPorts(t *testing.T) {
 		}
 	}
 	if strings.Contains(command, "8065") {
-		t.Fatalf("expected no mattermost port forward:\n%s", command)
+		t.Fatalf("expected no messenger port forward:\n%s", command)
 	}
 }
 
@@ -602,8 +599,6 @@ func planArgumentIndex(plans []CommandPlan, expectedText string) int {
 	return -1
 }
 
-// Every other local fleet scenario drives Mattermost, which is not the
-// messenger a company's messages travel over any more.
 func TestBuzzAttachmentScenarioRunsTheBuzzScript(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
 	if errorValue != nil {
@@ -615,12 +610,9 @@ func TestBuzzAttachmentScenarioRunsTheBuzzScript(t *testing.T) {
 	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-attachment.sh") {
 		t.Fatalf("expected the buzz scenario script in plans:\n%s", joinedPlans)
 	}
-	if strings.Contains(joinedPlans, "mattermost") {
-		t.Fatalf("expected the buzz scenario to reach nothing through mattermost:\n%s", joinedPlans)
-	}
 }
 
-func TestBuzzDirectMessageScenarioReachesNothingThroughMattermost(t *testing.T) {
+func TestBuzzDirectMessageScenarioRunsTheBuzzScript(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -630,9 +622,6 @@ func TestBuzzDirectMessageScenarioReachesNothingThroughMattermost(t *testing.T) 
 
 	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-direct-message.sh") {
 		t.Fatalf("expected the buzz direct message script in plans:\n%s", joinedPlans)
-	}
-	if strings.Contains(joinedPlans, "mattermost") {
-		t.Fatalf("the company reads buzz, so this scenario must not need mattermost:\n%s", joinedPlans)
 	}
 }
 
