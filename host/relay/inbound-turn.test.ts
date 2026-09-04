@@ -201,6 +201,26 @@ describe('InboundTurns', () => {
 		expect(posted[1]).toBe('보냈습니다: 응 보내줘');
 	});
 
+	test('a question already asked before a restart is answered by the next message, without posting again', async () => {
+		const posted: string[] = [];
+		const turns = new InboundTurns({
+			client: aClientThatSays('unused', []),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			postToConversation: async (_addressing, message) => {
+				posted.push(message);
+			},
+			waitBeforeRetrying: async () => {}
+		});
+		const addressing: Addressing = { platform: 'buzz', conversationID: 'conversation-1' };
+
+		const answering = turns.awaitAnAlreadyAskedQuestion(addressing);
+
+		await turns.keep(firstKey, aChatdBody({ prompt: '응 보내줘' }));
+
+		expect(await answering).toBe('응 보내줘');
+		expect(posted).toEqual([]);
+	});
+
 	test('a turn that keeps failing is retried and then dropped by name', async () => {
 		const directoryPath = directoryForOneTest();
 		const reported: string[] = [];

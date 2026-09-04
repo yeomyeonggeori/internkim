@@ -128,6 +128,10 @@ question it already asked is not asked again, and an answer it already has goes
 to the new agent to read for itself. An approving answer relaunches the run as
 an approval continuation.
 
+The relay's own restart is symmetric: `held-question-store.ts` persists each
+question beside the inbound queue and reloads it at boot, so a re-issued call
+is answered from the store, or waits, without asking again.
+
 ## What 3b leaves for 3c
 
 `internal/connectors` stays as the second inbound path, behind a new blueclaw
