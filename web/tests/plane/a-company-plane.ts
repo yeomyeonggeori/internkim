@@ -22,6 +22,7 @@ import {
 	aMessengerNobodyRuns,
 	type ARecordingMessenger
 } from './a-messenger-nobody-runs';
+import { aModelNobodyPaysFor, type AModelNobodyPaysFor } from './a-model-nobody-pays-for';
 import { theArgumentsThatStart } from '../support/the-entrypoint';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
@@ -35,8 +36,10 @@ export type ACompanyPlane = {
 	admindURL: string;
 	blueclawURL: string;
 	requesterSocketPath: string;
+	runtimeConfigurationPath: string;
 	connector: ARecordingMessenger;
 	messenger: ARecordingMessenger;
+	model: AModelNobodyPaysFor;
 	messengerPlatform: string;
 	stop: () => Promise<void>;
 };
@@ -172,6 +175,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 
 	const connector = aConnectorNobodyRuns();
 	const messenger = aMessengerNobodyRuns();
+	const model = aModelNobodyPaysFor();
 	const started: Bun.Subprocess[] = [];
 	let companyID = '';
 	let droppableDatabase = '';
@@ -188,6 +192,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		}
 		connector.stop();
 		messenger.stop();
+		model.stop();
 		if (companyID) {
 			await admin.from('company').delete().eq('id', companyID);
 		}
@@ -308,6 +313,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					BLUECLAW_BASE_URL: blueclawURL,
 					CAPABILITY_SOCKET_PATH: capabilitySocketPath,
 					CHATD_ENDPOINT: connector.url,
+					MODEL_ENDPOINT: model.url,
+					MODEL_API_KEY_PATH: openRouterKeyPath,
 					WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
 					MIGRATION_DIRECTORY_PATH: join(repositoryRoot, '.dependency', 'blueclaw', 'migrations'),
 					LOG_DIRECTORY_PATH: join(runDirectory, 'logs')
@@ -409,6 +416,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			blueclawURL,
 			requesterSocketPath,
 			connector,
+			model,
+			runtimeConfigurationPath,
 			messenger,
 			messengerPlatform,
 			stop

@@ -16,6 +16,7 @@ maildPort="${MAILD_PORT:-18092}"
 admindPort="${ADMIND_PORT:-18080}"
 agentKeyPath="/secrets/agent-key"
 buzzKeySeedPath="/secrets/buzz-key-seed"
+modelAPIKeyPath="/secrets/openrouter-key"
 
 programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime pg_isready nc cp"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
@@ -83,6 +84,7 @@ if [ ! -r "${runtimeConfigurationPath}" ]; then
   CAPABILITY_SOCKET_PATH="${capabilitySocketPath}" \
   BLUECLAW_BASE_URL="http://${blueclawAddress}" \
   CHATD_ENDPOINT="http://127.0.0.1:${chatdPort}" \
+  MODEL_API_KEY_PATH="${modelAPIKeyPath}" \
     render-company-runtime \
       --template /opt/internkim/runtime.template.json \
       --out "${runtimeConfigurationPath}" \
@@ -111,7 +113,7 @@ until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done
 echo "[host] starting capabilityd"
 internkim-capabilityd \
   --socket "${capabilitySocketPath}" \
-  --openrouter-key /secrets/openrouter-key \
+  --openrouter-key "${modelAPIKeyPath}" \
   --local-inference-mode remote \
   --blueclaw-url "http://${blueclawAddress}" \
   --admind-url "http://127.0.0.1:${admindPort}" \

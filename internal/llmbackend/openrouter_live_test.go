@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 )
 
 func TestOpenRouterLiveDocumentedToolSchemaFromEnv(t *testing.T) {
@@ -259,7 +260,7 @@ func liveOpenRouterBackendFromEnv(t *testing.T) (OpenRouterBackend, string) {
 	backend := OpenRouterBackend{
 		KeyPath:    keyPath,
 		BaseURL:    testEnvValue("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
-		ModelName:  testEnvValue("OPENROUTER_MODEL", defaultXLowModelName),
+		ModelName:  testEnvValue("OPENROUTER_MODEL", modelladder.PrimaryModel),
 		HTTPClient: httpClientWithTimeout(45 * time.Second),
 	}
 	return backend, apiKey

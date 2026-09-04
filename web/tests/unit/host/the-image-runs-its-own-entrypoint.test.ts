@@ -63,14 +63,26 @@ test('admind is told where the buzz identity seed lives', () => {
 	).toBeTruthy();
 });
 
-test('the plane template asks for its model through capabilityd', () => {
+test('the plane template names no model of its own', () => {
 	const template = JSON.parse(
 		readFileSync(join(repositoryRoot, 'host', 'runtime.template.json'), 'utf8')
-	) as { languageModel?: { defaultProvider?: string } };
-	expect(template.languageModel?.defaultProvider).toBe('capabilityLLM');
+	) as { languageModel?: unknown };
+	expect(
+		template.languageModel,
+		'the ladder is rendered from the installed capabilityd, so a copy in the template would drift'
+	).toBeUndefined();
 });
 
-test('render-company-runtime refuses a template that asks for a model elsewhere', () => {
+test('the entrypoint names the model key file once', () => {
+	const entrypoint = readFileSync(join(repositoryRoot, 'host', 'entrypoint.sh'), 'utf8');
+	const literalKeyPaths = entrypoint.match(/\/secrets\/openrouter-key/g) ?? [];
+	expect(
+		literalKeyPaths.length,
+		'capabilityd and the rendered ladder read the same key file, so the path is written once'
+	).toBe(1);
+});
+
+test('render-company-runtime refuses a template carrying its own ladder', () => {
 	const workDirectory = mkdtempSync(join(tmpdir(), 'ikhost-template-'));
 	try {
 		const templatePath = join(workDirectory, 'runtime.template.json');
@@ -78,8 +90,9 @@ test('render-company-runtime refuses a template that asks for a model elsewhere'
 			templatePath,
 			JSON.stringify({
 				languageModel: {
-					defaultProvider: 'direct',
-					direct: { endpoint: 'https://openrouter.ai/api/v1', apiKeyPath: '/secrets/openrouter-key' }
+					tiers: {
+						low: [{ endpoint: 'https://models.example.com/v1', model: 'example/model' }]
+					}
 				}
 			})
 		);
@@ -103,9 +116,9 @@ test('render-company-runtime refuses a template that asks for a model elsewhere'
 
 		expect(
 			refusal.exitCode,
-			'a plane rendered from that template holds a provider key of its own'
+			'a template that carries a ladder is a second copy of what capabilityd answers for'
 		).not.toBe(0);
-		expect(refusal.stderr.toString()).toContain('capabilityLLM');
+		expect(refusal.stderr.toString()).toContain('languageModel');
 	} finally {
 		rmSync(workDirectory, { recursive: true, force: true });
 	}
