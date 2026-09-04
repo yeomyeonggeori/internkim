@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""Fail when this catalog breaks a device that holds the one on main.
+
+The catalog is deployed twice from one source. The plane takes it the moment
+`deploy-pages` runs; a device takes it when an OTA release reaches it, which is
+a separate act on a separate day. Between the two, the plane answers under this
+catalog and the device reads under the one its release shipped with, so a change
+that reads as a lockstep edit here is a fleet-wide outage there. #1486 added two
+fields to the task_list result, both sides agreed, and every task tool on the
+fleet refused its own answer until the next release.
+
+Nothing else notices: generate:protocol only checks that the artifact matches
+the source, the record suite validates today's answer against today's contract,
+and the two hashes that are compared are capabilityd's and blueclaw's, never the
+device's and the plane's.
+
+origin/main stands for the fleet here. It is what the next release is cut from,
+so a device is never ahead of it, and a device several releases behind is not
+covered - the common case is the change being pushed right now.
+
+A break that is meant, and that an OTA will carry before the plane deploys, is
+written into ACCEPTED_BREAKS_PATH as a list of
+{"path": "task_list.result.tasks[].opportunityID", "reason": ..., "release": ...}.
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+CATALOG_PATH = "pkg/capabilityprotocol/generated/capability-tools.json"
+SUPERSEDED_PATH = REPOSITORY_ROOT / "web/src/lib/server/public-api/catalog/superseded-input-fields.json"
+ACCEPTED_BREAKS_PATH = REPOSITORY_ROOT / "pkg/capabilityprotocol/accepted-contract-breaks.json"
+
+
+def catalog_on(committish):
+    finished = subprocess.run(
+        ["git", "show", f"{committish}:{CATALOG_PATH}"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if finished.returncode != 0:
+        return None
+    return json.loads(finished.stdout)
+
+
+def tools_by_name(catalog):
+    return {tool["name"]: tool for tool in catalog["tools"]}
+
+
+def superseded_names():
+    entries = json.loads(SUPERSEDED_PATH.read_text())
+    return {entry["was"]: entry["isNow"] for entry in entries}
+
+
+def accepted_breaks():
+    if not ACCEPTED_BREAKS_PATH.exists():
+        return set()
+    return {entry["path"] for entry in json.loads(ACCEPTED_BREAKS_PATH.read_text())}
+
+
+def properties_of(node):
+    return node.get("properties") or {}
+
+
+def required_of(node):
+    return set(node.get("required") or [])
+
+
+def breaks_in_result(shipped, current, path):
+    breaks = []
+    if shipped.get("type") != current.get("type"):
+        return [f"{path}: the shipped contract reads a {shipped.get('type')}, this one answers with a {current.get('type')}"]
+
+    for value in current.get("enum") or []:
+        if value not in (shipped.get("enum") or [value]):
+            breaks.append(f"{path}: answers with {value!r}, which the shipped contract does not take")
+
+    for name in required_of(shipped) - required_of(current):
+        breaks.append(f"{path}.{name}: the shipped contract requires it, this one no longer promises it")
+
+    for name, shipped_field in properties_of(shipped).items():
+        current_field = properties_of(current).get(name)
+        if current_field is None:
+            breaks.append(f"{path}.{name}: the shipped contract reads it, this one no longer answers with it")
+            continue
+        breaks.extend(breaks_in_result(shipped_field, current_field, f"{path}.{name}"))
+
+    if shipped.get("additionalProperties") is False:
+        for name in properties_of(current).keys() - properties_of(shipped).keys():
+            breaks.append(f"{path}.{name}: the shipped contract is closed and refuses a field it does not know")
+
+    shipped_items, current_items = shipped.get("items"), current.get("items")
+    if isinstance(shipped_items, dict) and isinstance(current_items, dict):
+        breaks.extend(breaks_in_result(shipped_items, current_items, f"{path}[]"))
+    return breaks
+
+
+def breaks_in_input(shipped, current, path, superseded):
+    breaks = []
+    for name, shipped_field in properties_of(shipped).items():
+        current_field = properties_of(current).get(name)
+        if current_field is None:
+            replacement = superseded.get(name)
+            if replacement in properties_of(current):
+                continue
+            breaks.append(f"{path}.{name}: the shipped catalog asks with it, this one refuses it")
+            continue
+        for value in shipped_field.get("enum") or []:
+            if value not in (current_field.get("enum") or [value]):
+                breaks.append(f"{path}.{name}: the shipped catalog offers {value!r}, this one refuses it")
+
+    for name in required_of(current) - required_of(shipped):
+        breaks.append(f"{path}.{name}: this one requires a field the shipped catalog never asks with")
+    return breaks
+
+
+def breaks_between(shipped_catalog, current_catalog, superseded):
+    breaks = []
+    current_tools = tools_by_name(current_catalog)
+    for name, shipped_tool in tools_by_name(shipped_catalog).items():
+        current_tool = current_tools.get(name)
+        if current_tool is None:
+            breaks.append(f"{name}: the fleet calls it, this catalog no longer publishes it")
+            continue
+        breaks.extend(
+            breaks_in_input(
+                shipped_tool.get("inputSchema") or {},
+                current_tool.get("inputSchema") or {},
+                f"{name}.input",
+                superseded,
+            )
+        )
+        shipped_result = (shipped_tool.get("resultContract") or {}).get("schema")
+        current_result = (current_tool.get("resultContract") or {}).get("schema")
+        if shipped_result and current_result:
+            breaks.extend(breaks_in_result(shipped_result, current_result, f"{name}.result"))
+    return breaks
+
+
+def main():
+    base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
+    subprocess.run(["git", "fetch", "--quiet", "origin", "main"], cwd=REPOSITORY_ROOT)
+    shipped_catalog = catalog_on(base)
+    if shipped_catalog is None:
+        print(f"{base} carries no {CATALOG_PATH} to compare against", file=sys.stderr)
+        return 1
+
+    current_catalog = json.loads((REPOSITORY_ROOT / CATALOG_PATH).read_text())
+    accepted = accepted_breaks()
+    breaks = [
+        one for one in breaks_between(shipped_catalog, current_catalog, superseded_names())
+        if one.split(":")[0] not in accepted
+    ]
+    if not breaks:
+        return 0
+
+    print(f"this catalog breaks a device holding {base}'s:", file=sys.stderr)
+    for one in breaks:
+        print(f"  {one}", file=sys.stderr)
+    print(
+        "\nA device takes the catalog by OTA and the plane takes it on deploy, so the fleet\n"
+        "reads this answer under the contract its release shipped with. Keep the shape the\n"
+        f"fleet already reads, or record the break and the release that carries it in\n"
+        f"  {ACCEPTED_BREAKS_PATH.relative_to(REPOSITORY_ROOT)}",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

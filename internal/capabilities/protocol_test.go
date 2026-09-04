@@ -204,7 +204,7 @@ func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 	schema := descriptorSchema(t, TaskToolDescriptors(), "task_list")
 
-	assertSchemaHasProperties(t, schema, "query", "participantPersonHint", "scope", "weekFrom", "weekTo", "status", "everyWeek", "limit")
+	assertSchemaHasProperties(t, schema, "query", "personHints", "scope", "weekFrom", "weekTo", "status", "everyWeek", "limit")
 	assertSchemaOmitsProperties(t, schema, "weekCode", "title", "description", "assignee", "dueDate")
 }
 

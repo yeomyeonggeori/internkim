@@ -1,12 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	participantsOfHints,
-	ownerOfScope,
 	taskOfHint,
 	taskWriteArguments,
 	type TaskRow
 } from '$lib/server/public-api/record/tasks';
 import { HintRefused } from '$lib/server/public-api/record/hint-resolution';
+import {
+	ownerNamedBy,
+	whoseRecords,
+	whoseRecordsHoldsAny,
+	WhoseRecordsContradicted
+} from '$lib/server/public-api/record/whose';
 import { personInTheDirectory } from './directory-fixture';
 
 function row(overrides: Partial<TaskRow> = {}): TaskRow {
@@ -184,9 +189,33 @@ describe('whose tasks a list answers with', () => {
 		{ personID: 'm2', name: '박예시', email: 'yesi@example.com' }
 	].map(personInTheDirectory);
 
-	test('is the caller by default, everyone on request, and the person named over both', () => {
-		expect(ownerOfScope(people, undefined, undefined, 'm1')).toBe('m1');
-		expect(ownerOfScope(people, 'all', undefined, 'm1')).toBeNull();
-		expect(ownerOfScope(people, 'all', '박예시', 'm1')).toBe('m2');
+	test('is the caller when the model names nobody and asks for no scope', () => {
+		expect(whoseRecords(people, undefined, undefined, 'm1')).toEqual({ everyone: false, personIDs: ['m1'] });
+		expect(whoseRecords(people, [], undefined, 'm1')).toEqual({ everyone: false, personIDs: ['m1'] });
+	});
+
+	test('is the whole company on one constant rather than a roll call', () => {
+		const whose = whoseRecords(people, undefined, 'all', 'm1');
+		expect(whose).toEqual({ everyone: true, personIDs: [] });
+		expect(whoseRecordsHoldsAny(whose, ['m2'])).toBe(true);
+	});
+
+	test('is the people named, however many', () => {
+		const whose = whoseRecords(people, ['이샘플', '박예시'], undefined, 'm1');
+		expect(whose).toEqual({ everyone: false, personIDs: ['m1', 'm2'] });
+		expect(whoseRecordsHoldsAny(whose, ['m2'])).toBe(true);
+		expect(whoseRecordsHoldsAny(whose, ['m3'])).toBe(false);
+	});
+
+	// Whichever one silently won, the model could not learn it from the answer.
+	test('refuses a call that answers the question twice', () => {
+		expect(() => whoseRecords(people, ['박예시'], 'all', 'm1')).toThrow(WhoseRecordsContradicted);
+		expect(() => whoseRecords(people, ['박예시'], 'self', 'm1')).toThrow(WhoseRecordsContradicted);
+	});
+
+	test('names one owner only when exactly one person was asked for', () => {
+		expect(ownerNamedBy(whoseRecords(people, undefined, undefined, 'm1'))).toBe('m1');
+		expect(ownerNamedBy(whoseRecords(people, ['이샘플', '박예시'], undefined, 'm1'))).toBe('');
+		expect(ownerNamedBy(whoseRecords(people, undefined, 'all', 'm1'))).toBe('');
 	});
 });

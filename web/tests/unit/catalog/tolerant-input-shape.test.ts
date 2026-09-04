@@ -98,3 +98,36 @@ describe('a blank the field itself takes', () => {
 		});
 	});
 });
+
+// A device holds the catalog its release shipped with, so the fleet keeps
+// asking under a retired name for as long as it takes an OTA to reach it.
+// Refusing that call cannot be recovered from: the device's own catalog refuses
+// the name that replaced it, so the reply has nothing to ask for.
+describe('a call written against the catalog a device still holds', () => {
+	test('is read under the name that replaced the retired one', () => {
+		expect(toolInputRecovered('task_list', { participantPersonHint: '박예시' })).toEqual({
+			personHints: ['박예시']
+		});
+		expect(toolInputRecovered('attendance_list', { personHint: '박예시' })).toEqual({
+			personHints: ['박예시']
+		});
+	});
+
+	// scope only ever answered whose records to read when the hint was empty.
+	test('keeps the meaning the retired catalog gave a call that carried both', () => {
+		expect(toolInputRecovered('leave_list', { personHint: '박예시', scope: 'self' })).toEqual({
+			personHints: ['박예시']
+		});
+	});
+
+	test('leaves a scope that came on its own alone', () => {
+		expect(toolInputRecovered('leave_list', { scope: 'all' })).toEqual({ scope: 'all' });
+	});
+
+	test('leaves the field alone where it is still the name the tool publishes', () => {
+		expect(toolInputRecovered('attendance_add', { personHint: '박예시', kind: 'clock_in' })).toEqual({
+			personHint: '박예시',
+			kind: 'clock_in'
+		});
+	});
+});

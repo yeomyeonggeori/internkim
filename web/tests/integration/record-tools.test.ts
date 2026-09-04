@@ -4,7 +4,7 @@ import { asMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import { dayIn } from '../../src/lib/server/public-api/record/days';
-import { capabilityToolResultSchema } from '../../src/lib/server/public-api/catalog/tools';
+import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -69,23 +69,11 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 async function run(name: string, input: Record<string, unknown> = {}) {
-	const answered = await runToolOverTheRecord(caller, client, sampleID, name, input, new Date());
-	if (answered.status === 200) holdToTheContract(name, (answered.body as { result: unknown }).result);
-	return answered;
+	return heldToTheContract(name, await runToolOverTheRecord(caller, client, sampleID, name, input, new Date()));
 }
 
 function previewOf(name: string, input: Record<string, unknown>) {
 	return previewToolOverTheRecord(caller, client, sampleID, name, input, new Date());
-}
-
-function holdToTheContract(name: string, result: unknown): void {
-	const schema = capabilityToolResultSchema(name);
-	if (!schema) throw new Error(`${name} publishes no result contract to hold its answer to`);
-	const parsed = schema.safeParse(result);
-	const refused = parsed.success
-		? []
-		: parsed.error.issues.map((issue) => `${['result', ...issue.path.map(String)].join('.')}: ${issue.message}`);
-	expect({ tool: name, refused }).toEqual({ tool: name, refused: [] });
 }
 
 function resultOf(answer: { status: number; body: unknown }): Record<string, unknown> {

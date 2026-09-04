@@ -1,0 +1,4 @@
+[
+	{ "was": "participantPersonHint", "isNow": "personHints" },
+	{ "was": "personHint", "isNow": "personHints" }
+]
