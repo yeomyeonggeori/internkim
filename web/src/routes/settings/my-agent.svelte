@@ -10,7 +10,7 @@
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { draftToUser, toneRegisters, toneTraitLimit, toneTraits, userToDraft, type UserDraft } from '$lib/persona/soul-draft';
-	import { replyLanguageOptions } from '$lib/persona/languages';
+	import { defaultCallMe, replyLanguageOptions } from '$lib/persona/languages';
 	import { fetchMyAgentDocument, updateMyAgentDocument } from './persona-api';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -45,8 +45,8 @@
 		if (!isSupabaseConfigured()) return;
 		if (draft.callMe && draft.languageDefault) return;
 		const member = await supabaseMember();
-		if (!draft.callMe && member.name) draft.callMe = member.name;
 		if (!draft.languageDefault && member.companyLocale) draft.languageDefault = member.companyLocale;
+		if (!draft.callMe) draft.callMe = defaultCallMe(member.name, draft.languageDefault);
 	}
 
 	async function save() {
