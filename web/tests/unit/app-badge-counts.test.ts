@@ -46,7 +46,6 @@ function taskState(tasks: Task[]): TaskState {
 				name: '이영희',
 				email: 'member1@example.com',
 				role: 'member',
-				mattermostStatus: 'online',
 				activeTaskCount: 0,
 				completeTaskCount: 0
 			},
@@ -55,7 +54,6 @@ function taskState(tasks: Task[]): TaskState {
 				name: '김철수',
 				email: 'kim@example.com',
 				role: 'member',
-				mattermostStatus: 'online',
 				activeTaskCount: 0,
 				completeTaskCount: 0
 			}

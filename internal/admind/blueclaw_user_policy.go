@@ -8,9 +8,8 @@ import (
 )
 
 type adminCircleRecord struct {
-	CircleID            string `json:"circleID"`
-	DisplayName         string `json:"displayName"`
-	IsMattermostManaged bool   `json:"isMattermostManaged,omitempty"`
+	CircleID    string `json:"circleID"`
+	DisplayName string `json:"displayName"`
 }
 
 func blueclawPersonHasEmail(person map[string]any, email string) bool {
@@ -68,8 +67,7 @@ func blueclawAvailableCircles(policyDocument map[string]any) []adminCircleRecord
 		if displayName == "" {
 			displayName = circleID
 		}
-		isMattermostManaged, _ := circle["isMattermostManaged"].(bool)
-		circles = append(circles, adminCircleRecord{CircleID: circleID, DisplayName: displayName, IsMattermostManaged: isMattermostManaged})
+		circles = append(circles, adminCircleRecord{CircleID: circleID, DisplayName: displayName})
 	}
 	if len(circles) == 0 {
 		return []adminCircleRecord{{CircleID: "member", DisplayName: "Member"}}
