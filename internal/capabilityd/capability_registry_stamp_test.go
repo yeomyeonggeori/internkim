@@ -12,17 +12,17 @@ import (
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-func TestTheRegistryStampsTheToolsThePrintedContractNames(t *testing.T) {
-	printedDescriptors := roundTrippedDescriptors(t, blueclawruntime.CurrentCapabilityContract().ToolDescriptors)
-	stampedDescriptors := capabilities.RegistryDescriptors(servedCapabilityRegistry(t))
+func TestTheLiveRegistryServesTheToolsTheStampedContractNames(t *testing.T) {
+	stampedContractDescriptors := roundTrippedDescriptors(t, blueclawruntime.CurrentCapabilityContract().ToolDescriptors)
+	servedDescriptors := capabilities.RegistryDescriptors(servedCapabilityRegistry(t))
 
-	printedNames, stampedNames := sortedToolNames(printedDescriptors), sortedToolNames(stampedDescriptors)
-	if !reflect.DeepEqual(printedNames, stampedNames) {
-		t.Fatalf("--print-capabilities names %v and the registry stamps %v", printedNames, stampedNames)
+	stampedNames, servedNames := sortedToolNames(stampedContractDescriptors), sortedToolNames(servedDescriptors)
+	if !reflect.DeepEqual(stampedNames, servedNames) {
+		t.Fatalf("the stamped contract names %v and the live registry serves %v", stampedNames, servedNames)
 	}
-	for index, printed := range printedDescriptors {
-		if !reflect.DeepEqual(printed, stampedDescriptors[index]) {
-			t.Fatalf("%s is printed as %+v and stamped as %+v", printed.Name, printed, stampedDescriptors[index])
+	for index, stamped := range stampedContractDescriptors {
+		if !reflect.DeepEqual(stamped, servedDescriptors[index]) {
+			t.Fatalf("%s is stamped as %+v and served as %+v", stamped.Name, stamped, servedDescriptors[index])
 		}
 	}
 }
