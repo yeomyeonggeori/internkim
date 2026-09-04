@@ -98,7 +98,7 @@
 </script>
 
 <Sheet.Root bind:open>
-	<Sheet.Content class="data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
+	<Sheet.Content class="w-full sm:max-w-2xl">
 		<Sheet.Header>
 			<Sheet.Title>{text.settingsSheet.title}</Sheet.Title>
 			<Sheet.Description>{text.settingsSheet.description}</Sheet.Description>
