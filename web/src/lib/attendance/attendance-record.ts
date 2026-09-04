@@ -1,6 +1,10 @@
 import { invokeTool } from '$lib/public-api-call';
+import { companyDirectory, type RecordDirectory, type RecordPerson } from '$lib/record/person-directory';
 import type { OrderableMember } from '$lib/member-order';
 import type { AttendanceKind } from '../../routes/attendance/attendance-context.svelte';
+
+export { companyDirectory };
+export type { RecordDirectory, RecordPerson };
 
 export type RecordWorkLocation = { name: string; color: string | null };
 
@@ -15,20 +19,6 @@ export type RecordCompanySettings = {
 	profileImageURL: string | null;
 };
 
-export type RecordPerson = {
-	personID: string;
-	name: string;
-	email: string;
-	isAdmin?: boolean;
-	hireDate?: string;
-	timeZone?: string;
-};
-
-export type RecordDirectory = {
-	requesterID: string;
-	count: number;
-	people: RecordPerson[];
-};
 
 export type RecordAttendance = {
 	eventID: string;
@@ -98,10 +88,6 @@ export type RecordLeaveBalances = {
 
 export function companySettings(): Promise<RecordCompanySettings> {
 	return invokeTool('company_settings_get', {});
-}
-
-export function companyDirectory(): Promise<RecordDirectory> {
-	return invokeTool('person_list', {});
 }
 
 export function attendanceBetween(from: string, to: string): Promise<RecordAttendanceList> {

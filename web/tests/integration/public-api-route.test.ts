@@ -261,6 +261,15 @@ describe('a tool whose rows live in the record', () => {
 		expect((answered.body as { tool: string }).tool).toBe('person_list');
 	});
 
+	test('is reachable even when the model is never shown it, which is how the board writes labels', async () => {
+		const answered = await invoke('task_vocabulary_set', administratorsToken, {
+			businesses: [{ name: '사업하나', color: '#2563eb' }],
+			types: [{ name: '개선' }]
+		});
+		expect(answered.status).toBe(200);
+		expect((resultOf(answered).businesses as { name: string }[]).map((label) => label.name)).toEqual(['사업하나']);
+	});
+
 	test('is refused by rung before it runs', async () => {
 		const answered = await reach('/tools/task_delete/invoke', readersToken, {
 			method: 'POST',

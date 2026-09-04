@@ -11,7 +11,7 @@ import {
 import { hiddenBrowserToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { crmToolDefinitions } from './crm';
-import { taskLabelVocabularySchema } from './labels';
+import { taskLabelVocabularySchema, taskVocabularySetInputSchema } from './labels';
 import {
   buildCapabilityCatalog,
   ResourceMutationEffect,
@@ -208,8 +208,12 @@ const crmOpportunityHintDescription =
 
 export const taskResultSchema = z.strictObject({
   taskID: resourceIDSchema,
+  parentTaskID: z.string().optional(),
   organizationID: z.string().optional(),
   opportunityID: z.string().optional(),
+  requesterID: z.string().optional(),
+  requesterName: z.string().optional(),
+  createdAt: z.string().optional(),
   ownerID: z.string().optional(),
   ownerName: z.string().optional(),
   participantIDs: z.array(z.string()).optional(),
@@ -224,6 +228,9 @@ export const taskResultSchema = z.strictObject({
   endDate: z.string().optional(),
   weekCode: z.string().optional(),
 });
+
+const parentTaskHintDescription =
+  'The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.';
 
 export const taskAddInputSchema = z.strictObject({
   title: z.string().describe(
@@ -246,6 +253,7 @@ export const taskAddInputSchema = z.strictObject({
   participantPersonHints: z.array(z.string())
     .describe('Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester\u2019s own.')
     .optional(),
+  parentTaskHint: z.string().max(256).describe(parentTaskHintDescription).optional(),
   organizationHint: z.string().max(256).describe(crmOrganizationHintDescription).optional(),
   opportunityHint: z.string().max(256).describe(crmOpportunityHintDescription).optional(),
 });
@@ -269,6 +277,9 @@ export const taskListInputSchema = z.strictObject({
     .optional(),
   organizationHint: z.string().max(256).describe(`Only the work for one organization. ${crmOrganizationHintDescription}`).optional(),
   opportunityHint: z.string().max(256).describe(`Only the work on one deal. ${crmOpportunityHintDescription}`).optional(),
+  everyWeek: z.boolean()
+    .describe('Every week there is, ignoring weekFrom and weekTo. Use it to search the whole history or to total work across all time.')
+    .optional(),
   limit: z.number().describe('Maximum number of tasks to return. Defaults to 50.').optional(),
 });
 
@@ -283,10 +294,14 @@ const taskUpdateObjectSchema = z.strictObject({
   size: workspaceTaskSizeSchema.describe('Effort size estimate.').optional(),
   business: z.string().describe('Business label, taken from registeredLabels.businesses in a task_list result.').optional(),
   type: z.string().describe('Task type label, taken from registeredLabels.types in a task_list result.').optional(),
-  startsAt: z.string().describe(`When the work starts. ${momentDescription}`).optional(),
-  endsAt: z.string().describe(`When the work is due. ${momentDescription}`).optional(),
+  startsAt: z.string().describe(`When the work starts. ${momentDescription} An empty string takes the date off.`).optional(),
+  endsAt: z.string().describe(`When the work is due. ${momentDescription} An empty string takes the date off.`).optional(),
   participantPersonHints: z.array(z.string())
     .describe('Names, @handles, or emails of everyone taking part, replacing the current participants. Send the whole set, not just additions.')
+    .optional(),
+  parentTaskHint: z.string().max(256).describe(`${parentTaskHintDescription} An empty string takes it out from under the task it was under.`).optional(),
+  childTaskHints: z.array(z.string())
+    .describe('Tasks to move under taskHint, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; the whole set moves or none of it does.')
     .optional(),
   organizationHint: z.string().max(256).describe(`${crmOrganizationHintDescription} An empty string takes the work off the organization it was for.`).optional(),
   opportunityHint: z.string().max(256).describe(`${crmOpportunityHintDescription} An empty string takes the work off the deal it belonged to.`).optional(),
@@ -787,7 +802,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_add',
     description: 'Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.',
-    version: '5',
+    version: '6',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskAddInputSchema,
     inputIntentSchema: taskAddInputIntentSchema,
@@ -810,7 +825,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_list',
     description: "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.",
-    version: '3',
+    version: '4',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: taskListInputSchema,
     result: { schema: taskListResultSchema, effects: [] },
@@ -823,7 +838,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_update',
     description: 'Update explicit fields on an existing task, including who takes part in it. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.',
-    version: '4',
+    version: '5',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskUpdateInputSchema,
     inputIntentSchema: taskUpdateInputIntentSchema,
@@ -862,6 +877,21 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'delete_task', targetKind: 'task' },
+  },
+  {
+    name: 'task_vocabulary_set',
+    namespace: 'task',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_task',
+    policyResource: 'tool:task_vocabulary_set',
+    description: 'Set the business and task type labels this company files work under. Each list is written at once, so read registeredLabels from a task_list result first and send it back with what changes. A label a task still carries cannot be dropped. This is an administrator’s.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: taskVocabularySetInputSchema,
+    result: { schema: taskLabelVocabularySchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    completionEvidence: { mode: 'success', action: 'write_task', targetKind: 'task_vocabulary' },
   },
 ];
 
@@ -1771,6 +1801,8 @@ export type TaskListInput = z.infer<typeof taskListInputSchema>;
 export type TaskUpdateInput = z.infer<typeof taskUpdateInputSchema>;
 export type TaskDeleteInput = z.infer<typeof taskDeleteInputSchema>;
 export type TaskResult = z.infer<typeof taskResultSchema>;
+export type TaskVocabularySetInput = z.infer<typeof taskVocabularySetInputSchema>;
+export type TaskLabelVocabulary = z.infer<typeof taskLabelVocabularySchema>;
 export type LeaveListInput = z.infer<typeof leaveListInputSchema>;
 export type LeaveBalanceInput = z.infer<typeof leaveBalanceInputSchema>;
 export type LeaveRequestInput = z.infer<typeof leaveRequestInputSchema>;

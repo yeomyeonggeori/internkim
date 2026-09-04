@@ -24,6 +24,8 @@ export class LabelUnresolved extends Error {
 export type CompanyLabels = {
 	businesses: NamedColour[];
 	types: NamedColour[];
+	etcBusinessColor: string | undefined;
+	etcTypeColor: string | undefined;
 	timezone: string;
 };
 
@@ -32,6 +34,8 @@ export function labelsOfVocabulary(vocabulary: unknown, timezone: string | null)
 	return {
 		businesses: read.businesses ?? [],
 		types: read.types ?? [],
+		etcBusinessColor: read.etcBusinessColor,
+		etcTypeColor: read.etcTypeColor,
 		timezone: timezone?.trim() || 'Asia/Seoul'
 	};
 }

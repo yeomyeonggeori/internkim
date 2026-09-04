@@ -78,7 +78,7 @@ import {
 	leaveUpdate
 } from './leave-tools';
 import { personInvite, personList, personUpdate } from './people-tools';
-import { taskAdd, taskDelete, taskList, taskUpdate } from './task-tools';
+import { taskAdd, taskDelete, taskList, taskUpdate, taskVocabularySet } from './task-tools';
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
@@ -91,6 +91,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	task_update: (context, input) => taskUpdate(context, input),
 	task_list: (context, input) => taskList(context, input),
 	task_delete: (context, input) => taskDelete(context, input),
+	task_vocabulary_set: (context, input) => taskVocabularySet(context, input),
 	event_add: (context, input) => eventAdd(context, input),
 	event_update: (context, input) => eventUpdate(context, input),
 	event_list: (context, input) => eventList(context, input),

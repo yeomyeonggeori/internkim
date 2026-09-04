@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from '$lib/supabase';
 import { memberRoleOf, type MemberRole } from '$lib/member-vocabulary';
-import { forgetHeldTasks } from '$lib/task/task-cache';
 import { forgetLastSeenTask } from '../routes/task/task-last-seen';
 import { forgetLastSeenDirectory } from '../routes/organization/organization-last-seen';
 import { signedOutSession, type WebAuthSession } from '$lib/web-auth-session';
@@ -55,7 +54,6 @@ export async function supabaseMemberRole(): Promise<MemberRole> {
 
 export async function signOutOfSupabase(): Promise<void> {
 	await stopBeingReached().catch(() => undefined);
-	forgetHeldTasks();
 	forgetLastSeenTask();
 	forgetLastSeenDirectory();
 	await supabase().auth.signOut({ scope: 'local' });
