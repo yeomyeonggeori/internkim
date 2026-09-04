@@ -9,6 +9,7 @@
 	import type { OrgGroup, UserRecord } from '$lib/organization/types';
 	import { untrack } from 'svelte';
 	import { activityReferenceAfterOrganizationChange, activityReferenceAfterOpportunityChange } from './crm-activity-reference';
+	import { crmActivityCalendarDefaults, localDateTimeValue } from './crm-activity-calendar-defaults';
 	import { hasCRMContactMethod } from './crm-contact-validation';
 	import { currentCRMDate } from './crm-date';
 	import type { CRMDefinition } from './crm-api-types';
@@ -158,8 +159,7 @@
 		taskStatus = 'todo';
 		registerCalendar = false;
 		isAllDay = false;
-		calendarStart = occurredAt;
-		calendarEnd = occurredAt;
+		({ calendarStart, calendarEnd } = crmActivityCalendarDefaults(occurredAt));
 		calendarLocation = '';
 		errorMessage = '';
 		isSaving = false;
@@ -271,11 +271,6 @@
 	$effect(() => {
 		if (open) untrack(resetForm);
 	});
-
-	function localDateTimeValue(date: Date): string {
-		const offset = date.getTimezoneOffset() * 60000;
-		return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-	}
 </script>
 
 <Sheet.Root bind:open>

@@ -400,8 +400,9 @@ and delete the duplicates.
   the sign-in, `leave` seeding — is `web/tests/e2e/central-test-utils.ts`; the
   rest is `calendar-`, `attendance-` and `task-central-test-utils.ts`.
   `tools/verify`'s `web-e2e` group runs `bun run test:e2e:calendar:central`,
-  `bun run test:e2e:attendance:central` and `bun run test:e2e:task:central`,
-  each of which resets the database itself; a suite nothing runs is not a gate.
+  `bun run test:e2e:attendance:central`, `bun run test:e2e:task:central` and
+  `bun run test:e2e:crm:central`, each of which resets the database itself;
+  a suite nothing runs is not a gate.
   It is its own group and lane, keyed on those routes and specs, never pulled
   in by `--only web` — a group that resets the shared local database is opted
   into by name or by touching that code, never a side effect of checking the
