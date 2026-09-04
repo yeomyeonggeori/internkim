@@ -455,6 +455,24 @@ describe('the activities recorded against a deal', () => {
 		expect(resultOf(changed).opportunityID).not.toBe('');
 	});
 
+	test('the automatic stage-change entry is edited without its system kind needing a registered label', async () => {
+		const listed = await asAdmin('crm_activity_list', { opportunityHint: 'ABC상사 도입' });
+		const stageChange = activitiesOf(listed).find((activity) => activity.kind === 'stage_change') as {
+			activityID: string;
+		};
+		expect(stageChange).toBeDefined();
+
+		const edited = await asAdmin('crm_activity_save', {
+			activityHint: stageChange.activityID,
+			kind: 'stage_change',
+			note: '단계 이력에 메모를 남겼다'
+		});
+
+		expect(edited.status).toBe(200);
+		expect(resultOf(edited).content).toBe('단계 이력에 메모를 남겼다');
+		expect(resultOf(edited).kind).toBe('stage_change');
+	});
+
 	test('name the organization they are with, and leave stage changes to the record', async () => {
 		const unnamed = await asSample('crm_activity_save', { title: '어디의 일인지 모르는 활동' });
 		expect(unnamed.status).toBe(400);

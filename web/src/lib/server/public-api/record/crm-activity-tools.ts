@@ -134,7 +134,7 @@ export async function crmActivitySave(
 		...links,
 		...(input.title !== undefined ? { title: input.title } : {}),
 		...(input.business !== undefined ? { business: input.business } : {}),
-		...(input.kind !== undefined ? { type: input.kind } : {}),
+		...(input.kind !== undefined && input.kind !== stageChangeKind ? { type: input.kind } : {}),
 		...(input.note !== undefined ? { note: input.note } : {}),
 		...(input.ownerPersonHint ? { participantPersonHints: [input.ownerPersonHint] } : {})
 	};
