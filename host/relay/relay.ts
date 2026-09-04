@@ -26,6 +26,9 @@ import {
 } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import { connectToGateway } from './gateway-socket';
+import { BlueclawACPClient, defaultBlueclawACPSocketPath, type Addressing } from './acp-session';
+import { readInboundMessage } from './inbound-message';
+import { InboundTurns } from './inbound-turn';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -36,6 +39,8 @@ const arrivalsPort = positiveNumberSetting('ARRIVALS_PORT', process.env.ARRIVALS
 const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
 const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const admindSocketPath = process.env.ADMIND_SOCKET_PATH ?? defaultAdmindSocketPath;
+const blueclawACPSocketPath = process.env.BLUECLAW_ACP_SOCKET_PATH ?? defaultBlueclawACPSocketPath;
+const workspaceRootPath = process.env.WORKSPACE_ROOT_PATH ?? '/workspace';
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = positiveNumberSetting(
@@ -271,12 +276,32 @@ async function nameOf(externalID: string): Promise<string> {
 	return contact.data?.name ?? '';
 }
 
+const inboundTurns: InboundTurns = new InboundTurns({
+	client: new BlueclawACPClient({
+		socketPath: blueclawACPSocketPath,
+		workspaceRootPath,
+		askThePerson: (asked, addressing) => inboundTurns.askThePerson(asked, addressing),
+		report: (line) => console.log(`acp: ${line}`)
+	}),
+	postToConversation: async (addressing: Addressing, message: string) => {
+		await dispatch.askChatd('message.post', { channelID: addressing.conversationID, message });
+	},
+	report: (line) => console.log(`acp: ${line}`)
+});
+
 Bun.serve({
 	hostname: '127.0.0.1',
 	port: arrivalsPort,
 	fetch: async (request) => {
 		if (request.method !== 'POST') return new Response('post an arrival', { status: 405 });
-		const arrived = readArrivedMessage(await request.json().catch(() => null));
+		const offered = await request.json().catch(() => null);
+		if (new URL(request.url).pathname === '/inbound') {
+			const inbound = readInboundMessage(offered);
+			if (!inbound) return new Response('that is not a message the agent can answer', { status: 400 });
+			const answered = await inboundTurns.receive(inbound);
+			return Response.json(answered ?? { answeredAPendingQuestion: true });
+		}
+		const arrived = readArrivedMessage(offered);
 		if (!arrived) return new Response('that is not a message', { status: 400 });
 		const told = await tellThoseAddressed(arrived).catch((error) => {
 			console.error('arrival not told:', error instanceof Error ? error.message : error);
