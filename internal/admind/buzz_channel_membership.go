@@ -149,11 +149,6 @@ func (connections *buzzActorConnections) closeAll() {
 	connections.open = map[string]*relaypublish.Publisher{}
 }
 
-// Membership in a room is granted by someone who administers that room, the
-// way it would be if they clicked the button themselves: an admin standing in
-// it, or the agent when no admin is. The bootstrap key is the last resort that
-// existing rooms still need until an admin holds owner in each; every use of
-// it is a room the migration has not reached.
 func (service *Service) buzzRoomActorSecret(
 	ctx context.Context,
 	heldRoles map[string]string,
@@ -187,6 +182,9 @@ func (service *Service) pickBuzzRoomActor(
 	agentPubkey string,
 	bootstrapSecret string,
 ) string {
+	if isElevatedBuzzRole(heldRoles[agentPubkey]) {
+		return agentSecret
+	}
 	adminPubkeys := make([]string, 0, len(adminSecretsByPubkey))
 	for pubkey := range adminSecretsByPubkey {
 		adminPubkeys = append(adminPubkeys, pubkey)
@@ -194,11 +192,9 @@ func (service *Service) pickBuzzRoomActor(
 	sort.Strings(adminPubkeys)
 	for _, pubkey := range adminPubkeys {
 		if isElevatedBuzzRole(heldRoles[pubkey]) {
+			log.Printf("buzz membership: the agent does not administer this room yet, signing as an administrator instead")
 			return adminSecretsByPubkey[pubkey]
 		}
-	}
-	if isElevatedBuzzRole(heldRoles[agentPubkey]) {
-		return agentSecret
 	}
 	log.Printf("buzz membership: no admin or agent administers this room yet, signing as bootstrap")
 	return bootstrapSecret
@@ -301,6 +297,14 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 		heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
 		if errorValue != nil {
 			log.Printf("buzz membership for %s: reading who is in %s failed: %v", email, channelID, errorValue)
+			continue
+		}
+		// The relay announces a joining in the channel for every add it is
+		// asked to make, including one that changes nothing, and those
+		// announcements share the fifty rows a timeline shows. An admin
+		// standing in the room as an ordinary member is not nothing: the
+		// add is what raises them to owner.
+		if heldRole, isHeld := heldRoles[pubkey]; isHeld && (role == "" || heldRole == role) {
 			continue
 		}
 		actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
