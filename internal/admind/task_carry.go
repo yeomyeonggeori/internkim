@@ -8,7 +8,6 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -32,10 +31,14 @@ func (service *Service) sweepTheTasksTheCompanyNowHolds(ctx context.Context) {
 		return
 	}
 
-	pinned := taskTablesTheRecordCannotTake(ctx, database)
-	if len(pinned) > 0 {
-		slog.WarnContext(ctx, "this device holds tasks the record has no place for, so its store stays",
-			"tables", strings.Join(pinned, ","), "recovery_action", taskCarryRecoveryAction)
+	unansweredVocabulary := service.taskVocabularyTheCompanyDoesNotAnswer(ctx, database)
+	if len(unansweredVocabulary) > 0 {
+		slog.WarnContext(ctx, "this device holds a task vocabulary the company does not answer, so its store stays",
+			"tables", strings.Join(unansweredVocabulary, ","))
+		return
+	}
+	if errorValue := dropTaskTables(ctx, database, vocabularyTaskTables); errorValue != nil {
+		slog.WarnContext(ctx, "a task vocabulary the company now answers could not be dropped", "error", errorValue)
 		return
 	}
 
@@ -55,24 +58,32 @@ func (service *Service) sweepTheTasksTheCompanyNowHolds(ctx context.Context) {
 	}
 }
 
-func taskTablesTheRecordCannotTake(ctx context.Context, database *sql.DB) []string {
-	pinned := []string{}
-	for _, tableName := range sortedTaskTableNames() {
-		rowCount, held := countRowsInTaskTable(ctx, database, tableName)
-		if held && rowCount > 0 {
-			pinned = append(pinned, tableName+" ("+taskTablesWithNowhereToGo[tableName]+")")
-		}
+func (service *Service) taskVocabularyTheCompanyDoesNotAnswer(ctx context.Context, database *sql.DB) []string {
+	held := taskVocabularyHeldHere(ctx, database)
+	if len(held) == 0 {
+		return held
 	}
-	return pinned
+	answered, errorValue := service.companyAnswersATaskVocabulary(ctx)
+	if errorValue != nil {
+		slog.WarnContext(ctx, "the company was not asked which words a task may carry, so this device keeps its own",
+			"error", errorValue)
+		return held
+	}
+	if answered {
+		return []string{}
+	}
+	return held
 }
 
-func sortedTaskTableNames() []string {
-	names := make([]string, 0, len(taskTablesWithNowhereToGo))
-	for tableName := range taskTablesWithNowhereToGo {
-		names = append(names, tableName)
+func taskVocabularyHeldHere(ctx context.Context, database *sql.DB) []string {
+	held := []string{}
+	for _, tableName := range vocabularyTaskTables {
+		rowCount, tableExists := countRowsInTaskTable(ctx, database, tableName)
+		if tableExists && rowCount > 0 {
+			held = append(held, fmt.Sprintf("%s (%d rows)", tableName, rowCount))
+		}
 	}
-	slices.Sort(names)
-	return names
+	return held
 }
 
 // Every task this device holds that the record has not taken. A carried row is
@@ -369,7 +380,7 @@ func (service *Service) taskCoverageOfTheRecord(request *http.Request) (taskReco
 		return coverage, errorValue
 	}
 	coverage.Tasks = len(tasks)
-	coverage.Pinned = taskTablesTheRecordCannotTake(request.Context(), database)
+	coverage.Pinned = service.taskVocabularyTheCompanyDoesNotAnswer(request.Context(), database)
 	database.Close()
 
 	if request.URL.Query().Get("carry") != "true" {
