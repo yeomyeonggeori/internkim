@@ -67,6 +67,18 @@ export function formatViewMoney(
 		: formatMoney(view.value, view.currency, noValue, locale);
 }
 
+export function collapsedViewMoneyTotal(totals: CRMMoneyTotals, view: CRMViewCurrencyReader): number | undefined {
+	if (view.selected === '') return undefined;
+	const currencies = Object.keys(totals);
+	if (currencies.length === 0) return undefined;
+	const viewAmounts = currencies.flatMap((currency) => {
+		const amount = totals[currency];
+		return amount === undefined ? [] : [view.viewAmount(amount, currency)];
+	});
+	if (viewAmounts.some((amount) => amount.currency !== view.selected)) return undefined;
+	return viewAmounts.reduce((sum, amount) => sum + amount.value, 0);
+}
+
 export function formatViewMoneyTotals(
 	totals: CRMMoneyTotals,
 	catalogue: CurrencyCatalogue,
@@ -74,17 +86,8 @@ export function formatViewMoneyTotals(
 	noValue = '-',
 	locale: Locale = 'ko'
 ): string {
-	if (view.selected === '') return formatMoneyTotals(totals, catalogue, noValue, locale);
-	const currencies = Object.keys(totals);
-	if (currencies.length === 0) return noValue;
-	const viewAmounts = currencies.flatMap((currency) => {
-		const amount = totals[currency];
-		return amount === undefined ? [] : [view.viewAmount(amount, currency)];
-	});
-	if (viewAmounts.some((amount) => amount.currency !== view.selected)) {
-		return formatMoneyTotals(totals, catalogue, noValue, locale);
-	}
-	const collapsedValue = viewAmounts.reduce((sum, amount) => sum + amount.value, 0);
+	const collapsedValue = collapsedViewMoneyTotal(totals, view);
+	if (collapsedValue === undefined) return formatMoneyTotals(totals, catalogue, noValue, locale);
 	return formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, noValue, locale, view.selected);
 }
 
