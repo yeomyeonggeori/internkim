@@ -41,6 +41,11 @@
             "maxLength": 256,
             "type": "string"
           },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
+            "maxLength": 256,
+            "type": "string"
+          },
           "participantPersonHints": {
             "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester’s own.",
             "items": {
@@ -109,6 +114,11 @@
             "maxLength": 256,
             "type": "string"
           },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
+            "maxLength": 256,
+            "type": "string"
+          },
           "participantPersonHints": {
             "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester’s own.",
             "items": {
@@ -174,6 +184,9 @@
           "content": {
             "type": "string"
           },
+          "createdAt": {
+            "type": "string"
+          },
           "endDate": {
             "type": "string"
           },
@@ -187,6 +200,9 @@
             "type": "string"
           },
           "ownerName": {
+            "type": "string"
+          },
+          "parentTaskID": {
             "type": "string"
           },
           "participantIDs": {
@@ -221,6 +237,12 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "requesterID": {
+            "type": "string"
+          },
+          "requesterName": {
+            "type": "string"
           },
           "size": {
             "type": "string"
@@ -271,6 +293,9 @@
             "content": {
               "type": "string"
             },
+            "createdAt": {
+              "type": "string"
+            },
             "endDate": {
               "type": "string"
             },
@@ -284,6 +309,9 @@
               "type": "string"
             },
             "ownerName": {
+              "type": "string"
+            },
+            "parentTaskID": {
               "type": "string"
             },
             "participantIDs": {
@@ -319,6 +347,12 @@
               },
               "type": "array"
             },
+            "requesterID": {
+              "type": "string"
+            },
+            "requesterName": {
+              "type": "string"
+            },
             "size": {
               "type": "string"
             },
@@ -348,7 +382,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "5",
+      "version": "6",
       "worksOffline": false
     },
     {
@@ -368,6 +402,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "everyWeek": {
+            "description": "Every week there is, ignoring weekFrom and weekTo. Use it to search the whole history or to total work across all time.",
+            "type": "boolean"
+          },
           "limit": {
             "description": "Maximum number of tasks to return. Defaults to 50.",
             "type": "number"
@@ -461,6 +499,12 @@
                 },
                 "type": "array"
               },
+              "etcBusinessColor": {
+                "type": "string"
+              },
+              "etcTypeColor": {
+                "type": "string"
+              },
               "sizes": {
                 "items": {
                   "type": "string"
@@ -516,6 +560,9 @@
                 "content": {
                   "type": "string"
                 },
+                "createdAt": {
+                  "type": "string"
+                },
                 "endDate": {
                   "type": "string"
                 },
@@ -529,6 +576,9 @@
                   "type": "string"
                 },
                 "ownerName": {
+                  "type": "string"
+                },
+                "parentTaskID": {
                   "type": "string"
                 },
                 "participantIDs": {
@@ -563,6 +613,12 @@
                     "type": "object"
                   },
                   "type": "array"
+                },
+                "requesterID": {
+                  "type": "string"
+                },
+                "requesterName": {
+                  "type": "string"
                 },
                 "size": {
                   "type": "string"
@@ -650,6 +706,12 @@
                   },
                   "type": "array"
                 },
+                "etcBusinessColor": {
+                  "type": "string"
+                },
+                "etcTypeColor": {
+                  "type": "string"
+                },
                 "sizes": {
                   "items": {
                     "type": "string"
@@ -705,6 +767,9 @@
                   "content": {
                     "type": "string"
                   },
+                  "createdAt": {
+                    "type": "string"
+                  },
                   "endDate": {
                     "type": "string"
                   },
@@ -718,6 +783,9 @@
                     "type": "string"
                   },
                   "ownerName": {
+                    "type": "string"
+                  },
+                  "parentTaskID": {
                     "type": "string"
                   },
                   "participantIDs": {
@@ -752,6 +820,12 @@
                       "type": "object"
                     },
                     "type": "array"
+                  },
+                  "requesterID": {
+                    "type": "string"
+                  },
+                  "requesterName": {
+                    "type": "string"
                   },
                   "size": {
                     "type": "string"
@@ -803,7 +877,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "3",
+      "version": "4",
       "worksOffline": false
     },
     {
@@ -832,8 +906,15 @@
             "description": "Business label, taken from registeredLabels.businesses in a task_list result.",
             "type": "string"
           },
+          "childTaskHints": {
+            "description": "Tasks to move under taskHint, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; the whole set moves or none of it does.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "endsAt": {
-            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
+            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
             "type": "string"
           },
           "opportunityHint": {
@@ -843,6 +924,11 @@
           },
           "organizationHint": {
             "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company. An empty string takes the work off the organization it was for.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own. An empty string takes it out from under the task it was under.",
             "maxLength": 256,
             "type": "string"
           },
@@ -866,7 +952,7 @@
             "type": "string"
           },
           "startsAt": {
-            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
+            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
             "type": "string"
           },
           "status": {
@@ -902,8 +988,15 @@
             "description": "Business label, taken from registeredLabels.businesses in a task_list result.",
             "type": "string"
           },
+          "childTaskHints": {
+            "description": "Tasks to move under taskHint, each an exact task ID or exact CURRENT title from a task_list result. Every one of them must stand on its own already; the whole set moves or none of it does.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "endsAt": {
-            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
+            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
             "type": "string"
           },
           "opportunityHint": {
@@ -913,6 +1006,11 @@
           },
           "organizationHint": {
             "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company. An empty string takes the work off the organization it was for.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own. An empty string takes it out from under the task it was under.",
             "maxLength": 256,
             "type": "string"
           },
@@ -936,7 +1034,7 @@
             "type": "string"
           },
           "startsAt": {
-            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day.",
+            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. An empty string takes the date off.",
             "type": "string"
           },
           "status": {
@@ -988,6 +1086,9 @@
           "content": {
             "type": "string"
           },
+          "createdAt": {
+            "type": "string"
+          },
           "endDate": {
             "type": "string"
           },
@@ -1001,6 +1102,9 @@
             "type": "string"
           },
           "ownerName": {
+            "type": "string"
+          },
+          "parentTaskID": {
             "type": "string"
           },
           "participantIDs": {
@@ -1035,6 +1139,12 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "requesterID": {
+            "type": "string"
+          },
+          "requesterName": {
+            "type": "string"
           },
           "size": {
             "type": "string"
@@ -1085,6 +1195,9 @@
             "content": {
               "type": "string"
             },
+            "createdAt": {
+              "type": "string"
+            },
             "endDate": {
               "type": "string"
             },
@@ -1098,6 +1211,9 @@
               "type": "string"
             },
             "ownerName": {
+              "type": "string"
+            },
+            "parentTaskID": {
               "type": "string"
             },
             "participantIDs": {
@@ -1133,6 +1249,12 @@
               },
               "type": "array"
             },
+            "requesterID": {
+              "type": "string"
+            },
+            "requesterName": {
+              "type": "string"
+            },
             "size": {
               "type": "string"
             },
@@ -1162,7 +1284,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "4",
+      "version": "5",
       "worksOffline": false
     },
     {
@@ -1269,6 +1391,241 @@
       "sideEffect": "destructive",
       "sideEffectClass": "destructive",
       "version": "3",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "task_vocabulary_set",
+      "completionEvidence": {
+        "action": "write_task",
+        "mode": "success",
+        "targetKind": "task_vocabulary"
+      },
+      "description": "Set the business and task type labels this company files work under. Each list is written at once, so read registeredLabels from a task_list result first and send it back with what changes. A label a task still carries cannot be dropped. This is an administrator’s.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "businesses": {
+            "description": "The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "CSS colour the board paints this label in. Omit to let one be derived from the name.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The label as people read it on a task.",
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "etcBusinessColor": {
+            "description": "Colour for work carrying no business label.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "etcTypeColor": {
+            "description": "Colour for work carrying no type label.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "types": {
+            "description": "The task type labels this company runs, replacing the whole list.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "CSS colour the board paints this label in. Omit to let one be derived from the name.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The label as people read it on a task.",
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "task_vocabulary_set",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "task_vocabulary_set",
+      "namespace": "task",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "businesses": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "etcBusinessColor": {
+            "type": "string"
+          },
+          "etcTypeColor": {
+            "type": "string"
+          },
+          "sizes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "businesses",
+          "types",
+          "sizes",
+          "statuses"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:task_vocabulary_set",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "businesses": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "etcBusinessColor": {
+              "type": "string"
+            },
+            "etcTypeColor": {
+              "type": "string"
+            },
+            "sizes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "statuses": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "types": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "businesses",
+            "types",
+            "sizes",
+            "statuses"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
       "worksOffline": false
     },
     {
@@ -17312,6 +17669,12 @@
                 },
                 "type": "array"
               },
+              "etcBusinessColor": {
+                "type": "string"
+              },
+              "etcTypeColor": {
+                "type": "string"
+              },
               "sizes": {
                 "items": {
                   "type": "string"
@@ -17496,6 +17859,12 @@
                     "type": "object"
                   },
                   "type": "array"
+                },
+                "etcBusinessColor": {
+                  "type": "string"
+                },
+                "etcTypeColor": {
+                  "type": "string"
                 },
                 "sizes": {
                   "items": {

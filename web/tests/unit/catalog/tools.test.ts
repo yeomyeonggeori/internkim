@@ -183,6 +183,7 @@ describe('canonical capability tools', () => {
       'task_delete',
       'task_list',
       'task_update',
+      'task_vocabulary_set',
       'team_add',
       'team_delete',
       'team_list',

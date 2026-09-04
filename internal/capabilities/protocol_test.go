@@ -188,14 +188,14 @@ func TestWebDescriptorsUseCanonicalSearchAndHideFetch(t *testing.T) {
 func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 	schema := descriptorSchema(t, TaskToolDescriptors(), "task_add")
 
-	assertSchemaHasProperties(t, schema, "title", "size", "status", "business", "type", "startsAt", "endsAt", "participantPersonHints")
+	assertSchemaHasProperties(t, schema, "title", "size", "status", "business", "type", "startsAt", "endsAt", "participantPersonHints", "parentTaskHint")
 	assertSchemaRequires(t, schema, "title")
 	if stringSliceContains(schema.Required, "goal") || stringSliceContains(schema.Required, "endDate") {
 		t.Fatalf("expected goal and endDate to be optional in %+v", schema.Required)
 	}
 	assertSchemaOmitsProperties(t, schema, "prompt", "content", "description", "assignee", "dueDate", "ownerID", "participantIDs", "weekCode", "allowDuplicate")
 	for _, descriptor := range TaskToolDescriptors() {
-		if descriptor.Name == "task_add" && descriptor.Version != "5" {
+		if descriptor.Name == "task_add" && descriptor.Version != "6" {
 			t.Fatalf("task_add version = %q", descriptor.Version)
 		}
 	}
@@ -204,21 +204,21 @@ func TestFlowDescriptorUsesTypedTaskCreateInput(t *testing.T) {
 func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 	schema := descriptorSchema(t, TaskToolDescriptors(), "task_list")
 
-	assertSchemaHasProperties(t, schema, "query", "participantPersonHint", "scope", "weekFrom", "weekTo", "status", "limit")
+	assertSchemaHasProperties(t, schema, "query", "participantPersonHint", "scope", "weekFrom", "weekTo", "status", "everyWeek", "limit")
 	assertSchemaOmitsProperties(t, schema, "weekCode", "title", "description", "assignee", "dueDate")
 }
 
 func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	schema := descriptorSchema(t, TaskToolDescriptors(), "task_update")
 
-	assertSchemaHasProperties(t, schema, "taskHint", "title", "status", "size", "business", "type", "startsAt", "endsAt", "participantPersonHints")
+	assertSchemaHasProperties(t, schema, "taskHint", "title", "status", "size", "business", "type", "startsAt", "endsAt", "participantPersonHints", "parentTaskHint", "childTaskHints")
 	assertSchemaOmitsProperties(t, schema, "query", "targetPersonHint", "ownerPersonHint", "requestReason", "decisionReason", "weekCode", "prompt", "allowDuplicate", "content", "taskID")
 	assertSchemaRequires(t, schema, "taskHint")
 	if schema.MinProperties != 2 {
 		t.Fatalf("task_update minProperties = %d", schema.MinProperties)
 	}
-	if descriptorForTool(t, TaskToolDescriptors(), "task_update").Version != "4" {
-		t.Fatal("task_update descriptor must use the canonical-result v4 contract")
+	if descriptorForTool(t, TaskToolDescriptors(), "task_update").Version != "5" {
+		t.Fatal("task_update descriptor must use the canonical-result v5 contract")
 	}
 	assertDescriptorCompletionEvidence(t, TaskToolDescriptors(), "task_update", "success", "write_task", "task")
 }

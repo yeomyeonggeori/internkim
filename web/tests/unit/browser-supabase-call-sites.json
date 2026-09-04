@@ -12,17 +12,6 @@
 	"src/lib/supabase-session.ts": {
 		"from('member')": 1
 	},
-	"src/lib/task/supabase-task-relationships.ts": {
-		"rpc('task_parent_set')": 1,
-		"rpc('task_children_link')": 1
-	},
-	"src/lib/task/supabase-task.ts": {
-		"from('task')": 5,
-		"from('company')": 1,
-		"from('member')": 1,
-		"rpc('task_save')": 2,
-		"rpc('task_vocabulary_save')": 1
-	},
 	"src/lib/task/task-live-refresh.ts": {
 		"rpc('my_company_topic')": 1
 	}

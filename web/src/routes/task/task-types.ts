@@ -40,7 +40,6 @@ export type Task = {
 	endDate?: string;
 	createdAt?: string;
 	weekCode: string;
-	isEvent?: boolean;
 };
 
 export type TaskQuickTaskCreateResult = 'created' | 'duplicate' | 'failed' | 'ignored';

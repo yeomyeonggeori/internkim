@@ -311,6 +311,17 @@ describe('task_list', () => {
 		expect(businesses.length > 0).toBe(true);
 		expect(businesses.every((business) => business === '개발')).toBe(true);
 	});
+
+	test('answers every week there is when asked, whatever the week range says', async () => {
+		const everything = resultOf(await run('task_list', { scope: 'all', everyWeek: true, weekFrom: 0, weekTo: 0 }));
+		expect(titlesOf(everything)).toContain('작년에 끝낸 일');
+	});
+
+	test('names the labels this company registered, with the colours it painted them', async () => {
+		const listed = resultOf(await run('task_list', { scope: 'all' }));
+		const labels = listed.registeredLabels as { businesses: { name: string }[]; etcBusinessColor?: string };
+		expect(labels.businesses.map((label) => label.name)).toContain('개발');
+	});
 });
 
 describe('an event written through the record', () => {
@@ -581,5 +592,123 @@ describe('deleting', () => {
 	test('refuses to delete something it cannot find', async () => {
 		const refused = await run('task_delete', { taskHint: '없는 업무' });
 		expect(refused.status).toBe(409);
+	});
+});
+
+describe('what the board reads a task by', () => {
+	test('is its parent and when it was made', async () => {
+		const parent = resultOf(await run('task_add', { title: '묶음이 되는 일' }));
+		await run('task_add', { title: '묶음에 딸린 일', parentTaskHint: parent.taskID as string });
+
+		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
+		const child = (listed.tasks as Record<string, string>[]).find((task) => task.content === '묶음에 딸린 일');
+		expect(child?.parentTaskID).toBe(parent.taskID as string);
+		expect(Number.isNaN(Date.parse(child?.createdAt ?? ''))).toBe(false);
+	});
+
+	test('is also who asked, on the work that was asked of somebody', async () => {
+		await run('task_add', { title: '박예시에게 부탁한 일', status: 'requested', participantPersonHints: ['박예시'] });
+
+		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
+		const asked = (listed.tasks as Record<string, string>[]).find((task) => task.content === '박예시에게 부탁한 일');
+		expect(asked?.requesterID).toBe(sampleID);
+		expect(asked?.requesterName).toBe('이샘플');
+	});
+});
+
+describe('a task put under another', () => {
+	test('goes under the one named, and comes back out when none is', async () => {
+		const parent = resultOf(await run('task_add', { title: '상위가 되는 일' }));
+		const child = resultOf(await run('task_add', { title: '상위를 갖는 일' }));
+
+		const under = resultOf(await run('task_update', {
+			taskHint: child.taskID as string,
+			parentTaskHint: parent.taskID as string
+		}));
+		expect(under.parentTaskID).toBe(parent.taskID as string);
+
+		const alone = resultOf(await run('task_update', { taskHint: child.taskID as string, parentTaskHint: '' }));
+		expect(alone.parentTaskID).toBe('');
+	});
+
+	test('changes nothing else about the task it moves', async () => {
+		const parent = resultOf(await run('task_add', { title: '아무것도 바꾸지 않을 상위' }));
+		const child = resultOf(
+			await run('task_add', { title: '그대로 남을 일', size: 'L', business: '개발', endsAt: dayAround(3) })
+		);
+
+		const moved = resultOf(await run('task_update', {
+			taskHint: child.taskID as string,
+			parentTaskHint: parent.taskID as string
+		}));
+		expect(moved).toMatchObject({ content: '그대로 남을 일', size: 'L', business: '개발' });
+		expect(moved.endDate).toBe(child.endDate as string);
+	});
+
+	test('takes several at once, or none of them when one cannot go', async () => {
+		const parent = resultOf(await run('task_add', { title: '여럿을 받는 일' }));
+		const first = resultOf(await run('task_add', { title: '함께 들어갈 일 하나' }));
+		const second = resultOf(await run('task_add', { title: '함께 들어갈 일 둘' }));
+
+		const grouped = resultOf(await run('task_update', {
+			taskHint: parent.taskID as string,
+			childTaskHints: [first.taskID as string, second.taskID as string]
+		}));
+		expect(grouped.taskID).toBe(parent.taskID as string);
+
+		const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
+		const parents = (listed.tasks as Record<string, string>[])
+			.filter((task) => [first.taskID, second.taskID].includes(task.taskID))
+			.map((task) => task.parentTaskID);
+		expect(parents).toEqual([parent.taskID as string, parent.taskID as string]);
+
+		const refused = await run('task_update', {
+			taskHint: parent.taskID as string,
+			childTaskHints: [first.taskID as string]
+		});
+		expect(refused.status).toBe(422);
+	});
+});
+
+describe('a date taken off a task', () => {
+	test('is cleared by an empty string rather than left where it was', async () => {
+		const made = resultOf(await run('task_add', { title: '기한을 지울 일', endsAt: dayAround(4) }));
+		expect(made.endDate).toBe(dayAround(4));
+
+		const cleared = resultOf(await run('task_update', { taskHint: made.taskID as string, endsAt: '' }));
+		expect(cleared.endDate).toBe('');
+	});
+});
+
+describe('task_vocabulary_set', () => {
+	beforeAll(async () => {
+		await client.from('member').update({ is_admin: true, status: 'active' }).eq('id', sampleID);
+	});
+
+	afterAll(async () => {
+		await client.from('member').update({ is_admin: false, status: 'pending' }).eq('id', sampleID);
+	});
+
+	test('writes the labels the company files work under and reads them back', async () => {
+		const written = resultOf(await run('task_vocabulary_set', {
+			businesses: [{ name: '영업' }, { name: '개발', color: '#2563eb' }, { name: '지원' }],
+			types: [{ name: '문서' }],
+			etcBusinessColor: '#94a3b8'
+		}));
+		expect((written.businesses as { name: string }[]).map((label) => label.name)).toEqual(['영업', '개발', '지원']);
+		expect(written.etcBusinessColor).toBe('#94a3b8');
+
+		const listed = resultOf(await run('task_list', { scope: 'all' }));
+		const labels = listed.registeredLabels as { businesses: { name: string; color?: string }[]; etcBusinessColor?: string };
+		expect(labels.businesses.find((label) => label.name === '개발')?.color).toBe('#2563eb');
+		expect(labels.etcBusinessColor).toBe('#94a3b8');
+	});
+
+	test('refuses to drop a label a task is still filed under', async () => {
+		await run('task_add', { title: '개발로 남아 있을 일', business: '개발' });
+
+		const refused = await run('task_vocabulary_set', { businesses: [{ name: '영업' }], types: [{ name: '문서' }] });
+		expect(refused.status).toBe(409);
+		expect((refused.body as { errorCode: string }).errorCode).toBe('task_label_in_use');
 	});
 });
