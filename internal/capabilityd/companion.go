@@ -314,7 +314,7 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 	if !descriptor.RequiresApproval {
 		return capabilities.ToolInvokeResponse{}, false
 	}
-	if request.Context.IsApprovalContinuation || request.Context.IsScheduledRun {
+	if requesterApprovedThisCall(request.Context) || request.Context.IsScheduledRun {
 		return capabilities.ToolInvokeResponse{}, false
 	}
 	if isPreApprovedCurrentConversationMessageSend(request) {
@@ -839,4 +839,11 @@ func (provider companionProvider) httpClient() *http.Client {
 		return provider.HTTPClient
 	}
 	return &http.Client{Timeout: 30 * time.Second}
+}
+
+// The requester approved this call. A turn that carries out a call held on an
+// earlier turn says so as a property of the turn; a call approved inside the
+// turn it was made in names the held call it spends.
+func requesterApprovedThisCall(toolContext capabilities.ToolInvokeContext) bool {
+	return toolContext.IsApprovalContinuation || strings.TrimSpace(toolContext.ApprovedCallID) != ""
 }

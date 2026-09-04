@@ -10,6 +10,7 @@
   "ARRIVALS_PORT": {"process": "relay", "description": "the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091"},
   "AUTH_CLAIM_WITHOUT_EMAIL": {"process": "web", "description": "when \"1\", lets a member claim (register) an account without email verification; off by default"},
   "BLUECLAW": {"process": "tools/e2e-ask-flow-remote.sh", "description": "the fleet VM's Blueclaw admin API base URL; the file's own text never assigns it, but the driver always concatenates it after e2e-crud-remote.sh, which hardcodes it to http://127.0.0.1:8080"},
+  "BLUECLAW_ACP_SOCKET_PATH": {"process": "relay", "description": "the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/blueclaw-acp.sock"},
   "BLUECLAW_BASE_URL": {"process": "tools/render-company-runtime", "description": "Blueclaw's base URL rendered into the company plane's runtime document; defaults to http://127.0.0.1:8080"},
   "BLUECLAW_BUILD_KERNEL": {"process": "tools/prepare-blueclaw-runtime", "description": "when \"1\", builds the guest Linux kernel from source instead of requiring BLUECLAW_KERNEL_IMAGE_SOURCE"},
   "BLUECLAW_BUN_VERSION": {"process": "tools/prepare-blueclaw-runtime", "description": "the Bun version installed into the Blueclaw guest rootfs; defaults to 1.3.10"},
@@ -225,7 +226,7 @@
   "VITE_MOCK_TASKS": {"process": "web", "description": "when \"1\", enables the local dev server's mocked tasks screen (a second, distinct mock flag from VITE_MOCK_TASK) instead of the Supabase-backed one"},
   "VITE_SUPABASE_PUBLISHABLE_KEY": {"process": "web scripts", "description": "fallback name for the Supabase publishable key, read by web/scripts/send-magic-link.ts when SUPABASE_PUBLISHABLE_KEY is unset"},
   "WAYLAND_DISPLAY": {"process": "companion", "description": "the Wayland display socket name; the companion's browser runtime checks it is set (with DISPLAY unset) before choosing a Wayland-native launch path"},
-  "WORKSPACE_ROOT_PATH": {"process": "tools/render-company-runtime", "description": "the workspace root rendered into the company plane's runtime document; defaults to /workspace"},
+  "WORKSPACE_ROOT_PATH": {"process": "tools/render-company-runtime, relay", "description": "the workspace root rendered into the company plane's runtime document, and the cwd the relay opens an ACP session with; defaults to /workspace"},
   "XDG_CACHE_HOME": {"process": "tools/prepare-container-kernel", "description": "the XDG cache directory, read on Linux to locate the default container-kernel cache path"},
   "XDG_SESSION_TYPE": {"process": "companion", "description": "the desktop session type (\"wayland\" or otherwise); the companion's browser runtime reads it to detect a Wayland session"}
 }

@@ -210,16 +210,20 @@ type ToolInvokeContext struct {
 	TaskSource              string `json:"taskSource,omitempty"`
 	IsScheduledRun          bool   `json:"isScheduledRun,omitempty"`
 	IsApprovalContinuation  bool   `json:"isApprovalContinuation,omitempty"`
-	ConversationID          string `json:"conversationID,omitempty"`
-	ConversationType        string `json:"conversationType,omitempty"`
-	ChannelID               string `json:"channelID,omitempty"`
-	ChannelName             string `json:"channelName,omitempty"`
-	ReplyTargetID           string `json:"replyTargetID,omitempty"`
-	Platform                string `json:"platform,omitempty"`
+	// The held call this invocation spends the requester's approval for. A
+	// continuation turn says isApprovalContinuation instead; both are the same
+	// claim, and a call carrying neither has no approval to run under.
+	ApprovedCallID   string `json:"approvedCallID,omitempty"`
+	ConversationID   string `json:"conversationID,omitempty"`
+	ConversationType string `json:"conversationType,omitempty"`
+	ChannelID        string `json:"channelID,omitempty"`
+	ChannelName      string `json:"channelName,omitempty"`
+	ReplyTargetID    string `json:"replyTargetID,omitempty"`
+	Platform         string `json:"platform,omitempty"`
 	// The language the answer is written in. A person's name is recorded given
 	// name first and read family name first in Korean, so a tool that hands a
 	// name back has to know which of the two the reader is owed.
-	ResponseLanguage   string                 `json:"responseLanguage,omitempty"`
+	ResponseLanguage string `json:"responseLanguage,omitempty"`
 }
 
 type ActorContext struct {
