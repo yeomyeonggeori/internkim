@@ -6,23 +6,28 @@ import {
 	timeInTimeZone,
 	todayDateInTimeZone
 } from '../shared/attendance-date';
-import { attendanceAdditionWriteOutcome } from './attendance-correction-access';
+import { attendanceSpanAdditionWriteOutcome } from './attendance-correction-access';
 
 export type AttendanceRecordAdditionDependencies = Readonly<{
 	getSummary: () => AttendanceSummary | null;
 	getCurrentServerTime: () => Date;
 	addEvent: (request: AddAttendanceEventRequest) => Promise<AttendanceWriteResult>;
 	processingFailedMessage: string;
+	partialSpanFailureMessage: string;
 }>;
 
 const defaultLocalTime = '09:00';
 
+export function isAttendanceSpanInverted(startTime: string, endTime: string): boolean {
+	return startTime !== '' && endTime !== '' && endTime < startTime;
+}
+
 export class AttendanceRecordAdditionState {
 	isOpen = $state(false);
 	email = $state('');
-	kind = $state<AttendanceKind>('clock_in');
 	localDate = $state('');
-	localTime = $state('');
+	startTime = $state('');
+	endTime = $state('');
 	locationID = $state('');
 	reason = $state('');
 	isSaving = $state(false);
@@ -34,11 +39,20 @@ export class AttendanceRecordAdditionState {
 	get outcome(): AttendanceWriteOutcome {
 		const summary = this.dependencies.getSummary();
 		if (!summary) return 'blocked';
-		return attendanceAdditionWriteOutcome(
+		return attendanceSpanAdditionWriteOutcome(
 			summary,
-			{ email: this.email, localDate: this.localDate, localTime: this.localTime },
+			{
+				email: this.email,
+				localDate: this.localDate,
+				startTime: this.startTime,
+				endTime: this.endTime
+			},
 			this.dependencies.getCurrentServerTime()
 		);
+	}
+
+	get isSpanInverted(): boolean {
+		return isAttendanceSpanInverted(this.startTime, this.endTime);
 	}
 
 	get canSubmit(): boolean {
@@ -46,8 +60,8 @@ export class AttendanceRecordAdditionState {
 			!this.isSaving &&
 			this.email !== '' &&
 			this.localDate !== '' &&
-			this.localTime !== '' &&
-			this.reason.trim() !== '' &&
+			(this.startTime !== '' || this.endTime !== '') &&
+			!this.isSpanInverted &&
 			this.outcome !== 'blocked'
 		);
 	}
@@ -65,9 +79,9 @@ export class AttendanceRecordAdditionState {
 		if (!summary) return;
 		const currentTime = this.dependencies.getCurrentServerTime();
 		this.email = email;
-		this.kind = 'clock_in';
 		this.localDate = localDate;
-		this.localTime = openingLocalTime(summary, localDate, currentTime);
+		this.startTime = openingLocalTime(summary, localDate, currentTime);
+		this.endTime = '';
 		this.locationID = summary.locations[0]?.id ?? '';
 		this.reason = '';
 		this.errorMessage = '';
@@ -80,38 +94,67 @@ export class AttendanceRecordAdditionState {
 		this.isOpen = false;
 	}
 
-	updateLocalTime(localTime: string): string {
-		const summary = this.dependencies.getSummary();
-		this.localTime = fallbackFutureAttendanceLocalTime(
-			this.localDate,
-			localTime,
-			summary?.timeZone,
-			this.dependencies.getCurrentServerTime()
-		);
-		return this.localTime;
+	updateStartTime(localTime: string): string {
+		this.startTime = this.boundedLocalTime(localTime);
+		return this.startTime;
+	}
+
+	updateEndTime(localTime: string): string {
+		this.endTime = this.boundedLocalTime(localTime);
+		return this.endTime;
 	}
 
 	async submit(): Promise<void> {
 		if (!this.canSubmit) return;
 		this.isSaving = true;
 		this.errorMessage = '';
+		const reason = this.reason.trim();
+		let startWasWritten = false;
 		try {
-			const result = await this.dependencies.addEvent({
-				email: this.email,
-				kind: this.kind,
-				localDate: this.localDate,
-				localTime: this.localTime,
-				locationID: this.locationID,
-				reason: this.reason.trim()
-			});
+			const outcomes: AttendanceWriteResult['outcome'][] = [];
+			if (this.startTime !== '') {
+				outcomes.push((await this.writeEvent('clock_in', this.startTime, reason)).outcome);
+				startWasWritten = true;
+			}
+			if (this.endTime !== '') {
+				outcomes.push((await this.writeEvent('clock_out', this.endTime, reason)).outcome);
+			}
 			this.isOpen = false;
-			this.completedOutcome = result.outcome;
+			this.completedOutcome = combinedOutcome(outcomes);
 		} catch (failure) {
-			this.errorMessage =
+			const message =
 				failure instanceof Error ? failure.message : this.dependencies.processingFailedMessage;
+			this.errorMessage = startWasWritten
+				? `${this.dependencies.partialSpanFailureMessage} ${message}`
+				: message;
 		} finally {
 			this.isSaving = false;
 		}
+	}
+
+	private boundedLocalTime(localTime: string): string {
+		const summary = this.dependencies.getSummary();
+		return fallbackFutureAttendanceLocalTime(
+			this.localDate,
+			localTime,
+			summary?.timeZone,
+			this.dependencies.getCurrentServerTime()
+		);
+	}
+
+	private writeEvent(
+		kind: AttendanceKind,
+		localTime: string,
+		reason: string
+	): Promise<AttendanceWriteResult> {
+		return this.dependencies.addEvent({
+			email: this.email,
+			kind,
+			localDate: this.localDate,
+			localTime,
+			locationID: this.locationID,
+			reason
+		});
 	}
 }
 
@@ -119,4 +162,10 @@ function openingLocalTime(summary: AttendanceSummary, localDate: string, current
 	if (!Number.isFinite(currentTime.getTime())) return defaultLocalTime;
 	if (localDate !== todayDateInTimeZone(summary.timeZone, currentTime)) return defaultLocalTime;
 	return timeInTimeZone(summary.timeZone, currentTime);
+}
+
+function combinedOutcome(
+	outcomes: AttendanceWriteResult['outcome'][]
+): AttendanceWriteResult['outcome'] {
+	return outcomes.includes('asked') ? 'asked' : 'saved';
 }
