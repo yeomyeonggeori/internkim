@@ -17,12 +17,18 @@ const statuses = [
 describe('central flow task rows', () => {
 	test('selects requester identity with participants', () => {
 		expect(centralTaskSelection).toBe(
-			'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, updated_at, requester_id, requester:member!task_requester_id_fkey (name, email), task_participant (member_id)'
+			'id, parent_task_id, title, status, note, business, type, size, starts_at, ends_at, due_at, is_event, created_at, updated_at, requester_id, requester:member!task_requester_id_fkey (name, email), task_participant (member_id)'
 		);
 	});
 
 	test('maps the parent relationship', () => {
 		expect(centralTaskFromRow(row({ parent_task_id: 'parent-1' }), names, dayOf).parentTaskID).toBe('parent-1');
+	});
+
+	test('maps the creation instant the board sorts by', () => {
+		expect(centralTaskFromRow(row({ created_at: '2026-08-11T09:30:00Z' }), names, dayOf).createdAt).toBe(
+			'2026-08-11T09:30:00Z'
+		);
 	});
 
 	test('maps every central status without losing request state', () => {
@@ -122,6 +128,7 @@ function row(overrides: Record<string, unknown> = {}) {
 		starts_at: null,
 		ends_at: null,
 		due_at: null,
+		created_at: '2026-08-10T00:00:00Z',
 		updated_at: '2026-08-13T00:00:00Z',
 		requester_id: null,
 		requester: null,

@@ -24,7 +24,6 @@ function taskWith(fields: Partial<Task> = {}): Task {
 		content: '보고서 초안',
 		size: 'M',
 		status: 'planned',
-		statusRank: 0,
 		weekCode: '2026-W36',
 		...fields
 	};

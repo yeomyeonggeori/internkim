@@ -277,7 +277,6 @@ function taskOf(overrides: Partial<Task>): Task {
 		content: '업무',
 		size: 'M',
 		status: 'planned',
-		statusRank: 0,
 		weekCode: '26W23',
 		...overrides
 	};

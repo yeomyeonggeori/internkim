@@ -44,14 +44,6 @@ func (service *Service) taskAndPayloadFromRequest(request *http.Request, members
 		return Task{}, payload, taskValidationError("content is required")
 	}
 	status := firstNonEmpty(cleanTaskStatus(payload.Status), defaultTaskStatus())
-	statusRank := 0
-	statusRankProvided := payload.StatusRank != nil
-	if payload.StatusRank != nil {
-		if *payload.StatusRank < 0 {
-			return Task{}, payload, taskValidationError("statusRank must be zero or greater")
-		}
-		statusRank = *payload.StatusRank
-	}
 	callerEmail := strings.ToLower(strings.TrimSpace(service.taskActorEmail(request)))
 	if taskID == "" && callerEmail != "" && !service.isTaskAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
 		status = taskStatusRequested
@@ -82,20 +74,18 @@ func (service *Service) taskAndPayloadFromRequest(request *http.Request, members
 	}
 	dates := normalizeTaskDates(payload, status, now)
 	return Task{
-		ID:                 strings.TrimSpace(taskID),
-		OwnerID:            owner.ID,
-		OwnerName:          owner.Name,
-		ParticipantIDs:     memberIDs(participants),
-		ParticipantNames:   memberNames(participants),
-		Business:           category,
-		Type:               taskType,
-		Content:            content,
-		Size:               size,
-		Status:             status,
-		StatusRank:         statusRank,
-		StatusRankProvided: statusRankProvided,
-		StartDate:          dates.StartDate,
-		EndDate:            dates.EndDate,
-		WeekCode:           dates.WeekCode,
+		ID:               strings.TrimSpace(taskID),
+		OwnerID:          owner.ID,
+		OwnerName:        owner.Name,
+		ParticipantIDs:   memberIDs(participants),
+		ParticipantNames: memberNames(participants),
+		Business:         category,
+		Type:             taskType,
+		Content:          content,
+		Size:             size,
+		Status:           status,
+		StartDate:        dates.StartDate,
+		EndDate:          dates.EndDate,
+		WeekCode:         dates.WeekCode,
 	}, payload, nil
 }
