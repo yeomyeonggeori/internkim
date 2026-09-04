@@ -154,6 +154,34 @@ describe('CRM KPI money details', () => {
 		expect(pipelineHealth?.totalValue).toBe('2.9만');
 		expect(pipelineHealth?.totalMoneyDetails).toBe(undefined);
 	});
+
+	test('keeps the compact currency-count summary when the view currency does not cover every total', () => {
+		const opportunities = [
+			opportunity('moving-krw', 'KRW', 12000000, 'in_progress', 2),
+			opportunity('moving-usd', 'USD', 20000, 'review', 5),
+			opportunity('stalled-eur', 'EUR', 50000, 'in_progress', 15),
+			opportunity('on-hold-jpy', 'JPY', 3200000, 'on_hold', 4)
+		];
+		const stages: CRMPipelineStage[] = [
+			{ stage: 'in_progress', label: 'in_progress', position: 1, outcome: 'open' },
+			{ stage: 'review', label: 'review', position: 2, outcome: 'open' },
+			{ stage: 'on_hold', label: 'on_hold', position: 3, outcome: 'on_hold' }
+		];
+		const view: CRMViewCurrencyReader = {
+			selected: 'USD',
+			viewAmount: (value, currency) => (currency === 'USD' ? { value, currency: 'USD', isConverted: true } : { value, currency, isConverted: false })
+		};
+
+		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], pipelines, stages, crmText.ko, undefined, 'ko', view)[0];
+
+		expect(pipelineHealth?.totalValue).toBe('4개 통화');
+		expect(pipelineHealth?.totalMoneyDetails).toEqual([
+			{ currency: 'KRW', displayValue: 'KRW 1,200만' },
+			{ currency: 'USD', displayValue: 'USD 2만' },
+			{ currency: 'JPY', displayValue: 'JPY 320만' },
+			{ currency: 'EUR', displayValue: 'EUR 5만' }
+		]);
+	});
 });
 
 function organization(id: string, lastContactDate: string): CRMOrganization {
