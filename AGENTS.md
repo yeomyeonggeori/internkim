@@ -443,11 +443,15 @@ and delete the duplicates.
   Where the browser's behaviour is the better one, move that behaviour into the
   API and retire the browser copy; do not weaken the screen to fit a thinner
   tool. `web/tests/unit/browser-supabase-call-sites.json` is the inventory of
-  what has not migrated, by file and call; the test beside it fails when a call
-  appears that the file does not hold, and the file is edited by hand when one
-  is removed. Most of what remains needs a tool designed before the screen can
-  move. Migrate the domain you are already working in; never add a new
-  direct-Supabase call site.
+  what has not migrated, by file and call, split into `record` (still needs a
+  tool) and `allowed` (kept on purpose, grouped by a declared reason: `auth`
+  resolves the session, `realtime` names a channel or subscription, `storage`
+  is a bucket handle, `messenger` reads the account-routing map
+  `record/people.ts` and `record/crm.ts` deliberately never select). The test
+  fails when a call appears that its file does not hold or names an undeclared
+  reason, and is edited by hand when one changes. Most of `record` needs a
+  tool designed before the screen can move. Migrate the domain you are already
+  working in; never add a direct-Supabase call site outside `allowed`.
 
 ## Central Plane (Supabase)
 

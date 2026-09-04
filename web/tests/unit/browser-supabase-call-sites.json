@@ -1,18 +1,26 @@
 {
-	"src/lib/host-bridge.ts": {
-		"from('member')": 1
-	},
-	"src/lib/messenger/messenger-directory.ts": {
-		"from('member')": 2,
-		"from('contact')": 1
-	},
-	"src/lib/stores/attachment-source.svelte.ts": {
-		"from(assetBucket)": 1
-	},
-	"src/lib/supabase-session.ts": {
-		"from('member')": 1
-	},
-	"src/lib/task/task-live-refresh.ts": {
-		"rpc('my_company_topic')": 1
-	}
+ "record": {},
+ "allowed": {
+  "auth": {
+   "src/lib/supabase-session.ts": {
+    "from('member')": 1
+   }
+  },
+  "messenger": {
+   "src/lib/messenger/messenger-directory.ts": {
+    "from('member')": 2,
+    "from('contact')": 1
+   }
+  },
+  "realtime": {
+   "src/lib/task/task-live-refresh.ts": {
+    "rpc('my_company_topic')": 1
+   }
+  },
+  "storage": {
+   "src/lib/stores/attachment-source.svelte.ts": {
+    "from(assetBucket)": 1
+   }
+  }
+ }
 }
