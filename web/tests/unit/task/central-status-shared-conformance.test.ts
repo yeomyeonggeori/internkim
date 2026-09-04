@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'bun:test';
 import { centralTaskStatusOptions } from '../../../src/lib/task/central-task';
+import { WorkspaceTaskStatus } from '../../../src/lib/server/public-api/catalog/workspace-task';
 import { centralTaskStatuses } from '../../../../supabase/functions/_shared/central-task-status.ts';
 import { whoTaskMoveConcerns } from '../../../../supabase/functions/_shared/announce-task.ts';
 
@@ -29,6 +30,10 @@ describe('the shared task status copy stays interchangeable with the web one', (
 
 	test('the database enum names the same statuses', () => {
 		expect(statusesTheDatabaseIsPinnedTo()).toEqual([...centralTaskStatuses].map(String).sort());
+	});
+
+	test('the tool catalog names the same statuses', () => {
+		expect(Object.values(WorkspaceTaskStatus).map(String).sort()).toEqual([...centralTaskStatusOptions].sort());
 	});
 });
 

@@ -1,4 +1,5 @@
 import type { CRMStage } from '$lib/crm/crm-stage';
+import type { CentralTaskStatus } from '$lib/task/central-task';
 
 export const crmOrganizationTypes = ['customer', 'partner', 'sponsor', 'vendor', 'investor', 'portfolio', 'other'] as const;
 export type CRMOrganizationType = string;
@@ -7,7 +8,6 @@ export type CRMOpportunityStage = CRMStage;
 export type CRMActivityKind = string;
 
 export const deviceCRMActivityKinds: CRMActivityKind[] = ['note', 'email', 'meeting', 'call', 'task', 'file', 'event'];
-export type CRMNextActionStatus = 'todo' | 'in_progress' | 'waiting' | 'done';
 export type CRMActionUrgency = 'overdue' | 'today' | 'due_soon' | 'scheduled' | 'done';
 export type CRMIntakeDraftSource = 'file' | 'mail' | 'calendar';
 export type CRMProgressKind = string;
@@ -185,7 +185,7 @@ export type CRMNextAction = {
 	title: string;
 	ownerName: string;
 	dueDate: string;
-	status: CRMNextActionStatus;
+	status: CentralTaskStatus;
 };
 
 export type CRMActivity = {

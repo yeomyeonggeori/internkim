@@ -41,3 +41,7 @@ export function isTaskStatusRejected(status: string): boolean {
 export function isTaskStatusStopped(status: string): boolean {
 	return cleanTaskStatus(status) === taskStatus.stopped;
 }
+
+export function isTaskStatusFinished(status: string): boolean {
+	return isTaskStatusCompleted(status) || isTaskStatusRejected(status) || isTaskStatusStopped(status);
+}
