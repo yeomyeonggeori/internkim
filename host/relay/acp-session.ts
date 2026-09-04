@@ -8,6 +8,7 @@ import {
 	type SessionNotification,
 	type StopReason
 } from '@agentclientprotocol/sdk';
+import type { HeldQuestion, HeldQuestionStore } from './held-question-store';
 
 export const defaultBlueclawACPSocketPath = '/run/internkim/blueclaw-acp.sock';
 export const sessionMetaKey = 'kim.intern/session';
@@ -55,8 +56,11 @@ export type AnsweredTurn = {
 export type ACPSessionSettings = {
 	socketPath: string;
 	workspaceRootPath: string;
+	questions: HeldQuestionStore;
 	/** Puts the question to the requester and answers with the words they wrote back. */
 	askThePerson: (asked: AskedPermission, addressing: Addressing) => Promise<string>;
+	/** Waits for the answer to a question already asked before a restart, without asking again. */
+	awaitAnAlreadyAskedQuestion: (addressing: Addressing) => Promise<string>;
 	report?: (line: string) => void;
 };
 
@@ -78,7 +82,7 @@ export class BlueclawACPClient {
 	private closeSocket: (() => void) | null = null;
 	private isClosed = false;
 	private readonly heldByConversation = new Map<string, HeldSession>();
-	private readonly addressingBySession = new Map<string, Addressing>();
+	private readonly heldBySession = new Map<string, HeldSession>();
 	private readonly turnBySession = new Map<string, OpenTurn>();
 	/**
 	 * The words the person answered with, not the agent's reading of them: a
@@ -102,7 +106,40 @@ export class BlueclawACPClient {
 		this.connection = null;
 		this.connecting = null;
 		this.heldByConversation.clear();
-		this.addressingBySession.clear();
+		this.heldBySession.clear();
+	}
+
+	/**
+	 * Reads every question this relay had not delivered before it last stopped,
+	 * and puts each conversation back into a state where a re-issued
+	 * `RequestPermission` is answered from the store rather than asked again.
+	 */
+	async restoreOutstandingQuestions(): Promise<void> {
+		const stored = await this.settings.questions.all();
+		if (stored.length === 0) return;
+		for (const held of stored) {
+			const heldSession: HeldSession = {
+				sessionID: held.sessionID,
+				requester: held.requester,
+				addressing: held.addressing
+			};
+			this.heldByConversation.set(held.addressing.conversationID, heldSession);
+			this.heldBySession.set(held.sessionID, heldSession);
+			this.answeredPermissions.set(held.toolCallID, this.answerFromStoreOrPerson(held));
+		}
+		// The reconnect makes blueclaw call session/load for the sessions just
+		// restored, which is what makes it re-issue the calls it stopped on. It is
+		// not awaited: the relay answers /inbound for every other conversation
+		// whether or not blueclaw is up yet.
+		void this.agent().catch(() => this.reconnectUntilItComesBack());
+	}
+
+	private answerFromStoreOrPerson(held: HeldQuestion): Promise<string> {
+		if (held.answer !== undefined) return Promise.resolve(held.answer);
+		return this.settings.awaitAnAlreadyAskedQuestion(held.addressing).then(async (words) => {
+			await this.settings.questions.answer(held.toolCallID, words);
+			return words;
+		});
 	}
 
 	async ask(
@@ -218,12 +255,9 @@ export class BlueclawACPClient {
 			mcpServers: [],
 			_meta: { [sessionMetaKey]: { requester, addressing } }
 		});
-		this.heldByConversation.set(addressing.conversationID, {
-			sessionID: opened.sessionId,
-			requester,
-			addressing
-		});
-		this.addressingBySession.set(opened.sessionId, addressing);
+		const heldSession: HeldSession = { sessionID: opened.sessionId, requester, addressing };
+		this.heldByConversation.set(addressing.conversationID, heldSession);
+		this.heldBySession.set(opened.sessionId, heldSession);
 		return opened.sessionId;
 	}
 
@@ -250,14 +284,13 @@ export class BlueclawACPClient {
 	private async answerPermission(
 		request: RequestPermissionRequest
 	): Promise<RequestPermissionResponse> {
-		const addressing = this.addressingOf(request.sessionId);
-		if (!addressing) return { outcome: { outcome: 'cancelled' } };
+		const held = this.heldSessionOf(request.sessionId);
+		if (!held) return { outcome: { outcome: 'cancelled' } };
 
 		const toolCallID = request.toolCall.toolCallId;
 		const question = request.toolCall.title ?? '';
 		const alreadyAsked = this.answeredPermissions.get(toolCallID);
-		const asking =
-			alreadyAsked ?? this.settings.askThePerson({ toolCallID, question }, addressing);
+		const asking = alreadyAsked ?? this.askAndPersist(toolCallID, question, held);
 		this.answeredPermissions.set(toolCallID, asking);
 		const connectionThatAsked = this.connection;
 		try {
@@ -267,6 +300,7 @@ export class BlueclawACPClient {
 			if (this.connection !== connectionThatAsked) return { outcome: { outcome: 'cancelled' } };
 			const optionID = await this.readApprovalReply(request.sessionId, toolCallID, words);
 			this.answeredPermissions.delete(toolCallID);
+			await this.settings.questions.forget(toolCallID);
 			return { outcome: { outcome: 'selected', optionId: optionID } };
 		} catch (failure) {
 			this.settings.report?.(`nobody answered ${toolCallID}: ${String(failure)}`);
@@ -274,13 +308,33 @@ export class BlueclawACPClient {
 		}
 	}
 
-	private addressingOf(sessionID: string): Addressing | undefined {
-		const known = this.addressingBySession.get(sessionID);
+	/**
+	 * The only path that puts a genuinely new question to the person: it records
+	 * the question before asking, and the answer as soon as it has one, so a
+	 * relay that stops between either step finds them on disk when it starts
+	 * again.
+	 */
+	private async askAndPersist(toolCallID: string, question: string, held: HeldSession): Promise<string> {
+		await this.settings.questions.keep({
+			toolCallID,
+			sessionID: held.sessionID,
+			requester: held.requester,
+			addressing: held.addressing,
+			question,
+			askedAt: new Date().toISOString()
+		});
+		const words = await this.settings.askThePerson({ toolCallID, question }, held.addressing);
+		await this.settings.questions.answer(toolCallID, words);
+		return words;
+	}
+
+	private heldSessionOf(sessionID: string): HeldSession | undefined {
+		const known = this.heldBySession.get(sessionID);
 		if (known) return known;
 		for (const held of this.heldByConversation.values()) {
 			if (held.sessionID !== sessionID) continue;
-			this.addressingBySession.set(sessionID, held.addressing);
-			return held.addressing;
+			this.heldBySession.set(sessionID, held);
+			return held;
 		}
 		return undefined;
 	}

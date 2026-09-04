@@ -34,14 +34,24 @@ export class InboundTurns {
 		this.settings = settings;
 	}
 
+	/** Puts every question this relay had not delivered before it last stopped back in play. */
+	async restoreHeldQuestions(): Promise<void> {
+		await this.settings.client.restoreOutstandingQuestions();
+	}
+
 	askThePerson = async (asked: AskedPermission, addressing: Addressing): Promise<string> => {
 		const running = this.turnInFlight.get(addressing.conversationID);
 		if (running) running.blueclawOpenedARun = true;
-		const answering = new Promise<string>((resolve) => {
-			this.pendingByConversation.set(addressing.conversationID, { answer: resolve });
-		});
+		const answering = this.awaitAnAlreadyAskedQuestion(addressing);
 		await this.settings.postToConversation(addressing, asked.question);
 		return answering;
+	};
+
+	/** The question already reached the person before this relay last stopped; only wait. */
+	awaitAnAlreadyAskedQuestion = (addressing: Addressing): Promise<string> => {
+		return new Promise<string>((resolve) => {
+			this.pendingByConversation.set(addressing.conversationID, { answer: resolve });
+		});
 	};
 
 	/**

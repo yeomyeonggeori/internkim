@@ -30,6 +30,7 @@ import { BlueclawACPClient, defaultBlueclawACPSocketPath, type Addressing } from
 import { readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
+import { HeldQuestionStore } from './held-question-store';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -282,7 +283,12 @@ const inboundTurns: InboundTurns = new InboundTurns({
 	client: new BlueclawACPClient({
 		socketPath: blueclawACPSocketPath,
 		workspaceRootPath,
+		questions: new HeldQuestionStore({
+			directoryPath: `${relayStateDirectory}/questions`,
+			report: (line) => console.log(`questions: ${line}`)
+		}),
 		askThePerson: (asked, addressing) => inboundTurns.askThePerson(asked, addressing),
+		awaitAnAlreadyAskedQuestion: (addressing) => inboundTurns.awaitAnAlreadyAskedQuestion(addressing),
 		report: (line) => console.log(`acp: ${line}`)
 	}),
 	queue: new InboundQueue({
@@ -294,6 +300,10 @@ const inboundTurns: InboundTurns = new InboundTurns({
 	},
 	report: (line) => console.log(`acp: ${line}`)
 });
+
+// Whatever a stopped relay had asked and not yet delivered is on disk; put it
+// back in play before /inbound answers anything.
+await inboundTurns.restoreHeldQuestions();
 
 Bun.serve({
 	hostname: '127.0.0.1',
