@@ -83,7 +83,7 @@ func companyProfileChange(asked map[string]any) (map[string]any, error) {
 	return change, nil
 }
 
-func companyPolicySnapshot(profile centralplane.CompanyProfile, timeZone string) map[string]string {
+func companyPolicySnapshot(profile centralplane.CompanyProfile, timeZone string, locale string) map[string]string {
 	return map[string]string{
 		"name":           strings.TrimSpace(profile.Name),
 		"brandName":      strings.TrimSpace(profile.BrandName),
@@ -92,6 +92,7 @@ func companyPolicySnapshot(profile centralplane.CompanyProfile, timeZone string)
 		"representative": strings.TrimSpace(profile.Representative),
 		"website":        strings.TrimSpace(profile.Website),
 		"timeZone":       timeZone,
+		"locale":         locale,
 	}
 }
 
@@ -100,7 +101,7 @@ func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, profi
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
 		return errorValue
 	}
-	policyDocument["company"] = companyPolicySnapshot(profile, service.workspaceTimeZone().name)
+	policyDocument["company"] = companyPolicySnapshot(profile, service.workspaceTimeZone().name, service.workspaceLanguage())
 	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 
