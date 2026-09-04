@@ -234,6 +234,25 @@ rsync_kernel_source_to_builder() {
     "$local_kernel_source" "$remote_target:$remote_directory/kernel-source/vmlinux.bin"
 }
 
+guest_kernel_configuration_sha() {
+  sha256sum "$guest_kernel_configuration_path" | cut -d' ' -f1
+}
+
+published_kernel_matches_configuration() {
+  local published_manifest_path="$artifact_directory/manifest.json"
+  [ -s "$artifact_directory/vmlinux.bin" ] || return 1
+  [ -s "$published_manifest_path" ] || return 1
+  python3 - "$published_manifest_path" "$(guest_kernel_configuration_sha)" <<'PY'
+import json
+import sys
+
+manifest_path, configuration_sha = sys.argv[1:3]
+with open(manifest_path, encoding="utf-8") as file:
+    manifest = json.load(file)
+sys.exit(0 if manifest.get("guestKernelConfigurationSHA256") == configuration_sha else 1)
+PY
+}
+
 resolve_local_kernel_source() {
   if [ -n "$kernel_source" ]; then
     echo "$kernel_source"
@@ -367,25 +386,6 @@ prepare_cloud_hypervisor() {
   fi
 
   install -m 0755 "$binary_path" "$stage_directory/cloud-hypervisor"
-}
-
-guest_kernel_configuration_sha() {
-  sha256sum "$guest_kernel_configuration_path" | cut -d' ' -f1
-}
-
-published_kernel_matches_configuration() {
-  local published_manifest_path="$artifact_directory/manifest.json"
-  [ -s "$artifact_directory/vmlinux.bin" ] || return 1
-  [ -s "$published_manifest_path" ] || return 1
-  python3 - "$published_manifest_path" "$(guest_kernel_configuration_sha)" <<'PY'
-import json
-import sys
-
-manifest_path, configuration_sha = sys.argv[1:3]
-with open(manifest_path, encoding="utf-8") as file:
-    manifest = json.load(file)
-sys.exit(0 if manifest.get("guestKernelConfigurationSHA256") == configuration_sha else 1)
-PY
 }
 
 guest_kernel_build_identifier() {
