@@ -49,7 +49,6 @@ function member(fields: Partial<TaskMember>): TaskMember {
 		name: '구성원',
 		email: 'member@example.com',
 		role: 'member',
-		mattermostStatus: '',
 		activeTaskCount: 0,
 		completeTaskCount: 0,
 		...fields

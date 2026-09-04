@@ -108,7 +108,6 @@ func membersFromUserRecords(records []adminUserMutation) []taskMember {
 			MattermostUsername: strings.TrimSpace(firstNonEmpty(record.MattermostUsername, record.Handle)),
 			HireDate:           strings.TrimSpace(record.HireDate),
 			Role:               normalizeAdminUserRole(record.Role),
-			MattermostStatus:   firstNonEmpty(record.Status, "active"),
 		})
 	}
 	sort.Slice(members, func(leftIndex int, rightIndex int) bool {
