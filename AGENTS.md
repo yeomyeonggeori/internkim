@@ -396,17 +396,13 @@ and delete the duplicates.
   mockable `/calendar/api/*`, `/attendance/api/*` or `/task/api/*`), so their
   Playwright specs run against a real local Supabase: sign in for real and seed
   fixtures straight into `task`, `task_participant`, `attendance` and `leave`.
-  What the suites share — the admin client, the company and member identifiers,
-  the sign-in, `leave` seeding — is `web/tests/e2e/central-test-utils.ts`; the
-  rest is `calendar-`, `attendance-` and `task-central-test-utils.ts`.
-  `tools/verify`'s `web-e2e` group runs `bun run test:e2e:calendar:central`,
-  `bun run test:e2e:attendance:central`, `bun run test:e2e:task:central` and
-  `bun run test:e2e:crm:central`, each of which resets the database itself;
-  a suite nothing runs is not a gate.
-  It is its own group and lane, keyed on those routes and specs, never pulled
-  in by `--only web` — a group that resets the shared local database is opted
-  into by name or by touching that code, never a side effect of checking the
-  web app (#1381). Playwright orders spec files alphabetically, so a spec that
+  What the suites share is `web/tests/e2e/central-test-utils.ts`; the rest is
+  `calendar-`, `attendance-` and `task-central-test-utils.ts`.
+  `tools/verify`'s `web-e2e` group names which `test:e2e:*:central` scripts
+  run, each of which resets the database itself; a suite nothing runs is not a
+  gate. It is its own group and lane, never pulled in by `--only web`: a group
+  that resets the shared local database is opted into by name or by touching
+  its code (#1381). Playwright orders spec files alphabetically, so a spec that
   changes shared company state gets a database of its own.
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: `supabase db reset` then `bun run dev`, and hand over a real
@@ -458,7 +454,7 @@ and delete the duplicates.
 - **Read `docs/internal/saas-design.md` §2 and §6 before shaping anything that
   spans the browser, the central plane and the customer's machine.** The shape
   is: a daemon on a company computer that stays on — any hardware, Jetson or
-  Mac Studio or a laptop, it does not matter — and users on *other* networks
+  Mac Studio or a laptop — and users on *other* networks
   reach the company's messenger through Supabase Realtime and the Supabase
   database, never by connecting to that machine. The relay is that
   daemon; it depends on nothing else in the bundle, so it starts first and
@@ -476,6 +472,11 @@ and delete the duplicates.
 - Local loop, in this order: `supabase db reset` (schema plus fixtures),
   `supabase test db` (pgTAP), `cd web && bun run dev`. The reset alone gives a
   company you can sign into — `member1@example.com` / `seed-password`.
+- One machine has one local stack, so anything that resets it runs under
+  `tools/with-local-plane <command>`, which queues a second worktree behind the
+  first and clears a stopped container a start would collide with.
+  `tools/verify`'s stack groups, `test:integration`, the `test:e2e:*:central`
+  scripts, `./internkim dev plane` and `dev fleet run` already do.
 - `supabase/seed.dev.sql` is the only place local fixtures live, wired through
   `[db.seed]` in `config.toml`. Do not write a second seeding script; a reset
   wipes anything the file does not carry.
@@ -483,7 +484,7 @@ and delete the duplicates.
   invariant you just introduced. It is the only thing that catches a function
   body left pointing at a renamed column: SQL function bodies resolve at call
   time, so `alter ... rename` inside the same migration that created the
-  function silently breaks it, and nothing complains until a user does.
+  function silently breaks it.
 - A migration that creates tables must also grant them. `anon`,
   `authenticated` and `service_role` get no privileges by default on a fresh or
   self-hosted database — see `20260803000016_api_grants.sql`. RLS is the

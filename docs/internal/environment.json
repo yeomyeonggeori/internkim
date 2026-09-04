@@ -167,6 +167,7 @@
   "LLAMACPP_EMBEDDING_MODEL": {"process": "tools/verify-graphiti-local", "description": "the embedding model name passed to the local capabilityd for the graphiti verification run; defaults to baai/bge-m3"},
   "LLAMACPP_EMBEDDING_URL": {"process": "tools/verify-graphiti-local", "description": "the llama.cpp embedding server URL passed to the local capabilityd for the graphiti verification run; defaults to http://127.0.0.1:18082"},
   "LOCALAPPDATA": {"process": "companion", "description": "the Windows per-user app data directory, read to locate the default Chrome path on Windows"},
+  "LOCAL_PLANE_LOCK_HOLDER": {"process": "tools/with-local-plane", "description": "the process ID of the tools/with-local-plane run already holding this machine's local Supabase stack; a script or command that sees it set is already inside the lock and runs without taking it again"},
   "LOG_DIRECTORY_PATH": {"process": "tools/render-company-runtime", "description": "the log directory rendered into the company plane's runtime document; defaults to /var/log/internkim"},
   "MAILD_BASE_URL": {"process": "relay", "description": "maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092"},
   "MAILD_PORT": {"process": "host", "description": "the loopback port host/entrypoint.sh starts maild on; defaults to 18092"},
