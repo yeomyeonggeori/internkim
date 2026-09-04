@@ -31,9 +31,8 @@ const (
 )
 
 type defaultCircleDefinition struct {
-	CircleID              string
-	DisplayName           string
-	MattermostChannelName string
+	CircleID    string
+	DisplayName string
 }
 
 type RuntimeConfigOptions struct {
@@ -82,10 +81,10 @@ type RuntimeConfigOptions struct {
 
 var defaultCircleDefinitions = []defaultCircleDefinition{
 	{CircleID: "member", DisplayName: "Member"},
-	{CircleID: "c-level", DisplayName: "C-level", MattermostChannelName: "circle-c-level"},
-	{CircleID: "representative", DisplayName: "Representative", MattermostChannelName: "circle-representative"},
-	{CircleID: "admin", DisplayName: "Admin", MattermostChannelName: "circle-admin"},
-	{CircleID: "hr", DisplayName: "HR", MattermostChannelName: "circle-hr"},
+	{CircleID: "c-level", DisplayName: "C-level"},
+	{CircleID: "representative", DisplayName: "Representative"},
+	{CircleID: "admin", DisplayName: "Admin"},
+	{CircleID: "hr", DisplayName: "HR"},
 }
 
 func blueclawAgentProfiles(allowAdminTaskDiagnostic bool) []map[string]any {
@@ -494,10 +493,7 @@ func BlueclawPolicyDocument(adminEmail string) (string, error) {
 				"isAdmin":           true,
 			},
 		},
-		"circles": defaultCirclePolicies(),
-		"circleSync": map[string]any{
-			"mattermostPrivateChannels": defaultMattermostCircleChannelPolicies(),
-		},
+		"circles":        defaultCirclePolicies(),
 		"channels":       []map[string]any{},
 		"resourceAccess": defaultResourceAccessPolicies(),
 		"retention":      map[string]any{"rawEventDays": 60},
@@ -515,7 +511,6 @@ func defaultCirclePolicy(circleID string, displayName string) map[string]any {
 	return map[string]any{
 		"circleID":               circleID,
 		"displayName":            displayName,
-		"isMattermostManaged":    circleID != "member",
 		"workspaceDirectoryPath": "/workspace/circles/" + circleID,
 	}
 }
@@ -526,20 +521,6 @@ func defaultCirclePolicies() []map[string]any {
 		circles = append(circles, defaultCirclePolicy(circleDefinition.CircleID, circleDefinition.DisplayName))
 	}
 	return circles
-}
-
-func defaultMattermostCircleChannelPolicies() []map[string]any {
-	channels := []map[string]any{}
-	for _, circleDefinition := range defaultCircleDefinitions {
-		if strings.TrimSpace(circleDefinition.MattermostChannelName) == "" {
-			continue
-		}
-		channels = append(channels, map[string]any{
-			"circleID":    circleDefinition.CircleID,
-			"channelName": circleDefinition.MattermostChannelName,
-		})
-	}
-	return channels
 }
 
 func defaultResourceAccessPolicies() []map[string]any {

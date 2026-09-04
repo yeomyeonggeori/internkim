@@ -126,7 +126,6 @@
 											size="sm"
 											disabled={circle.circleID === 'member' || isSavingUser || !userCanManage(record)}
 											onclick={() => toggleUserCircle(record, circle.circleID)}
-											title={circle.isMattermostManaged ? text.users.mattermostManaged : ''}
 										>
 											{circle.displayName || circle.circleID}
 										</Button>
