@@ -15,7 +15,7 @@ mock.module('$env/dynamic/private', () => ({
 }));
 
 const { fallback: reachTheAPI } = await import('../../src/routes/api/v1/[...path]/+server');
-const { fallback: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
+const { POST: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
 const { descriptorMetaKey } = await import('../../src/lib/server/public-api/mcp');
 
 const networkHookTimeout = 60_000;
@@ -55,10 +55,18 @@ afterAll(async () => {
 	}
 }, networkHookTimeout);
 
+// The route exports POST alone, so anything else is answered 405 by the router
+// before it reaches a handler. The stand-in answers the same way.
+let refusedNonPostCalls = 0;
+
 function fetchingTheRoute(token: string) {
 	return async (url: string | URL | Request, options?: RequestInit): Promise<Response> => {
 		const request = new Request(url instanceof Request ? url : String(url), options);
 		request.headers.set('Authorization', `Bearer ${token}`);
+		if (request.method !== 'POST') {
+			refusedNonPostCalls += 1;
+			return new Response(null, { status: 405 });
+		}
 		return reachMCP({
 			request,
 			url: new URL(request.url),
@@ -78,18 +86,26 @@ async function anMCPClient(token: string): Promise<Client> {
 
 type RouteAnswer = { status: number; body: unknown };
 
+// A route hands a refusal to SvelteKit by throwing it, and the router that
+// turns one into a response is not in the room, so this reads both.
 async function reach(path: string, token: string, options: RequestInit = {}): Promise<RouteAnswer> {
 	const request = new Request(`${address}${path}`, {
 		...options,
 		headers: { Authorization: `Bearer ${token}`, ...options.headers }
 	});
-	const response = await reachTheAPI({
-		request,
-		url: new URL(request.url),
-		params: { path: path.replace(/^\//, '').split('?')[0] },
-		platform: undefined
-	} as unknown as Parameters<typeof reachTheAPI>[0]);
-	return { status: response.status, body: await response.json() };
+	try {
+		const response = await reachTheAPI({
+			request,
+			url: new URL(request.url),
+			params: { path: path.replace(/^\//, '').split('?')[0] },
+			platform: undefined
+		} as unknown as Parameters<typeof reachTheAPI>[0]);
+		return { status: response.status, body: await response.json() };
+	} catch (thrown) {
+		const refusal = thrown as { status?: number; body?: unknown };
+		if (typeof refusal.status !== 'number') throw thrown;
+		return { status: refusal.status, body: refusal.body };
+	}
 }
 
 function invoke(token: string, name: string, input: unknown): Promise<RouteAnswer> {
@@ -182,6 +198,10 @@ describe('a tool called over MCP', () => {
 			await connected.close();
 		}
 	}, networkHookTimeout);
+});
+
+test('a client whose standalone stream is refused still finished every call above', () => {
+	expect(refusedNonPostCalls).toBeGreaterThan(0);
 });
 
 test('an MCP call with no token is refused', async () => {
