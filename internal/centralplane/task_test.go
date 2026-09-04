@@ -13,7 +13,6 @@ type centralPlaneStub struct {
 	server          *httptest.Server
 	membersByEmail  map[string]string
 	tasksByDeviceID map[string]string
-	patched         map[string]string
 	savedArguments  map[string]any
 	savedAs         string
 	deleted         []string
@@ -27,7 +26,6 @@ func newCentralPlaneStub(t *testing.T) *centralPlaneStub {
 	stub := &centralPlaneStub{
 		membersByEmail:  map[string]string{},
 		tasksByDeviceID: map[string]string{},
-		patched:         map[string]string{},
 		removedRows:     []map[string]any{{"id": "removed"}},
 	}
 	stub.server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -534,7 +534,7 @@ select is(
 select ok(
   has_function_privilege(
     'authenticated',
-    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz,jsonb)'),
     'EXECUTE'
   ),
   'RPC grants: authenticated users can call task_save'
@@ -543,7 +543,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'anon',
-    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz,jsonb)'),
     'EXECUTE'
   ),
   'RPC grants: anonymous users cannot call task_save'
@@ -552,7 +552,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'service_role',
-    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz,jsonb)'),
     'EXECUTE'
   ),
   'RPC grants: service role uses direct trusted writes instead of task_save'
@@ -561,7 +561,7 @@ select ok(
 select ok(
   has_function_privilege(
     'authenticated',
-    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz,jsonb)'),
     'EXECUTE'
   ),
   'RPC grants: authenticated users can call task_save'
@@ -570,7 +570,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'anon',
-    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz,jsonb)'),
     'EXECUTE'
   ),
   'RPC grants: anonymous users cannot call task_save'
@@ -579,7 +579,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'service_role',
-    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz)'),
+    to_regprocedure('public.task_save(uuid,text,public.task_status,text,jsonb,text,text,text,timestamptz,timestamptz,boolean,boolean,boolean,integer,uuid[],uuid,timestamptz,jsonb)'),
     'EXECUTE'
   ),
   'RPC grants: service role uses direct trusted writes instead of task_save'
