@@ -15,7 +15,7 @@ const queuedTypeNames = ['E2E 대기 유형 하나', 'E2E 대기 유형 둘'];
 
 async function signIn(page: Page): Promise<void> {
 	await signInToTheCentralPlane(page, '/example-co/crm');
-	await page.getByRole('button', { name: '빠른 추가' }).waitFor({ state: 'visible', timeout: 20000 });
+	await page.locator('[data-crm-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
 }
 
 async function openQuickAdd(page: Page, kind: string): Promise<void> {
