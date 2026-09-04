@@ -5,7 +5,6 @@
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { toast } from 'svelte-sonner';
-	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -62,7 +61,6 @@
 	let newUserRole = $state<UserRole>('member');
 	let newCircleID = $state('');
 	let newCircleName = $state('');
-	let newCircleMattermostManaged = $state(true);
 	let temporaryPasswordResult = $state<TemporaryPasswordResult | null>(null);
 	let isLoadingUsers = $state(false);
 	let isSavingUser = $state(false);
@@ -142,14 +140,12 @@
 				adminBaseURL,
 				{
 					circleID: newCircleID.trim().toLowerCase(),
-					displayName: newCircleName.trim() || newCircleID.trim(),
-					isMattermostManaged: newCircleMattermostManaged
+					displayName: newCircleName.trim() || newCircleID.trim()
 				},
 				text.messages.userSaveError
 			);
 			newCircleID = '';
 			newCircleName = '';
-			newCircleMattermostManaged = true;
 			await loadUsers();
 		} catch (error) {
 			toast.error(apiErrorMessage(error, text.messages.userSaveError));
@@ -345,14 +341,6 @@
 							<Input id="circle-name" bind:value={newCircleName} placeholder={text.users.groupNamePlaceholder} autocomplete="off" />
 						</Field.Field>
 					</div>
-					<Field.Label>
-						<Field.Field orientation="horizontal">
-							<Checkbox bind:checked={newCircleMattermostManaged} />
-							<Field.Content>
-								<Field.Title>{text.users.mattermostManaged}</Field.Title>
-							</Field.Content>
-						</Field.Field>
-					</Field.Label>
 					{#if availableCircles.length > 0}
 						<div class="flex flex-wrap gap-2">
 							{#each availableCircles as circle (circle.circleID)}

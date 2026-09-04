@@ -312,7 +312,6 @@ function memberOf(member: MemberRow, tally: MemberTaskTally | undefined): TaskMe
 		email: member.email ?? '',
 		hireDate: member.joined_at ? member.joined_at.slice(0, 10) : undefined,
 		role: member.is_admin ? 'admin' : 'member',
-		mattermostStatus: '',
 		distance: tally?.distance ?? 0,
 		activeTaskCount: tally?.activeTaskCount ?? 0,
 		completeTaskCount: tally?.completeTaskCount ?? 0

@@ -145,7 +145,7 @@ function createCircleResponse(state: DevAdminUsersMockState, body: string | unde
 	const circleID = stringField(parsed, 'circleID').toLowerCase();
 	if (!circleID) return { status: 400, body: { error: 'invalid_circle' } };
 	const displayName = stringField(parsed, 'displayName') || circleID;
-	const nextCircle = { circleID, displayName, isMattermostManaged: booleanField(parsed, 'isMattermostManaged', true) };
+	const nextCircle = { circleID, displayName };
 	state.availableCircles = [
 		...state.availableCircles.filter((circle) => circle.circleID !== circleID),
 		nextCircle
@@ -203,9 +203,9 @@ function createDevUserRecords(): UserRecord[] {
 function createDevCircles(): CircleRecord[] {
 	return [
 		{ circleID: 'member', displayName: 'Member' },
-		{ circleID: 'c-level', displayName: 'C-level', isMattermostManaged: true },
-		{ circleID: 'representative', displayName: 'Representative', isMattermostManaged: true },
-		{ circleID: 'hr', displayName: 'HR', isMattermostManaged: true }
+		{ circleID: 'c-level', displayName: 'C-level' },
+		{ circleID: 'representative', displayName: 'Representative' },
+		{ circleID: 'hr', displayName: 'HR' }
 	];
 }
 
@@ -222,11 +222,6 @@ function normalizeCircles(circles: string[], role: UserRole): string[] {
 function stringField(record: Record<string, unknown>, key: string): string {
 	const value = record[key];
 	return typeof value === 'string' ? value.trim() : '';
-}
-
-function booleanField(record: Record<string, unknown>, key: string, fallback: boolean): boolean {
-	const value = record[key];
-	return typeof value === 'boolean' ? value : fallback;
 }
 
 function roleField(record: Record<string, unknown>, fallback: UserRole): UserRole {

@@ -16,7 +16,6 @@ export type TaskMember = {
 	image?: string;
 	hireDate?: string;
 	role: string;
-	mattermostStatus: string;
 	distance?: number;
 	score?: number;
 	activeTaskCount: number;

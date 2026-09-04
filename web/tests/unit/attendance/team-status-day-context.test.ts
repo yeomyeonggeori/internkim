@@ -279,7 +279,6 @@ function taskMember(id: string, name: string, email: string): TaskState['members
 		name,
 		email,
 		role: 'member',
-		mattermostStatus: 'active',
 		activeTaskCount: 0,
 		completeTaskCount: 0
 	};
