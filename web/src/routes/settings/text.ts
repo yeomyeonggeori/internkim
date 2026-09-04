@@ -8,7 +8,7 @@ export const companySettingsText = {
 			userTitle: '김인턴이 나를 대하는 방식',
 			userDescription: '김인턴이 나에게 답할 때 읽는 문서입니다. 나만 바꿀 수 있고, 다음 요청부터 반영됩니다.',
 			callMeLabel: '나를 부르는 말',
-			callMePlaceholder: '샘플님',
+			callMePlaceholder: '샘플 님',
 			aboutLabel: '알아두면 좋은 것',
 			aboutPlaceholder: '맡은 일, 자주 쓰는 도구, 피하고 싶은 것',
 			preferencesLabel: '나와 일하는 방식',
