@@ -23,21 +23,29 @@ export async function supabaseWebAuthSession(returnPath: string): Promise<WebAut
 	};
 }
 
-export type SignedInMember = { memberID: string; role: MemberRole; companySlug: string };
+export type SignedInMember = {
+	memberID: string;
+	role: MemberRole;
+	name: string;
+	companySlug: string;
+	companyLocale: string;
+};
 
 export async function supabaseMember(): Promise<SignedInMember> {
 	const { data } = await supabase().auth.getSession();
 	const accountID = data.session?.user.id;
-	if (!accountID) return { memberID: '', role: 'member', companySlug: '' };
+	if (!accountID) return { memberID: '', role: 'member', name: '', companySlug: '', companyLocale: '' };
 	const member = await supabase()
 		.from('member')
-		.select('id, is_admin, company (slug)')
+		.select('id, is_admin, name, company (slug, locale)')
 		.eq('user_id', accountID)
-		.maybeSingle<{ id: string; is_admin: boolean; company: { slug: string } | null }>();
+		.maybeSingle<{ id: string; is_admin: boolean; name: string | null; company: { slug: string; locale: string } | null }>();
 	return {
 		memberID: member.data?.id ?? '',
 		role: memberRoleOf(member.data?.is_admin ?? false),
-		companySlug: member.data?.company?.slug ?? ''
+		name: member.data?.name ?? '',
+		companySlug: member.data?.company?.slug ?? '',
+		companyLocale: member.data?.company?.locale ?? ''
 	};
 }
 

@@ -10,6 +10,7 @@
 	import { fetchAgentSoul, updateAgentSoul } from './persona-api';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { isSupabaseConfigured, supabaseMember } from '$lib/supabase-session';
 
 	const text = createPageText(companySettingsText);
 
@@ -21,12 +22,19 @@
 	onMount(async () => {
 		try {
 			draft = soulToDraft(await fetchAgentSoul());
+			await fillDefaultLanguageFromCompany();
 		} catch {
 			errorMessage = text.persona.soulLoadError;
 		} finally {
 			isLoading = false;
 		}
 	});
+
+	async function fillDefaultLanguageFromCompany() {
+		if (draft.languageDefault || !isSupabaseConfigured()) return;
+		const member = await supabaseMember();
+		if (member.companyLocale) draft.languageDefault = member.companyLocale;
+	}
 
 	async function save() {
 		isSaving = true;

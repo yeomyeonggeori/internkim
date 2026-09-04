@@ -13,6 +13,7 @@
 	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
 	import AttendanceLeavePolicySettings from '../admin/attendance-leave-policy-settings.svelte';
 	import SkillsSection from '../admin/skills-section.svelte';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import { adminText } from '../admin/text';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -23,6 +24,7 @@
 	const attendanceSettingsText = createPageText(adminText);
 	let isAdmin = $state(false);
 	let isLoading = $state(isSupabaseConfigured());
+	let activeTab = $state('general');
 
 	onMount(async () => {
 		if (!isSupabaseConfigured()) return;
@@ -35,45 +37,65 @@
 	<title>{text.title}</title>
 </svelte:head>
 
+{#snippet generalSections()}
+	<header class="grid gap-1">
+		<h1 class="text-xl font-semibold">{text.signIn}</h1>
+		<p class="text-sm text-muted-foreground">{text.signInDescription}</p>
+	</header>
+	<SignInPasskeys />
+	{#if isSupabaseConfigured()}
+		<SignInPassword />
+	{/if}
+	<PersonalAPIKeys />
+	<Notifications />
+	<MyMessengerAccount />
+	<MyAgent />
+{/snippet}
+
+{#snippet adminSections()}
+	<header class="grid gap-1">
+		<h2 class="text-xl font-semibold">{text.company}</h2>
+		<p class="text-sm text-muted-foreground">{text.companyDescription}</p>
+	</header>
+	<CompanyProfileImage />
+	<CompanyBaseCurrency />
+	<AgentSoul />
+	<header class="grid gap-1 pt-2">
+		<h2 class="text-xl font-semibold">{text.members}</h2>
+		<p class="text-sm text-muted-foreground">{text.membersDescription}</p>
+	</header>
+	<CompanyMembers />
+	<AttendanceWorkSettingsSection adminBaseURL="" text={attendanceSettingsText} />
+	<AttendanceLeavePolicySettings adminBaseURL="" text={attendanceSettingsText} />
+	<header class="grid gap-1 pt-2">
+		<h2 class="text-xl font-semibold">{text.connections}</h2>
+		<p class="text-sm text-muted-foreground">{text.connectionsDescription}</p>
+	</header>
+	<CompanyConnections />
+	<header class="grid gap-1 pt-2">
+		<h2 class="text-xl font-semibold">{text.agent}</h2>
+		<p class="text-sm text-muted-foreground">{text.agentDescription}</p>
+	</header>
+	<SkillsSection />
+{/snippet}
+
 <main class="h-full min-h-0 w-full flex-1 overflow-y-auto bg-background text-foreground">
 	<div class="mx-auto grid max-w-3xl gap-6 px-4 py-6 sm:px-6">
-		<header class="grid gap-1">
-			<h1 class="text-xl font-semibold">{text.signIn}</h1>
-			<p class="text-sm text-muted-foreground">{text.signInDescription}</p>
-		</header>
-		<SignInPasskeys />
-		{#if isSupabaseConfigured()}
-			<SignInPassword />
-		{/if}
-		<PersonalAPIKeys />
-		<Notifications />
-		<MyMessengerAccount />
-		<MyAgent />
 		{#if !isLoading && isAdmin}
-			<header class="grid gap-1 pt-2">
-				<h2 class="text-xl font-semibold">{text.company}</h2>
-				<p class="text-sm text-muted-foreground">{text.companyDescription}</p>
-			</header>
-			<CompanyProfileImage />
-			<CompanyBaseCurrency />
-			<AgentSoul />
-			<header class="grid gap-1 pt-2">
-				<h2 class="text-xl font-semibold">{text.members}</h2>
-				<p class="text-sm text-muted-foreground">{text.membersDescription}</p>
-			</header>
-			<CompanyMembers />
-			<AttendanceWorkSettingsSection adminBaseURL="" text={attendanceSettingsText} />
-			<AttendanceLeavePolicySettings adminBaseURL="" text={attendanceSettingsText} />
-			<header class="grid gap-1 pt-2">
-				<h2 class="text-xl font-semibold">{text.connections}</h2>
-				<p class="text-sm text-muted-foreground">{text.connectionsDescription}</p>
-			</header>
-			<CompanyConnections />
-			<header class="grid gap-1 pt-2">
-				<h2 class="text-xl font-semibold">{text.agent}</h2>
-				<p class="text-sm text-muted-foreground">{text.agentDescription}</p>
-			</header>
-			<SkillsSection />
+			<Tabs.Root bind:value={activeTab}>
+				<Tabs.List class="mb-6">
+					<Tabs.Trigger value="general">{text.generalTab}</Tabs.Trigger>
+					<Tabs.Trigger value="admin">{text.adminTab}</Tabs.Trigger>
+				</Tabs.List>
+				<Tabs.Content value="general" class="grid gap-6">
+					{@render generalSections()}
+				</Tabs.Content>
+				<Tabs.Content value="admin" class="grid gap-6">
+					{@render adminSections()}
+				</Tabs.Content>
+			</Tabs.Root>
+		{:else}
+			{@render generalSections()}
 		{/if}
 	</div>
 </main>
