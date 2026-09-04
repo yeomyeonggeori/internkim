@@ -28,6 +28,7 @@ import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import { connectToGateway } from './gateway-socket';
 import { BlueclawACPClient, defaultBlueclawACPSocketPath, type Addressing } from './acp-session';
 import { readInboundMessage } from './inbound-message';
+import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 
 
@@ -41,6 +42,7 @@ const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const admindSocketPath = process.env.ADMIND_SOCKET_PATH ?? defaultAdmindSocketPath;
 const blueclawACPSocketPath = process.env.BLUECLAW_ACP_SOCKET_PATH ?? defaultBlueclawACPSocketPath;
 const workspaceRootPath = process.env.WORKSPACE_ROOT_PATH ?? '/workspace';
+const relayStateDirectory = process.env.RELAY_STATE_DIR ?? '/var/lib/internkim/relay';
 const appURL = required('INTERNKIM_APP_URL');
 const messengerPlatform = required('MESSENGER_PLATFORM');
 const answerByteCeiling = positiveNumberSetting(
@@ -283,6 +285,10 @@ const inboundTurns: InboundTurns = new InboundTurns({
 		askThePerson: (asked, addressing) => inboundTurns.askThePerson(asked, addressing),
 		report: (line) => console.log(`acp: ${line}`)
 	}),
+	queue: new InboundQueue({
+		directoryPath: `${relayStateDirectory}/inbound`,
+		report: (line) => console.log(`inbound: ${line}`)
+	}),
 	postToConversation: async (addressing: Addressing, message: string) => {
 		await dispatch.askChatd('message.post', { channelID: addressing.conversationID, message });
 	},
@@ -298,8 +304,8 @@ Bun.serve({
 		if (new URL(request.url).pathname === '/inbound') {
 			const inbound = readInboundMessage(offered);
 			if (!inbound) return new Response('that is not a message the agent can answer', { status: 400 });
-			const answered = await inboundTurns.receive(inbound);
-			return Response.json(answered ?? { answeredAPendingQuestion: true });
+			const isNew = await inboundTurns.keep(inbound.key, offered);
+			return Response.json({ queued: isNew, key: inbound.key }, { status: 202 });
 		}
 		const arrived = readArrivedMessage(offered);
 		if (!arrived) return new Response('that is not a message', { status: 400 });
@@ -311,6 +317,9 @@ Bun.serve({
 	}
 });
 console.log(`arrivals accepted on 127.0.0.1:${arrivalsPort}`);
+
+// Whatever the last relay took and had not delivered is still on disk.
+inboundTurns.startDraining();
 
 void sayWhereChatdWasLookedFor();
 

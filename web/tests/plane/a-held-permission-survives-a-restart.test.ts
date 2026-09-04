@@ -1,19 +1,22 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
 import { directMessagesDelivered } from './a-messenger-nobody-runs';
-import { handToTheRelay, until, type AnInboundMessage } from './an-inbound-message';
+import { handToTheRelay, until } from './an-inbound-message';
 
-// 이샘플 writes to the agent and the agent writes to 박예시. The whole way there
-// is the ACP session: the relay opens it, prompts it, is asked for 이샘플's
-// permission on the messenger, and carries the words they answer with back to
-// the agent, which is the only side that reads what they meant.
+// 이샘플 asks the agent to write to 박예시, the agent stops to ask whether it may,
+// and the daemon holding that question dies before anybody answers. It comes
+// back, loads the session, and asks about the same held call again — and the
+// relay, which kept the answer nobody had given yet, must put the question to
+// 이샘플 once and only once.
 
 let plane: ACompanyPlane;
 
-const marker = `평면 acp 점검 ${Date.now()}`;
+const marker = `평면 재시작 점검 ${Date.now()}`;
 
-// The loop offers one native tool per action, named after the action or, for a
-// continue, after the tool it would call. Its arguments are that tool's input.
+function theConversation(): string {
+	return `conversation-restart-${plane.runIdentifier}`;
+}
+
 function sendingTheMessage(recipientName: string): string {
 	return JSON.stringify({
 		targetType: 'directMessage',
@@ -80,15 +83,10 @@ function aRouterDocument(fields: Record<string, unknown>): string {
 	});
 }
 
-// The words the person answers with are read by the same router that reads a
-// confirmation reply on the connectors path, which is the point: the relay
-// carries them and decides nothing.
+// The restarted daemon reads the person's words itself, which is why the relay
+// keeps the words rather than the option it thinks they chose.
 function aRouterReadingTheAnswerAsApproval(): string {
 	return aRouterDocument({ route: 'continue_task', approval: 'approve' });
-}
-
-async function askTheRelay(message: AnInboundMessage): Promise<Response> {
-	return handToTheRelay(plane, message);
 }
 
 beforeAll(async () => {
@@ -99,7 +97,7 @@ afterAll(async () => {
 	await plane?.stop();
 });
 
-test('a message the relay carries becomes a turn, an approval, and a message in the recipient inbox', async () => {
+test('a question held across a blueclaw restart is asked once and answered once', async () => {
 	const [sender, recipient] = plane.people;
 	plane.model.answerNext('bluecollar_turn_router', aRouterDocument({}));
 	plane.model.answerNext('bluecollar_turn_router', aRouterReadingTheAnswerAsApproval());
@@ -108,68 +106,82 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 	plane.model.callNext('finish', finishing('보냈습니다'));
 	plane.model.answerNext('bluecollar_completion_judge', aSatisfiedCompletionJudge());
 
-	const asked = await askTheRelay({
+	const asked = await handToTheRelay(plane, {
 		sender: { email: sender.email, name: sender.name },
-		conversationID: `conversation-${plane.runIdentifier}`,
+		conversationID: theConversation(),
 		messageID: 'message-1',
 		message: `${recipient.name}한테 DM으로 "${marker}" 보내줘`
 	});
-	// The door answers once the event is on disk, so a relay that dies here still
-	// owes the message. The turn happens after.
 	expect(asked.status, `the relay refused the turn: ${await asked.clone().text()}`).toBe(202);
 
-	// The question the runtime worded reaches the requester as a message before
-	// anything is sent, and the person's answer arrives as the next message in
-	// that conversation.
-	await untilTheQuestionIsAsked();
-	const answering = await askTheRelay({
+	await waitingFor(
+		'the requester was never asked whether the message may be sent',
+		() => postsToTheConversation().length > 0
+	);
+	const theQuestion = postsToTheConversation()[0];
+	const timesAskedBeforeTheRestart = postsToTheConversation().filter(
+		(message) => message === theQuestion
+	).length;
+
+	// Nobody has answered yet, and the daemon holding the question goes away.
+	await plane.restartBlueclaw();
+
+	const answering = await handToTheRelay(plane, {
 		sender: { email: sender.email },
-		conversationID: `conversation-${plane.runIdentifier}`,
+		conversationID: theConversation(),
 		messageID: 'message-2',
 		message: '응 보내줘'
 	});
 	expect(answering.status, await answering.clone().text()).toBe(202);
 
-	await until(
-		`nothing reached the messenger connector.\n` +
-			`  it saw: ${JSON.stringify(plane.connector.pathsCalled())}`,
-		() => directMessagesDelivered(plane.connector).length > 0
+	// The relay reconnects, loads the session, and the restarted daemon asks about
+	// the held call again, so the answer travels a longer way here than it does in
+	// a run nothing interrupted.
+	await waitingFor(
+		'the message never reached the messenger connector after the restart',
+		() =>
+			directMessagesDelivered(plane.connector).some((call) =>
+				JSON.stringify(call.body ?? '').includes(marker)
+			)
 	);
-	const delivered = directMessagesDelivered(plane.connector);
+
+	const timesAsked = postsToTheConversation().filter((message) => message === theQuestion).length;
 	expect(
-		delivered.length,
-		`nothing reached the messenger connector.\n` +
-			`  it saw: ${JSON.stringify(plane.connector.pathsCalled())}\n` +
-			`  the model answered: ${JSON.stringify(plane.model.completions.map((call) => call.answeredWith))}\n` +
-			`  the ledger says: ${await theLedger()}`
-	).toBeGreaterThan(0);
-	expect(
-		delivered.some((call) => JSON.stringify(call.body ?? '').includes(marker)),
-		'the connector was called but not with the message the agent was asked to send'
-	).toBe(true);
+		timesAsked,
+		`이샘플 was asked ${timesAsked} times for the one answer they gave.\n` +
+			`  posted to the conversation: ${JSON.stringify(postsToTheConversation(), null, 2)}\n` +
+			`  the connector saw: ${JSON.stringify(plane.connector.calls, null, 2)}`
+	).toBe(timesAskedBeforeTheRestart);
 }, 180_000);
 
-test('the connector event route refuses a turn while the acp session admits them', async () => {
-	const answer = await fetch(`${plane.blueclawURL}/connectors/api/events`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({})
-	});
-	expect(answer.status, await answer.clone().text()).toBe(409);
-	expect(await answer.text()).toContain('-inbound acp');
-});
-
-function postsToTheConversation(): { body: unknown }[] {
-	return plane.connector.calls.filter((call) => /\/message\.post$/.test(call.path));
+function postsToTheConversation(): string[] {
+	const posted: string[] = [];
+	for (const call of plane.connector.calls) {
+		if (!call.path.endsWith('/message.post')) continue;
+		if (typeof call.body !== 'object' || call.body === null) continue;
+		const document = call.body as Record<string, unknown>;
+		if (document.channelID !== theConversation()) continue;
+		posted.push(typeof document.message === 'string' ? document.message : '');
+	}
+	return posted;
 }
 
-async function untilTheQuestionIsAsked(): Promise<void> {
-	for (let attempt = 0; attempt < 240; attempt += 1) {
-		if (postsToTheConversation().length > 0) return;
-		await Bun.sleep(250);
+// until() is handed its sentence before it starts waiting, so what the run
+// actually did is gathered here, once it is known that it did not happen.
+async function waitingFor(what: string, ready: () => boolean, seconds = 60): Promise<void> {
+	try {
+		await until(what, ready, seconds);
+	} catch {
+		throw new Error(`${what}\n${await whatTheRunSaw()}`);
 	}
-	throw new Error(
-		`the requester was never asked. the connector saw: ${JSON.stringify(plane.connector.pathsCalled())}`
+}
+
+async function whatTheRunSaw(): Promise<string> {
+	return (
+		`  posted to the conversation: ${JSON.stringify(postsToTheConversation(), null, 2)}\n` +
+		`  the connector saw: ${JSON.stringify(plane.connector.pathsCalled())}\n` +
+		`  the model answered: ${JSON.stringify(plane.model.completions.map((call) => call.answeredWith))}\n` +
+		`  the ledger says: ${await theLedger()}`
 	);
 }
 
@@ -195,9 +207,7 @@ async function theLedger(): Promise<string> {
 				? `${event.name}(${event.body.slice(0, 400)})`
 				: event.name
 		);
-		lines.push(
-			`${taskRun.status} ${taskRun.failureReason ?? ''}\n    ${events.join('\n    ')}`
-		);
+		lines.push(`${taskRun.status} ${taskRun.failureReason ?? ''}\n    ${events.join('\n    ')}`);
 	}
 	return lines.join('\n  ');
 }

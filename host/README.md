@@ -120,6 +120,7 @@ read, whether required or optional, in one table:
 | `MAILD_BASE_URL` | relay | maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092 |
 | `MAILD_PORT` | host | the loopback port host/entrypoint.sh starts maild on; defaults to 18092 |
 | `MESSENGER_PLATFORM` | relay + host | which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it |
+| `RELAY_STATE_DIR` | relay + host | where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay |
 | `SUPABASE_PUBLISHABLE_KEY` | relay + host | the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
 | `SUPABASE_URL` | relay + host | the Supabase project URL; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
 | `WORKSPACE_ROOT_PATH` | relay | the workspace root rendered into the company plane's runtime document, and the cwd the relay opens an ACP session with; defaults to /workspace |
