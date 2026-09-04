@@ -11,13 +11,15 @@ import (
 	"strings"
 )
 
-// A task the device holds, in the terms the central plane keeps. The device's own
-// identifiers do not travel. The actor is named by the messenger account the
-// central plane can issue a session for; everyone else by the address the company
-// knows them by. CentralID is what the central plane called the task when it last
-// took it, and is empty the first time.
+// A task the device holds, in the terms the central plane keeps. The actor is
+// named by the messenger account the central plane can issue a session for;
+// everyone else by the address the company knows them by. CentralID is what the
+// central plane called the task when it last took it, and is empty the first
+// time. DeviceTaskID is the device's own identifier, and is set only for a row
+// being carried across.
 type Task struct {
 	CentralID        string
+	DeviceTaskID     string
 	ActorPlatform    string
 	ActorExternalID  string
 	Title            string
@@ -95,6 +97,7 @@ func (client *Client) SaveTask(ctx context.Context, task Task) (string, error) {
 		"target_ends_at":         nullableString(task.EndsAt),
 		"target_write_dates":     task.WritesDates,
 		"target_participant_ids": participants,
+		"target_mirrors":         deviceMirrors(task.DeviceTaskID),
 	}
 	var savedID string
 	if errorValue := client.callAsMember(ctx, session, "task_save", arguments, &savedID); errorValue != nil {

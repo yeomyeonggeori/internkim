@@ -12,26 +12,31 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
 type recordedTaskWrite struct {
-	Title  string `json:"target_title"`
-	Status string `json:"target_status"`
-	Starts string `json:"target_starts_at"`
-	Ends   string `json:"target_ends_at"`
+	Title   string `json:"target_title"`
+	Status  string `json:"target_status"`
+	Starts  string `json:"target_starts_at"`
+	Ends    string `json:"target_ends_at"`
+	Mirrors []struct {
+		Source     string `json:"source"`
+		ExternalID string `json:"externalID"`
+	} `json:"target_mirrors"`
 }
 
 type companyHoldingTasks struct {
 	server     *httptest.Server
 	carried    map[string]string
 	written    []recordedTaskWrite
-	marked     []string
 	businesses []string
 }
 
 // A company that answers what a carry asks of it: who a member is, which words
-// its tasks may carry, whether it already carries a device row, the write
-// itself, and the mark that says where the row came from.
+// its tasks may carry, whether it already carries a device row, and the write
+// itself.
 func startCompanyForTaskCarry(t *testing.T, alreadyCarried map[string]string) *companyHoldingTasks {
 	t.Helper()
 	company := &companyHoldingTasks{carried: alreadyCarried, businesses: []string{"신사업"}}
@@ -56,9 +61,6 @@ func startCompanyForTaskCarry(t *testing.T, alreadyCarried map[string]string) *c
 			json.Unmarshal(body, &written)
 			company.written = append(company.written, written)
 			responseWriter.Write([]byte(`"33333333-3333-4333-8333-333333333333"`))
-		case request.Method == http.MethodPatch && strings.HasPrefix(request.URL.Path, "/rest/v1/task"):
-			company.marked = append(company.marked, request.URL.RawQuery)
-			responseWriter.WriteHeader(http.StatusNoContent)
 		case strings.HasPrefix(request.URL.Path, "/rest/v1/task"):
 			responseWriter.Write([]byte(company.answerForCarryLookup(request.URL.Query().Get("calendar"))))
 		default:
@@ -288,8 +290,8 @@ func TestTaskCarryWritesEveryTaskTheRecordDoesNotHold(t *testing.T) {
 	if company.written[0].Status != "planned" || company.written[0].Starts != "2026-07-06" {
 		t.Fatalf("the row did not land as it happened: %+v", company.written[0])
 	}
-	if len(company.marked) != 2 {
-		t.Fatalf("the record was not told where the rows came from: %+v", company.marked)
+	if len(company.written[0].Mirrors) != 1 || company.written[0].Mirrors[0].ExternalID != "task-1" {
+		t.Fatalf("the record was not told where the row came from: %+v", company.written[0])
 	}
 }
 
@@ -300,6 +302,7 @@ func TestTaskSweepDropsTheStoreOnceTheCarryHasFinished(t *testing.T) {
 	service := newTaskSweepTestService(t, company.server.URL)
 	store := seedRetiredTaskTables(t, service.stateDatabasePath(), 0)
 	seedDeviceTask(t, store, "task-1", "planned", "2026-07-06", "2026-07-07")
+	seedDeviceTask(t, store, "task-2", "requested", "2026-07-06", "2026-07-07")
 
 	if _, errorValue := service.carryTasksIntoTheRecord(context.Background()); errorValue != nil {
 		t.Fatal(errorValue)
@@ -338,7 +341,6 @@ func TestTaskCarryRefusesRatherThanLetTheRecordReshapeARow(t *testing.T) {
 	store := seedRetiredTaskTables(t, service.stateDatabasePath(), 0)
 	tomorrow := time.Now().AddDate(0, 0, 2).Format(time.DateOnly)
 	seedDeviceTask(t, store, "completed-in-the-future", "completed", "2026-07-06", tomorrow)
-	seedDeviceTask(t, store, "requested-by-nobody", "requested", "2026-07-06", "2026-07-07")
 	seedDeviceTask(t, store, "ends-before-it-starts", "planned", "2026-07-08", "2026-07-06")
 	seedDeviceTask(t, store, "not-a-date", "planned", "언젠가", "")
 
@@ -346,15 +348,40 @@ func TestTaskCarryRefusesRatherThanLetTheRecordReshapeARow(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if report.Tasks != 0 || len(report.Refused) != 4 {
+	if report.Tasks != 0 || len(report.Refused) != 3 {
 		t.Fatalf("report = %+v", report)
 	}
 	if len(company.written) != 0 {
 		t.Fatalf("a row the record would have reshaped was written anyway: %+v", company.written)
 	}
-	for _, expected := range []string{"completed-in-the-future", "requested-by-nobody", "ends-before-it-starts", "not-a-date"} {
+	for _, expected := range []string{"completed-in-the-future", "ends-before-it-starts", "not-a-date"} {
 		if !strings.Contains(strings.Join(report.Refused, "\n"), expected) {
 			t.Fatalf("%s was refused without being named: %+v", expected, report.Refused)
+		}
+	}
+}
+
+func TestTaskCarryWritesARequestedRowNamingNobodyWhoAsked(t *testing.T) {
+	company := startCompanyForTaskCarry(t, nil)
+	service := newTaskSweepTestService(t, company.server.URL)
+	store := seedRetiredTaskTables(t, service.stateDatabasePath(), 0)
+	seedDeviceTask(t, store, "requested-by-nobody", "requested", "2026-07-06", "2026-07-07")
+	seedDeviceTask(t, store, "rejected-by-nobody", "rejected", "2026-07-06", "2026-07-07")
+	seedDeviceTask(t, store, "planned-here", "planned", "2026-07-06", "2026-07-07")
+
+	report, errorValue := service.carryTasksIntoTheRecord(context.Background())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if report.Tasks != 3 || len(report.Refused) != 0 {
+		t.Fatalf("report = %+v", report)
+	}
+	if report.WithoutRequester != 2 {
+		t.Fatalf("the carry has to say how many rows landed naming nobody, got %d", report.WithoutRequester)
+	}
+	for _, written := range company.written {
+		if len(written.Mirrors) != 1 || written.Mirrors[0].Source != centralplane.DeviceMirrorSource {
+			t.Fatalf("the record cannot tell a carried row from an ask made here without this: %+v", written)
 		}
 	}
 }
