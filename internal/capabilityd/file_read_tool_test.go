@@ -80,7 +80,7 @@ func TestDocumentReadReturnsMarkdownFromHelper(t *testing.T) {
 	if !isFound {
 		t.Fatal("document_read descriptor is missing")
 	}
-	if errorValue := capabilityschema.Validate(descriptor.ResultContract.Schema, response.Result); errorValue != nil {
+	if _, errorValue := capabilityschema.ValidateResult(descriptor.ResultContract.Schema, response.Result); errorValue != nil {
 		t.Fatalf("document_read result violates its contract: %v", errorValue)
 	}
 }

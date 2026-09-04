@@ -47,7 +47,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester’s own.",
+            "description": "Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester’s own, which is the usual case; the name the requester used to address you is not a participant.",
             "items": {
               "type": "string"
             },
@@ -120,7 +120,7 @@
             "type": "string"
           },
           "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Naming nobody makes it the requester’s own.",
+            "description": "Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester’s own, which is the usual case; the name the requester used to address you is not a participant.",
             "items": {
               "type": "string"
             },
@@ -391,7 +391,7 @@
         "state": "ok"
       },
       "canonicalName": "task_list",
-      "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. The default scope is the requester; set scope to all for the whole workspace.",
+      "description": "List workspace tasks with optional filters. Use this to answer 'what tasks does X have', 'what is on my plate', or 'show incomplete items this week'. It reads the requester's own tasks unless personHints names other people or scope is all.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -420,16 +420,19 @@
             "maxLength": 256,
             "type": "string"
           },
-          "participantPersonHint": {
-            "description": "Name or email of a specific person whose tasks to list. Leave empty to use scope.",
-            "type": "string"
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose tasks to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "query": {
             "description": "Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.",
             "type": "string"
           },
           "scope": {
-            "description": "Whose tasks to list when participantPersonHint is empty. Defaults to self. Use all only for an explicit workspace-wide request.",
+            "description": "Set to all to read the whole company's tasks. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
             "enum": [
               "self",
               "all"
@@ -3813,7 +3816,7 @@
         "state": "ok"
       },
       "canonicalName": "leave_list",
-      "description": "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. The default scope is the requester; set scope to all for the whole company. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
+      "description": "List leave in the record. Use this to answer 'when am I off', 'who is away next week', or 'what have I not had decided yet'. It reads the requester's own leave unless personHints names other people or scope is all. registeredKinds in the result names the leave types this company offers, which is what leave_request takes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -3832,12 +3835,15 @@
             "description": "Maximum number of rows to return.",
             "type": "number"
           },
-          "personHint": {
-            "description": "Name or email of the person whose leave to list. Omit for the requester.",
-            "type": "string"
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose leave to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "scope": {
-            "description": "Whose leave to list when personHint is empty. Defaults to self. Use all only for an explicit company-wide request.",
+            "description": "Set to all to read the whole company's leave. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
             "enum": [
               "self",
               "all"
@@ -4153,12 +4159,15 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "personHint": {
-            "description": "Name or email of the person whose balance to read. Omit for the requester.",
-            "type": "string"
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose leave balance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "scope": {
-            "description": "Whose balance to read when personHint is empty. Defaults to self. Use all for everybody who works here, which is what reviewing entitlements wants.",
+            "description": "Set to all to read the whole company's leave balances. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
             "enum": [
               "self",
               "all"
@@ -5650,7 +5659,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_list",
-      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. The default scope is the requester; scope all is the whole company. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
+      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -5673,12 +5682,15 @@
             "description": "Maximum number of rows to return.",
             "type": "number"
           },
-          "personHint": {
-            "description": "Name or email of the person whose attendance to list. Omit for the requester.",
-            "type": "string"
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose attendance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "scope": {
-            "description": "Whose attendance to list when personHint is empty. Defaults to self. Use all only for an explicit company-wide request.",
+            "description": "Set to all to read the whole company's attendance. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
             "enum": [
               "self",
               "all"

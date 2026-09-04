@@ -1,0 +1,27 @@
+[
+	{
+		"tool": "attendance_add",
+		"input": { "kind": "clocking_in" },
+		"refusal": "input.kind must be one of \"clock_in\", \"clock_out\", and it is \"clocking_in\""
+	},
+	{
+		"tool": "attendance_add",
+		"input": {},
+		"refusal": "input.kind is required and is missing"
+	},
+	{
+		"tool": "attendance_add",
+		"input": { "kind": "clock_in", "mood": "cheerful" },
+		"refusal": "input.mood is not a field this tool takes"
+	},
+	{
+		"tool": "task_list",
+		"input": { "limit": "ten" },
+		"refusal": "input.limit must be a number, and it is \"ten\""
+	},
+	{
+		"tool": "task_list",
+		"input": { "personHints": "박예시" },
+		"refusal": "input.personHints must be an array, and it is \"박예시\""
+	}
+]

@@ -248,14 +248,3 @@ export function participantsOfHints(
 	const named = peopleOfHints(people, hints, 'participant').map((person) => person.personID);
 	return named.length > 0 ? named : [requesterID];
 }
-
-export function ownerOfScope(
-	people: RecordPerson[],
-	scope: string | undefined,
-	hint: string | undefined,
-	requesterID: string
-): string | null {
-	if (hint) return personOfHint(people, hint).personID;
-	if (scope === 'all') return null;
-	return requesterID;
-}

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
-import { capabilityToolResultSchema } from '../../src/lib/server/public-api/catalog/tools';
+import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -56,12 +56,12 @@ afterAll(async () => {
 	}
 }, networkHookTimeout);
 
-function asAdmin(name: string, input: Record<string, unknown> = {}) {
-	return runToolOverTheRecord(admin, client, adminID, name, input, now);
+async function asAdmin(name: string, input: Record<string, unknown> = {}) {
+	return heldToTheContract(name, await runToolOverTheRecord(admin, client, adminID, name, input, now));
 }
 
-function asSample(name: string, input: Record<string, unknown> = {}) {
-	return runToolOverTheRecord(sample, client, sampleID, name, input, now);
+async function asSample(name: string, input: Record<string, unknown> = {}) {
+	return heldToTheContract(name, await runToolOverTheRecord(sample, client, sampleID, name, input, now));
 }
 
 function resultOf(answer: { status: number; body: unknown }): Record<string, unknown> {
@@ -74,20 +74,9 @@ function refusalOf(answer: { status: number; body: unknown }): { status: number;
 	return { status: answer.status, error: body.error, errorCode: body.errorCode };
 }
 
-function holdToTheContract(name: string, result: unknown): void {
-	const schema = capabilityToolResultSchema(name);
-	if (!schema) throw new Error(`${name} publishes no result contract to hold its answer to`);
-	const parsed = schema.safeParse(result);
-	const refused = parsed.success
-		? []
-		: parsed.error.issues.map((issue) => `${['result', ...issue.path.map(String)].join('.')}: ${issue.message}`);
-	expect({ tool: name, refused }).toEqual({ tool: name, refused: [] });
-}
-
 describe('the organization chart written one organization at a time', () => {
 	test('adds, nests, renames and lists', async () => {
 		const made = resultOf(await asAdmin('team_add', { name: '개발팀' }));
-		holdToTheContract('team_add', made);
 		expect(made.name).toBe('개발팀');
 		expect(made.parentTeamID).toBe('');
 
@@ -101,7 +90,6 @@ describe('the organization chart written one organization at a time', () => {
 		expect(renamed.parentTeamID).toBe(made.teamID);
 
 		const listed = resultOf(await asAdmin('team_list'));
-		holdToTheContract('team_list', listed);
 		expect((listed.teams as { name: string }[]).map((team) => team.name)).toEqual(['개발팀', '플랫폼실']);
 	}, networkHookTimeout);
 
@@ -119,7 +107,6 @@ describe('the organization chart written one organization at a time', () => {
 	test('leaves the people of a removed organization with no organization', async () => {
 		await asAdmin('person_update', { personHint: '박예시', teamHint: '플랫폼실' });
 		const removed = resultOf(await asAdmin('team_delete', { teamHint: '플랫폼실' }));
-		holdToTheContract('team_delete', removed);
 		expect(removed.deleted).toBe(true);
 		expect(removed.peopleLeftWithNoOrganization).toBe(1);
 
@@ -157,7 +144,6 @@ describe('a directory entry written through the two homes it lives in', () => {
 				hireDate: '2026-03-12'
 			})
 		);
-		holdToTheContract('person_update', written);
 		expect(written.personID).toBe(sampleID);
 		expect(written.jobTitle).toBe('편집장');
 		expect(written.teamName).toBe('개발팀');
@@ -176,7 +162,6 @@ describe('a directory entry written through the two homes it lives in', () => {
 
 	test('answers person_list with what both homes hold', async () => {
 		const listed = resultOf(await asSample('person_list'));
-		holdToTheContract('person_list', listed);
 		const written = (listed.people as { personID: string; jobTitle?: string; teamName?: string; handle?: string }[]).find(
 			(person) => person.personID === sampleID
 		);
@@ -244,7 +229,6 @@ describe('inviting somebody through the plane s own invite path', () => {
 				teamHint: '개발팀'
 			})
 		);
-		holdToTheContract('person_invite', invited);
 		expect(invited.email).toBe(`${slug}-new@example.test`);
 		expect(invited.employmentStatus).toBe('invited');
 		expect(String(invited.temporaryPassword).length).toBeGreaterThan(0);

@@ -1,5 +1,6 @@
 import { dayIn, dayOfInstant, dayShifted, instantOfDay } from './days';
 import { personOfHint } from './people';
+import { ownerNamedBy, whoseRecords, whoseRecordsHolds } from './whose';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import {
 	attendanceBackdatedAfterMinutes,
@@ -81,18 +82,17 @@ function targetMember(context: RecordContext, personHint: string | undefined): s
 
 async function rowsInWindow(
 	context: RecordContext,
-	personHint: string | undefined,
+	personHints: string[] | undefined,
 	scope: string | undefined,
 	from: string | undefined,
 	to: string | undefined
 ): Promise<{ rows: AttendanceRow[]; memberID: string | null; firstDay: string; lastDay: string }> {
 	const window = windowOf(context, from, to);
-	const everyone = scope === 'all' && !personHint;
-	const memberID = everyone ? null : targetMember(context, personHint);
+	const whose = whoseRecords(context.people, personHints, scope, context.requesterID);
 	const rows = await attendanceOfCompany(context.caller, window.from, window.to, mostRecentRows);
 	return {
-		rows: memberID ? rows.filter((row) => row.member_id === memberID) : rows,
-		memberID,
+		rows: rows.filter((row) => whoseRecordsHolds(whose, row.member_id)),
+		memberID: ownerNamedBy(whose) || null,
 		firstDay: window.firstDay,
 		lastDay: window.lastDay
 	};
@@ -117,7 +117,7 @@ async function attendanceOfHint(context: RecordContext, hint: string): Promise<A
 }
 
 export type AttendanceListInput = {
-	personHint?: string;
+	personHints?: string[];
 	scope?: string;
 	from?: string;
 	to?: string;
@@ -127,7 +127,7 @@ export type AttendanceListInput = {
 
 export async function attendanceList(context: RecordContext, input: AttendanceListInput) {
 	const [found, serverTime, backdatedAfterMinutes] = await Promise.all([
-		rowsInWindow(context, input.personHint, input.scope, input.from, input.to),
+		rowsInWindow(context, input.personHints, input.scope, input.from, input.to),
 		attendanceClock(context.caller),
 		attendanceBackdatedAfterMinutes(context.caller)
 	]);
