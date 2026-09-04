@@ -2,7 +2,9 @@ import { dayIn, dayOfInstant, dayShifted, instantOfDay } from './days';
 import { personOfHint } from './people';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
 import {
+	attendanceBackdatedAfterMinutes,
 	attendanceByID,
+	attendanceClock,
 	attendanceOfCompany,
 	attendanceWrittenByHand,
 	timeOfInstant,
@@ -13,18 +15,21 @@ import type { RecordContext } from './company';
 
 const defaultWindowDays = 30;
 const hintWindowDays = 90;
-const mostRecentRows = 1000;
+const mostRecentRows = 20000;
 
 export type AnsweredAttendance = {
 	eventID: string;
+	personID: string;
 	person: string;
 	kind: string;
 	date: string;
 	time: string;
+	occurredAt: string;
 	location: string | null;
 	wasCorrected: boolean;
 	originalDate: string | null;
 	originalTime: string | null;
+	originalOccurredAt: string | null;
 	reason: string | null;
 };
 
@@ -32,10 +37,12 @@ function answeredAttendance(context: RecordContext, row: AttendanceRow): Answere
 	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));
 	return {
 		eventID: row.id,
+		personID: row.member_id,
 		person: nameOf.get(row.member_id) ?? row.member_id,
 		kind: row.kind,
 		date: dayOfInstant(context.labels.timezone, row.occurred_at),
 		time: timeOfInstant(context.labels.timezone, row.occurred_at),
+		occurredAt: new Date(row.occurred_at).toISOString(),
 		location: row.location,
 		wasCorrected: row.original_occurred_at !== null,
 		originalDate: row.original_occurred_at
@@ -43,6 +50,9 @@ function answeredAttendance(context: RecordContext, row: AttendanceRow): Answere
 			: null,
 		originalTime: row.original_occurred_at
 			? timeOfInstant(context.labels.timezone, row.original_occurred_at)
+			: null,
+		originalOccurredAt: row.original_occurred_at
+			? new Date(row.original_occurred_at).toISOString()
 			: null,
 		reason: row.edit_reason
 	};
@@ -116,7 +126,11 @@ export type AttendanceListInput = {
 };
 
 export async function attendanceList(context: RecordContext, input: AttendanceListInput) {
-	const found = await rowsInWindow(context, input.personHint, input.scope, input.from, input.to);
+	const [found, serverTime, backdatedAfterMinutes] = await Promise.all([
+		rowsInWindow(context, input.personHint, input.scope, input.from, input.to),
+		attendanceClock(context.caller),
+		attendanceBackdatedAfterMinutes(context.caller)
+	]);
 	const written = input.handWrittenOnly ? attendanceWrittenByHand(found.rows) : found.rows;
 	const kept = input.limit && input.limit > 0 ? written.slice(-input.limit) : written;
 	return {
@@ -127,6 +141,8 @@ export async function attendanceList(context: RecordContext, input: AttendanceLi
 			: '',
 		from: found.firstDay,
 		to: found.lastDay,
+		serverTime,
+		backdatedAfterMinutes,
 		count: kept.length,
 		attendance: kept.map((row) => answeredAttendance(context, row))
 	};

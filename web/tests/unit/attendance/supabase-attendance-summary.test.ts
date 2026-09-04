@@ -3,110 +3,131 @@ import { defaultLeavePolicy } from '../../../src/lib/attendance/leave-policy-def
 
 const databaseServerTime = '2026-08-18T03:04:05.678Z';
 
-type AttendanceRow = {
-	id: string;
-	member_id: string;
+type AnsweredAttendance = {
+	eventID: string;
+	personID: string;
+	person: string;
 	kind: 'clock_in' | 'clock_out';
+	date: string;
+	time: string;
+	occurredAt: string;
 	location: string | null;
-	occurred_at: string;
-	original_occurred_at: string | null;
+	wasCorrected: boolean;
+	originalDate: string | null;
+	originalTime: string | null;
+	originalOccurredAt: string | null;
+	reason: string | null;
 };
 
-type LeaveRow = {
-	id: string;
-	member_id: string;
+type AnsweredLeave = {
+	leaveID: string;
+	personID: string;
+	person: string;
+	kindID: string;
 	kind: string;
-	is_paid: boolean;
-	starts_at: string;
-	ends_at: string;
+	days: number;
+	status: string;
+	isPaid: boolean;
+	isDeducted: boolean;
+	startDate: string;
+	endDate: string;
+	startsAt: string;
+	endsAt: string;
 	note: string | null;
 };
 
-let leaveRows: LeaveRow[] = [];
-let coveringLeaveRows: LeaveRow[] = [];
-let attendanceRows: AttendanceRow[] = [];
-let attendanceWindow: { from: string; until: string } | null = null;
+let leaveOfTheCompany: AnsweredLeave[] = [];
+let leaveCoveringTheMoment: AnsweredLeave[] = [];
+let attendanceOfTheCompany: AnsweredAttendance[] = [];
+const asked: { name: string; input: Record<string, unknown> }[] = [];
 
-function leaveRow(startsAt: string, endsAt: string): LeaveRow {
+function answeredLeave(leave: Partial<AnsweredLeave>): AnsweredLeave {
 	return {
-		id: 'leave-one',
-		member_id: 'member-one',
-		kind: 'leave',
-		is_paid: true,
-		starts_at: startsAt,
-		ends_at: endsAt,
-		note: null
+		leaveID: 'leave-one',
+		personID: 'member-one',
+		person: '이샘플',
+		kindID: 'leave',
+		kind: '연차',
+		days: 1,
+		status: 'approved',
+		isPaid: true,
+		isDeducted: true,
+		startDate: '2026-08-04',
+		endDate: '2026-08-04',
+		startsAt: '2026-08-03T15:00:00.000Z',
+		endsAt: '2026-08-04T15:00:00.000Z',
+		note: null,
+		...leave
 	};
 }
 
-function response<Value>(data: Value): Promise<{ data: Value; error: null }> {
-	return Promise.resolve({ data, error: null });
+function answeredAttendance(event: Partial<AnsweredAttendance>): AnsweredAttendance {
+	return {
+		eventID: 'attendance-one',
+		personID: 'member-one',
+		person: '이샘플',
+		kind: 'clock_in',
+		date: '2026-09-01',
+		time: '08:30',
+		occurredAt: '2026-08-31T23:30:00.000Z',
+		location: '재택',
+		wasCorrected: false,
+		originalDate: null,
+		originalTime: null,
+		originalOccurredAt: null,
+		reason: null,
+		...event
+	};
 }
 
-const client = {
-	auth: {
-		getSession: () => response({ session: { user: { id: 'account-one' } } })
-	},
-	from(table: string) {
-		if (table === 'company') {
-			return {
-				select: () => ({ limit: () => ({ single: () => response({ id: 'company-one', timezone: 'Asia/Seoul', work_locations: [], rules: {} }) }) })
-			};
-		}
-		if (table === 'member') {
-			return {
-				select: () => ({
-					neq: () => ({
-						returns: () => response([{ id: 'member-one', name: '이샘플', email: 'sample@example.com', is_admin: false, user_id: 'account-one', joined_at: null }])
-					})
-				})
-			};
-		}
-		if (table === 'attendance') {
-			return {
-				select: () => ({
-					gte: (_column: string, from: string) => ({
-						lt: (_lessThanColumn: string, until: string) => {
-							attendanceWindow = { from, until };
-							const inWindow = attendanceRows.filter(
-								(row) => row.occurred_at >= from && row.occurred_at < until
-							);
-							return { order: () => ({ returns: () => response(inWindow) }) };
-						}
-					})
-				})
-			};
-		}
-		return {
-			select: () => ({
-				eq: () => ({
-					lt: () => ({ gte: () => ({ returns: () => response(leaveRows) }) }),
-					eq: () => ({
-						lte: () => ({
-							gt: () => ({
-								order: () => ({ limit: () => ({ returns: () => response(coveringLeaveRows) }) })
-							})
-						})
-					})
-				})
-			})
-		};
-	},
-	rpc: (name: string) => {
-		if (name === 'attendance_server_time') return response(databaseServerTime);
-		if (name === 'attendance_backdated_after_minutes') return response(60);
-		throw new Error(`Unexpected RPC ${name}`);
-	}
-};
-
-mock.module('$lib/supabase', () => ({ supabase: () => client }));
-
-// Naming the active leave reads the leave policy, which the record answers
-// through attendance_leave_policy_get rather than off a company row.
 mock.module('../../../src/lib/public-api-call', () => ({
-	invokeTool: async (name: string) => {
-		if (name !== 'attendance_leave_policy_get') throw new Error(`Unexpected tool ${name}`);
-		return defaultLeavePolicy();
+	invokeTool: async (name: string, input: Record<string, unknown>) => {
+		asked.push({ name, input });
+		if (name === 'attendance_leave_policy_get') return defaultLeavePolicy();
+		if (name === 'company_settings_get') {
+			return {
+				name: '샘플 주식회사',
+				locale: 'ko',
+				timeZone: 'Asia/Seoul',
+				currencyCode: 'KRW',
+				workLocations: [],
+				leaveDays: 15,
+				teamViewVisibleToAll: true,
+				profileImageURL: null
+			};
+		}
+		if (name === 'person_list') {
+			return {
+				requesterID: 'member-one',
+				count: 1,
+				people: [
+					{
+						personID: 'member-one',
+						name: '이샘플',
+						email: 'sample@example.com',
+						isAdmin: false
+					}
+				]
+			};
+		}
+		if (name === 'attendance_list') {
+			return {
+				scope: 'everyone',
+				personID: null,
+				personName: '',
+				from: String(input.from),
+				to: String(input.to),
+				serverTime: databaseServerTime,
+				backdatedAfterMinutes: 60,
+				count: attendanceOfTheCompany.length,
+				attendance: attendanceOfTheCompany
+			};
+		}
+		if (name === 'leave_list') {
+			const leave = input.scope === 'all' ? leaveOfTheCompany : leaveCoveringTheMoment;
+			return { count: leave.length, leave, registeredKinds: ['연차'] };
+		}
+		throw new Error(`Unexpected tool ${name}`);
 	}
 }));
 
@@ -115,40 +136,65 @@ const { computeDayEvents, statusForDay } = await import(
 	'../../../src/routes/attendance/shared/attendance-aggregation'
 );
 
+function attendanceListInput(): Record<string, unknown> {
+	const call = asked.find((one) => one.name === 'attendance_list');
+	if (!call) throw new Error('the summary never asked the record for attendance');
+	return call.input;
+}
+
 describe('supabaseAttendanceSummary', () => {
 	beforeEach(() => {
-		leaveRows = [];
-		coveringLeaveRows = [];
-		attendanceRows = [];
-		attendanceWindow = null;
+		leaveOfTheCompany = [];
+		leaveCoveringTheMoment = [];
+		attendanceOfTheCompany = [];
+		asked.length = 0;
 	});
 
-	test('asks for the month as the company time zone bounds it, and a day before', async () => {
+	test('asks the record for the month and the day before it, for everybody', async () => {
 		await supabaseAttendanceSummary('2026-09');
 
-		expect(attendanceWindow).toEqual({
-			from: '2026-08-30T15:00:00.000Z',
-			until: '2026-09-30T15:00:00.000Z'
+		expect(attendanceListInput()).toEqual({ scope: 'all', from: '2026-08-31', to: '2026-09-30' });
+	});
+
+	test('asks for the approved leave the month covers', async () => {
+		await supabaseAttendanceSummary('2026-09');
+
+		const call = asked.find((one) => one.name === 'leave_list' && one.input.scope === 'all');
+		expect(call?.input).toEqual({
+			scope: 'all',
+			status: 'approved',
+			from: '2026-09-01',
+			to: '2026-09-30'
 		});
 	});
 
-	test('reaches back a day so an overnight clock in is still open this morning', async () => {
-		attendanceRows = [
-			{
-				id: 'attendance-overnight',
-				member_id: 'member-one',
-				kind: 'clock_in',
-				location: '재택',
-				occurred_at: '2026-08-31T13:00:00.000Z',
-				original_occurred_at: null
-			}
+	// The record answers the day and the time in the company time zone. The
+	// screen carries them; recomputing them here is how the two drift.
+	test('carries the day and time the record answered rather than deriving them', async () => {
+		attendanceOfTheCompany = [
+			answeredAttendance({ date: '2026-09-01', time: '08:30', occurredAt: '2026-08-31T23:30:00.000Z' })
 		];
 
 		const summary = await supabaseAttendanceSummary('2026-09');
 
 		expect(summary.events.map((event) => [event.localDate, event.localTime])).toEqual([
-			['2026-08-31', '22:00']
+			['2026-09-01', '08:30']
 		]);
+		expect(summary.events[0].occurredAt).toBe('2026-08-31T23:30:00.000Z');
+	});
+
+	test('reaches back a day so an overnight clock in is still open this morning', async () => {
+		attendanceOfTheCompany = [
+			answeredAttendance({
+				eventID: 'attendance-overnight',
+				date: '2026-08-31',
+				time: '22:00',
+				occurredAt: '2026-08-31T13:00:00.000Z'
+			})
+		];
+
+		const summary = await supabaseAttendanceSummary('2026-09');
+
 		const morning = new Date('2026-09-01T09:00:00+09:00');
 		const today = computeDayEvents('2026-09-01', summary.events, {
 			currentDate: '2026-09-01',
@@ -158,25 +204,6 @@ describe('supabaseAttendanceSummary', () => {
 		expect(statusForDay('2026-09-01', summary.events, [], '2026-09-01', morning)).toBe('working');
 	});
 
-	test('carries a clock in made before the UTC day began on the first of the month', async () => {
-		attendanceRows = [
-			{
-				id: 'attendance-one',
-				member_id: 'member-one',
-				kind: 'clock_in',
-				location: '재택',
-				occurred_at: '2026-08-31T23:30:00.000Z',
-				original_occurred_at: null
-			}
-		];
-
-		const summary = await supabaseAttendanceSummary('2026-09');
-
-		expect(summary.events.map((event) => [event.localDate, event.localTime])).toEqual([
-			['2026-09-01', '08:30']
-		]);
-	});
-
 	test('reports no active leave when nothing covers the moment', async () => {
 		const summary = await supabaseAttendanceSummary('2026-08');
 
@@ -184,11 +211,14 @@ describe('supabaseAttendanceSummary', () => {
 	});
 
 	test('reports the leave covering the moment in the company time zone', async () => {
-		coveringLeaveRows = [
-			{
-				...leaveRow('2026-08-18T00:30:00.000Z', '2026-08-18T04:30:00.000Z'),
-				days: 0.5
-			} as LeaveRow & { days: number }
+		leaveCoveringTheMoment = [
+			answeredLeave({
+				days: 0.5,
+				startDate: '2026-08-18',
+				endDate: '2026-08-18',
+				startsAt: '2026-08-18T00:30:00.000Z',
+				endsAt: '2026-08-18T04:30:00.000Z'
+			})
 		];
 
 		const summary = await supabaseAttendanceSummary('2026-08');
@@ -200,7 +230,7 @@ describe('supabaseAttendanceSummary', () => {
 		expect(summary.activeLeave?.deductionMilliDays).toBe(500);
 	});
 
-	test('uses the database RPC timestamp instead of the browser clock', async () => {
+	test("uses the record's clock instead of the browser's", async () => {
 		const browserTime = new Date('2030-01-01T00:00:00.000Z');
 		const summary = await supabaseAttendanceSummary('2026-08');
 
@@ -209,8 +239,10 @@ describe('supabaseAttendanceSummary', () => {
 		expect(summary.backdatedAfterMinutes).toBe(60);
 	});
 
-	test('stops a full-day leave on the last day it covers', async () => {
-		leaveRows = [leaveRow('2026-08-03T15:00:00.000Z', '2026-08-06T15:00:00.000Z')];
+	test('spreads a leave over every day the record says it covers', async () => {
+		leaveOfTheCompany = [
+			answeredLeave({ days: 3, startDate: '2026-08-04', endDate: '2026-08-06' })
+		];
 
 		const summary = await supabaseAttendanceSummary('2026-08');
 
@@ -223,10 +255,21 @@ describe('supabaseAttendanceSummary', () => {
 	});
 
 	test('keeps a leave that ends the same day on that one day', async () => {
-		leaveRows = [leaveRow('2026-08-04T00:00:00.000Z', '2026-08-04T09:00:00.000Z')];
+		leaveOfTheCompany = [
+			answeredLeave({ days: 0.5, startDate: '2026-08-04', endDate: '2026-08-04' })
+		];
 
 		const summary = await supabaseAttendanceSummary('2026-08');
 
 		expect(summary.absences.map((absence) => absence.date)).toEqual(['2026-08-04']);
+	});
+
+	test('takes the workplaces and the team view rule from the company settings', async () => {
+		const summary = await supabaseAttendanceSummary('2026-08');
+
+		expect(summary.timeZone).toBe('Asia/Seoul');
+		expect(summary.teamViewVisibleToAll).toBe(true);
+		expect(summary.currentUserEmail).toBe('sample@example.com');
+		expect(summary.currentMemberID).toBe('member-one');
 	});
 });

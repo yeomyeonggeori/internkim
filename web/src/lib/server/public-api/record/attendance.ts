@@ -60,6 +60,24 @@ export async function attendanceOfCompany(
 	return (data ?? []).slice().reverse();
 }
 
+export async function attendanceClock(caller: SupabaseClient): Promise<string> {
+	const { data, error } = await caller.rpc('attendance_server_time');
+	if (error) throw new Error(error.message);
+	const moment = new Date(String(data));
+	if (Number.isNaN(moment.getTime())) throw new Error(`the record's clock answered ${String(data)}`);
+	return moment.toISOString();
+}
+
+export async function attendanceBackdatedAfterMinutes(caller: SupabaseClient): Promise<number> {
+	const { data, error } = await caller.rpc('attendance_backdated_after_minutes');
+	if (error) throw new Error(error.message);
+	const minutes = Number(data);
+	if (!Number.isInteger(minutes) || minutes <= 0) {
+		throw new Error('the backdated attendance threshold must be a positive integer');
+	}
+	return minutes;
+}
+
 export async function attendanceByID(
 	caller: SupabaseClient,
 	eventID: string

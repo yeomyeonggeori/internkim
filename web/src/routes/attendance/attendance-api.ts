@@ -210,7 +210,7 @@ export function updateAttendanceTeamViewVisibility(visible: boolean): Promise<vo
 }
 
 export function toggleAttendanceOnServer(
-	kind?: AttendanceKind,
+	kind: AttendanceKind,
 	locationID?: string,
 	confirmedEarlyReturn = false
 ): Promise<void> {

@@ -297,3 +297,66 @@ describe('the list shows what was written by hand', () => {
 		expect(handWrittenID).toContain(writtenID);
 	});
 });
+
+// The attendance screens read every record in a month and lay them out against
+// the clock, so a row has to say whose it is and the exact moment it happened,
+// and the list has to say what time the record thinks it is.
+describe('what the attendance screens need out of a list', () => {
+	test('a row names the person by id and the moment as an instant', async () => {
+		const written = resultOf(
+			await asSample('attendance_add', {
+				kind: 'clock_in',
+				date: dayShiftedBy(-2),
+				time: '08:15',
+				location: '사무실',
+				reason: '기록 누락'
+			})
+		);
+		expect(written.status).toBe('added');
+
+		const listed = resultOf(await asSample('attendance_list', { from: dayShiftedBy(-3) }));
+		const row = (listed.attendance as Record<string, unknown>[]).find(
+			(each) => each.eventID === written.eventID
+		);
+		expect(row?.personID).toBe(sampleID);
+		expect(new Date(String(row?.occurredAt)).toISOString()).toBe(String(row?.occurredAt));
+		expect(row?.originalOccurredAt).toBeNull();
+	});
+
+	test('the list carries the clock and the threshold a backdated write is judged against', async () => {
+		const listed = resultOf(await asSample('attendance_list', { from: dayShiftedBy(-3) }));
+		expect(new Date(String(listed.serverTime)).toISOString()).toBe(String(listed.serverTime));
+		expect(listed.backdatedAfterMinutes).toBeGreaterThan(0);
+		expect(Number.isInteger(listed.backdatedAfterMinutes)).toBe(true);
+	});
+
+	test('a corrected row says the moment it was moved from', async () => {
+		const written = resultOf(
+			await asAdmin('attendance_add', {
+				personHint: '박예시',
+				kind: 'clock_in',
+				date: dayShiftedBy(-2),
+				time: '10:00',
+				location: '재택',
+				reason: '대리 입력'
+			})
+		);
+		await asAdmin('attendance_update', {
+			corrections: [{ eventHint: written.eventID as string, time: '11:00' }],
+			reason: '시간을 잘못 적었습니다'
+		});
+
+		const listed = resultOf(
+			await asAdmin('attendance_list', { personHint: '박예시', from: dayShiftedBy(-3) })
+		);
+		const row = (listed.attendance as Record<string, unknown>[]).find(
+			(each) => each.eventID === written.eventID
+		);
+		expect(row?.personID).toBe(exampleID);
+		expect(row?.time).toBe('11:00');
+		expect(row?.originalTime).toBe('10:00');
+		expect(new Date(String(row?.originalOccurredAt)).toISOString()).toBe(
+			String(row?.originalOccurredAt)
+		);
+	});
+});

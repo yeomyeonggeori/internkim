@@ -32,6 +32,7 @@ export type CompanySettingsUpdateInput = {
 	currencyCode?: string;
 	workLocations?: { name?: string; color?: string }[];
 	leaveDays?: number;
+	teamViewVisibleToAll?: boolean;
 };
 
 export type CompanyInfoGetInput = { language?: string };
@@ -119,6 +120,10 @@ async function readableURLOf(caller: SupabaseClient, path: string | null): Promi
 	return data?.signedUrl ?? null;
 }
 
+function teamViewVisibleTo(rules: Record<string, unknown> | null): boolean {
+	return rules?.teamViewVisibleToAll !== false;
+}
+
 export async function companySettingsGet(context: RecordContext): Promise<CompanySettingsResult> {
 	const row = await companyRow(context.caller);
 	return {
@@ -132,6 +137,7 @@ export async function companySettingsGet(context: RecordContext): Promise<Compan
 			color: location.color ?? null
 		})),
 		leaveDays: row.leave_days,
+		teamViewVisibleToAll: teamViewVisibleTo(row.rules),
 		profileImageURL: await readableURLOf(context.caller, row.profile_image)
 	};
 }
@@ -152,6 +158,10 @@ export async function companySettingsUpdate(
 		}));
 	}
 	if (input.leaveDays !== undefined) change.leave_days = input.leaveDays;
+	if (input.teamViewVisibleToAll !== undefined) {
+		const held = await companyRow(context.caller);
+		change.rules = { ...(held.rules ?? {}), teamViewVisibleToAll: input.teamViewVisibleToAll };
+	}
 	if (Object.keys(change).length === 0) {
 		throw new Error('a settings change names at least one setting to change');
 	}

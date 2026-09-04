@@ -13,7 +13,9 @@ import type { RecordContext } from './company';
 
 export type AnsweredLeave = {
 	leaveID: string;
+	personID: string;
 	person: string;
+	kindID: string;
 	kind: string;
 	days: number;
 	status: string;
@@ -21,6 +23,8 @@ export type AnsweredLeave = {
 	isDeducted: boolean;
 	startDate: string;
 	endDate: string;
+	startsAt: string;
+	endsAt: string;
 	note: string | null;
 };
 
@@ -40,7 +44,9 @@ function answeredLeave(context: RecordContext, row: LeaveRow): AnsweredLeave {
 	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));
 	return {
 		leaveID: row.id,
+		personID: row.member_id,
 		person: nameOf.get(row.member_id) ?? row.member_id,
+		kindID: row.kind,
 		kind: context.leaveKinds.find((kind) => kind.id === row.kind)?.name ?? row.kind,
 		days: Number(row.days),
 		status: row.status,
@@ -48,6 +54,8 @@ function answeredLeave(context: RecordContext, row: LeaveRow): AnsweredLeave {
 		isDeducted: row.is_deducted,
 		startDate: dayOfInstant(context.labels.timezone, row.starts_at),
 		endDate: lastDayCovered(context.labels.timezone, row),
+		startsAt: new Date(row.starts_at).toISOString(),
+		endsAt: new Date(row.ends_at).toISOString(),
 		note: row.note
 	};
 }
@@ -136,6 +144,7 @@ export async function leaveBalance(context: RecordContext, input: LeaveBalanceIn
 }
 
 export type LeaveRequestInput = {
+	personHint?: string;
 	kind?: string;
 	startsAt?: string;
 	endsAt?: string;
@@ -155,7 +164,7 @@ export async function leaveRequest(
 
 	const kind = leaveKindOf(context.leaveKinds, input.kind);
 	const written = {
-		member_id: context.requesterID,
+		member_id: targetMember(context, input.personHint),
 		kind: kind.id,
 		is_paid: kind.isPaid,
 		is_deducted: kind.isDeducted,
