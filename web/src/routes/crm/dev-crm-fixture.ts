@@ -940,7 +940,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '데모데이 후원 노출 범위 회신',
 		ownerName: '김테스트04',
 		dueDate: '2026-07-28',
-		status: 'waiting'
+		status: 'requested'
 	},
 	{
 		id: 'action-seoul-impact-demo',
@@ -958,7 +958,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '후원 범위 축소안 공유',
 		ownerName: '김테스트18',
 		dueDate: '2026-07-29',
-		status: 'waiting'
+		status: 'requested'
 	},
 	{
 		id: 'action-maker-house-hold',
@@ -967,7 +967,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '8월 2주차 공간 홀드 가능 여부 확인',
 		ownerName: '김테스트23',
 		dueDate: '2026-07-24',
-		status: 'waiting'
+		status: 'requested'
 	},
 	{
 		id: 'action-ascend-report',
@@ -976,7 +976,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '6월 운영 지표와 행사 성과 파일 공유',
 		ownerName: '김테스트15',
 		dueDate: '2026-07-26',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-campus-cloud-security',
@@ -994,7 +994,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '채식 옵션과 알레르기 표기 파일 요청',
 		ownerName: '김테스트23',
 		dueDate: '2026-07-23',
-		status: 'waiting'
+		status: 'requested'
 	},
 	{
 		id: 'action-root-finance-data-room',
@@ -1003,7 +1003,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '데이터룸 권한과 월간 지표 업로드',
 		ownerName: '김테스트15',
 		dueDate: '2026-07-30',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-design-lab-reconnect',
@@ -1011,7 +1011,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '하반기 브랜딩 가능 일정 확인',
 		ownerName: '김테스트04',
 		dueDate: '2026-08-05',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-youth-foundation-report',
@@ -1029,7 +1029,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '구매 절차와 보안 검토 담당자 확인',
 		ownerName: '김테스트09',
 		dueDate: '2026-07-27',
-		status: 'waiting'
+		status: 'requested'
 	},
 	{
 		id: 'action-k-edu-training',
@@ -1038,7 +1038,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '관리자 교육 범위 산정',
 		ownerName: '김테스트09',
 		dueDate: '2026-07-31',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-motion-stage-estimate',
@@ -1047,7 +1047,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '행사 규모별 견적 2안 요청',
 		ownerName: '김테스트23',
 		dueDate: '2026-07-18',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-future-alumni-thanks',
@@ -1056,7 +1056,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '후원 확정 감사 메일 발송',
 		ownerName: '김테스트18',
 		dueDate: '2026-07-21',
-		status: 'done'
+		status: 'completed'
 	},
 	{
 		id: 'action-delta-impact-update',
@@ -1065,7 +1065,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '분기 업데이트 수신 목록 유지 확인',
 		ownerName: '김테스트15',
 		dueDate: '2026-08-10',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-campus-media-brief',
@@ -1091,7 +1091,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '봉사자 사전 교육 일정표 확인',
 		ownerName: '김테스트23',
 		dueDate: '2026-07-26',
-		status: 'waiting'
+		status: 'requested'
 	},
 	{
 		id: 'action-blue-river-contract',
@@ -1100,7 +1100,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '객실 블록 계약서와 취소 조건 확인',
 		ownerName: '김테스트23',
 		dueDate: '2026-07-24',
-		status: 'waiting'
+		status: 'requested'
 	},
 	{
 		id: 'action-social-innovation-impact',
@@ -1118,7 +1118,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '내부 심의 일정과 제안서 수정 범위 확인',
 		ownerName: '김테스트04',
 		dueDate: '2026-08-04',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-design-global-proposal',
@@ -1127,7 +1127,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '영문 브랜드 가이드 수정 견적 확인',
 		ownerName: '김테스트04',
 		dueDate: '2026-08-01',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-volunteer-operation-scope',
@@ -1136,7 +1136,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '봉사자 역할과 현장 책임 범위 합의',
 		ownerName: '김테스트23',
 		dueDate: '2026-08-04',
-		status: 'waiting'
+		status: 'requested'
 	},
 	{
 		id: 'action-ai-learning-europe-license',
@@ -1154,7 +1154,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '해외 투자자용 영문 데이터룸 준비',
 		ownerName: '김테스트15',
 		dueDate: '2026-08-15',
-		status: 'todo'
+		status: 'planned'
 	},
 	{
 		id: 'action-blue-river-japan-room',
@@ -1163,7 +1163,7 @@ export const crmNextActions: CRMNextAction[] = [
 		title: '일본 참가자 객실 배정표 전달',
 		ownerName: '김테스트23',
 		dueDate: '2026-08-03',
-		status: 'waiting'
+		status: 'requested'
 	}
 ];
 

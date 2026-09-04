@@ -442,10 +442,10 @@
           "status": {
             "description": "Filter by task status. Omit the field to return every status.",
             "enum": [
+              "requested",
               "planned",
               "in_progress",
               "completed",
-              "requested",
               "paused",
               "rejected",
               "stopped"
@@ -961,10 +961,10 @@
           "status": {
             "description": "New task status.",
             "enum": [
+              "requested",
               "planned",
               "in_progress",
               "completed",
-              "requested",
               "paused",
               "rejected",
               "stopped"
@@ -1043,10 +1043,10 @@
           "status": {
             "description": "New task status.",
             "enum": [
+              "requested",
               "planned",
               "in_progress",
               "completed",
-              "requested",
               "paused",
               "rejected",
               "stopped"
@@ -18030,7 +18030,15 @@
           },
           "status": {
             "description": "The status the task stands at.",
-            "maxLength": 32,
+            "enum": [
+              "requested",
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "stopped"
+            ],
             "type": "string"
           },
           "title": {

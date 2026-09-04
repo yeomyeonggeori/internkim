@@ -1,5 +1,6 @@
 import { invokeTool, ToolRefused } from '$lib/public-api-call';
 import { CRMApiError } from './crm-error';
+import { taskStatus } from '$lib/task/central-task';
 import { crmPipelinesOf } from './crm-mappers';
 import type {
 	CRMOrganizationPayload,
@@ -219,7 +220,7 @@ function activityInput(payload: CRMActivityPayload): Record<string, unknown> {
 		kind: payload.kind,
 		business: payload.business ?? '',
 		note: payload.content ?? '',
-		status: payload.taskStatus || 'todo',
+		status: payload.taskStatus || taskStatus.planned,
 		occurredAt: payload.occurredAt,
 		ownerPersonHint: payload.taskOwnerID ?? '',
 		isEvent: payload.isEvent,

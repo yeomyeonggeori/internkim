@@ -9,6 +9,7 @@
 	import type { OrgGroup, UserRecord } from '$lib/organization/types';
 	import { activityReferenceAfterOrganizationChange, activityReferenceAfterOpportunityChange } from './crm-activity-reference';
 	import { crmLabel } from './crm-labels';
+	import { centralTaskStatusOptions, taskStatus } from '$lib/task/central-task';
 	import CRMOwnerSelect from './crm-owner-select.svelte';
 	import CRMContactSelect from './crm-contact-select.svelte';
 	import type { CRMOrganization, CRMActivity, CRMActivityEditDraft, CRMActivityKind, CRMContact, CRMOpportunity } from './crm-types';
@@ -42,7 +43,7 @@
 	let occurredAt = $state('');
 	let summary = $state('');
 	let taskOwnerID = $state('');
-	let taskStatus = $state('todo');
+	let activityStatus = $state<string>(taskStatus.planned);
 	let isEvent = $state(false);
 	let isWholeDay = $state(false);
 	let startsAt = $state('');
@@ -63,7 +64,7 @@
 		occurredAt = dateTimeLocalValue(selectedActivity.occurredAt);
 		summary = selectedActivity.summary;
 		taskOwnerID = selectedActivity.taskOwnerID ?? '';
-		taskStatus = selectedActivity.taskStatus ?? 'todo';
+		activityStatus = selectedActivity.taskStatus ?? taskStatus.planned;
 		isEvent = Boolean(selectedActivity.calendarEventID);
 		isWholeDay = selectedActivity.isWholeDay ?? false;
 		startsAt = dateTimeLocalValue(selectedActivity.calendarEventDate ?? selectedActivity.occurredAt);
@@ -119,7 +120,7 @@
 				occurredAt,
 				summary: summary.trim(),
 				taskOwnerID,
-				taskStatus,
+				taskStatus: activityStatus,
 				isEvent,
 				isWholeDay,
 				startsAt,
@@ -156,7 +157,7 @@
 					<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.activityKind}</Field.Label><Select.Root type="single" value={kind} onValueChange={(value) => (kind = value as Exclude<CRMActivityKind, 'stage_change'>)}><Select.Trigger class="w-full">{crmLabel(text.activityKinds, kind)}</Select.Trigger><Select.Content>{#each activityKinds as option (option)}<Select.Item value={option} label={crmLabel(text.activityKinds, option)}>{crmLabel(text.activityKinds, option)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-activity-occurred">{text.occurredAt}</Field.Label><Input id="crm-activity-occurred" type="datetime-local" bind:value={occurredAt} /></Field.Field></div>
 						<Field.Field><Field.Label for="crm-activity-business">{text.business}</Field.Label><Select.Root type="single" bind:value={business} disabled={opportunityID !== unlinkedOpportunityValue}><Select.Trigger id="crm-activity-business" class="w-full">{business}</Select.Trigger><Select.Content>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 						<Field.Field><Field.Label for="crm-activity-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-activity-contact" bind:value={contactID} contacts={organizationContacts} {text} /></Field.Field>
-						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-activity-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-activity-owner" bind:value={taskOwnerID} {people} {groups} {text} /></Field.Field><Field.Field><Field.Label>{text.activityStatus}</Field.Label><Select.Root type="single" bind:value={taskStatus}><Select.Trigger class="w-full">{crmLabel(text.nextActionStatuses, taskStatus)}</Select.Trigger><Select.Content>{#each ['todo', 'in_progress', 'done', 'paused', 'cancelled'] as option (option)}<Select.Item value={option} label={crmLabel(text.nextActionStatuses, option)}>{crmLabel(text.nextActionStatuses, option)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
+						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-activity-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-activity-owner" bind:value={taskOwnerID} {people} {groups} {text} /></Field.Field><Field.Field><Field.Label>{text.activityStatus}</Field.Label><Select.Root type="single" bind:value={activityStatus}><Select.Trigger class="w-full">{crmLabel(text.taskStatuses, activityStatus)}</Select.Trigger><Select.Content>{#each centralTaskStatusOptions as option (option)}<Select.Item value={option} label={crmLabel(text.taskStatuses, option)}>{crmLabel(text.taskStatuses, option)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
 						<Field.Field orientation="horizontal"><Checkbox id="crm-activity-calendar" bind:checked={isEvent} /><Field.Content><Field.Label for="crm-activity-calendar">{text.registerCalendar}</Field.Label><Field.Description>{text.registerCalendarDescription}</Field.Description></Field.Content></Field.Field>
 						{#if isEvent}<Field.Field orientation="horizontal"><Checkbox id="crm-activity-all-day" bind:checked={isWholeDay} /><Field.Content><Field.Label for="crm-activity-all-day">{text.allDay}</Field.Label></Field.Content></Field.Field><div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-activity-start">{text.startTime}</Field.Label><Input id="crm-activity-start" type="datetime-local" bind:value={startsAt} /></Field.Field><Field.Field><Field.Label for="crm-activity-end">{text.endTime}</Field.Label><Input id="crm-activity-end" type="datetime-local" bind:value={endsAt} /></Field.Field></div><Field.Field><Field.Label for="crm-activity-location">{text.location}</Field.Label><Input id="crm-activity-location" bind:value={location} /></Field.Field>{/if}
 					<Field.Field><Field.Label for="crm-activity-summary">{text.details}</Field.Label><Textarea id="crm-activity-summary" rows={8} bind:value={summary} /></Field.Field>

@@ -14,6 +14,7 @@
 	import { currentCRMDate } from './crm-date';
 	import type { CRMDefinition } from './crm-api-types';
 	import { crmLabel } from './crm-labels';
+	import { centralTaskStatusOptions, taskStatus } from '$lib/task/central-task';
 	import { parseAmountInput } from './crm-money';
 	import CRMConversionPreview from './crm-conversion-preview.svelte';
 	import CRMMoneyField from './crm-money-field.svelte';
@@ -105,7 +106,7 @@
 	let activityKind = $state<Exclude<CRMActivityKind, 'stage_change'>>('note');
 	let occurredAt = $state('');
 	let taskOwnerID = $state('');
-	let taskStatus = $state('todo');
+	let activityStatus = $state<string>(taskStatus.planned);
 	let registerCalendar = $state(false);
 	let isAllDay = $state(false);
 	let calendarStart = $state('');
@@ -156,7 +157,7 @@
 		activityKind = activityKinds[0] ?? 'note';
 		occurredAt = localDateTimeValue(new Date());
 		taskOwnerID = defaultOwnerPersonID;
-		taskStatus = 'todo';
+		activityStatus = taskStatus.planned;
 		registerCalendar = false;
 		isAllDay = false;
 		({ calendarStart, calendarEnd } = crmActivityCalendarDefaults(occurredAt));
@@ -257,7 +258,7 @@
 			} else if (kind === 'progress') {
 				await onCreate({ kind, organizationID, contacts: progressContactID ? [{ contactID: progressContactID }] : [], business, name: name.trim(), progressKind: pipeline, stage, lostReason: stageOutcome === 'lost' ? lostReason : '', ownerPersonID, amount: parseAmountInput(amount), currency, importance, targetDate, description: description.trim(), calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' } });
 			} else {
-				await onCreate({ kind, organizationID, contactID: activityContactID || undefined, opportunityID: opportunityID || undefined, business, activityKind, title: name.trim(), occurredAt, summary: description.trim(), taskOwnerID, taskStatus, calendar: { isRequested: registerCalendar, isAllDay, startTime: calendarStart, endTime: calendarEnd, location: calendarLocation.trim() } });
+				await onCreate({ kind, organizationID, contactID: activityContactID || undefined, opportunityID: opportunityID || undefined, business, activityKind, title: name.trim(), occurredAt, summary: description.trim(), taskOwnerID, taskStatus: activityStatus, calendar: { isRequested: registerCalendar, isAllDay, startTime: calendarStart, endTime: calendarEnd, location: calendarLocation.trim() } });
 			}
 			open = false;
 		} catch (error) {
@@ -321,7 +322,7 @@
 						<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label>{text.activityKind}</Field.Label><Select.Root type="single" value={activityKind} onValueChange={(value) => (activityKind = value as Exclude<CRMActivityKind, 'stage_change'>)}><Select.Trigger class="w-full">{crmLabel(text.activityKinds, activityKind)}</Select.Trigger><Select.Content>{#each activityKinds as option (option)}<Select.Item value={option} label={crmLabel(text.activityKinds, option)}>{crmLabel(text.activityKinds, option)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field><Field.Field><Field.Label for="crm-record-occurred">{text.occurredAt}</Field.Label><Input id="crm-record-occurred" type="datetime-local" bind:value={occurredAt} /></Field.Field></div>
 							<Field.Field><Field.Label for="crm-record-activity-business">{text.business}</Field.Label><Select.Root type="single" bind:value={business} disabled={opportunityID !== ''}><Select.Trigger id="crm-record-activity-business" class="w-full">{business}</Select.Trigger><Select.Content>{#each businessOptions as option (option)}<Select.Item value={option} label={option}>{option}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 							<Field.Field><Field.Label for="crm-record-activity-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-record-activity-contact" bind:value={activityContactID} contacts={organizationContacts} {text} /></Field.Field>
-							<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-record-task-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-record-task-owner" bind:value={taskOwnerID} {people} {groups} {text} /></Field.Field><Field.Field><Field.Label>{text.activityStatus}</Field.Label><Select.Root type="single" bind:value={taskStatus}><Select.Trigger class="w-full">{crmLabel(text.nextActionStatuses, taskStatus)}</Select.Trigger><Select.Content>{#each ['todo', 'in_progress', 'done', 'paused', 'cancelled'] as option (option)}<Select.Item value={option} label={crmLabel(text.nextActionStatuses, option)}>{crmLabel(text.nextActionStatuses, option)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
+							<div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-record-task-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-record-task-owner" bind:value={taskOwnerID} {people} {groups} {text} /></Field.Field><Field.Field><Field.Label>{text.activityStatus}</Field.Label><Select.Root type="single" bind:value={activityStatus}><Select.Trigger class="w-full">{crmLabel(text.taskStatuses, activityStatus)}</Select.Trigger><Select.Content>{#each centralTaskStatusOptions as option (option)}<Select.Item value={option} label={crmLabel(text.taskStatuses, option)}>{crmLabel(text.taskStatuses, option)}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field></div>
 							<Field.Field orientation="horizontal"><Checkbox id="crm-record-calendar" bind:checked={registerCalendar} /><Field.Content><Field.Label for="crm-record-calendar">{text.registerCalendar}</Field.Label><Field.Description>{text.registerCalendarDescription}</Field.Description></Field.Content></Field.Field>
 							{#if registerCalendar}<Field.Field orientation="horizontal"><Checkbox id="crm-record-all-day" bind:checked={isAllDay} /><Field.Content><Field.Label for="crm-record-all-day">{text.allDay}</Field.Label></Field.Content></Field.Field><div class="grid gap-4 sm:grid-cols-2"><Field.Field><Field.Label for="crm-record-calendar-start">{text.startTime}</Field.Label><Input id="crm-record-calendar-start" type="datetime-local" bind:value={calendarStart} /></Field.Field><Field.Field><Field.Label for="crm-record-calendar-end">{text.endTime}</Field.Label><Input id="crm-record-calendar-end" type="datetime-local" bind:value={calendarEnd} /></Field.Field></div><Field.Field><Field.Label for="crm-record-calendar-location">{text.location}</Field.Label><Input id="crm-record-calendar-location" bind:value={calendarLocation} /></Field.Field>{/if}
 					{/if}

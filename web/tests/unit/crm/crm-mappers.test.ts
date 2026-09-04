@@ -35,9 +35,9 @@ describe('CRM service mappers', () => {
 	test('points an opportunity at the soonest action still open on it', () => {
 		const data = serviceData();
 		data.activities = [
-			{ ...data.activities[0]!, id: 'later-call', opportunityID: 'opportunity-1', taskStatus: 'todo', occurredAt: '2026-08-27T05:00:00Z' },
-			{ ...data.activities[0]!, id: 'sooner-call', opportunityID: 'opportunity-1', taskStatus: 'todo', occurredAt: '2026-08-23T05:00:00Z' },
-			{ ...data.activities[0]!, id: 'finished-call', opportunityID: 'opportunity-1', taskStatus: 'done', occurredAt: '2026-08-19T05:00:00Z' }
+			{ ...data.activities[0]!, id: 'later-call', opportunityID: 'opportunity-1', taskStatus: 'planned', occurredAt: '2026-08-27T05:00:00Z' },
+			{ ...data.activities[0]!, id: 'sooner-call', opportunityID: 'opportunity-1', taskStatus: 'planned', occurredAt: '2026-08-23T05:00:00Z' },
+			{ ...data.activities[0]!, id: 'finished-call', opportunityID: 'opportunity-1', taskStatus: 'completed', occurredAt: '2026-08-19T05:00:00Z' }
 		];
 
 		const view = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul');
@@ -48,8 +48,8 @@ describe('CRM service mappers', () => {
 	test('offers an unfinished activity as a next action and leaves a finished one out', () => {
 		const data = serviceData();
 		data.activities = [
-			{ ...data.activities[0]!, id: 'open-call', taskStatus: 'todo', occurredAt: '2026-08-23T05:00:00Z' },
-			{ ...data.activities[0]!, id: 'finished-meeting', taskStatus: 'done', occurredAt: '2026-08-19T05:00:00Z' }
+			{ ...data.activities[0]!, id: 'open-call', taskStatus: 'planned', occurredAt: '2026-08-23T05:00:00Z' },
+			{ ...data.activities[0]!, id: 'finished-meeting', taskStatus: 'completed', occurredAt: '2026-08-19T05:00:00Z' }
 		];
 
 		const view = mapCRMViewData(data, [], interimCurrencyCatalogue, 'Asia/Seoul');

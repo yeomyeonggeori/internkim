@@ -8,7 +8,8 @@ const organizationName = 'E2E 중앙 검증 기관';
 const contactName = 'E2E 외부 담당자';
 const firstOpportunityName = 'E2E 진행 건 하나';
 const secondOpportunityName = 'E2E 진행 건 둘';
-const activityTitle = 'E2E 캘린더 활동';
+const calendarActivityTitle = 'E2E 캘린더 활동';
+const boardActivityTitle = 'E2E 업무 활동';
 const settledOpportunityName = 'E2E 확정 진행 건';
 const organizationTypeName = 'E2E 관계처 유형';
 const queuedTypeNames = ['E2E 대기 유형 하나', 'E2E 대기 유형 둘'];
@@ -76,24 +77,33 @@ test('links the same external contact to two opportunities', async ({ page }) =>
 	await expect(page.getByRole('row', { name: new RegExp(secondOpportunityName) })).toBeVisible();
 });
 
-test('saves an activity that appears in flow and calendar as one task', async ({ page }) => {
-	await signIn(page);
-	await page.getByRole('tab', { name: '활동', exact: true }).click();
+async function recordActivity(page: Page, title: string, registersOnTheCalendar: boolean): Promise<void> {
 	await page.getByRole('button', { name: '활동 기록' }).click();
 	const sheet = recordSheet(page);
 	await sheet.getByLabel('관계처').click();
 	await page.getByRole('option', { name: organizationName, exact: true }).click();
-	await sheet.getByLabel('활동 제목').fill(activityTitle);
-	await sheet.getByRole('checkbox', { name: '캘린더에 등록' }).click();
+	await sheet.getByLabel('활동 제목').fill(title);
+	if (registersOnTheCalendar) await sheet.getByRole('checkbox', { name: '캘린더에 등록' }).click();
 	await sheet.getByRole('button', { name: '추가', exact: true }).click();
 	await expect(sheet).not.toBeVisible();
-	await expect(page.getByRole('row', { name: new RegExp(activityTitle) })).toBeVisible();
+	await expect(page.getByRole('row', { name: new RegExp(title) })).toBeVisible();
+}
 
-	await page.goto('/example-co/flow');
-	await expect(page.getByText(activityTitle).first()).toBeVisible({ timeout: 20000 });
+test('an activity registered on the calendar stays off the task board, and one without it lands on it', async ({ page }) => {
+	await signIn(page);
+	await page.getByRole('tab', { name: '활동', exact: true }).click();
+	await recordActivity(page, calendarActivityTitle, true);
+	await recordActivity(page, boardActivityTitle, false);
 
 	await page.goto('/example-co/calendar');
-	await expect(page.frameLocator('iframe').getByText(activityTitle).first()).toBeVisible({ timeout: 20000 });
+	const calendar = page.frameLocator('iframe');
+	await expect(calendar.getByText(calendarActivityTitle).first()).toBeVisible({ timeout: 20000 });
+	await expect(calendar.getByText(boardActivityTitle)).toHaveCount(0);
+
+	await page.goto('/example-co/flow');
+	await page.locator('[data-task-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
+	await expect(page.getByText(boardActivityTitle).first()).toBeVisible({ timeout: 20000 });
+	await expect(page.getByText(calendarActivityTitle)).toHaveCount(0);
 });
 
 test('stage change records an automatic activity and editing it keeps the stage', async ({ page }) => {
@@ -169,9 +179,14 @@ async function settledNoteOf(page: Page): Promise<string> {
 	return (await note.innerText()).trim();
 }
 
+async function openAdministratorSettings(page: Page): Promise<void> {
+	await page.getByRole('tab', { name: '관리자' }).click();
+}
+
 test('an administrator moves the company onto another base currency', async ({ page }) => {
 	await signIn(page);
 	await page.goto('/example-co/settings');
+	await openAdministratorSettings(page);
 	const currency = page.getByLabel('기준 통화');
 	await expect(currency).toContainText('KRW', { timeout: 20000 });
 
@@ -185,6 +200,7 @@ test('an administrator moves the company onto another base currency', async ({ p
 	await saved;
 
 	await page.reload();
+	await openAdministratorSettings(page);
 	await expect(page.getByLabel('기준 통화')).toContainText('USD', { timeout: 20000 });
 });
 
