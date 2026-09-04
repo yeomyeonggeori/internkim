@@ -1,6 +1,8 @@
 export const companySettingsText = {
 	ko: {
 		title: '설정',
+		generalTab: '일반',
+		adminTab: '관리자',
 		signIn: '로그인',
 		persona: {
 			userTitle: '김인턴이 나를 대하는 방식',
@@ -18,10 +20,18 @@ export const companySettingsText = {
 			workingStyleLabel: '일하는 방식',
 			linesPlaceholder: '한 줄에 한 문장',
 			toneRegisterLabel: '말투',
-			toneRegisterUnset: '정하지 않음',
 			toneRegisters: { formal: '격식체', polite: '공손한 말투', casual: '편한 말투' },
 			traitsLabel: '어조',
-			traitsPlaceholder: '따뜻한\n간결한',
+			toneTraits: {
+				calm: '차분한',
+				warm: '따뜻한',
+				clear: '또렷한',
+				concise: '간결한',
+				direct: '단도직입적인',
+				playful: '유쾌한',
+				meticulous: '꼼꼼한',
+				energetic: '활기찬'
+			},
 			languageLabel: '기본 언어',
 			matchRequesterLabel: '요청한 사람의 언어로 답하기',
 			save: '저장',
@@ -169,6 +179,8 @@ export const companySettingsText = {
 	},
 	en: {
 		title: 'Settings',
+		generalTab: 'General',
+		adminTab: 'Administrator',
 		persona: {
 			userTitle: 'How Intern Kim works with me',
 			userDescription: 'What Intern Kim reads when it answers you. Only you can change it, and it applies from your next request.',
@@ -185,10 +197,18 @@ export const companySettingsText = {
 			workingStyleLabel: 'How it works',
 			linesPlaceholder: 'one sentence per line',
 			toneRegisterLabel: 'Register',
-			toneRegisterUnset: 'not set',
 			toneRegisters: { formal: 'formal', polite: 'polite', casual: 'casual' },
 			traitsLabel: 'Traits',
-			traitsPlaceholder: 'warm\nbrief',
+			toneTraits: {
+				calm: 'calm',
+				warm: 'warm',
+				clear: 'clear',
+				concise: 'concise',
+				direct: 'direct',
+				playful: 'playful',
+				meticulous: 'meticulous',
+				energetic: 'energetic'
+			},
 			languageLabel: 'Default language',
 			matchRequesterLabel: 'Answer in the requester\'s language',
 			save: 'Save',
