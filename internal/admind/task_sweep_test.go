@@ -22,18 +22,19 @@ type recordedTaskWrite struct {
 }
 
 type companyHoldingTasks struct {
-	server  *httptest.Server
-	carried map[string]string
-	written []recordedTaskWrite
-	marked  []string
+	server     *httptest.Server
+	carried    map[string]string
+	written    []recordedTaskWrite
+	marked     []string
+	businesses []string
 }
 
-// A company that answers what a carry asks of it: who a member is, whether it
-// already carries a device row, the write itself, and the mark that says where
-// the row came from.
+// A company that answers what a carry asks of it: who a member is, which words
+// its tasks may carry, whether it already carries a device row, the write
+// itself, and the mark that says where the row came from.
 func startCompanyForTaskCarry(t *testing.T, alreadyCarried map[string]string) *companyHoldingTasks {
 	t.Helper()
-	company := &companyHoldingTasks{carried: alreadyCarried}
+	company := &companyHoldingTasks{carried: alreadyCarried, businesses: []string{"신사업"}}
 	if company.carried == nil {
 		company.carried = map[string]string{}
 	}
@@ -46,6 +47,9 @@ func startCompanyForTaskCarry(t *testing.T, alreadyCarried map[string]string) *c
 			responseWriter.Write([]byte(`{"member":{"memberID":"member-1"}}`))
 		case request.URL.Path == "/api/agent/company":
 			responseWriter.Write([]byte(`{"company":{"name":"보기","timezone":"Asia/Seoul"}}`))
+		case request.URL.Path == "/api/v1/tools/task_list/invoke":
+			responseWriter.Write([]byte(`{"result":{"count":0,"tasks":[],"registeredLabels":` +
+				company.answerForVocabulary() + `}}`))
 		case request.URL.Path == "/rest/v1/rpc/task_save":
 			body, _ := io.ReadAll(request.Body)
 			var written recordedTaskWrite
@@ -65,6 +69,11 @@ func startCompanyForTaskCarry(t *testing.T, alreadyCarried map[string]string) *c
 	return company
 }
 
+func (company *companyHoldingTasks) answerForVocabulary() string {
+	businesses, _ := json.Marshal(company.businesses)
+	return `{"businesses":` + string(businesses) + `,"types":[],"sizes":[],"statuses":[]}`
+}
+
 func (company *companyHoldingTasks) answerForCarryLookup(filter string) string {
 	for deviceTaskID, recordID := range company.carried {
 		if strings.Contains(filter, deviceTaskID) {
@@ -77,7 +86,10 @@ func (company *companyHoldingTasks) answerForCarryLookup(filter string) string {
 func newTaskSweepTestService(t *testing.T, planeURL string) *Service {
 	t.Helper()
 	stateDirectory := t.TempDir()
-	configuration := Configuration{StateDirectory: stateDirectory}
+	configuration := Configuration{
+		StateDirectory: stateDirectory,
+		AdminEmailPath: writeTestFile(t, "member@example.com"),
+	}
 	if planeURL != "" {
 		configuration.CentralPlaneAppURL = planeURL
 		configuration.CentralPlaneProjectURL = planeURL
@@ -91,7 +103,7 @@ func newTaskSweepTestService(t *testing.T, planeURL string) *Service {
 	return service
 }
 
-func seedRetiredTaskTables(t *testing.T, databasePath string, pinnedDefinitions int) *sql.DB {
+func seedRetiredTaskTables(t *testing.T, databasePath string, vocabularyEntries int) *sql.DB {
 	t.Helper()
 	if errorValue := os.MkdirAll(filepath.Dir(databasePath), 0o700); errorValue != nil {
 		t.Fatal(errorValue)
@@ -118,7 +130,7 @@ func seedRetiredTaskTables(t *testing.T, databasePath string, pinnedDefinitions 
 		"INSERT INTO flow_summary_cache_entries (week_code) VALUES ('26W29')"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	for index := 0; index < pinnedDefinitions; index++ {
+	for index := 0; index < vocabularyEntries; index++ {
 		if _, errorValue := database.ExecContext(context.Background(),
 			"INSERT INTO flow_definitions (kind, value, position) VALUES ('category', ?, ?)",
 			"사업"+string(rune('a'+index)), index); errorValue != nil {
@@ -166,7 +178,8 @@ func TestTaskSweepDropsWhatTheCompanyNowHolds(t *testing.T) {
 	service.sweepTheTasksTheCompanyNowHolds(context.Background())
 
 	database := openTaskStoreForTest(t, service)
-	for _, tableName := range []string{"flow_tasks", "flow_summary_cache_entries", "flow_channel_outbox", "flow_definition_meta"} {
+	for _, tableName := range []string{"flow_tasks", "flow_summary_cache_entries", "flow_channel_outbox",
+		"flow_definition_meta", "flow_definitions", "flow_size_definitions"} {
 		if countTaskTablesNamed(t, database, tableName) != 0 {
 			t.Fatalf("%s survived the sweep", tableName)
 		}
@@ -193,7 +206,7 @@ func TestTaskSweepKeepsTasksTheRecordHasNotTaken(t *testing.T) {
 // read as covering everything.
 func TestTaskSweepKeepsEverythingWhenNoCompanyIsNamed(t *testing.T) {
 	service := newTaskSweepTestService(t, "")
-	store := seedRetiredTaskTables(t, service.stateDatabasePath(), 0)
+	store := seedRetiredTaskTables(t, service.stateDatabasePath(), 3)
 	seedDeviceTask(t, store, "task-1", "planned", "2026-07-06", "2026-07-07")
 
 	service.sweepTheTasksTheCompanyNowHolds(context.Background())
@@ -202,20 +215,39 @@ func TestTaskSweepKeepsEverythingWhenNoCompanyIsNamed(t *testing.T) {
 	if countTaskTablesNamed(t, database, "flow_tasks") != 1 {
 		t.Fatal("a device that names no company let go of tasks nobody else holds")
 	}
+	if countTaskTablesNamed(t, database, "flow_definitions") != 1 {
+		t.Fatal("a device that names no company let go of the vocabulary nobody else answers")
+	}
 }
 
-func TestTaskSweepKeepsAStoreTheRecordHasNoPlaceFor(t *testing.T) {
+func TestTaskSweepDropsAVocabularyTheCompanyAnswers(t *testing.T) {
 	service := newTaskSweepTestService(t, startCompanyForTaskCarry(t, nil).server.URL)
-	seedRetiredTaskTables(t, service.stateDatabasePath(), 1)
+	seedRetiredTaskTables(t, service.stateDatabasePath(), 3)
+
+	service.sweepTheTasksTheCompanyNowHolds(context.Background())
+
+	database := openTaskStoreForTest(t, service)
+	for _, tableName := range []string{"flow_definitions", "flow_size_definitions", "flow_tasks"} {
+		if countTaskTablesNamed(t, database, tableName) != 0 {
+			t.Fatalf("%s survived a company that answers its own vocabulary", tableName)
+		}
+	}
+}
+
+func TestTaskSweepKeepsAVocabularyTheCompanyDoesNotAnswer(t *testing.T) {
+	company := startCompanyForTaskCarry(t, nil)
+	company.businesses = []string{}
+	service := newTaskSweepTestService(t, company.server.URL)
+	seedRetiredTaskTables(t, service.stateDatabasePath(), 3)
 
 	service.sweepTheTasksTheCompanyNowHolds(context.Background())
 
 	database := openTaskStoreForTest(t, service)
 	if countTaskTablesNamed(t, database, "flow_definitions") != 1 {
-		t.Fatal("a vocabulary the record has no carry for was dropped")
+		t.Fatal("the only task vocabulary there is was dropped")
 	}
 	if countTaskTablesNamed(t, database, "flow_tasks") != 1 {
-		t.Fatal("one pinned table must keep the whole store")
+		t.Fatal("a vocabulary nobody else answers must keep the whole store")
 	}
 }
 

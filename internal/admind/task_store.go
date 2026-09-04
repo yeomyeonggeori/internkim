@@ -22,11 +22,12 @@ var carriedTaskTables = []string{
 	"task_carried_rows",
 }
 
-// The record has no place for these yet, so a device holding any of them keeps
-// its store and says which decision is missing.
-var taskTablesWithNowhereToGo = map[string]string{
-	"flow_definitions":      "https://github.com/yeomyeonggeori/internkim/issues/1455",
-	"flow_size_definitions": "https://github.com/yeomyeonggeori/internkim/issues/1455",
+// The words a task may carry have been the company's since #1440, and nothing
+// on a device has written these since. A company that answers a vocabulary of
+// its own covers them.
+var vocabularyTaskTables = []string{
+	"flow_definitions",
+	"flow_size_definitions",
 }
 
 func (service *Service) openTaskDatabase(ctx context.Context) (*sql.DB, error) {
