@@ -50,6 +50,9 @@
 		addEvent: (request) => attendance.addEvent(request),
 		get processingFailedMessage() {
 			return text.records.failed;
+		},
+		get partialSpanFailureMessage() {
+			return text.records.partialSpanFailure;
 		}
 	});
 	const recordRemoval = new AttendanceRecordRemovalState({

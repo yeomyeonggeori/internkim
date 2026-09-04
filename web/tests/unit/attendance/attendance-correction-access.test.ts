@@ -3,6 +3,7 @@ import type { AttendanceEvent, AttendanceSummary } from '../../../src/routes/att
 import {
 	attendanceAdditionWriteOutcome,
 	attendanceEventsWriteOutcome,
+	attendanceSpanAdditionWriteOutcome,
 	editableAttendanceEventIDs
 } from '../../../src/routes/attendance/team/attendance-correction-access';
 import type { TeamStatusPersonDaySegment } from '../../../src/routes/attendance/team/team-status-table-model';
@@ -72,6 +73,40 @@ describe('attendance correction access', () => {
 			attendanceAdditionWriteOutcome(
 				summary,
 				{ email: 'colleague@example.com', localDate: '2026-07-15', localTime: '09:00' },
+				currentTime
+			)
+		).toBe('blocked');
+	});
+
+	test('combines the outcome of a span across both of its moments', () => {
+		const summary = summaryWith({ id: 'clock-in' });
+		summary.backdatedAfterMinutes = 60;
+
+		expect(
+			attendanceSpanAdditionWriteOutcome(
+				summary,
+				{ email: 'member@example.com', localDate: '2026-07-15', startTime: '09:00', endTime: '10:00' },
+				currentTime
+			)
+		).toBe('asked');
+		expect(
+			attendanceSpanAdditionWriteOutcome(
+				summary,
+				{ email: 'member@example.com', localDate: '2026-07-15', startTime: '10:00', endTime: '' },
+				currentTime
+			)
+		).toBe('saved');
+		expect(
+			attendanceSpanAdditionWriteOutcome(
+				summary,
+				{ email: 'colleague@example.com', localDate: '2026-07-15', startTime: '10:00', endTime: '10:15' },
+				currentTime
+			)
+		).toBe('blocked');
+		expect(
+			attendanceSpanAdditionWriteOutcome(
+				summary,
+				{ email: 'member@example.com', localDate: '2026-07-15', startTime: '', endTime: '' },
 				currentTime
 			)
 		).toBe('blocked');

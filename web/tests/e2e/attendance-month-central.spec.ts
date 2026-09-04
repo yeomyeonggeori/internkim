@@ -142,3 +142,30 @@ test('an edited clock-out moves the row the record keeps', async ({ page }) => {
 		.toContain(new Date(seoulInstant(seededDate, '17:00')).getTime());
 	await expect(detail.getByLabel('13:00-17:00')).toBeVisible({ timeout: 20000 });
 });
+
+test('adding a whole span in one submit writes both moments as a single segment', async ({ page }) => {
+	const spanDate = dayOfMonth(seededMonth, 20);
+	await openSeededMonth(page);
+	await page.getByTestId(`team-status-cell-${member3Email}-${spanDate}`).click();
+
+	const detail = page.getByTestId('team-status-day-detail-dialog');
+	await expect(detail).toBeVisible({ timeout: 20000 });
+	await expect(detail.getByTestId('team-status-day-detail-person')).toHaveText(member3Name);
+	await expect(detail.getByTestId('team-status-day-segment')).toHaveCount(0);
+
+	await detail.getByTestId('work-record-add-button').click();
+	const dialogFields = page.getByTestId('attendance-record-add-fields');
+	await expect(dialogFields).toBeVisible({ timeout: 20000 });
+	await dialogFields.getByLabel('시작 시각').fill('09:00');
+	await dialogFields.getByLabel('종료 시각').fill('18:00');
+	await page.getByTestId('attendance-record-add-submit').click();
+
+	await expect(detail.getByTestId('team-status-day-segment')).toHaveCount(1, { timeout: 20000 });
+	await expect(detail.getByLabel('09:00-18:00')).toBeVisible();
+
+	const spanRows = (await attendanceRowsOf(member3ID)).filter((row) =>
+		row.occurred_at.startsWith(spanDate)
+	);
+	expect(spanRows).toHaveLength(2);
+	await cleanupAttendanceEvents(spanRows.map((row) => row.id));
+});
