@@ -3,6 +3,7 @@
 	import { Calendar as MiniCalendar, Day as MiniCalendarDay } from '$lib/components/ui/calendar';
 	import * as Empty from '$lib/components/ui/empty';
 	import { Separator } from '$lib/components/ui/separator';
+	import { defaultEventDurationMinutes } from '$lib/calendar/default-event-duration';
 	import { cn } from '$lib/utils';
 	import { CalendarDate, type DateValue } from '@internationalized/date';
 	import { tick } from 'svelte';
@@ -54,7 +55,6 @@
 	const minutesPerDay = 24 * 60;
 	const dragSnapMinutes = 15;
 	const longPressMilliseconds = 450;
-	const defaultDurationMinutes = 60;
 	const flickVelocityPixelsPerMillisecond = 0.3;
 	const flickTravelPixels = 8;
 	const minimumColumnTravelRatio = 0.25;
@@ -352,7 +352,7 @@
 			longPressTimer = null;
 			if (!draftStart || !draftEnd) return;
 			if (draftEnd.minutes !== draftStart.minutes || !isSameCalendarGridDay(draftEnd.day, draftStart.day)) return;
-			commitDraft({ day: draftStart.day, minutes: draftStart.minutes + defaultDurationMinutes });
+			commitDraft({ day: draftStart.day, minutes: draftStart.minutes + defaultEventDurationMinutes });
 		}, longPressMilliseconds);
 	}
 
@@ -384,7 +384,7 @@
 		const [firstDate, lastDate] = [startDate, endDate].sort((first, second) => first.getTime() - second.getTime());
 		const rangeEndDate =
 			lastDate.getTime() - firstDate.getTime() < dragSnapMinutes * 60000
-				? new Date(firstDate.getTime() + defaultDurationMinutes * 60000)
+				? new Date(firstDate.getTime() + defaultEventDurationMinutes * 60000)
 				: lastDate;
 		addEventOnTimeRange(firstDate, rangeEndDate);
 	}
