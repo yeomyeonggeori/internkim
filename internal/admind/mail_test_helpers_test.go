@@ -23,6 +23,7 @@ func newMailTestService(t *testing.T) *Service {
 		TaskDatabasePath:           filepath.Join(stateDirectory, "flow.sqlite"),
 		MailDatabasePath:           filepath.Join(stateDirectory, "mail.sqlite"),
 		AdminEmailPath:             writeTestFile(t, "admin@example.com"),
+		UsersSyncStatePath:         filepath.Join(stateDirectory, "users-sync.json"),
 		CentralPlaneAppURL:         plane.URL,
 		CentralPlaneProjectURL:     plane.URL,
 		CentralPlanePublishableKey: "publishable",
@@ -32,11 +33,11 @@ func newMailTestService(t *testing.T) *Service {
 
 func writeUsersSyncTestCache(t *testing.T, service *Service, email string) {
 	t.Helper()
-	stateDirectory := filepath.Dir(service.stateDatabasePath())
+	stateDirectory := filepath.Dir(service.Configuration.UsersSyncStatePath)
 	if errorValue := os.MkdirAll(stateDirectory, 0o700); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := os.WriteFile(filepath.Join(stateDirectory, "users-sync.json"), []byte(`{"users":["`+email+`"]}`), 0o600); errorValue != nil {
+	if errorValue := os.WriteFile(service.Configuration.UsersSyncStatePath, []byte(`{"users":["`+email+`"]}`), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 }
