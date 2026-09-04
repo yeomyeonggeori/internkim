@@ -176,6 +176,7 @@ GROUPS = [
             ["bun", "run", "test:e2e:crm:central"],
         ],
         working_directory="web",
+        lane="web",
     ),
     Group(
         "host",
