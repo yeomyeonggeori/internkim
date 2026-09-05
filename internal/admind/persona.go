@@ -59,6 +59,11 @@ type soulDocument struct {
 	Language      *soulLanguage `json:"language,omitempty"`
 }
 
+type agentPersonaDocuments struct {
+	Identity identityDocument `json:"identity"`
+	Soul     soulDocument     `json:"soul"`
+}
+
 type userDocument struct {
 	SchemaVersion int           `json:"schemaVersion"`
 	CallMe        string        `json:"callMe,omitempty"`
@@ -126,15 +131,17 @@ func defaultSoulDocument() soulDocument {
 
 func (service *Service) startPersonaSync(ctx context.Context) {
 	go func() {
-		timer := time.NewTimer(5 * time.Second)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return
-		case <-timer.C:
-		}
-		if _, _, errorValue := service.loadOrSeedPersona(); errorValue != nil {
-			log.Printf("persona startup sync skipped: %v", errorValue)
+		for {
+			if errorValue := service.syncAgentPersona(ctx); errorValue == nil {
+				return
+			} else {
+				log.Printf("persona startup sync failed; retrying in 30 seconds: %v", errorValue)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(30 * time.Second):
+			}
 		}
 	}()
 }
@@ -163,8 +170,8 @@ func (service *Service) updateSoul(responseWriter http.ResponseWriter, request *
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
-	if _, _, errorValue := service.loadOrSeedPersona(); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+	if errorValue := service.syncAgentPersona(request.Context()); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
 	service.writeJSON(responseWriter, soul)
@@ -199,7 +206,7 @@ func (service *Service) loadOrSeedPersona() (identityDocument, soulDocument, err
 			return identityDocument{}, soulDocument{}, errorValue
 		}
 	}
-	if errorValue := service.writeWorkspacePersona(identity, soul); errorValue != nil {
+	if errorValue := service.removeRetiredWorkspacePersona(); errorValue != nil {
 		return identityDocument{}, soulDocument{}, errorValue
 	}
 	return identity, soul, nil
@@ -272,27 +279,37 @@ func (service *Service) saveSoul(soul soulDocument) error {
 	return writeDocumentAtomically(service.Configuration.SoulDocumentPath, document, 0o600)
 }
 
-func (service *Service) writeWorkspacePersona(identity identityDocument, soul soulDocument) error {
-	identityBytes, errorValue := canonicalIdentityDocument(identity)
+func (service *Service) removeRetiredWorkspacePersona() error {
+	for _, retiredFileName := range []string{"BOT_PROFILE.yaml", "BOT_PROFILE.md", "IDENTITY.md", "SOUL.md"} {
+		if errorValue := os.Remove(filepath.Join(service.Configuration.BlueclawWorkspacePath, retiredFileName)); errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
+			return fmt.Errorf("remove retired persona %s: %w", retiredFileName, errorValue)
+		}
+	}
+	return nil
+}
+
+func (service *Service) syncAgentPersona(ctx context.Context) error {
+	identity, soul, errorValue := service.loadOrSeedPersona()
 	if errorValue != nil {
 		return errorValue
 	}
-	soulBytes, errorValue := canonicalSoulDocument(soul)
+	documents := agentPersonaDocuments{Identity: identity, Soul: soul}
+	var installed agentPersonaDocuments
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if errorValue := service.blueclawJSONRequest(ctx, http.MethodPut, "/admin/api/persona/agent", documents, &installed); errorValue != nil {
+		return errorValue
+	}
+	expected, errorValue := json.Marshal(documents)
 	if errorValue != nil {
 		return errorValue
 	}
-	workspacePath := service.Configuration.BlueclawWorkspacePath
-	if errorValue := os.MkdirAll(workspacePath, 0o750); errorValue != nil {
+	actual, errorValue := json.Marshal(installed)
+	if errorValue != nil {
 		return errorValue
 	}
-	if errorValue := writeDocumentAtomically(filepath.Join(workspacePath, identityFileName), identityBytes, 0o644); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := writeDocumentAtomically(filepath.Join(workspacePath, soulFileName), soulBytes, 0o644); errorValue != nil {
-		return errorValue
-	}
-	for _, retiredFileName := range []string{"BOT_PROFILE.yaml", "BOT_PROFILE.md"} {
-		_ = os.Remove(filepath.Join(workspacePath, retiredFileName))
+	if !bytes.Equal(expected, actual) {
+		return errors.New("Blueclaw installed persona does not match the configured identity and soul")
 	}
 	return nil
 }

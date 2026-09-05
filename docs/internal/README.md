@@ -25,6 +25,9 @@ link dangles for whoever clones. Check with a grep before moving one down.
 [`device/`](./device/) holds the rules for the frozen device path, which
 `AGENTS.md` no longer carries.
 
+[`persona-and-recovery.md`](./persona-and-recovery.md) describes persona ownership,
+delivery across workspace boundaries, and evidence carried into a task retry.
+
 The site that publishes `docs/` is `docs/web/`, a React Router build of
 Fumadocs that reads the directory above it. It publishes a named list of
 sections rather than everything it finds: `docs.files` in
