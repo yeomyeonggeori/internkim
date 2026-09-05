@@ -4,6 +4,7 @@ import { asMember } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import { dayIn } from '../../src/lib/server/public-api/record/days';
+import { toolInputRecovered } from '../../src/lib/server/public-api/tool-input';
 import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
@@ -113,11 +114,13 @@ describe('person_list', () => {
 });
 
 describe('a task written through the record', () => {
-	test('belongs to the caller when nobody was named', async () => {
-		const made = resultOf(await run('task_add', { title: '분기 보고서 초안', size: 'M' }));
+	test('keeps an omitted estimate valid for the caller’s task', async () => {
+		const made = resultOf(await run('task_add', { title: '분기 보고서 초안' }));
 		expect(made.participantNames).toEqual(['이샘플']);
 		expect(made.business).toBe('');
 		expect(made.status).toBe('planned');
+		expect(made.size).toBe('');
+		expect(made.type).toBe('');
 		expect(made.content).toBe('분기 보고서 초안');
 		expect((made.participantPresentations as { mention: string }[])[0].mention).toBe('@이샘플');
 	});
@@ -143,6 +146,19 @@ describe('a task written through the record', () => {
 		expect(changed.type).toBe('문서');
 		expect(changed.startDate).toBe(dayAround(-7));
 		expect(changed.endDate).toBe(dayAround(7));
+	});
+
+	test('clears a type when an empty string is explicit', async () => {
+		const made = resultOf(await run('task_add', { title: '명시적 유형 업무', type: '문서' }));
+		expect(made.type).toBe('문서');
+		const retained = resultOf(await run('task_update', { taskHint: '명시적 유형 업무', size: 'S' }));
+		expect(retained.type).toBe('문서');
+		const recovered = toolInputRecovered('task_update', { taskHint: '명시적 유형 업무', type: '' });
+		const cleared = resultOf(await run('task_update', recovered));
+		expect(cleared.type).toBe('');
+		const stored = await client.from('task').select('type').eq('id', made.taskID).single<{ type: string | null }>();
+		expect(stored.error).toBeNull();
+		expect(stored.data?.type).toBeNull();
 	});
 
 	test('moves the days of a task it already holds', async () => {
