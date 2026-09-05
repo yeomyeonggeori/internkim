@@ -229,6 +229,11 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "model-evaluation-harness",
+        ["lab/scripts/evaluate-model-response.py", "tools/tests/test_evaluate_model_response.py"],
+        [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_evaluate_model_response.py"]],
+    ),
+    Group(
         "doc-budgets",
         ["*.md", "docs/*", "tools/verify-doc-budgets"],
         [["tools/verify-doc-budgets"]],

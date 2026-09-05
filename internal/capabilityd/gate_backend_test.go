@@ -2,7 +2,6 @@ package capabilityd
 
 import (
 	"context"
-	"gitlab.com/eastriver/internkim/internal/openroutertest"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -117,14 +116,9 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 		case companionOverHTTP:
 			configuration.CompanionBaseURL = servedOnLoopback(t, standIn.handler(t))
 		case openRouterOverHTTP:
-			address, keyPath := theModelToAskOr(t, standIn)
-			configuration.OpenRouterBaseURL = address
-			configuration.OpenRouterWebBaseURL = address
-			configuration.OpenRouterKeyPath = keyPath
-			if model := namedModel(); model != "" {
-				configuration.OpenRouterModel = model
-				configuration.ForceOpenRouterModel = true
-			}
+			configuration.OpenRouterBaseURL = servedOnLoopback(t, standIn.handler(t))
+			configuration.OpenRouterWebBaseURL = configuration.OpenRouterBaseURL
+			configuration.OpenRouterKeyPath = keyFileHolding(t, "openrouter-key")
 		case browserAsACommand:
 			configuration.AgentBrowserPath = "/usr/local/bin/agent-browser"
 			runsACommand = standIn
@@ -148,6 +142,31 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 		}
 	}
 	return service
+}
+
+func TestServiceReachingKeepsAmbientModelSettingsOnTheStandIn(t *testing.T) {
+	ambientCredentialPath := filepath.Join(t.TempDir(), "ambient-realmodel-key-sentinel")
+	t.Setenv("OPENROUTER_MODEL", "realmodel/test-model")
+	t.Setenv("INTERNKIM_GATE_MODEL", "realmodel/legacy-test-model")
+	t.Setenv("INTERNKIM_GATE_OPENROUTER_KEY_PATH", ambientCredentialPath)
+
+	service := serviceReaching(t, map[gateBackend]*standingIn{
+		openRouterOverHTTP: answering(`{}`),
+	})
+
+	if !strings.HasPrefix(service.Configuration.OpenRouterBaseURL, "http://127.0.0.1:") {
+		t.Fatalf("expected the catalog gate to use a loopback OpenRouter stand-in, got %q", service.Configuration.OpenRouterBaseURL)
+	}
+	key, errorValue := os.ReadFile(service.Configuration.OpenRouterKeyPath)
+	if errorValue != nil {
+		t.Fatal("the catalog gate did not create its stand-in credential")
+	}
+	if string(key) != "openrouter-key\n" {
+		t.Fatal("the catalog gate did not use its fake credential")
+	}
+	if service.Configuration.OpenRouterKeyPath == ambientCredentialPath {
+		t.Fatal("the catalog gate used the ambient credential path")
+	}
 }
 
 // The stand-in for the workspace answers in files rather than in documents, so
@@ -202,26 +221,6 @@ func servedOnASocket(t *testing.T, handler http.Handler) string {
 	server.Start()
 	t.Cleanup(server.Close)
 	return socketPath
-}
-
-// Naming a model sends the model-touching tools to the real provider instead of
-// the stand-in. That is the run that catches a schema the model cannot fill or
-// an answer the tool cannot parse, and it is the one that costs money, so it is
-// asked for by name and never the default.
-func namedModel() string {
-	return strings.TrimSpace(os.Getenv(openroutertest.ModelEnvironmentName))
-}
-
-func theModelToAskOr(t *testing.T, standIn *standingIn) (string, string) {
-	t.Helper()
-	if namedModel() == "" {
-		return servedOnLoopback(t, standIn.handler(t)), keyFileHolding(t, "openrouter-key")
-	}
-	keyPath := strings.TrimSpace(os.Getenv("INTERNKIM_GATE_OPENROUTER_KEY_PATH"))
-	if keyPath == "" {
-		t.Fatalf("%s names a model, so INTERNKIM_GATE_OPENROUTER_KEY_PATH has to name a key to reach it with", openroutertest.ModelEnvironmentName)
-	}
-	return "https://openrouter.ai/api/v1/chat/completions", keyPath
 }
 
 // A stand-in answers as the thing itself, and reaching the thing itself takes a
