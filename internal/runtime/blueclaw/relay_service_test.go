@@ -45,6 +45,19 @@ func TestTheShippedRelayUnitMatchesTheDocumentedOne(t *testing.T) {
 	}
 }
 
+func TestRelayStateRemainsWritableWithAProtectedFilesystem(t *testing.T) {
+	settings := settingsOf(RelayServiceUnit())
+	if settings["ProtectSystem"] != "strict" {
+		t.Fatal("the relay lost its filesystem protection")
+	}
+	if settings["StateDirectory"] != "internkim/relay" || settings["StateDirectoryMode"] != "0750" {
+		t.Fatal("systemd must create and expose the relay state directory to its service user")
+	}
+	if sectionOfEachSetting(RelayServiceUnit())["StateDirectory"] != "Service" {
+		t.Fatal("systemd only provisions state directories from the Service section")
+	}
+}
+
 func sectionOfEachSetting(unit string) map[string]string {
 	sections := map[string]string{}
 	section := ""
