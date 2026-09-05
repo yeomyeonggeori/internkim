@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { sizeOfHours, sizeOfWholeDays, taskSizes } from '../../../src/lib/task/task-sizes';
+import { WorkspaceTaskSize } from '../../../src/lib/server/public-api/catalog/workspace-task';
+import taskSizeDefinitionsDocument from '../../../../internal/tasksize/definitions.json';
 
 describe('sizeOfHours', () => {
 	test('takes the smallest size the hours still fit in', () => {
@@ -36,6 +38,18 @@ describe('sizeOfWholeDays', () => {
 });
 
 describe('taskSizes', () => {
+	test('matches the canonical task-size definitions and public enum', () => {
+		expect(taskSizes('en')).toEqual(taskSizeDefinitionsDocument.sizes.map((size) => ({
+			name: size.name,
+			distanceKm: size.distanceKm,
+			maxHours: size.maxHours,
+			score: size.score,
+			label: `${size.distanceKm}km · up to ${size.maxHours}h`,
+			...size.en
+		})));
+		expect(Object.values(WorkspaceTaskSize)).toEqual(taskSizeDefinitionsDocument.sizes.map((size) => size.name));
+	});
+
 	test('every size it can hand out is a size it defines', () => {
 		const names = new Set(taskSizes().map((size) => size.name));
 		for (const hours of [0.5, 2, 8, 16, 32, 500]) expect(names.has(sizeOfHours(hours))).toBe(true);
