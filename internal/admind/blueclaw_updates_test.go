@@ -17,6 +17,39 @@ import (
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
+func TestRuntimeRestampIncludesTheDeliveredGuestConfiguration(t *testing.T) {
+	target := canonicalBlueclawPayloadInstallTarget()
+	if target.DeliveryRuntimeConfigurationPath != filepath.Join(blueclawruntime.BlueclawDeliveryConfigPath, "runtime.json") {
+		t.Fatal("the release target omits the configuration the guest reads")
+	}
+	directory := t.TempDir()
+	target.RuntimeConfigurationPath = filepath.Join(directory, "host.json")
+	target.WorkspaceRuntimeConfigurationPath = filepath.Join(directory, "workspace.json")
+	target.DeliveryRuntimeConfigurationPath = filepath.Join(directory, "delivered.json")
+	contract := blueclawruntime.CurrentCapabilityContract()
+	staleDocument := `{"capabilities":{"aggregateProtocolHash":"previous"},"agent":{"name":"sample"}}`
+	currentDocument, errorValue := refreshedBlueclawRuntimeConfiguration(staleDocument, contract)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	writeFile(t, target.RuntimeConfigurationPath, currentDocument)
+	writeFile(t, target.WorkspaceRuntimeConfigurationPath, currentDocument)
+	writeFile(t, target.DeliveryRuntimeConfigurationPath, staleDocument)
+	if isBlueclawRuntimeConfigurationCurrentForTarget(target, contract) {
+		t.Fatal("current host copies hid a stale delivered configuration")
+	}
+	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target, contract); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	delivered, errorValue := os.ReadFile(target.DeliveryRuntimeConfigurationPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(delivered) != currentDocument {
+		t.Fatal("the delivered configuration did not receive the current contract")
+	}
+}
+
 func TestPublicBlueclawUpdateMetadataHidesArchivePath(t *testing.T) {
 	metadata := &blueclawUpdateArtifactMetadata{
 		Component:        "blueclaw",
