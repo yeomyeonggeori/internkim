@@ -55,3 +55,20 @@ not pass as a successful early-stop decision.
 validation, the runtime delivers that reply through the existing terminal report
 path, without generating another recovery decision and another reply. Older
 actions without a final message retain the existing failure-report generator.
+
+The September 2026 rollout exposed a separate upgrade gap: existing device documents still
+named a legacy provider and a single model, while the new reader required explicit tiers.
+admind now migrates that legacy shape using the deployment's canonical model ladder, preserves
+explicit tier overrides, and installs the embedding configuration. Current endpoint and tier
+documents retain their own validation failures. Blueclaw preserves initialization errors,
+reports model readiness through HTTP health, and keeps background work stopped on failure.
+
+`./internkim dev fleet run --scenario model-configuration-upgrade`
+removes a required tier from a delivered configuration, checks unhealthy readiness and stopped
+workers, then installs the legacy shape and verifies admind migrates every delivered copy.
+The scenario restores the original configuration and retains its evidence. A fresh-install
+smoke alone cannot establish that an existing device can upgrade.
+
+Native assistant text ending with `finish_reason: stop` is a proposed final answer. It enters
+the same completion gate as the explicit finish action. Treating every text response as an
+unfinished thought forced an extra model call even after the requested answer was present.

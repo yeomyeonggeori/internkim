@@ -254,6 +254,11 @@ func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
 }
 
+func (service Service) modelConfigurationUpgradeScenarioPlans() []CommandPlan {
+	command := "printf '%s\\n' admin | sudo -S python3 /mnt/shared/workspace/lab/scripts/verify-model-configuration-upgrade.py /mnt/shared/workspace/.artifacts/model-configuration-upgrade.json"
+	return append(service.upPlansThroughSetup(true, nil), service.labCommand("vm-ssh", command))
+}
+
 func (service Service) workspacePersistenceScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("workspace-persistence"))
 }

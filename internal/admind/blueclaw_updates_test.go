@@ -520,8 +520,8 @@ func TestRefreshBlueclawCapabilityContractRetiresLLMDLineage(t *testing.T) {
 	if !ok {
 		t.Fatalf("languageModel section missing:\n%s", refreshed)
 	}
-	if languageModel["defaultProvider"] != "capabilityLLM" {
-		t.Fatalf("a device left on llmd must move back to the capability path, got %v", languageModel["defaultProvider"])
+	if _, exists := languageModel["defaultProvider"]; exists {
+		t.Fatalf("a migrated device must retire the legacy provider selector, got %v", languageModel["defaultProvider"])
 	}
 	if _, isPresent := languageModel["llmd"]; isPresent {
 		t.Fatalf("the retired llmd section must not survive a refresh:\n%s", refreshed)
