@@ -11,7 +11,7 @@ import (
 
 var StepBuzzChatd = Step{
 	Name: "buzz-chatd",
-	Deps: []string{"buzz-seed", "buzz-relay", "buzz-public-host", "services"},
+	Deps: []string{"buzz-seed", "buzz-relay", "buzz-public-host"},
 	Title: func(context *Context) string {
 		return context.T("Buzz chatd 브리지 설치 중...", "Installing Buzz chatd bridge...")
 	},
@@ -79,6 +79,7 @@ func chatdUnitInstallCommand(relayPublicURL string) string {
 ` + blueclaw.ChatdServiceUnit(relayPublicURL) + `CHATDUNITEOF
 systemctl daemon-reload
 systemctl enable ` + blueclaw.ChatdServiceName + `
+if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + `; then exit 0; fi
 systemctl restart ` + blueclaw.ChatdServiceName + `
 for attempt in $(seq 1 30); do
   curl -fsS --max-time 3 ` + blueclaw.ChatdEndpoint + blueclaw.ChatdHealthPath + ` >/dev/null 2>&1 && break
