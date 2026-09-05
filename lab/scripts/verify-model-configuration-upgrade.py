@@ -15,18 +15,22 @@ def read_health():
         return error.code, json.load(error)
 
 
-def wait_for_health(predicate):
-    deadline = time.monotonic() + 240
+def wait_for_health(phase, predicate):
+    started = time.monotonic()
+    deadline = started + 240
     last_response = None
+    print(phase + ': waiting', flush=True)
     while time.monotonic() < deadline:
         try:
             last_response = read_health()
+            evidence[phase] = {'elapsedSeconds': round(time.monotonic() - started, 2), 'status': last_response[0], 'health': last_response[1]}
             if predicate(*last_response):
+                print(phase + ': ready', flush=True)
                 return last_response
         except (urllib.error.URLError, TimeoutError, ConnectionError):
             pass
         time.sleep(1)
-    raise RuntimeError('Health did not reach the expected state: ' + str(last_response))
+    raise RuntimeError(phase + ' did not reach the expected state: ' + str(last_response))
 
 
 def restart(service):
@@ -47,12 +51,12 @@ evidence_path.parent.mkdir(parents=True, exist_ok=True)
 originals = {path: path.read_text() for path in paths}
 evidence = {}
 try:
-    wait_for_health(lambda status, health: status == 200 and health['status'] == 'ok')
+    wait_for_health('initialDependencies', lambda status, health: status == 200 and health['status'] == 'ok')
     invalid = json.loads(originals[paths[-1]])
     invalid['languageModel']['capability'].pop('maxModel')
     write_document(paths[-1], invalid)
     restart('blueclaw')
-    status, health = wait_for_health(lambda status, health: 'database' in health)
+    status, health = wait_for_health('invalidApplicationStartup', lambda status, health: 'database' in health)
     evidence['invalidConfigurationHealth'] = health
     assert status == 503, ('A missing model tier passed health', status, health)
     assert not health['languageModel']['configured'], health
@@ -77,7 +81,8 @@ try:
                 del capability[field]
         write_document(path, legacy)
     restart('internkim-admind')
-    status, health = wait_for_health(lambda status, health: status == 200 and health['status'] == 'ok')
+    wait_for_health('migratedApplicationStartup', lambda status, health: 'database' in health)
+    status, health = wait_for_health('migratedDependencies', lambda status, health: status == 200 and health['status'] == 'ok')
     evidence['migratedConfigurationHealth'] = health
     assert health['languageModel']['configured'], health
     for path in paths:
