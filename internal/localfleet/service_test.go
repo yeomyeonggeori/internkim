@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -94,11 +95,34 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 		"sudo bash '/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh'",
 		"--admin-email local-fleet-admin@internkim.test",
 		"verify api",
-		"verify browser --local",
+		"bun run test:e2e:local-fleet",
 	} {
 		if !strings.Contains(joinedPlans, expectedFragment) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
 		}
+	}
+}
+
+func TestCompanyBrowserVerificationUsesManagedCentralPlane(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", CompanyAppPort: 5197})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plan := service.companyBrowserVerificationPlan()
+	if plan.Name != "bun" {
+		t.Fatalf("browser executable = %q", plan.Name)
+	}
+	if plan.DirectoryPath != "/repo/web" {
+		t.Fatalf("browser working directory = %q", plan.DirectoryPath)
+	}
+	if strings.Join(plan.Arguments, " ") != "run test:e2e:local-fleet" {
+		t.Fatalf("browser arguments = %q", strings.Join(plan.Arguments, " "))
+	}
+	if !containsEnvironmentValue(plan.Environment, "PLAYWRIGHT_BASE_URL=http://127.0.0.1:5197") {
+		t.Fatal("browser base URL missing")
+	}
+	if !containsEnvironmentValue(plan.Environment, "PLAYWRIGHT_START_WEB_SERVER=0") {
+		t.Fatal("browser server startup must be disabled")
 	}
 }
 
@@ -649,6 +673,12 @@ func TestEachFleetAsksForAKeyInItsOwnName(t *testing.T) {
 	}
 	if !strings.Contains(sharedPlan, "--agent-name "+DefaultVirtualMachineName) {
 		t.Fatalf("the shared fleet must issue the key in its own name:\n%s", sharedPlan)
+	}
+	if !strings.Contains(ephemeralPlan, "--admin-port "+strconv.Itoa(ephemeral.options.AdminHostPort)) {
+		t.Fatalf("the ephemeral plane must target its configured admind port:\n%s", ephemeralPlan)
+	}
+	if !strings.Contains(sharedPlan, "--admin-port "+strconv.Itoa(shared.options.AdminHostPort)) {
+		t.Fatalf("the shared plane must target its configured admind port:\n%s", sharedPlan)
 	}
 	if ephemeralPlan == sharedPlan {
 		t.Fatal("two fleets asking for the same name take each other's key away")
