@@ -14524,22 +14524,94 @@
       "worksOffline": false
     },
     "task_add": {
-      "answeredBy": "record",
-      "availability": {
-        "state": "ok"
-      },
+      "name": "task_add",
       "canonicalName": "task_add",
-      "completionEvidence": {
-        "action": "write_task",
-        "mode": "success",
-        "targetKind": "task"
-      },
-      "description": "Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task \u2014 use task.update.",
+      "namespace": "task",
+      "answeredBy": "record",
+      "modelName": "task_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "description": "Create a new workspace task with typed task fields. Choose its type from the company definitions (empty when none fits) and estimate its size from the work-size rubric without asking the user to classify it. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.",
+      "version": "7",
+      "privacyClass": "workspace_task",
       "estimatedLatency": "medium",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
+      "requiresUserPresence": false,
+      "worksOffline": false,
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "business": {
+            "description": "Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.",
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "parentTaskHint": {
+            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "participantPersonHints": {
+            "description": "Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester\u2019s own, which is the usual case; the name the requester used to address you is not a participant.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "size": {
+            "description": "Choose a fixed effort size using the workspace rubric below and your judgment about the work. Estimate it even when the user gives no size; preserve an explicitly requested size. A deadline span is not effort. Calendar events use event_add, which calculates size from their duration.\nXS: Trivial change; Call / 10 minute meeting / handoff / tidy-up / scheduling; Done in a moment.\nS: Low risk change with a narrow blast radius; Half hour meeting / short draft / customer or partner reply / briefing; Several fit in a day.\nM: Small feature / change with real impact; Report / meeting under two hours / external meeting / cross-team alignment / document; Takes a dedicated day.\nL: Mid-size feature / change touching many areas; Important external meeting / mid-size research / proposal draft / policy change; Takes about two days.\nXL: Large feature / complex change / external integration; Restructuring / negotiation / long meeting / workshop; Takes about a week.\nXXL: Milestone; Partnership design / contract structure / service planning / policy overhaul; Must be split into smaller items.",
+            "enum": [
+              "XS",
+              "S",
+              "M",
+              "L",
+              "XL",
+              "XXL"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
+            "enum": [
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "stopped"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user's language. Never invent a label.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -14576,7 +14648,7 @@
             "type": "array"
           },
           "size": {
-            "description": "Effort size using the work-size rubric. Omit when the request does not support a useful estimate.",
+            "description": "Choose a fixed effort size using the workspace rubric below and your judgment about the work. Estimate it even when the user gives no size; preserve an explicitly requested size. A deadline span is not effort. Calendar events use event_add, which calculates size from their duration.\nXS: Trivial change; Call / 10 minute meeting / handoff / tidy-up / scheduling; Done in a moment.\nS: Low risk change with a narrow blast radius; Half hour meeting / short draft / customer or partner reply / briefing; Several fit in a day.\nM: Small feature / change with real impact; Report / meeting under two hours / external meeting / cross-team alignment / document; Takes a dedicated day.\nL: Mid-size feature / change touching many areas; Important external meeting / mid-size research / proposal draft / policy change; Takes about two days.\nXL: Large feature / complex change / external integration; Restructuring / negotiation / long meeting / workshop; Takes about a week.\nXXL: Milestone; Partnership design / contract structure / service planning / policy overhaul; Must be split into smaller items.",
             "enum": [
               "XS",
               "S",
@@ -14608,94 +14680,12 @@
             "type": "string"
           },
           "type": {
-            "description": "Task type label, taken from registeredLabels.types in a task_list result. Omit when unsure.",
+            "description": "Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user's language. Never invent a label.",
             "type": "string"
           }
         },
         "type": "object"
       },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "business": {
-            "description": "Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.",
-            "type": "string"
-          },
-          "endsAt": {
-            "description": "When the work is due. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
-            "type": "string"
-          },
-          "opportunityHint": {
-            "description": "Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "organizationHint": {
-            "description": "Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "parentTaskHint": {
-            "description": "The task this one belongs under: its exact task ID or its exact CURRENT title as it appears in a task_list result. Never a new or intended title. Omit for work that stands on its own.",
-            "maxLength": 256,
-            "type": "string"
-          },
-          "participantPersonHints": {
-            "description": "Names, @handles, or emails of the people the task belongs to. Omit it when the work is the requester\u2019s own, which is the usual case; the name the requester used to address you is not a participant.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "size": {
-            "description": "Effort size using the work-size rubric. Omit when the request does not support a useful estimate.",
-            "enum": [
-              "XS",
-              "S",
-              "M",
-              "L",
-              "XL",
-              "XXL"
-            ],
-            "type": "string"
-          },
-          "startsAt": {
-            "description": "When the work starts. ISO 8601 with timezone for a moment, or YYYY-MM-DD for a whole day. Resolve relative dates from the current date. Omit when the user did not specify one.",
-            "type": "string"
-          },
-          "status": {
-            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
-            "enum": [
-              "planned",
-              "in_progress",
-              "completed",
-              "paused",
-              "rejected",
-              "stopped"
-            ],
-            "type": "string"
-          },
-          "title": {
-            "description": "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
-            "type": "string"
-          },
-          "type": {
-            "description": "Task type label, taken from registeredLabels.types in a task_list result. Omit when unsure.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "title"
-        ],
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "task_add",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "task_add",
-      "namespace": "task",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14792,19 +14782,9 @@
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
-      "policyResource": "tool:task_add",
-      "privacyClass": "workspace_task",
-      "requiresUserPresence": false,
       "resultContract": {
-        "effects": [
-          {
-            "effect": "created",
-            "effectIdentity": "id",
-            "objectType": "task",
-            "resultField": "taskID"
-          }
-        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -14900,12 +14880,32 @@
             "taskID"
           ],
           "type": "object"
-        }
+        },
+        "effects": [
+          {
+            "objectType": "task",
+            "effect": "created",
+            "resultField": "taskID",
+            "effectIdentity": "id"
+          }
+        ]
       },
-      "sideEffect": "workspace_write",
+      "policyResource": "tool:task_add",
       "sideEffectClass": "workspace_write",
-      "version": "6",
-      "worksOffline": false
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_task",
+        "targetKind": "task"
+      },
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
+      }
     },
     "task_delete": {
       "answeredBy": "record",
@@ -15519,7 +15519,7 @@
       "modelVisibility": "visible",
       "modelVisible": true,
       "description": "Update explicit fields on an existing task, including who takes part in it. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.",
-      "version": "5",
+      "version": "6",
       "privacyClass": "workspace_task",
       "estimatedLatency": "medium",
       "requiresUserPresence": false,
@@ -15567,7 +15567,7 @@
             "type": "array"
           },
           "size": {
-            "description": "Effort size estimate.",
+            "description": "Choose a fixed effort size using the workspace rubric below and your judgment about the work. Estimate it even when the user gives no size; preserve an explicitly requested size. A deadline span is not effort. Calendar events use event_add, which calculates size from their duration.\nXS: Trivial change; Call / 10 minute meeting / handoff / tidy-up / scheduling; Done in a moment.\nS: Low risk change with a narrow blast radius; Half hour meeting / short draft / customer or partner reply / briefing; Several fit in a day.\nM: Small feature / change with real impact; Report / meeting under two hours / external meeting / cross-team alignment / document; Takes a dedicated day.\nL: Mid-size feature / change touching many areas; Important external meeting / mid-size research / proposal draft / policy change; Takes about two days.\nXL: Large feature / complex change / external integration; Restructuring / negotiation / long meeting / workshop; Takes about a week.\nXXL: Milestone; Partnership design / contract structure / service planning / policy overhaul; Must be split into smaller items.",
             "enum": [
               "XS",
               "S",
@@ -15606,7 +15606,7 @@
             "type": "string"
           },
           "type": {
-            "description": "Task type label, taken from registeredLabels.types in a task_list result.",
+            "description": "Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user's language. Never invent a label. Omit to preserve the current type; an empty string clears it.",
             "type": "string"
           }
         },
@@ -15657,7 +15657,7 @@
             "type": "array"
           },
           "size": {
-            "description": "Effort size estimate.",
+            "description": "Choose a fixed effort size using the workspace rubric below and your judgment about the work. Estimate it even when the user gives no size; preserve an explicitly requested size. A deadline span is not effort. Calendar events use event_add, which calculates size from their duration.\nXS: Trivial change; Call / 10 minute meeting / handoff / tidy-up / scheduling; Done in a moment.\nS: Low risk change with a narrow blast radius; Half hour meeting / short draft / customer or partner reply / briefing; Several fit in a day.\nM: Small feature / change with real impact; Report / meeting under two hours / external meeting / cross-team alignment / document; Takes a dedicated day.\nL: Mid-size feature / change touching many areas; Important external meeting / mid-size research / proposal draft / policy change; Takes about two days.\nXL: Large feature / complex change / external integration; Restructuring / negotiation / long meeting / workshop; Takes about a week.\nXXL: Milestone; Partnership design / contract structure / service planning / policy overhaul; Must be split into smaller items.",
             "enum": [
               "XS",
               "S",
@@ -15690,7 +15690,7 @@
             "type": "string"
           },
           "type": {
-            "description": "Task type label, taken from registeredLabels.types in a task_list result.",
+            "description": "Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user's language. Never invent a label. Omit to preserve the current type; an empty string clears it.",
             "type": "string"
           }
         },

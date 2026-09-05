@@ -592,6 +592,12 @@ agent runs on, and `GET /api/v1/tools` answers them without asking the company
 machine. Tools that come and go with circumstance, such as the companion's, are
 found with `?live=true`, which costs that round trip.
 
+For work registration, the agent selects a company type and a fixed effort size
+from Task > Definitions. `task_list` returns the company labels; the tool's size
+description carries the shared rubric. Calendar events use the size thresholds automatically.
+An unmatched type is stored as `null` and displayed as Other (`기타`). API
+updates distinguish an omitted type (keep it) from an empty string (clear it to `null`).
+
 ## Pages API — device
 
 | Method | Path | Does |
