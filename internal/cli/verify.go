@@ -350,9 +350,9 @@ curl --silent --show-error --fail http://127.0.0.1:18080/admin/ | grep -q '<scri
 curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json | jq -e '.version | length > 0' >/dev/null
 
 echo "checking the paths the company web reaches through the relay"
-relay_requester="$(curl --silent --show-error --fail http://127.0.0.1:8080/admin/api/policy | jq -r '[.people[] | select(.isAdmin != true) | .emails[0] // empty] | first // empty')"
-test -n "$relay_requester"
-for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /files/api/list /runs/api /runs/api/detail /skills/api /agent/api/buzz-claim /agent/api/buzz-relay-config /persona/api/user /persona/api/soul; do
+` + verifyRelayActorsScript(blueclaw.InternKimCentralPlaneAgentKeyPath, blueclaw.InternKimCentralPlaneAppURLPath) + `
+` + verifySkillInventoryScript() + `
+for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /files/api/list /runs/api /runs/api/detail /agent/api/buzz-claim /agent/api/buzz-relay-config /persona/api/user /persona/api/soul; do
   relay_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --unix-socket ` + blueclaw.AdmindSocketPath + ` -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_requester" "http://internkim$relay_path")"
   case "$relay_status" in
     403|404)
@@ -491,6 +491,44 @@ PY
 echo "verify api: ok"
 `
 	return strings.ReplaceAll(script, "__DEFAULT_OPENROUTER_MODEL__", blueclaw.BlueclawDefaultModelName)
+}
+
+func verifyRelayActorsScript(centralPlaneAgentKeyPath string, centralPlaneAppURLPath string) string {
+	return `central_plane_agent_key_path="` + centralPlaneAgentKeyPath + `"
+if [ -s "$central_plane_agent_key_path" ]; then
+  central_plane_app_url="$(cat ` + centralPlaneAppURLPath + `)"
+  central_plane_agent_key="$(cat "$central_plane_agent_key_path")"
+  test -n "$central_plane_app_url"
+  test -n "$central_plane_agent_key"
+  directory_response="$(curl --silent --show-error --fail -H "Authorization: Bearer $central_plane_agent_key" "$central_plane_app_url/api/agent/member")"
+  active_records="$(printf '%s' "$directory_response" | jq -c -e '.members // [] | map(select((.status // "") == "" or (.status | ascii_downcase) == "active"))')"
+else
+  directory_response="$(curl --silent --show-error --fail http://127.0.0.1:18080/admin/api/users)"
+  active_records="$(printf '%s' "$directory_response" | jq -c -e '.records // [] | map(select((.status // "") == "" or (.status | ascii_downcase) == "active"))')"
+fi
+relay_requester="$(printf '%s' "$active_records" | jq -r '[.[] | select((.role // "" | ascii_downcase) != "admin") | .email | select(length > 0)] | first // empty')"
+relay_admin="$(printf '%s' "$active_records" | jq -r '[.[] | select((.role // "" | ascii_downcase) == "admin") | .email | select(length > 0)] | first // empty')"
+if [ -z "$relay_requester" ]; then
+  echo "the directory has no active nonadministrator to use for relay verification"
+  exit 1
+fi
+if [ -z "$relay_admin" ]; then
+  echo "the directory has no active administrator to use for relay verification"
+  exit 1
+fi`
+}
+
+func verifySkillInventoryScript() string {
+	return `skill_member_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --unix-socket ` + blueclaw.AdmindSocketPath + ` -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_requester" "http://internkim/skills/api")"
+if [ "$skill_member_status" != "403" ]; then
+  echo "the skill inventory answered $skill_member_status for nonadministrator $relay_requester"
+  exit 1
+fi
+skill_admin_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --unix-socket ` + blueclaw.AdmindSocketPath + ` -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_admin" "http://internkim/skills/api")"
+if [ "$skill_admin_status" != "200" ]; then
+  echo "the skill inventory answered $skill_admin_status for administrator $relay_admin"
+  exit 1
+fi`
 }
 
 // Site tools are named exactly; matching a name prefix silently reclassifies any
