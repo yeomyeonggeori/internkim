@@ -898,6 +898,7 @@ func refreshBlueclawCapabilityContract(document string, contract blueclawruntime
 			routing["candidates"] = contract.RoutingCandidates
 		}
 	}
+	migrateBlueclawCapabilityModelConfiguration(runtimeDocument)
 	retireBlueclawGuestLLMDConfiguration(runtimeDocument)
 	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")
 	if errorValue != nil {
@@ -906,18 +907,12 @@ func refreshBlueclawCapabilityContract(document string, contract blueclawruntime
 	return string(refreshedBytes) + "\n", nil
 }
 
-const blueclawCapabilityLanguageModelProvider = "capabilityLLM"
-
 func retireBlueclawGuestLLMDConfiguration(runtimeDocument map[string]any) {
 	languageModelSection, ok := runtimeDocument["languageModel"].(map[string]any)
 	if !ok {
 		return
 	}
 	delete(languageModelSection, "llmd")
-	defaultProvider, _ := languageModelSection["defaultProvider"].(string)
-	if strings.TrimSpace(defaultProvider) == "" || defaultProvider == "llmd" {
-		languageModelSection["defaultProvider"] = blueclawCapabilityLanguageModelProvider
-	}
 }
 
 func isBlueclawRuntimeConfigurationCurrentForTarget(target blueclawPayloadInstallTarget, contract blueclawruntime.CapabilityContract) bool {

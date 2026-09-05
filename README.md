@@ -420,6 +420,7 @@ make deps-sim
 ./internkim dev fleet run                                   # the full predeploy gate
 ./internkim dev fleet run --scenario buzz-attachment
 ./internkim dev fleet run --scenario buzz-direct-message
+./internkim dev fleet run --scenario model-configuration-upgrade
 ./internkim dev fleet verify-regression --base main --scenario regression-proof
 ./internkim dev fleet reset
 ```
