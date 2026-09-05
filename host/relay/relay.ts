@@ -27,6 +27,7 @@ import {
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import { connectToGateway } from './gateway-socket';
 import { BlueclawACPClient, defaultBlueclawACPSocketPath, type Addressing } from './acp-session';
+import { RecordCatalogs, ticketOf } from './record-catalog';
 import { readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
@@ -279,10 +280,19 @@ async function nameOf(externalID: string): Promise<string> {
 	return contact.data?.name ?? '';
 }
 
+const recordCatalogs = new RecordCatalogs({
+	appURL,
+	loopbackURL: `http://127.0.0.1:${arrivalsPort}`,
+	mintFor: (requesterEmail) => askForMemberSession(requesterEmail),
+	report: (line) => console.log(`catalog: ${line}`)
+});
+
 const inboundTurns: InboundTurns = new InboundTurns({
 	client: new BlueclawACPClient({
 		socketPath: blueclawACPSocketPath,
 		workspaceRootPath,
+		catalogFor: (requesterEmail, conversationID) =>
+			recordCatalogs.serversFor(requesterEmail, conversationID),
 		questions: new HeldQuestionStore({
 			directoryPath: `${relayStateDirectory}/questions`,
 			report: (line) => console.log(`questions: ${line}`)
@@ -310,8 +320,11 @@ Bun.serve({
 	port: arrivalsPort,
 	fetch: async (request) => {
 		if (request.method !== 'POST') return new Response('post an arrival', { status: 405 });
+		const pathname = new URL(request.url).pathname;
+		const catalogTicket = ticketOf(pathname);
+		if (catalogTicket) return recordCatalogs.serve(request, catalogTicket);
 		const offered = await request.json().catch(() => null);
-		if (new URL(request.url).pathname === '/inbound') {
+		if (pathname === '/inbound') {
 			const inbound = readInboundMessage(offered);
 			if (!inbound) return new Response('that is not a message the agent can answer', { status: 400 });
 			const isNew = await inboundTurns.keep(inbound.key, offered);
@@ -363,6 +376,20 @@ async function askTheProject<Value>(functionName: string, body: unknown): Promis
 	});
 	if (!response.ok) throw new Error(`the project answered ${response.status} for ${functionName}`);
 	return (await response.json()) as Value;
+}
+
+async function askForMemberSession(
+	requesterEmail: string
+): Promise<{ accessToken: string; expiresAt: number }> {
+	const response = await fetch(`${appURL}/api/agent/session`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${agentKey}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ kind: 'email', externalID: requesterEmail })
+	});
+	if (!response.ok) {
+		throw new Error(`the central plane would not sign in ${requesterEmail} (${response.status})`);
+	}
+	return (await response.json()) as { accessToken: string; expiresAt: number };
 }
 
 async function askForHostSession(): Promise<{ companyID: string; accessToken: string; expiresAt: number }> {
