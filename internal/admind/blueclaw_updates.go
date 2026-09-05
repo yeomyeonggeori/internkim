@@ -45,6 +45,7 @@ type blueclawPayloadInstallTarget struct {
 	WorkspaceImagePath                string
 	RuntimeConfigurationPath          string
 	WorkspaceRuntimeConfigurationPath string
+	DeliveryRuntimeConfigurationPath  string
 	PayloadManifestPath               string
 }
 
@@ -787,6 +788,7 @@ func canonicalBlueclawPayloadInstallTarget() blueclawPayloadInstallTarget {
 		WorkspaceImagePath:                blueclawruntime.BlueclawWorkspaceImagePath,
 		RuntimeConfigurationPath:          blueclawruntime.BlueclawRuntimeConfigPath,
 		WorkspaceRuntimeConfigurationPath: filepath.Join(blueclawruntime.BlueclawWorkspacePath, ".blueclaw", "config", "runtime.json"),
+		DeliveryRuntimeConfigurationPath:  filepath.Join(blueclawruntime.BlueclawDeliveryConfigPath, "runtime.json"),
 		PayloadManifestPath:               blueclawruntime.BlueclawPayloadManifestPath,
 	}
 }
@@ -962,6 +964,7 @@ func blueclawRuntimeConfigurationPathsForTarget(target blueclawPayloadInstallTar
 	return []string{
 		target.RuntimeConfigurationPath,
 		target.WorkspaceRuntimeConfigurationPath,
+		target.DeliveryRuntimeConfigurationPath,
 	}
 }
 
