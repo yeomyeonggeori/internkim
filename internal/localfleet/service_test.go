@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -342,8 +343,17 @@ func TestRealModelsIgnorePinnedTestModel(t *testing.T) {
 }
 
 func TestVirtualSessionScenarioRunsLinuxVirtualSession(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	pluginPath := filepath.Join(repositoryRootPath, ".dependency", "sample-plugin")
+	if errorValue := os.MkdirAll(filepath.Join(pluginPath, "skills"), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	manifest := []byte(`{"$schema":"` + blueclawworkspace.PluginSchemaURL + `","name":"sample-plugin","version":"0.0.1"}`)
+	if errorValue := os.WriteFile(filepath.Join(pluginPath, "plugin.json"), manifest, 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	service, errorValue := NewService(Options{
-		RepositoryRootPath: "/repo",
+		RepositoryRootPath: repositoryRootPath,
 		ExecutablePath:     "/repo/internkim",
 		RunID:              "virtual-session",
 		IsEphemeral:        true,
@@ -367,6 +377,18 @@ func TestVirtualSessionScenarioRunsLinuxVirtualSession(t *testing.T) {
 	}
 	if strings.Contains(joinedPlans, "setup --board lab") {
 		t.Fatalf("virtual session scenario should not run setup:\n%s", joinedPlans)
+	}
+	virtualPlan := plans[len(plans)-1]
+	virtualCommand := strings.Join(virtualPlan.Arguments, " ")
+	for _, expectedFragment := range []string{
+		"BLUECLAW_SCENARIO_CAPABILITY_CATALOG",
+		"/mnt/shared/workspace/pkg/capabilityprotocol/generated/capability-tools.json",
+		"BLUECLAW_SCENARIO_SKILL_ROOTS",
+		"/mnt/shared/workspace/.dependency/",
+	} {
+		if !strings.Contains(virtualCommand, expectedFragment) {
+			t.Fatalf("virtual session command must carry guest scenario environment %q:\n%s", expectedFragment, virtualCommand)
+		}
 	}
 }
 
