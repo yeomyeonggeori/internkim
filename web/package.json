@@ -14,6 +14,7 @@
 		"test": "if test -d tests/unit; then bun test tests/unit; else echo 'No unit tests'; fi",
 		"test:unit": "if test -d tests/unit; then bun test tests/unit; else echo 'No unit tests'; fi",
 		"test:e2e": "bunx playwright test",
+		"test:e2e:local-fleet": "playwright test tests/e2e/local-fleet.spec.ts --workers=1",
 		"generate:protocol": "bun run scripts/generate-capability-protocol.ts",
 		"test:integration": "./scripts/test-integration.sh",
 		"test:e2e:admin": "PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5191} bunx playwright test tests/e2e/admin-role-tabs.spec.ts --workers=1",
