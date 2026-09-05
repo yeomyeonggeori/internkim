@@ -23,10 +23,11 @@ the opposite direction, in a new `internal/acpsession`.
 
 ## What `session/new` carries
 
-`Cwd` is the requester's workspace root. `McpServers` carries one HTTP entry:
-the company's `/api/v1/mcp` and a per-session bearer minted for the requester,
-which is what retires capabilityd's `/v1/mcp` carrier, shipped by 3a as
-scaffolding.
+`Cwd` is the requester's workspace root. `McpServers` names the relay's own
+loopback `/mcp/<ticket>`. The relay forwards each call to the company's
+`/api/v1/mcp` as the requester, minting the bearer through
+`/api/agent/session` and again five minutes before it expires. A session lives
+for weeks and a bearer for an hour, which is why the address is the relay's.
 
 The rest rides on `_meta` under `kim.intern/session`:
 
@@ -145,10 +146,8 @@ address, and a document that stamps nothing takes its descriptors from
 `/v1/capabilities` and pins no identity. The package, the flag,
 `internal/protocolidentity`, the per-turn audit, admind's restamp and the
 pairing rule are the frozen device's, and stay until it is retired.
-`/v1/mcp` stays until `session/new` carries the endpoint and a token.
 
 ## What is not built yet
 
-The MCP endpoint and per-session token on `session/new`, and the ladder on
-`_meta`. Carrying a value nothing reads is dead configuration, so `session/new`
-carries the requester and the addressing and nothing else.
+The ladder on `_meta`. Carrying a value nothing reads is dead configuration, so
+`session/new` sends the requester and the addressing only.
