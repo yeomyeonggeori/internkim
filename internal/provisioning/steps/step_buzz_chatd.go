@@ -11,7 +11,7 @@ import (
 
 var StepBuzzChatd = Step{
 	Name: "buzz-chatd",
-	Deps: []string{"buzz-seed", "buzz-relay", "buzz-public-host"},
+	Deps: []string{"buzz-seed", "buzz-relay", "buzz-public-host", "services"},
 	Title: func(context *Context) string {
 		return context.T("Buzz chatd 브리지 설치 중...", "Installing Buzz chatd bridge...")
 	},

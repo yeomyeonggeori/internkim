@@ -1,11 +1,27 @@
 package setup
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
+
+func TestBuzzChatdStartsAfterItsGuestGatewayExists(t *testing.T) {
+	for _, selector := range []Selector{{}, {Only: []string{"buzz-chatd"}}} {
+		selector.DryRun = true
+		plan, errorValue := DefaultRegistry().resolve(&Context{Backend: BackendSSH}, selector)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		servicesIndex := slices.Index(plan, "services")
+		chatdIndex := slices.Index(plan, "buzz-chatd")
+		if servicesIndex < 0 || chatdIndex <= servicesIndex {
+			t.Fatalf("chatd must follow the services that create its gateway address: %v", plan)
+		}
+	}
+}
 
 const chatdTestAgentSecret = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
