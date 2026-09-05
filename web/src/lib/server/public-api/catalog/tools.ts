@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { taskSizes } from '$lib/task/task-sizes';
 
 import {
   CapabilityAnsweredBy,
@@ -183,6 +184,13 @@ export enum CalendarReminderLeadHours {
 }
 
 const workspaceTaskSizeSchema = z.enum(WorkspaceTaskSize);
+
+const taskSizeDescription = [
+  'Choose a fixed effort size using the workspace rubric below and your judgment about the work. Estimate it even when the user gives no size; preserve an explicitly requested size. A deadline span is not effort. Calendar events use event_add, which calculates size from their duration.',
+  ...taskSizes('en').map((size) => `${size.name}: ${size.developmentExample}; ${size.otherExample}; ${size.note}.`),
+].join('\n');
+
+const taskTypeDescription = 'Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user\'s language. Never invent a label.';
 const workspaceTaskStatusSchema = z.enum(WorkspaceTaskStatus);
 
 const taskParticipantSchema = z.strictObject({
@@ -228,7 +236,7 @@ export const taskAddInputSchema = z.strictObject({
     "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
   ),
   size: workspaceTaskSizeSchema
-    .describe('Effort size using the work-size rubric. Omit when the request does not support a useful estimate.')
+    .describe(taskSizeDescription)
     .optional(),
   status: z.enum(WorkspaceTaskInitialStatus)
     .describe('Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.')
@@ -237,7 +245,7 @@ export const taskAddInputSchema = z.strictObject({
     .describe('Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.')
     .optional(),
   type: z.string()
-    .describe('Task type label, taken from registeredLabels.types in a task_list result. Omit when unsure.')
+    .describe(taskTypeDescription)
     .optional(),
   startsAt: z.string().describe(`When the work starts. ${momentDescription} Resolve relative dates from the current date. Omit when the user did not specify one.`).optional(),
   endsAt: z.string().describe(`When the work is due. ${momentDescription} Resolve relative dates from the current date. Omit when the user did not specify one.`).optional(),
@@ -280,9 +288,9 @@ const taskUpdateObjectSchema = z.strictObject({
   taskHint: taskHintSchema,
   title: z.string().describe('New task title.').optional(),
   status: workspaceTaskStatusSchema.describe('New task status.').optional(),
-  size: workspaceTaskSizeSchema.describe('Effort size estimate.').optional(),
+  size: workspaceTaskSizeSchema.describe(taskSizeDescription).optional(),
   business: z.string().describe('Business label, taken from registeredLabels.businesses in a task_list result.').optional(),
-  type: z.string().describe('Task type label, taken from registeredLabels.types in a task_list result.').optional(),
+  type: z.string().describe(`${taskTypeDescription} Omit to preserve the current type; an empty string clears it.`).optional(),
   startsAt: z.string().describe(`When the work starts. ${momentDescription} An empty string takes the date off.`).optional(),
   endsAt: z.string().describe(`When the work is due. ${momentDescription} An empty string takes the date off.`).optional(),
   participantPersonHints: z.array(z.string())
@@ -790,8 +798,8 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_add',
-    description: 'Create a new workspace task with typed task fields. Use this to add a todo or assignment for the requester or another team member. Do not use this to update an existing task — use task.update.',
-    version: '6',
+    description: 'Create a new workspace task with typed task fields. Choose its type from the company definitions (empty when none fits) and estimate its size from the work-size rubric without asking the user to classify it. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.',
+    version: '7',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskAddInputSchema,
     inputIntentSchema: taskAddInputIntentSchema,
@@ -827,7 +835,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_update',
     description: 'Update explicit fields on an existing task, including who takes part in it. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.',
-    version: '5',
+    version: '6',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskUpdateInputSchema,
     inputIntentSchema: taskUpdateInputIntentSchema,

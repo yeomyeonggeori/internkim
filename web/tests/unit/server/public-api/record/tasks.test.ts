@@ -132,6 +132,8 @@ describe('writing a task that already exists', () => {
 
 	test('writes a field the caller emptied on purpose', () => {
 		expect(taskWriteArguments(row(), { size: null }).target_size).toBeNull();
+		expect(taskWriteArguments(row(), { type: null }).target_type).toBeNull();
+		expect(taskWriteArguments(row(), {}).target_type).toBe('문서');
 	});
 
 	test('keeps what no task caller names: where it is, whether it takes a whole day, when it warns', () => {
@@ -154,6 +156,7 @@ describe('writing a task that is new', () => {
 		expect(written.target_expected_updated_at).toBeUndefined();
 		expect(written.target_write_dates).toBe(true);
 		expect(written.target_status).toBe('planned');
+		expect(written.target_size).toBeNull();
 	});
 
 	test('goes under the task it names, and under nothing when it names none', () => {
