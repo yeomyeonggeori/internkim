@@ -232,7 +232,7 @@ func (service Service) predeployGatePlans() []CommandPlan {
 	return append(service.upPlans(false),
 		service.shellPlan("verify api", service.verifyCommand("api")),
 		service.blueclawLabScenarioScriptPlan("dm-recipient-resolve"),
-		service.shellPlan("verify browser", service.verifyCommand("browser --local")),
+		service.companyBrowserVerificationPlan(),
 	)
 }
 
@@ -263,8 +263,23 @@ func (service Service) workspacePersistenceScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("workspace-persistence"))
 }
 
-func (service Service) webBackedScenarioPlans(scenario string) []CommandPlan {
-	return append(service.upPlans(false), service.shellPlan("run "+scenario, service.verifyCommand("browser --local")))
+func (service Service) webBackedScenarioPlans() []CommandPlan {
+	return append(service.upPlans(false),
+		service.shellPlan("verify api", service.verifyCommand("api")),
+		service.companyBrowserVerificationPlan(),
+	)
+}
+
+func (service Service) companyBrowserVerificationPlan() CommandPlan {
+	return CommandPlan{
+		DirectoryPath: filepath.Join(service.options.RepositoryRootPath, "web"),
+		Name:          "bun",
+		Arguments:     []string{"run", "test:e2e:local-fleet"},
+		Environment: append(os.Environ(),
+			fmt.Sprintf("PLAYWRIGHT_BASE_URL=http://127.0.0.1:%d", service.options.CompanyAppPort),
+			"PLAYWRIGHT_START_WEB_SERVER=0",
+		),
+	}
 }
 
 func (service Service) baseRegressionPlans(base string, scenario string) []CommandPlan {
