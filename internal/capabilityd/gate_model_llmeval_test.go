@@ -13,9 +13,9 @@ func TestLiveCatalogModelToolContracts(t *testing.T) {
 	if os.Getenv("INTERNKIM_LIVE_LLM_TEST") != "1" {
 		t.Skip("set INTERNKIM_LIVE_LLM_TEST=1 to run live catalog model contracts")
 	}
-	modelName := strings.TrimSpace(os.Getenv("OPENROUTER_MODEL"))
+	modelName := strings.TrimSpace(os.Getenv("INTERNKIM_GATE_MODEL"))
 	if modelName == "" {
-		t.Fatal("OPENROUTER_MODEL is required for live catalog model contracts")
+		t.Fatal("INTERNKIM_GATE_MODEL is required for live catalog model contracts")
 	}
 	keyPath := strings.TrimSpace(os.Getenv("INTERNKIM_GATE_OPENROUTER_KEY_PATH"))
 	if keyPath == "" {
