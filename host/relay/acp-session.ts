@@ -1,3 +1,4 @@
+import type { McpServerEntry } from './record-catalog';
 import {
 	ClientSideConnection,
 	ndJsonStream,
@@ -56,6 +57,7 @@ export type AnsweredTurn = {
 export type ACPSessionSettings = {
 	socketPath: string;
 	workspaceRootPath: string;
+	catalogFor: (requesterEmail: string, conversationID: string) => McpServerEntry[];
 	questions: HeldQuestionStore;
 	/** Puts the question to the requester and answers with the words they wrote back. */
 	askThePerson: (asked: AskedPermission, addressing: Addressing) => Promise<string>;
@@ -233,7 +235,10 @@ export class BlueclawACPClient {
 				.loadSession({
 					sessionId: held.sessionID,
 					cwd: this.settings.workspaceRootPath,
-					mcpServers: [],
+					mcpServers: this.settings.catalogFor(
+						held.requester.email,
+						held.addressing.conversationID
+					),
 					_meta: { [sessionMetaKey]: { requester: held.requester, addressing: held.addressing } }
 				})
 				.catch((failure) => {
@@ -252,7 +257,7 @@ export class BlueclawACPClient {
 		if (held) return held.sessionID;
 		const opened = await agent.newSession({
 			cwd: this.settings.workspaceRootPath,
-			mcpServers: [],
+			mcpServers: this.settings.catalogFor(requester.email, addressing.conversationID),
 			_meta: { [sessionMetaKey]: { requester, addressing } }
 		});
 		const heldSession: HeldSession = { sessionID: opened.sessionId, requester, addressing };

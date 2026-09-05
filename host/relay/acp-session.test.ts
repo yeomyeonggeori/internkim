@@ -183,6 +183,7 @@ test('a session names the requester and the conversation it answers in', async (
 	const client = new BlueclawACPClient({
 		socketPath: agent.socketPath,
 		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
 		questions: aQuestionStore(),
 		askThePerson: async () => '',
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()
@@ -203,6 +204,7 @@ test('a second message in the same conversation reuses the session', async () =>
 	const client = new BlueclawACPClient({
 		socketPath: agent.socketPath,
 		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
 		questions: aQuestionStore(),
 		askThePerson: async () => '',
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()
@@ -227,6 +229,7 @@ test('the person is asked, and the agent reads what they wrote', async () => {
 	const client = new BlueclawACPClient({
 		socketPath: agent.socketPath,
 		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
 		questions,
 		askThePerson: async (question) => {
 			asked.push(question.question);
@@ -266,6 +269,7 @@ test('an already-answered question survives a restart and is delivered without a
 	const client = new BlueclawACPClient({
 		socketPath: agent.socketPath,
 		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
 		questions,
 		askThePerson: async (question) => {
 			asked.push(question.question);
@@ -305,6 +309,7 @@ test('an unanswered question is not asked again after a restart, and is delivere
 	const client = new BlueclawACPClient({
 		socketPath: agent.socketPath,
 		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
 		questions,
 		askThePerson: async (question) => {
 			asked.push(question.question);
