@@ -9,7 +9,7 @@ import urllib.request
 
 def read_health():
     try:
-        with urllib.request.urlopen('http://127.0.0.1:8080/admin/api/health', timeout=5) as response:
+        with urllib.request.urlopen('http://127.0.0.1:8080/admin/api/health', timeout=15) as response:
             return response.status, json.load(response)
     except urllib.error.HTTPError as error:
         return error.code, json.load(error)
