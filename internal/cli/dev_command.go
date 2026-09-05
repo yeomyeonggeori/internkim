@@ -454,7 +454,7 @@ func parseDevVirtualSessionArguments(arguments []string) (devVirtualSessionArgum
 	skillDirectoryPath := flagSet.String("skill-dir", "", "Skill directory to load into the virtual workspace")
 	languageModelEndpoint := flagSet.String("llm-endpoint", "", "Live LLM capability endpoint")
 	languageModelSocket := flagSet.String("llm-unix-socket", "", "Live LLM capability unix socket path")
-	languageModelProvider := flagSet.String("llm-provider", "", "Live LLM provider: openrouter or capability")
+	languageModelProvider := flagSet.String("llm-provider", "", "Live LLM provider: endpoint or capability")
 	languageModelName := flagSet.String("llm-model", "", "Live LLM model override")
 	executionMode := flagSet.String("llm-execution-mode", "", "Live LLM execution mode")
 	liveLanguageModel := flagSet.Bool("live-llm", false, "Allow live LLM calls")
