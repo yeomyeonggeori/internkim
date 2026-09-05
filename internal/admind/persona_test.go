@@ -31,7 +31,13 @@ func TestPersonaSchemasAreTheOnesBlueclawOwns(t *testing.T) {
 func personaTestService(t *testing.T) *Service {
 	t.Helper()
 	configurationDirectory := t.TempDir()
+	blueclaw := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = io.Copy(response, request.Body)
+	}))
+	t.Cleanup(blueclaw.Close)
 	return NewService(Configuration{
+		BlueclawBaseURL:       blueclaw.URL,
 		IdentityDocumentPath:  filepath.Join(configurationDirectory, "identity.json"),
 		SoulDocumentPath:      filepath.Join(configurationDirectory, "soul.json"),
 		BlueclawWorkspacePath: t.TempDir(),
@@ -46,7 +52,7 @@ func stubPersonaActor(t *testing.T, actor personaActor, found bool) {
 	t.Cleanup(func() { resolvePersonaActor = previous })
 }
 
-func TestPersonaSeedsBothDocumentsAndWritesTheWorkspace(t *testing.T) {
+func TestPersonaSeedsBothConfigurationDocuments(t *testing.T) {
 	service := personaTestService(t)
 
 	identity, soul, errorValue := service.loadOrSeedPersona()
@@ -60,8 +66,8 @@ func TestPersonaSeedsBothDocumentsAndWritesTheWorkspace(t *testing.T) {
 	if soul.Language == nil || soul.Language.Default != "ko" || !soul.Language.MatchRequester || len(soul.Values) == 0 {
 		t.Fatalf("expected the default soul, got %+v", soul)
 	}
-	for _, fileName := range []string{"identity.json", "soul.json"} {
-		document, errorValue := os.ReadFile(filepath.Join(service.Configuration.BlueclawWorkspacePath, fileName))
+	for _, fileName := range []string{service.Configuration.IdentityDocumentPath, service.Configuration.SoulDocumentPath} {
+		document, errorValue := os.ReadFile(fileName)
 		if errorValue != nil || !strings.Contains(string(document), `"schemaVersion": 1`) {
 			t.Fatalf("expected the workspace %s in canonical form: %v %s", fileName, errorValue, document)
 		}
@@ -79,7 +85,9 @@ aliases:
 publicDescription: "회사 일을 돕는 인턴입니다."
 identityExtension: "Be crisp."
 `)
-	writeFile(t, filepath.Join(service.Configuration.BlueclawWorkspacePath, "BOT_PROFILE.yaml"), "displayName: 김비서\n")
+	for _, fileName := range []string{"BOT_PROFILE.yaml", "BOT_PROFILE.md", "IDENTITY.md", "SOUL.md"} {
+		writeFile(t, filepath.Join(service.Configuration.BlueclawWorkspacePath, fileName), "retired persona\n")
+	}
 
 	identity, _, errorValue := service.loadOrSeedPersona()
 
@@ -92,8 +100,10 @@ identityExtension: "Be crisp."
 	if identity.Introduction != "회사 일을 돕는 인턴입니다." {
 		t.Fatalf("expected the public description to become the introduction, got %+v", identity)
 	}
-	if _, errorValue := os.Stat(filepath.Join(service.Configuration.BlueclawWorkspacePath, "BOT_PROFILE.yaml")); !os.IsNotExist(errorValue) {
-		t.Fatal("expected the retired workspace profile to be removed")
+	for _, fileName := range []string{"BOT_PROFILE.yaml", "BOT_PROFILE.md", "IDENTITY.md", "SOUL.md"} {
+		if _, errorValue := os.Stat(filepath.Join(service.Configuration.BlueclawWorkspacePath, fileName)); !os.IsNotExist(errorValue) {
+			t.Fatalf("retired persona remains: %s", fileName)
+		}
 	}
 }
 
@@ -132,7 +142,7 @@ func TestSoulUpdateRefusesWhatTheSchemaDoesNotNameAndFollowsIntoTheWorkspace(t *
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected the soul to save, got %d %s", recorder.Code, recorder.Body.String())
 	}
-	workspaceSoul, errorValue := os.ReadFile(filepath.Join(service.Configuration.BlueclawWorkspacePath, "soul.json"))
+	workspaceSoul, errorValue := os.ReadFile(service.Configuration.SoulDocumentPath)
 	if errorValue != nil || !strings.Contains(string(workspaceSoul), "Lead with the result.") {
 		t.Fatalf("expected the workspace soul to follow the save, got %s (%v)", workspaceSoul, errorValue)
 	}

@@ -13,6 +13,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   here links to where the two paths still meet. Mattermost is not part of the
   freeze: it is being removed.
 - Prefer existing codebase patterns over new abstractions.
+- [Persona](docs/internal/persona-and-recovery.md)
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
 - In new agent worktrees, run
