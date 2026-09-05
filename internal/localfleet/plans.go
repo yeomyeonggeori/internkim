@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -462,8 +463,13 @@ func (service Service) blueclawDevSessionPreparePlan(scenario string) CommandPla
 }
 
 func (service Service) virtualSessionPlan(scenario string) CommandPlan {
+	scenarioEnvironment, errorValue := service.virtualSessionEnvironment()
+	if errorValue != nil {
+		return service.labCommand("vm-ssh", "echo "+quoteShell(errorValue.Error())+" >&2; exit 1")
+	}
 	command := strings.Join([]string{
 		"cd " + quoteShell("/mnt/shared/workspace/.dependency/blueclaw"),
+		strings.Join(scenarioEnvironment, "; "),
 		quoteShellArguments([]string{
 			"go",
 			"run",
@@ -476,6 +482,30 @@ func (service Service) virtualSessionPlan(scenario string) CommandPlan {
 		}),
 	}, " && ")
 	return service.labCommand("vm-ssh", command)
+}
+
+func (service Service) virtualSessionEnvironment() ([]string, error) {
+	skillRootPaths, errorValue := blueclawworkspace.SkillRootPaths(service.options.RepositoryRootPath)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	guestSkillRootPaths := make([]string, 0, len(skillRootPaths))
+	for _, skillRootPath := range skillRootPaths {
+		guestSkillRootPaths = append(guestSkillRootPaths, guestWorkspacePath(service.options.RepositoryRootPath, skillRootPath))
+	}
+	catalogPath := filepath.Join(service.options.RepositoryRootPath, "pkg", "capabilityprotocol", "generated", "capability-tools.json")
+	return []string{
+		"export BLUECLAW_SCENARIO_SKILL_ROOTS=" + quoteShell(strings.Join(guestSkillRootPaths, string(os.PathListSeparator))),
+		"export BLUECLAW_SCENARIO_CAPABILITY_CATALOG=" + quoteShell(guestWorkspacePath(service.options.RepositoryRootPath, catalogPath)),
+	}, nil
+}
+
+func guestWorkspacePath(repositoryRootPath string, hostPath string) string {
+	relativePath, errorValue := filepath.Rel(repositoryRootPath, hostPath)
+	if errorValue != nil || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return hostPath
+	}
+	return filepath.Join("/mnt/shared/workspace", relativePath)
 }
 
 func (service Service) virtualSessionArtifactDirectoryPath(scenario string) string {

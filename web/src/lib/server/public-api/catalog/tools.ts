@@ -834,7 +834,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_update',
-    description: 'Update explicit fields on an existing task, including who takes part in it. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.',
+    description: 'Update explicit fields on an existing task, including who takes part in it. Classification fields use registeredLabels from task_list: business is a workspace label, while organizationHint and opportunityHint link CRM records. Choose classification values from those labels and the work context when the requester delegates that judgment. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. At least one mutable field is required.',
     version: '6',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskUpdateInputSchema,
