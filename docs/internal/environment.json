@@ -185,6 +185,7 @@
   "OLLAMA_INSTALL_PASSWORD": {"process": "tools/install-ollama-jetson", "description": "the SSH password for the remote Jetson host"},
   "OLLAMA_INSTALL_USER": {"process": "tools/install-ollama-jetson", "description": "the SSH user for the remote Jetson host"},
   "OPENROUTER_API_KEY": {"process": "cli", "description": "the OpenRouter API key for remote model inference from tooling run on this machine; also read by internal/llmbackend's live OpenRouter test and tools/verify-graphiti-local"},
+  "PATH": {"process": "cli verification tests", "description": "the inherited executable search path, preserved after a temporary curl stub directory when testing verification scripts without network calls"},
   "PLAYWRIGHT_BASE_URL": {"process": "web e2e tests", "description": "the base URL web/playwright.config.ts points its browser at; defaults to http://127.0.0.1:5174"},
   "PLAYWRIGHT_CENTRAL_PLANE": {"process": "web e2e tests", "description": "when \"1\", web/playwright.config.ts runs against a real local central plane instead of the mocked device path"},
   "PLAYWRIGHT_CHANNEL": {"process": "web e2e tests", "description": "the browser channel (e.g. chrome) web/playwright.config.ts launches, when set"},
