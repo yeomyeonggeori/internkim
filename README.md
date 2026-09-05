@@ -11,6 +11,11 @@ runs tools as the person who asked, and owns approval and the task ledger.
 that runs inside it. This repository is the layer that puts those two on a
 machine and operates them.
 
+The agent reads `identity.json` and `soul.json` in its runtime workspace, and
+each person's preferences from their own `user.json`. Administration publishes
+agent documents to Blueclaw and checks its acknowledgment. Contributor details
+are in [persona delivery and recovery](docs/internal/persona-and-recovery.md).
+
 ## How it is put together
 
 A company runs one computer that stays on. The hardware does not matter — a

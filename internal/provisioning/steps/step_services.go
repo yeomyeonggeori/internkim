@@ -71,8 +71,15 @@ chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
 		connection.Run(serviceUnitInstallCommand(context))
 
 		var unhealthyEntries []string
+		hasStartedChatd := false
 		for attempt := 0; attempt < blueclawServiceHealthAttempts; attempt++ {
-			unhealthyEntries = unhealthyServiceHealthEntries(context, readBlueclawServiceHealthReport(context))
+			report := readBlueclawServiceHealthReport(context)
+			if !hasStartedChatd && report["blueclawHealth"] == "ok" {
+				connection.Run(restartInstalledChatdCommand())
+				hasStartedChatd = true
+				continue
+			}
+			unhealthyEntries = unhealthyServiceHealthEntries(context, report)
 			if len(unhealthyEntries) == 0 {
 				break
 			}
@@ -159,6 +166,10 @@ systemctl enable systemd-time-wait-sync.service 2>/dev/null
 	}
 	command.WriteString("sleep 2")
 	return command.String()
+}
+
+func restartInstalledChatdCommand() string {
+	return fmt.Sprintf("if test -f %s; then systemctl reset-failed %s 2>/dev/null || true; systemctl restart %s; fi", blueclaw.ChatdServicePath, blueclaw.ChatdServiceName, blueclaw.ChatdServiceName)
 }
 
 func serviceUnitDocuments(context *Context) []serviceUnitDocument {
