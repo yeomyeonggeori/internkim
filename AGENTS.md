@@ -332,9 +332,9 @@ and delete the duplicates.
   (`internal/localfleet/service.go`), which its own `--help` prints.
 - Use scripted virtual sessions only for deterministic runtime invariants such
   as state transitions, approval, cancellation, effects, and evidence.
-- Verify model judgment and AI SDK behavior through the live LLM path. Preserve
-  request, response, routing, tool, timing, and artifact evidence instead of
-  replaying recorded model output as acceptance.
+- Keep default tests deterministic. Model evaluations require `llmeval`; preserve
+  live request, response, routing, tool, timing, and artifact evidence.
+  [Test boundaries](docs/internal/persona-and-recovery.md) define the split.
 - Each gate answers one question, and naming which keeps the slow one from
   becoming a ritual nobody runs:
 

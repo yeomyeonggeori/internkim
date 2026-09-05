@@ -468,11 +468,17 @@ real `graphiti-core[kuzu]` sidecar, capabilityd, OpenRouter and the llama.cpp
 BGE-M3 path from macOS without a board, and needs `OPENROUTER_API_KEY`. Live LLM
 end-to-end tests cost money and stay out of `go test ./...`:
 
+`tools/verify` checks deterministic logic with controlled protocol responses.
+Model and provider evaluations require the `llmeval` build tag as well as their
+live environment flag. They assess model behavior separately from configuration,
+state transitions, error propagation, and recorded effects; incidental answer
+wording is not a pass condition.
+
 ```bash
 cd .dependency/blueclaw
 BLUECLAW_E2E_LIVE=1 \
 BLUECLAW_E2E_LLM_UNIX_SOCKET=/run/internkim/capability.sock \
-go test ./internal/e2e -run TestPresentationLocalMultiturnSuccessLive -count=1
+go test -tags appliance,llmeval ./internal/e2e -run TestPresentationLocalMultiturnSuccessLive -count=1
 ```
 
 ### Resetting agent history

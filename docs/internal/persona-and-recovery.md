@@ -66,8 +66,24 @@ reports model readiness through HTTP health, and keeps background work stopped o
 `./internkim dev fleet run --scenario model-configuration-upgrade`
 removes a required tier from a delivered configuration, checks unhealthy readiness and stopped
 workers, then installs the legacy shape and verifies admind migrates every delivered copy.
-The scenario restores the original configuration and retains its evidence. A fresh-install
-smoke alone cannot establish that an existing device can upgrade.
+This is a structural test with no model request: it checks configuration corruption, migration,
+readiness, and worker intake. The scenario restores the original configuration and retains its
+evidence. A fresh-install smoke alone cannot establish that an existing device can upgrade.
+
+Default tests exercise configuration, state transitions, error propagation, recorded effects,
+and response delivery. Controlled model wire responses can drive these tests; their wording
+does not establish answer quality. Real model evaluations require the `llmeval` Go build tag
+and explicit live invocation, so ambient credentials and live flags cannot enable them inside
+`tools/verify`. Recovery judgment and answer quality belong to that separate evaluation and
+must not depend on incidental words in the answer.
+
+After the structural scenario, an opt-in live evaluation can exercise the current model through
+the same local fleet API and save its task ledger, including when the evaluation fails:
+
+`printf '%s\n' admin | sudo -S python3 /mnt/shared/workspace/lab/scripts/evaluate-model-response.py /mnt/shared/workspace/.artifacts/model-response-evaluation.json`
+
+The live evaluation checks only the scenario contract: the task completes with a nonempty result
+and makes no tool requests. It does not prescribe the answer's wording.
 
 Native assistant text ending with `finish_reason: stop` is a proposed final answer. It enters
 the same completion gate as the explicit finish action. Treating every text response as an
