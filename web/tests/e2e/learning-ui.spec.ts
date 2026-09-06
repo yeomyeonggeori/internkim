@@ -10,6 +10,7 @@ async function mockLearningSettings(page: Page): Promise<void> {
 	await page.route('**/persona/api/identity', (route) => route.fulfill({ json: { schemaVersion: 1, names: ['샘플 에이전트'], handle: 'sample-agent', role: '업무 보조', creature: 'assistant', emoji: '🌱', introduction: '검증 가능한 도움을 제공합니다.' } }));
 	await page.route('**/agent-learning/api/settings', (route) => route.fulfill({ json: { enabled: false, activeLimit: 20 } }));
 	await page.route('**/agent-learning/api/skills?includeRetired=true', (route) => route.fulfill({ json: { settings: { enabled: false, activeLimit: 20 }, skills: [{ id: 'weekly-report', version: 2, audience: 'company', description: '주간 보고서를 정리할 때 적용합니다.', instruction: '자료를 모으고 확인한 뒤 요약합니다.', evidenceIDs: ['evidence:1', 'evidence:2'], reason: '반복된 보고서 작업에서 확인됨', verification: 'evidence-reviewed', status: 'active', protected: false, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-20T00:00:00Z' }] } }));
+	await page.route('**/agent-learning/api/skills/weekly-report?includeHistory=true', (route) => route.fulfill({ json: { skills: [{ id: 'weekly-report', version: 1, audience: 'company', description: '주간 보고서를 정리할 때 적용합니다.', instruction: '초기 절차를 확인합니다.', evidenceIDs: ['evidence:1'], reason: '초기 근거', verification: 'evidence-reviewed', status: 'retired', protected: false, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' }, { id: 'weekly-report', version: 2, audience: 'company', description: '주간 보고서를 정리할 때 적용합니다.', instruction: '자료를 모으고 확인한 뒤 요약합니다.', evidenceIDs: ['evidence:1', 'evidence:2'], reason: '반복된 보고서 작업에서 확인됨', verification: 'evidence-reviewed', status: 'active', protected: false, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-20T00:00:00Z' }] } }));
 	await page.route('**/agent-learning/api/soul', (route) => route.fulfill({ json: { version: 2, document: { schemaVersion: 1, values: ['사실을 확인합니다.'], boundaries: ['모르는 것을 단정하지 않습니다.'], workingStyle: ['작은 단계로 검증합니다.'], tone: { register: 'polite', traits: ['clear'] }, language: { default: 'ko' } }, reason: '업무 검증 원칙', createdAt: '2026-08-20T00:00:00Z', origin: 'review' } }));
 	await page.route('**/agent-learning/api/soul/history', (route) => route.fulfill({ json: { history: [{ version: 1, document: { schemaVersion: 1, values: ['천천히 답합니다.'] }, reason: '초기 원칙', createdAt: '2026-08-01T00:00:00Z', origin: 'initial' }, { version: 2, document: { schemaVersion: 1, values: ['사실을 확인합니다.'] }, reason: '업무 검증 원칙', createdAt: '2026-08-20T00:00:00Z', origin: 'review' }] } }));
 	await page.route('**/skills/api', (route) => route.fulfill({ json: { skills: [], unavailableSkills: [] } }));
@@ -38,6 +39,11 @@ test('renders learned procedures and readable working principles on desktop', as
 	await openAdminSettings(page);
 	await expect(page.getByText('배운 절차')).toBeVisible();
 	await expect(page.getByText('주간 보고서를 정리할 때 적용합니다.')).toBeVisible();
+	await page.getByRole('button', { name: '변경 이력' }).click();
+	const historyPanel = page.getByLabel('변경 이력');
+	await expect(historyPanel.getByText('버전 1')).toBeVisible();
+	await historyPanel.locator('article').filter({ hasText: '버전 1' }).locator('details summary').click();
+	await expect(historyPanel.getByText('초기 절차를 확인합니다.')).toBeVisible();
 	await expect(page.getByText('현재 원칙')).toBeVisible();
 	await expect(page.getByText('사실을 확인합니다.')).toBeVisible();
 	await dismissUnrelatedToasts(page);
