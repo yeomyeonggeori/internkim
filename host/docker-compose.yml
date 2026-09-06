@@ -64,7 +64,7 @@ services:
       CHATD_BUZZ_PRIVATE_KEY: ${CHATD_BUZZ_PRIVATE_KEY:-}
       CHATD_BUZZ_ACCOUNT_LINKS_PATH: ${CHATD_BUZZ_ACCOUNT_LINKS_PATH:-/etc/blueclaw/buzz-account-links.json}
     volumes:
-      - ./secrets:/secrets:ro
+      - ./secrets:/root/.internkim/secrets:ro
       - ./runtime:/etc/blueclaw:ro
       - workspace:/workspace
     # Host mode's whole shape is that everything answers on loopback and nothing

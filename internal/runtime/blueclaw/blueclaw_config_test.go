@@ -104,6 +104,9 @@ func TestBlueclawRuntimeConfigDirectExecutionUsesNativeUnixSocketRuntime(t *test
 	if memoryConfiguration["graphitiEndpoint"] != "" {
 		t.Fatalf("expected graphiti disabled for direct execution, got %q", memoryConfiguration["graphitiEndpoint"])
 	}
+	if memoryConfiguration["adminAssertionKeyPath"] != InternKimCentralPlaneAgentKeyPath {
+		t.Fatalf("expected direct execution to use the host assertion key, got %q", memoryConfiguration["adminAssertionKeyPath"])
+	}
 
 	databaseConfiguration := runtimeConfiguration["database"].(map[string]any)
 	if databaseConfiguration["connectionString"] != "postgres://internkim@postgres/tenant_01?sslmode=disable" {
@@ -206,6 +209,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 	}
 	if memory["graphitiKuzuPath"] != "/workspace/.blueclaw/graphiti/kuzu" {
 		t.Fatalf("expected Graphiti Kuzu path, got %q", memory["graphitiKuzuPath"])
+	}
+	if memory["adminAssertionKeyPath"] != BlueclawGuestDeliverySecretsPath+"/"+BlueclawAdminAssertionKeyName {
+		t.Fatalf("expected guest assertion key path, got %q", memory["adminAssertionKeyPath"])
 	}
 	if memory["pinnedMemoryRootPath"] != "/workspace/.blueclaw/memory" {
 		t.Fatalf("expected pinned memory path, got %q", memory["pinnedMemoryRootPath"])

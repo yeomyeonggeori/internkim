@@ -210,7 +210,7 @@ DATABASE_URL=postgres://…            # the host's own Postgres
 ```
 
 The agent key is never a value in the environment. It lives in
-`/secrets/agent-key`, mode 0600, beside `/secrets/openrouter-key`, and the relay
+`/root/.internkim/secrets/agent-key`, mode 0600, beside `/root/.internkim/secrets/openrouter-key`, and the relay
 is handed the path; rotating the file is enough.
 
 Plus the messenger the tenant runs, one of:
@@ -225,7 +225,7 @@ to `/run/internkim/runtime.json`, unless a `runtime.json` is mounted at
 `/etc/blueclaw`, which is read instead. The roster goes the other way: admind
 rewrites `/run/internkim/policy.json` whenever the company changes, so a
 `policy.json` mounted there seeds that file rather than being it. The seed is
-`/secrets/buzz-key-seed`, beside the agent key, and without it a message the
+`/root/.internkim/secrets/buzz-key-seed`, beside the agent key, and without it a message the
 agent sends under a person's own name cannot be signed. `MESSENGER_PLATFORM`
 names which of the two messengers the company runs, and the relay refuses to
 start rather than guess.
