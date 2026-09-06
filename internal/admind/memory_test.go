@@ -1,12 +1,18 @@
 package admind
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMemoryAPIResolvesTheSessionUserGraph(t *testing.T) {
@@ -322,6 +328,101 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("memory pinned update status = %d body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMemoryFactChangesUseAuthenticatedReaderAndExactTarget(t *testing.T) {
+	for _, operation := range []string{"update", "delete"} {
+		t.Run(operation, func(t *testing.T) {
+			service := companyDeviceForTest(t, "https://company.example.com", "", "company-key")
+			service.Configuration.BlueclawBaseURL = "http://blueclaw.local"
+			service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if request.URL.Path == "/api/agent/member" {
+					return jsonResponse(http.StatusOK, `{"members":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+				}
+				if request.Method != http.MethodPost || request.URL.Path != "/admin/api/memory/facts/"+operation {
+					t.Fatalf("unexpected memory request %s %s", request.Method, request.URL.Path)
+				}
+				body, errorValue := io.ReadAll(request.Body)
+				if errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				var payload struct {
+					ReaderPersonID string `json:"readerPersonID"`
+					FactID         string `json:"factID"`
+					NamespaceID    string `json:"namespaceID"`
+				}
+				if errorValue := json.Unmarshal(body, &payload); errorValue != nil {
+					t.Fatal(errorValue)
+				}
+				if payload.ReaderPersonID != "user:person-1" || payload.FactID != "fact:sample" || payload.NamespaceID != "user:person-1" {
+					t.Fatalf("wrong memory target or reader: %+v", payload)
+				}
+				assertMemoryFactSignature(t, request, body, "company-key")
+				return jsonResponse(http.StatusOK, `{"changed":true}`, nil), nil
+			})}
+			request := httptest.NewRequest(http.MethodPost, "/memory/api/facts/"+operation, strings.NewReader(`{"readerPersonID":"spoofed","factID":"fact:sample","namespaceID":"user:person-1","content":"Corrected decision"}`))
+			request.Header.Set(requesterEmailHeader, "member@example.com")
+			response := httptest.NewRecorder()
+			service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+func assertMemoryFactSignature(t *testing.T, request *http.Request, body []byte, key string) {
+	t.Helper()
+	parts := strings.Split(request.Header.Get(memoryAssertionHeader), ".")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		t.Fatalf("invalid memory assertion header: %q", request.Header.Get(memoryAssertionHeader))
+	}
+	assertion, errorValue := base64.RawURLEncoding.DecodeString(parts[0])
+	if errorValue != nil {
+		t.Fatalf("decode assertion: %v", errorValue)
+	}
+	var claims struct {
+		ReaderPersonID string `json:"readerPersonID"`
+		ExpiresAt      int64  `json:"expiresAt"`
+		BodySHA256     string `json:"bodySHA256"`
+	}
+	if errorValue := json.Unmarshal(assertion, &claims); errorValue != nil {
+		t.Fatalf("decode assertion claims: %v", errorValue)
+	}
+	if claims.ReaderPersonID != "user:person-1" {
+		t.Fatalf("assertion readerPersonID = %q", claims.ReaderPersonID)
+	}
+	if remaining := time.Until(time.Unix(claims.ExpiresAt, 0)); remaining < 0 || remaining > memoryAssertionLifetime {
+		t.Fatalf("assertion expiry is outside the expected window: %s", remaining)
+	}
+	bodyHash := sha256.Sum256(body)
+	if claims.BodySHA256 != hex.EncodeToString(bodyHash[:]) {
+		t.Fatalf("assertion body hash = %q, want %q", claims.BodySHA256, hex.EncodeToString(bodyHash[:]))
+	}
+	mac := hmac.New(sha256.New, []byte(key))
+	_, _ = mac.Write([]byte(http.MethodPost + "\n" + request.URL.Path + "\n" + parts[0]))
+	expected := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	if parts[1] != expected {
+		t.Fatalf("assertion signature = %q, want %q", parts[1], expected)
+	}
+	claims.ReaderPersonID = "user:other"
+	tamperedAssertion, errorValue := json.Marshal(claims)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	tamperedAssertion64 := base64.RawURLEncoding.EncodeToString(tamperedAssertion)
+	tamperedMAC := hmac.New(sha256.New, []byte(key))
+	_, _ = tamperedMAC.Write([]byte(http.MethodPost + "\n" + request.URL.Path + "\n" + tamperedAssertion64))
+	if parts[1] == base64.RawURLEncoding.EncodeToString(tamperedMAC.Sum(nil)) {
+		t.Fatal("reader tampering unexpectedly retained the signature")
+	}
+
+	tamperedBody := append([]byte(nil), body...)
+	tamperedBody[len(tamperedBody)-1] ^= 1
+	tamperedHash := sha256.Sum256(tamperedBody)
+	if hex.EncodeToString(tamperedHash[:]) == claims.BodySHA256 {
+		t.Fatal("tampered body unexpectedly retained the signed hash")
 	}
 }
 

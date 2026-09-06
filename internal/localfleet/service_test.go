@@ -368,6 +368,7 @@ func TestVirtualSessionScenarioRunsLinuxVirtualSession(t *testing.T) {
 		"vm-up --config",
 		"provision-blueclaw-dev-session.sh",
 		"virtual-session",
+		"pkg/capabilityprotocol/generated/capability-tools.json",
 		"--scenario' 'dm_send_confirm_acceptance",
 		".artifacts/local-fleet/virtual-session/dm-send-confirm-acceptance",
 	} {

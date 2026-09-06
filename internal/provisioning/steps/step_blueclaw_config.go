@@ -249,12 +249,18 @@ chmod 640 %s %s`,
 // Nothing writes here — the share is bound read-only.
 func buildBlueclawDeliveryPermissionCommand() string {
 	return fmt.Sprintf(`set -e
-chown -R root:root %s
-chmod 0755 %s %s
+
+chown -R root:root %s %s %s
+chown root:root %s
+chmod 0755 %s %s %s
 chmod 0644 %s %s`,
-		blueclaw.BlueclawDeliveryPath,
+		blueclaw.BlueclawDeliveryConfigPath,
+		blueclaw.BlueclawDeliveryRuntimePath,
+		blueclaw.BlueclawDeliverySkillsPath,
 		blueclaw.BlueclawDeliveryPath,
 		blueclaw.BlueclawDeliveryConfigPath,
+		blueclaw.BlueclawDeliveryRuntimePath,
+		blueclaw.BlueclawDeliverySkillsPath,
 		blueclaw.BlueclawDeliveryConfigPath+"/runtime.json",
 		blueclaw.BlueclawDeliveryConfigPath+"/policy.json",
 	)
