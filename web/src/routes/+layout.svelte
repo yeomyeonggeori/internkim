@@ -29,6 +29,7 @@
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { goWhereNotificationsPoint } from '$lib/notifications/opened-notification';
 	import { webAuthSessionDependency } from '$lib/web-auth-session';
+	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -39,6 +40,7 @@
 	const text = createPageText(appShellText);
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
+	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
 	onMount(() => {
 		initializeLocale();
 		preloadWorkTimeChartPlot();

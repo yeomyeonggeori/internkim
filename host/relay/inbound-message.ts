@@ -1,4 +1,6 @@
 import type { Addressing, Requester } from './acp-session';
+import { personName, personNameLocale } from '../../web/src/lib/person-name';
+import type { Locale } from '../../web/src/lib/i18n/locale';
 
 export type InboundMessage = {
 	key: string;
@@ -53,6 +55,16 @@ export function inboundMessageKey(
 	messageID: string
 ): string {
 	return `${platform}:${conversationID}:${messageID}`;
+}
+
+export function displayNameForRequester(
+	recordedName: string,
+	companyLocale: string,
+	responseLanguage: string
+): string {
+	const primaryLanguage = responseLanguage.trim().toLowerCase().split('-')[0];
+	const requestedLocale: Locale = primaryLanguage === 'ko' ? 'ko' : 'en';
+	return personName(recordedName, personNameLocale(requestedLocale, companyLocale));
 }
 
 function record(offered: unknown): Record<string, unknown> {

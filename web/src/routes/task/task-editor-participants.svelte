@@ -7,6 +7,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import XIcon from '@lucide/svelte/icons/x';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { toggleTaskParticipantID } from './task-draft';
 	import type { TaskEditorText } from './task-editor-types';
 	import type { TaskMember, Task } from './task-types';
@@ -83,13 +84,13 @@
 						{#each members as member (member.id)}
 							<Command.Item
 								value={member.id}
-								keywords={[member.name, member.email]}
+								keywords={[member.name, displayPersonName(member.name), member.email]}
 								data-checked={selectedParticipantIDs.has(member.id)}
 								onSelect={() => toggleParticipant(member.id)}
 							>
-								<PersonAvatar name={member.name} email={member.email} seed={member.id} image={member.image ?? ''} class="size-5" />
+								<PersonAvatar name={displayPersonName(member.name)} email={member.email} seed={member.id} image={member.image ?? ''} class="size-5" />
 								<span class="min-w-0 flex-1">
-									<span class="block truncate">{member.name}</span>
+									<span class="block truncate">{displayPersonName(member.name)}</span>
 									<span class="block truncate text-xs text-muted-foreground">{member.email}</span>
 								</span>
 								{#if selectedParticipantIDs.has(member.id)}
@@ -108,8 +109,8 @@
 			{@const name = participantName(participantID, index)}
 			{@const email = selectedParticipant?.email ?? ''}
 			<Badge variant="outline" class="gap-1.5 pl-1 pr-1">
-				<PersonAvatar name={name} {email} seed={participantID || name} image={selectedParticipant?.image ?? ''} class="size-4" />
-				{name}
+				<PersonAvatar name={displayPersonName(name)} {email} seed={participantID || name} image={selectedParticipant?.image ?? ''} class="size-4" />
+				{displayPersonName(name)}
 				{#if email}
 					<span class="text-[10px] text-muted-foreground">{email}</span>
 				{/if}

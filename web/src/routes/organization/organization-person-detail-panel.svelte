@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as Item from '$lib/components/ui/item';
@@ -68,7 +69,7 @@
 	}
 
 	function personLabel(person: UserRecord): string {
-		return person.name || person.email;
+		return displayPersonName(person.name || person.email);
 	}
 
 	function personTitle(person: UserRecord): string {
@@ -88,7 +89,7 @@
 	<div class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto]" data-testid="organization-person-detail-panel">
 		<Item.Root class="px-6 py-5">
 			<Item.Media>
-				<PersonAvatar name={record.name} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-14" />
+				<PersonAvatar name={displayPersonName(record.name)} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-14" />
 			</Item.Media>
 			<Item.Content>
 				<Item.Title class="w-full truncate text-lg">{personLabel(record)}</Item.Title>

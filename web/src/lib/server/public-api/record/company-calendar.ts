@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { dayOffColor } from '$lib/calendar/day-off-color';
 import { eventReminderLeadOf } from '$lib/calendar/event-reminder-lead';
 import { localizedLeaveUnitName } from '$lib/i18n/leave-type-name';
+import { personName } from '$lib/person-name';
 import type { Locale } from '$lib/i18n/locale';
 import type { RecordPerson } from './people';
 
@@ -159,7 +160,7 @@ function calendarEntryOfEvent(event: EventRow, reader: CompanyCalendarReader): C
 		color: '',
 		reminderMinutesBefore: eventReminderLeadOf(event.notify_minutes_before),
 		participants: event.task_participant.map((participant) =>
-			calendarParticipant(participant.member_id, reader.members)
+			calendarParticipant(participant.member_id, reader.members, reader.locale)
 		),
 		createdByEmail: '',
 		createdByName: '',
@@ -177,7 +178,7 @@ export function calendarEntryOfApprovedLeave(
 ): CompanyCalendarEntry {
 	const member = members.get(leave.member_id);
 	const email = member?.email ?? '';
-	const name = member?.name || email.split('@')[0] || anonymousMemberName(locale);
+	const name = personName(member?.name || email.split('@')[0] || anonymousMemberName(locale), locale);
 	const id = `leave:${leave.id}`;
 	const isAllDay = leave.days > wholeDayLeaveThreshold;
 	return {
@@ -207,11 +208,12 @@ function anonymousMemberName(locale: Locale): string {
 
 function calendarParticipant(
 	memberID: string,
-	members: Map<string, CompanyCalendarMember>
+	members: Map<string, CompanyCalendarMember>,
+	locale: Locale
 ): CompanyCalendarParticipant {
 	const member = members.get(memberID);
 	const email = member?.email ?? '';
-	const name = member?.name || email.split('@')[0];
+	const name = personName(member?.name || email.split('@')[0], locale);
 	return { personID: memberID, name, ...(email ? { email } : {}) };
 }
 

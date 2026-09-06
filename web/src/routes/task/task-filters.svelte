@@ -8,6 +8,7 @@
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { cn } from '$lib/utils';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { taskText } from './text';
 	import type { PageText } from '$lib/i18n/page-text.svelte';
 
@@ -16,6 +17,7 @@
 	type Option = {
 		value: string;
 		label: string;
+		keywords?: string[];
 		email?: string;
 		image?: string;
 	};
@@ -71,6 +73,14 @@
 	function selectParticipant(memberID: string): void {
 		setParticipantFilterIDs(memberID === 'all' ? [] : [memberID]);
 	}
+
+	const formattedParticipantOptions = $derived(
+		participantOptions.map((option) => ({
+			...option,
+			label: option.value === 'all' ? option.label : displayPersonName(option.label),
+			keywords: option.value === 'all' ? option.keywords : [option.label, displayPersonName(option.label), ...(option.keywords ?? [])]
+		}))
+	);
 </script>
 
 {#snippet participantOption(option: Option)}
@@ -105,7 +115,7 @@
 				{/if}
 				<FilterCombobox
 					bind:value={participantValue}
-					options={participantOptions}
+					options={formattedParticipantOptions}
 					label={text.participants}
 					clearValue="all"
 					onSelect={selectParticipant}

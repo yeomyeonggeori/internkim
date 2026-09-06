@@ -5,6 +5,7 @@ export type HintOutcome = 'resolved' | 'ambiguous' | 'approximate' | 'not_found'
 export type HintMatcher<Item> = {
 	identifiersOf: (item: Item) => string[];
 	titleOf: (item: Item) => string;
+	exactTitleAliasesOf?: (item: Item) => string[];
 	nearnessTo: (item: Item, hint: string) => number;
 	isPreferred?: (item: Item) => boolean;
 };
@@ -25,7 +26,7 @@ export function resolveHint<Item>(
 	if (identified.length === 1) return { outcome: 'resolved', match: identified[0] };
 	if (identified.length > 1) return { outcome: 'ambiguous', candidates: identified };
 
-	const titled = items.filter((item) => normalized(matcher.titleOf(item)) === normalized(asked));
+	const titled = items.filter((item) => hasExactTitle(matcher, item, asked));
 	const titledResolution = onlyOrPreferred(titled, matcher.isPreferred);
 	if (titledResolution) return titledResolution;
 	if (titled.length > 0) return { outcome: 'ambiguous', candidates: titled };
@@ -38,6 +39,11 @@ export function resolveHint<Item>(
 	const nearest = nearestItems(asked, items, matcher);
 	if (nearest.length > 0) return { outcome: 'approximate', candidates: nearest };
 	return { outcome: 'not_found', candidates: [] };
+}
+
+function hasExactTitle<Item>(matcher: HintMatcher<Item>, item: Item, asked: string): boolean {
+	const titles = [matcher.titleOf(item), ...(matcher.exactTitleAliasesOf?.(item) ?? [])];
+	return titles.some((title) => normalized(title) === normalized(asked));
 }
 
 function onlyOrPreferred<Item>(

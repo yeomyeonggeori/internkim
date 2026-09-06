@@ -5,6 +5,7 @@
 	import { defaultCalendarEventColor } from '../grid/calendar-grid-events';
 	import CalendarEventContent from './calendar-event-content.svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { calendarParticipantKey, type CalendarParticipant } from './calendar-participants';
 
 	type Props = {
@@ -67,7 +68,7 @@
 					<span class="mt-1 flex items-center -space-x-1">
 						{#each participants.slice(0, 4) as participant (calendarParticipantKey(participant))}
 							<PersonAvatar
-								name={participant.name}
+								name={displayPersonName(participant.name)}
 								email={participant.email ?? ''}
 								seed={calendarParticipantKey(participant)}
 								image={participant.image ?? ''}

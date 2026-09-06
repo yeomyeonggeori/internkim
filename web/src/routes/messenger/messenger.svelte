@@ -4,6 +4,7 @@
 	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
 	import { toast } from 'svelte-sonner';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
@@ -299,7 +300,7 @@
 						image={person.avatarURL ?? ''}
 						class="size-8"
 					/>
-					<span class="truncate text-sm font-medium">{person.name}</span>
+					<span class="truncate text-sm font-medium">{displayPersonName(person.name)}</span>
 				</button>
 			{/each}
 			{#if people.length === 0}

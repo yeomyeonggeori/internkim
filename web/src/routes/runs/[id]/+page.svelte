@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { taskListPathOf } from '$lib/app-shell';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
@@ -209,7 +210,7 @@
 						{#if detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID}
 							<div class="flex flex-col gap-1 md:col-span-2">
 								<span class="text-xs text-muted-foreground">{text.requesterLabel}</span>
-								<span class="text-sm">{detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID}</span>
+								<span class="text-sm">{displayPersonName(detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID)}</span>
 							</div>
 						{/if}
 					</div>

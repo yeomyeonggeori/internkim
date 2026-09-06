@@ -1,0 +1,9 @@
+{
+	"cases": [
+		{ "recorded": "샘플 이", "locale": "ko", "callMe": "샘플 님" },
+		{ "recorded": "샘플 이", "locale": "ko-KR", "callMe": "샘플 님" },
+		{ "recorded": "John Michael Smith", "locale": "en", "callMe": "John Michael" },
+		{ "recorded": "John", "locale": "en", "callMe": "John" },
+		{ "recorded": "", "locale": "ko", "callMe": "" }
+	]
+}

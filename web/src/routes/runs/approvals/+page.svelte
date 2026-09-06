@@ -10,6 +10,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { page } from '$app/state';
 	import { taskListPathOf, taskRunDetailPathOf } from '$lib/app-shell';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { onMount } from 'svelte';
 	import ApprovalDecision from '../approval-decision.svelte';
 	import { fetchPendingApprovals, type PendingApproval } from '../runs-api';
@@ -92,7 +93,7 @@
 							</Badge>
 							{#if approval.taskRun.requesterDisplayName || approval.taskRun.requesterPersonID}
 								<span class="text-xs text-muted-foreground">
-									{text.requesterLabel}: {approval.taskRun.requesterDisplayName || approval.taskRun.requesterPersonID}
+								{text.requesterLabel}: {displayPersonName(approval.taskRun.requesterDisplayName || approval.taskRun.requesterPersonID)}
 								</span>
 							{/if}
 							<span class="text-xs text-muted-foreground">{formatTaskTimestamp(approval.taskRun.updatedAt)}</span>

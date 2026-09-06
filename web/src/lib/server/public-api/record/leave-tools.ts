@@ -1,4 +1,5 @@
 import { dayIn, dayOfInstant, dayShifted, instantOfDay, instantWritten } from './days';
+import { personName } from '$lib/person-name';
 import { personOfHint } from './people';
 import { ownerNamedBy, whoseRecords, whoseRecordsHolds } from './whose';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
@@ -43,7 +44,7 @@ function lastDayCovered(timezone: string, row: LeaveRow): string {
 }
 
 function answeredLeave(context: RecordContext, row: LeaveRow): AnsweredLeave {
-	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));
+	const nameOf = new Map(context.people.map((person) => [person.personID, personName(person.name, context.locale)]));
 	return {
 		leaveID: row.id,
 		personID: row.member_id,
@@ -87,7 +88,7 @@ async function leaveByID(context: RecordContext, leaveID: string): Promise<Leave
 
 function personNameOf(context: RecordContext, personID: string): string {
 	if (!personID) return '';
-	return context.people.find((person) => person.personID === personID)?.name ?? '';
+	return personName(context.people.find((person) => person.personID === personID)?.name ?? '', context.locale);
 }
 
 function targetMember(context: RecordContext, personHint: string | undefined): string {
@@ -147,7 +148,7 @@ function answeredBalance(
 ): AnsweredBalance {
 	return {
 		personID: memberID,
-		personName: context.people.find((one) => one.personID === memberID)?.name ?? '',
+		personName: personNameOf(context, memberID),
 		grantedDays: granted,
 		remainingDays: remaining,
 		usedDays: granted === null || remaining === null ? null : Number((granted - remaining).toFixed(2)),

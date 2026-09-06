@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import cases from '../../../src/lib/person-call-me-cases.json';
 import { defaultCallMe, languageAutonym, replyLanguageOptions, replyLanguageTags } from '../../../src/lib/persona/languages';
 
 describe('reply languages', () => {
@@ -25,16 +26,27 @@ describe('reply languages', () => {
 
 describe('default call-me', () => {
 	test('a korean reply language addresses the name with a spaced 님', () => {
-		expect(defaultCallMe('이샘플', 'ko')).toBe('이샘플 님');
-		expect(defaultCallMe('이샘플', 'ko-KR')).toBe('이샘플 님');
+		expect(defaultCallMe('샘플 이', 'ko')).toBe('샘플 님');
+		expect(defaultCallMe('샘플 이', 'ko-KR')).toBe('샘플 님');
 	});
 
 	test('other languages keep the bare name', () => {
 		expect(defaultCallMe('Sam', 'en')).toBe('Sam');
-		expect(defaultCallMe('이샘플', 'ja')).toBe('이샘플');
+		expect(defaultCallMe('John Michael Smith', 'en')).toBe('John Michael');
+		expect(defaultCallMe('샘플 이', 'ja')).toBe('샘플');
 	});
 
 	test('no name yields no address', () => {
 		expect(defaultCallMe('', 'ko')).toBe('');
+	});
+
+	test('matches the shared call-me cases', () => {
+		for (const testCase of cases.cases) {
+			expect(defaultCallMe(testCase.recorded, testCase.locale)).toBe(testCase.callMe);
+		}
+	});
+
+	test('does not treat an unrelated ko-prefixed tag as Korean', () => {
+		expect(defaultCallMe('샘플 이', 'koala')).toBe('샘플');
 	});
 });
