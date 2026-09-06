@@ -584,6 +584,24 @@ func TestUnsupportedScenarioFails(t *testing.T) {
 	}
 }
 
+func TestScenarioRefusesStaleRuntimeBaseBeforeProvisioning(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: t.TempDir(), ExecutablePath: "/bin/echo"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	logger := &recordingLogger{}
+	errorValue = service.Run(context.Background(), logger, JobRequest{
+		Action:   ActionRunScenario,
+		Scenario: "workspace-persistence",
+	})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "make prepare-blueclaw-runtime-base") {
+		t.Fatalf("expected runtime-base preflight failure, got %v", errorValue)
+	}
+	if len(logger.lines) != 0 {
+		t.Fatalf("provisioning started before runtime-base preflight: %v", logger.lines)
+	}
+}
+
 func TestScenarioNamesMatchTheRegistryEverySortedAndAccepted(t *testing.T) {
 	names := ScenarioNames()
 	if !sort.StringsAreSorted(names) {
