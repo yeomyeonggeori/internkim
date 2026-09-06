@@ -50,6 +50,64 @@ func TestRuntimeRestampIncludesTheDeliveredGuestConfiguration(t *testing.T) {
 	}
 }
 
+func TestRuntimeRestampAddsAssertionKeyToEveryCopyWithoutChangingPolicy(t *testing.T) {
+	directoryPath := t.TempDir()
+	target := blueclawPayloadInstallTarget{
+		Name:                              "blueclaw",
+		RuntimeConfigurationPath:          filepath.Join(directoryPath, "host", "runtime.json"),
+		WorkspaceRuntimeConfigurationPath: filepath.Join(directoryPath, "workspace", "runtime.json"),
+		DeliveryRuntimeConfigurationPath:  filepath.Join(directoryPath, "delivery", "runtime.json"),
+	}
+	policyDocument := "{\"people\":[{\"personID\":\"sample-person\"}],\"retention\":{\"days\":30}}\n"
+	for _, path := range []string{target.RuntimeConfigurationPath, target.WorkspaceRuntimeConfigurationPath, target.DeliveryRuntimeConfigurationPath} {
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o700); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		writeFile(t, path, "{\"memory\":{\"timeoutSecond\":30},\"custom\":{\"preserve\":true}}\n")
+		writeFile(t, filepath.Join(filepath.Dir(path), "policy.json"), policyDocument)
+	}
+
+	if errorValue := syncBlueclawRuntimeConfigurationForTarget(target, blueclawruntime.CurrentCapabilityContract()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	wantedPath := blueclawruntime.BlueclawGuestDeliverySecretsPath + "/" + blueclawruntime.BlueclawAdminAssertionKeyName
+	for _, path := range []string{target.RuntimeConfigurationPath, target.WorkspaceRuntimeConfigurationPath, target.DeliveryRuntimeConfigurationPath} {
+		var runtimeDocument map[string]any
+		document, errorValue := os.ReadFile(path)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if errorValue := json.Unmarshal(document, &runtimeDocument); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		memorySection, ok := runtimeDocument["memory"].(map[string]any)
+		if !ok || memorySection["adminAssertionKeyPath"] != wantedPath {
+			t.Fatalf("runtime copy %s has assertion key path %#v", path, memorySection)
+		}
+		if runtimeDocument["custom"].(map[string]any)["preserve"] != true {
+			t.Fatalf("runtime copy %s lost unknown fields", path)
+		}
+		policy, errorValue := os.ReadFile(filepath.Join(filepath.Dir(path), "policy.json"))
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if string(policy) != policyDocument {
+			t.Fatalf("policy changed at %s: %q", path, policy)
+		}
+	}
+}
+
+func TestRuntimeRestampPreservesExplicitAssertionKeyPath(t *testing.T) {
+	document := `{"memory":{"adminAssertionKeyPath":"/custom/key"}}`
+	refreshed, errorValue := refreshedBlueclawRuntimeConfiguration(document, blueclawruntime.CurrentCapabilityContract())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(refreshed, `"adminAssertionKeyPath": "/custom/key"`) {
+		t.Fatalf("explicit assertion key path was replaced: %s", refreshed)
+	}
+}
+
 func TestPublicBlueclawUpdateMetadataHidesArchivePath(t *testing.T) {
 	metadata := &blueclawUpdateArtifactMetadata{
 		Component:        "blueclaw",
