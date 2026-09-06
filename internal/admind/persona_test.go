@@ -3,6 +3,7 @@ package admind
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -256,12 +257,19 @@ func TestARosterWriteGivesThePersonADocumentWithTheNameTheDirectoryKnows(t *test
 	service.Configuration.BlueclawBaseURL = blueclaw.URL
 	service.Configuration.BlueclawPolicyDeliveryPath = filepath.Join(t.TempDir(), "policy.json")
 
-	if errorValue := service.inviteBlueclawPerson(context.Background(), "person-1", "sample@example.com", "이샘플"); errorValue != nil {
+	if errorValue := service.inviteBlueclawPerson(context.Background(), "person-1", "sample@example.com", "샘플 이"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	if len(seededDocuments) != 1 || !strings.Contains(seededDocuments[0], `"callMe":"이샘플"`) {
+	if len(seededDocuments) != 1 {
 		t.Fatalf("expected the invited person to start with the name the directory knows, got %v", seededDocuments)
+	}
+	var seededDocument userDocument
+	if errorValue := json.Unmarshal([]byte(seededDocuments[0]), &seededDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if seededDocument.CallMe != "샘플 님" {
+		t.Fatalf("unexpected default form of address: %q", seededDocument.CallMe)
 	}
 	if len(seededPaths) != 1 || !strings.Contains(seededPaths[0], "personID=person-1") {
 		t.Fatalf("expected the seed to name the person, got %v", seededPaths)

@@ -9,6 +9,7 @@
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { milliDaysValue } from '../leave/leave-history-model';
 	import { attendanceText } from '../text';
@@ -125,13 +126,13 @@
 										aria-current={isSelected ? 'true' : undefined}
 									>
 										<PersonAvatar
-											name={employee.displayName}
+											name={displayPersonName(employee.displayName)}
 											email={employee.email}
 											seed={employee.email || employee.displayName}
 											class="size-8 shrink-0"
 										/>
 										<span class="grid">
-											<span class="font-medium">{employee.displayName}</span>
+											<span class="font-medium">{displayPersonName(employee.displayName)}</span>
 											<span class="text-xs text-muted-foreground">{employee.email}</span>
 										</span>
 									</button>
@@ -177,13 +178,13 @@
 						data-testid="leave-management-employee-detail-header"
 					>
 						<PersonAvatar
-							name={detail.employee.displayName}
+											name={displayPersonName(detail.employee.displayName)}
 							email={detail.employee.email}
 							seed={detail.employee.email || detail.employee.displayName}
 							class="size-10 shrink-0"
 						/>
 						<div class="min-w-0">
-							<Card.Title>{detail.employee.displayName}</Card.Title>
+										<Card.Title>{displayPersonName(detail.employee.displayName)}</Card.Title>
 							<Card.Description>{detail.employee.email}</Card.Description>
 						</div>
 					</Card.Header>

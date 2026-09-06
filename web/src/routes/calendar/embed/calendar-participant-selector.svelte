@@ -2,6 +2,7 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { cn } from '$lib/utils';
 	import { Button } from '$lib/components/ui/button';
 	import * as Command from '$lib/components/ui/command';
@@ -42,8 +43,9 @@
 	function participantSummaryLabel(selectedParticipants: CalendarParticipant[]): string {
 		const [firstParticipant, ...otherParticipants] = selectedParticipants;
 		if (!firstParticipant) return '';
-		if (otherParticipants.length === 0) return firstParticipant.name;
-		return summaryTemplate.replace('{name}', firstParticipant.name).replace('{count}', String(otherParticipants.length));
+		const name = displayPersonName(firstParticipant.name);
+		if (otherParticipants.length === 0) return name;
+		return summaryTemplate.replace('{name}', name).replace('{count}', String(otherParticipants.length));
 	}
 	const canAddParticipants = $derived(!disabled && candidates.length > 0);
 
@@ -75,7 +77,7 @@
 						<span class="flex shrink-0 items-center -space-x-1">
 							{#each participants.slice(0, 3) as participant (calendarParticipantKey(participant))}
 								<PersonAvatar
-									name={participant.name}
+									name={displayPersonName(participant.name)}
 									email={participant.email ?? ''}
 									seed={calendarParticipantKey(participant)}
 									image={participant.image ?? ''}
@@ -100,16 +102,17 @@
 				{#each candidates as candidate (calendarParticipantKey(candidate))}
 					<Command.Item
 						value={calendarParticipantOptionLabel(candidate, candidates)}
+						keywords={[displayPersonName(candidate.name), candidate.email ?? '']}
 						onSelect={() => toggleParticipant(candidate)}
 					>
 						<PersonAvatar
-							name={candidate.name}
+							name={displayPersonName(candidate.name)}
 							email={candidate.email ?? ''}
 							seed={calendarParticipantKey(candidate)}
 							image={candidate.image ?? ''}
 							class="size-5"
 						/>
-						<span class="truncate">{calendarParticipantOptionLabel(candidate, candidates)}</span>
+						<span class="truncate">{calendarParticipantOptionLabel(candidate, candidates, displayPersonName(candidate.name))}</span>
 						{#if selectedKeys.has(calendarParticipantKey(candidate))}
 							<CheckIcon class="ml-auto size-4" />
 						{/if}
