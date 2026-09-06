@@ -142,7 +142,7 @@
 	<Card.Header class="border-b pb-4">
 		<Card.Title>{text.scheduleTab}</Card.Title>
 		<Card.Description>{text.scheduleDescription}</Card.Description>
-		<Card.Action class="flex items-center gap-2">
+		<Card.Action class="col-start-1 row-start-3 flex items-center gap-2 justify-self-start sm:col-start-2 sm:row-start-1 sm:justify-self-end">
 			<div class="bg-background flex h-8 items-center gap-2 rounded-md border px-3">
 				<Switch id="memory-include-expired" size="sm" checked={includeExpiredSchedules} onCheckedChange={toggleIncludeExpiredSchedules} />
 				<Label for="memory-include-expired" class="text-sm font-medium whitespace-nowrap">

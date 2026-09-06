@@ -1,12 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import { Badge } from '$lib/components/ui/badge';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import RefreshIcon from '@lucide/svelte/icons/refresh-cw';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import XIcon from '@lucide/svelte/icons/x';
+	import * as Alert from '$lib/components/ui/alert';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import * as Field from '$lib/components/ui/field';
+	import * as InputGroup from '$lib/components/ui/input-group';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Empty from '$lib/components/ui/empty';
 	import { cn } from '$lib/utils';
@@ -15,15 +20,15 @@
 	import { memoryFactKey, isCurrentMemoryFact, memoryAudience, memoryDate } from './memory-workbench-model';
 	import type { MemoryText } from './text';
 
-	let { text, mode = 'list' }: { text: MemoryText; mode?: 'list' | 'search' } = $props();
+	let { text }: { text: MemoryText } = $props();
 	let memoryGraph = $state<MemoryGraphResponse | null>(null);
 	let selectedKey = $state('');
 	let query = $state('');
 	let submittedQuery = $state('');
 	let isLoading = $state(false);
-	let hasSearched = $state(false);
 	let includesPrevious = $state(false);
-	let errorMessage = $state('');
+	let hasLoadError = $state(false);
+	const errorMessage = $derived(hasLoadError ? text.loadFailed : '');
 	let requestSequence = 0;
 	const rememberedFacts = $derived((memoryGraph?.facts ?? []).filter((fact) => fact.sourceKind === 'fact'));
 	const visibleFacts = $derived(rememberedFacts.filter((fact) => includesPrevious || isCurrentMemoryFact(fact)));
@@ -31,19 +36,20 @@
 	const isUnavailable = $derived(memoryGraph?.health?.configured === false || memoryGraph?.health?.reachable === false);
 	const isIncomplete = $derived(memoryGraph?.retrieval?.complete === false);
 
-	onMount(() => { if (mode === 'list') void loadMemory(''); });
+	onMount(() => { void loadMemory(''); });
 
 	async function loadMemory(searchQuery: string): Promise<void> {
 		const requestID = ++requestSequence;
 		isLoading = true;
-		errorMessage = '';
+		hasLoadError = false;
+		submittedQuery = searchQuery;
+		memoryGraph = null;
 		try {
 			const response = await fetchMemoryGraph(searchQuery);
 			if (requestID !== requestSequence) return;
 			memoryGraph = response;
-			submittedQuery = searchQuery;
 		} catch {
-			if (requestID === requestSequence) errorMessage = text.loadFailed;
+			if (requestID === requestSequence) hasLoadError = true;
 		} finally {
 			if (requestID === requestSequence) isLoading = false;
 		}
@@ -51,88 +57,95 @@
 
 	function searchMemory(event: SubmitEvent): void {
 		event.preventDefault();
-		if (!query.trim() || isLoading) return;
-		hasSearched = true;
+		if (isLoading) return;
 		selectedKey = '';
-		memoryGraph = null;
 		void loadMemory(query.trim());
 	}
 
+	function clearSearch(): void {
+		query = '';
+		submittedQuery = '';
+		selectedKey = '';
+		void loadMemory('');
+	}
+
 	async function refreshMemory(): Promise<void> {
-		await loadMemory(mode === 'search' ? submittedQuery : '');
+		await loadMemory(submittedQuery);
 	}
 </script>
 
-{#if mode === 'search'}
-	<form class="flex items-end gap-2" onsubmit={searchMemory}>
-		<div class="grid min-w-0 flex-1 gap-2">
-			<label for="memory-search" class="text-sm font-medium">{text.searchPrompt}</label>
-			<Input id="memory-search" bind:value={query} placeholder={text.searchPlaceholder} />
-		</div>
-		<Button type="submit" disabled={isLoading || !query.trim()}><SearchIcon data-icon="inline-start" />{text.search}</Button>
+<div class="flex min-w-0 flex-col rounded-xl border bg-background">
+	<div class="flex min-w-0 flex-col gap-4 p-4">
+	<form role="search" class="flex flex-col gap-3" onsubmit={searchMemory}>
+		<Field.FieldGroup>
+			<Field.Field>
+				<Field.Label for="memory-search" class="sr-only">{text.searchPrompt}</Field.Label>
+				<InputGroup.Root>
+					<InputGroup.Input id="memory-search" bind:value={query} placeholder={text.searchPlaceholder} />
+					<InputGroup.Addon align="inline-end">
+						{#if query || submittedQuery}
+							<InputGroup.Button type="button" size="icon-xs" onclick={clearSearch} aria-label={text.clearSearch}><XIcon /></InputGroup.Button>
+						{/if}
+						<InputGroup.Button type="submit" size="xs" disabled={isLoading}><SearchIcon data-icon="inline-start" />{text.search}</InputGroup.Button>
+					</InputGroup.Addon>
+				</InputGroup.Root>
+			</Field.Field>
+		</Field.FieldGroup>
 	</form>
-{/if}
 
-{#if mode === 'search' && !hasSearched}
-	<Empty.Root class="min-h-80">
-		<Empty.Header>
-			<Empty.Media variant="icon"><SearchIcon /></Empty.Media>
-			<Empty.Title>{text.searchTab}</Empty.Title>
-			<Empty.Description>{text.searchDescription}</Empty.Description>
-		</Empty.Header>
-	</Empty.Root>
-{:else}
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<p class="text-sm text-muted-foreground" aria-live="polite">{mode === 'search' ? submittedQuery : text.currentMemories}</p>
-		<div class="flex items-center gap-2">
-			{#if mode === 'list'}
-				<Button variant="ghost" size="sm" aria-pressed={includesPrevious} onclick={() => includesPrevious = !includesPrevious}>
-					{includesPrevious ? text.hidePrevious : text.showPrevious}
-				</Button>
-			{/if}
+		<p class="min-w-0 text-sm text-muted-foreground" aria-live="polite">{isLoading ? text.loading : errorMessage || isUnavailable ? '' : `${submittedQuery ? text.searchResults : text.currentMemories} · ${text.visibleCountTemplate.replace('{count}', String(visibleFacts.length))}`}</p>
+		<div class="flex shrink-0 items-center gap-3">
+			<Field.Field orientation="horizontal" class="w-auto">
+				<Checkbox id="memory-include-previous" bind:checked={includesPrevious} />
+				<Field.Content><Field.Label for="memory-include-previous">{text.showPrevious}</Field.Label></Field.Content>
+			</Field.Field>
 			<Button variant="ghost" size="icon-sm" disabled={isLoading} onclick={refreshMemory} aria-label={text.refresh}><RefreshIcon /></Button>
 		</div>
 	</div>
+	</div>
 	{#if errorMessage || isUnavailable || isIncomplete}
-		<div class="flex flex-wrap items-center justify-between gap-3 border-y py-3" role="status">
-			<p class="max-w-2xl text-sm">{errorMessage || (isUnavailable ? text.unreachable : text.incompleteResults)}</p>
-			{#if errorMessage}<Button variant="outline" size="sm" onclick={refreshMemory}>{text.refresh}</Button>{/if}
+		<div class="px-4 pb-4">
+			<Alert.Root variant={errorMessage || isUnavailable ? 'destructive' : 'default'}>
+				<Alert.Description>{errorMessage || (isUnavailable ? text.unreachable : text.incompleteResults)}</Alert.Description>
+				<Alert.Action><Button variant="outline" size="sm" disabled={isLoading} onclick={refreshMemory}>{text.retry}</Button></Alert.Action>
+			</Alert.Root>
 		</div>
 	{/if}
 	{#if isLoading}
-		<div class="grid gap-5 py-4" aria-label={text.loading} aria-busy="true">
+		<div class="grid min-h-96 content-start gap-5 border-t p-5" aria-label={text.loading} aria-busy="true">
 			{#each [0, 1, 2, 3] as row (row)}
 				<div class="grid gap-2"><Skeleton class="h-5 w-3/4" /><Skeleton class="h-3 w-1/3" /></div>
 			{/each}
 		</div>
 	{:else if visibleFacts.length > 0}
-		<div class="grid min-h-96 min-w-0 border-y lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.85fr)]">
+		<div class="grid min-w-0 border-t lg:min-h-[28rem] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
 			<div class={cn('min-w-0 divide-y lg:max-h-[65svh] lg:overflow-y-auto', selectedFact && 'hidden lg:block')}>
 				{#each visibleFacts as fact (memoryFactKey(fact))}
 					<button type="button" aria-pressed={selectedKey === memoryFactKey(fact)}
 						class={cn('grid w-full gap-3 px-4 py-5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2', selectedKey === memoryFactKey(fact) && 'bg-muted/60')}
 						onclick={() => selectedKey = memoryFactKey(fact)}>
-						<p class="line-clamp-3 text-sm leading-6">{fact.content}</p>
+						<p class="line-clamp-3 break-words text-sm leading-6">{fact.content}</p>
 						<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
 							<span>{memoryAudience(fact, text)}</span>
 							<span>{memoryDate(fact.recordedAt ?? fact.validAt, text, currentLocale.value)}</span>
-							{#if !isCurrentMemoryFact(fact)}<span>{text.previousMemory}</span>{/if}
+							{#if !isCurrentMemoryFact(fact)}<Badge variant="secondary">{text.previousMemory}</Badge>{/if}
 						</div>
 					</button>
 				{/each}
 			</div>
-			<aside class={cn('min-w-0 lg:border-l', !selectedFact && 'hidden lg:block')} aria-label={text.memoryDetails}>
+			<aside class={cn('min-w-0 lg:max-h-[65svh] lg:overflow-y-auto lg:border-l', !selectedFact && 'hidden lg:block')} aria-label={text.memoryDetails}>
 				{#if selectedFact}
 					<div class="px-4 pt-3 lg:hidden"><Button variant="ghost" size="sm" onclick={() => selectedKey = ''}><ArrowLeftIcon data-icon="inline-start" />{text.factListTab}</Button></div>
 					{#key memoryFactKey(selectedFact)}
 						<MemoryFactDetail fact={selectedFact} episodes={memoryGraph?.episodes ?? []} {text} onChanged={refreshMemory} />
 					{/key}
 				{:else}
-					<Empty.Root class="min-h-96"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Description>{text.selectMemory}</Empty.Description></Empty.Header></Empty.Root>
+					<Empty.Root class="min-h-[28rem]"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Title>{text.memoryDetails}</Empty.Title><Empty.Description>{text.selectMemory}</Empty.Description></Empty.Header></Empty.Root>
 				{/if}
 			</aside>
 		</div>
 	{:else if memoryGraph && !errorMessage && !isUnavailable && !isIncomplete}
-		<Empty.Root class="min-h-80"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Title>{mode === 'search' ? text.noSearchResults : text.noVisibleMemory}</Empty.Title><Empty.Description>{text.searchDescription}</Empty.Description></Empty.Header></Empty.Root>
+		<Empty.Root class="min-h-80"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Title>{submittedQuery ? text.noSearchResults : text.noVisibleMemory}</Empty.Title><Empty.Description>{submittedQuery ? text.noSearchDescription : text.browseDescription}</Empty.Description></Empty.Header></Empty.Root>
 	{/if}
-{/if}
+</div>

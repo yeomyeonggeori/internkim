@@ -109,11 +109,11 @@ test.describe('memory graph', () => {
 
 	test('keeps graph canvas synced with its container after viewport resize', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 800 });
-		await page.goto('/memory/');
+		await page.goto('/memory/map/');
 		await page.waitForSelector('canvas');
 
 		await expect(page.getByText('Memory fact 0')).toBeVisible();
-		await expect(page.getByText('신뢰도 미제공').first()).toBeVisible();
+		await expect(page.getByText('검색 점수 미제공').first()).toBeVisible();
 
 		await expect.poll(async () => graphMetrics(page)).toMatchObject({
 			hasHorizontalOverflow: false,
@@ -132,11 +132,11 @@ test.describe('memory graph', () => {
 		await expectCanvasToMatchContainer(page);
 	});
 
-	test('shows user schedules in the schedules tab', async ({ page }) => {
+	test('opens schedules from the memory page', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 800 });
 		await page.goto('/memory/');
 
-		await page.getByRole('tab', { name: '예약 작업' }).click();
+		await page.getByRole('link', { name: '예약 작업' }).click();
 		const schedulesPanel = page.getByLabel('예약 작업');
 
 		await expect(page.getByText('팀 일정을 매일 오전에 알려주기')).toBeVisible();
@@ -184,16 +184,15 @@ test.describe('memory graph', () => {
 			});
 		});
 		await page.goto('/memory/');
-
-		await page.getByRole('tab', { name: '예약 작업' }).click();
+		await page.getByRole('link', { name: '예약 작업' }).click();
 
 		await expect(page.getByText('예약 페이지 1')).toBeVisible();
-		await expect(page.getByText('1-25 / 50')).toBeVisible();
+		await expect(page.getByText('50개 중 1–25')).toBeVisible();
 
-		await page.getByRole('button', { name: '2' }).click();
+		await page.getByRole('button', { name: '다음' }).click();
 
 		await expect(page.getByText('예약 페이지 2')).toBeVisible();
-		await expect(page.getByText('26-50 / 50')).toBeVisible();
+		await expect(page.getByText('50개 중 26–50')).toBeVisible();
 	});
 
 	test('shows an empty schedules state', async ({ page }) => {
@@ -202,7 +201,7 @@ test.describe('memory graph', () => {
 		});
 		await page.goto('/memory/');
 
-		await page.getByRole('tab', { name: '예약 작업' }).click();
+		await page.getByRole('link', { name: '예약 작업' }).click();
 
 		await expect(page.getByText('아직 예약 작업이 없습니다.')).toBeVisible();
 	});
@@ -216,7 +215,7 @@ test.describe('memory graph', () => {
 		});
 		await page.goto('/memory/');
 
-		await page.getByRole('tab', { name: '예약 작업' }).click();
+		await page.getByRole('link', { name: '예약 작업' }).click();
 
 		await expect(page.getByText('예약 작업을 불러오지 못했습니다.')).toBeVisible();
 		await expect(page.getByText('private backend detail')).toHaveCount(0);
@@ -226,7 +225,7 @@ test.describe('memory graph', () => {
 		await page.route('**/memory/api/graph**', async (route) => {
 			await route.fulfill({ json: unavailableMemoryGraphFixture });
 		});
-		await page.goto('/memory/');
+		await page.goto('/memory/map/');
 
 		await expect(page.getByText('미설정')).toBeVisible();
 		await expect(page.getByText('연결 불가')).toBeVisible();
@@ -238,7 +237,7 @@ test.describe('memory graph', () => {
 		});
 		await page.goto('/memory/');
 
-		await page.getByRole('tab', { name: 'Schedules' }).click();
+		await page.getByRole('link', { name: 'Schedules' }).click();
 
 		await expect(page.getByText('Jun').first()).toBeVisible();
 		await expect(page.getByText('2026. 6. 9.')).toHaveCount(0);
