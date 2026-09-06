@@ -18,7 +18,7 @@ const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
-const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.skills.', 'person.persona.'];
+const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.skills.', 'person.persona.', 'person.agent_learning.'];
 export const apiRequestCapability = 'person.api.request';
 export const apiFileCapability = 'person.api.file';
 export const tellCapability = 'person.message.tell';
@@ -538,6 +538,12 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 	'person.buzz.claim': '/agent/api/buzz-claim',
 	'person.buzz.relay': '/agent/api/buzz-relay-config',
 	'person.persona.user': '/persona/api/user',
+	'person.persona.identity': '/persona/api/identity',
+	'person.agent_learning.skills.list': '/agent-learning/api/skills?includeRetired=true',
+	'person.agent_learning.skills.get': '/agent-learning/api/skills',
+	'person.agent_learning.settings.get': '/agent-learning/api/settings',
+	'person.agent_learning.soul.get': '/agent-learning/api/soul',
+	'person.agent_learning.soul.history': '/agent-learning/api/soul/history',
 	'person.persona.soul': '/persona/api/soul'
 };
 
@@ -545,13 +551,17 @@ export const workspaceWriteCapabilityPaths: Record<string, string> = {
 	'person.task.quick_task': '/task/api/tasks/quick',
 	'person.runs.approve': '/runs/api/approve',
 	'person.memory.episode_delete': '/memory/api/episodes/delete',
+	'person.memory.fact_update': '/memory/api/facts/update',
+	'person.memory.fact_delete': '/memory/api/facts/delete',
 	'person.memory.pinned_update': '/memory/api/pinned/update',
 	'person.memory.pinned_delete': '/memory/api/pinned/delete',
 	'person.memory.schedule_cancel': '/memory/api/schedules/cancel',
 	'person.memory.schedule_delete': '/memory/api/schedules/delete',
 	'person.memory.schedule_update': '/memory/api/schedules/update',
 	'person.persona.user.update': '/persona/api/user',
-	'person.persona.soul.update': '/persona/api/soul'
+	'person.persona.identity.update': '/persona/api/identity',
+	'person.agent_learning.settings.update': '/agent-learning/api/settings',
+	'person.agent_learning.skills.action': '/agent-learning/api/skills/action'
 };
 
 export function workspaceCallOf(
@@ -562,9 +572,10 @@ export function workspaceCallOf(
 	const writePath = workspaceWriteCapabilityPaths[capability];
 	if (writePath) {
 		const { actor: _actor, ...written } = body;
+		const actionPath = capability === 'person.agent_learning.skills.action' && (body.action === 'protect' || body.action === 'retire' || body.action === 'restore') ? `/agent-learning/api/skills/${body.action}` : writePath;
 		return {
 			method: 'POST',
-			url: `${admindHost}${writePath}`,
+			url: `${admindHost}${actionPath}`,
 			requester,
 			contentType: 'application/json',
 			body: JSON.stringify(written)

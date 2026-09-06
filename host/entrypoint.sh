@@ -20,7 +20,7 @@ agentKeyPath="/secrets/agent-key"
 buzzKeySeedPath="/secrets/buzz-key-seed"
 modelAPIKeyPath="/secrets/openrouter-key"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime pg_isready nc cp"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay graphiti-memoryd render-company-runtime pg_isready nc cp"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
@@ -45,14 +45,15 @@ blueclawPid=""
 chatdPid=""
 maildPid=""
 relayPid=""
+graphitiPid=""
 
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${graphitiPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${graphitiPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   exit "${exitCode}"
@@ -127,6 +128,28 @@ capabilitydPid="$!"
 
 while [ ! -S "${capabilitySocketPath}" ]; do
   kill -0 "${capabilitydPid}" 2>/dev/null || { wait "${capabilitydPid}"; exit 1; }
+  sleep 1
+done
+
+echo "[host] starting graphiti-memoryd"
+graphitiModel="$(jq -r '.languageModel.tiers.low[0].model // empty' "${runtimeConfigurationPath}")"
+graphitiEndpoint="$(jq -r '.memory.graphitiEndpoint // "http://127.0.0.1:7791"' "${runtimeConfigurationPath}")"
+graphitiKuzuPath="$(jq -r '.memory.graphitiKuzuPath // "/workspace/.blueclaw/graphiti/kuzu"' "${runtimeConfigurationPath}")"
+graphitiPort="${graphitiEndpoint##*:}"
+if [ -n "${graphitiModel}" ]; then
+  export BLUECLAW_GRAPHITI_MODEL="${graphitiModel}"
+fi
+BLUECLAW_CAPABILITY_ENDPOINT="http+unix://%2Frun%2Finternkim%2Fcapability.sock" \
+BLUECLAW_GRAPHITI_KUZU_PATH="${graphitiKuzuPath}" \
+BLUECLAW_GRAPHITI_EXECUTION_MODE="remote" \
+BLUECLAW_GRAPHITI_EMBEDDING_EXECUTION_MODE="remote" \
+BLUECLAW_GRAPHITI_LISTEN_ADDRESS="127.0.0.1" \
+BLUECLAW_GRAPHITI_PORT="${graphitiPort}" \
+  graphiti-memoryd &
+graphitiPid="$!"
+
+until nc -z 127.0.0.1 "${graphitiPort}" >/dev/null 2>&1; do
+  kill -0 "${graphitiPid}" 2>/dev/null || { wait "${graphitiPid}"; exit 1; }
   sleep 1
 done
 

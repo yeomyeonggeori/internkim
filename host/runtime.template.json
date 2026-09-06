@@ -13,6 +13,12 @@
     "intake": { "enabled": true, "executionMode": "remote" },
     "defaultEffortLevel": "standard"
   },
+  "memory": {
+    "adminAssertionKeyPath": "${ADMIN_ASSERTION_KEY_PATH}",
+    "graphitiEndpoint": "${GRAPHITI_ENDPOINT}",
+    "graphitiKuzuPath": "${GRAPHITI_KUZU_PATH}",
+    "timeoutSecond": 30
+  },
   "connectors": {
     "chatd": {
       "endpoint": "${CHATD_ENDPOINT}",

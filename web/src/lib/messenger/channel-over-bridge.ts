@@ -1,5 +1,6 @@
 import { channelName } from './channel-name';
 import { currentLocale } from '$lib/i18n/locale.svelte';
+import { currentPersonNameLocale } from '$lib/person-name.svelte';
 import { channelText } from '$lib/i18n/channel-text';
 import { supabaseMember } from '$lib/supabase-session';
 import { customEmoji } from '$lib/stores/custom-emoji.svelte';
@@ -114,7 +115,7 @@ function senderOf(person: MessengerPerson, people: MessengerDirectory, viewer: V
 function participantOf(person: MessengerPerson, people: MessengerDirectory): Participant {
 	return {
 		id: canonicalKey(person, people),
-		name: personLabel(person, people, currentLocale.value),
+		name: personLabel(person, people, currentPersonNameLocale()),
 		avatarURL: personPicture.pictureOfExternal(externalIDOf(person, people)) || undefined
 	};
 }
@@ -132,7 +133,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 				channel,
 				people,
 				(person) => isViewer(person, people, viewer),
-				currentLocale.value,
+				currentPersonNameLocale(),
 				channelText[currentLocale.value].title
 			),
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),

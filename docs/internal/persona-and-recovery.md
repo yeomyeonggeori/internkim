@@ -1,17 +1,23 @@
 # Persona delivery and task recovery
 
-admind owns the configured `identity.json` and `soul.json`. Blueclaw owns the
-copies its instruction and identity readers consume. The device host's staging
+admind owns the configured `identity.json`. Blueclaw owns its installed identity
+and the authoritative soul revision ledger. The device host's staging
 workspace and the guest's ext4 workspace are separate filesystems. Writing a
 document in the first cannot update the second.
 
-admind publishes both documents through `PUT /admin/api/persona/agent`. Blueclaw
-validates the complete bundle before writing either document, installs each file
-atomically, refreshes its backup, removes retired workspace persona files, and
-returns the installed documents. admind compares the acknowledgment with its
-configured documents. Startup publication retries after a failed delivery because
-the runtime can start after admind. An update whose delivery fails reports the
-failure while retaining the configured document for a later publication.
+Startup seeds missing identity and soul documents through a signed POST without
+overwriting existing documents. Identity publication reads the current soul and
+includes it unchanged in a signed PUT. Blueclaw rejects a different soul before
+writing identity. It installs identity atomically, refreshes its backup, and
+returns the installed documents. Startup retries failed delivery because the
+runtime can start after admind.
+
+Persona signatures bind the HTTP method, complete request target, body digest
+and expiring principal. Employee GET and PUT operations require that employee's
+exact identity. Initial user seeding uses a separate POST-only principal. Agent
+publication uses a service principal restricted to the agent document routes.
+Unsigned requests fail closed. The soul API exposes no mutation or restoration;
+its revision ledger is writable through the internal reflection path.
 
 `user.json` stays in each requester's private home and uses the existing persona
 user API and POSIX actor. Agent publication does not rewrite requester documents.

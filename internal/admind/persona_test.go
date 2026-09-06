@@ -38,11 +38,12 @@ func personaTestService(t *testing.T) *Service {
 	}))
 	t.Cleanup(blueclaw.Close)
 	return NewService(Configuration{
-		BlueclawBaseURL:       blueclaw.URL,
-		IdentityDocumentPath:  filepath.Join(configurationDirectory, "identity.json"),
-		SoulDocumentPath:      filepath.Join(configurationDirectory, "soul.json"),
-		BlueclawWorkspacePath: t.TempDir(),
-		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
+		BlueclawBaseURL:          blueclaw.URL,
+		IdentityDocumentPath:     filepath.Join(configurationDirectory, "identity.json"),
+		SoulDocumentPath:         filepath.Join(configurationDirectory, "soul.json"),
+		BlueclawWorkspacePath:    t.TempDir(),
+		AdminEmailPath:           writeTestFile(t, "admin@example.com"),
+		CentralPlaneAgentKeyPath: writeTestFile(t, "synthetic-persona-key"),
 	})
 }
 
@@ -125,27 +126,17 @@ func TestIdentityRulesRefuseAnotherFirstNameOrHandle(t *testing.T) {
 	}
 }
 
-func TestSoulUpdateRefusesWhatTheSchemaDoesNotNameAndFollowsIntoTheWorkspace(t *testing.T) {
+func TestSoulUpdateIsReadOnly(t *testing.T) {
 	service := personaTestService(t)
-	for name, body := range map[string]string{
-		"an unknown register": `{"schemaVersion": 1, "tone": {"register": "shouty"}}`,
-		"an unknown field":    `{"schemaVersion": 1, "mood": "happy"}`,
-		"a repeated value":    `{"schemaVersion": 1, "values": ["a", "a"]}`,
-	} {
+	for name, body := range map[string]string{"valid": `{"schemaVersion": 1, "values": ["Lead with the result."]}`, "invalid": `{"schemaVersion": 1, "mood": "happy"}`} {
 		recorder := httptest.NewRecorder()
 		service.updateSoul(recorder, httptest.NewRequest(http.MethodPut, "/soul", strings.NewReader(body)))
-		if recorder.Code != http.StatusBadRequest {
-			t.Fatalf("expected %s to be refused, got %d %s", name, recorder.Code, recorder.Body.String())
+		if recorder.Code != http.StatusConflict {
+			t.Fatalf("expected %s to be refused as read-only, got %d %s", name, recorder.Code, recorder.Body.String())
 		}
 	}
-	recorder := httptest.NewRecorder()
-	service.updateSoul(recorder, httptest.NewRequest(http.MethodPut, "/soul", strings.NewReader(`{"schemaVersion": 1, "values": ["Lead with the result."], "tone": {"register": "polite"}, "language": {"default": "ko", "matchRequester": true}}`)))
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("expected the soul to save, got %d %s", recorder.Code, recorder.Body.String())
-	}
-	workspaceSoul, errorValue := os.ReadFile(service.Configuration.SoulDocumentPath)
-	if errorValue != nil || !strings.Contains(string(workspaceSoul), "Lead with the result.") {
-		t.Fatalf("expected the workspace soul to follow the save, got %s (%v)", workspaceSoul, errorValue)
+	if _, errorValue := os.Stat(service.Configuration.SoulDocumentPath); !os.IsNotExist(errorValue) {
+		t.Fatalf("read-only update changed the local soul: %v", errorValue)
 	}
 }
 
@@ -208,19 +199,24 @@ func TestPersonaAPILetsAMemberChangeTheirOwnDocumentButNotTheSoul(t *testing.T) 
 	}
 }
 
-func TestPersonaAPILetsAnAdministratorChangeTheSoul(t *testing.T) {
+func TestPersonaAPIDoesNotLetAnAdministratorChangeTheSoul(t *testing.T) {
 	service := personaTestService(t)
+	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		if request.Method == http.MethodPut {
+			_, _ = io.Copy(responseWriter, request.Body)
+			return
+		}
+		_, _ = responseWriter.Write([]byte(`{"identity":{"schemaVersion":1,"names":["김인턴"],"handle":"internkim"},"soul":{"schemaVersion":1,"values":["Say what you did not do."]}}`))
+	}))
+	defer blueclaw.Close()
+	service.Configuration.BlueclawBaseURL = blueclaw.URL
 	stubPersonaActor(t, personaActor{email: "admin@example.com", personID: "person-admin", isAdmin: true}, true)
 
 	recorder := httptest.NewRecorder()
 	service.handlePersona(recorder, httptest.NewRequest(http.MethodPost, "/persona/api/soul", strings.NewReader(`{"schemaVersion": 1, "values": ["Say what you did not do."]}`)))
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("expected the administrator to save the soul, got %d %s", recorder.Code, recorder.Body.String())
-	}
-	recorder = httptest.NewRecorder()
-	service.handlePersona(recorder, httptest.NewRequest(http.MethodGet, "/persona/api/soul", nil))
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "Say what you did not do.") {
-		t.Fatalf("expected the saved soul, got %d %s", recorder.Code, recorder.Body.String())
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("expected the administrator soul update to be read-only, got %d %s", recorder.Code, recorder.Body.String())
 	}
 }
 
@@ -232,6 +228,34 @@ func TestPersonaAPIRefusesSomeoneTheWorkspaceDoesNotKnow(t *testing.T) {
 	service.handlePersona(recorder, httptest.NewRequest(http.MethodGet, "/persona/api/user", nil))
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("expected a stranger to be refused, got %d", recorder.Code)
+	}
+}
+
+func TestPersonaIdentityUpdateRequiresAdministratorAndPreservesSoul(t *testing.T) {
+	service := personaTestService(t)
+	if errorValue := service.saveSoul(defaultSoulDocument()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	blueclaw := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"identity":{"schemaVersion":1,"names":["김인턴"],"handle":"internkim"},"soul":{"schemaVersion":1,"values":["Keep current guidance."]}}`))
+	}))
+	defer blueclaw.Close()
+	service.Configuration.BlueclawBaseURL = blueclaw.URL
+	stubPersonaActor(t, personaActor{email: "member@example.com", personID: "person-1"}, true)
+	recorder := httptest.NewRecorder()
+	service.handlePersona(recorder, httptest.NewRequest(http.MethodPost, "/persona/api/identity", strings.NewReader(`{"schemaVersion":1,"names":["김인턴"],"handle":"internkim"}`)))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("member identity update status = %d", recorder.Code)
+	}
+	stubPersonaActor(t, personaActor{email: "admin@example.com", personID: "person-admin", isAdmin: true}, true)
+	recorder = httptest.NewRecorder()
+	service.handlePersona(recorder, httptest.NewRequest(http.MethodPost, "/persona/api/identity", strings.NewReader(`{"schemaVersion":1,"names":["김인턴"],"handle":"internkim"}`)))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("admin identity update status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if _, errorValue := os.Stat(service.Configuration.SoulDocumentPath); errorValue != nil {
+		t.Fatalf("identity update removed soul: %v", errorValue)
 	}
 }
 

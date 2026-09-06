@@ -8,10 +8,12 @@
 	import Notifications from './notifications.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
 	import MyAgent from './my-agent.svelte';
-	import AgentSoul from './agent-soul.svelte';
+	import LearningSoulSection from '../admin/learning-soul-section.svelte';
+	import AgentIdentitySection from '../admin/agent-identity-section.svelte';
 	import CompanyMembers from './company-members.svelte';
 	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
 	import AttendanceLeavePolicySettings from '../admin/attendance-leave-policy-settings.svelte';
+	import LearnedSkillsSection from '../admin/learned-skills-section.svelte';
 	import SkillsSection from '../admin/skills-section.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { adminText } from '../admin/text';
@@ -26,8 +28,17 @@
 	let isLoading = $state(isSupabaseConfigured());
 	let activeTab = $state('general');
 
+	function isAdminSession(value: unknown): boolean {
+		return typeof value === 'object' && value !== null && 'isAdmin' in value && value.isAdmin === true;
+	}
+
 	onMount(async () => {
-		if (!isSupabaseConfigured()) return;
+		if (!isSupabaseConfigured()) {
+			const response = await fetch('/admin/api/session', { credentials: 'include' });
+			isAdmin = response.ok && isAdminSession(await response.json());
+			isLoading = false;
+			return;
+		}
 		isAdmin = (await supabaseMemberRole()) === 'admin';
 		isLoading = false;
 	});
@@ -59,7 +70,8 @@
 	</header>
 	<CompanyProfileImage />
 	<CompanyBaseCurrency />
-	<AgentSoul />
+	<LearningSoulSection />
+	<AgentIdentitySection />
 	<header class="grid gap-1 pt-2">
 		<h2 class="text-xl font-semibold">{text.members}</h2>
 		<p class="text-sm text-muted-foreground">{text.membersDescription}</p>
@@ -76,6 +88,7 @@
 		<h2 class="text-xl font-semibold">{text.agent}</h2>
 		<p class="text-sm text-muted-foreground">{text.agentDescription}</p>
 	</header>
+	<LearnedSkillsSection />
 	<SkillsSection />
 {/snippet}
 
