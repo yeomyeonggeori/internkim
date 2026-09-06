@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
@@ -26,7 +27,7 @@
 		attendanceWriteSubmitLabel(outcome, text.records, text.records.addSubmit)
 	);
 	const personName = $derived(
-		members.find((member) => member.email === addition.email)?.displayName ?? addition.email
+		displayPersonName(members.find((member) => member.email === addition.email)?.displayName ?? addition.email)
 	);
 	const locationName = $derived(
 		locations.find((location) => location.id === addition.locationID)?.name ?? text.location
@@ -64,8 +65,8 @@
 						<Select.Content>
 							<Select.Group>
 								{#each members as member (member.email)}
-									<Select.Item value={member.email} label={member.displayName}>
-										{member.displayName}
+									<Select.Item value={member.email} label={displayPersonName(member.displayName)}>
+										{displayPersonName(member.displayName)}
 									</Select.Item>
 								{/each}
 							</Select.Group>

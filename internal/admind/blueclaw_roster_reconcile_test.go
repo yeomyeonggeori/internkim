@@ -37,7 +37,7 @@ func TestRosterReconcileAdoptsDirectoryRecords(t *testing.T) {
 		{MemberID: "user-2", Email: "Newcomer@Example.com", Name: "Newcomer", Role: "admin"},
 	}
 
-	reconcileRosterPeople(policyDocument, records, nil)
+	reconcileRosterPeople(policyDocument, records, nil, workspaceLanguageKorean)
 
 	emails := rosterPolicyEmails(policyDocument)
 	if !slices.Contains(emails, "newcomer@example.com") {
@@ -57,7 +57,7 @@ func TestRosterReconcileDropsPeopleTheDirectoryNoLongerKnows(t *testing.T) {
 	policyDocument := rosterPolicyWithEmails("member@example.com", "departed@example.com")
 	records := []adminUserMutation{{MemberID: "user-1", Email: "member@example.com", Role: "member"}}
 
-	reconcileRosterPeople(policyDocument, records, nil)
+	reconcileRosterPeople(policyDocument, records, nil, workspaceLanguageKorean)
 
 	emails := rosterPolicyEmails(policyDocument)
 	if slices.Contains(emails, "departed@example.com") {
@@ -72,7 +72,7 @@ func TestRosterReconcileKeepsTheAdminEmailAndLocalTestPeople(t *testing.T) {
 	policyDocument := rosterPolicyWithEmails("owner@example.com", "probe@internkim.test", "departed@example.com")
 	records := []adminUserMutation{{MemberID: "user-1", Email: "member@example.com", Role: "member"}}
 
-	reconcileRosterPeople(policyDocument, records, []string{"owner@example.com"})
+	reconcileRosterPeople(policyDocument, records, []string{"owner@example.com"}, workspaceLanguageKorean)
 
 	emails := rosterPolicyEmails(policyDocument)
 	for _, retainedEmail := range []string{"owner@example.com", "probe@internkim.test"} {
@@ -91,7 +91,7 @@ func TestADirectoryThatAnsweredNothingRemovesNobody(t *testing.T) {
 		map[string]any{"personID": "person-2", "emails": []any{"member@example.com"}},
 	}}
 
-	reconcileRosterPeople(policyDocument, nil, nil)
+	reconcileRosterPeople(policyDocument, nil, nil, workspaceLanguageKorean)
 
 	emails := rosterPolicyEmails(policyDocument)
 	if len(emails) != 2 {
@@ -201,7 +201,7 @@ func TestRosterReconcileCarriesTheCirclesTheCompanyKeeps(t *testing.T) {
 		{MemberID: "user-1", Email: "member@example.com", Name: "Member", Role: "member", Circles: []string{"member", "c-level"}},
 	}
 
-	reconcileRosterPeople(policyDocument, records, nil)
+	reconcileRosterPeople(policyDocument, records, nil, workspaceLanguageKorean)
 
 	delivered, errorValue := json.Marshal(policyDocument)
 	if errorValue != nil {
@@ -215,6 +215,29 @@ func TestRosterReconcileCarriesTheCirclesTheCompanyKeeps(t *testing.T) {
 	circles := policyStringList(blueclawPersonWithEmail(people, "member@example.com")["circles"])
 	if !slices.Contains(circles, "c-level") {
 		t.Fatalf("a circle the company keeps must reach the roster, got %v", circles)
+	}
+}
+
+func TestRosterReconcileRendersNamesForTheWorkspaceLanguage(t *testing.T) {
+	koreanPolicy := rosterPolicyWithEmails("korean@example.com")
+	reconcileRosterPeople(koreanPolicy, []adminUserMutation{{MemberID: "korean", Email: "korean@example.com", Name: "샘플 이", Role: "member"}}, nil, workspaceLanguageKorean)
+	koreanPeople, _ := koreanPolicy["people"].([]any)
+	if displayName := blueclawPersonWithEmail(koreanPeople, "korean@example.com")["displayName"]; displayName != "이샘플" {
+		t.Fatalf("expected Korean display name to be rendered, got %v", displayName)
+	}
+
+	englishPolicy := rosterPolicyWithEmails("english@example.com")
+	reconcileRosterPeople(englishPolicy, []adminUserMutation{{MemberID: "english", Email: "english@example.com", Name: "샘플 이", Role: "member"}}, nil, workspaceLanguageEnglish)
+	englishPeople, _ := englishPolicy["people"].([]any)
+	if displayName := blueclawPersonWithEmail(englishPeople, "english@example.com")["displayName"]; displayName != "샘플 이" {
+		t.Fatalf("expected English workspace to preserve the recorded Korean name, got %v", displayName)
+	}
+
+	latinPolicy := rosterPolicyWithEmails("latin@example.com")
+	reconcileRosterPeople(latinPolicy, []adminUserMutation{{MemberID: "latin", Email: "latin@example.com", Name: "Sample Lee", Role: "member"}}, nil, workspaceLanguageEnglish)
+	latinPeople, _ := latinPolicy["people"].([]any)
+	if displayName := blueclawPersonWithEmail(latinPeople, "latin@example.com")["displayName"]; displayName != "Sample Lee" {
+		t.Fatalf("expected Latin display name to remain in recorded order, got %v", displayName)
 	}
 }
 
@@ -235,7 +258,7 @@ func TestAnAdminTheDirectoryNoLongerNamesGoes(t *testing.T) {
 	}}
 	records := []adminUserMutation{{MemberID: "user-1", Email: "boss@example.com", Role: "admin"}}
 
-	reconcileRosterPeople(policyDocument, records, nil)
+	reconcileRosterPeople(policyDocument, records, nil, workspaceLanguageKorean)
 
 	emails := rosterPolicyEmails(policyDocument)
 	if slices.Contains(emails, "admin@example.test") {
@@ -252,7 +275,7 @@ func TestTheSeedAdminStaysEvenWhenTheDirectoryDoesNotNameThem(t *testing.T) {
 	}}
 	records := []adminUserMutation{{MemberID: "user-1", Email: "member@example.com", Role: "member"}}
 
-	reconcileRosterPeople(policyDocument, records, []string{"seed@example.com"})
+	reconcileRosterPeople(policyDocument, records, []string{"seed@example.com"}, workspaceLanguageKorean)
 
 	if !slices.Contains(rosterPolicyEmails(policyDocument), "seed@example.com") {
 		t.Fatal("the address this device lets an admin in by must survive a directory that forgot them")

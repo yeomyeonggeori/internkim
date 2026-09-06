@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { inboundMessageKey, readInboundMessage } from './inbound-message';
+import { displayNameForRequester, inboundMessageKey, readInboundMessage } from './inbound-message';
 
 function aChatdBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
@@ -23,6 +23,14 @@ function aChatdBody(overrides: Record<string, unknown> = {}): Record<string, unk
 }
 
 describe('readInboundMessage', () => {
+	test('localizes a stored Korean name for the requested response language', () => {
+		expect(displayNameForRequester('지우 박', 'en', 'ko')).toBe('박지우');
+		expect(displayNameForRequester('지우 박', 'en', 'ko-KR')).toBe('박지우');
+		expect(displayNameForRequester('지우 박', 'en', 'korean')).toBe('지우 박');
+		expect(displayNameForRequester('지우 박', 'ko', 'en')).toBe('박지우');
+		expect(displayNameForRequester('지우 박', 'en', 'en')).toBe('지우 박');
+	});
+
 	test('the body chatd posts carries the requester, the addressing and the words', () => {
 		const inbound = readInboundMessage(aChatdBody());
 

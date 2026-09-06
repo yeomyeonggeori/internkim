@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as HoverCard from '$lib/components/ui/hover-card/index.js';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { mergeProps } from 'bits-ui';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
@@ -46,14 +47,14 @@
 	<div {...mergedProps}>
 		<div class="flex min-w-0 items-center gap-2">
 			<PersonAvatar
-				name={row.displayName}
+				name={displayPersonName(row.displayName)}
 				email={row.email}
 				seed={row.email || row.displayName}
 				image={row.image ?? ''}
 				class="size-7 shrink-0"
 			/>
 			<div class="min-w-0 flex-1 whitespace-normal break-all text-sm font-medium leading-tight text-foreground">
-				{row.displayName}
+				{displayPersonName(row.displayName)}
 			</div>
 		</div>
 		{#if row.currentLocationName}

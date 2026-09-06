@@ -27,8 +27,31 @@ func Render(recorded string, language string) string {
 	return family + strings.Join(parts[:len(parts)-1], "")
 }
 
+func FirstName(recorded string) string {
+	parts := strings.Fields(recorded)
+	if len(parts) == 0 {
+		return ""
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	return strings.Join(parts[:len(parts)-1], " ")
+}
+
+func DefaultCallMe(recorded string, language string) string {
+	firstName := FirstName(recorded)
+	if firstName == "" {
+		return ""
+	}
+	if isKorean(language) {
+		return firstName + " 님"
+	}
+	return firstName
+}
+
 func isKorean(language string) bool {
-	return strings.EqualFold(strings.TrimSpace(language), "ko")
+	baseLanguage := strings.SplitN(strings.ToLower(strings.TrimSpace(language)), "-", 2)[0]
+	return baseLanguage == "ko"
 }
 
 func isHangul(name string) bool {

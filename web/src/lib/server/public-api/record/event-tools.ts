@@ -1,4 +1,5 @@
 import { sizeOfHours, sizeOfWholeDays } from '$lib/task/task-sizes';
+import { personName } from '$lib/person-name';
 import {
 	calendarMembersOfPeople,
 	companyCalendarEntries,
@@ -125,7 +126,8 @@ function attendeesOfRow(context: RecordContext, row: TaskRow): AnsweredAttendee[
 	return row.task_participant.map(({ member_id }) => {
 		const person = personOf.get(member_id);
 		if (!person) return { personID: member_id, name: '' };
-		return { personID: member_id, name: person.name, ...(person.email ? { email: person.email } : {}) };
+		const name = personName(person.name, context.locale);
+		return { personID: member_id, name, ...(person.email ? { email: person.email } : {}) };
 	});
 }
 

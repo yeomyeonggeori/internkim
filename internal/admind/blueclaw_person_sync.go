@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/personname"
 )
 
 func (service *Service) inviteBlueclawPerson(ctx context.Context, userID string, email string, name string) error {
@@ -35,11 +37,12 @@ func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string,
 		people = append(people, person)
 		policyDocument["people"] = people
 	}
-	applyBlueclawPersonAttributes(person, name, role, circles, note)
+	language := service.workspaceLanguage()
+	applyBlueclawPersonAttributes(person, name, role, circles, note, language)
 	if errorValue := service.deliverBlueclawPolicy(ctx, policyDocument); errorValue != nil {
 		return errorValue
 	}
-	service.seedUserDocument(ctx, policyString(person["personID"]), name)
+	service.seedUserDocument(ctx, policyString(person["personID"]), personname.DefaultCallMe(name, language))
 	return nil
 }
 
@@ -82,10 +85,10 @@ func blueclawPersonWithEmail(people []any, email string) map[string]any {
 	return nil
 }
 
-func applyBlueclawPersonAttributes(person map[string]any, name string, role string, circles []string, note *string) {
+func applyBlueclawPersonAttributes(person map[string]any, name string, role string, circles []string, note *string, language string) {
 	person["circles"] = normalizeAdminUserCircles(circles, role)
-	if strings.TrimSpace(name) != "" {
-		person["displayName"] = strings.TrimSpace(name)
+	if displayName := personname.Render(name, language); displayName != "" {
+		person["displayName"] = displayName
 	}
 	if note != nil {
 		trimmedNote := strings.TrimSpace(*note)

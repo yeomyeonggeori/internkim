@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import type { AttendanceText } from '../text';
@@ -43,14 +44,14 @@
 				</Sheet.Title>
 				<div class="flex min-w-0 items-center gap-3">
 					<PersonAvatar
-						name={detail.displayName}
+						name={displayPersonName(detail.displayName)}
 						email={detail.email}
 						seed={detail.email || detail.displayName}
 						image={detail.image ?? ''}
 						class="size-9 ring-1 ring-border"
 					/>
 					<div class="min-w-0">
-						<p class="truncate text-sm font-semibold" data-testid="team-status-day-detail-person">{detail.displayName}</p>
+						<p class="truncate text-sm font-semibold" data-testid="team-status-day-detail-person">{displayPersonName(detail.displayName)}</p>
 						<p class="truncate text-xs text-muted-foreground">
 							{detail.email}
 						</p>

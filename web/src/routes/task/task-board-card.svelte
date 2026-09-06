@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { cn } from '$lib/utils';
 	import * as Card from '$lib/components/ui/card';
@@ -140,7 +141,7 @@
 				{:else if primaryParticipantName}
 					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
 						<PersonAvatar name={primaryParticipantName} email={memberEmail(primaryParticipantID)} seed={primaryParticipantID || primaryParticipantName} class="size-3.5 ring-1 ring-border/60" />
-						<span class="truncate">{primaryParticipantName}</span>
+						<span class="truncate">{displayPersonName(primaryParticipantName)}</span>
 					</span>
 				{/if}
 				{#if additionalParticipantCount > 0}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import type { TaskMember } from '../task-types';
 	import type { TaskMemberScoreSection } from './task-report-data';
 	import { memberScoreScale, memberScoreWidth } from './task-member-score-scale';
@@ -69,7 +70,7 @@
 				{@const member = memberOf(row.label)}
 				<div class="flex items-center gap-3 py-2">
 					<PersonAvatar
-						name={row.label}
+						name={displayPersonName(row.label)}
 						email={member?.email ?? ''}
 						seed={member?.id ?? row.label}
 						
@@ -77,7 +78,7 @@
 					/>
 					<div class="min-w-0 flex-1 space-y-1">
 						<div class="flex items-baseline justify-between gap-3">
-							<span class="min-w-0 truncate text-sm font-medium">{row.label}</span>
+							<span class="min-w-0 truncate text-sm font-medium">{displayPersonName(row.label)}</span>
 							<span
 								class={isTopScore(row.total)
 									? 'shrink-0 text-sm font-semibold tabular-nums text-blue-600'
@@ -90,7 +91,7 @@
 							<div
 								class={isTopScore(row.total) ? 'h-full rounded-full bg-blue-600' : 'bg-primary h-full rounded-full'}
 								style={`width: ${memberScoreWidth(row.total, scale)}%`}
-								aria-label={`${row.label} ${formatValue(row.total, section.unit)}`}
+								aria-label={`${displayPersonName(row.label)} ${formatValue(row.total, section.unit)}`}
 							></div>
 							{#if section.averageValue > 0}
 								<span

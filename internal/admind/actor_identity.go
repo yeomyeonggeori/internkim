@@ -3,6 +3,8 @@ package admind
 import (
 	"context"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/personname"
 )
 
 type userActor struct {
@@ -39,7 +41,9 @@ func (service *Service) resolveUserActorFromUserRecords(ctx context.Context, ema
 	}
 	for _, record := range records {
 		if strings.EqualFold(record.Email, email) && isActiveTaskUser(record) {
-			return userActorFromAdminUserRecord(record), true, nil
+			actor := userActorFromAdminUserRecord(record)
+			actor.Name = personname.Render(actor.Name, service.workspaceLanguage())
+			return actor, true, nil
 		}
 	}
 	return userActor{}, false, nil

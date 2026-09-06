@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { cn } from '$lib/utils';
 
 	type Props = {
@@ -15,8 +16,8 @@
 
 {#if name || personID}
 	<div class={cn('flex min-w-0 items-center gap-2 font-medium', className)}>
-		<PersonAvatar name={name || personID} {email} seed={personID || name} class="size-6" />
-		<span class="truncate">{name || personID}</span>
+		<PersonAvatar name={displayPersonName(name || personID)} {email} seed={personID || name} class="size-6" />
+		<span class="truncate">{displayPersonName(name || personID)}</span>
 	</div>
 {:else}
 	<span class="text-muted-foreground">{fallback}</span>

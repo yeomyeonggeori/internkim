@@ -31,7 +31,8 @@ COPY --from=go-build /out/internkim-capabilityd /usr/local/bin/internkim-capabil
 COPY --from=go-build /out/internkim-admind /usr/local/bin/internkim-admind
 COPY --from=go-build /out/internkim-maild /usr/local/bin/internkim-maild
 COPY --from=bun-build /src/chatd /opt/chatd
-COPY --from=bun-build /src/relay /opt/relay
+COPY --from=bun-build /src/relay /opt/internkim/host/relay
+COPY web/src/lib/person-name.ts /opt/internkim/web/src/lib/person-name.ts
 COPY .dependency/blueclaw/migrations /opt/blueclaw/migrations
 COPY .dependency/internkim-plugin/skills /opt/internkim/skills
 COPY host/entrypoint.sh /usr/local/bin/entrypoint.sh
@@ -40,7 +41,7 @@ COPY host/runtime.template.json /opt/internkim/runtime.template.json
 
 # entrypoint.sh calls these by name; a wrapper keeps the script free of paths.
 RUN printf '#!/bin/sh\nexec bun run /opt/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \
-	&& printf '#!/bin/sh\nexec bun run /opt/relay/relay.ts "$@"\n' > /usr/local/bin/internkim-relay \
+	&& printf '#!/bin/sh\nexec bun run /opt/internkim/host/relay/relay.ts "$@"\n' > /usr/local/bin/internkim-relay \
 	&& chmod 0755 /usr/local/bin/chatd /usr/local/bin/internkim-relay /usr/local/bin/entrypoint.sh \
 	&& mkdir -p /run/internkim /workspace /etc/blueclaw
 

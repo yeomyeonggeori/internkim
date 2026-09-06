@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -80,7 +81,7 @@
 						<Table.Row>
 							<Table.Cell>
 								<div class="flex min-w-0 items-center gap-3">
-									<PersonAvatar name={record.name} email={record.email} image={record.image ?? ''} class="size-9" />
+									<PersonAvatar name={displayPersonName(record.name)} email={record.email} image={record.image ?? ''} class="size-9" />
 									<div class="min-w-0">
 										<div class="flex min-w-0 items-center gap-1.5">
 											<p class="truncate text-sm font-medium">{record.email}</p>
@@ -146,9 +147,9 @@
 				<div class="grid gap-3 border-b p-4 last:border-b-0">
 					<div class="flex min-w-0 items-start justify-between gap-3">
 						<div class="flex min-w-0 items-center gap-3">
-							<PersonAvatar name={record.name} email={record.email} image={record.image ?? ''} class="size-10" />
+							<PersonAvatar name={displayPersonName(record.name)} email={record.email} image={record.image ?? ''} class="size-10" />
 							<div class="min-w-0">
-								<p class="truncate text-sm font-medium">{record.name || record.email}</p>
+								<p class="truncate text-sm font-medium">{displayPersonName(record.name || record.email)}</p>
 								<p class="truncate text-xs text-muted-foreground">{record.email}</p>
 							</div>
 						</div>
