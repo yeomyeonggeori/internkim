@@ -227,7 +227,7 @@
 	<Card.Header class="border-b pb-4">
 		<Card.Title>{text.graphTab}</Card.Title>
 		<Card.Description>{namespaces().length} {text.namespaces} · {episodes().length} {text.episodes} · {facts().length} {text.facts}</Card.Description>
-		<Card.Action class="flex items-center gap-2">
+		<Card.Action class="col-start-1 row-start-3 flex flex-wrap items-center gap-2 justify-self-start sm:col-start-2 sm:row-start-1 sm:justify-self-end">
 			{#if hasMemoryHealth()}
 				<Badge variant={memoryGraph?.health?.configured ? 'secondary' : 'outline'}>
 					{memoryGraph?.health?.configured ? text.configured : text.unconfigured}
@@ -249,7 +249,7 @@
 				loadMemoryGraph();
 			}}
 		>
-			<Input class="min-w-64 flex-1" bind:value={memoryGraphQuery} placeholder={text.searchPlaceholder} autocomplete="off" />
+			<Input class="min-w-0 flex-1" bind:value={memoryGraphQuery} aria-label={text.searchPrompt} placeholder={text.searchPlaceholder} autocomplete="off" />
 			<Button type="submit" disabled={isLoading}>
 				{#if isLoading}
 					<LoaderIcon class="size-4 animate-spin" />

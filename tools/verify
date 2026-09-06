@@ -172,6 +172,13 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "memory-ui",
+        ["web/src/routes/memory/*", "web/tests/e2e/memory*"],
+        [["bun", "run", "test:e2e:memory"]],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
         "web-e2e",
         [
             "web/src/routes/calendar/*",
