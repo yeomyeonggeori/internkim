@@ -127,6 +127,21 @@ func TestCompanyBrowserVerificationUsesManagedCentralPlane(t *testing.T) {
 	}
 }
 
+func TestLearningSettingsScenarioUsesDedicatedSettingsScript(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.learningSettingsScenarioPlans()
+	joined := joinedPlanArguments(plans)
+	if !strings.Contains(joined, "scenario-learning-settings.sh") {
+		t.Fatalf("learning settings scenario did not use its dedicated script:\n%s", joined)
+	}
+	if strings.Contains(joined, "scenario-workspace-persistence.sh") {
+		t.Fatalf("learning settings scenario reused workspace persistence:\n%s", joined)
+	}
+}
+
 func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) {
 	scriptPath := filepath.Join("..", "..", "lab", "scripts", "configure-local-embedding.sh")
 	document, errorValue := os.ReadFile(scriptPath)
