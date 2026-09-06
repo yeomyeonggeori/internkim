@@ -20,7 +20,7 @@ agentKeyPath="/root/.internkim/secrets/agent-key"
 buzzKeySeedPath="/root/.internkim/secrets/buzz-key-seed"
 modelAPIKeyPath="/root/.internkim/secrets/openrouter-key"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay graphiti-memoryd render-company-runtime pg_isready nc cp"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay graphiti-memoryd render-company-runtime pg_isready nc cp install"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
