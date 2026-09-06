@@ -24,6 +24,9 @@ container gets:
   MIGRATION_DIRECTORY_PATH  /opt/blueclaw/migrations
   LOG_DIRECTORY_PATH        /var/log/internkim
   MODEL_API_KEY_PATH        /secrets/openrouter-key
+  ADMIN_ASSERTION_KEY_PATH  /secrets/agent-key
+  GRAPHITI_ENDPOINT         http://127.0.0.1:7791
+  GRAPHITI_KUZU_PATH        /workspace/.blueclaw/graphiti/kuzu
   MODEL_ENDPOINT            the ladder's own endpoint
 USAGE
   exit 2
@@ -60,6 +63,9 @@ fi
 : "${MIGRATION_DIRECTORY_PATH:=/opt/blueclaw/migrations}"
 : "${LOG_DIRECTORY_PATH:=/var/log/internkim}"
 : "${MODEL_API_KEY_PATH:=/secrets/openrouter-key}"
+: "${ADMIN_ASSERTION_KEY_PATH:=/secrets/agent-key}"
+: "${GRAPHITI_ENDPOINT:=http://127.0.0.1:7791}"
+: "${GRAPHITI_KUZU_PATH:=/workspace/.blueclaw/graphiti/kuzu}"
 
 if [ -z "${workDirectory}" ]; then
   workDirectory="$(dirname "${outputPath}")"
@@ -77,6 +83,9 @@ sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
     -e "s|\${WORKSPACE_ROOT_PATH}|${WORKSPACE_ROOT_PATH}|g" \
     -e "s|\${MIGRATION_DIRECTORY_PATH}|${MIGRATION_DIRECTORY_PATH}|g" \
     -e "s|\${LOG_DIRECTORY_PATH}|${LOG_DIRECTORY_PATH}|g" \
+    -e "s|\${ADMIN_ASSERTION_KEY_PATH}|${ADMIN_ASSERTION_KEY_PATH}|g" \
+    -e "s|\${GRAPHITI_ENDPOINT}|${GRAPHITI_ENDPOINT}|g" \
+    -e "s|\${GRAPHITI_KUZU_PATH}|${GRAPHITI_KUZU_PATH}|g" \
     "${templatePath}" > "${renderedPath}"
 
 "${capabilitydPath}" --print-capabilities --socket "${CAPABILITY_SOCKET_PATH}" > "${capabilitiesPath}"

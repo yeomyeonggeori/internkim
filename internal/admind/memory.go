@@ -71,6 +71,14 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/episodes/delete")
 		return
 	}
+	if request.Method == http.MethodPost && path == "/facts/update" {
+		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/facts/update")
+		return
+	}
+	if request.Method == http.MethodPost && path == "/facts/delete" {
+		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/facts/delete")
+		return
+	}
 	if request.Method == http.MethodPost && path == "/pinned/update" {
 		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/pinned/update")
 		return
@@ -146,7 +154,12 @@ func (service *Service) writeUserMemoryMutation(responseWriter http.ResponseWrit
 	body["readerPersonID"] = personID
 
 	var response map[string]any
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, upstreamPath, body, &response); errorValue != nil {
+	if upstreamPath == "/admin/api/memory/facts/update" || upstreamPath == "/admin/api/memory/facts/delete" {
+		errorValue = service.blueclawMemoryFactRequest(request.Context(), upstreamPath, body, &response)
+	} else {
+		errorValue = service.blueclawJSONRequest(request.Context(), http.MethodPost, upstreamPath, body, &response)
+	}
+	if errorValue != nil {
 		log.Printf("memory mutation upstream failed: %v", errorValue)
 		http.Error(responseWriter, "memory mutation unavailable", http.StatusBadGateway)
 		return

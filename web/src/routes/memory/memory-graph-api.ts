@@ -27,8 +27,12 @@ export type MemoryGraphFact = {
 	content: string;
 	score?: number | null;
 	sourceEpisodeID?: string;
+	sourceEpisodeIDs?: string[];
 	sourceKind?: string;
 	validAt?: string;
+	recordedAt?: string;
+	invalidAt?: string;
+	expiredAt?: string;
 };
 
 export type MemoryGraphNode = {
@@ -56,12 +60,20 @@ export type MemoryGraphEpisode = {
 };
 
 export type MemoryGraphResponse = {
+	retrieval?: MemoryRetrieval;
 	health?: MemoryGraphHealth;
 	namespaces?: MemoryGraphNamespace[];
 	episodes?: MemoryGraphEpisode[];
 	facts?: MemoryGraphFact[];
 	nodes?: MemoryGraphNode[];
 	edges?: MemoryGraphEdge[];
+};
+
+export type MemoryRetrieval = {
+	query: string;
+	complete: boolean;
+	limit: number;
+	failures?: { namespaceID: string; message: string }[];
 };
 
 export async function fetchMemoryGraph(memoryGraphQuery: string): Promise<MemoryGraphResponse> {
@@ -84,6 +96,22 @@ export function episodeDeleteRequest(episodeID: string, namespaceIDs: string[]):
 		path: '/memory/api/episodes/delete',
 		body: { episodeID, namespaceIDs }
 	};
+}
+
+export function factUpdateRequest(factID: string, namespaceID: string, content: string): MemoryChange {
+	return { capability: 'person.memory.fact_update', path: '/memory/api/facts/update', body: { factID, namespaceID, content } };
+}
+
+export function factDeleteRequest(factID: string, namespaceID: string): MemoryChange {
+	return { capability: 'person.memory.fact_delete', path: '/memory/api/facts/delete', body: { factID, namespaceID } };
+}
+
+export async function updateMemoryFact(factID: string, namespaceID: string, content: string): Promise<void> {
+	await changeMemory(factUpdateRequest(factID, namespaceID, content));
+}
+
+export async function deleteMemoryFact(factID: string, namespaceID: string): Promise<void> {
+	await changeMemory(factDeleteRequest(factID, namespaceID));
 }
 
 export function pinnedUpdateRequest(content: string): MemoryChange {
@@ -111,6 +139,7 @@ export function normalizeMemoryGraphResponse(document: unknown): MemoryGraphResp
 	if (!record) return {};
 
 	const health = normalizeMemoryGraphHealth(record.health);
+	const retrieval = normalizeMemoryRetrieval(record.retrieval);
 	const namespaces = readArray(record.namespaces, normalizeMemoryGraphNamespace);
 	const episodes = readArray(record.episodes, normalizeMemoryGraphEpisode);
 	const facts = readArray(record.facts, normalizeMemoryGraphFact);
@@ -118,6 +147,7 @@ export function normalizeMemoryGraphResponse(document: unknown): MemoryGraphResp
 	const edges = readArray(record.edges, normalizeMemoryGraphEdge);
 
 	return {
+		...(retrieval ? { retrieval } : {}),
 		...(health ? { health } : {}),
 		...(namespaces ? { namespaces } : {}),
 		...(episodes ? { episodes } : {}),
@@ -125,6 +155,17 @@ export function normalizeMemoryGraphResponse(document: unknown): MemoryGraphResp
 		...(nodes ? { nodes } : {}),
 		...(edges ? { edges } : {})
 	};
+}
+
+function normalizeMemoryRetrieval(document: unknown): MemoryRetrieval | undefined {
+	const record = readRecord(document);
+	if (!record || typeof record.complete !== 'boolean') return undefined;
+	const failures = readArray(record.failures, (value) => {
+		const failure = readRecord(value);
+		if (!failure || typeof failure.namespaceID !== 'string' || typeof failure.message !== 'string') return undefined;
+		return { namespaceID: failure.namespaceID, message: failure.message };
+	});
+	return { query: readString(record.query) ?? '', complete: record.complete, limit: readNumber(record.limit) ?? 120, ...(failures ? { failures } : {}) };
 }
 
 async function changeMemory(change: MemoryChange): Promise<void> {
@@ -197,8 +238,12 @@ function normalizeMemoryGraphFact(document: unknown): MemoryGraphFact | undefine
 
 	const score = readNullableNumber(record.score);
 	const sourceEpisodeID = readString(record.sourceEpisodeID);
+	const sourceEpisodeIDs = readStringArray(record.sourceEpisodeIDs);
 	const sourceKind = readString(record.sourceKind);
 	const validAt = readTimestamp(record.validAt);
+	const recordedAt = readTimestamp(record.recordedAt);
+	const invalidAt = readTimestamp(record.invalidAt);
+	const expiredAt = readTimestamp(record.expiredAt);
 
 	return {
 		factID,
@@ -207,7 +252,11 @@ function normalizeMemoryGraphFact(document: unknown): MemoryGraphFact | undefine
 		content,
 		...(typeof score === 'number' || score === null ? { score } : {}),
 		...(sourceEpisodeID ? { sourceEpisodeID } : {}),
+		...(sourceEpisodeIDs ? { sourceEpisodeIDs } : {}),
 		...(sourceKind ? { sourceKind } : {}),
+		...(recordedAt ? { recordedAt } : {}),
+		...(invalidAt ? { invalidAt } : {}),
+		...(expiredAt ? { expiredAt } : {}),
 		...(validAt ? { validAt } : {})
 	};
 }

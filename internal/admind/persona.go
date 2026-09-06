@@ -64,6 +64,11 @@ type agentPersonaDocuments struct {
 	Soul     soulDocument     `json:"soul"`
 }
 
+type rawAgentPersonaDocuments struct {
+	Identity json.RawMessage `json:"identity"`
+	Soul     json.RawMessage `json:"soul"`
+}
+
 type userDocument struct {
 	SchemaVersion int           `json:"schemaVersion"`
 	CallMe        string        `json:"callMe,omitempty"`
@@ -132,7 +137,7 @@ func defaultSoulDocument() soulDocument {
 func (service *Service) startPersonaSync(ctx context.Context) {
 	go func() {
 		for {
-			if errorValue := service.syncAgentPersona(ctx); errorValue == nil {
+			if errorValue := service.seedAgentPersona(ctx); errorValue == nil {
 				return
 			} else {
 				log.Printf("persona startup sync failed; retrying in 30 seconds: %v", errorValue)
@@ -146,35 +151,60 @@ func (service *Service) startPersonaSync(ctx context.Context) {
 	}()
 }
 
-func (service *Service) writeSoul(responseWriter http.ResponseWriter, _ *http.Request) {
-	_, soul, errorValue := service.loadOrSeedPersona()
+func (service *Service) writeSoul(responseWriter http.ResponseWriter, request *http.Request) {
+	_, soul, errorValue := service.loadCurrentAgentPersona(request.Context())
 	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
 	service.writeJSON(responseWriter, soul)
 }
 
+func (service *Service) loadCurrentAgentPersona(ctx context.Context) (identityDocument, soulDocument, error) {
+	var document rawAgentPersonaDocuments
+	if errorValue := service.blueclawPersonaRequest(ctx, http.MethodGet, "/admin/api/persona/agent", nil, "internkim-persona-service", &document); errorValue != nil {
+		return identityDocument{}, soulDocument{}, errorValue
+	}
+	identity, errorValue := parseIdentityDocument(document.Identity)
+	if errorValue != nil {
+		return identityDocument{}, soulDocument{}, errorValue
+	}
+	soul, errorValue := parseSoulDocument(document.Soul)
+	if errorValue != nil {
+		return identityDocument{}, soulDocument{}, errorValue
+	}
+	return identity, soul, nil
+}
+
+func (service *Service) seedAgentPersona(ctx context.Context) error {
+	identity, soul, errorValue := service.loadOrSeedPersona()
+	if errorValue != nil {
+		return errorValue
+	}
+	var installed rawAgentPersonaDocuments
+	payload, errorValue := json.Marshal(agentPersonaDocuments{Identity: identity, Soul: soul})
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.blueclawPersonaRequest(ctx, http.MethodPost, "/admin/api/persona/agent", payload, "internkim-persona-service", &installed); errorValue != nil {
+		return errorValue
+	}
+	canonicalIdentity, identityError := parseIdentityDocument(installed.Identity)
+	canonicalSoul, soulError := parseSoulDocument(installed.Soul)
+	if identityError != nil {
+		return identityError
+	}
+	if soulError != nil {
+		return soulError
+	}
+	if errorValue := service.saveIdentity(canonicalIdentity); errorValue != nil {
+		return errorValue
+	}
+	return service.saveSoul(canonicalSoul)
+}
+
 func (service *Service) updateSoul(responseWriter http.ResponseWriter, request *http.Request) {
-	document, errorValue := readRequestDocument(request)
-	if errorValue != nil {
-		http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	soul, errorValue := parseSoulDocument(document)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	if errorValue := service.saveSoul(soul); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorValue := service.syncAgentPersona(request.Context()); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-		return
-	}
-	service.writeJSON(responseWriter, soul)
+	http.Error(responseWriter, "the agent soul is managed by learning review and restore", http.StatusConflict)
 }
 
 func readRequestDocument(request *http.Request) ([]byte, error) {
@@ -293,11 +323,20 @@ func (service *Service) syncAgentPersona(ctx context.Context) error {
 	if errorValue != nil {
 		return errorValue
 	}
+	_, currentSoul, errorValue := service.loadCurrentAgentPersona(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	soul = currentSoul
 	documents := agentPersonaDocuments{Identity: identity, Soul: soul}
 	var installed agentPersonaDocuments
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodPut, "/admin/api/persona/agent", documents, &installed); errorValue != nil {
+	payload, errorValue := json.Marshal(documents)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := service.blueclawPersonaRequest(ctx, http.MethodPut, "/admin/api/persona/agent", payload, "internkim-persona-service", &installed); errorValue != nil {
 		return errorValue
 	}
 	expected, errorValue := json.Marshal(documents)
@@ -570,6 +609,37 @@ func (service *Service) handlePersona(responseWriter http.ResponseWriter, reques
 	}
 	path := strings.TrimPrefix(request.URL.Path, "/persona/api")
 	switch {
+	case request.Method == http.MethodGet && path == "/identity":
+		identity, _, errorValue := service.loadIdentity()
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+			return
+		}
+		service.writeJSON(responseWriter, identity)
+	case request.Method == http.MethodPost && path == "/identity":
+		if !actor.isAdmin {
+			http.Error(responseWriter, "only an administrator changes the agent identity", http.StatusForbidden)
+			return
+		}
+		document, errorValue := readRequestDocument(request)
+		if errorValue != nil {
+			http.Error(responseWriter, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		identity, errorValue := parseIdentityDocument(document)
+		if errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		if errorValue = service.saveIdentity(identity); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		if errorValue = service.syncAgentPersona(request.Context()); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+			return
+		}
+		service.writeJSON(responseWriter, identity)
 	case request.Method == http.MethodGet && path == "/soul":
 		service.writeSoul(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/soul":
@@ -613,29 +683,45 @@ func (service *Service) updateUserDocument(responseWriter http.ResponseWriter, r
 	service.proxyPersonaUser(responseWriter, request, personID, http.MethodPut, canonical)
 }
 
+func (service *Service) blueclawPersonaRequest(ctx context.Context, method string, path string, body []byte, readerPersonID string, responseValue any) error {
+	key := strings.TrimSpace(readTrimmedFile(service.Configuration.CentralPlaneAgentKeyPath))
+	if key == "" {
+		return errors.New("central plane agent key is missing")
+	}
+	request, errorValue := http.NewRequestWithContext(ctx, method, strings.TrimRight(service.Configuration.BlueclawBaseURL, "/")+path, bytes.NewReader(body))
+	if errorValue != nil {
+		return errorValue
+	}
+	header, errorValue := signRequestAssertion(method, request.URL.RequestURI(), body, readerPersonID, time.Now().Add(memoryAssertionLifetime).Unix(), key)
+	if errorValue != nil {
+		return errorValue
+	}
+	request.Header.Set(memoryAssertionHeader, header)
+	request.Header.Set("Content-Type", "application/json")
+	response, errorValue := service.httpClient().Do(request)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		message, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return fmt.Errorf("Blueclaw %s %s returned %d: %s", method, path, response.StatusCode, strings.TrimSpace(string(message)))
+	}
+	if responseValue == nil {
+		return nil
+	}
+	return json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(responseValue)
+}
+
 func (service *Service) proxyPersonaUser(responseWriter http.ResponseWriter, request *http.Request, personID string, method string, body []byte) {
-	proxyURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/admin/api/persona/user?personID=" + url.QueryEscape(personID)
-	var reader io.Reader
-	if body != nil {
-		reader = bytes.NewReader(body)
-	}
-	proxyRequest, errorValue := http.NewRequestWithContext(request.Context(), method, proxyURL, reader)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	if body != nil {
-		proxyRequest.Header.Set("Content-Type", "application/json")
-	}
-	proxyResponse, errorValue := service.httpClient().Do(proxyRequest)
-	if errorValue != nil {
+	path := "/admin/api/persona/user?personID=" + url.QueryEscape(personID)
+	var response json.RawMessage
+	if errorValue := service.blueclawPersonaRequest(request.Context(), method, path, body, personID, &response); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	defer proxyResponse.Body.Close()
 	responseWriter.Header().Set("Content-Type", "application/json")
-	responseWriter.WriteHeader(proxyResponse.StatusCode)
-	_, _ = io.Copy(responseWriter, proxyResponse.Body)
+	_, _ = responseWriter.Write(response)
 }
 
 func parseUserDocument(document []byte) (userDocument, error) {
@@ -703,7 +789,7 @@ func (service *Service) seedUserDocument(ctx context.Context, personID string, n
 		return
 	}
 	seedPath := "/admin/api/persona/user?personID=" + url.QueryEscape(trimmedPersonID)
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodPost, seedPath, json.RawMessage(document), nil); errorValue != nil {
+	if errorValue := service.blueclawPersonaRequest(ctx, http.MethodPost, seedPath, document, "internkim-persona-seed", nil); errorValue != nil {
 		log.Printf("persona seed for %s skipped: %v", trimmedPersonID, errorValue)
 	}
 }
