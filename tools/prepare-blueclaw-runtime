@@ -47,7 +47,10 @@ rsync_excludes=(
   --exclude 'node_modules'
   --exclude 'web/.svelte-kit'
   --exclude 'web/.wrangler'
+  --exclude 'web/.artifacts'
   --exclude 'web/node_modules'
+  --exclude 'web/playwright-report'
+  --exclude 'web/test-results'
 )
 
 append_ignored_top_level_excludes() {
