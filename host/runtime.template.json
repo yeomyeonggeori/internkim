@@ -14,10 +14,7 @@
     "defaultEffortLevel": "standard"
   },
   "memory": {
-    "adminAssertionKeyPath": "${ADMIN_ASSERTION_KEY_PATH}",
-    "graphitiEndpoint": "${GRAPHITI_ENDPOINT}",
-    "graphitiKuzuPath": "${GRAPHITI_KUZU_PATH}",
-    "timeoutSecond": 30
+    "adminAssertionKeyPath": "${ADMIN_ASSERTION_KEY_PATH}"
   },
   "connectors": {
     "chatd": {
@@ -29,6 +26,7 @@
   "logging": { "directoryPath": "${LOG_DIRECTORY_PATH}", "retentionDays": 7 },
   "terminal": {
     "mode": "native",
+    "posixHelperPath": "/usr/local/bin/blueclaw-posix-helper",
     "workspaceRootPath": "${WORKSPACE_ROOT_PATH}",
     "timeoutSecond": 120,
     "outputMaxBytes": 32768,

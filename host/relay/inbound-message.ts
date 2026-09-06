@@ -40,6 +40,7 @@ export function readInboundMessage(offered: unknown): InboundMessage | null {
 			conversationID,
 			conversationType: text(context.conversationType) || undefined,
 			replyTargetID: text(held.replyTargetID) || undefined,
+			answeringMessageID: messageID || undefined,
 			isThread: held.isThread === true,
 			responseLanguage: text(context.responseLanguage) || undefined
 		},

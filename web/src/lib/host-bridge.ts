@@ -19,9 +19,11 @@ export class HostUnreachableError extends Error {
 }
 
 const answerTimeoutMilliseconds = 20_000;
+const presenceTimeoutMilliseconds = 5_000;
 const tokenProtocol = 'internkim.bearer.';
 
 let joined: Promise<WebSocket> | undefined;
+let activeSocket: WebSocket | undefined;
 let isServerConnected = false;
 const waiting = new Map<string, (answer: HostAnswer) => void>();
 
@@ -39,8 +41,14 @@ function forgetWire(attempt: Promise<WebSocket>): void {
 }
 
 function dropTheWire(): void {
+	activeSocket = undefined;
 	joined = undefined;
 	isServerConnected = false;
+}
+
+function dropSocket(socket: WebSocket): void {
+	if (activeSocket !== socket) return;
+	dropTheWire();
 }
 
 async function openWire(): Promise<WebSocket> {
@@ -57,24 +65,60 @@ async function openWire(): Promise<WebSocket> {
 
 	const url = `${address.replace(/\/+$/, '')}/company/${encodeURIComponent(companyID)}/client`;
 	const socket = new WebSocket(url, [tokenProtocol + token]);
-	socket.addEventListener('message', (message) => receive(message.data));
-	socket.addEventListener('close', dropTheWire);
+	activeSocket = socket;
+	let hasOpened = false;
+	let hasPresence = false;
+	let settleReadiness: ((error?: HostUnreachableError) => void) | undefined;
+	const readiness = new Promise<void>((resolve, reject) => {
+		settleReadiness = (error) => (error ? reject(error) : resolve());
+	});
+	const finishReadiness = (error?: HostUnreachableError): void => {
+		if (!settleReadiness) return;
+		const settle = settleReadiness;
+		settleReadiness = undefined;
+		settle(error);
+	};
+	const readinessTimer = setTimeout(() => {
+		finishReadiness(new HostUnreachableError());
+		socket.close();
+	}, presenceTimeoutMilliseconds);
+	socket.addEventListener('message', (message) => {
+		const payload = payloadOf(message.data);
+		if (!payload) return;
+		receivePayload(payload);
+		if (isPresence(payload)) {
+			hasPresence = true;
+			if (hasOpened) finishReadiness();
+		}
+	});
+	socket.addEventListener('close', () => {
+		dropSocket(socket);
+		finishReadiness(new HostUnreachableError());
+	});
 
 	await new Promise<void>((resolve, reject) => {
-		socket.addEventListener('open', () => resolve(), { once: true });
-		socket.addEventListener('error', () => reject(new HostUnreachableError()), { once: true });
+		readiness.then(resolve, reject).finally(() => clearTimeout(readinessTimer));
+		socket.addEventListener('open', () => {
+			hasOpened = true;
+			if (hasPresence) finishReadiness();
+		}, { once: true });
+		socket.addEventListener('error', () => finishReadiness(new HostUnreachableError()), { once: true });
 	});
 	return socket;
 }
 
-function receive(data: unknown): void {
-	if (typeof data !== 'string') return;
-	let payload: Record<string, unknown>;
+function payloadOf(data: unknown): Record<string, unknown> | null {
+	if (typeof data !== 'string') return null;
+	let payload: unknown;
 	try {
-		payload = JSON.parse(data) as Record<string, unknown>;
+		payload = JSON.parse(data);
 	} catch {
-		return;
+		return null;
 	}
+	return typeof payload === 'object' && payload !== null ? payload as Record<string, unknown> : null;
+}
+
+function receivePayload(payload: Record<string, unknown>): void {
 	if (payload.kind === 'presence') {
 		isServerConnected = payload.isServerConnected === true;
 		return;
@@ -85,6 +129,10 @@ function receive(data: unknown): void {
 		body: payload.body
 	});
 	waiting.delete(payload.requestID);
+}
+
+function isPresence(payload: Record<string, unknown>): boolean {
+	return payload.kind === 'presence' && typeof payload.isServerConnected === 'boolean';
 }
 
 export async function isCompanyAppRunning(): Promise<boolean> {

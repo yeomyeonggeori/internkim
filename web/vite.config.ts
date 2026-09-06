@@ -28,6 +28,16 @@ function admindProxy(target: string, devUserEmail?: string): ProxyOptions {
 	return options;
 }
 
+function authenticationProxy(target: string, devUserEmail?: string): ProxyOptions {
+	return {
+		...admindProxy(target, devUserEmail),
+		bypass(request) {
+			const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+			if (pathname === '/auth/claim' || pathname.startsWith('/auth/claim/')) return request.url;
+		}
+	};
+}
+
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
 	const admindTarget = env.VITE_ADMIND_TARGET || 'http://127.0.0.1:18080';
@@ -66,7 +76,7 @@ export default defineConfig(({ mode }) => {
 				'/agent/api': admindProxy(admindTarget, devUserEmail),
 				'/buzz/api': admindProxy(admindTarget, devUserEmail),
 				'/attendance/api': admindProxy(admindTarget),
-				'/auth': admindProxy(admindTarget, devUserEmail),
+				'/auth': authenticationProxy(admindTarget, devUserEmail),
 				'/calendar/api': admindProxy(admindTarget),
 				'/crm/api': admindProxy(admindTarget, devUserEmail),
 				'/mail/api': admindProxy(admindTarget),

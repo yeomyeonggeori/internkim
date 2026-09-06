@@ -72,6 +72,25 @@ func TestUsersSyncInstallCarriesTheScriptThisReleaseWasBuiltWith(t *testing.T) {
 	}
 }
 
+func TestDirectUsersSyncUsesOnlyTheCanonicalScript(t *testing.T) {
+	service := NewService(Configuration{RunUsersSyncDirectly: true})
+	commands := [][]string{}
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		commands = append(commands, append([]string{name}, arguments...))
+		return nil, nil
+	}
+
+	service.triggerUsersSync(context.Background())
+
+	if len(commands) != 1 || len(commands[0]) != 2 || commands[0][0] != blueclawruntime.InternKimUsersSyncScriptPath || commands[0][1] != "--service-acl" {
+		t.Fatalf("commands = %#v", commands)
+	}
+	files := usersSyncInstalledFilesForMode(true)
+	if len(files) != 1 || files[0].path != blueclawruntime.InternKimUsersSyncScriptPath {
+		t.Fatalf("direct files = %#v", files)
+	}
+}
+
 func TestUsersSyncStatePathMatchesWhatTheScriptWrites(t *testing.T) {
 	if !strings.Contains(blueclawruntime.InternKimUsersSyncScript(), `STATE_PATH="`+blueclawruntime.InternKimUsersSyncStatePath+`"`) {
 		t.Fatalf("the installed script no longer writes InternKimUsersSyncStatePath (%s)", blueclawruntime.InternKimUsersSyncStatePath)

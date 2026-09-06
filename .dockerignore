@@ -6,10 +6,24 @@
 .dependency/blueclaw/tests
 
 .git
+**/.git
+.agents
+.codex
+.claude
+.env
+.env.*
+**/.env
+**/.env.*
+**/.dev.vars
+**/secrets
+docs/private
 .local
 .artifacts
+**/.local
+**/.artifacts
 /build
 node_modules
+**/node_modules
 web/node_modules
 web/build
 web/.svelte-kit

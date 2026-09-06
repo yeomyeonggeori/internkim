@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"time"
 
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -15,26 +16,66 @@ type installedFile struct {
 }
 
 func usersSyncInstalledFiles() []installedFile {
-	return []installedFile{
+	return usersSyncInstalledFilesForMode(false)
+}
+
+func usersSyncInstalledFilesForMode(runDirectly bool) []installedFile {
+	files := []installedFile{
 		{blueclawruntime.InternKimUsersSyncScriptPath, blueclawruntime.InternKimUsersSyncScript(), 0o755},
-		{blueclawruntime.InternKimUsersSyncServicePath, blueclawruntime.InternKimUsersSyncServiceUnit(), 0o644},
-		{blueclawruntime.InternKimUsersSyncTimerPath, blueclawruntime.InternKimUsersSyncTimerUnit(), 0o644},
 	}
+	if runDirectly {
+		return files
+	}
+	return append(files,
+		installedFile{blueclawruntime.InternKimUsersSyncServicePath, blueclawruntime.InternKimUsersSyncServiceUnit(), 0o644},
+		installedFile{blueclawruntime.InternKimUsersSyncTimerPath, blueclawruntime.InternKimUsersSyncTimerUnit(), 0o644},
+	)
 }
 
 func (service *Service) keepUsersSyncInstalled(ctx context.Context) {
-	rewritten, errorValue := writeFilesIfDifferent(usersSyncInstalledFiles())
+	rewritten, errorValue := writeFilesIfDifferent(usersSyncInstalledFilesForMode(service.Configuration.RunUsersSyncDirectly))
 	if errorValue != nil {
 		log.Printf("users sync install failed: %v", errorValue)
+		return
+	}
+	if rewritten {
+		log.Printf("users sync reinstalled from this release")
+	}
+	if service.Configuration.RunUsersSyncDirectly {
+		service.reconcileBlueclawRosterWithTimeout(ctx)
+		service.runUsersSyncDirectly(ctx)
+		service.keepUsersSyncRunning(ctx)
 		return
 	}
 	if !rewritten {
 		return
 	}
-	log.Printf("users sync reinstalled from this release")
 	service.runSystemControl(ctx, "daemon-reload")
 	service.runSystemControl(ctx, "enable", "--now", "internkim-users-sync.timer")
 	service.runSystemControl(ctx, "start", "internkim-users-sync.service")
+}
+
+func (service *Service) keepUsersSyncRunning(ctx context.Context) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			service.runUsersSyncDirectly(ctx)
+		}
+	}
+}
+
+func (service *Service) runUsersSyncDirectly(ctx context.Context) {
+	service.usersSyncMutex.Lock()
+	defer service.usersSyncMutex.Unlock()
+	runContext, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	if output, errorValue := service.runCommand(runContext, blueclawruntime.InternKimUsersSyncScriptPath, "--service-acl"); errorValue != nil {
+		log.Printf("users sync direct run failed: %v: %s", errorValue, output)
+	}
 }
 
 func writeFilesIfDifferent(files []installedFile) (bool, error) {

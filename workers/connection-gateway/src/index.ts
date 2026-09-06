@@ -40,6 +40,7 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	const companyID = decodeURIComponent(path[1]);
 
 	if (path[2] === 'client') return joinAsClient(request, environment, companyID);
+	if (path[2] === 'host') return joinAsHost(request, environment, companyID);
 	if (path[2] === 'server') return joinAsServer(request, environment, companyID);
 	if (path[2] === 'server-key') return storeServerKey(request, environment, companyID);
 	if (path[2] === 'call') return takeCompanyCall(request, environment, companyID);
@@ -84,6 +85,35 @@ function joinAsServer(
 	companyID: string
 ): Promise<Response> {
 	return connectionFor(environment, companyID).fetch(request);
+}
+
+async function joinAsHost(
+	request: Request,
+	environment: WorkerEnvironment,
+	companyID: string
+): Promise<Response> {
+	const token = bearerOf(request);
+	if (!token) return jsonResponse({ error: 'this call carried no token' }, 401);
+	try {
+		const claims = await verifyToken(
+			token,
+			keyCacheFor(environment),
+			issuerOf(environment),
+			Math.floor(Date.now() / 1000)
+		);
+		if (claims.hostCompanyID !== companyID) {
+			return jsonResponse({ error: 'this token is not the company host' }, 403);
+		}
+		return connectionFor(environment, companyID).fetch(
+			new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/host-session`, {
+				method: request.method,
+				headers: headersOf(request)
+			})
+		);
+	} catch (refusal) {
+		if (refusal instanceof TokenRefused) return jsonResponse({ error: refusal.message }, 401);
+		throw refusal;
+	}
 }
 
 function takeCompanyCall(
@@ -188,6 +218,7 @@ export class CompanyConnectionObject {
 		const url = new URL(request.url);
 		if (url.pathname.endsWith('/server-key')) return this.keepServerKey(request);
 		if (url.pathname.endsWith('/call')) return this.takeOneShotCall(request);
+		if (url.pathname.endsWith('/host-session')) return this.acceptHost(request);
 		if (request.headers.get('Upgrade') !== 'websocket') {
 			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
 		}
@@ -226,6 +257,17 @@ export class CompanyConnectionObject {
 		if (!serverKey || offered !== `Bearer ${serverKey}`) {
 			return jsonResponse({ error: 'this connection is not the company server' }, 401);
 		}
+		return this.acceptConnectedServer(request);
+	}
+
+	private acceptHost(request: Request): Response {
+		if (request.headers.get('Upgrade') !== 'websocket') {
+			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
+		}
+		return this.acceptConnectedServer(request);
+	}
+
+	private acceptConnectedServer(request: Request): Response {
 		const { client, server } = newSocketPair();
 		server.accept();
 		this.serverSocket?.close(1012, 'another server connected');

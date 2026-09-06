@@ -16,6 +16,8 @@
 	import LearnedSkillsSection from '../admin/learned-skills-section.svelte';
 	import SkillsSection from '../admin/skills-section.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import { Button } from '$lib/components/ui/button';
+	import { hostSetupText } from './setup/text';
 	import { adminText } from '../admin/text';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -23,6 +25,7 @@
 	import { onMount } from 'svelte';
 
 	const text = createPageText(companySettingsText);
+	const setupText = createPageText(hostSetupText);
 	const attendanceSettingsText = createPageText(adminText);
 	let isAdmin = $state(false);
 	let isLoading = $state(isSupabaseConfigured());
@@ -64,6 +67,9 @@
 {/snippet}
 
 {#snippet adminSections()}
+	{#if isSupabaseConfigured()}
+		<Button href="/settings/setup" variant="outline">{setupText.title}</Button>
+	{/if}
 	<header class="grid gap-1">
 		<h2 class="text-xl font-semibold">{text.company}</h2>
 		<p class="text-sm text-muted-foreground">{text.companyDescription}</p>

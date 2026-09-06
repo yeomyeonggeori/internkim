@@ -6,6 +6,7 @@
 # even when the agent does not. Nothing listens off loopback: the box reaches out
 # and is never reached back.
 set -e
+umask 027
 
 capabilitySocketPath="/run/internkim/capability.sock"
 blueclawACPSocketPath="/run/internkim/blueclaw-acp.sock"
@@ -18,9 +19,21 @@ maildPort="${MAILD_PORT:-18092}"
 admindPort="${ADMIND_PORT:-18080}"
 agentKeyPath="/root/.internkim/secrets/agent-key"
 buzzKeySeedPath="/root/.internkim/secrets/buzz-key-seed"
+buzzDatabaseURLPath="${BUZZ_DATABASE_URL_PATH:-/root/.internkim/secrets/buzz-database.env}"
+buzzRelayKeyPath="${BUZZ_RELAY_KEY_PATH:-/root/.internkim/secrets/buzz-relay.env}"
+buzzAdminCommandPath="${BUZZ_ADMIN_COMMAND:-}"
+buzzCommunityID="${BUZZ_COMMUNITY_ID:-}"
+buzzInviteKeyPath="${BUZZ_INVITE_KEY_PATH:-}"
+buzzRelayURL="${BUZZ_RELAY_URL:-${CHATD_BUZZ_RELAY_URL:-}}"
+buzzRelayPublicURL="${BUZZ_RELAY_PUBLIC_URL:-}"
+buzzLandingURL="${BUZZ_LANDING_URL:-}"
+buzzAccountLinksPath="${BUZZ_ACCOUNT_LINKS_PATH:-${CHATD_BUZZ_ACCOUNT_LINKS_PATH:-/var/lib/internkim/buzz-account-links.json}}"
 modelAPIKeyPath="/root/.internkim/secrets/openrouter-key"
+blueclawModelAPIKeyPath="/run/internkim/keys/openrouter-key"
+blueclawAssertionKeyPath="/run/internkim/keys/agent-key"
+export WORKSPACE_ROOT_PATH="${WORKSPACE_ROOT_PATH:-/workspace}"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay graphiti-memoryd render-company-runtime pg_isready nc cp"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw blueclaw-posix-helper chatd internkim-relay render-company-runtime pg_isready nc cp install runuser setfacl chgrp chmod chown"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
@@ -36,7 +49,19 @@ fi
 : "${MESSENGER_PLATFORM:?set MESSENGER_PLATFORM}"
 : "${DATABASE_URL:?set DATABASE_URL}"
 install -d -o root -g root -m 0700 /root/.internkim
+install -d -o root -g root -m 0755 "$(dirname "${buzzAccountLinksPath}")"
 [ -r "${agentKeyPath}" ] || { echo "[host] no agent key at ${agentKeyPath}" >&2; exit 1; }
+install -d -o root -g blueclaw -m 0770 /run/internkim
+install -d -o root -g blueclaw -m 0750 /run/internkim/keys
+install -o root -g blueclaw -m 0440 "${modelAPIKeyPath}" "${blueclawModelAPIKeyPath}"
+install -o root -g blueclaw -m 0440 "${agentKeyPath}" "${blueclawAssertionKeyPath}"
+install -d -o blueclaw -g blueclaw -m 0755 "${WORKSPACE_ROOT_PATH}"
+install -d -o blueclaw -g blueclaw -m 0750 "${WORKSPACE_ROOT_PATH}/.blueclaw" "${WORKSPACE_ROOT_PATH}/.blueclaw/logs" /var/log/internkim
+blueclawStatePath="${WORKSPACE_ROOT_PATH}/.blueclaw/state"
+if [ -d "${blueclawStatePath}" ] && [ "$(stat -c '%U' "${blueclawStatePath}")" = root ]; then
+  chown -R blueclaw:blueclaw "${blueclawStatePath}"
+fi
+install -d -o blueclaw -g blueclaw -m 0750 "${blueclawStatePath}"
 [ -r "${buzzKeySeedPath}" ] \
   || echo "[host] no buzz identity seed at ${buzzKeySeedPath}; the agent answers, and a message it sends under a person's own name cannot be signed" >&2
 
@@ -46,15 +71,14 @@ blueclawPid=""
 chatdPid=""
 maildPid=""
 relayPid=""
-graphitiPid=""
 
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${graphitiPid}" "${admindPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${graphitiPid}" "${admindPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   exit "${exitCode}"
@@ -84,20 +108,23 @@ relayPid="$!"
 # company that outgrows the template keeps its own. The render itself is
 # render-company-runtime, which the sandbox runs too — a sandbox that writes its
 # own document proves nothing about the one a company runs on.
-runtimeConfigurationPath="/etc/blueclaw/runtime.json"
-if [ ! -r "${runtimeConfigurationPath}" ]; then
-  runtimeConfigurationPath="/run/internkim/runtime.json"
+runtimeConfigurationPath="/run/internkim/runtime.json"
+if [ -r /etc/blueclaw/runtime.json ]; then
+  cp /etc/blueclaw/runtime.json "${runtimeConfigurationPath}"
+else
   CAPABILITY_SOCKET_PATH="${capabilitySocketPath}" \
   BLUECLAW_BASE_URL="http://${blueclawAddress}" \
   CHATD_ENDPOINT="http://127.0.0.1:${chatdPort}" \
-  MODEL_API_KEY_PATH="${modelAPIKeyPath}" \
-  ADMIN_ASSERTION_KEY_PATH="${agentKeyPath}" \
+  MODEL_API_KEY_PATH="${blueclawModelAPIKeyPath}" \
+  ADMIN_ASSERTION_KEY_PATH="${blueclawAssertionKeyPath}" \
     render-company-runtime \
       --template /opt/internkim/runtime.template.json \
       --out "${runtimeConfigurationPath}" \
       --work /run/internkim
   echo "[host] wrote ${runtimeConfigurationPath} from the template and capabilityd's contract"
 fi
+chgrp blueclaw /run/internkim/*.json
+chmod 0640 /run/internkim/*.json
 
 mountedPolicyPath="/etc/blueclaw/policy.json"
 policyPath="/run/internkim/policy.json"
@@ -108,6 +135,8 @@ else
   printf '{"people":[],"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n' > "${policyPath}"
   echo "[host] no policy mounted; started with nobody in it"
 fi
+chgrp blueclaw "${policyPath}"
+chmod 0640 "${policyPath}"
 [ -w "${policyPath}" ] \
   || { echo "[host] ${policyPath} is not writable; admind rewrites the roster there whenever the company changes" >&2; exit 1; }
 
@@ -133,31 +162,9 @@ while [ ! -S "${capabilitySocketPath}" ]; do
   sleep 1
 done
 
-echo "[host] starting graphiti-memoryd"
-graphitiModel="$(jq -r '.languageModel.tiers.low[0].model // empty' "${runtimeConfigurationPath}")"
-graphitiEndpoint="$(jq -r '.memory.graphitiEndpoint // "http://127.0.0.1:7791"' "${runtimeConfigurationPath}")"
-graphitiKuzuPath="$(jq -r '.memory.graphitiKuzuPath // "/workspace/.blueclaw/graphiti/kuzu"' "${runtimeConfigurationPath}")"
-graphitiPort="${graphitiEndpoint##*:}"
-if [ -n "${graphitiModel}" ]; then
-  export BLUECLAW_GRAPHITI_MODEL="${graphitiModel}"
-fi
-BLUECLAW_CAPABILITY_ENDPOINT="http+unix://%2Frun%2Finternkim%2Fcapability.sock" \
-BLUECLAW_GRAPHITI_KUZU_PATH="${graphitiKuzuPath}" \
-BLUECLAW_GRAPHITI_EXECUTION_MODE="remote" \
-BLUECLAW_GRAPHITI_EMBEDDING_EXECUTION_MODE="remote" \
-BLUECLAW_GRAPHITI_LISTEN_ADDRESS="127.0.0.1" \
-BLUECLAW_GRAPHITI_PORT="${graphitiPort}" \
-  graphiti-memoryd &
-graphitiPid="$!"
-
-until nc -z 127.0.0.1 "${graphitiPort}" >/dev/null 2>&1; do
-  kill -0 "${graphitiPid}" 2>/dev/null || { wait "${graphitiPid}"; exit 1; }
-  sleep 1
-done
-
 echo "[host] starting blueclaw"
 BLUECLAW_BUNDLED_SKILLS_PATH="${bundledSkillsPath}" \
-  blueclaw -runtime "${runtimeConfigurationPath}" -policy "${policyPath}" -acp-socket "${blueclawACPSocketPath}" -inbound acp &
+  runuser --user blueclaw -- blueclaw -runtime "${runtimeConfigurationPath}" -policy "${policyPath}" -acp-socket "${blueclawACPSocketPath}" -inbound acp &
 blueclawPid="$!"
 
 until nc -z 127.0.0.1 8080 >/dev/null 2>&1; do
@@ -175,14 +182,25 @@ done
 # minutes for the next one — two minutes in which nobody the company knows can
 # be resolved.
 echo "[host] starting admind"
-internkim-admind \
+AGENT_API_KEY_PATH="${agentKeyPath}" internkim-admind \
   -listen "127.0.0.1:${admindPort}" \
   -capability-socket "${capabilitySocketPath}" \
   -chatd-endpoint "http://127.0.0.1:${chatdPort}" \
   -chatd-platform "${MESSENGER_PLATFORM}" \
   -blueclaw-url "http://${blueclawAddress}" \
   -blueclaw-policy "${policyPath}" \
+  -blueclaw-workspace "${WORKSPACE_ROOT_PATH}" \
+  -users-sync-direct=true \
   -buzz-key-seed-path "${buzzKeySeedPath}" \
+  -buzz-database-url-path "${buzzDatabaseURLPath}" \
+  -buzz-relay-key-path "${buzzRelayKeyPath}" \
+  -buzz-admin-command "${buzzAdminCommandPath}" \
+  -buzz-account-links "${buzzAccountLinksPath}" \
+  -buzz-community-id "${buzzCommunityID}" \
+  -buzz-invite-key "${buzzInviteKeyPath}" \
+  -buzz-relay-url "${buzzRelayURL}" \
+  -buzz-relay-public-url "${buzzRelayPublicURL}" \
+  -buzz-landing-url "${buzzLandingURL}" \
   -site-scaffold "${bundledSkillsPath}/website/assets/scaffold/app" \
   -central-plane-app-url "${INTERNKIM_APP_URL}" \
   -central-plane-agent-key "${agentKeyPath}" \
@@ -203,6 +221,7 @@ echo "[host] starting chatd"
 CHATD_BLUECLAW_BASE_URL="http://${blueclawAddress}" \
 CHATD_LISTEN_PORT="${chatdPort}" \
 CHATD_RELAY_INBOUND_URL="http://127.0.0.1:${arrivalsPort}/inbound" \
+CHATD_BUZZ_ACCOUNT_LINKS_PATH="${buzzAccountLinksPath}" \
   chatd &
 chatdPid="$!"
 

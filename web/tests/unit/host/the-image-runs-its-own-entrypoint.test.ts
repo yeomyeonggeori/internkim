@@ -73,6 +73,13 @@ test('the plane template names no model of its own', () => {
 	).toBeUndefined();
 });
 
+test('native workspace operations use a helper checked by the image preflight', () => {
+	const template = JSON.parse(readFileSync(join(repositoryRoot, 'host', 'runtime.template.json'), 'utf8'));
+	expect(template.terminal.mode).toBe('native');
+	expect(typeof template.terminal.posixHelperPath).toBe('string');
+	expect(theProgramsTheEntrypointDeclares()).toContain(template.terminal.posixHelperPath.split('/').at(-1));
+});
+
 test('the entrypoint names the model key file once', () => {
 	const entrypoint = readFileSync(join(repositoryRoot, 'host', 'entrypoint.sh'), 'utf8');
 	const literalKeyPaths = entrypoint.match(/\/secrets\/openrouter-key/g) ?? [];
@@ -80,6 +87,35 @@ test('the entrypoint names the model key file once', () => {
 		literalKeyPaths.length,
 		'capabilityd and the rendered ladder read the same key file, so the path is written once'
 	).toBe(1);
+});
+
+test('the host image follows the current Blueclaw Bun workspace', () => {
+	const dockerfile = readFileSync(join(repositoryRoot, 'host', 'Dockerfile'), 'utf8');
+	expect(dockerfile).toContain('COPY .dependency/blueclaw/package.json .dependency/blueclaw/bun.lock ./');
+	expect(dockerfile).toContain('COPY .dependency/blueclaw/protocol ./protocol');
+	expect(dockerfile).toContain('COPY .dependency/blueclaw/chatd ./chatd');
+	expect(dockerfile).toContain('COPY .dependency/blueclaw/admin ./admin');
+	expect(dockerfile).toContain('COPY host/relay /src/host/relay');
+	expect(dockerfile).toContain('bun build --compile --outfile /out/internkim-relay relay.ts');
+	expect(dockerfile).toContain('bun build --compile --outfile /out/chatd chatd/src/main.ts');
+	expect(dockerfile).toContain('COPY --from=bun-build /out/chatd /usr/local/bin/chatd');
+	expect(dockerfile).toContain('COPY --from=bun-build /out/internkim-relay /usr/local/bin/internkim-relay');
+	expect(dockerfile).toContain('COPY --from=bun-build /usr/local/bin/bun /usr/local/bin/bun');
+	expect(dockerfile).toContain('web/src/lib/i18n/locale.ts');
+});
+
+test('the host image does not carry the removed Graphiti service', () => {
+	const files = ['host/Dockerfile', 'host/entrypoint.sh', 'host/runtime.template.json', 'tools/render-company-runtime'];
+	for (const file of files) {
+		expect(readFileSync(join(repositoryRoot, file), 'utf8'), file).not.toContain('graphiti');
+	}
+});
+
+test('host Buzz account links use one writable path', () => {
+	const entrypoint = readFileSync(join(repositoryRoot, 'host', 'entrypoint.sh'), 'utf8');
+	expect(entrypoint).toContain('buzzAccountLinksPath="${BUZZ_ACCOUNT_LINKS_PATH:-${CHATD_BUZZ_ACCOUNT_LINKS_PATH:-/var/lib/internkim/buzz-account-links.json}}"');
+	expect(whatStarts('internkim-admind', '-buzz-account-links')).toContain('/var/lib/internkim/buzz-account-links.json');
+	expect(entrypoint).toContain('CHATD_BUZZ_ACCOUNT_LINKS_PATH="${buzzAccountLinksPath}"');
 });
 
 test('render-company-runtime refuses a template carrying its own ladder', () => {

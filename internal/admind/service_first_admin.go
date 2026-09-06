@@ -281,6 +281,10 @@ func (service *Service) blueclawJSONRequest(ctx context.Context, method string, 
 }
 
 func (service *Service) triggerUsersSync(ctx context.Context) {
+	if service.Configuration.RunUsersSyncDirectly {
+		service.runUsersSyncDirectly(ctx)
+		return
+	}
 	if service.RunCommand == nil {
 		if _, errorValue := exec.LookPath("systemctl"); errorValue != nil {
 			return

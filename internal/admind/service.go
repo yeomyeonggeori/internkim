@@ -65,6 +65,7 @@ type Service struct {
 	databaseSchemas            *adminDatabaseSchemas
 	legacyDatabaseMigration    sync.Once
 	mailNotifyMarkMutex        sync.Mutex
+	usersSyncMutex             sync.Mutex
 	taskNotifyMarkMutex        sync.Mutex
 	removeTokenQuarantineFile  func(string) error
 	promoteCalendarTokenFile   func(string, string) error

@@ -1,6 +1,7 @@
 import { isSupabaseConfigured } from '$lib/supabase';
 import {
 	bridgeConversation,
+	bridgeAgentConversation,
 	bridgeConversations,
 	bridgeDirectMessage,
 	bridgePeople,
@@ -157,6 +158,11 @@ export async function ensureDirectMessage(personID: string): Promise<string> {
 	if (!response.ok) throw new Error(await response.text());
 	const document: { channelId?: string } = await response.json();
 	return document.channelId ?? '';
+}
+
+export async function ensureAgentConversation(): Promise<string> {
+	if (isSupabaseConfigured()) return bridgeAgentConversation();
+	return (await fetchChannelConversation()).conversationID;
 }
 
 function conversationURL(channelID?: string, before?: string): string {

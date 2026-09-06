@@ -3,14 +3,14 @@ import { join } from 'node:path';
 
 const entrypointPath = join(import.meta.dir, '..', '..', '..', 'host', 'entrypoint.sh');
 
-type AFlag = { name: string; rawValue: string };
+type AFlag = { name: string; rawValue: string; isJoined?: boolean };
 type AToken = { text: string; isOperator: boolean; isRedirect: boolean };
 
 const shellWords = new Set([
 	'if', 'then', 'elif', 'else', 'fi', 'for', 'in', 'do', 'done', 'while', 'until', 'case', 'esac',
 	'set', 'exit', 'echo', 'printf', 'trap', 'wait', 'kill', 'sleep', 'true', 'false', 'cd', 'export',
 	'command', 'return', 'shift', 'read', 'eval', 'exec', 'local', 'unset', 'test', ':', '[', '{',
-	'}', '!'
+	'}', '!', 'umask'
 ]);
 
 const introducesACommand = new Set(['if', 'then', 'elif', 'else', 'do', 'while', 'until', '!']);
@@ -162,10 +162,18 @@ export function theCommandWordsTheEntrypointRuns(): string[] {
 }
 
 function theCommandThatStarts(program: string): AToken[] {
-	const found = theLogicalLines().find((logicalLine) => theCommandWordsOf(logicalLine)[0] === program);
+	const found = theLogicalLines().find((logicalLine) => {
+		if (theCommandWordsOf(logicalLine)[0] === program) return true;
+		const tokens = tokenize(logicalLine);
+		const separator = tokens.findIndex((token) => token.text === '--');
+		return theCommandWordsOf(logicalLine)[0] === 'runuser' && tokens[separator + 1]?.text === program;
+	});
 	if (!found) throw new Error(`host/entrypoint.sh starts no ${program}`);
 	const tokens = tokenize(found);
-	const start = tokens.findIndex((token) => token.text === program && !token.isOperator);
+	const separator = tokens.findIndex((token) => token.text === '--');
+	const start = theCommandWordsOf(found)[0] === 'runuser'
+		? separator + 1
+		: tokens.findIndex((token) => token.text === program && !token.isOperator);
 	return tokens.slice(start + 1);
 }
 
@@ -204,7 +212,9 @@ function theFlagsThatStart(program: string): AFlag[] {
 			refuse(`starts ${program} through ${token.text}, which this reader cannot represent`);
 		}
 		if (flagWithJoinedValue.test(token.text)) {
-			refuse(`starts ${program} with ${token.text.split('=')[0]}=… joined by an equals sign`);
+			const separator = token.text.indexOf('=');
+			flags.push({ name: token.text.slice(0, separator), rawValue: token.text.slice(separator + 1), isJoined: true });
+			continue;
 		}
 		if (!flagName.test(token.text)) {
 			refuse(`starts ${program} with a bare ${token.text} that follows no flag`);
@@ -231,7 +241,8 @@ export function theArgumentsThatStart(
 	shared: Record<string, string>,
 	sandboxOnly: Record<string, string> = {}
 ): string[] {
-	const started = theFlagsThatStart(program).map((flag) => flag.name);
+	const flags = theFlagsThatStart(program);
+	const started = flags.map((flag) => flag.name);
 	for (const name of Object.keys(shared)) {
 		if (started.includes(name)) continue;
 		throw new Error(
@@ -253,7 +264,7 @@ export function theArgumentsThatStart(
 					`so the plane it brings up is not the plane a company runs`
 			);
 		}
-		return [name, value];
+		return flags.find((flag) => flag.name === name)?.isJoined ? [`${name}=${value}`] : [name, value];
 	});
 	return [...fromTheEntrypoint, ...Object.entries(sandboxOnly).flat()];
 }

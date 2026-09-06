@@ -32,6 +32,7 @@ import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { HeldQuestionStore } from './held-question-store';
+import { postToConversation as postMessageToConversation } from './post-to-conversation';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -92,9 +93,22 @@ setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
 function openGatewayConnection(): void {
 	const gatewayURL = process.env.GATEWAY_URL?.trim();
 	const serverKey = process.env.GATEWAY_SERVER_KEY?.trim();
-	if (!gatewayURL || !serverKey) return;
+	if (!gatewayURL) throw new Error('set GATEWAY_URL');
 
-	connectToGateway({ gatewayURL, companyID, serverKey, dispatch, byteCeiling: answerByteCeiling });
+	connectToGateway({
+		gatewayURL,
+		companyID,
+		...(serverKey
+			? { serverKey }
+			: {
+				hostAccessToken: async () => {
+					await keepSessionFresh();
+					return hostSession.accessToken;
+				}
+			}),
+		dispatch,
+		byteCeiling: answerByteCeiling
+	});
 }
 
 const dispatch = {
@@ -340,7 +354,7 @@ const inboundTurns: InboundTurns = new InboundTurns({
 		report: (line) => console.log(`inbound: ${line}`)
 	}),
 	postToConversation: async (addressing: Addressing, message: string) => {
-		await dispatch.askChatd('message.post', { channelID: addressing.conversationID, message });
+		await postMessageToConversation(dispatch.askChatd, addressing, message);
 	},
 	report: (line) => console.log(`acp: ${line}`)
 });

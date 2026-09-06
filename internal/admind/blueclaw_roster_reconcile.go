@@ -19,7 +19,9 @@ const (
 
 func (service *Service) startBlueclawRosterReconcile(ctx context.Context) {
 	go func() {
-		service.reconcileBlueclawRosterWithTimeout(ctx)
+		if !service.Configuration.RunUsersSyncDirectly {
+			service.reconcileBlueclawRosterWithTimeout(ctx)
+		}
 		ticker := time.NewTicker(blueclawRosterReconcileInterval)
 		defer ticker.Stop()
 		for {

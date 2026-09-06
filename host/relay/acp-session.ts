@@ -27,6 +27,7 @@ export type Addressing = {
 	conversationID: string;
 	conversationType?: string;
 	replyTargetID?: string;
+	answeringMessageID?: string;
 	isThread?: boolean;
 	responseLanguage?: string;
 };

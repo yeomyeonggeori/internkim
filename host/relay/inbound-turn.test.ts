@@ -280,7 +280,10 @@ describe('InboundTurns', () => {
 		afterRestart.startDraining();
 		await afterRestart.settled();
 		await waitUntil(() => posted.length === 1, 'the second relay to deliver the event');
-		await afterRestart.settled();
+		await waitUntil(
+			async () => (await eventsStillOnDisk(directoryPath)).length === 0,
+			'the delivered event to leave the queue'
+		);
 
 		expect(calls).toHaveLength(1);
 		expect(posted).toEqual(['보냈습니다']);

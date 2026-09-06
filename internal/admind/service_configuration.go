@@ -86,6 +86,7 @@ type Configuration struct {
 	TaskRunNotifyEnabled           bool
 	AttendanceNotifyEnabled        bool
 	MailNotifyEnabled              bool
+	RunUsersSyncDirectly           bool
 }
 
 func DefaultConfiguration() Configuration {
@@ -95,6 +96,7 @@ func DefaultConfiguration() Configuration {
 		TaskRunNotifyEnabled:           true,
 		AttendanceNotifyEnabled:        true,
 		MailNotifyEnabled:              true,
+		RunUsersSyncDirectly:           false,
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",

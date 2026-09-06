@@ -42,8 +42,9 @@ describe('readInboundMessage', () => {
 		expect(inbound?.addressing).toEqual({
 			platform: 'buzz',
 			conversationID: 'conversation-1',
-			conversationType: 'direct',
+		conversationType: 'direct',
 			replyTargetID: 'message-6',
+			answeringMessageID: 'message-7',
 			isThread: true,
 			responseLanguage: 'ko'
 		});

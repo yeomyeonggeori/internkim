@@ -57,11 +57,12 @@ func InternKimUsersSyncScript() string {
 	return `#!/bin/sh
 set -eu
 
-APP_URL="$(cat /root/.internkim/env/central-plane-app-url 2>/dev/null || true)"
-AGENT_KEY="$(cat /root/.internkim/secrets/central-plane-agent-key 2>/dev/null || true)"
+APP_URL="${INTERNKIM_APP_URL:-$(cat /root/.internkim/env/central-plane-app-url 2>/dev/null || true)}"
+AGENT_KEY="$(cat "${AGENT_API_KEY_PATH:-/root/.internkim/secrets/central-plane-agent-key}" 2>/dev/null || true)"
 STATE_PATH="/root/.internkim/state/users-sync.json"
 BLUECLAW_URL="http://127.0.0.1:8080"
-WORKSPACE_PATH="/root/.blueclaw/workspace"
+WORKSPACE_PATH="${WORKSPACE_ROOT_PATH:-/root/.blueclaw/workspace}"
+SERVICE_ACCESS_ACL="${1:-}"
 
 ` + internKimUsersSyncRequestHelpers() + `
 install -d -m 700 /root/.internkim/state
@@ -83,7 +84,7 @@ sync_posix_policy() {
   if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s "$current_policy_path" ]; then
     /usr/local/bin/blueclaw-posix-helper sync \
       --policy "$current_policy_path" \
-      --workspace "$WORKSPACE_PATH" >/root/.blueclaw/workspace/.blueclaw/logs/posix-sync.log 2>&1
+      --workspace "$WORKSPACE_PATH" >"$WORKSPACE_PATH/.blueclaw/logs/posix-sync.log" 2>&1
   fi
 }
 ensure_person_workspace_directories() {
@@ -101,6 +102,9 @@ ensure_person_workspace_directories() {
       chown "$owner" "$person_path/tmp" "$person_path/artifacts" 2>/dev/null || true
     fi
     chmod 2770 "$person_path" "$person_path/tmp" "$person_path/artifacts" 2>/dev/null || true
+    if [ "$SERVICE_ACCESS_ACL" = "--service-acl" ]; then
+      setfacl -m u:blueclaw:rwx,d:u:blueclaw:rwx "$person_path" "$person_path/tmp" "$person_path/artifacts"
+    fi
   done
 }
 
