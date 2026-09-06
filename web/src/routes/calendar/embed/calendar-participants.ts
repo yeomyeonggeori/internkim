@@ -65,11 +65,15 @@ export function calendarParticipantKey(participant: CalendarParticipant): string
 	return '';
 }
 
-export function calendarParticipantOptionLabel(participant: CalendarParticipant, participants: CalendarParticipant[]): string {
-	if (!hasCalendarParticipantDuplicateName(participant, participants)) return participant.name;
-	if ((participant.email ?? '') !== '') return `${participant.name} · ${participant.email}`;
-	if (participant.personID !== '') return `${participant.name} · ${participant.personID}`;
-	return participant.name;
+export function calendarParticipantOptionLabel(
+	participant: CalendarParticipant,
+	participants: CalendarParticipant[],
+	displayName = participant.name
+): string {
+	if (!hasCalendarParticipantDuplicateName(participant, participants)) return displayName;
+	if ((participant.email ?? '') !== '') return `${displayName} · ${participant.email}`;
+	if (participant.personID !== '') return `${displayName} · ${participant.personID}`;
+	return displayName;
 }
 
 export function calendarParticipantMatchesSearch(participant: CalendarParticipant, searchText: string): boolean {

@@ -1,4 +1,4 @@
-import type { Locale } from './i18n/locale.svelte';
+import type { Locale } from './i18n/locale';
 
 // A person's name is recorded one way and read another. The record holds it
 // given name first, separated by spaces — 예시 김, John Michael Smith — because
@@ -15,6 +15,11 @@ export function personName(recorded: string, locale: Locale): string {
 	const family = parts[parts.length - 1];
 	const given = parts.slice(0, -1);
 	return family + given.join('');
+}
+
+export function personNameLocale(uiLocale: Locale, companyLocale = ''): Locale {
+	const companyLanguage = companyLocale.trim().toLowerCase().split('-')[0];
+	return uiLocale === 'ko' || companyLanguage === 'ko' ? 'ko' : 'en';
 }
 
 function isHangul(name: string): boolean {

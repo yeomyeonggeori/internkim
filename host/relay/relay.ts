@@ -28,7 +28,7 @@ import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
 import { connectToGateway } from './gateway-socket';
 import { BlueclawACPClient, defaultBlueclawACPSocketPath, type Addressing } from './acp-session';
 import { RecordCatalogs, ticketOf } from './record-catalog';
-import { readInboundMessage } from './inbound-message';
+import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { HeldQuestionStore } from './held-question-store';
@@ -286,6 +286,40 @@ const recordCatalogs = new RecordCatalogs({
 	mintFor: (requesterEmail) => askForMemberSession(requesterEmail),
 	report: (line) => console.log(`catalog: ${line}`)
 });
+type InboundMemberName = {
+	name: string | null;
+	company: { locale: string | null } | null;
+};
+
+async function inboundBodyWithDisplayName(offered: unknown): Promise<unknown> {
+	const inbound = readInboundMessage(offered);
+	if (!inbound) return offered;
+	const member = await client
+		.from('member')
+		.select('name, company (locale)')
+		.eq('company_id', companyID)
+		.eq('email', inbound.requester.email)
+		.maybeSingle<InboundMemberName>();
+	if (member.error) throw new Error(member.error.message);
+	if (!member.data?.name) return offered;
+	const displayName = displayNameForRequester(
+		member.data.name,
+		member.data.company?.locale ?? '',
+		inbound.addressing.responseLanguage ?? ''
+	);
+	if (!isRecord(offered)) return offered;
+	const context = offered.context;
+	if (!isRecord(context) || !isRecord(context.sender)) return offered;
+	const sender = context.sender;
+	return {
+		...offered,
+		context: { ...context, sender: { ...sender, name: displayName } }
+	};
+}
+
+function isRecord(offered: unknown): offered is Record<string, unknown> {
+	return typeof offered === 'object' && offered !== null;
+}
 
 const inboundTurns: InboundTurns = new InboundTurns({
 	client: new BlueclawACPClient({
@@ -325,9 +359,10 @@ Bun.serve({
 		if (catalogTicket) return recordCatalogs.serve(request, catalogTicket);
 		const offered = await request.json().catch(() => null);
 		if (pathname === '/inbound') {
-			const inbound = readInboundMessage(offered);
+			const localizedOffered = await inboundBodyWithDisplayName(offered);
+			const inbound = readInboundMessage(localizedOffered);
 			if (!inbound) return new Response('that is not a message the agent can answer', { status: 400 });
-			const isNew = await inboundTurns.keep(inbound.key, offered);
+			const isNew = await inboundTurns.keep(inbound.key, localizedOffered);
 			return Response.json({ queued: isNew, key: inbound.key }, { status: 202 });
 		}
 		const arrived = readArrivedMessage(offered);

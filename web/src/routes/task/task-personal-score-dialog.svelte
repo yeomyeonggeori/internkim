@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { buttonVariants } from '$lib/components/ui/button';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Table from '$lib/components/ui/table';
 	import { cn } from '$lib/utils';
@@ -42,7 +43,7 @@
 
 	function personalScoreTitle(): string {
 		if (!detail) return text.personalScoreTitle;
-		return text.personalScoreMemberTitle.replace('{name}', detail.memberName);
+		return text.personalScoreMemberTitle.replace('{name}', displayPersonName(detail.memberName));
 	}
 
 	function overallScore(): number {

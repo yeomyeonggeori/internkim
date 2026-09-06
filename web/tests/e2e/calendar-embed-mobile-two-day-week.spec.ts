@@ -34,8 +34,8 @@ test.describe('embedded calendar week view at a narrow mobile viewport', () => {
 
 		const participantCombobox = popover.getByRole('combobox', { name: '참여자' });
 		await participantCombobox.click();
-		await page.getByRole('option', { name: '모바일 참여자' }).click();
-		await expect(participantCombobox).toContainText('모바일 참여자');
+		await page.getByRole('option', { name: '박예시' }).click();
+		await expect(participantCombobox).toContainText('박예시');
 		await page.keyboard.press('Escape');
 		await popover.getByLabel('제목').press('Enter');
 
@@ -55,7 +55,7 @@ async function routeCalendarHolidays(page: Page): Promise<void> {
 async function routeParticipantsInvoke(page: Page): Promise<void> {
 	await page.route('**/api/v1/tools/person_list/invoke', async (route) => {
 		await route.fulfill({
-			json: { result: { people: [{ personID: 'mobile-participant', name: '모바일 참여자', email: 'mobile-participant@example.com' }] } }
+			json: { result: { people: [{ personID: 'mobile-participant', name: '예시 박', email: 'mobile-participant@example.com' }] } }
 		});
 	});
 }

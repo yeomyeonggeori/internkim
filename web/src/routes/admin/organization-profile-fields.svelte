@@ -4,6 +4,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import type { OrgGroup, UserRecord } from '../../lib/organization/types';
 	import type { AdminPageText } from './admin-types';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { supervisorCandidatesForRecord } from './organization-tree';
 
 	type OrganizationProfileFieldsProps = {
@@ -34,7 +35,7 @@
 	}
 
 	function personLabel(userRecord: UserRecord) {
-		return userRecord.name || userRecord.email;
+		return displayPersonName(userRecord.name || userRecord.email);
 	}
 
 	function organizationLabel() {
