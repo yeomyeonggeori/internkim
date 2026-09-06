@@ -889,6 +889,7 @@ func refreshBlueclawCapabilityContract(document string, contract blueclawruntime
 	if errorValue := json.Unmarshal([]byte(document), &runtimeDocument); errorValue != nil {
 		return "", errorValue
 	}
+	ensureBlueclawMemoryAssertionKeyPath(runtimeDocument)
 	if capabilitiesSection, ok := runtimeDocument["capabilities"].(map[string]any); ok {
 		delete(capabilitiesSection, "toolNames")
 		capabilitiesSection["protocolVersion"] = contract.ProtocolVersion
@@ -905,6 +906,18 @@ func refreshBlueclawCapabilityContract(document string, contract blueclawruntime
 		return "", errorValue
 	}
 	return string(refreshedBytes) + "\n", nil
+}
+
+func ensureBlueclawMemoryAssertionKeyPath(runtimeDocument map[string]any) {
+	memorySection, ok := runtimeDocument["memory"].(map[string]any)
+	if !ok {
+		memorySection = map[string]any{}
+		runtimeDocument["memory"] = memorySection
+	}
+	configuredPath, _ := memorySection["adminAssertionKeyPath"].(string)
+	if strings.TrimSpace(configuredPath) == "" {
+		memorySection["adminAssertionKeyPath"] = blueclawruntime.BlueclawGuestDeliverySecretsPath + "/" + blueclawruntime.BlueclawAdminAssertionKeyName
+	}
 }
 
 func retireBlueclawGuestLLMDConfiguration(runtimeDocument map[string]any) {

@@ -223,6 +223,9 @@ reading one.
 | **SvelteKit web app** (`web/`) | The company app on Cloudflare Pages, and the operating surfaces served same-origin from a device: `/admin`, `/flow`, `/memory`, `/calendar`, `/mail`, `/attendance`, `/files`, `/ops`. |
 | **workspace assets** (`assets/blueclaw-workspace/`) | AGENTS.md, skills and helpers, installed to the host workspace and mounted into the guest. |
 
+The [memory verification review](docs/internal/memory-verification-review.md)
+records inspection limitations and a procedure for testing recall in a fresh session.
+
 ## Running it
 
 ### The central plane, locally

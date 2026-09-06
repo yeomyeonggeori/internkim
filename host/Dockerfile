@@ -22,7 +22,7 @@ RUN cd relay && bun install --frozen-lockfile
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq \
+	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 python3-venv \
 	&& rm -rf /var/lib/apt/lists/*
 RUN curl -fsSL https://bun.sh/install | bash && ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
@@ -34,15 +34,21 @@ COPY --from=bun-build /src/chatd /opt/chatd
 COPY --from=bun-build /src/relay /opt/internkim/host/relay
 COPY web/src/lib/person-name.ts /opt/internkim/web/src/lib/person-name.ts
 COPY .dependency/blueclaw/migrations /opt/blueclaw/migrations
+COPY .dependency/blueclaw/tools/graphiti_memoryd /opt/internkim/graphiti_memoryd
+COPY .dependency/blueclaw/tools/graphiti_memoryd/requirements.txt /opt/internkim/graphiti-requirements.txt
 COPY .dependency/internkim-plugin/skills /opt/internkim/skills
 COPY host/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY tools/render-company-runtime /usr/local/bin/render-company-runtime
 COPY host/runtime.template.json /opt/internkim/runtime.template.json
 
 # entrypoint.sh calls these by name; a wrapper keeps the script free of paths.
-RUN printf '#!/bin/sh\nexec bun run /opt/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \
+RUN python3 -m venv /opt/internkim/graphiti-venv \
+	&& /opt/internkim/graphiti-venv/bin/pip install --no-cache-dir -r /opt/internkim/graphiti-requirements.txt \
+	&& rm /opt/internkim/graphiti-requirements.txt \
+	&& printf '#!/bin/sh\nexec bun run /opt/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \
 	&& printf '#!/bin/sh\nexec bun run /opt/internkim/host/relay/relay.ts "$@"\n' > /usr/local/bin/internkim-relay \
-	&& chmod 0755 /usr/local/bin/chatd /usr/local/bin/internkim-relay /usr/local/bin/entrypoint.sh \
+	&& printf '#!/bin/sh\nexec /opt/internkim/graphiti-venv/bin/python /opt/internkim/graphiti_memoryd/main.py "$@"\n' > /usr/local/bin/graphiti-memoryd \
+	&& chmod 0755 /usr/local/bin/chatd /usr/local/bin/internkim-relay /usr/local/bin/graphiti-memoryd /usr/local/bin/entrypoint.sh \
 	&& mkdir -p /run/internkim /workspace /etc/blueclaw
 
 RUN /usr/local/bin/entrypoint.sh --check-programs

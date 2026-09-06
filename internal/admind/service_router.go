@@ -19,6 +19,7 @@ func (service *Service) router() http.Handler {
 	service.registerPublicAPIRoutes(multiplexer)
 	service.registerTaskRoutes(multiplexer)
 	service.registerMemoryRoutes(multiplexer)
+	service.registerLearningRoutes(multiplexer)
 	service.registerAgentRoutes(multiplexer)
 	service.registerCalendarRoutes(multiplexer)
 	service.registerAuthenticationRoutes(multiplexer)

@@ -17,6 +17,10 @@ func TestPersonaSyncPublishesCanonicalDocumentsToBlueclaw(t *testing.T) {
 	var receivedRoute string
 	backend := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		receivedRoute = request.Method + " " + request.URL.Path
+		if request.Method == http.MethodGet {
+			_ = json.NewEncoder(response).Encode(rawAgentPersonaDocuments{Identity: json.RawMessage(`{"schemaVersion":1,"names":["김인턴"],"handle":"internkim"}`), Soul: json.RawMessage(`{"schemaVersion":1,"values":["Preserve evidence."]}`)})
+			return
+		}
 		if errorValue := json.NewDecoder(request.Body).Decode(&received); errorValue != nil {
 			http.Error(response, errorValue.Error(), http.StatusBadRequest)
 			return
@@ -38,7 +42,7 @@ func TestPersonaSyncPublishesCanonicalDocumentsToBlueclaw(t *testing.T) {
 	}
 }
 
-func TestSoulPublicationFailureIsVisibleAndKeepsTheConfiguredDocument(t *testing.T) {
+func TestSoulPublicationFailureIsVisibleAndDoesNotUseStaleDocument(t *testing.T) {
 	for _, status := range []int{http.StatusServiceUnavailable, http.StatusOK} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			service := personaTestService(t)
@@ -50,13 +54,13 @@ func TestSoulPublicationFailureIsVisibleAndKeepsTheConfiguredDocument(t *testing
 			service.Configuration.BlueclawBaseURL = backend.URL
 			response := httptest.NewRecorder()
 			service.updateSoul(response, httptest.NewRequest(http.MethodPut, "/soul", strings.NewReader(`{"schemaVersion":1,"values":["Preserve evidence."]}`)))
-			if response.Code != http.StatusBadGateway {
-				t.Fatalf("unconfirmed publication reported success: %d %s", response.Code, response.Body.String())
+			if response.Code != http.StatusConflict {
+				t.Fatalf("expected soul update to remain read-only: %d %s", response.Code, response.Body.String())
 			}
 			response = httptest.NewRecorder()
 			service.writeSoul(response, httptest.NewRequest(http.MethodGet, "/soul", nil))
-			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Preserve evidence.") {
-				t.Fatalf("configured document became unavailable: %d %s", response.Code, response.Body.String())
+			if response.Code != http.StatusBadGateway {
+				t.Fatalf("expected current Blueclaw failure, got %d %s", response.Code, response.Body.String())
 			}
 		})
 	}

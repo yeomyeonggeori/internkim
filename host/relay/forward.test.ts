@@ -96,6 +96,17 @@ function keptAddress(digest: string): string {
 	return `https://company.supabase.co/storage/v1/object/asset/company-1/shared/attachment/${digest}`;
 }
 
+describe('persona identity forwarding', () => {
+	test('allows identity reads and admin updates while removing soul writes', () => {
+		const read = workspaceCallOf('person.persona.identity', {}, 'sample@example.test');
+		expect(read).toEqual({ method: 'GET', url: 'http://internkim/persona/api/identity', requester: 'sample@example.test' });
+		const write = workspaceCallOf('person.persona.identity.update', { identity: { names: ['이샘플'] }, actor: { role: 'admin' } }, 'sample@example.test');
+		expect(write).toMatchObject({ method: 'POST', url: 'http://internkim/persona/api/identity', requester: 'sample@example.test' });
+		expect(write?.body).toContain('이샘플');
+		expect(workspaceCallOf('person.persona.soul.update', {}, 'sample@example.test')).toBeNull();
+	});
+});
+
 function dispatchThatRefuses(refusedAttachments: { index: number; filename: string }[]) {
 	const { asked, dispatch } = dispatchThatKnows({});
 	let sends = 0;
@@ -661,6 +672,8 @@ describe('every capability the workspace family names', () => {
 	test('every memory change is posted to the workspace as the person who signed in', () => {
 		const changes: [string, string, Record<string, unknown>][] = [
 			['person.memory.episode_delete', '/memory/api/episodes/delete', { episodeID: 'episode-1' }],
+			['person.memory.fact_update', '/memory/api/facts/update', { factID: 'fact:sample', namespaceID: 'user:sample', content: 'Updated decision' }],
+			['person.memory.fact_delete', '/memory/api/facts/delete', { factID: 'fact:sample', namespaceID: 'user:sample' }],
 			['person.memory.pinned_update', '/memory/api/pinned/update', { content: '금요일마다 회고' }],
 			['person.memory.pinned_delete', '/memory/api/pinned/delete', {}],
 			['person.memory.schedule_cancel', '/memory/api/schedules/cancel', { taskScheduleID: 'schedule-1' }],
