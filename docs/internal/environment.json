@@ -1,4 +1,5 @@
 {
+  "ADMIN_ASSERTION_KEY_PATH": {"process": "tools/render-company-runtime", "description": "path to the key used to authenticate company-plane requests to Blueclaw"},
   "ADMIND_BASE_URL": {"process": "relay", "description": "admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080"},
   "ADMIND_PORT": {"process": "host", "description": "the loopback port host/entrypoint.sh starts admind on; defaults to 18080"},
   "ADMIND_SOCKET_PATH": {"process": "relay", "description": "the admind Unix socket the relay calls for workspace screens; defaults to /run/internkim/admind.sock"},
@@ -40,6 +41,7 @@
   "CHATD_BOT_USER_NAME": {"process": "host", "description": "the messenger bot's display name, required by host/entrypoint.sh"},
   "CHATD_ENDPOINT": {"process": "tools/render-company-runtime", "description": "chatd's endpoint rendered into the company plane's runtime document; defaults to http://127.0.0.1:18090"},
   "CHATD_LISTEN_PORT": {"process": "host", "description": "the loopback port host/entrypoint.sh starts chatd on; defaults to 18090"},
+  "COMPANY_PLANE_GRAPHITI_PYTHON": {"process": "web/tests/plane/a-company-plane.ts", "description": "optional Python executable for the pinned Graphiti memory service in company-plane tests"},
   "CHROME_PATH": {"process": "device", "description": "override Chromium path inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /usr/bin/chromium"},
   "CLOUD_HYPERVISOR_VERSION": {"process": "tools/prepare-blueclaw-runtime", "description": "the cloud-hypervisor version fetched for the Blueclaw guest runtime; defaults to 53.0"},
   "CLOUDFLARE_ACCOUNT_ID": {"process": "cli", "description": "the Cloudflare account ID for R2 release uploads, falling back from INTERNKIM_RELEASE_R2_ACCOUNT_ID"},
@@ -52,6 +54,8 @@
   "COMPANY_PLANE_KEEP": {"process": "web plane tests", "description": "when \"1\", web/tests/plane/a-company-plane.ts keeps the run directory after the test instead of deleting it"},
   "COMPANY_PLANE_SKILLS": {"process": "web plane tests", "description": "the skills directory tools/company-plane assembles and hands to web/tests/plane for the sandboxed company plane"},
   "DATABASE_URL": {"process": "host", "description": "the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime)"},
+  "GRAPHITI_ENDPOINT": {"process": "tools/render-company-runtime", "description": "Graphiti memory service endpoint rendered into the company plane's runtime document"},
+  "GRAPHITI_KUZU_PATH": {"process": "tools/render-company-runtime", "description": "Graphiti Kuzu database path rendered into the company plane's runtime document"},
   "DEV": {"process": "docs site", "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"},
   "DISPLAY": {"process": "companion", "description": "the X11 display name; the companion's browser runtime checks it is unset under Wayland before choosing a Wayland-native launch path"},
   "E2E_NONCE": {"process": "tools/e2e-crud-remote.sh", "description": "the per-run nonce (forwarded from INTERNKIM_E2E_NONCE) this remote script suffixes its test person, channel and entity names with"},

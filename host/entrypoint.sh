@@ -16,11 +16,11 @@ chatdPort="${CHATD_LISTEN_PORT:-18090}"
 arrivalsPort="${ARRIVALS_PORT:-18091}"
 maildPort="${MAILD_PORT:-18092}"
 admindPort="${ADMIND_PORT:-18080}"
-agentKeyPath="/secrets/agent-key"
-buzzKeySeedPath="/secrets/buzz-key-seed"
-modelAPIKeyPath="/secrets/openrouter-key"
+agentKeyPath="/root/.internkim/secrets/agent-key"
+buzzKeySeedPath="/root/.internkim/secrets/buzz-key-seed"
+modelAPIKeyPath="/root/.internkim/secrets/openrouter-key"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime pg_isready nc cp"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay graphiti-memoryd render-company-runtime pg_isready nc cp"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
@@ -35,6 +35,7 @@ fi
 : "${CHATD_BOT_USER_NAME:?set CHATD_BOT_USER_NAME}"
 : "${MESSENGER_PLATFORM:?set MESSENGER_PLATFORM}"
 : "${DATABASE_URL:?set DATABASE_URL}"
+install -d -o root -g root -m 0700 /root/.internkim
 [ -r "${agentKeyPath}" ] || { echo "[host] no agent key at ${agentKeyPath}" >&2; exit 1; }
 [ -r "${buzzKeySeedPath}" ] \
   || echo "[host] no buzz identity seed at ${buzzKeySeedPath}; the agent answers, and a message it sends under a person's own name cannot be signed" >&2
@@ -45,14 +46,15 @@ blueclawPid=""
 chatdPid=""
 maildPid=""
 relayPid=""
+graphitiPid=""
 
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${graphitiPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${graphitiPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   exit "${exitCode}"
@@ -89,6 +91,7 @@ if [ ! -r "${runtimeConfigurationPath}" ]; then
   BLUECLAW_BASE_URL="http://${blueclawAddress}" \
   CHATD_ENDPOINT="http://127.0.0.1:${chatdPort}" \
   MODEL_API_KEY_PATH="${modelAPIKeyPath}" \
+  ADMIN_ASSERTION_KEY_PATH="${agentKeyPath}" \
     render-company-runtime \
       --template /opt/internkim/runtime.template.json \
       --out "${runtimeConfigurationPath}" \
@@ -127,6 +130,28 @@ capabilitydPid="$!"
 
 while [ ! -S "${capabilitySocketPath}" ]; do
   kill -0 "${capabilitydPid}" 2>/dev/null || { wait "${capabilitydPid}"; exit 1; }
+  sleep 1
+done
+
+echo "[host] starting graphiti-memoryd"
+graphitiModel="$(jq -r '.languageModel.tiers.low[0].model // empty' "${runtimeConfigurationPath}")"
+graphitiEndpoint="$(jq -r '.memory.graphitiEndpoint // "http://127.0.0.1:7791"' "${runtimeConfigurationPath}")"
+graphitiKuzuPath="$(jq -r '.memory.graphitiKuzuPath // "/workspace/.blueclaw/graphiti/kuzu"' "${runtimeConfigurationPath}")"
+graphitiPort="${graphitiEndpoint##*:}"
+if [ -n "${graphitiModel}" ]; then
+  export BLUECLAW_GRAPHITI_MODEL="${graphitiModel}"
+fi
+BLUECLAW_CAPABILITY_ENDPOINT="http+unix://%2Frun%2Finternkim%2Fcapability.sock" \
+BLUECLAW_GRAPHITI_KUZU_PATH="${graphitiKuzuPath}" \
+BLUECLAW_GRAPHITI_EXECUTION_MODE="remote" \
+BLUECLAW_GRAPHITI_EMBEDDING_EXECUTION_MODE="remote" \
+BLUECLAW_GRAPHITI_LISTEN_ADDRESS="127.0.0.1" \
+BLUECLAW_GRAPHITI_PORT="${graphitiPort}" \
+  graphiti-memoryd &
+graphitiPid="$!"
+
+until nc -z 127.0.0.1 "${graphitiPort}" >/dev/null 2>&1; do
+  kill -0 "${graphitiPid}" 2>/dev/null || { wait "${graphitiPid}"; exit 1; }
   sleep 1
 done
 

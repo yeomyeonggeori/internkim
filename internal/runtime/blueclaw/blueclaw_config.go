@@ -49,6 +49,7 @@ type RuntimeConfigOptions struct {
 	CapabilitySocketPath       string
 	CapabilityVSockPort        int
 	GraphitiEndpoint           string
+	AdminAssertionKeyPath      string
 	HostWorkspacePath          string
 	RootFilesystemImagePath    string
 	WorkspaceImagePath         string
@@ -197,6 +198,14 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	if options.DirectExecution && strings.TrimSpace(options.GraphitiEndpoint) == "" {
 		graphitiEndpoint = ""
 	}
+	adminAssertionKeyPath := strings.TrimSpace(options.AdminAssertionKeyPath)
+	if adminAssertionKeyPath == "" {
+		if options.DirectExecution {
+			adminAssertionKeyPath = InternKimCentralPlaneAgentKeyPath
+		} else {
+			adminAssertionKeyPath = BlueclawGuestDeliverySecretsPath + "/" + BlueclawAdminAssertionKeyName
+		}
+	}
 	hostWorkspacePath := firstNonEmptyString(options.HostWorkspacePath, BlueclawWorkspacePath)
 	rootFilesystemImagePath := firstNonEmptyString(options.RootFilesystemImagePath, BlueclawRootFilesystemImagePath)
 	workspaceImagePath := firstNonEmptyString(options.WorkspaceImagePath, BlueclawWorkspaceImagePath)
@@ -326,6 +335,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"migrationDirectoryPath": migrationDirectoryPath,
 		},
 		"memory": map[string]any{
+			"adminAssertionKeyPath":                       adminAssertionKeyPath,
 			"workspaceID":                                 "default",
 			"graphitiEndpoint":                            graphitiEndpoint,
 			"graphitiKuzuPath":                            path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "graphiti", "kuzu"),
