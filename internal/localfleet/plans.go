@@ -264,6 +264,15 @@ func (service Service) workspacePersistenceScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("workspace-persistence"))
 }
 
+func (service Service) learningSettingsScenarioPlans() []CommandPlan {
+	scriptArguments := []string{
+		"bash", "/mnt/shared/workspace/lab/scripts/scenario-learning-settings.sh",
+		"admin", "127.0.0.1:8065", "/mnt/shared/workspace",
+		service.virtualSessionArtifactDirectoryPath("learning-settings"),
+	}
+	return append(service.upPlans(true), service.labCommand("vm-ssh", quoteShellArguments(scriptArguments)))
+}
+
 func (service Service) webBackedScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false),
 		service.shellPlan("verify api", service.verifyCommand("api")),
