@@ -17,6 +17,7 @@ export type UserDraft = {
 	register: AgentToneRegister;
 	traits: string[];
 	languageDefault: string;
+	morningBriefing?: AgentUser['morningBriefing'];
 };
 
 export const toneRegisters: AgentToneRegister[] = ['formal', 'polite', 'casual'];
@@ -84,7 +85,8 @@ export function userToDraft(user: AgentUser): UserDraft {
 		preferencesText: linesOf(user.preferences),
 		register: user.tone?.register ?? defaultToneRegister,
 		traits: traitTokensOf(user.tone?.traits),
-		languageDefault: user.language?.default ?? ''
+		languageDefault: user.language?.default ?? '',
+		morningBriefing: user.morningBriefing
 	};
 }
 
@@ -99,6 +101,7 @@ export function draftToUser(draft: UserDraft): AgentUser {
 	user.tone = toneFrom(draft.register, draft.traits);
 	const languageDefault = draft.languageDefault.trim();
 	if (languageDefault) user.language = { default: languageDefault };
+	if (draft.morningBriefing) user.morningBriefing = draft.morningBriefing;
 	return user;
 }
 
