@@ -58,9 +58,16 @@ describe('user draft', () => {
 			callMe: '샘플님',
 			preferences: ['Give me the command first.'],
 			tone: { register: 'casual' as const },
-			language: { default: 'en' }
+			language: { default: 'en' },
+			morningBriefing: { enabled: false, time: '09:30' }
 		};
 		expect(draftToUser(userToDraft(user))).toEqual(user);
+	});
+
+	test('a tone change preserves the morning briefing settings', () => {
+		const draft = userToDraft({ schemaVersion: 1, morningBriefing: { enabled: false, time: '09:30' } });
+		draft.register = 'casual';
+		expect(draftToUser(draft).morningBriefing).toEqual({ enabled: false, time: '09:30' });
 	});
 
 	test('an empty user document still saves a formal tone', () => {
