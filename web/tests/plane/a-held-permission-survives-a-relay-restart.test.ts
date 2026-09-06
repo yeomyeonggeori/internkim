@@ -86,8 +86,10 @@ function aRouterDocument(fields: Record<string, unknown>): string {
 
 // blueclaw never restarted here, so it is still the same daemon reading the
 // same words back — the relay is what has to have kept them.
+// The router schema for a turn that answers a pending question caps
+// initialToolNames at zero, and bluecollar refuses a document over that cap.
 function aRouterReadingTheAnswerAsApproval(): string {
-	return aRouterDocument({ route: 'continue_task', approval: 'approve' });
+	return aRouterDocument({ route: 'continue_task', approval: 'approve', initialToolNames: [] });
 }
 
 beforeAll(async () => {
