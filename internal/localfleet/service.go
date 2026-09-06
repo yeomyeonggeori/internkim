@@ -122,6 +122,9 @@ func newEphemeralCleanupContext(contextValue context.Context) (context.Context, 
 func (service Service) runAction(contextValue context.Context, logger Logger, request JobRequest) error {
 	switch request.Action {
 	case ActionUp:
+		if errorValue := service.validateRuntimeBaseSource(); errorValue != nil {
+			return errorValue
+		}
 		return service.runPlans(contextValue, logger, service.upPlans(request.SkipWeb))
 	case ActionDown:
 		return service.runPlans(contextValue, logger, service.downPlans())
@@ -133,6 +136,11 @@ func (service Service) runAction(contextValue context.Context, logger Logger, re
 		}
 		return service.RunRecipe(contextValue, logger, firstNonEmpty(request.Recipe, DefaultRecipe))
 	case ActionRunScenario:
+		if !request.VirtualSession {
+			if errorValue := service.validateRuntimeBaseSource(); errorValue != nil {
+				return errorValue
+			}
+		}
 		return service.RunScenario(contextValue, logger, request.Scenario, request.VirtualSession, request.KeepArtifacts)
 	case ActionUpgradeGate:
 		if strings.TrimSpace(request.Scenario) == "" {
@@ -147,6 +155,22 @@ func (service Service) runAction(contextValue context.Context, logger Logger, re
 	default:
 		return fmt.Errorf("unsupported local fleet action: %s", request.Action)
 	}
+}
+
+func (service Service) validateRuntimeBaseSource() error {
+	manifestPath := filepath.Join(service.options.RepositoryRootPath, blueclaw.BlueclawRuntimeArtifactPath, "manifest.json")
+	document, errorValue := os.ReadFile(manifestPath)
+	if errorValue != nil {
+		return fmt.Errorf("Blueclaw runtime base source is unavailable; run make prepare-blueclaw-runtime-base: %w", errorValue)
+	}
+	manifest, errorValue := blueclaw.ParseRuntimeArtifactManifest(document)
+	if errorValue != nil {
+		return fmt.Errorf("Blueclaw runtime base source is invalid; run make prepare-blueclaw-runtime-base: %w", errorValue)
+	}
+	if errorValue := blueclaw.ValidateRuntimeArtifactSource(service.options.RepositoryRootPath, manifest); errorValue != nil {
+		return fmt.Errorf("Blueclaw runtime base source is stale; run make prepare-blueclaw-runtime-base: %w", errorValue)
+	}
+	return nil
 }
 
 func (service Service) RunRecipe(contextValue context.Context, logger Logger, recipe string) error {
