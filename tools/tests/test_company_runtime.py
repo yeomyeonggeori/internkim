@@ -12,6 +12,7 @@ class CompanyRuntimeTests(unittest.TestCase):
         repository_root = Path(__file__).resolve().parents[2]
         dockerfile = (repository_root / "host/Dockerfile").read_text()
         entrypoint = (repository_root / "host/entrypoint.sh").read_text()
+        compose = (repository_root / "host/docker-compose.yml").read_text()
         self.assertIn("python3-venv", dockerfile)
         self.assertIn("/opt/internkim/graphiti_memoryd", dockerfile)
         self.assertIn("/opt/internkim/host/relay", dockerfile)
@@ -20,6 +21,10 @@ class CompanyRuntimeTests(unittest.TestCase):
         self.assertIn("/opt/internkim/graphiti_memoryd/main.py", dockerfile)
         self.assertIn("BLUECLAW_GRAPHITI_KUZU_PATH=", entrypoint)
         self.assertIn("graphiti-memoryd", entrypoint)
+        self.assertIn("install -d -o root -g root -m 0700 /root/.internkim", entrypoint)
+        self.assertIn('ADMIN_ASSERTION_KEY_PATH="${agentKeyPath}"', entrypoint)
+        self.assertIn("./secrets:/root/.internkim/secrets:ro", compose)
+        self.assertNotIn("./secrets:/secrets:ro", compose)
 
     def test_rendered_runtime_carries_graphiti_defaults(self):
         repository_root = Path(__file__).resolve().parents[2]
@@ -84,7 +89,7 @@ class CompanyRuntimeTests(unittest.TestCase):
             custom_runtime = json.loads(custom_output_path.read_text())
 
         self.assertEqual(runtime["memory"], {
-            "adminAssertionKeyPath": "/secrets/agent-key",
+            "adminAssertionKeyPath": "/root/.internkim/secrets/agent-key",
             "graphitiEndpoint": "http://127.0.0.1:7791",
             "graphitiKuzuPath": "/workspace/.blueclaw/graphiti/kuzu",
             "timeoutSecond": 30,
