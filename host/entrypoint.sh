@@ -16,9 +16,9 @@ chatdPort="${CHATD_LISTEN_PORT:-18090}"
 arrivalsPort="${ARRIVALS_PORT:-18091}"
 maildPort="${MAILD_PORT:-18092}"
 admindPort="${ADMIND_PORT:-18080}"
-agentKeyPath="/secrets/agent-key"
-buzzKeySeedPath="/secrets/buzz-key-seed"
-modelAPIKeyPath="/secrets/openrouter-key"
+agentKeyPath="/root/.internkim/secrets/agent-key"
+buzzKeySeedPath="/root/.internkim/secrets/buzz-key-seed"
+modelAPIKeyPath="/root/.internkim/secrets/openrouter-key"
 
 programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay graphiti-memoryd render-company-runtime pg_isready nc cp"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
@@ -35,6 +35,7 @@ fi
 : "${CHATD_BOT_USER_NAME:?set CHATD_BOT_USER_NAME}"
 : "${MESSENGER_PLATFORM:?set MESSENGER_PLATFORM}"
 : "${DATABASE_URL:?set DATABASE_URL}"
+install -d -o root -g root -m 0700 /root/.internkim
 [ -r "${agentKeyPath}" ] || { echo "[host] no agent key at ${agentKeyPath}" >&2; exit 1; }
 [ -r "${buzzKeySeedPath}" ] \
   || echo "[host] no buzz identity seed at ${buzzKeySeedPath}; the agent answers, and a message it sends under a person's own name cannot be signed" >&2
@@ -90,6 +91,7 @@ if [ ! -r "${runtimeConfigurationPath}" ]; then
   BLUECLAW_BASE_URL="http://${blueclawAddress}" \
   CHATD_ENDPOINT="http://127.0.0.1:${chatdPort}" \
   MODEL_API_KEY_PATH="${modelAPIKeyPath}" \
+  ADMIN_ASSERTION_KEY_PATH="${agentKeyPath}" \
     render-company-runtime \
       --template /opt/internkim/runtime.template.json \
       --out "${runtimeConfigurationPath}" \

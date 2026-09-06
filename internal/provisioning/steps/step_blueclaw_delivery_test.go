@@ -44,12 +44,16 @@ func TestDeliveredConfigurationIsReadableByModeNotByGroup(t *testing.T) {
 
 	for _, fragment := range []string{
 		"chmod 0644 " + blueclaw.BlueclawDeliveryConfigPath + "/runtime.json",
-		"chmod 0755 " + blueclaw.BlueclawDeliveryPath,
-		"chown -R root:root " + blueclaw.BlueclawDeliveryPath,
+		"chown root:root " + blueclaw.BlueclawDeliveryPath,
+		"chmod 0755 " + blueclaw.BlueclawDeliveryConfigPath + " " + blueclaw.BlueclawDeliveryRuntimePath + " " + blueclaw.BlueclawDeliverySkillsPath,
+		"chown -R root:root " + blueclaw.BlueclawDeliveryConfigPath + " " + blueclaw.BlueclawDeliveryRuntimePath + " " + blueclaw.BlueclawDeliverySkillsPath,
 	} {
 		if !strings.Contains(permissionCommand, fragment) {
 			t.Fatalf("configuration written over SSH lands at 0600 owned by that user, which the guest cannot open: missing %q", fragment)
 		}
+	}
+	if strings.Contains(permissionCommand, "chown -R root:root "+blueclaw.BlueclawDeliveryPath+"\n") {
+		t.Fatal("delivery permission repair must preserve the private secrets subtree")
 	}
 }
 

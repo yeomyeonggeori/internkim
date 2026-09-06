@@ -92,7 +92,7 @@ def markers(comment_start, comment_end):
 
 
 # The company agent key is never a plain setting: host/entrypoint.sh always
-# hands the relay a fixed /secrets/agent-key path, and docker-compose and the
+# hands the relay a fixed /root/.internkim/secrets/agent-key path, and docker-compose and the
 # launchagent template both mount or fill in that path by hand, not through
 # this generated block. DATABASE_URL is composed from the compose file's own
 # HOST_POSTGRES_* variables, not read directly by anything this repository's

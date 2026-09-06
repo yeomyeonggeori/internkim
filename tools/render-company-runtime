@@ -23,8 +23,8 @@ container gets:
   WORKSPACE_ROOT_PATH       /workspace
   MIGRATION_DIRECTORY_PATH  /opt/blueclaw/migrations
   LOG_DIRECTORY_PATH        /var/log/internkim
-  MODEL_API_KEY_PATH        /secrets/openrouter-key
-  ADMIN_ASSERTION_KEY_PATH  /secrets/agent-key
+  MODEL_API_KEY_PATH        /root/.internkim/secrets/openrouter-key
+  ADMIN_ASSERTION_KEY_PATH  /root/.internkim/secrets/agent-key
   GRAPHITI_ENDPOINT         http://127.0.0.1:7791
   GRAPHITI_KUZU_PATH        /workspace/.blueclaw/graphiti/kuzu
   MODEL_ENDPOINT            the ladder's own endpoint
@@ -62,8 +62,8 @@ fi
 : "${WORKSPACE_ROOT_PATH:=/workspace}"
 : "${MIGRATION_DIRECTORY_PATH:=/opt/blueclaw/migrations}"
 : "${LOG_DIRECTORY_PATH:=/var/log/internkim}"
-: "${MODEL_API_KEY_PATH:=/secrets/openrouter-key}"
-: "${ADMIN_ASSERTION_KEY_PATH:=/secrets/agent-key}"
+: "${MODEL_API_KEY_PATH:=/root/.internkim/secrets/openrouter-key}"
+: "${ADMIN_ASSERTION_KEY_PATH:=/root/.internkim/secrets/agent-key}"
 : "${GRAPHITI_ENDPOINT:=http://127.0.0.1:7791}"
 : "${GRAPHITI_KUZU_PATH:=/workspace/.blueclaw/graphiti/kuzu}"
 

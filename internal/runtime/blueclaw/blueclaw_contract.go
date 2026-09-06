@@ -79,8 +79,11 @@ const (
 	BlueclawDeliveryPath                  = "/var/lib/blueclaw/delivery"
 	BlueclawDeliveryReadOnlyPath          = "/var/lib/blueclaw/delivery-ro"
 	BlueclawDeliveryConfigPath            = "/var/lib/blueclaw/delivery/config"
+	BlueclawDeliverySecretsPath           = "/var/lib/blueclaw/delivery/secrets"
 	BlueclawDeliveryRuntimePath           = "/var/lib/blueclaw/delivery/runtime/current"
 	BlueclawGuestDeliveryRuntimePath      = "/delivery/runtime/current"
+	BlueclawGuestDeliverySecretsPath      = "/delivery/secrets"
+	BlueclawAdminAssertionKeyName         = "admin-assertion-key"
 	BlueclawDeliverySkillsPath            = "/var/lib/blueclaw/delivery/skills"
 	BlueclawGuestDeliverySkillsPath       = "/delivery/skills"
 	BlueclawDeliveryServiceName           = "internkim-blueclaw-delivery.service"
@@ -237,12 +240,17 @@ func deliverySourceRsyncCommand(sourcePath string, deliveredPath string) string 
 }
 
 func BlueclawDeliveryRefreshCommand() string {
+	temporaryKeyPath := BlueclawDeliverySecretsPath + "/." + BlueclawAdminAssertionKeyName + ".$$"
 	return "\n" +
-		"mkdir -p " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + "\n" +
+		"mkdir -p " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + " " + BlueclawDeliveryConfigPath + "\n" +
 		deliverySourceRsyncCommand(BlueclawWorkspacePath+"/.blueclaw/runtime/current", BlueclawDeliveryRuntimePath) +
 		deliverySourceRsyncCommand(BlueclawWorkspacePath+"/skills", BlueclawDeliverySkillsPath) +
-		"chown -R root:root " + BlueclawDeliveryPath + "\n" +
-		"find " + BlueclawDeliveryPath + " -type d -exec chmod 0755 {} +\n" +
-		"find " + BlueclawDeliveryPath + " -type f -exec chmod 0644 {} +\n" +
+		"chown -R root:root " + BlueclawDeliveryConfigPath + " " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + "\n" +
+		"find " + BlueclawDeliveryConfigPath + " " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + " -type d -exec chmod 0755 {} +\n" +
+		"find " + BlueclawDeliveryConfigPath + " " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + " -type f -exec chmod 0644 {} +\n" +
+		"install -d -o 998 -g 971 -m 0700 " + BlueclawDeliverySecretsPath + "\n" +
+		"if [ -s " + InternKimCentralPlaneAgentKeyPath + " ]; then rm -f " + temporaryKeyPath + "; if ! install -o 998 -g 971 -m 0400 " + InternKimCentralPlaneAgentKeyPath + " " + temporaryKeyPath + "; then rm -f " + temporaryKeyPath + "; exit 1; fi; if ! mv -f " + temporaryKeyPath + " " + BlueclawDeliverySecretsPath + "/" + BlueclawAdminAssertionKeyName + "; then rm -f " + temporaryKeyPath + "; exit 1; fi; else rm -f " + BlueclawDeliverySecretsPath + "/" + BlueclawAdminAssertionKeyName + "; fi\n" +
+		"chown 998:971 " + BlueclawDeliverySecretsPath + "\n" +
+		"chmod 0700 " + BlueclawDeliverySecretsPath + "\n" +
 		"find " + BlueclawDeliveryRuntimePath + "/bin -type f -exec chmod 0755 {} + 2>/dev/null || true"
 }
