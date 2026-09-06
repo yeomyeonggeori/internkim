@@ -63,8 +63,18 @@ def verify_database_and_model():
 
 
 def main():
-    verify_database_and_model()
+    if len(sys.argv) < 3 or sys.argv[2] != "scheduled":
+        verify_database_and_model()
     policy = save("policy", request("/admin/api/policy"))
+    if not policy["company"].get("timeZone"):
+        policy["company"]["timeZone"] = "Asia/Seoul"
+        policy_path = Path("/var/lib/blueclaw/delivery/config/policy.json")
+        replacement = policy_path.with_suffix(".briefing-test.json")
+        replacement.write_text(json.dumps(policy, ensure_ascii=False))
+        replacement.chmod(0o644)
+        replacement.replace(policy_path)
+        request("/admin/api/policy/reload", {})
+        policy = save("policy-configured", request("/admin/api/policy"))
     people = [person for person in policy["people"] if requester_email in person["emails"]]
     assert len(people) == 1, "the isolated seed account must resolve uniquely"
     person_id = people[0]["personID"]
