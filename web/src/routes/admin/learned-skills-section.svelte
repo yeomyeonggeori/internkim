@@ -13,8 +13,8 @@
 	import { fetchLearnedSkills, fetchLearningSettings, fetchLearnedSkillHistory, updateLearningSettings, updateLearnedSkill, type LearnedSkill, type LearnedSkillInventory } from './learned-skills-api';
 
 	const text = createPageText({
-		ko: { title: '배운 절차', description: '실제 업무 근거로 남은 재사용 절차입니다.', refresh: '새로고침', empty: '아직 배운 절차가 없습니다.', failed: '배운 절차를 불러오지 못했습니다.', malformed: '응답에 표시할 수 없는 절차가 포함되어 있습니다.', purpose: '언제 쓰는지', evidence: '근거', version: '버전', active: '사용 중', retired: '보관됨', protect: '보호', unprotect: '보호 해제', retire: '사용 중지', restore: '복원', history: '변경 이력', reason: '배운 이유', verification: '검증', learning: '학습', enabled: '학습 켜기', disabled: '학습 꺼짐', limit: '활성 절차 한도', save: '저장' },
-		en: { title: 'Learned procedures', description: 'Reusable procedures retained from grounded work evidence.', refresh: 'Refresh', empty: 'No learned procedures yet.', failed: 'Could not load learned procedures.', malformed: 'Some returned procedures could not be displayed.', purpose: 'When it applies', evidence: 'Evidence', version: 'Version', active: 'Active', retired: 'Retired', protect: 'Protect', unprotect: 'Unprotect', retire: 'Retire', restore: 'Restore', history: 'History', reason: 'Why it was learned', verification: 'Verification', learning: 'Learning', enabled: 'Learning enabled', disabled: 'Learning disabled', limit: 'Active procedure limit', save: 'Save' }
+		ko: { title: '배운 절차', description: '실제 업무 근거로 남은 재사용 절차입니다.', refresh: '새로고침', empty: '아직 배운 절차가 없습니다.', failed: '배운 절차를 불러오지 못했습니다.', malformed: '응답에 표시할 수 없는 절차가 포함되어 있습니다.', purpose: '언제 쓰는지', evidence: '근거', version: '버전', active: '사용 중', retired: '보관됨', protect: '보호', unprotect: '보호 해제', retire: '사용 중지', restore: '복원', history: '변경 이력', reason: '배운 이유', verification: '검증', evidenceReviewed: '근거 검토 완료', companyAudience: '회사 전체', personalAudience: '개인', scopedAudience: '지정 범위', learning: '학습', enabled: '학습 켜기', disabled: '학습 꺼짐', limit: '활성 절차 한도', save: '저장' },
+		en: { title: 'Learned procedures', description: 'Reusable procedures retained from grounded work evidence.', refresh: 'Refresh', empty: 'No learned procedures yet.', failed: 'Could not load learned procedures.', malformed: 'Some returned procedures could not be displayed.', purpose: 'When it applies', evidence: 'Evidence', version: 'Version', active: 'Active', retired: 'Retired', protect: 'Protect', unprotect: 'Unprotect', retire: 'Retire', restore: 'Restore', history: 'History', reason: 'Why it was learned', verification: 'Verification', evidenceReviewed: 'Evidence reviewed', companyAudience: 'Company-wide', personalAudience: 'Personal', scopedAudience: 'Specific scope', learning: 'Learning enabled', enabled: 'Learning enabled', disabled: 'Learning disabled', limit: 'Active procedure limit', save: 'Save' }
 	});
 	let inventory = $state<LearnedSkillInventory | undefined>();
 	let errorMessage = $state('');
@@ -23,8 +23,8 @@
 	let learningSettings = $state<{ enabled: boolean; activeLimit: number }>();
 	let history = $state<LearnedSkill[]>([]);
 	const selectedSkill = $derived(inventory?.skills.find((skill) => skill.id === selectedID));
-	function verificationLabel(value: string): string { return value === 'evidence-reviewed' ? '근거 검토 완료' : value; }
-	function audienceLabel(value: string): string { return value === 'company' ? '회사 전체' : value.startsWith('person:') ? '개인' : '지정 범위'; }
+	function verificationLabel(value: string): string { return value === 'evidence-reviewed' ? text.evidenceReviewed : value; }
+	function audienceLabel(value: string): string { return value === 'company' ? text.companyAudience : value.startsWith('person:') ? text.personalAudience : text.scopedAudience; }
 
 	async function load(): Promise<void> {
 		errorMessage = '';
@@ -63,7 +63,7 @@
 				<Separator />
 				<div class="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={pendingID === skill.id} onclick={() => change(skill.id, 'protect', !skill.protected)}>{skill.protected ? text.unprotect : text.protect}</Button><Button size="sm" variant="outline" onclick={() => showHistory(skill.id)}>{text.history}</Button>{#if skill.status === 'active'}<Button size="sm" variant="outline" disabled={pendingID === skill.id} onclick={() => change(skill.id, 'retire')}>{text.retire}</Button>{:else}<Button size="sm" variant="outline" disabled={pendingID === skill.id} onclick={() => change(skill.id, 'restore')}>{text.restore}</Button>{/if}</div>
 			</article>
-			{#if selectedSkill?.id === skill.id}<div class="rounded-lg bg-muted/40 p-4 text-sm"><p class="whitespace-pre-wrap">{selectedSkill.instruction}</p></div>{/if}
+			{#if selectedSkill?.id === skill.id}<div class="grid gap-4 rounded-lg bg-muted/40 p-4 text-sm"><p class="whitespace-pre-wrap">{selectedSkill.instruction}</p>{#if history.length > 0}<section class="grid gap-2" aria-label={text.history}><h3 class="font-medium">{text.history}</h3>{#each [...history].sort((first, second) => second.version - first.version) as revision (revision.id + revision.version)}<article class="grid gap-1 border-t pt-3"><div class="flex flex-wrap items-center gap-2"><span class="font-medium">{text.version} {revision.version}</span><Badge variant="outline">{revision.status === 'active' ? text.active : text.retired}</Badge></div>{#if revision.reason}<p class="text-muted-foreground">{text.reason}: {revision.reason}</p>{/if}<details><summary class="cursor-pointer font-medium">{text.purpose}</summary><p class="mt-2 whitespace-pre-wrap text-muted-foreground">{revision.instruction}</p></details></article>{/each}</section>{/if}</div>{/if}
 		{/each}</div>{/if}
 	</Card.Content>
 </Card.Root>
