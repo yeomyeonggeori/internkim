@@ -20,8 +20,8 @@ max_rows = 1000
 
 [auth]
 enabled = true
-site_url = "https://intern.kim"
-additional_redirect_urls = ["https://intern.kim/auth/claim"]
+site_url = "https://space.intern.kim"
+additional_redirect_urls = ["https://space.intern.kim/auth/claim", "https://intern.kim/auth/claim"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
