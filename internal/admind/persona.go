@@ -70,12 +70,57 @@ type rawAgentPersonaDocuments struct {
 }
 
 type userDocument struct {
-	SchemaVersion int           `json:"schemaVersion"`
-	CallMe        string        `json:"callMe,omitempty"`
-	About         string        `json:"about,omitempty"`
-	Preferences   []string      `json:"preferences,omitempty"`
-	Tone          *soulTone     `json:"tone,omitempty"`
-	Language      *userLanguage `json:"language,omitempty"`
+	SchemaVersion   int              `json:"schemaVersion"`
+	CallMe          string           `json:"callMe,omitempty"`
+	About           string           `json:"about,omitempty"`
+	Preferences     []string         `json:"preferences,omitempty"`
+	Tone            *soulTone        `json:"tone,omitempty"`
+	Language        *userLanguage    `json:"language,omitempty"`
+	MorningBriefing *morningBriefing `json:"morningBriefing"`
+}
+
+type morningBriefing struct {
+	Enabled bool   `json:"enabled"`
+	Time    string `json:"time"`
+}
+
+func defaultMorningBriefing() morningBriefing {
+	return morningBriefingDefaults
+}
+
+var morningBriefingDefaults = morningBriefingSchemaDefault()
+
+func morningBriefingSchemaDefault() morningBriefing {
+	type settings morningBriefing
+	var schema struct {
+		Properties map[string]struct {
+			Default settings `json:"default"`
+		} `json:"properties"`
+	}
+	if errorValue := json.Unmarshal(userSchemaDocument, &schema); errorValue != nil {
+		panic(errorValue)
+	}
+	return morningBriefing(schema.Properties["morningBriefing"].Default)
+}
+
+func (briefing *morningBriefing) UnmarshalJSON(document []byte) error {
+	var fields struct {
+		Enabled *bool   `json:"enabled"`
+		Time    *string `json:"time"`
+	}
+	if errorValue := json.Unmarshal(document, &fields); errorValue != nil {
+		return errorValue
+	}
+	defaults := defaultMorningBriefing()
+	briefing.Enabled = defaults.Enabled
+	briefing.Time = defaults.Time
+	if fields.Enabled != nil {
+		briefing.Enabled = *fields.Enabled
+	}
+	if fields.Time != nil {
+		briefing.Time = *fields.Time
+	}
+	return nil
 }
 
 type userLanguage struct {
@@ -750,6 +795,14 @@ func normalizeUserDocument(user userDocument) userDocument {
 	user.CallMe = strings.TrimSpace(user.CallMe)
 	user.About = strings.TrimSpace(user.About)
 	user.Preferences = normalizePersonaLines(user.Preferences)
+	if user.MorningBriefing == nil {
+		defaults := defaultMorningBriefing()
+		user.MorningBriefing = &defaults
+	} else if strings.TrimSpace(user.MorningBriefing.Time) == "" {
+		user.MorningBriefing.Time = defaultMorningBriefing().Time
+	} else {
+		user.MorningBriefing.Time = strings.TrimSpace(user.MorningBriefing.Time)
+	}
 	if user.Tone != nil {
 		tone := soulTone{Register: strings.ToLower(strings.TrimSpace(user.Tone.Register)), Traits: normalizePersonaLines(user.Tone.Traits)}
 		if tone.Register == "" && len(tone.Traits) == 0 {
