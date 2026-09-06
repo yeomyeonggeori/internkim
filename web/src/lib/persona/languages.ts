@@ -10,8 +10,11 @@ export function languageAutonym(tag: string): string {
 }
 
 export function defaultCallMe(name: string, languageTag: string): string {
-	if (!name) return '';
-	return languageTag.toLowerCase().startsWith('ko') ? `${name} 님` : name;
+	const parts = name.trim().split(/\s+/).filter(Boolean);
+	const firstName = parts.slice(0, Math.max(1, parts.length - 1)).join(' ');
+	if (!firstName) return '';
+	const baseLanguage = languageTag.trim().toLowerCase().split('-')[0] ?? '';
+	return baseLanguage === 'ko' ? `${firstName} 님` : firstName;
 }
 
 export function replyLanguageOptions(selected: string): { value: string; label: string }[] {

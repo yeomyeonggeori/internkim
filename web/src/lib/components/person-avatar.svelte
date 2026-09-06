@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Identicon from '$lib/components/identicon.svelte';
 	import { personAvatarSeed } from '$lib/person-avatar-seed';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { personPicture } from '$lib/stores/person-picture.svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import { cn } from '$lib/utils';
@@ -22,7 +23,7 @@
 	} = $props();
 
 	const avatarSeed = $derived(personAvatarSeed(email, seed, name));
-	const avatarLabel = $derived(name || email || 'Person');
+	const avatarLabel = $derived(displayPersonName(name) || email || 'Person');
 	const identity = $derived({ memberID, email });
 	const drawn = $derived(personPicture.pictureOf(identity) || image);
 

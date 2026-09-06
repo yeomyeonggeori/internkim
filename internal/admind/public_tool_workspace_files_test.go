@@ -28,6 +28,7 @@ func newPublicToolWorkspaceTestService(t *testing.T, workspaceFiles map[string]s
 		FleetSecretPath:       writeTestFile(t, "secret-1"),
 		BlueclawBaseURL:       "http://blueclaw.local",
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" {
 			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"person-member","email":"member@example.com","name":"Member","role":"member","status":"active"}]}`, nil), nil

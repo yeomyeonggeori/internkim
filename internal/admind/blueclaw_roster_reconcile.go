@@ -79,7 +79,7 @@ func (service *Service) deliverRosterReconciledWith(ctx context.Context, records
 	if errorValue != nil {
 		return errorValue
 	}
-	reconcileRosterPeople(policyDocument, records, service.alwaysRetainedRosterEmails())
+	reconcileRosterPeople(policyDocument, records, service.alwaysRetainedRosterEmails(), service.workspaceLanguage())
 	if profile, errorValue := service.companyProfile(ctx, service.claimedAdminEmail(), ""); errorValue == nil {
 		policyDocument["company"] = companyPolicySnapshot(profile, service.workspaceTimeZone().name, service.workspaceLanguage())
 	}
@@ -97,12 +97,12 @@ func (service *Service) alwaysRetainedRosterEmails() []string {
 	return []string{service.seedAdminEmail(), service.claimedAdminEmail()}
 }
 
-func reconcileRosterPeople(policyDocument map[string]any, records []adminUserMutation, retainedEmails []string) {
-	adoptRosterRecords(policyDocument, records)
+func reconcileRosterPeople(policyDocument map[string]any, records []adminUserMutation, retainedEmails []string, language string) {
+	adoptRosterRecords(policyDocument, records, language)
 	dropRosterPeopleTheDirectoryNoLongerKnows(policyDocument, rosterDirectoryEmails(records), rosterEmailSet(retainedEmails))
 }
 
-func adoptRosterRecords(policyDocument map[string]any, records []adminUserMutation) {
+func adoptRosterRecords(policyDocument map[string]any, records []adminUserMutation, language string) {
 	people, _ := policyDocument["people"].([]any)
 	knownCount := len(people)
 	for _, record := range records {
@@ -115,7 +115,7 @@ func adoptRosterRecords(policyDocument map[string]any, records []adminUserMutati
 			person = map[string]any{"personID": strings.TrimSpace(record.MemberID), "emails": []any{email}}
 			people = append(people, person)
 		}
-		applyBlueclawPersonAttributes(person, record.Name, record.Role, record.Circles, nil)
+		applyBlueclawPersonAttributes(person, record.Name, record.Role, record.Circles, nil, language)
 	}
 	if len(people) != knownCount {
 		policyDocument["people"] = people

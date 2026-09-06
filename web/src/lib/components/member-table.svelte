@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import type { Snippet } from 'svelte';
@@ -58,8 +59,8 @@
 				<Table.Row>
 					<Table.Cell class="font-medium">
 						<div class="flex items-center gap-2">
-							<PersonAvatar name={member.name} email={member.email} image={member.image ?? ''} class="size-7" />
-							{member.name}
+							<PersonAvatar name={displayPersonName(member.name)} email={member.email} image={member.image ?? ''} class="size-7" />
+							{displayPersonName(member.name)}
 						</div>
 					</Table.Cell>
 					<Table.Cell class="text-muted-foreground">{member.email || '-'}</Table.Cell>

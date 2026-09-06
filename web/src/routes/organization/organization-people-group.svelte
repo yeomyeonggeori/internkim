@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import TimerIcon from '@lucide/svelte/icons/timer';
 	import FlagTriangleRightIcon from '@lucide/svelte/icons/flag-triangle-right';
@@ -76,7 +77,7 @@
 	}
 
 	function personLabel(record: UserRecord): string {
-		return record.name || record.email;
+		return displayPersonName(record.name || record.email);
 	}
 
 	function responsibility(record: UserRecord): { isCompanyWide: boolean; label: string; class: string } | undefined {
@@ -175,7 +176,7 @@
 					onclick={() => selectRecord(record)}
 					data-testid={`organization-person-node-${record.memberID}`}
 				>
-					<PersonAvatar name={record.name} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-20" />
+					<PersonAvatar name={displayPersonName(record.name)} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-20" />
 					<span class="grid w-full gap-0.5 text-center">
 						<span class="truncate text-sm leading-snug font-medium">{personLabel(record)}</span>
 						<span class="text-muted-foreground truncate text-xs leading-normal">{record.jobTitle || text.noTitle}</span>

@@ -16,6 +16,7 @@ func TestMemoryAPIResolvesTheSessionUserGraph(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
@@ -56,6 +57,7 @@ func TestMemoryAPIResolvesTheSessionUserSchedules(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
@@ -149,6 +151,7 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
@@ -192,6 +195,7 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
@@ -235,6 +239,7 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
@@ -284,6 +289,7 @@ func TestMemoryAPIPinnedUpdateInjectsResolvedPersonID(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
@@ -326,6 +332,7 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
@@ -363,6 +370,7 @@ func TestMemoryAPIGraphHidesUpstreamFailureDetails(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
@@ -400,6 +408,7 @@ func TestMemoryAPIGraphHidesIdentityFailureDetails(t *testing.T) {
 		FleetIDPath:     writeTestFile(t, "device-1"),
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `internal identity path /root/internkim/private.go`, nil), nil
