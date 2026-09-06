@@ -1,4 +1,5 @@
 import { addMember, inviteMember } from '$lib/server/control-plane';
+import { personName } from '$lib/person-name';
 import type { DirectoryPerson, PersonInviteResult } from '../catalog/people';
 import type { RecordContext } from './company';
 import {
@@ -57,15 +58,17 @@ export function homesOfPersonUpdate(
 export function answeredPerson(
 	person: RecordPerson,
 	people: RecordPerson[],
-	teams: RecordTeam[]
+	teams: RecordTeam[],
+	locale: RecordContext['locale']
 ): DirectoryPerson {
-	const mention = mentionOf(person.name);
+	const displayName = personName(person.name, locale);
+	const mention = mentionOf(displayName);
 	const handle = handleOf(person.email);
 	const team = teams.find((candidate) => candidate.teamID === person.teamID);
 	const supervisor = people.find((candidate) => candidate.personID === person.supervisorID);
 	return {
 		personID: person.personID,
-		name: person.name,
+		name: displayName,
 		email: person.email,
 		isAdmin: person.isAdmin,
 		employmentStatus: person.employmentStatus,
@@ -75,7 +78,7 @@ export function answeredPerson(
 		...(person.teamID ? { teamID: person.teamID } : {}),
 		...(team ? { teamName: team.name } : {}),
 		...(person.supervisorID ? { supervisorID: person.supervisorID } : {}),
-		...(supervisor ? { supervisorName: supervisor.name } : {}),
+		...(supervisor ? { supervisorName: personName(supervisor.name, locale) } : {}),
 		...(person.phoneNumber ? { phoneNumber: person.phoneNumber } : {}),
 		...(person.hireDate ? { hireDate: person.hireDate } : {}),
 		...(person.timeZone ? { timeZone: person.timeZone } : {})
@@ -87,7 +90,7 @@ export async function personList(context: RecordContext) {
 	return {
 		requesterID: context.requesterID,
 		count: context.people.length,
-		people: context.people.map((person) => answeredPerson(person, context.people, teams))
+		people: context.people.map((person) => answeredPerson(person, context.people, teams, context.locale))
 	};
 }
 
@@ -117,7 +120,7 @@ export async function personUpdate(
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 
-	return answeredPerson(await personWrittenBack(context, person.personID), context.people, teams);
+	return answeredPerson(await personWrittenBack(context, person.personID), context.people, teams, context.locale);
 }
 
 export async function personInvite(

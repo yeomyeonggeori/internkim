@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { candidateOf, mentionOf, personOfHint, peopleOfHints } from '$lib/server/public-api/record/people';
 import { HintRefused } from '$lib/server/public-api/record/hint-resolution';
 import { personInTheDirectory } from './directory-fixture';
+import { answeredPerson } from '$lib/server/public-api/record/people-tools';
 
 const people = [
 	{ personID: 'm1', name: '이샘플', email: 'sample@example.com' },
@@ -27,6 +28,23 @@ describe('naming a person', () => {
 
 	test('takes a whole name even when another name contains it', () => {
 		expect(personOfHint(people, '박예시').personID).toBe('m2');
+	});
+
+	test('resolves the localized display name and mention returned to callers', () => {
+		const answered = answeredPerson(people[1], people, [], 'ko');
+		expect(personOfHint(people, answered.name).personID).toBe(people[1].personID);
+		if (!answered.mention) throw new Error('mention was expected');
+		expect(personOfHint(people, answered.mention).personID).toBe(people[1].personID);
+	});
+
+	test('keeps canonical identifiers ahead of localized display aliases', () => {
+		const collision = [...people, personInTheDirectory({ personID: '박예시', name: '새 이름', email: 'other@example.com' })];
+		expect(personOfHint(collision, '박예시').personID).toBe('박예시');
+	});
+
+	test('refuses duplicate localized display names as ambiguous', () => {
+		const duplicate = [...people, personInTheDirectory({ personID: 'm4', name: '예시 박', email: 'other@example.com' })];
+		expect(() => personOfHint(duplicate, '박예시')).toThrow(HintRefused);
 	});
 
 	test('takes a part of a name when exactly one person answers to it', () => {

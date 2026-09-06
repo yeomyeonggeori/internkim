@@ -1,4 +1,5 @@
 import { dayIn, dayOfInstant, dayShifted, instantOfDay } from './days';
+import { personName } from '$lib/person-name';
 import { personOfHint } from './people';
 import { ownerNamedBy, whoseRecords, whoseRecordsHolds } from './whose';
 import { statusOfPostgresCode, RecordRefusedTheWrite } from './tasks';
@@ -35,7 +36,7 @@ export type AnsweredAttendance = {
 };
 
 function answeredAttendance(context: RecordContext, row: AttendanceRow): AnsweredAttendance {
-	const nameOf = new Map(context.people.map((person) => [person.personID, person.name]));
+	const nameOf = new Map(context.people.map((person) => [person.personID, personName(person.name, context.locale)]));
 	return {
 		eventID: row.id,
 		personID: row.member_id,
@@ -137,7 +138,7 @@ export async function attendanceList(context: RecordContext, input: AttendanceLi
 		scope: found.memberID ? 'person' : 'everyone',
 		personID: found.memberID,
 		personName: found.memberID
-			? context.people.find((one) => one.personID === found.memberID)?.name ?? ''
+			? personName(context.people.find((one) => one.personID === found.memberID)?.name ?? '', context.locale)
 			: '',
 		from: found.firstDay,
 		to: found.lastDay,

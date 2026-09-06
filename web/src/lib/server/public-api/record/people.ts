@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { handleFromEmail } from '$lib/server/fleet-user-directory';
+import { personName } from '$lib/person-name';
 import { emailNearness, typoNearness } from './hint-nearness';
 import {
 	HintRefused,
@@ -97,6 +98,7 @@ export async function personOfCompanyByID(
 
 const personMatcher: HintMatcher<RecordPerson> = {
 	identifiersOf: (person) => [person.personID, person.email, handleOf(person.email)],
+	exactTitleAliasesOf: localizedPersonTitles,
 	titleOf: (person) => person.name,
 	nearnessTo: (person, hint) =>
 		Math.max(
@@ -105,6 +107,12 @@ const personMatcher: HintMatcher<RecordPerson> = {
 			typoNearness(withoutAtSign(normalized(hint)), handleFromEmail(person.email))
 		)
 };
+
+function localizedPersonTitles(person: RecordPerson): string[] {
+	const koreanName = personName(person.name, 'ko');
+	const englishName = personName(person.name, 'en');
+	return [koreanName, `@${koreanName}`, englishName, `@${englishName}`];
+}
 
 function withoutAtSign(value: string): string {
 	return value.startsWith('@') ? value.slice(1) : value;

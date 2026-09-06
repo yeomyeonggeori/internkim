@@ -11,7 +11,7 @@ const isBoard = import.meta.env.VITE_BUILD_TARGET === 'board';
 export const prerender = isBoard;
 export const ssr = !isBoard;
 
-export const load: LayoutLoad<{ session: WebAuthSession | null }> = async ({ fetch, depends, url }) => {
+export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: string }> = async ({ fetch, depends, url }) => {
 	depends(webAuthSessionDependency);
 	if (typeof window === 'undefined' || isEmbeddedFrame()) return { session: null };
 	const returnPath = url.pathname + url.search;
@@ -21,11 +21,12 @@ export const load: LayoutLoad<{ session: WebAuthSession | null }> = async ({ fet
 		if (session.authenticated && !settlingIn && !(await belongsToACompany())) {
 			redirect(307, '/start');
 		}
-		if (session.authenticated && wantsCompanyPrefix(url.pathname)) {
-			const { companySlug } = await supabaseMember();
-			if (companySlug) {
-				redirect(307, companyPathOf(companySlug, url.pathname) + url.search);
+		if (session.authenticated) {
+			const member = await supabaseMember();
+			if (member.companySlug && wantsCompanyPrefix(url.pathname)) {
+				redirect(307, companyPathOf(member.companySlug, url.pathname) + url.search);
 			}
+			return { session, companyLocale: member.companyLocale };
 		}
 		return { session };
 	}

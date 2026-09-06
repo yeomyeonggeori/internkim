@@ -1,4 +1,5 @@
 import { compatibilityOwnerOf } from '$lib/task/central-task';
+import { personName } from '$lib/person-name';
 import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
 import {
 	WorkspaceTaskSize,
@@ -78,12 +79,13 @@ export type AnsweredTask = {
 	weekCode: string;
 };
 
-function presentationOf(personID: string, person: RecordPerson | undefined): AnsweredPerson {
+function presentationOf(personID: string, person: RecordPerson | undefined, locale: RecordContext['locale']): AnsweredPerson {
 	if (!person) return { personID };
-	const mention = mentionOf(person.name);
+	const displayName = personName(person.name, locale);
+	const mention = mentionOf(displayName);
 	return {
 		personID,
-		displayName: person.name,
+		displayName,
 		...(person.email ? { email: person.email } : {}),
 		...(mention ? { mention } : {})
 	};
@@ -91,7 +93,7 @@ function presentationOf(personID: string, person: RecordPerson | undefined): Ans
 
 function participantsOf(context: RecordContext, row: TaskRow): AnsweredPerson[] {
 	const personOf = new Map(context.people.map((person) => [person.personID, person]));
-	return row.task_participant.map(({ member_id }) => presentationOf(member_id, personOf.get(member_id)));
+	return row.task_participant.map(({ member_id }) => presentationOf(member_id, personOf.get(member_id), context.locale));
 }
 
 function ownerOf(context: RecordContext, row: TaskRow): { id: string; name: string } {
@@ -99,7 +101,7 @@ function ownerOf(context: RecordContext, row: TaskRow): { id: string; name: stri
 	return compatibilityOwnerOf(
 		row.task_participant.map(({ member_id }) => ({
 			id: member_id,
-			name: personOf.get(member_id)?.name ?? ''
+			name: personName(personOf.get(member_id)?.name ?? '', context.locale)
 		}))
 	);
 }
@@ -115,7 +117,7 @@ function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
 		organizationID: row.organization_id ?? '',
 		opportunityID: row.opportunity_id ?? '',
 		requesterID,
-		requesterName: context.people.find((person) => person.personID === requesterID)?.name ?? '',
+		requesterName: personName(context.people.find((person) => person.personID === requesterID)?.name ?? '', context.locale),
 		createdAt: row.created_at,
 		content: row.title,
 		ownerID: owner.id,

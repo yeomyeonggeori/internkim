@@ -6,6 +6,7 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import NetworkIcon from '@lucide/svelte/icons/network';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
@@ -37,8 +38,8 @@
 		{ value: '', label: text.allEmployees, keywords: [], jobTitle: '', email: '', image: '', seed: '' },
 		...orderedRecords.map((record) => ({
 			value: record.name || record.email,
-			label: record.name || record.email,
-			keywords: [record.jobTitle ?? ''].filter(Boolean),
+			label: displayPersonName(record.name || record.email),
+			keywords: [record.name || '', displayPersonName(record.name || ''), record.jobTitle ?? ''].filter(Boolean),
 			jobTitle: record.jobTitle ?? '',
 			email: record.email,
 			image: record.image ?? '',

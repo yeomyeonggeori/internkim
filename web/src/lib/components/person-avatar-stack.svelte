@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { cn } from '$lib/utils';
 
 	type StackPerson = { name: string; seed?: string; email?: string; image?: string };
@@ -25,7 +26,7 @@
 <div class={cn('flex shrink-0 items-center -space-x-2', className)} aria-label={label}>
 	{#each visiblePeople as person, index (person.seed ?? person.name ?? index)}
 		<PersonAvatar
-			name={person.name}
+			name={displayPersonName(person.name)}
 			email={person.email ?? ''}
 			seed={person.seed ?? person.name}
 			image={person.image ?? ''}
