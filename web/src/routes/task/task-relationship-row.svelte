@@ -7,7 +7,7 @@
 	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import Unlink2Icon from '@lucide/svelte/icons/unlink-2';
-	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
+	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import {
 		isTaskStatusCompleted
 	} from './task-status';
@@ -23,6 +23,7 @@
 		etcLabel: string;
 		editable: boolean;
 		pending: boolean;
+		statusLabel: (status: string) => string;
 		openTaskLabel: string;
 		moreActionsLabel: string;
 		removeRelationshipLabel: string;
@@ -37,6 +38,7 @@
 		etcLabel,
 		editable,
 		pending,
+		statusLabel,
 		openTaskLabel,
 		moreActionsLabel,
 		removeRelationshipLabel,
@@ -74,7 +76,7 @@
 
 	<span
 		class={`pointer-events-none relative z-[1] inline-flex size-5 shrink-0 items-center justify-center ${relationshipStatusIconClass(task.status)}`}
-		aria-label={task.status}
+		aria-label={statusLabel(task.status)}
 		data-relationship-status-kind={statusKind}
 	>
 		{#if isTaskStatusCompleted(task.status)}
@@ -86,7 +88,7 @@
 
 	<div class="pointer-events-none relative z-[1] min-w-0 flex-1 space-y-1.5">
 		<div class="flex min-w-0 items-center gap-2">
-			<ColorMarkerBadge label={taskDefinitionLabel(task.type, etcLabel)} color={taskTypeColor(task.type)} class="max-w-24 shrink-0" />
+			<DefinitionBadge label={taskDefinitionLabel(task.type, etcLabel)} color={taskTypeColor(task.type)} class="max-w-24 shrink-0" />
 			<div class="truncate text-sm font-medium text-foreground">{task.content}</div>
 		</div>
 		<div class="flex min-w-0 items-center gap-1.5">

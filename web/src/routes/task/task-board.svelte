@@ -7,6 +7,8 @@
 	import type { TaskBoardMoveRequest } from './task-board-drag';
 	import { taskBoardViewportHeight } from './task-board-viewport-height';
 	import { buildTaskBoard, isTaskBoardStatus, isOverdueTaskPlan, type TaskBoardWeekPosition } from './task-board-model';
+	import { taskStatusIcon } from './task-status-style';
+	import { statusIconClass } from './task-style';
 	import { buildTaskChildProgressByParent } from './task-relationships';
 	import {
 		canCreateTaskInColumn,
@@ -106,6 +108,7 @@
 	<div class={boardScrollClass} data-task-board-scroll use:taskBoardViewportHeight>
 		<div class="flex h-full min-w-max gap-3 pr-4 md:pr-8">
 			{#each columns as column (column.status)}
+				{@const StatusIcon = taskStatusIcon(column.status)}
 				<section
 					class={columnClass}
 					role="group"
@@ -116,10 +119,7 @@
 				>
 					<header class="flex h-11 items-center justify-between gap-3 border-b bg-card px-3">
 						<div class="flex min-w-0 items-center gap-2">
-							<span
-								class="size-2.5 shrink-0 rounded-full border-2 bg-transparent"
-								style:border-color={column.theme.accentColor}
-							></span>
+							<StatusIcon class={cn('size-4 shrink-0', statusIconClass(column.status))} aria-hidden="true" />
 							<h3 class="truncate text-sm font-semibold text-foreground">{statusLabel(column.status)}</h3>
 							<span
 								class={cn(

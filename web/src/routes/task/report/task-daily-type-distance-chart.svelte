@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { taskDefinitionPaletteColor, taskTypeColor } from '../task-definition-colors';
+	import { taskTypeColor } from '../task-definition-colors';
+	import { paletteColorAt } from '$lib/color-picker-palette';
 	import type { TaskDefinitions } from '../task-types';
 	import type { TaskDailyTypeDistanceSection, TaskReportRow } from './task-report-data';
 
@@ -15,7 +16,7 @@
 	const dailyMajorTicks = [0, 25, 50, 75, 100];
 
 	function typeSegmentColor(index: number, label = ''): string {
-		if (!definitions || !label) return taskDefinitionPaletteColor(index);
+		if (!definitions || !label) return paletteColorAt(index);
 		return taskTypeColor(label, definitions);
 	}
 

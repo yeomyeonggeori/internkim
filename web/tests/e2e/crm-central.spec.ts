@@ -135,6 +135,11 @@ test('rejects deleting an in-use CRM definition with guidance', async ({ page })
 	await signIn(page);
 	await page.getByRole('tab', { name: '정의' }).click();
 	await page.getByRole('button', { name: '삭제' }).first().click();
+	await page
+		.locator('[role="alertdialog"][data-state="open"]')
+		.locator('[data-alert-dialog-action]')
+		.last()
+		.click();
 	await expect(
 		page.getByText('등록된 CRM 기록에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.')
 	).toBeVisible({ timeout: 10000 });
@@ -143,8 +148,8 @@ test('rejects deleting an in-use CRM definition with guidance', async ({ page })
 test('adds and removes an unused CRM definition', async ({ page }) => {
 	await signIn(page);
 	await page.getByRole('tab', { name: '정의' }).click();
-	const addInput = page.getByRole('textbox', { name: '관계처 유형' });
-	await addInput.fill('E2E 임시 유형');
+	await page.getByRole('button', { name: '추가', exact: true }).first().click();
+	await page.getByRole('textbox', { name: '관계처 유형' }).fill('E2E 임시 유형');
 	await page.getByRole('button', { name: '추가', exact: true }).first().click();
 	await expect
 		.poll(async () =>
@@ -157,7 +162,7 @@ test('rejects deleting an in-use flow business with guidance', async ({ page }) 
 	await signIn(page);
 	await page.goto('/example-co/flow');
 	await page.getByRole('tab', { name: '정의' }).click();
-	await page.getByText('사업은 업무가 속한 단위입니다').waitFor({ state: 'visible' });
+	await page.getByRole('button', { name: '삭제' }).first().waitFor({ state: 'visible' });
 	await page.getByRole('button', { name: '삭제' }).first().click();
 	const confirm = page.locator('[role="alertdialog"][data-state="open"]').filter({ hasText: '사업하나' });
 	await confirm.locator('[data-alert-dialog-action]').last().click();
@@ -331,10 +336,11 @@ test('an added definition shows at once and the list keeps its shape while savin
 		await route.continue();
 	});
 
+	await card.getByRole('button', { name: '추가' }).click();
 	await card.getByPlaceholder('관계처 유형').fill(organizationTypeName);
 	await card.getByRole('button', { name: '추가' }).click();
 
-	await expect(names.nth(nameCount - 1)).toHaveValue(organizationTypeName);
+	await expect(names.nth(nameCount)).toHaveValue(organizationTypeName);
 	await expect(swatches).toHaveCount(swatchCount + 1);
 	await expect(names.first()).toBeEnabled();
 
@@ -344,10 +350,12 @@ test('an added definition shows at once and the list keeps its shape while savin
 
 	await page.reload();
 	await page.getByRole('tab', { name: '정의' }).click();
-	await expect(names.nth(nameCount - 1)).toHaveValue(organizationTypeName);
+	await expect(names.nth(nameCount)).toHaveValue(organizationTypeName);
 
 	const removed = page.waitForResponse('**/tools/crm_vocabulary_set/invoke');
-	await card.getByRole('button', { name: '삭제' }).nth(nameCount - 1).click();
+	await card.getByRole('button', { name: '삭제' }).nth(nameCount).click();
+	const removalConfirm = page.locator('[role="alertdialog"][data-state="open"]').filter({ hasText: organizationTypeName });
+	await removalConfirm.locator('[data-alert-dialog-action]').last().click();
 	await expect(names).toHaveCount(nameCount);
 	await removed;
 });
@@ -382,7 +390,9 @@ test('a definition added while an earlier save runs is not lost', async ({ page 
 
 	const addName = card.getByPlaceholder('관계처 유형');
 	const addButton = card.getByRole('button', { name: '추가' });
+	await addButton.click();
 	await addName.fill(queuedTypeNames[0]);
+	await addButton.click();
 	await addButton.click();
 	await addName.fill(queuedTypeNames[1]);
 	await addButton.click();
@@ -391,12 +401,17 @@ test('a definition added while an earlier save runs is not lost', async ({ page 
 
 	await page.reload();
 	await page.getByRole('tab', { name: '정의' }).click();
-	await expect(names.nth(nameCount - 1)).toHaveValue(queuedTypeNames[0]);
-	await expect(names.nth(nameCount)).toHaveValue(queuedTypeNames[1]);
+	await expect(names.nth(nameCount)).toHaveValue(queuedTypeNames[0]);
+	await expect(names.nth(nameCount + 1)).toHaveValue(queuedTypeNames[1]);
 
-	for (const index of [nameCount, nameCount - 1]) {
+	for (const index of [nameCount + 1, nameCount]) {
 		const removed = page.waitForResponse('**/tools/crm_vocabulary_set/invoke');
 		await card.getByRole('button', { name: '삭제' }).nth(index).click();
+		await page
+			.locator('[role="alertdialog"][data-state="open"]')
+			.locator('[data-alert-dialog-action]')
+			.last()
+			.click();
 		await removed;
 	}
 	await expect(names).toHaveCount(nameCount);
