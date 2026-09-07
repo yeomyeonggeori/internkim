@@ -15,13 +15,16 @@ export type CRMDefinitionCollection = 'organization_type' | 'pipeline';
 export type CRMDefinitionsText = {
 	title: string;
 	organizationTypes: string;
-	organizationTypesDescription: string;
 	pipelines: string;
-	pipelinesDescription: string;
 	add: string;
 	remove: string;
+	removeTitle: string;
+	removeDescription: string;
+	cancel: string;
 	color: string;
+	done: string;
 	nameRequired: string;
+	emptyList: string;
 	saving: string;
 };
 

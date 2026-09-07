@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
-	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { saveTaskDefinitions } from './task-api';
 	import TaskDefinitionsView from './task-definitions-view.svelte';
 	import type { LoadTask } from './task-load-tracker';
 	import type { TaskDefinitions, TaskSizeDefinition, TaskSummary } from './task-types';
-	import { taskDefinitionPaletteColor, unknownDefinitionColor } from './task-definition-colors';
+	import { unknownDefinitionColor } from './task-definition-colors';
+	import { paletteColorAt } from '$lib/color-picker-palette';
 	import { taskText } from './text';
 	import type { PageText } from '$lib/i18n/page-text.svelte';
 
@@ -32,7 +32,6 @@
 	let newTypeColor = $state('');
 	let newCategoryText = $state('');
 	let newTypeText = $state('');
-	let isSavingDefinitions = $state(false);
 	let definitionSaveState = $state<DefinitionSaveState>('idle');
 	let definitionErrorMessage = $state('');
 
@@ -78,11 +77,11 @@
 	}
 
 	function nextCategoryColor(): string {
-		return newCategoryColor || taskDefinitionPaletteColor(categoryDrafts.length);
+		return newCategoryColor || paletteColorAt(categoryDrafts.length);
 	}
 
 	function nextTypeColor(): string {
-		return newTypeColor || taskDefinitionPaletteColor(typeDrafts.length);
+		return newTypeColor || paletteColorAt(typeDrafts.length);
 	}
 
 	function setCategoryColor(index: number, color: string): void {
@@ -129,7 +128,6 @@
 
 	async function saveDefinitions(): Promise<void> {
 		if (!summary?.isAdmin || !canEditDefinitions()) return;
-		isSavingDefinitions = true;
 		definitionSaveState = 'saving';
 		definitionErrorMessage = '';
 		try {
@@ -160,8 +158,6 @@
 			definitionErrorMessage = error instanceof Error ? error.message : text.saveError;
 			definitionSaveState = 'error';
 			toast.error(definitionErrorMessage);
-		} finally {
-			isSavingDefinitions = false;
 		}
 	}
 
@@ -169,60 +165,29 @@
 		return Object.fromEntries(values.filter((value) => colors[value]).map((value) => [value, colors[value]]));
 	}
 
-	function confirmRemoveCategory(index: number): void {
-		const value = categoryDrafts[index];
-		confirmDelete({
-			title: text.removeBusinessTitle,
-			description: text.removeBusinessDescription.replace('{value}', value),
-			confirm: { text: text.removeAction },
-			cancel: { text: text.cancel },
-			onConfirm: async () => {
-				await removeCategory(index);
-			}
-		});
-	}
-
-	function confirmRemoveType(index: number): void {
-		const value = typeDrafts[index];
-		confirmDelete({
-			title: text.removeTypeTitle,
-			description: text.removeTypeDescription.replace('{value}', value),
-			confirm: { text: text.removeAction },
-			cancel: { text: text.cancel },
-			onConfirm: async () => {
-				await removeType(index);
-			}
-		});
-	}
 </script>
 
 <TaskDefinitionsView
 	definitions={definitions()}
 	{categoryDrafts}
 	{setCategoryColor}
-	newCategoryColor={nextCategoryColor()}
-	newTypeColor={nextTypeColor()}
 	setNewCategoryColor={(color) => (newCategoryColor = color)}
 	setNewTypeColor={(color) => (newTypeColor = color)}
 	{setTypeColor}
 	{typeDrafts}
-	{newCategoryText}
-	{newTypeText}
 	etcBusinessColor={etcBusinessColorDraft || unknownDefinitionColor}
 	etcTypeColor={etcTypeColorDraft || unknownDefinitionColor}
 	{setEtcBusinessColor}
 	{setEtcTypeColor}
 	isAdmin={summary?.isAdmin ?? false}
 	canEditDefinitions={canEditDefinitions()}
-	{isSavingDefinitions}
 	{definitionSaveState}
-	{definitionErrorMessage}
 	{loadError}
 	{text}
 	{updateCategory}
 	{updateType}
-	removeCategory={confirmRemoveCategory}
-	removeType={confirmRemoveType}
+	{removeCategory}
+	{removeType}
 	{addCategory}
 	{addType}
 	setNewCategoryText={(value) => (newCategoryText = value)}

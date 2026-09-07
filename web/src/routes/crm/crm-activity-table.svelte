@@ -5,7 +5,7 @@
 	import { sizeBadgeClass } from '../task/task-style';
 	import { taskBusinessColor, taskTypeColor } from '../task/task-definition-colors';
 	import type { TaskDefinitions } from '../task/task-types';
-	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
+	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import TaskListBusinessCell from '../task/task-list-business-cell.svelte';
 	import * as Table from '$lib/components/ui/table';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
@@ -14,11 +14,13 @@
 	import CalendarXIcon from '@lucide/svelte/icons/calendar-x';
 	import type { UserRecord } from '$lib/organization/types';
 	import type { CRMOrganization, CRMActivity, CRMOpportunity } from './crm-types';
-	import { activityStatusIcon } from './crm-status-icons';
 	import { crmLabel } from './crm-labels';
 	import CRMTableColumnHeader from './crm-table-column-header.svelte';
 	import { nextSortState, sortRows, type CRMSortComparators, type CRMSortState } from './crm-table-sort';
-	import { activityStatusRank, findOrganizationByID, formatCRMDate, getActivityStatusVariant } from './crm-view-model';
+	import { findOrganizationByID, formatCRMDate } from './crm-view-model';
+	import TaskStatusBadge from '$lib/components/task-status-badge.svelte';
+	import { taskStatusRank } from '../task/task-status-style';
+	import { taskStatusLabelFrom } from '../task/task-status';
 	import type { CRMText } from './text';
 
 	type Props = {
@@ -45,7 +47,7 @@
 		endsAt: (activity) => activity.calendarEndsAt ?? '',
 		occurredAt: (activity) => activity.occurredAt,
 		owner: (activity) => activity.participantNames[0] ?? '',
-		status: (activity) => activityStatusRank(activity.taskStatus)
+		status: (activity) => taskStatusRank(activity.taskStatus)
 	};
 
 	const pageSize = 10;
@@ -110,7 +112,6 @@
 				{#each visibleActivities as activity (activity.id)}
 					{@const organization = findOrganizationByID(organizations, activity.organizationID)}
 					{@const opportunity = opportunities.find((candidate) => candidate.id === activity.opportunityID)}
-					{@const StatusIcon = activityStatusIcon(activity.taskStatus)}
 					<Table.Row
 						class="cursor-pointer align-top hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
 						tabindex={0}
@@ -128,7 +129,7 @@
 								{/if}
 							</div>
 						</Table.Cell>
-						<Table.Cell class="hidden whitespace-nowrap sm:table-cell"><ColorMarkerBadge label={crmLabel(text.activityKinds, activity.kind)} color={taskTypeColor(activity.kind, taskDefinitions)} /></Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap sm:table-cell"><DefinitionBadge label={crmLabel(text.activityKinds, activity.kind)} color={taskTypeColor(activity.kind, taskDefinitions)} /></Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap xl:table-cell">
 							{#if activity.business}
 								<TaskListBusinessCell label={activity.business} color={taskBusinessColor(activity.business, taskDefinitions)} />
@@ -156,10 +157,7 @@
 						</Table.Cell>
 						<Table.Cell class="whitespace-nowrap pr-6">
 							<div class="flex">
-								<Badge variant={getActivityStatusVariant(activity.taskStatus)}>
-									<StatusIcon data-icon="inline-start" aria-hidden="true" />
-									{crmLabel(text.taskStatuses, activity.taskStatus)}
-								</Badge>
+								<TaskStatusBadge status={activity.taskStatus} label={taskStatusLabelFrom(text.taskStatuses, activity.taskStatus)} />
 							</div>
 						</Table.Cell>
 					</Table.Row>

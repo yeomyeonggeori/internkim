@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { taskBusinessColor, taskDefinitionPaletteColor, taskTypeColor } from '../../src/routes/task/task-definition-colors';
+import { paletteColorAt } from '../../src/lib/color-picker-palette';
+import { taskBusinessColor, taskTypeColor } from '../../src/routes/task/task-definition-colors';
 import type { TaskDefinitions } from '../../src/routes/task/task-types';
 
 describe('flow definition colors', () => {
@@ -18,16 +19,16 @@ describe('flow definition colors', () => {
 	test('falls back to the definitions order palette when no color is saved', () => {
 		const definitions = taskDefinitions({ categories: ['샘플거리', '김인턴'], types: ['기획', '기능'] });
 
-		expect(taskBusinessColor('샘플거리', definitions)).toBe(taskDefinitionPaletteColor(0));
-		expect(taskTypeColor('기능', definitions)).toBe(taskDefinitionPaletteColor(1));
+		expect(taskBusinessColor('샘플거리', definitions)).toBe(paletteColorAt(0));
+		expect(taskTypeColor('기능', definitions)).toBe(paletteColorAt(1));
 	});
 
 	test('mixes default colors so neighbouring definitions look different', () => {
-		const defaults = [0, 1, 2, 3, 4, 5].map((index) => taskDefinitionPaletteColor(index));
+		const defaults = [0, 1, 2, 3, 4, 5].map((index) => paletteColorAt(index));
 
 		expect(new Set(defaults).size).toBe(defaults.length);
 		expect(defaults.some((color, index) => index > 0 && color === defaults[index - 1])).toBe(false);
-		expect(taskDefinitionPaletteColor(0)).not.toBe(taskDefinitionPaletteColor(1));
+		expect(paletteColorAt(0)).not.toBe(paletteColorAt(1));
 	});
 
 	test('falls back to a neutral color for values the definitions do not list', () => {

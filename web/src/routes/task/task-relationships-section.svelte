@@ -21,6 +21,7 @@
 		pendingTaskIDs?: string[];
 		text: TaskRelationshipsText;
 		taskTypeColor: (type: string | null) => string;
+		statusLabel: (status: string) => string;
 		onOpenTask: (task: Task) => void;
 		onSetParent: (taskID: string, parentID?: string) => RelationshipResult | Promise<RelationshipResult>;
 		onSetParents: (taskIDs: string[], parentID: string) => boolean | Promise<boolean>;
@@ -37,6 +38,7 @@
 		pendingTaskIDs = [],
 		text,
 		taskTypeColor,
+		statusLabel,
 		onOpenTask,
 		onSetParent,
 		onSetParents,
@@ -80,6 +82,7 @@
 
 		{#if relationships.parent}
 			<TaskRelationshipRow
+				{statusLabel}
 				task={relationships.parent}
 				{taskTypeColor}
 				{editable}
@@ -114,6 +117,7 @@
 			<div class="divide-y divide-border/60" data-task-relationship-list>
 				{#each relationships.children as child (child.id)}
 					<TaskRelationshipRow
+				{statusLabel}
 						task={child}
 						{taskTypeColor}
 						{editable}

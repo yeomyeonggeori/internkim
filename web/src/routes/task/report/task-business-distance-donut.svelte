@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { taskBusinessColor, taskDefinitionPaletteColor } from '../task-definition-colors';
+	import { taskBusinessColor } from '../task-definition-colors';
+	import { paletteColorAt } from '$lib/color-picker-palette';
 	import type { TaskDefinitions } from '../task-types';
 	import type { TaskBusinessDistanceSection, TaskReportItem } from './task-report-data';
 
@@ -11,7 +12,7 @@
 	let { section, definitions }: Props = $props();
 
 	function donutColor(index: number, label: string): string {
-		if (!definitions) return taskDefinitionPaletteColor(index);
+		if (!definitions) return paletteColorAt(index);
 		return taskBusinessColor(label, definitions);
 	}
 
