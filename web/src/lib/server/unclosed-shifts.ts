@@ -74,8 +74,8 @@ export function tellingAbout(shift: UnclosedShift, timeZone: string) {
 	return {
 		memberID: shift.memberID,
 		category: 'attendance' as const,
-		title: '퇴근 기록이 없어요',
-		body: `${startedAtInWords(shift.occurredAt, timeZone)}에 출근한 기록만 있고 퇴근 기록이 없습니다. 몇 시에 퇴근하셨는지 알려주시면 기록해 둘게요.`
+		title: '퇴근 기록이 없습니다',
+		body: `${startedAtInWords(shift.occurredAt, timeZone)} 출근 후 퇴근 기록이 없습니다. 퇴근 시각을 알려주세요.`
 	};
 }
 
