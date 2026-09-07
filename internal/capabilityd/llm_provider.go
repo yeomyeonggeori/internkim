@@ -211,7 +211,7 @@ func (service Service) automaticLLMProviders(localProvider LLMProvider, companio
 	if service.Configuration.PreferCompanionLLM {
 		return []LLMProvider{companionProvider, remoteProvider, localProvider}
 	}
-	return []LLMProvider{remoteProvider, companionProvider, localProvider}
+	return []LLMProvider{remoteProvider, companionProvider}
 }
 
 func (service Service) localInferenceMode() string {

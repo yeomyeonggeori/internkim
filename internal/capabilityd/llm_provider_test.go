@@ -299,6 +299,20 @@ func TestAutoProviderFallsBackToRemote(t *testing.T) {
 	}
 }
 
+func TestAutoProviderDoesNotFallBackToLocalAfterRemoteFailure(t *testing.T) {
+	service := Service{}
+	providers := service.automaticLLMProviders(
+		staticLLMProvider{response: LLMResponse{Provider: "llamacpp", SelectedBackend: "llamacpp", Content: `{"reply":"local"}`}},
+		nil,
+		staticLLMProvider{errorValue: errTestProviderUnavailable},
+	)
+
+	_, errorValue := (AutoProvider{Providers: providers, AllowStructuredFallback: true}).CompleteStructured(context.Background(), StructuredLLMRequest{})
+	if errorValue == nil {
+		t.Fatal("expected remote failure to remain an error instead of invoking the local provider")
+	}
+}
+
 func TestLocalProviderUsesExplicitOllamaProvider(t *testing.T) {
 	service := Service{
 		Configuration: Configuration{

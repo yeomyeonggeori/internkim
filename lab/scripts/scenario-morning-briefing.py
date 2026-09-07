@@ -56,6 +56,8 @@ def run_acceptance_binary(name, command, directory, environment=None):
 
 
 def verify_database_and_model():
+    for provider_test in ["TestAutoProviderDoesNotFallBackToLocalAfterRemoteFailure", "TestStructuredLLMFailurePersistsProviderExchanges"]:
+        run_acceptance_binary(provider_test, [str(workspace / "build/briefing-provider.test"), "-test.v", "-test.run=^" + provider_test + "$"], workspace)
     database_test = "TestReconcileMorningBriefingsPersistsLifecycleAndGuardsGenericMutations"
     run_acceptance_binary(database_test, ["sudo", "-u", "postgres", "env", "BLUECLAW_TEST_POSTGRES_URL=postgresql://postgres@/postgres?host=/var/run/postgresql&sslmode=disable", str(workspace / "build/morning-briefing-postgres.test"), "-test.v", "-test.run=^" + database_test + "$"], workspace / ".dependency/blueclaw/internal/store/postgres")
     environment = {**os.environ, "BLUECLAW_E2E_LIVE": "1", "BLUECLAW_E2E_LLM_UNIX_SOCKET": "/run/internkim/capability.sock", "BLUECLAW_SCENARIO_CAPABILITY_CATALOG": str(workspace / "pkg/capabilityprotocol/generated/capability-tools.json"), "BLUECLAW_SCENARIO_SKILL_ROOTS": str(workspace / ".dependency/internkim-plugin/skills")}
@@ -92,6 +94,7 @@ def main():
     timezone = ZoneInfo(policy["company"]["timeZone"])
     profile = save("profile-before", request("/persona/api/user", persona=True))
     assert profile["morningBriefing"] == {"enabled": True, "time": "08:00"}
+    profile["language"] = {"default": "ko"}
     save("messenger-connected", connect_test_messenger())
 
     def schedule_matching(predicate=lambda value: True):
@@ -128,6 +131,8 @@ def main():
             return None
         assert len(sent) == 1, "duplicate private briefing delivery"
         names = {event["name"] for event in events}
+        contexts = [json.loads(event["body"]) for event in events if event["name"] == "task.model_visible_context"]
+        assert contexts and contexts[0]["responseLanguage"] == "ko", "scheduled run lost the requester's profile language"
         assert "tool.task_list.requested" in names, "briefing did not query live work"
         assert "tool.event_list.requested" in names, "briefing did not query live calendar"
         assert "tool.message_send.requested" not in names, "briefing sent a second message itself"
