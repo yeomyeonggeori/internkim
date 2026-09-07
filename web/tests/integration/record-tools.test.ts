@@ -321,6 +321,29 @@ describe('task_list', () => {
 		expect(titlesOf(everything)).toContain('작년에 끝낸 일');
 	});
 
+	test('counts every unfinished task before applying the result limit', async () => {
+		const prefix = `${slug} preflight`;
+		await run('task_add', {
+			title: `${prefix} 오래된 미완료 업무`,
+			startsAt: '2020-01-06',
+			endsAt: '2020-01-10'
+		});
+		await run('task_add', {
+			title: `${prefix} 미래 예정 업무`,
+			startsAt: dayAround(30),
+			endsAt: dayAround(31)
+		});
+		await run('task_add', { title: `${prefix} 진행 중 업무`, status: 'in_progress' });
+		await run('task_add', { title: `${prefix} 요청된 업무`, status: 'requested' });
+		const paused = resultOf(await run('task_add', { title: `${prefix} 멈춘 업무` }));
+		await run('task_update', { taskHint: paused.taskID, status: 'paused' });
+		await run('task_add', { title: `${prefix} 완료된 업무`, status: 'completed' });
+
+		const limited = resultOf(await run('task_list', { query: slug, everyWeek: true, limit: 1 }));
+		expect(limited.count).toBe(1);
+		expect(limited.unfinishedCount).toBe(5);
+	});
+
 	test('names the labels this company registered, with the colours it painted them', async () => {
 		const listed = resultOf(await run('task_list', { scope: 'all' }));
 		const labels = listed.registeredLabels as { businesses: { name: string }[]; etcBusinessColor?: string };
