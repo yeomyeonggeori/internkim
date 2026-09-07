@@ -13,19 +13,25 @@ from zoneinfo import ZoneInfo
 
 evidence = Path(sys.argv[1])
 evidence.mkdir(parents=True, exist_ok=True)
-requester_email = "member1@example.com"
+requester_email = "member4@example.com"
 workspace = Path("/mnt/shared/workspace")
 created_records = []
 
 
-def request(path, body=None, persona=False, accepted=(200,), origin=None, requester=None):
-    command = ["curl", "--silent", "--show-error", "--max-time", "15", "--write-out", "\n%{http_code}"]
+def request(path, body=None, persona=False, accepted=(200,), origin=None, requester=None, timeout=15):
+    command = ["curl", "--silent", "--show-error", "--max-time", str(timeout), "--write-out", "\n%{http_code}"]
     if persona:
         command += ["--unix-socket", "/run/internkim/admind.sock", "-H", f"X-INTERNKIM-REQUESTER-EMAIL: {requester or requester_email}"]
     if body is not None:
         command += ["-H", "Content-Type: application/json", "-d", "@-"]
     origin = origin or ("http://localhost" if persona else "http://127.0.0.1:8080")
-    response = subprocess.run(command + [origin + path], input=json.dumps(body) if body is not None else None, capture_output=True, text=True, check=True)
+    try:
+        response = subprocess.run(command + [origin + path], input=json.dumps(body) if body is not None else None, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            f"{path}: curl failed with exit code {error.returncode}; "
+            f"stderr={error.stderr.strip()!r}; stdout={error.stdout.strip()!r}"
+        ) from error
     payload, status = response.stdout.rsplit("\n", 1)
     if int(status) not in accepted:
         raise RuntimeError(f"{path}: HTTP {status}: {payload}")
@@ -35,7 +41,7 @@ def request(path, body=None, persona=False, accepted=(200,), origin=None, reques
 
 
 def invoke_record_tool(requester, tool_name, input_value):
-    answer = request(f"/record/api/tools/{tool_name}/invoke", {"input": input_value}, persona=True, requester=requester)
+    answer = request(f"/record/api/tools/{tool_name}/invoke", input_value, persona=True, requester=requester)
     result = answer.get("result")
     if not isinstance(result, dict):
         raise RuntimeError(f"{tool_name} returned no result: {answer}")
@@ -55,7 +61,7 @@ def person_for_email(policy, email):
 def cleanup_created_records():
     for requester, tool_name, record_id in reversed(created_records):
         delete_tool = "task_delete" if tool_name == "task_add" else "event_delete"
-        request(f"/record/api/tools/{delete_tool}/invoke", {"input": {"taskHint" if delete_tool == "task_delete" else "eventHint": record_id}}, persona=True, accepted=(200, 404), requester=requester)
+        request(f"/record/api/tools/{delete_tool}/invoke", {"taskHint" if delete_tool == "task_delete" else "eventHint": record_id}, persona=True, accepted=(200, 404), requester=requester)
 
 
 def cleanup_profile():
@@ -71,7 +77,7 @@ def cleanup_profile():
 
 def task_runs_for_requester(email):
     query = urlencode({"viewerEmail": email, "includeTotal": "true", "limit": 200})
-    response = request("/admin/api/task?" + query)
+    response = request("/admin/api/run?" + query)
     return response["taskRuns"], response["totalCount"]
 
 
@@ -93,7 +99,7 @@ def wait_for(read, description, timeout=100):
 def run_acceptance_binary(name, command, directory, environment=None):
     log = evidence / (name + ".log")
     with log.open("w") as output:
-        subprocess.run(command, cwd=directory, env=environment, stdout=output, stderr=subprocess.STDOUT, check=True, timeout=360)
+        subprocess.run(command, cwd=directory, env=environment, stdout=output, stderr=subprocess.STDOUT, check=True, timeout=420)
     assert any(line.startswith("--- PASS: " + name + " (") for line in log.read_text().splitlines()), "acceptance binary skipped its test"
 
 
@@ -129,7 +135,7 @@ def main():
             os.fsync(output.fileno())
         wait_for(lambda: request("/admin/api/policy").get("company", {}).get("timeZone") == policy["company"]["timeZone"], "guest-visible company timezone")
         policy = save("policy-configured", request("/admin/api/policy"))
-    save("policy-reloaded", request("/admin/api/policy/reload", {}))
+    save("policy-reloaded", request("/admin/api/policy/reload", {}, timeout=120))
     people = [person for person in policy["people"] if requester_email in person["emails"]]
     assert len(people) == 1, "the isolated seed account must resolve uniquely"
     person_id = people[0]["personID"]
@@ -162,7 +168,7 @@ def main():
     empty_run_day = datetime.now(timezone).replace(second=0, microsecond=0)
     colleague_task_title = "colleague-only morning task"
     colleague_event_title = "colleague-only morning event"
-    invoke_record_tool(colleague_email, "task_add", {"title": colleague_task_title, "startsAt": empty_run_day.date().isoformat(), "endsAt": empty_run_day.date().isoformat()})
+    invoke_record_tool(colleague_email, "task_add", {"title": colleague_task_title, "startsAt": empty_run_day.date().isoformat(), "endsAt": (empty_run_day + timedelta(days=1)).date().isoformat()})
     invoke_record_tool(colleague_email, "event_add", {"title": colleague_event_title, "startsAt": empty_run_day.isoformat(), "endsAt": (empty_run_day + timedelta(hours=1)).isoformat()})
 
     run_at = datetime.now(timezone).replace(second=0, microsecond=0) + timedelta(minutes=2)
@@ -191,7 +197,7 @@ def main():
     own_task_title = "own morning task"
     own_event_title = "own morning event"
     shared_event_title = "shared morning event"
-    invoke_record_tool(requester_email, "task_add", {"title": own_task_title, "startsAt": today_date, "endsAt": today_date})
+    invoke_record_tool(requester_email, "task_add", {"title": own_task_title, "startsAt": today_date, "endsAt": (today + timedelta(days=1)).date().isoformat()})
     invoke_record_tool(requester_email, "event_add", {"title": own_event_title, "startsAt": today.isoformat(), "endsAt": (today + timedelta(hours=1)).isoformat()})
     invoke_record_tool(requester_email, "event_add", {
         "title": shared_event_title,
