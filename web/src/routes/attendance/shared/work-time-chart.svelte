@@ -187,10 +187,6 @@
 					<span class="whitespace-nowrap text-muted-foreground">{text.dailyMaximum}</span>
 					<DurationText minutes={pointsSummary.maximumMinutes} size="inherit" tone="default" />
 				</div>
-				<div class="flex items-baseline justify-between gap-2">
-					<span class="whitespace-nowrap text-muted-foreground">{text.dailyMinimum}</span>
-					<DurationText minutes={pointsSummary.minimumMinutes} size="inherit" tone="default" />
-				</div>
 			</div>
 		{/if}
 		{#if footer}
