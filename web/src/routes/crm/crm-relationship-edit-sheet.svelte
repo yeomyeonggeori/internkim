@@ -173,7 +173,6 @@
 					</div>
 					<div class="grid gap-4 sm:grid-cols-2">
 						<Field.Field><Field.Label for="crm-edit-organization-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-edit-organization-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
-						<Field.Field><Field.Label for="crm-edit-organization-team">{text.team}</Field.Label><Input id="crm-edit-organization-team" value={selectedTeam || team} disabled /></Field.Field>
 					</div>
 					<Field.Field><Field.Label for="crm-edit-organization-email">{text.ownerEmail}</Field.Label><Input id="crm-edit-organization-email" type="email" value={selectedOwner?.email ?? ownerEmail} disabled /></Field.Field>
 					{#if organization}<CRMRelationshipContactManager organizationID={organization.id} {contacts} {text} onEdit={editContact} onCreate={createContact} />{/if}

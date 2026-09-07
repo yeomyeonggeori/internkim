@@ -7,7 +7,6 @@ export type CRMOrganizationStatus = 'prospect' | 'active' | 'paused';
 export type CRMOpportunityStage = CRMStage;
 export type CRMActivityKind = string;
 
-export const deviceCRMActivityKinds: CRMActivityKind[] = ['note', 'email', 'meeting', 'call', 'task', 'file', 'event'];
 export type CRMActionUrgency = 'overdue' | 'today' | 'due_soon' | 'scheduled' | 'done';
 export type CRMIntakeDraftSource = 'file' | 'mail' | 'calendar';
 export type CRMProgressKind = string;
@@ -84,6 +83,7 @@ export type CRMOpportunity = {
 	ownerPersonID?: string;
 	ownerCircleID?: string;
 	ownerName: string;
+	ownerEmail: string;
 	expectedValue?: number;
 	currency: CRMCurrency;
 	baseAmountMinor?: number;
@@ -153,7 +153,7 @@ export type CRMActivityCreateDraft = {
 	title: string;
 	occurredAt: string;
 	summary: string;
-	taskOwnerID: string;
+	participantPersonIDs: string[];
 	taskStatus: string;
 	calendar: CRMCalendarRegistrationDraft;
 };
@@ -167,7 +167,7 @@ export type CRMActivityEditDraft = {
 	title: string;
 	occurredAt: string;
 	summary: string;
-	taskOwnerID: string;
+	participantPersonIDs: string[];
 	taskStatus: string;
 	isEvent: boolean;
 	isWholeDay: boolean;
@@ -199,9 +199,10 @@ export type CRMActivity = {
 	occurredAt: string;
 	summary: string;
 	taskID: string;
-	taskStatus?: string;
-	taskOwnerID?: string;
-	taskOwnerName?: string;
+	taskStatus: string;
+	size: string;
+	participantIDs: string[];
+	participantNames: string[];
 	calendarEventID?: string;
 	calendarEventDate?: string;
 	isWholeDay?: boolean;
@@ -215,6 +216,7 @@ export type CRMPipeline = {
 	label: string;
 	direction: string;
 	isActive: boolean;
+	color?: string;
 };
 
 export type CRMPipelineStage = {

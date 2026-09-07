@@ -225,7 +225,15 @@ export const crmActivitySaveInputSchema = z.strictObject({
   note: z.string().max(8192).describe('What was said or decided.').optional(),
   status: z.enum(WorkspaceTaskStatus).describe('The status the task stands at.').optional(),
   occurredAt: z.string().describe(`When it happened. ${momentDescription}`).optional(),
-  ownerPersonHint: z.string().max(256).describe('Name, @handle or email of the colleague it belongs to.').optional(),
+  participantPersonHints: z
+    .array(z.string().max(256))
+    .describe('Names, @handles or emails of the colleagues taking part. A task has participants, not one assignee.')
+    .optional(),
+  ownerPersonHint: z
+    .string()
+    .max(256)
+    .describe('Deprecated alias for a single entry in participantPersonHints.')
+    .optional(),
   isEvent: z.boolean().describe('Set true for work that goes in the calendar, which then needs startsAt and endsAt.').optional(),
   isWholeDay: z.boolean().describe('Whether the calendar entry takes the whole day.').optional(),
   startsAt: z.string().describe(`When the calendar entry starts. ${momentDescription}`).optional(),
@@ -245,7 +253,9 @@ export const crmActivityResultSchema = z.strictObject({
   occurredAt: z.string(),
   content: z.string(),
   taskStatus: z.string(),
-  ownerPersonID: z.string(),
+  size: z.string(),
+  participantIDs: z.array(z.string()).describe('Everyone taking part, in no particular order.'),
+  ownerPersonID: z.string().describe('One of the participants, kept for callers written before participantIDs. Read participantIDs instead.'),
   requesterPersonID: z.string(),
   isEvent: z.boolean(),
   isWholeDay: z.boolean(),

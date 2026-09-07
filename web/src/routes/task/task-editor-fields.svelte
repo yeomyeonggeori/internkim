@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
-	import TaskPersonChip from './task-person-chip.svelte';
+	import PersonChip from '$lib/components/person-chip.svelte';
 	import {
 		taskStatus,
 		isTaskStatusInProgress,
@@ -70,8 +70,8 @@
 	{#if hasTaskRequestProvenance(taskDraft)}
 		<div class="grid gap-1 text-xs font-medium text-muted-foreground">
 			<span>{text.requester}</span>
-			<div class="flex h-8 w-full items-center rounded-lg border border-input bg-transparent px-2.5 text-sm font-normal text-foreground">
-				<TaskPersonChip
+			<div class="flex h-8 items-center">
+				<PersonChip
 					name={taskDraft.requesterName || memberEmail(taskDraft.requesterID || '') || taskDraft.requesterID || text.requesterUnavailable}
 					email={memberEmail(taskDraft.requesterID || '')}
 					seed={taskDraft.requesterID || taskDraft.requesterName || text.requesterUnavailable}

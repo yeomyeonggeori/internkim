@@ -3,7 +3,7 @@ import { signInToTheCRM } from './crm-central-test-utils';
 
 test.use({ locale: 'ko-KR' });
 
-test('sizes each donut total to fit instead of cutting it off', async ({ page }) => {
+test('shows each KPI hero value in full instead of cutting it off', async ({ page }) => {
 	await signInToTheCRM(page);
 
 	const clipped = await page.locator('[data-crm-kpi-value]').evaluateAll((values) =>

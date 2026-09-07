@@ -37,7 +37,7 @@
 						<span class="text-muted-foreground">{text.openValue}</span>
 						<div class="h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
 							<div
-								class="h-full rounded-full bg-primary"
+								class="h-full rounded-full bg-foreground/30"
 								data-crm-currency-bar="expected"
 								style={`width: ${row.expectedPercent}%`}
 							></div>
@@ -48,7 +48,7 @@
 						<span class="text-muted-foreground">{text.wonValue}</span>
 						<div class="h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
 							<div
-								class="h-full rounded-full bg-emerald-500"
+								class="h-full rounded-full bg-foreground"
 								data-crm-currency-bar="won"
 								style={`width: ${row.wonPercent}%`}
 							></div>
