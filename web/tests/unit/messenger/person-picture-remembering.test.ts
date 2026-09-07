@@ -5,6 +5,7 @@ let originalState: unknown;
 let personPicture: {
 	rememberExternals(externalIDs: string[]): Promise<void>;
 	pictureOfExternal(externalID: string): string;
+	pictureOf(person: { memberID?: string; email?: string; externalID?: string }): string;
 };
 
 const answers = new Map<string, () => Promise<{ dataURL: string } | null>>();
@@ -88,7 +89,13 @@ describe('a kept picture and the avatar URL it was kept from', () => {
 		});
 	});
 
+	test('a person placed by their account alone is drawn by it, with no directory to go through', () => {
+		expect(personPicture.pictureOf({ externalID: 'unchanged-account' })).toBe('data:image/png;base64,old-aaa');
+		expect(personPicture.pictureOf({ externalID: 'nobody' })).toBe('');
+	});
+
 	test('an account that no longer carries a picture has the kept copy dropped rather than redrawn', () => {
+
 		expect(personPicture.pictureOfExternal('bared-account')).toBe('');
 		expect(askedCounts.get('bared-account')).toBeUndefined();
 		expect(forgotten).toContain('bared-account');

@@ -3,7 +3,7 @@ import { fetchPeople, fetchProfilePicture } from '$lib/messenger/messenger-api';
 import { accountsHeldBy, fetchMessengerDirectory, type MessengerDirectory } from '$lib/messenger/messenger-directory';
 import { forgetCachedPicture, readCachedPictures, writeCachedPicture } from '$lib/person-picture-cache';
 
-export type PersonIdentity = { memberID?: string; email?: string };
+export type PersonIdentity = { memberID?: string; email?: string; externalID?: string };
 
 type HostPicture = { email: string; pictureURL?: string };
 
@@ -45,6 +45,13 @@ class PersonPictureStore {
 		if (!isSupabaseConfigured()) return this.rememberHostDirectory();
 		await this.knownPeople();
 		await this.rememberExternals(people.flatMap((person) => this.accountsOf(person)));
+	}
+
+	async rememberEveryone(): Promise<void> {
+		if (!isSupabaseConfigured()) return this.rememberHostDirectory();
+		const people = await this.knownPeople();
+		if (!people) return;
+		await this.rememberExternals([...people.externalsOfMember.values()].flat());
 	}
 
 	async rememberExternals(externalIDs: string[]): Promise<void> {
@@ -133,7 +140,8 @@ class PersonPictureStore {
 	}
 
 	private accountsOf(person: PersonIdentity): string[] {
-		return this.resolved ? accountsHeldBy(person, this.resolved) : [];
+		const held = this.resolved ? accountsHeldBy(person, this.resolved) : [];
+		return person.externalID ? [person.externalID, ...held] : held;
 	}
 
 	private knownPeople(): Promise<MessengerDirectory | null> {

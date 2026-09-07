@@ -1,5 +1,21 @@
 import { describe, expect, test } from 'bun:test';
-import { reasonOf, retryDelayMilliseconds, serverSocketURL } from './gateway-socket';
+import { deliveryOf, reasonOf, retryDelayMilliseconds, serverSocketURL } from './gateway-socket';
+
+describe('deliveryOf', () => {
+	test('is the frame the gateway fans out, naming an audience only when there is one', () => {
+		expect(deliveryOf({ kind: 'message.arrived', conversationID: 'channel-1' })).toEqual({
+			kind: 'deliver',
+			event: { kind: 'message.arrived', conversationID: 'channel-1' }
+		});
+		expect(deliveryOf({ kind: 'message.arrived' }, [])).toEqual({ kind: 'deliver', event: { kind: 'message.arrived' } });
+		expect(deliveryOf({ kind: 'message.arrived' }, ['m1'])).toEqual({
+			kind: 'deliver',
+			event: { kind: 'message.arrived' },
+			audienceMemberIDs: ['m1']
+		});
+	});
+});
+
 
 describe('retryDelayMilliseconds', () => {
 	test('backs off and then stops growing', () => {

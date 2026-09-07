@@ -192,3 +192,34 @@ describe('CompanyCalls.callCompany', () => {
 		await expect(calls.callCompany(companyID, { requestID: 'r1', capability: '  ' })).rejects.toThrow(TypeError);
 	});
 });
+
+describe('what the server delivers unasked', () => {
+	test('reaches the audience as the event alone, without the audience list', async () => {
+		const { object } = await companyWithAServerKey();
+		await object.fetch(
+			new Request(`https://gateway/company/${companyID}/server`, {
+				headers: { Upgrade: 'websocket', Authorization: `Bearer ${serverKey}` }
+			})
+		);
+		const serverSocket = socketHeldByTheObject;
+		if (!serverSocket) throw new Error('the object accepted no server socket');
+		await object.fetch(
+			new Request(`https://gateway/company/${companyID}/client`, {
+				headers: { Upgrade: 'websocket', 'x-internkim-member': 'm1' }
+			})
+		);
+		const clientSocket = socketHeldByTheObject;
+		if (!clientSocket || clientSocket === serverSocket) throw new Error('the object accepted no client socket');
+
+		serverSocket.receive(
+			JSON.stringify({
+				kind: 'deliver',
+				event: { kind: 'message.arrived', conversationID: 'channel-1' },
+				audienceMemberIDs: ['m1', 'm2']
+			})
+		);
+
+		const delivered = clientSocket.sent.map((document) => JSON.parse(document)).filter((frame) => frame.kind === 'deliver');
+		expect(delivered).toEqual([{ kind: 'deliver', event: { kind: 'message.arrived', conversationID: 'channel-1' } }]);
+	});
+});

@@ -12,6 +12,7 @@
 		seed = '',
 		image = '',
 		memberID = '',
+		externalID = '',
 		class: className
 	}: {
 		name?: string;
@@ -19,17 +20,19 @@
 		seed?: string;
 		image?: string;
 		memberID?: string;
+		externalID?: string;
 		class?: string;
 	} = $props();
 
 	const avatarSeed = $derived(personAvatarSeed(email, seed, name));
 	const avatarLabel = $derived(displayPersonName(name) || email || 'Person');
-	const identity = $derived({ memberID, email });
+	const identity = $derived({ memberID, email, externalID });
 	const drawn = $derived(personPicture.pictureOf(identity) || image);
 
 	$effect(() => {
-		if (memberID || email) void personPicture.remember([identity]);
+		if (memberID || email || externalID) void personPicture.remember([identity]);
 	});
+
 </script>
 
 <Avatar.Root class={cn('size-8 overflow-hidden rounded-full bg-background', className)}>

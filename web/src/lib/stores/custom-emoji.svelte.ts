@@ -14,7 +14,7 @@ class CustomEmojiStore {
 		this.hasLoaded = true;
 		try {
 			if (isSupabaseConfigured()) {
-				this.named = new Set(await this.namesFromCompanyApp());
+				this.named = new Set(await fetchCustomEmojiNames());
 				return;
 			}
 			const response = await fetch('/agent/api/custom-emoji', { credentials: 'include' });
@@ -55,18 +55,7 @@ class CustomEmojiStore {
 		this.beingDrawn.set(name, drawing);
 		return drawing;
 	}
-
-	private async namesFromCompanyApp(): Promise<string[]> {
-		for (let attempt = 0; attempt < 4; attempt += 1) {
-			try {
-				const named = await fetchCustomEmojiNames();
-				if (named.length > 0) return named;
-			} catch {
-			}
-			await new Promise((wait) => setTimeout(wait, 2000));
-		}
-		throw new Error('the app did not hand over its emoji');
-	}
 }
 
 export const customEmoji = new CustomEmojiStore();
+
