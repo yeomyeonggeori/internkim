@@ -31,6 +31,7 @@ import {
 } from './tasks';
 import { ownerNamedBy, whoseRecords, whoseRecordsHoldsAny } from './whose';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
+import { countUnfinishedTasks } from './unfinished-task-count';
 
 type TaskWritten = {
 	title?: string;
@@ -431,6 +432,7 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 		weekTo: input.weekTo ?? input.weekFrom ?? 0,
 		statusFilter: input.status ?? '',
 		count: kept.length,
+		unfinishedCount: countUnfinishedTasks(rows),
 		tasks: kept.map((row) => answeredTask(context, row)),
 		registeredLabels: registeredLabelsOf(context.labels)
 	};
