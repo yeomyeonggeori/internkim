@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openQuickAdd, recordSheet, signInToTheCRM } from './crm-central-test-utils';
+import { openCreateForm, recordSheet, signInToTheCRM } from './crm-central-test-utils';
 
 test.use({ locale: 'ko-KR' });
 
@@ -8,7 +8,7 @@ const contactName = '최견본';
 
 test('keeps a picker popover above the sheet that opened it', async ({ page }) => {
 	await signInToTheCRM(page);
-	await openQuickAdd(page, '진행 건');
+	await openCreateForm(page, '거래', '거래');
 	const sheet = recordSheet(page);
 	await sheet.getByLabel('관계처').click();
 	await page.getByRole('option', { name: organizationName, exact: true }).click();

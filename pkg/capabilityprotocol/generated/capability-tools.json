@@ -17611,9 +17611,20 @@
                   "type": "string"
                 },
                 "ownerPersonID": {
+                  "description": "One of the participants, kept for callers written before participantIDs. Read participantIDs instead.",
                   "type": "string"
                 },
+                "participantIDs": {
+                  "description": "Everyone taking part, in no particular order.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "requesterPersonID": {
+                  "type": "string"
+                },
+                "size": {
                   "type": "string"
                 },
                 "startsAt": {
@@ -17640,6 +17651,8 @@
                 "occurredAt",
                 "content",
                 "taskStatus",
+                "size",
+                "participantIDs",
                 "ownerPersonID",
                 "requesterPersonID",
                 "isEvent",
@@ -17802,9 +17815,20 @@
                     "type": "string"
                   },
                   "ownerPersonID": {
+                    "description": "One of the participants, kept for callers written before participantIDs. Read participantIDs instead.",
                     "type": "string"
                   },
+                  "participantIDs": {
+                    "description": "Everyone taking part, in no particular order.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "requesterPersonID": {
+                    "type": "string"
+                  },
+                  "size": {
                     "type": "string"
                   },
                   "startsAt": {
@@ -17831,6 +17855,8 @@
                   "occurredAt",
                   "content",
                   "taskStatus",
+                  "size",
+                  "participantIDs",
                   "ownerPersonID",
                   "requesterPersonID",
                   "isEvent",
@@ -18020,9 +18046,17 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "Name, @handle or email of the colleague it belongs to.",
+            "description": "Deprecated alias for a single entry in participantPersonHints.",
             "maxLength": 256,
             "type": "string"
+          },
+          "participantPersonHints": {
+            "description": "Names, @handles or emails of the colleagues taking part. A task has participants, not one assignee.",
+            "items": {
+              "maxLength": 256,
+              "type": "string"
+            },
+            "type": "array"
           },
           "startsAt": {
             "description": "When the calendar entry starts. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
@@ -18114,9 +18148,20 @@
             "type": "string"
           },
           "ownerPersonID": {
+            "description": "One of the participants, kept for callers written before participantIDs. Read participantIDs instead.",
             "type": "string"
           },
+          "participantIDs": {
+            "description": "Everyone taking part, in no particular order.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "requesterPersonID": {
+            "type": "string"
+          },
+          "size": {
             "type": "string"
           },
           "startsAt": {
@@ -18143,6 +18188,8 @@
           "occurredAt",
           "content",
           "taskStatus",
+          "size",
+          "participantIDs",
           "ownerPersonID",
           "requesterPersonID",
           "isEvent",
@@ -18220,9 +18267,20 @@
               "type": "string"
             },
             "ownerPersonID": {
+              "description": "One of the participants, kept for callers written before participantIDs. Read participantIDs instead.",
               "type": "string"
             },
+            "participantIDs": {
+              "description": "Everyone taking part, in no particular order.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "requesterPersonID": {
+              "type": "string"
+            },
+            "size": {
               "type": "string"
             },
             "startsAt": {
@@ -18249,6 +18307,8 @@
             "occurredAt",
             "content",
             "taskStatus",
+            "size",
+            "participantIDs",
             "ownerPersonID",
             "requesterPersonID",
             "isEvent",

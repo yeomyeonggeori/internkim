@@ -7,7 +7,7 @@
 	import CircleDotIcon from '@lucide/svelte/icons/circle-dot';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import Unlink2Icon from '@lucide/svelte/icons/unlink-2';
-	import { taskDefinitionOutlineBadgeStyle } from './task-definition-colors';
+	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
 	import {
 		isTaskStatusCompleted
 	} from './task-status';
@@ -86,13 +86,7 @@
 
 	<div class="pointer-events-none relative z-[1] min-w-0 flex-1 space-y-1.5">
 		<div class="flex min-w-0 items-center gap-2">
-			<Badge
-				variant="outline"
-				class="h-5 max-w-24 shrink-0 rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none"
-				style={taskDefinitionOutlineBadgeStyle(taskTypeColor(task.type))}
-			>
-				<span class="truncate">{taskDefinitionLabel(task.type, etcLabel)}</span>
-			</Badge>
+			<ColorMarkerBadge label={taskDefinitionLabel(task.type, etcLabel)} color={taskTypeColor(task.type)} class="max-w-24 shrink-0" />
 			<div class="truncate text-sm font-medium text-foreground">{task.content}</div>
 		</div>
 		<div class="flex min-w-0 items-center gap-1.5">

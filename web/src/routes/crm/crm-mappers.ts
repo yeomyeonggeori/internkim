@@ -11,7 +11,7 @@ import type {
 	CRMOpportunityPayload,
 	CRMOpportunityResponse
 } from './crm-api-types';
-import type { CRMVocabulary } from './crm-api-types';
+import type { CRMPipelineResponse, CRMVocabulary } from './crm-api-types';
 import type { TaskVocabulary } from '$lib/task/task-vocabulary';
 import { centralStatusFromWord, taskStatus } from '$lib/task/central-task';
 import { isTaskStatusFinished } from '../task/task-status';
@@ -58,7 +58,7 @@ export function mapCRMViewData(
 	groups: OrgGroup[] = []
 ): CRMViewData {
 	const stages = crmStages;
-	const activities = data.activities.map((activity) => mapActivity(activity));
+	const activities = data.activities.map((activity) => mapActivity(activity, people));
 	const nextActions = nextActionsOf(activities, timeZone);
 	const opportunities = data.opportunities.map((opportunity) =>
 		withNextAction(mapOpportunity(opportunity, people, catalogue), nextActions)
@@ -70,7 +70,7 @@ export function mapCRMViewData(
 		opportunities,
 		activities,
 		nextActions,
-		pipelines: data.pipelines.map((pipeline) => ({ ...pipeline })),
+		pipelines: pipelinesWithDefinedColors(data.pipelines, data.vocabulary),
 		stages,
 		vocabulary: structuredClone(data.vocabulary),
 		taskVocabulary: structuredClone(data.taskVocabulary)
@@ -82,8 +82,14 @@ export function crmPipelinesOf(vocabulary: CRMVocabulary): CRMPipeline[] {
 		pipeline: pipeline.id as CRMProgressKind,
 		label: pipeline.name,
 		direction: pipeline.direction ?? '',
-		isActive: true
+		isActive: true,
+		color: pipeline.color
 	}));
+}
+
+function pipelinesWithDefinedColors(pipelines: CRMPipelineResponse[], vocabulary: CRMVocabulary): CRMPipeline[] {
+	const colorsByID = new Map(vocabulary.pipelines.map((definition) => [definition.id, definition.color]));
+	return pipelines.map((pipeline) => ({ ...pipeline, color: colorsByID.get(pipeline.pipeline) }));
 }
 
 export function organizationPayload(organization: CRMOrganization): CRMOrganizationPayload {
@@ -200,7 +206,7 @@ export function activityPayload(activity: CRMActivity): CRMActivityPayload {
 		occurredAt: activity.occurredAt,
 		content: activity.summary,
 		taskStatus: activity.taskStatus || taskStatus.planned,
-		taskOwnerID: activity.taskOwnerID ?? '',
+		participantIDs: activity.participantIDs,
 		isEvent: Boolean(activity.calendarEventID),
 		isWholeDay: activity.isWholeDay ?? false,
 		startsAt: activity.calendarEventDate ?? '',
@@ -221,7 +227,7 @@ export function activityPayloadFromDraft(draft: Extract<CRMCreateDraft, { kind: 
 		occurredAt: new Date(draft.occurredAt).toISOString(),
 		content: draft.summary,
 		taskStatus: draft.taskStatus || taskStatus.planned,
-		taskOwnerID: draft.taskOwnerID,
+		participantIDs: draft.participantPersonIDs,
 		isEvent: draft.calendar.isRequested,
 		isWholeDay: draft.calendar.isAllDay,
 		startsAt: draft.calendar.isRequested ? new Date(draft.calendar.startTime || draft.occurredAt).toISOString() : '',
@@ -343,6 +349,7 @@ function mapOpportunity(
 		ownerPersonID: opportunity.ownerPersonID,
 		ownerCircleID: opportunity.ownerCircleID,
 		ownerName: owner?.name || owner?.email || opportunity.ownerPersonID,
+		ownerEmail: owner?.email ?? '',
 		expectedValue: minorToMajor(opportunity.amountMinor, opportunity.currencyCode, catalogue),
 		currency: opportunity.currencyCode || 'KRW',
 		baseAmountMinor: opportunity.baseAmountMinor,
@@ -358,28 +365,34 @@ function mapOpportunity(
 	};
 }
 
-function nextActionsOf(activities: CRMActivity[], timeZone: string): CRMNextAction[] {
+export function nextActionsOf(activities: CRMActivity[], timeZone: string): CRMNextAction[] {
 	return activities
-		.filter((activity) => activity.organizationID !== '' && !isTaskStatusFinished(activity.taskStatus ?? ''))
+		.filter((activity) => activity.organizationID !== '' && !isTaskStatusFinished(activity.taskStatus))
 		.map((activity) => ({
 			id: activity.id,
 			organizationID: activity.organizationID,
 			opportunityID: activity.opportunityID,
 			title: activity.title,
-			ownerName: activity.taskOwnerName ?? '',
+			ownerName: activity.participantNames[0] ?? '',
 			dueDate: utcToLocalDate(activity.occurredAt, timeZone),
-			status: centralStatusFromWord(activity.taskStatus || taskStatus.planned)
+			status: centralStatusFromWord(activity.taskStatus)
 		}));
 }
 
-function withNextAction(opportunity: CRMOpportunity, nextActions: CRMNextAction[]): CRMOpportunity {
+export function withNextAction(opportunity: CRMOpportunity, nextActions: CRMNextAction[]): CRMOpportunity {
 	const [soonest] = nextActions
 		.filter((action) => action.opportunityID === opportunity.id)
 		.sort((left, right) => left.dueDate.localeCompare(right.dueDate));
 	return soonest ? { ...opportunity, nextActionID: soonest.id } : opportunity;
 }
 
-function mapActivity(activity: CRMActivityResponse): CRMActivity {
+function memberNameOf(people: UserRecord[], memberID: string): string {
+	const person = people.find((candidate) => candidate.memberID === memberID);
+	return person?.name || person?.email || memberID;
+}
+
+function mapActivity(activity: CRMActivityResponse, people: UserRecord[]): CRMActivity {
+	const participantIDs = activity.participantIDs ?? (activity.taskOwnerID ? [activity.taskOwnerID] : []);
 	return {
 		id: activity.id,
 		organizationID: activity.organizationID ?? '',
@@ -391,9 +404,10 @@ function mapActivity(activity: CRMActivityResponse): CRMActivity {
 		occurredAt: activity.occurredAt,
 		summary: activity.content ?? '',
 		taskID: activity.id,
-		taskStatus: activity.taskStatus,
-		taskOwnerID: activity.taskOwnerID,
-		taskOwnerName: activity.taskOwnerID,
+		taskStatus: activity.taskStatus || taskStatus.planned,
+		size: activity.size ?? '',
+		participantIDs,
+		participantNames: participantIDs.map((memberID) => memberNameOf(people, memberID)),
 		calendarEventID: activity.isEvent ? activity.id : undefined,
 		calendarEventDate: activity.startsAt,
 		isWholeDay: activity.isWholeDay,

@@ -381,6 +381,35 @@ describe('the work recorded against a deal', () => {
 });
 
 describe('the activities recorded against a deal', () => {
+	test('carry every colleague taking part, not one assignee', async () => {
+		await asSample('crm_organization_add', { name: '참여자상사', types: ['customer'] });
+
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: '참여자상사',
+			title: '둘이 함께 나간 미팅',
+			kind: 'meeting',
+			participantPersonHints: ['이샘플', '최견본']
+		});
+
+		expect(recorded.status).toBe(200);
+		// task_participant carries no ordering column, so membership is the contract, not order.
+		expect([...(resultOf(recorded).participantIDs as string[])].sort()).toEqual([sampleID, adminID].sort());
+	});
+
+	test('accept the older single ownerPersonHint as one participant', async () => {
+		await asSample('crm_organization_add', { name: '단독상사', types: ['customer'] });
+
+		const recorded = await asSample('crm_activity_save', {
+			organizationHint: '단독상사',
+			title: '혼자 처리한 통화',
+			kind: 'meeting',
+			ownerPersonHint: '이샘플'
+		});
+
+		expect(recorded.status).toBe(200);
+		expect(resultOf(recorded).participantIDs).toEqual([sampleID]);
+	});
+
 	test('are written through the same task writer the task tools use', async () => {
 		const recorded = await asSample('crm_activity_save', {
 			organizationHint: 'ABC상사',

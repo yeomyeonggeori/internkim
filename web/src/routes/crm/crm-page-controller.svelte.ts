@@ -31,12 +31,14 @@ import {
 	contactPayloadFromDraft,
 	crmPipelinesOf,
 	mapCRMViewData,
+	nextActionsOf,
 	opportunityPayload,
 	opportunityPayloadFromDraft,
 	resolveOwner,
+	withNextAction,
 	type CRMViewData
 } from './crm-mappers';
-import { crmOrganizations, crmActivities, crmContacts, crmNextActions, crmOpportunities } from './dev-crm-fixture';
+import { crmFixtureActivityKindColors, crmFixturePeople, crmOrganizations, crmActivities, crmContacts, crmOpportunities } from './dev-crm-fixture';
 import { crmStages } from './crm-stages';
 import type {
 	CRMOrganization,
@@ -67,8 +69,8 @@ import {
 	createCRMRelationshipRecords,
 	CRMRelationshipContactCreateError
 } from './crm-relationship-create';
+import { crmFixtureMode as fixtureMode, crmFixturePipelineColors } from './dev-crm-fixture';
 
-const fixtureMode = import.meta.env.VITE_MOCK_CRM === '1';
 
 export class CRMPageController {
 	organizations = $state<CRMOrganization[]>([]);
@@ -303,7 +305,7 @@ export class CRMPageController {
 		};
 		await this.mutate(() => updateCRMActivity(activity.id, {
 			...activityPayload(updated),
-			taskOwnerID: draft.taskOwnerID || activity.taskOwnerID || '',
+			participantIDs: draft.participantPersonIDs.length > 0 ? draft.participantPersonIDs : activity.participantIDs,
 			taskStatus: draft.taskStatus || activity.taskStatus || taskStatus.planned
 		}));
 	}
@@ -428,26 +430,35 @@ export class CRMPageController {
 	}
 
 	private loadFixture(currentEmail: string): void {
-		this.people = [{ memberID: 'fixture-user', handle: 'fixture', name: crmOrganizations[0]?.ownerName ?? 'Fixture User', email: currentEmail || 'fixture@example.com' }];
+		this.people = [
+			...crmFixturePeople,
+			{ memberID: 'fixture-user', handle: 'fixture', name: 'Fixture User', email: currentEmail || 'fixture@example.com' }
+		];
 		this.groups = [];
 		this.organizations = structuredClone(crmOrganizations);
 		this.contacts = structuredClone(crmContacts);
-		this.opportunities = structuredClone(crmOpportunities);
 		this.activities = structuredClone(crmActivities);
-		this.nextActions = structuredClone(crmNextActions);
+		this.nextActions = nextActionsOf(this.activities, browserTimeZone());
+		this.opportunities = structuredClone(crmOpportunities).map((opportunity) =>
+			withNextAction(opportunity, this.nextActions)
+		);
 		const pipelineNames = [...new Set(this.opportunities.map((opportunity) => opportunity.kind ?? 'sales'))];
-		this.pipelines = pipelineNames.map((pipeline) => ({ pipeline, label: crmLabel(this.text.progressKinds, pipeline), direction: 'outbound', isActive: true }));
+		this.pipelines = pipelineNames.map((pipeline) => ({ pipeline, label: crmLabel(this.text.progressKinds, pipeline), direction: 'outbound', isActive: true, color: crmFixturePipelineColors[pipeline] }));
 		this.vocabulary = {
 			organization_types: [],
 			pipelines: this.pipelines.map((pipeline) => ({
 				id: pipeline.pipeline,
 				name: pipeline.label,
-				direction: pipeline.direction
+				direction: pipeline.direction,
+				color: pipeline.color
 			}))
 		};
 		this.taskVocabulary = {
 			businesses: [...new Set(this.opportunities.map((opportunity) => opportunity.business))].map((name) => ({ name })),
-			types: [...new Set(this.activities.map((activity) => activity.kind))].map((name) => ({ name }))
+			types: [...new Set(this.activities.map((activity) => activity.kind))].map((name) => ({
+				name,
+				color: crmFixtureActivityKindColors[name]
+			}))
 		};
 	}
 }

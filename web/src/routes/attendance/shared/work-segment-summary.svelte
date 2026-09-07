@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ColorMarker from '$lib/components/color-marker.svelte';
 	import TimeRangeText from '$lib/components/time-range-text.svelte';
 	import DurationText from './duration-text.svelte';
 
@@ -24,12 +25,7 @@
 <div class="grid min-w-0 gap-0.5" data-slot="work-segment-summary">
 	<div class="flex min-w-0 items-center justify-between gap-3">
 		<div class="flex min-w-0 items-center gap-1.5">
-			<span
-				class="h-3 w-1 shrink-0 rounded-full"
-				style:background-color={locationColor ?? 'var(--color-muted-foreground)'}
-				aria-hidden="true"
-				data-slot="work-segment-marker"
-			></span>
+			<ColorMarker color={locationColor} data-slot="work-segment-marker" />
 			<span class="min-w-0 truncate text-xs font-medium">{locationName}</span>
 		</div>
 		<DurationText
