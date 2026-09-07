@@ -144,7 +144,7 @@
 >
 	<div class="space-y-1 px-3 py-2">
 		<div class="flex min-w-0 items-center justify-between gap-2">
-			<div class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+			<div class="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
 				{#if primaryParticipantChip}
 					{@render primaryParticipantChip()}
 				{:else if participants.length > 1}
@@ -152,12 +152,13 @@
 						people={participants}
 						max={3}
 						class="-space-x-1"
-						avatarClass="size-3.5 ring-1 ring-card"
+						avatarClass="size-4 ring-1 ring-card"
 						label={participantNameList}
 					/>
 				{:else if primaryParticipantName}
-					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
-						<PersonAvatar name={primaryParticipantName} email={memberEmail(primaryParticipantID)} seed={primaryParticipantID || primaryParticipantName} class="size-3.5 ring-1 ring-border/60" />
+					<span class="inline-flex min-w-0 max-w-28 items-center gap-1.5">
+						<PersonAvatar name={primaryParticipantName} email={memberEmail(primaryParticipantID)} seed={primaryParticipantID || primaryParticipantName} class="size-4 ring-1 ring-border/60" />
+
 						<span class="truncate">{displayPersonName(primaryParticipantName)}</span>
 					</span>
 				{/if}
