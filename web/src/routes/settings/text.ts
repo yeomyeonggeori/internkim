@@ -42,6 +42,8 @@ export const companySettingsText = {
 			save: '저장',
 			saved: '저장했습니다.',
 			userLoadError: '내 설정을 불러오지 못했습니다.',
+			loading: '내 설정을 불러오는 중…',
+			retryLoad: '다시 불러오기',
 			userSaveError: '내 설정을 저장하지 못했습니다.',
 			soulLoadError: '성격을 불러오지 못했습니다.',
 			soulSaveError: '성격을 저장하지 못했습니다.'
@@ -225,6 +227,8 @@ export const companySettingsText = {
 			save: 'Save',
 			saved: 'Saved.',
 			userLoadError: 'Could not load your settings.',
+			loading: 'Loading your settings…',
+			retryLoad: 'Try again',
 			userSaveError: 'Could not save your settings.',
 			soulLoadError: 'Could not load the soul.',
 			soulSaveError: 'Could not save the soul.'
