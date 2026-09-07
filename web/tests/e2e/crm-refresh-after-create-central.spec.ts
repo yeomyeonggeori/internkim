@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openQuickAdd, recordSheet, removeOrganizationsNamed, signInToTheCRM } from './crm-central-test-utils';
+import { openCreateForm, recordSheet, removeOrganizationsNamed, signInToTheCRM } from './crm-central-test-utils';
 import { centralPlaneAdminClient, exampleCompanyID } from './central-test-utils';
 
 test.use({ locale: 'ko-KR' });
@@ -23,7 +23,7 @@ test('reports a refresh failure without losing a successful create', async ({ pa
 		await route.fulfill({ status: 500, json: { error: 'refresh failed', errorCode: 'request_failed' } });
 	});
 
-	await openQuickAdd(page, '관계처');
+	await openCreateForm(page, '관계처', '관계처');
 	const sheet = recordSheet(page);
 	await sheet.getByLabel('이름 또는 제목').fill(organizationName);
 	failNextOrganizationList = true;

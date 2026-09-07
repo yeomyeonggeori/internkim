@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import TaskBoardCard from '../task/task-board-card.svelte';
-	import TaskPersonChip from '../task/task-person-chip.svelte';
+	import PersonChip from '$lib/components/person-chip.svelte';
 	import type { Task } from '../task/task-types';
 	import CompanyActivityAreaChart from './company-activity-area-chart.svelte';
 	import {
@@ -113,7 +113,7 @@
 					<p class="text-sm font-medium">{text.activeTeam}</p>
 					<div class="mt-3 flex flex-wrap gap-3" aria-label={`${text.activeTeam} ${activity.members.length}`}>
 						{#each activity.members.slice(0, 12) as member}
-							<TaskPersonChip name={memberLabel(member.surname, member.jobTitle)} seed={member.seed} image={member.image ?? ''} />
+							<PersonChip name={memberLabel(member.surname, member.jobTitle)} seed={member.seed} image={member.image ?? ''} />
 						{/each}
 						{#if activity.members.length > 12}
 							<div class="bg-muted grid size-9 place-items-center rounded-full text-xs font-medium ring-2 ring-card">+{activity.members.length - 12}</div>
@@ -179,7 +179,7 @@
 						{@const publicMember = member ?? { seed: work.memberSeed, surname: '' }}
 						{@const task = publicTask(work, publicMember)}
 						{#snippet primaryParticipantChip()}
-							<TaskPersonChip name={memberLabel(publicMember.surname, publicMember.jobTitle)} seed={publicMember.seed} image={publicMember.image ?? ''} />
+							<PersonChip name={memberLabel(publicMember.surname, publicMember.jobTitle)} seed={publicMember.seed} image={publicMember.image ?? ''} />
 						{/snippet}
 						<TaskBoardCard
 							{task}

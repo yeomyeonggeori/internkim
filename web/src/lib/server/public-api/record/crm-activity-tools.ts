@@ -23,6 +23,7 @@ export type CRMActivitySaveInput = {
 	note?: string;
 	status?: string;
 	occurredAt?: string;
+	participantPersonHints?: string[];
 	ownerPersonHint?: string;
 	isEvent?: boolean;
 	isWholeDay?: boolean;
@@ -31,6 +32,12 @@ export type CRMActivitySaveInput = {
 	location?: string;
 	notifyMinutesBefore?: number;
 };
+
+function participantHintsOf(input: CRMActivitySaveInput): string[] | undefined {
+	if (input.participantPersonHints?.length) return input.participantPersonHints;
+	if (input.ownerPersonHint) return [input.ownerPersonHint];
+	return undefined;
+}
 
 function answeredActivity(row: TaskRow): CRMActivityResult {
 	return {
@@ -44,6 +51,8 @@ function answeredActivity(row: TaskRow): CRMActivityResult {
 		occurredAt: row.starts_at ?? row.due_at ?? row.created_at,
 		content: row.note ?? '',
 		taskStatus: row.status,
+		size: row.size ?? '',
+		participantIDs: row.task_participant.map((participant) => participant.member_id),
 		ownerPersonID: row.task_participant[0]?.member_id ?? '',
 		requesterPersonID: row.requester_id ?? '',
 		isEvent: row.is_event,
@@ -136,7 +145,7 @@ export async function crmActivitySave(
 		...(input.business !== undefined ? { business: input.business } : {}),
 		...(input.kind !== undefined && input.kind !== stageChangeKind ? { type: input.kind } : {}),
 		...(input.note !== undefined ? { note: input.note } : {}),
-		...(input.ownerPersonHint ? { participantPersonHints: [input.ownerPersonHint] } : {})
+		...(participantHintsOf(input) ? { participantPersonHints: participantHintsOf(input) } : {})
 	};
 
 	if (input.isEvent) {

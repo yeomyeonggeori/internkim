@@ -14,14 +14,13 @@
 
 	type Props = {
 		vocabulary: CRMVocabulary;
-		isAdmin: boolean;
 		isSaving?: boolean;
 		errorMessage?: string;
 		text: CRMDefinitionsText;
 		onSave: (vocabulary: CRMVocabulary) => Promise<void> | void;
 	};
 
-	let { vocabulary, isAdmin, isSaving = false, errorMessage = '', text, onSave }: Props = $props();
+	let { vocabulary, isSaving = false, errorMessage = '', text, onSave }: Props = $props();
 
 	const draft = new CRMDefinitionsDraft(
 		() => vocabulary,
@@ -38,7 +37,6 @@
 	}
 
 	function commit(next: CRMVocabulary): void {
-		if (!isAdmin) return;
 		draft.commit(next);
 	}
 
@@ -59,20 +57,9 @@
 	}
 </script>
 
-<section class="space-y-4" aria-labelledby="crm-definitions-title">
-	<header class="space-y-1">
-		<h2 id="crm-definitions-title" class="flex items-center gap-2 text-lg font-semibold">
-			{text.title}
-			{#if isBusy}<LoaderCircleIcon class="size-4 animate-spin text-muted-foreground" />{/if}
-		</h2>
-		<p class="text-sm text-muted-foreground">{text.description}</p>
-	</header>
-
+<section class="space-y-4" aria-label={text.title}>
 	<p class="sr-only" role="status" aria-live="polite">{isBusy ? text.saving : ''}</p>
 
-	{#if !isAdmin}
-		<p class="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">{text.readOnly}</p>
-	{/if}
 	{#if errorMessage || draft.errorMessage}
 		<p class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
 			{draft.errorMessage || errorMessage}
@@ -84,7 +71,6 @@
 			title={text.organizationTypes}
 			description={text.organizationTypesDescription}
 			items={draft.value.organization_types}
-			{isAdmin}
 			addLabel={text.add}
 			removeLabel={text.remove}
 			colorLabel={text.color}
@@ -99,7 +85,6 @@
 			title={text.pipelines}
 			description={text.pipelinesDescription}
 			items={draft.value.pipelines}
-			{isAdmin}
 			addLabel={text.add}
 			removeLabel={text.remove}
 			colorLabel={text.color}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
-	import { taskDefinitionBadgeStyle, taskDefinitionOutlineBadgeStyle } from './task-definition-colors';
+	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
+	import { taskDefinitionBadgeStyle } from './task-definition-colors';
 	import { sizeBadgeClass, statusBadgeClass } from './task-style';
 	import { taskDefinitionLabel } from './task-workspace-model';
 	import type { TaskEditorText } from './task-editor-types';
@@ -23,5 +24,5 @@
 	<Badge class="border-transparent" style={taskDefinitionBadgeStyle(businessColor(taskDraft.business))}>
 		{taskDefinitionLabel(taskDraft.business, text.etcLabel)}
 	</Badge>
-	<Badge variant="outline" style={taskDefinitionOutlineBadgeStyle(taskTypeColor(taskDraft.type))}>{taskDefinitionLabel(taskDraft.type, text.etcLabel)}</Badge>
+	<ColorMarkerBadge label={taskDefinitionLabel(taskDraft.type, text.etcLabel)} color={taskTypeColor(taskDraft.type)} />
 </div>

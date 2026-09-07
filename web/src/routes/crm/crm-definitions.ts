@@ -14,7 +14,6 @@ export type CRMDefinitionCollection = 'organization_type' | 'pipeline';
 
 export type CRMDefinitionsText = {
 	title: string;
-	description: string;
 	organizationTypes: string;
 	organizationTypesDescription: string;
 	pipelines: string;
@@ -23,7 +22,6 @@ export type CRMDefinitionsText = {
 	remove: string;
 	color: string;
 	nameRequired: string;
-	readOnly: string;
 	saving: string;
 };
 

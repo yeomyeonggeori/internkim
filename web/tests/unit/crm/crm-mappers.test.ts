@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { taskTypeColor } from '../../../src/routes/task/task-definition-colors';
 import { interimCurrencyCatalogue } from '../../../src/lib/currency/currency-catalogue';
 import {
 	activityPayload,
@@ -133,8 +134,51 @@ describe('CRM service mappers', () => {
 		expect(activityPayloadFromDraft({
 			kind: 'activity', organizationID: 'organization-1', opportunityID: 'opportunity-1', business: 'general',
 			activityKind: 'stage_change', title: '직접 생성 불가', occurredAt: '2026-08-03T15:30', summary: '',
-			taskOwnerID: '', taskStatus: '', calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' }
+			participantPersonIDs: [], taskStatus: '', calendar: { isRequested: false, isAllDay: true, startTime: '', endTime: '', location: '' }
 		}).kind).toBe('event');
+	});
+
+	test('gives an activity kind the colour its task vocabulary type carries', () => {
+		const definitions = {
+			categories: [],
+			types: ['meeting'],
+			typeColors: { meeting: '#8949e9' },
+			sizes: []
+		};
+
+		expect(taskTypeColor('meeting', definitions)).toBe('#8949e9');
+		expect(taskTypeColor('stage_change', definitions)).not.toBe('#8949e9');
+	});
+
+	test('reads an activity with no recorded status back as planned', () => {
+		const data = serviceData();
+		const view = mapCRMViewData(
+			{ ...data, activities: [{ ...data.activities[0]!, taskStatus: undefined }] },
+			[],
+			interimCurrencyCatalogue,
+			'Asia/Seoul'
+		);
+
+		expect(view.activities[0]?.taskStatus).toBe('planned');
+	});
+
+	test('gives an account and its deals the same owner email, so one person seeds one avatar', () => {
+		const view = mapCRMViewData(
+			serviceData(),
+			[{ memberID: 'person-owner', handle: 'owner', name: '담당자', email: 'owner@example.com' }],
+			interimCurrencyCatalogue,
+			'Asia/Seoul'
+		);
+
+		expect(view.opportunities[0]?.ownerEmail).toBe('owner@example.com');
+		expect(view.opportunities[0]?.ownerEmail).toBe(view.organizations[0]?.ownerEmail);
+	});
+
+	test('leaves the owner email empty when no member matches the person id', () => {
+		const view = mapCRMViewData(serviceData(), [], interimCurrencyCatalogue, 'Asia/Seoul');
+
+		expect(view.opportunities[0]?.ownerEmail).toBe('');
+		expect(view.opportunities[0]?.ownerName).toBe('person-owner');
 	});
 
 	test('stores the selected internal owner team on opportunity creation', () => {

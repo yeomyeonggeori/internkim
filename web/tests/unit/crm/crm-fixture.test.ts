@@ -2,9 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import {
 	crmOrganizations,
 	crmActivities,
-	crmNextActions,
 	crmOpportunities
 } from '../../../src/routes/crm/dev-crm-fixture';
+import { nextActionsOf, withNextAction } from '../../../src/routes/crm/crm-mappers';
 import { sumOpportunityMoney } from '../../../src/routes/crm/crm-money';
 import type {
 	CRMCurrency,
@@ -51,11 +51,13 @@ describe('CRM fixture integrity', () => {
 	});
 
 	test('references existing organizations and next actions', () => {
+		const nextActions = nextActionsOf(crmActivities, 'Asia/Seoul');
 		const organizationsByID = new Map(crmOrganizations.map((organization) => [organization.id, organization]));
 		const opportunityIDs = new Set(crmOpportunities.map((opportunity) => opportunity.id));
-		const nextActionsByID = new Map(crmNextActions.map((action) => [action.id, action]));
+		const nextActionsByID = new Map(nextActions.map((action) => [action.id, action]));
 
-		for (const opportunity of crmOpportunities) {
+		for (const stored of crmOpportunities) {
+			const opportunity = withNextAction(stored, nextActions);
 			const organization = organizationsByID.get(opportunity.organizationID);
 			if (organization === undefined) {
 				throw new Error(`opportunity ${opportunity.id} names organization ${opportunity.organizationID}, which no fixture declares`);
@@ -80,7 +82,7 @@ describe('CRM fixture integrity', () => {
 			}
 		}
 
-		for (const nextAction of crmNextActions) {
+		for (const nextAction of nextActions) {
 			expect(organizationsByID.has(nextAction.organizationID)).toBe(true);
 			if (nextAction.opportunityID) {
 				expect(opportunityIDs.has(nextAction.opportunityID)).toBe(true);

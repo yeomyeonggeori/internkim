@@ -98,7 +98,7 @@ export const taskText = {
 			saving: '저장 중...',
 			saved: '저장됨',
 			saveError: '정의를 저장하지 못했습니다.',
-			definitionInUse: '등록된 업무나 진행 건에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.',
+			definitionInUse: '등록된 업무나 거래에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.',
 			adminOnly: '정의 편집은 관리자만 가능합니다.',
 			removeAction: '삭제',
 			cancel: '취소',

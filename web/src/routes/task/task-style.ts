@@ -26,7 +26,7 @@ export function relationshipStatusIconClass(status: string): string {
 }
 
 export function sizeBadgeClass(size: string): string {
-	const baseClass = 'rounded-md border border-transparent font-mono tabular-nums text-white shadow-none';
+	const baseClass = 'rounded-md border border-transparent tabular-nums text-white shadow-none';
 	switch (size) {
 		case 'XS':
 			return `${baseClass} bg-[#6b7280]`;
