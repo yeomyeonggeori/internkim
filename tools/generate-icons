@@ -3,11 +3,9 @@
 
 assets/internkim.icon.png is the finished app icon, drawn in Icon Composer,
 and takes the slots that show a file as it is: the manifest icons Chrome
-installs from, and the Companion Tauri set. The square master is the same face
-drawn full bleed, and takes the slots a platform recuts or shrinks: the tab
-favicon, the docs favicon, the menu-bar tray, and the bot avatar. It is two
-files: internkim.square.svg, which the tab favicon is cut straight from, and
-internkim.square.png, which every raster is cut from. Replace them together.
+installs from, and the Companion Tauri set. assets/internkim.square.png is the
+same face drawn full bleed, and takes the slots a platform recuts or shrinks:
+the docs favicon, the menu-bar tray, and the bot avatar.
 
 The two slots a platform reshapes take one each. iOS paints an icon's
 transparency black and then cuts its own squircle, less round than the
@@ -25,15 +23,16 @@ the square's white silhouette as alpha, which macOS tints as a template.
 
 A tab favicon is drawn at 16 to 32 pixels, and the whole square is unreadable
 there: the face lands on a dozen pixels and the frame around it takes the rest.
-Both favicons are cut to FAVICON_FRAME instead, which fills the tile with the
-sprout, head and glasses. The vector one carries that frame as a viewBox, so it
-stays a vector.
+The docs favicon is cut to FAVICON_FRAME instead, which fills the tile with the
+sprout, head and glasses. The app's tab favicon does not take that crop at all:
+it has a third master, assets/internkim.favicon.svg, a flat mark drawn for the
+size, copied to web/static/logo.svg so a vector stays a vector.
 
 Needs Pillow and numpy on the running Python, and bun for the Tauri set.
 """
 
 import pathlib
-import re
+import shutil
 import subprocess
 import sys
 
@@ -46,7 +45,7 @@ except ImportError as error:
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 ICON_MASTER = REPOSITORY_ROOT / "assets" / "internkim.icon.png"
 SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
-SQUARE_VECTOR_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.svg"
+FAVICON_VECTOR_MASTER = REPOSITORY_ROOT / "assets" / "internkim.favicon.svg"
 FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
 TEMPLATE_DARKEST_WHITE = 150
 TEMPLATE_LIGHTEST_WHITE = 240
@@ -98,21 +97,9 @@ def write_favicon(square: Image.Image) -> None:
 
 
 def write_logo_svg() -> None:
-    left, top, side = FAVICON_FRAME
-    vector = SQUARE_VECTOR_MASTER.read_text()
-    opening = re.search(r'<svg\b[^>]*[^/]>', vector)
-    if opening is None or "viewBox" in opening.group():
-        sys.exit(f"{SQUARE_VECTOR_MASTER} must open with a <svg> tag that is not self-closing and declares no viewBox")
-    declared = re.search(rf'\bwidth="{MASTER_SIDE}"\s+height="{MASTER_SIDE}"', opening.group())
-    if declared is None:
-        sys.exit(f"{SQUARE_VECTOR_MASTER} must declare width and height {MASTER_SIDE}; FAVICON_FRAME reads that")
-    framed = vector.replace(
-        opening.group(),
-        opening.group()[:-1] + f' viewBox="{left} {top} {side} {side}">',
-        1,
-    )
-    (REPOSITORY_ROOT / "web/static/logo.svg").write_text(framed)
-    print("web/static/logo.svg", len(framed), "bytes")
+    destination = REPOSITORY_ROOT / "web/static/logo.svg"
+    shutil.copyfile(FAVICON_VECTOR_MASTER, destination)
+    print("web/static/logo.svg", destination.stat().st_size, "bytes")
 
 
 def write_tauri_set() -> None:
