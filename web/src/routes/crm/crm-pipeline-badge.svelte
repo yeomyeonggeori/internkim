@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
+	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import { crmLabel } from './crm-labels';
 	import type { CRMOpportunity, CRMOrganization, CRMPipeline } from './crm-types';
 	import { getProgressKind } from './crm-view-model';
@@ -20,4 +20,4 @@
 	const label = $derived(definition?.label ?? crmLabel(text.progressKinds, kind));
 </script>
 
-<ColorMarkerBadge {label} color={definition?.color} class={className} />
+<DefinitionBadge {label} color={definition?.color} class={className} />

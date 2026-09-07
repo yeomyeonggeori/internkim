@@ -5,7 +5,10 @@
  *
  * MIT License, Copyright (c) 2026 Outpace Studios. Full text in ./LICENSE.
  *
- * Do not edit: change it upstream and re-copy so this file keeps diffing clean.
+ * One local change: renderGradient overscans its scratch canvas by six blur radii
+ * (upstream: four), because a gaussian blur reaches about three standard deviations and
+ * the upstream margin left a translucent rim on the edge pixels. Re-copying from upstream
+ * must re-apply BLUR_EDGE_OVERSCAN.
  */
 
 /**
@@ -85,6 +88,8 @@ const GOLDEN_RATIO_CONJUGATE = 0.618033988749895;
 
 /** Default blur radius as a fraction of the rendered dimension. */
 export const DEFAULT_BLUR_FRACTION = 0.06;
+
+const BLUR_EDGE_OVERSCAN = 6;
 
 function seededRandom(seed: number): () => number {
 	let s = seed;
@@ -558,7 +563,7 @@ export function renderGradient(
 	if (!sctx) return;
 	drawMeshGradient(sctx, seed, size, options);
 
-	const scaleUp = 1 + (blur / size) * 4;
+	const scaleUp = 1 + (blur / size) * BLUR_EDGE_OVERSCAN;
 	const dw = size * scaleUp;
 	const offset = (dw - size) / 2;
 	ctx.clearRect(0, 0, size, size);

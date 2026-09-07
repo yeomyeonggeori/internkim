@@ -133,6 +133,7 @@
 							pendingTaskIDs={pendingRelationshipTaskIDs}
 							text={text.relationships}
 							{taskTypeColor}
+							{statusLabel}
 							onOpenTask={openRelatedTask}
 							onSetParent={setTaskParent}
 							onSetParents={setTaskParents}
@@ -185,6 +186,7 @@
 							pendingTaskIDs={pendingRelationshipTaskIDs}
 							text={text.relationships}
 							{taskTypeColor}
+							{statusLabel}
 							onOpenTask={openRelatedTask}
 							onSetParent={setTaskParent}
 							onSetParents={setTaskParents}

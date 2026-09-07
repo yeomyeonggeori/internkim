@@ -2,7 +2,7 @@ import { renderComponent } from '$lib/components/ui/data-table';
 import type { Column, ColumnDef } from '@tanstack/table-core';
 import { compareOptionalDate } from './task-style';
 import TaskListHeaderCell from './task-list-header-cell.svelte';
-import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
+import DefinitionBadge from '$lib/components/definition-badge.svelte';
 import TaskListBusinessCell from './task-list-business-cell.svelte';
 import TaskListParticipantsCell from './task-list-participants-cell.svelte';
 import TaskListSizeCell from './task-list-size-cell.svelte';
@@ -57,7 +57,7 @@ export function createTaskListColumns(input: TaskListColumnsInput): ColumnDef<Ta
 		{
 			accessorKey: 'type',
 			header: (context) => renderHeader(text.table.type, context.column),
-			cell: (info) => renderComponent(ColorMarkerBadge, {
+			cell: (info) => renderComponent(DefinitionBadge, {
 				label: taskDefinitionLabel(info.row.original.type, text.report.etcLabel),
 				color: taskTypeColor(info.row.original.type)
 			})
