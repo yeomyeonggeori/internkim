@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -16,14 +17,14 @@ requester_email = "member1@example.com"
 workspace = Path("/mnt/shared/workspace")
 
 
-def request(path, body=None, persona=False, accepted=(200,)):
+def request(path, body=None, persona=False, accepted=(200,), origin=None):
     command = ["curl", "--silent", "--show-error", "--max-time", "15", "--write-out", "\n%{http_code}"]
     if persona:
         command += ["--unix-socket", "/run/internkim/admind.sock", "-H", f"X-INTERNKIM-REQUESTER-EMAIL: {requester_email}"]
     if body is not None:
-        command += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
-    origin = "http://localhost" if persona else "http://127.0.0.1:8080"
-    response = subprocess.run(command + [origin + path], capture_output=True, text=True, check=True)
+        command += ["-H", "Content-Type: application/json", "-d", "@-"]
+    origin = origin or ("http://localhost" if persona else "http://127.0.0.1:8080")
+    response = subprocess.run(command + [origin + path], input=json.dumps(body) if body is not None else None, capture_output=True, text=True, check=True)
     payload, status = response.stdout.rsplit("\n", 1)
     if int(status) not in accepted:
         raise RuntimeError(f"{path}: HTTP {status}: {payload}")
@@ -62,6 +63,15 @@ def verify_database_and_model():
     run_acceptance_binary(model_test, [str(workspace / "build/morning-briefing-live.test"), "-test.v", "-test.run=^" + model_test + "$"], workspace / ".dependency/blueclaw/internal/e2e", environment)
 
 
+def connect_test_messenger():
+    with tempfile.TemporaryDirectory(prefix="briefing-member-") as directory:
+        Path(directory, "key-seed").symlink_to("/root/.internkim/secrets/buzz-key-seed")
+        subprocess.run([str(workspace / "host/buzz/my-buzz-key"), requester_email], env={**os.environ, "BUZZ_STATE_DIRECTORY": directory}, check=True, capture_output=True)
+        keys = list(Path(directory).glob("buzz-key-*.txt"))
+        assert len(keys) == 1
+        return request("/v1/platform/buzz/dm.send", {"userSecretHex": keys[0].read_text().strip(), "message": "/stop"}, origin="http://172.31.0.1:18090")
+
+
 def main():
     if len(sys.argv) < 3 or sys.argv[2] != "scheduled":
         verify_database_and_model()
@@ -82,6 +92,7 @@ def main():
     timezone = ZoneInfo(policy["company"]["timeZone"])
     profile = save("profile-before", request("/persona/api/user", persona=True))
     assert profile["morningBriefing"] == {"enabled": True, "time": "08:00"}
+    save("messenger-connected", connect_test_messenger())
 
     def schedule_matching(predicate=lambda value: True):
         query = urlencode({"creatorPersonID": person_id, "includeExpired": "true", "pageSize": 200})
@@ -94,14 +105,14 @@ def main():
     save("schedule-before", wait_for(schedule_matching, "default morning briefing"))
     profile["morningBriefing"] = {"enabled": False, "time": "09:15"}
     save("profile-disabled", request("/persona/api/user", profile, persona=True))
-    save("schedule-disabled", wait_for(lambda: schedule_matching(lambda item: item["nextRunAt"] is None), "disabled morning briefing"))
+    save("schedule-disabled", wait_for(lambda: schedule_matching(lambda item: item.get("nextRunAt") is None), "disabled morning briefing"))
     save("delete-refused", request("/admin/api/schedule/delete", {"taskScheduleID": schedule_id, "creatorPersonID": person_id}, accepted=(404,)))
     assert schedule_matching(), "generic deletion removed the built-in hook"
 
     run_at = datetime.now(timezone).replace(second=0, microsecond=0) + timedelta(minutes=2)
     profile["morningBriefing"] = {"enabled": True, "time": run_at.strftime("%H:%M")}
     save("profile-enabled", request("/persona/api/user", profile, persona=True))
-    enabled = wait_for(lambda: schedule_matching(lambda item: item["nextRunAt"] is not None), "reenabled morning briefing")
+    enabled = wait_for(lambda: schedule_matching(lambda item: item.get("nextRunAt") is not None), "reenabled morning briefing")
     assert datetime.fromisoformat(enabled["nextRunAt"].replace("Z", "+00:00")) == run_at
     save("schedule-enabled", enabled)
 
