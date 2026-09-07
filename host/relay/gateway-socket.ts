@@ -13,7 +13,17 @@ export function serverSocketURL(gatewayURL: string, companyID: string): string {
 	return `${gatewayURL.replace(/\/+$/, '')}/company/${encodeURIComponent(companyID)}/server`;
 }
 
-export type GatewayConnection = { close: () => void };
+export type GatewayConnection = {
+	close: () => void;
+	deliver: (event: Record<string, unknown>, audienceMemberIDs?: string[]) => void;
+};
+
+export function deliveryOf(
+	event: Record<string, unknown>,
+	audienceMemberIDs?: string[]
+): { kind: 'deliver'; event: Record<string, unknown>; audienceMemberIDs?: string[] } {
+	return { kind: 'deliver', event, ...(audienceMemberIDs?.length ? { audienceMemberIDs } : {}) };
+}
 
 // Bun takes headers on the client handshake; the DOM type it is checked against
 // does not describe that argument, and the server key belongs in a header
@@ -75,13 +85,24 @@ export function connectToGateway(settings: {
 		}
 	};
 
+	const deliver = (event: Record<string, unknown>, audienceMemberIDs?: string[]) => {
+		if (socket?.readyState !== WebSocket.OPEN) return;
+		try {
+			socket.send(JSON.stringify(deliveryOf(event, audienceMemberIDs)));
+		} catch {
+			report(`${String(event.kind)} never reached the gateway`);
+		}
+	};
+
 	dial();
 	return {
 		close: () => {
 			isClosed = true;
 			socket?.close();
-		}
+		},
+		deliver
 	};
+
 }
 
 export function reasonOf(body: unknown): string {

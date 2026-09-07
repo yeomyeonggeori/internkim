@@ -20,7 +20,10 @@
 		type ChannelSummary,
 		type Person
 	} from '$lib/components/channel/channel-api';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import { onCompanyEvent } from '$lib/host-bridge';
+	import type { CompanyEvent } from '$lib/company-event';
+	import { isSupabaseConfigured } from '$lib/supabase';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
@@ -186,8 +189,34 @@
 		}
 	}
 
+	const conversationsNotMine = new Set<string>();
+	let isReadingList: Promise<void> | null = null;
+
+	function readListOnArrival(event: CompanyEvent): void {
+		if (event.kind !== 'message.arrived' || !event.conversationID) return;
+		const conversationID = event.conversationID;
+		if (conversationsNotMine.has(conversationID)) return;
+		if (conversations.some((conversation) => conversation.id === conversationID)) return;
+		isReadingList ??= loadConversationList()
+			.then(() => {
+				if (!conversations.some((conversation) => conversation.id === conversationID)) {
+					conversationsNotMine.add(conversationID);
+				}
+			})
+			.catch(() => undefined)
+			.finally(() => {
+				isReadingList = null;
+			});
+	}
+
+	let stopListeningForArrivals = () => {};
+
+	onDestroy(() => stopListeningForArrivals());
+
 	onMount(async () => {
 		userChannelOrder = loadChannelOrder();
+		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(readListOnArrival);
+
 		mutedConversations()
 			.then((held) => (muted = held))
 			.catch(() => undefined);
@@ -266,8 +295,11 @@
 							name={activeConversation.name}
 							seed={activeConversation.id}
 							image={activeConversation.avatarURL ?? ''}
+							memberID={activeConversation.counterpart?.memberID ?? ''}
+							externalID={activeConversation.counterpart?.externalID ?? ''}
 							class="size-6"
 						/>
+
 					{:else if activeConversation}
 						<HashIcon class="text-muted-foreground size-5 shrink-0" />
 					{/if}
