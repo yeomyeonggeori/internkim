@@ -16,6 +16,10 @@
 	import LearnedSkillsSection from '../admin/learned-skills-section.svelte';
 	import SkillsSection from '../admin/skills-section.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { buttonVariants } from '$lib/components/ui/button';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import { adminText } from '../admin/text';
 	import { companySettingsText } from './text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -27,6 +31,7 @@
 	let isAdmin = $state(false);
 	let isLoading = $state(isSupabaseConfigured());
 	let activeTab = $state('general');
+	let isMessengerAccountOpen = $state(false);
 
 	function isAdminSession(value: unknown): boolean {
 		return typeof value === 'object' && value !== null && 'isAdmin' in value && value.isAdmin === true;
@@ -59,8 +64,22 @@
 	{/if}
 	<PersonalAPIKeys />
 	<Notifications />
-	<MyMessengerAccount />
 	<MyAgent />
+	<Collapsible.Root bind:open={isMessengerAccountOpen} class="grid gap-3">
+		<Collapsible.Trigger class={buttonVariants({ variant: 'ghost', size: 'sm', class: 'w-fit' })}>
+			{text.myMessengerManage}
+			{#if isMessengerAccountOpen}
+				<ChevronUpIcon data-icon="inline-end" />
+			{:else}
+				<ChevronDownIcon data-icon="inline-end" />
+			{/if}
+		</Collapsible.Trigger>
+		{#if isMessengerAccountOpen}
+			<Collapsible.Content>
+				<MyMessengerAccount />
+			</Collapsible.Content>
+		{/if}
+	</Collapsible.Root>
 {/snippet}
 
 {#snippet adminSections()}
