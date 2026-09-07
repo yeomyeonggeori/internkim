@@ -66,7 +66,13 @@ async function seatMember(email: string, isAdmin: boolean): Promise<string> {
 	return memberID;
 }
 
-async function seedEvent(title: string, startsAt: string, endsAt: string, isWholeDay: boolean): Promise<void> {
+async function seedEvent(
+	title: string,
+	startsAt: string,
+	endsAt: string,
+	isWholeDay: boolean,
+	participantIDs = [adminID]
+): Promise<void> {
 	const { data, error } = await client
 		.from('task')
 		.insert({
@@ -82,7 +88,9 @@ async function seedEvent(title: string, startsAt: string, endsAt: string, isWhol
 		.select('id')
 		.single<{ id: string }>();
 	if (error) throw new Error(error.message);
-	await client.from('task_participant').insert({ task_id: data.id, member_id: adminID });
+	await client.from('task_participant').insert(
+		participantIDs.map((memberID) => ({ task_id: data.id, member_id: memberID }))
+	);
 }
 
 const originalFetch = globalThis.fetch;
@@ -125,6 +133,20 @@ beforeAll(async () => {
 		companyMidnight(inDays(2), 0),
 		companyMidnight(inDays(2), 1),
 		true
+	);
+	await seedEvent(
+		'동료 일정',
+		inDays(0).toISOString(),
+		new Date(inDays(0).getTime() + 60 * 60 * 1000).toISOString(),
+		false,
+		[colleagueID]
+	);
+	await seedEvent(
+		'함께하는 일정',
+		new Date(inDays(5).getTime()).toISOString(),
+		new Date(inDays(5).getTime() + 60 * 60 * 1000).toISOString(),
+		false,
+		[adminID, colleagueID]
 	);
 
 	const { error: leaveRefused } = await client.from('leave').insert({
@@ -201,7 +223,7 @@ function leaveTitle(): string {
 }
 
 function expectedTitles(): string[] {
-	return [timedEventTitle, wholeDayEventTitle, leaveTitle()].sort();
+	return [timedEventTitle, wholeDayEventTitle, '동료 일정', '함께하는 일정', leaveTitle()].sort();
 }
 
 describe('what is on the company calendar', () => {
@@ -225,7 +247,7 @@ describe('what is on the company calendar', () => {
 		});
 	}, networkHookTimeout);
 
-	test('reaches the app as the same three entries, the day off in the colour of a day off', async () => {
+	test('reaches the app as the same entries, the day off in the colour of a day off', async () => {
 		const entries = await companyCalendarEntries(inDays(-1), inDays(7));
 
 		expect(titlesOf(entries)).toEqual(expectedTitles());
@@ -241,7 +263,35 @@ describe('what is on the company calendar', () => {
 		});
 	}, networkHookTimeout);
 
-	test('reaches a calendar app through the subscription feed as the same three entries', async () => {
+	test('filters named people before applying the limit while retaining shared entries', async () => {
+		const answered = heldToTheContract(
+			'event_list',
+			await runToolOverTheRecord(caller, client, adminID, 'event_list', {
+				startsAt: inDays(-1).toISOString(),
+				endsAt: inDays(7).toISOString(),
+				personHints: ['이샘플'],
+				limit: 1
+			}, now)
+		);
+		expect(answered.status).toBe(200);
+		const events = (answered.body as { result: { events: AnsweredEntry[] } }).result.events;
+		expect(events).toHaveLength(1);
+		expect(titlesOf(events)).toEqual([timedEventTitle]);
+
+		const allNamed = heldToTheContract(
+			'event_list',
+			await runToolOverTheRecord(caller, client, adminID, 'event_list', {
+				startsAt: inDays(-1).toISOString(),
+				endsAt: inDays(7).toISOString(),
+				personHints: ['이샘플']
+			}, now)
+		);
+		expect(allNamed.status).toBe(200);
+		const namedEntries = (allNamed.body as { result: { events: AnsweredEntry[] } }).result.events;
+		expect(titlesOf(namedEntries)).toEqual([timedEventTitle, wholeDayEventTitle, '함께하는 일정'].sort());
+	}, networkHookTimeout);
+
+	test('reaches a calendar app through the subscription feed as the same entries', async () => {
 		const feed = await calendarFeedForToken(credentials, feedToken, now);
 
 		expect(feed).toContain(`SUMMARY:${timedEventTitle}`);
