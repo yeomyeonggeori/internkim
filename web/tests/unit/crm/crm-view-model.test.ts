@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { accountStatusRank, activityStatusRank, daysLabel, effectiveContactOwner, formatCRMDate, getActivityStatusVariant, getStageVariant, opportunityStageLabel } from '../../../src/routes/crm/crm-view-model';
+import { accountStatusRank, daysLabel, effectiveContactOwner, formatCRMDate, getStageVariant, opportunityStageLabel } from '../../../src/routes/crm/crm-view-model';
+import { taskStatusRank, taskStatusVariant } from '../../../src/routes/task/task-status-style';
 import { crmText, type CRMText } from '../../../src/routes/crm/text';
 import type { CRMPipelineStage } from '../../../src/routes/crm/crm-types';
 
@@ -53,29 +54,29 @@ describe('daysLabel', () => {
 
 describe('activity status badge variants', () => {
 	test('fills a finished status, outlines the ones still waiting, and marks a failure destructive', () => {
-		expect(getActivityStatusVariant('in_progress')).toBe('default');
-		expect(getActivityStatusVariant('completed')).toBe('secondary');
-		expect(getActivityStatusVariant('planned')).toBe('outline');
-		expect(getActivityStatusVariant('requested')).toBe('outline');
-		expect(getActivityStatusVariant('paused')).toBe('outline');
-		expect(getActivityStatusVariant('rejected')).toBe('destructive');
-		expect(getActivityStatusVariant('stopped')).toBe('destructive');
+		expect(taskStatusVariant('in_progress')).toBe('default');
+		expect(taskStatusVariant('completed')).toBe('secondary');
+		expect(taskStatusVariant('planned')).toBe('outline');
+		expect(taskStatusVariant('requested')).toBe('outline');
+		expect(taskStatusVariant('paused')).toBe('outline');
+		expect(taskStatusVariant('rejected')).toBe('destructive');
+		expect(taskStatusVariant('stopped')).toBe('destructive');
 	});
 
 	test('marks a failed activity the way a lost deal is marked', () => {
-		expect(getActivityStatusVariant('rejected')).toBe(getStageVariant('lost'));
-		expect(getActivityStatusVariant('stopped')).toBe(getStageVariant('lost'));
+		expect(taskStatusVariant('rejected')).toBe(getStageVariant('lost'));
+		expect(taskStatusVariant('stopped')).toBe(getStageVariant('lost'));
 	});
 });
 
 describe('status ranks', () => {
 	test('ranks what still needs doing above what is finished', () => {
 		const ranked = ['planned', 'in_progress', 'paused', 'completed', 'rejected']
-			.sort((left, right) => activityStatusRank(right) - activityStatusRank(left));
+			.sort((left, right) => taskStatusRank(right) - taskStatusRank(left));
 
 		expect(ranked).toEqual(['planned', 'in_progress', 'paused', 'completed', 'rejected']);
-		expect(activityStatusRank('requested')).toBe(activityStatusRank('planned'));
-		expect(activityStatusRank('stopped')).toBe(activityStatusRank('rejected'));
+		expect(taskStatusRank('requested')).toBe(taskStatusRank('planned'));
+		expect(taskStatusRank('stopped')).toBe(taskStatusRank('rejected'));
 	});
 
 	test('ranks a live account above a lead, and a lead above a dormant one', () => {

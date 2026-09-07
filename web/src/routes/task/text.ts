@@ -88,8 +88,6 @@ export const taskText = {
 			etcLabel: '기타',
 			type: '종류',
 			color: '색상',
-			businessDescription: '사업은 업무가 속한 단위입니다. 값이 하나 이하이면 업무 추가 화면에서 숨깁니다.',
-			typeDescription: '종류가 없는 업무는 기타로 표시됩니다.',
 			newBusiness: '사업 추가',
 			newType: '종류 추가',
 			add: '추가',
@@ -101,11 +99,13 @@ export const taskText = {
 			definitionInUse: '등록된 업무나 거래에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.',
 			adminOnly: '정의 편집은 관리자만 가능합니다.',
 			removeAction: '삭제',
+			emptyList: '아직 없습니다.',
+			done: '완료',
 			cancel: '취소',
 			removeBusinessTitle: '사업 삭제',
-			removeBusinessDescription: '"{value}" 사업을 삭제하시겠어요? 이 작업은 즉시 적용됩니다.',
+			removeBusinessDescription: '"{name}" 사업을 삭제하시겠어요? 이 작업은 즉시 적용됩니다.',
 			removeTypeTitle: '종류 삭제',
-			removeTypeDescription: '"{value}" 종류를 삭제하시겠어요? 이 작업은 즉시 적용됩니다.'
+			removeTypeDescription: '"{name}" 종류를 삭제하시겠어요? 이 작업은 즉시 적용됩니다.'
 		},
 		filters: {
 			searchPlaceholder: '내용, 목표, 참여자 검색',
@@ -333,8 +333,6 @@ export const taskText = {
 			business: 'Business',
 			etcLabel: 'Etc.',
 			type: 'Type',
-			businessDescription: 'Businesses are the units tasks belong to. If there is one value or fewer, the business picker is hidden when adding tasks.',
-			typeDescription: 'Tasks without a type show as Etc.',
 			newBusiness: 'Add business',
 			newType: 'Add type',
 			add: 'Add',
@@ -346,11 +344,13 @@ export const taskText = {
 			definitionInUse: 'This item is used by an existing task or opportunity. Change the linked records before deleting it.',
 			adminOnly: 'Only admins can edit definitions.',
 			removeAction: 'Remove',
+			emptyList: 'None yet.',
+			done: 'Done',
 			cancel: 'Cancel',
 			removeBusinessTitle: 'Remove business',
-			removeBusinessDescription: 'Remove the "{value}" business? This change applies immediately.',
+			removeBusinessDescription: 'Remove the "{name}" business? This change applies immediately.',
 			removeTypeTitle: 'Remove type',
-			removeTypeDescription: 'Remove the "{value}" type? This change applies immediately.'
+			removeTypeDescription: 'Remove the "{name}" type? This change applies immediately.'
 		},
 		filters: {
 			searchPlaceholder: 'Search content, goal, or participant',

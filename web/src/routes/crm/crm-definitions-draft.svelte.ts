@@ -24,10 +24,6 @@ export class CRMDefinitionsDraft {
 		this.value = incoming;
 	}
 
-	edit(next: CRMVocabulary): void {
-		this.value = next;
-	}
-
 	commit(next: CRMVocabulary): void {
 		if (hasBlankName(next)) {
 			this.errorMessage = this.blankNameMessage();

@@ -1,3 +1,5 @@
+import { averageSaturation } from '$lib/color-hsl';
+
 export const colorPickerPalette = [
 	'#db3333',
 	'#c64d2f',
@@ -39,12 +41,24 @@ export const colorPickerPalette = [
 
 export const fallbackPickerColor = '#64748b';
 
-export function normalizeColor(value: string): string {
+export const paletteSaturation = averageSaturation(colorPickerPalette);
+
+const paletteHueStride = 11;
+
+export function paletteColorAt(index: number): string {
+	return colorPickerPalette[(Math.abs(index) * paletteHueStride) % colorPickerPalette.length];
+}
+
+export function parseHexColor(value: string): string | null {
 	const trimmedValue = value.trim().toLowerCase();
 	if (/^#[0-9a-f]{6}$/.test(trimmedValue)) return trimmedValue;
 	if (/^#[0-9a-f]{3}$/.test(trimmedValue)) {
 		const [, red, green, blue] = trimmedValue;
 		return `#${red}${red}${green}${green}${blue}${blue}`;
 	}
-	return fallbackPickerColor;
+	return null;
+}
+
+export function normalizeColor(value: string): string {
+	return parseHexColor(value) ?? fallbackPickerColor;
 }
