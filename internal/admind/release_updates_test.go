@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,6 +48,108 @@ func TestCheckReleaseProtocolIdentityRequiresCapabilitydAndBlueclawAgreement(t *
 	mismatchedIdentity.ProtocolVersion += "-mismatch"
 	if errorValue := service.checkReleaseProtocolIdentity(context.Background(), mismatchedIdentity); errorValue == nil {
 		t.Fatal("expected capabilityd identity mismatch")
+	}
+}
+
+func TestWaitForCapabilitydProtocolIdentityAcceptsExpectedRegistry(t *testing.T) {
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	capabilitySocketPath := startReleaseCapabilityRegistryServer(t, expectedIdentity)
+	service := Service{Configuration: Configuration{CapabilitySocketPath: capabilitySocketPath}}
+
+	if errorValue := service.waitForCapabilitydProtocolIdentity(context.Background(), expectedIdentity); errorValue != nil {
+		t.Fatalf("expected capabilityd readiness: %v", errorValue)
+	}
+}
+
+func TestWaitForCapabilitydProtocolIdentityReportsMismatch(t *testing.T) {
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	receivedIdentity := expectedIdentity
+	receivedIdentity.AggregateProtocolHash = strings.Repeat("1a", 32)
+	capabilitySocketPath := startReleaseCapabilityRegistryServer(t, receivedIdentity)
+	service := Service{Configuration: Configuration{CapabilitySocketPath: capabilitySocketPath}}
+
+	errorValue := service.checkCapabilitydProtocolIdentity(context.Background(), expectedIdentity)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "capabilityd protocol identity mismatch") {
+		t.Fatalf("expected mismatch evidence, got %v", errorValue)
+	}
+}
+
+func TestWaitForCapabilitydProtocolIdentityRespectsCancellation(t *testing.T) {
+	readinessContext, cancel := context.WithCancel(context.Background())
+	cancel()
+	service := Service{Configuration: Configuration{CapabilitySocketPath: filepath.Join(t.TempDir(), "absent.sock")}}
+
+	errorValue := service.waitForCapabilitydProtocolIdentity(readinessContext, capabilityprotocol.GeneratedProtocolIdentity())
+	if !errors.Is(errorValue, context.Canceled) {
+		t.Fatalf("expected canceled readiness, got %v", errorValue)
+	}
+}
+
+func TestInstallReleaseComponentsWaitsForCapabilitydBeforeInstallingWeb(t *testing.T) {
+	adminUIPath := filepath.Join(t.TempDir(), "admin-ui")
+	stagingPath := t.TempDir()
+	webRoot := filepath.Join(stagingPath, "web", "release")
+	if errorValue := os.MkdirAll(webRoot, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	markerPath := filepath.Join(webRoot, "ready.txt")
+	if errorValue := os.WriteFile(markerPath, []byte("ready"), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expectedIdentity := capabilityprotocol.GeneratedProtocolIdentity()
+	var registryRequestCount atomic.Int32
+	var webInstalledTooEarly atomic.Bool
+	directoryPath, errorValue := os.MkdirTemp("/tmp", "ik-cap-")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(directoryPath) })
+	socketPath := filepath.Join(directoryPath, "capability.sock")
+	listener, errorValue := net.Listen("unix", socketPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	server := &http.Server{Handler: http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/capabilities" {
+			http.NotFound(responseWriter, request)
+			return
+		}
+		if registryRequestCount.Add(1) == 1 {
+			if _, errorValue := os.Stat(adminUIPath); errorValue == nil {
+				webInstalledTooEarly.Store(true)
+			}
+			http.Error(responseWriter, "capabilityd is starting", http.StatusServiceUnavailable)
+			return
+		}
+		_ = json.NewEncoder(responseWriter).Encode(map[string]any{
+			"protocolVersion":       expectedIdentity.ProtocolVersion,
+			"aggregateProtocolHash": expectedIdentity.AggregateProtocolHash,
+			"routingCandidates":     []string{},
+		})
+	})}
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() {
+		_ = server.Close()
+		_ = listener.Close()
+	})
+
+	service := Service{Configuration: Configuration{CapabilitySocketPath: socketPath, AdminUIPath: adminUIPath}}
+	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) { return nil, nil }
+	manifest := &releaseset.Manifest{ProtocolIdentity: expectedIdentity, Components: map[string]releaseset.Component{
+		"capabilityd": {Name: "capabilityd"},
+		"web":         {Name: "web"},
+	}}
+	if errorValue := service.installReleaseComponents(context.Background(), "job-1", manifest, stagingPath); errorValue != nil {
+		t.Fatalf("install failed: %v", errorValue)
+	}
+	if registryRequestCount.Load() < 2 {
+		t.Fatalf("expected readiness retry after transient registry failure, got %d requests", registryRequestCount.Load())
+	}
+	if webInstalledTooEarly.Load() {
+		t.Fatal("web was installed before capabilityd served the expected registry")
+	}
+	if _, errorValue := os.Stat(filepath.Join(adminUIPath, "ready.txt")); errorValue != nil {
+		t.Fatalf("web was not installed after capabilityd readiness: %v", errorValue)
 	}
 }
 
