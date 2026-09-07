@@ -11,7 +11,7 @@ export const taskStatus = {
 export type TaskStatus = (typeof taskStatus)[keyof typeof taskStatus];
 
 export function cleanTaskStatus(status: string): string {
-	return status.trim();
+	return status.trim().toLowerCase();
 }
 
 export function isTaskStatusCompleted(status: string): boolean {
@@ -44,4 +44,16 @@ export function isTaskStatusStopped(status: string): boolean {
 
 export function isTaskStatusFinished(status: string): boolean {
 	return isTaskStatusCompleted(status) || isTaskStatusRejected(status) || isTaskStatusStopped(status);
+}
+
+const statusWordsWithoutLabel = new Set<string>();
+
+export function taskStatusLabelFrom(labels: Record<string, string>, status: string): string {
+	const label = labels[cleanTaskStatus(status)];
+	if (label) return label;
+	if (!statusWordsWithoutLabel.has(status)) {
+		statusWordsWithoutLabel.add(status);
+		console.warn(`no label for the task status "${status}"`);
+	}
+	return status;
 }

@@ -153,29 +153,10 @@ export function getStatusVariant(status: CRMOrganizationStatus): CRMBadgeVariant
 	return 'outline';
 }
 
-const activityStatusOrder: Array<(status: string) => boolean> = [
-	(status) => isTaskStatusRejected(status) || isTaskStatusStopped(status),
-	isTaskStatusCompleted,
-	isTaskStatusPaused,
-	isTaskStatusInProgress
-];
-
 const accountStatusOrder: CRMOrganizationStatus[] = ['paused', 'prospect', 'active'];
 
 export function accountStatusRank(status: CRMOrganizationStatus): number {
 	return accountStatusOrder.indexOf(status);
-}
-
-export function activityStatusRank(status: string): number {
-	const matched = activityStatusOrder.findIndex((matches) => matches(status));
-	return matched === -1 ? activityStatusOrder.length : matched;
-}
-
-export function getActivityStatusVariant(status: string): CRMBadgeVariant {
-	if (isTaskStatusInProgress(status)) return 'default';
-	if (isTaskStatusRejected(status) || isTaskStatusStopped(status)) return 'destructive';
-	if (isTaskStatusCompleted(status)) return 'secondary';
-	return 'outline';
 }
 
 export function getStageVariant(stage: CRMOpportunityStage): CRMBadgeVariant {

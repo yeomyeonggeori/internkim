@@ -50,7 +50,7 @@
 
 <canvas
 	bind:this={canvas}
-	class={cn('size-full rounded-[inherit]', className)}
+	class={cn(className, 'absolute -inset-px h-[calc(100%+2px)] w-[calc(100%+2px)]')}
 	style={isPainted ? undefined : `background-image: ${fallbackGradient}`}
 	aria-hidden="true"
 ></canvas>

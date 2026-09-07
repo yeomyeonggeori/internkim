@@ -1,5 +1,5 @@
 <script lang="ts">
-	import TaskEditableDefinitionListCard from './task-editable-definition-list-card.svelte';
+	import DefinitionListCard from '$lib/components/definition-list-card.svelte';
 	import { taskBusinessColor, taskTypeColor } from './task-definition-colors';
 	import TaskSizeDefinitionsCard from './task-size-definitions-card.svelte';
 	import type { TaskDefinitions } from './task-types';
@@ -14,19 +14,24 @@
 		otherExample: string;
 		note: string;
 		business: string;
-		businessDescription: string;
 		etcLabel: string;
 		color: string;
 		type: string;
-		typeDescription: string;
 		adminOnly: string;
 		saving: string;
 		save: string;
 		removeAction: string;
+		removeBusinessTitle: string;
+		removeBusinessDescription: string;
+		removeTypeTitle: string;
+		removeTypeDescription: string;
+		cancel: string;
+		done: string;
 		add: string;
 		autoSave: string;
 		saved: string;
 		saveError: string;
+		emptyList: string;
 	};
 	type DefinitionSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -34,23 +39,17 @@
 		definitions: TaskDefinitions;
 		categoryDrafts: string[];
 		setCategoryColor: (index: number, color: string) => void;
-		newCategoryColor: string;
-		newTypeColor: string;
 		setNewCategoryColor: (color: string) => void;
 		setNewTypeColor: (color: string) => void;
 		setTypeColor: (index: number, color: string) => void;
 		typeDrafts: string[];
-		newCategoryText: string;
-		newTypeText: string;
 		etcBusinessColor: string;
 		etcTypeColor: string;
 		setEtcBusinessColor: (color: string) => void;
 		setEtcTypeColor: (color: string) => void;
 		isAdmin: boolean;
 		canEditDefinitions: boolean;
-		isSavingDefinitions: boolean;
 		definitionSaveState: DefinitionSaveState;
-		definitionErrorMessage: string;
 		loadError: string;
 		text: DefinitionsText;
 		updateCategory: (index: number, value: string) => void;
@@ -68,23 +67,17 @@
 		definitions,
 		categoryDrafts,
 		setCategoryColor,
-		newCategoryColor,
-		newTypeColor,
 		setNewCategoryColor,
 		setNewTypeColor,
 		setTypeColor,
 		typeDrafts,
-		newCategoryText,
-		newTypeText,
 		etcBusinessColor,
 		etcTypeColor,
 		setEtcBusinessColor,
 		setEtcTypeColor,
 		isAdmin,
 		canEditDefinitions,
-		isSavingDefinitions,
 		definitionSaveState,
-		definitionErrorMessage,
 		loadError,
 		text,
 		updateCategory,
@@ -98,61 +91,86 @@
 		saveDefinitions
 	}: Props = $props();
 
+	const businessItems = $derived(definitionItemsOf(categoryDrafts));
+	const typeItems = $derived(definitionItemsOf(typeDrafts));
+	const saveState = $derived(saveStateLabel());
+
+	function definitionItemsOf(names: string[]): Array<{ id: string; name: string }> {
+		return names.map((name, index) => ({ id: String(index), name }));
+	}
+
+	function saveStateLabel(): string {
+		if (definitionSaveState === 'saving') return text.saving;
+		if (definitionSaveState === 'saved') return text.saved;
+		if (definitionSaveState === 'error') return text.saveError;
+		return '';
+	}
+
+	function renameDefinition(update: (index: number, value: string) => void, id: string, name: string): void {
+		update(Number(id), name);
+		saveDefinitions();
+	}
 </script>
 
 {#if canEditDefinitions}
 	<section class="grid gap-4">
 		<TaskSizeDefinitionsCard {definitions} {text} />
 		<div class="grid gap-4 lg:grid-cols-2">
-			<TaskEditableDefinitionListCard
+			<DefinitionListCard
 				title={text.business}
-				description={text.businessDescription}
-				items={categoryDrafts}
-				newValue={newCategoryText}
-				{isAdmin}
-				removeLabel={text.removeAction}
+				items={businessItems}
+				itemColor={(item) => taskBusinessColor(item.name, definitions)}
+				isEditable={isAdmin}
+				{saveState}
 				addLabel={text.add}
-				update={updateCategory}
-				remove={removeCategory}
-				add={addCategory}
-				setNewValue={setNewCategoryText}
-				{saveDefinitions}
-				itemColor={(index) => taskBusinessColor(categoryDrafts[index] ?? '', definitions)}
-				setItemColor={setCategoryColor}
-				newColor={newCategoryColor}
-				setNewColor={setNewCategoryColor}
+				removeLabel={text.removeAction}
+				removeTitle={text.removeBusinessTitle}
+				removeDescription={text.removeBusinessDescription}
+				cancelLabel={text.cancel}
 				colorLabel={text.color}
-				etcLabel={text.etcLabel}
-				etcColor={etcBusinessColor}
-				setEtcColor={setEtcBusinessColor}
+				doneLabel={text.done}
+				emptyLabel={text.emptyList}
+				fallbackItem={{ name: text.etcLabel, color: etcBusinessColor }}
+				onFallbackColorChange={setEtcBusinessColor}
+				onRename={(id, name) => renameDefinition(updateCategory, id, name)}
+				onColorChange={(id, color) => setCategoryColor(Number(id), color)}
+				onRemove={(id) => removeCategory(Number(id))}
+				onAdd={(name, color) => {
+					setNewCategoryText(name);
+					setNewCategoryColor(color);
+					addCategory();
+				}}
 			/>
-			<TaskEditableDefinitionListCard
+			<DefinitionListCard
 				title={text.type}
-				description={text.typeDescription}
-				items={typeDrafts}
-				newValue={newTypeText}
-				{isAdmin}
-				removeLabel={text.removeAction}
+				items={typeItems}
+				itemColor={(item) => taskTypeColor(item.name, definitions)}
+				isEditable={isAdmin}
+				{saveState}
 				addLabel={text.add}
-				update={updateType}
-				remove={removeType}
-				add={addType}
-				setNewValue={setNewTypeText}
-				{saveDefinitions}
-				itemColor={(index) => taskTypeColor(typeDrafts[index] ?? '', definitions)}
-				setItemColor={setTypeColor}
-				newColor={newTypeColor}
-				setNewColor={setNewTypeColor}
+				removeLabel={text.removeAction}
+				removeTitle={text.removeTypeTitle}
+				removeDescription={text.removeTypeDescription}
+				cancelLabel={text.cancel}
 				colorLabel={text.color}
-				etcLabel={text.etcLabel}
-				etcColor={etcTypeColor}
-				setEtcColor={setEtcTypeColor}
+				doneLabel={text.done}
+				emptyLabel={text.emptyList}
+				fallbackItem={{ name: text.etcLabel, color: etcTypeColor }}
+				onFallbackColorChange={setEtcTypeColor}
+				onRename={(id, name) => renameDefinition(updateType, id, name)}
+				onColorChange={(id, color) => setTypeColor(Number(id), color)}
+				onRemove={(id) => removeType(Number(id))}
+				onAdd={(name, color) => {
+					setNewTypeText(name);
+					setNewTypeColor(color);
+					addType();
+				}}
 			/>
 		</div>
 		{#if isAdmin}
 			<p class="text-muted-foreground text-sm">{text.autoSave}</p>
 		{:else}
-			<p class="text-sm text-muted-foreground">{text.adminOnly}</p>
+			<p class="text-muted-foreground text-sm">{text.adminOnly}</p>
 		{/if}
 	</section>
 {:else}

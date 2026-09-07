@@ -4,7 +4,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import Link2Icon from '@lucide/svelte/icons/link-2';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
+	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import {
 		taskChildCandidates,
 		taskParentCandidates
@@ -113,7 +113,7 @@
 					<div class="min-w-0 flex-1">
 						<div class="truncate font-medium">{candidate.content}</div>
 						<div class="mt-1 flex min-w-0 items-center gap-2">
-							<ColorMarkerBadge
+							<DefinitionBadge
 								label={taskDefinitionLabel(candidate.type, text.etcLabel)}
 								color={taskTypeColor(candidate.type)}
 								class="max-w-28"

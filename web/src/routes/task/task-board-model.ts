@@ -6,15 +6,7 @@ export type TaskBoardStatus = (typeof BOARD_STATUS_VALUES)[number];
 
 export type TaskBoardColumn = {
 	status: TaskBoardStatus;
-	theme: TaskBoardColumnTheme;
 	tasks: Task[];
-};
-
-export type TaskBoardColumnTheme = {
-	accentColor: string;
-	dotClass: string;
-	titleClass: string;
-	headerClass: string;
 };
 
 export type TaskBoardOptions = {
@@ -26,44 +18,10 @@ export type TaskBoardOptions = {
 
 export type TaskBoardWeekPosition = 'past' | 'current' | 'future';
 
-const boardColumnThemes: Record<TaskBoardStatus, TaskBoardColumnTheme> = {
-	requested: {
-		accentColor: '#7c3aed',
-		dotClass: 'bg-[#7c3aed]',
-		titleClass: 'text-[#4c1d95]',
-		headerClass: 'bg-[#f3e8ff]/70'
-	},
-	planned: {
-		accentColor: '#d97706',
-		dotClass: 'bg-[#d97706]',
-		titleClass: 'text-[#78350f]',
-		headerClass: 'bg-[#fef3c7]/80'
-	},
-	in_progress: {
-		accentColor: '#0284c7',
-		dotClass: 'bg-[#0284c7]',
-		titleClass: 'text-[#075985]',
-		headerClass: 'bg-[#e0f2fe]/80'
-	},
-	completed: {
-		accentColor: '#16a34a',
-		dotClass: 'bg-[#16a34a]',
-		titleClass: 'text-[#166534]',
-		headerClass: 'bg-[#dcfce7]/80'
-	},
-	paused: {
-		accentColor: '#e11d48',
-		dotClass: 'bg-[#e11d48]',
-		titleClass: 'text-[#9f1239]',
-		headerClass: 'bg-[#ffe4e6]/80'
-	}
-};
-
 export function buildTaskBoard(tasks: Task[], options: TaskBoardOptions = {}): TaskBoardColumn[] {
 	return BOARD_STATUS_VALUES.filter((status) => isBoardColumnVisible(status, options))
 		.map((status) => ({
 			status,
-			theme: boardColumnThemes[status],
 			tasks: tasks
 				.filter((task) => task.status === status && matchesBoardColumnWeek(task, status, options))
 				.toSorted(compareTaskBoardOrder)
