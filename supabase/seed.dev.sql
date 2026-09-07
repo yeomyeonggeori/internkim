@@ -27,7 +27,8 @@ select
 from (values
   ('000000dd-0000-0000-0000-000000000001'::uuid, 'member1@example.com'),
   ('000000dd-0000-0000-0000-000000000002'::uuid, 'member2@example.com'),
-  ('000000dd-0000-0000-0000-000000000003'::uuid, 'member3@example.com')
+  ('000000dd-0000-0000-0000-000000000003'::uuid, 'member3@example.com'),
+  ('000000dd-0000-0000-0000-000000000004'::uuid, 'member4@example.com')
 ) as person(account_id, email)
 on conflict (id) do nothing;
 
@@ -39,7 +40,7 @@ select
   jsonb_build_object('sub', account.id::text, 'email', account.email, 'email_verified', true),
   'email', now(), now(), now()
 from auth.users account
-where account.email in ('member1@example.com', 'member2@example.com', 'member3@example.com')
+where account.email in ('member1@example.com', 'member2@example.com', 'member3@example.com', 'member4@example.com')
 on conflict (provider, provider_id) do nothing;
 
 insert into public.company (
@@ -71,7 +72,10 @@ insert into public.member (
    'active', true, '2024-01-02T00:00:00+09'),
   ('000000ee-0000-0000-0000-000000000003', '000000cc-0000-0000-0000-000000000001', 'member3@example.com',
    '000000dd-0000-0000-0000-000000000003', '박예시', '연구원', '000000bb-0000-0000-0000-000000000002',
-   'active', false, '2026-02-17T00:00:00+09')
+   'active', false, '2026-02-17T00:00:00+09'),
+  ('000000ee-0000-0000-0000-000000000004', '000000cc-0000-0000-0000-000000000001', 'member4@example.com',
+   '000000dd-0000-0000-0000-000000000004', '최견본', '연구원', null,
+   'active', false, '2026-09-01T00:00:00+09')
 on conflict (id) do nothing;
 
 update public.member set supervisor_id = '000000ee-0000-0000-0000-000000000002'

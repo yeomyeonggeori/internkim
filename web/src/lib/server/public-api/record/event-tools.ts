@@ -19,6 +19,7 @@ import {
 } from './days';
 import { labelOf } from './labels';
 import { peopleOfHints } from './people';
+import { whoseRecords, whoseRecordsHoldsAny } from './whose';
 import type { RecordContext } from './company';
 import {
 	deleteTask,
@@ -313,6 +314,7 @@ export type EventListInput = {
 	weekFrom?: number;
 	weekTo?: number;
 	query?: string;
+	personHints?: string[];
 	limit?: number;
 };
 
@@ -386,7 +388,14 @@ export async function eventList(context: RecordContext, input: EventListInput) {
 	);
 
 	const asked = (input.query ?? '').trim().toLowerCase();
+	const personHints = input.personHints?.filter((hint) => hint.trim() !== '');
+	const whose = personHints?.length
+		? whoseRecords(context.people, personHints, undefined, context.requesterID)
+		: null;
 	const found = entries.filter((entry) => {
+		if (whose && !whoseRecordsHoldsAny(whose, entry.participants.map((participant) => participant.personID))) {
+			return false;
+		}
 		if (!asked) return true;
 		const searched = `${entry.title} ${entry.description} ${entry.location}`;
 		return searched.toLowerCase().includes(asked);

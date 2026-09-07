@@ -319,6 +319,7 @@ export const taskDeleteInputIntentSchema = z.strictObject({});
 export const taskListResultSchema = z.strictObject({
   tasks: z.array(taskResultSchema),
   count: z.number().int(),
+  unfinishedCount: z.number().int().describe('Number of unfinished tasks among all matching rows before the optional limit is applied.'),
   scope: z.string(),
   weekFrom: z.number().int().optional(),
   weekTo: z.number().int().optional(),
@@ -405,6 +406,7 @@ export const calendarListInputSchema = z.strictObject({
     .optional(),
   weekTo: z.number().int().describe('End of the week range as an offset from this week.').optional(),
   query: z.string().describe('Optional free-text filter matched against event titles, notes, and locations.').optional(),
+  personHints: z.array(z.string()).describe("Only calendar entries whose participants include these exact person IDs, names, @handles, or emails. For a personal briefing, supply the requester's exact person ID or email. Omit to read the visible company calendar.").optional(),
   limit: z.number().positive().refine(Number.isInteger, 'Limit must be a whole number.').describe('Maximum number of events to return.').optional(),
 });
 
