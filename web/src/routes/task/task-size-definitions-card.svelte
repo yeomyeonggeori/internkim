@@ -2,8 +2,9 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
+	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import { taskSizes } from '$lib/task/task-sizes';
 	import { sizeBadgeClass } from './task-style';
-	import type { TaskDefinitions } from './task-types';
 
 	type SizeDefinitionsText = {
 		size: string;
@@ -17,11 +18,11 @@
 	};
 
 	type Props = {
-		definitions: TaskDefinitions;
 		text: SizeDefinitionsText;
 	};
 
-	let { definitions, text }: Props = $props();
+	let { text }: Props = $props();
+	const sizes = $derived(taskSizes(currentLocale.value));
 </script>
 
 <Card.Root>
@@ -43,7 +44,7 @@
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
-					{#each definitions.sizes as size (size.name)}
+					{#each sizes as size (size.name)}
 						<Table.Row>
 							<Table.Cell><Badge class={sizeBadgeClass(size.name)}>{size.name}</Badge></Table.Cell>
 							<Table.Cell class="text-right tabular-nums">{size.distanceKm}</Table.Cell>

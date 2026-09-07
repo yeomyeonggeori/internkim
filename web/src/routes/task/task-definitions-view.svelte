@@ -114,7 +114,7 @@
 
 {#if canEditDefinitions}
 	<section class="grid gap-4">
-		<TaskSizeDefinitionsCard {definitions} {text} />
+		<TaskSizeDefinitionsCard {text} />
 		<div class="grid gap-4 lg:grid-cols-2">
 			<DefinitionListCard
 				title={text.business}
