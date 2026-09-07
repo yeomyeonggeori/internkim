@@ -30,16 +30,16 @@
 		<Card.Title class="text-sm">{text.leave.summaryTitle}</Card.Title>
 	</Card.Header>
 	<Card.Content class="space-y-2 px-3 pb-3 pt-1">
-		<div class="grid grid-cols-[1fr_1fr_auto] gap-2">
+		<div class="grid grid-cols-[1fr_1fr_auto] gap-2" data-testid="leave-balance-summary-columns">
 			<div>
 				<p class="text-[11px] text-muted-foreground">{text.leave.summaryUsed}</p>
 				<p class="mt-0.5 text-sm font-semibold tabular-nums">{days(summary?.usedMilliDays)}</p>
 			</div>
-			<div class="text-center">
+			<div>
 				<p class="text-[11px] text-muted-foreground">{text.leave.summaryPending}</p>
 				<p class="mt-0.5 text-sm font-semibold tabular-nums">{days(summary?.reservedMilliDays)}</p>
 			</div>
-			<div class="text-right">
+			<div>
 				<p class="text-[11px] text-muted-foreground">{text.leave.summaryAvailable}</p>
 				<p class="mt-0.5 whitespace-nowrap text-sm font-semibold tabular-nums">
 					{isUnlimited ? text.leave.summaryUnlimited : days(summary?.availableMilliDays)}
