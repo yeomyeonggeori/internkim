@@ -164,6 +164,7 @@ export async function forwardToChatd(
 export type Served = { status: number; body: unknown; replyTo: string | null };
 
 export type Dispatch = {
+	messageArrived: (conversationID: string, messageID: string) => void;
 	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
 	askAdmindAPI: (request: PublicAPIRequest) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
@@ -245,7 +246,9 @@ async function serveForMember(
 		return { status: 409, body: { error: 'this member has connected no messenger account' }, replyTo };
 	}
 	if (capability === sendCapability) {
-		return { ...(await sendKeepingWhatIsRefused(dispatch, body, actor)), replyTo };
+		const sent = await sendKeepingWhatIsRefused(dispatch, body, actor);
+		if (sent.status < 300) dispatch.messageArrived(String(body.conversationID ?? ''), messageIDOf(sent.body));
+		return { ...sent, replyTo };
 	}
 	if (capability === readCapability) {
 		return { ...(await keptForReading(dispatch, body, actor)), replyTo };
@@ -313,7 +316,13 @@ async function sendKeepingWhatIsRefused(
 	return dispatch.askChatd(sendCapability, { ...body, attachments, actor });
 }
 
+function messageIDOf(body: unknown): string {
+	const id = (body as { id?: unknown } | null)?.id;
+	return typeof id === 'string' ? id : '';
+}
+
 function refusedAttachmentsOf(answer: { status: number; body: unknown }): number[] {
+
 	if (answer.status !== refusedStatus) return [];
 	const refused = (answer.body as { refusedAttachments?: unknown } | null)?.refusedAttachments;
 	if (!Array.isArray(refused)) return [];

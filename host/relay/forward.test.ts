@@ -34,10 +34,12 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const asked: { capability: string; body: Record<string, unknown> }[] = [];
 	const connected: { memberID: string; account: ConnectedAccount }[] = [];
 	const admindCalls: AdmindCall[] = [];
+	const arrivals: { conversationID: string; messageID: string }[] = [];
 	return {
 		asked,
 		connected,
 		admindCalls,
+		arrivals,
 		dispatch: {
 			connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 				connected.push({ memberID, account });
@@ -75,6 +77,10 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			emailOfMember: async (memberID: string) =>
 				memberID === 'member-1' ? 'sample@example.test' : null,
 			messengerCredentialOf: async () => ({ kind: 'buzz-secret', secret: 'a-held-secret' }),
+			messageArrived: (conversationID: string, messageID: string) => {
+				arrivals.push({ conversationID, messageID });
+			},
+
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null,
 			keepAttachment: async (contentBase64: string) => ({
 				address: keptAddress(contentBase64),
@@ -108,10 +114,11 @@ describe('persona identity forwarding', () => {
 });
 
 function dispatchThatRefuses(refusedAttachments: { index: number; filename: string }[]) {
-	const { asked, dispatch } = dispatchThatKnows({});
+	const { asked, arrivals, dispatch } = dispatchThatKnows({});
 	let sends = 0;
 	return {
 		asked,
+		arrivals,
 		dispatch: {
 			...dispatch,
 			askChatd: async (capability: string, body: Record<string, unknown>) => {
@@ -244,11 +251,13 @@ describe('a message carrying a file the messenger will not store', () => {
 	};
 
 	test('is sent again with that file kept where the company can read it', async () => {
-		const { asked, dispatch } = dispatchThatRefuses([{ index: 1, filename: 'page.html' }]);
+		const { asked, arrivals, dispatch } = dispatchThatRefuses([{ index: 1, filename: 'page.html' }]);
 
 		const served = await serveCallForMember(dispatch, send, 'member-1');
 
 		expect(served.status).toBe(200);
+		expect(arrivals).toEqual([{ conversationID: 'channel-1', messageID: 'event-1' }]);
+
 		const sent = asked.filter((entry) => entry.capability === 'person.message.send');
 		expect(sent).toHaveLength(2);
 		expect(sent[1]?.body.attachments).toEqual([

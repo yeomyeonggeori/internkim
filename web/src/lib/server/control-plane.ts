@@ -527,14 +527,24 @@ export async function agentOfKey(
 ): Promise<{ agentID: string; companyID: string } | null> {
 	const { data, error } = await client
 		.from('agent')
-		.select('id, company_id, revoked_at')
+		.select('id, company_id, revoked_at, last_seen_at')
 		.eq('api_key_hash', await hashOf(apiKey))
 		.maybeSingle();
 	if (error) throw new Error(`agent key: ${error.message}`);
 	if (!data || data.revoked_at) return null;
 
-	await client.from('agent').update({ last_seen_at: new Date().toISOString() }).eq('id', data.id);
+	if (isLastSeenStale(data.last_seen_at)) {
+		await client.from('agent').update({ last_seen_at: new Date().toISOString() }).eq('id', data.id);
+	}
 	return { agentID: data.id, companyID: data.company_id };
+}
+
+const lastSeenFreshForMilliseconds = 60_000;
+
+export function isLastSeenStale(lastSeenAt: string | null, now: number = Date.now()): boolean {
+	if (!lastSeenAt) return true;
+	const seenAt = Date.parse(lastSeenAt);
+	return Number.isNaN(seenAt) || now - seenAt >= lastSeenFreshForMilliseconds;
 }
 
 async function hashOf(secret: string): Promise<string> {

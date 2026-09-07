@@ -284,7 +284,8 @@ export class CompanyConnectionObject {
 			this.answer(parsed);
 			return;
 		}
-		this.deliver(JSON.stringify(parsed), parsed.audienceMemberIDs);
+		this.deliver(JSON.stringify({ kind: 'deliver', event: parsed.event }), parsed.audienceMemberIDs);
+
 	}
 
 	private answer(answer: ServerAnswer): void {

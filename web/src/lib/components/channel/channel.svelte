@@ -42,6 +42,10 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
+	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
+	import { onCompanyEvent } from '$lib/host-bridge';
+	import type { CompanyEvent } from '$lib/company-event';
+	import { isSupabaseConfigured } from '$lib/supabase';
 	import { onDestroy, onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 
@@ -52,7 +56,7 @@
 	} = $props();
 
 	const text = createPageText(channelText);
-	const idleRefreshIntervalMs = 5000;
+	const idleRefreshIntervalMs = isSupabaseConfigured() ? 30_000 : 5000;
 	const workingRefreshIntervalMs = 1500;
 
 	type PendingAttachment = {
@@ -403,6 +407,27 @@
 		}, delay);
 	}
 
+	let isReadingAgain = false;
+	let isAnotherReadWanted = false;
+
+	async function readAgainOnArrival(event: CompanyEvent) {
+		if (event.kind !== 'message.arrived' || !channelId || event.conversationID !== channelId) return;
+		if (isReadingAgain) {
+			isAnotherReadWanted = true;
+			return;
+		}
+		isReadingAgain = true;
+		try {
+			do {
+				isAnotherReadWanted = false;
+				await loadConversation();
+			} while (isAnotherReadWanted);
+		} finally {
+			isReadingAgain = false;
+		}
+		scheduleRefresh();
+	}
+
 	async function submitMessage(event: SubmitEvent) {
 		event.preventDefault();
 		const trimmedMessage = composerValue.trim();
@@ -546,13 +571,17 @@
 		loadConversation();
 	});
 
+	let stopListeningForArrivals = () => {};
+
 	onMount(async () => {
 		customEmoji.load();
+		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent((event) => void readAgainOnArrival(event));
 		await loadCurrentUser();
 		scheduleRefresh();
 	});
 
 	onDestroy(() => {
+		stopListeningForArrivals();
 		clearTimeout(refreshTimer);
 		clearAttachments();
 	});
@@ -583,7 +612,10 @@
 {/snippet}
 
 {#snippet messageBody(message: ChannelMessage)}
-	{@const attachments = message.attachments ?? []}
+	{@const attachments = (message.attachments ?? []).map((attachment) => ({
+		...attachment,
+		source: attachment.source || attachmentSource.openable(attachment.url)
+	}))}
 	{@const bodyText = messageTextBeside(
 		message.text,
 		attachments.map((attachment) => attachment.url)
@@ -800,7 +832,10 @@
 			email={sender.email ?? ''}
 			seed={sender.email || sender.id || sender.name}
 			image={sender.avatarURL ?? ''}
+			memberID={sender.memberID ?? ''}
+			externalID={sender.externalID ?? ''}
 		/>
+
 	</Message.Avatar>
 {/snippet}
 
