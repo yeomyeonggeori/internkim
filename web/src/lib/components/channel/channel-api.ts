@@ -18,6 +18,8 @@ export type ChannelParticipant = {
 	name: string;
 	email?: string;
 	avatarURL?: string;
+	memberID?: string;
+	externalID?: string;
 };
 
 export type ChannelChoiceOption = {
@@ -120,9 +122,11 @@ export type ChannelSummary = {
 	kind: 'dm' | 'group';
 	isPrivate?: boolean;
 	avatarURL?: string;
+	counterpart?: { memberID?: string; externalID?: string };
 	platform?: string;
 	webURL?: string;
 };
+
 
 export async function fetchConversations(): Promise<ChannelSummary[]> {
 	if (isSupabaseConfigured()) return bridgeConversations();
