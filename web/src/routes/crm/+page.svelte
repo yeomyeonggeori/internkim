@@ -19,6 +19,7 @@
 	import CRMContactEditSheet from './crm-contact-edit-sheet.svelte';
 	import CRMContactTable from './crm-contact-table.svelte';
 	import CRMDefinitionsEditor from './crm-definitions-editor.svelte';
+	import { crmFixtureMode } from './dev-crm-fixture';
 	import { currentCRMDate } from './crm-date';
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
 	import CRMKPICell from './crm-kpi-card.svelte';
@@ -78,13 +79,14 @@
 	const currencyCatalogue = $derived(controller.currencyCatalogue);
 	const companyBaseCurrency = $derived(controller.companyBaseCurrency);
 	const organizationTypeDefinitions = $derived(controller.vocabulary.organization_types);
+	let isAdmin = $state(crmFixtureMode);
 	const tabItems: Array<{ value: CRMTab; label: string }> = $derived([
 		{ value: 'relationships', label: text.relationships },
 		{ value: 'contacts', label: text.contactDirectory },
 		{ value: 'pipeline', label: text.pipeline },
 		{ value: 'activities', label: text.activities },
 		{ value: 'reports', label: text.reports },
-		{ value: 'definitions', label: text.definitions.title }
+		...(isAdmin ? [{ value: 'definitions' as CRMTab, label: text.definitions.title }] : [])
 	]);
 
 	let selectedTab = $state<CRMTab>('relationships');
@@ -111,7 +113,6 @@
 	let createKind = $state<CRMRecordKind>('relationship');
 	let createOrganizationID = $state('');
 	let feedbackMessage = $state('');
-	let isAdmin = $state(false);
 	let activityKinds = $derived(controller.activityKindOptions);
 	let organizationTypeFilters = $derived<CRMOrganizationTypeFilter[]>(['all', ...controller.organizationTypeOptions]);
 	let statusFilterOptions = $derived(
@@ -177,6 +178,10 @@
 	onMount(() => {
 		void controller.load(page.data.session?.email ?? '');
 		if (isSupabaseConfigured()) void supabaseMemberRole().then((role) => (isAdmin = role === 'admin'));
+	});
+
+	$effect(() => {
+		if (!isAdmin && selectedTab === 'definitions') selectedTab = 'relationships';
 	});
 
 	$effect(() => {
@@ -419,8 +424,8 @@
 				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} opportunities={controller.opportunities} people={controller.people} taskDefinitions={activityTaskDefinitions} {text} onEdit={openActivityEdit} />
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard organizations={controller.organizations} opportunities={controller.opportunities} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} {text} onOpenOrganization={openOrganization} /></UnderlineTabs.Content>
-			<UnderlineTabs.Content value="definitions" class="min-w-0 pb-24"><CRMDefinitionsEditor vocabulary={controller.vocabulary} {isAdmin} isSaving={controller.isSaving} errorMessage={controller.errorMessage} text={text.definitions} onSave={(vocabulary) => controller.saveVocabulary(vocabulary)} /></UnderlineTabs.Content>
+			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard organizations={controller.organizations} opportunities={controller.opportunities} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} {text} onOpenOrganization={openOrganization} /></UnderlineTabs.Content>
+			<UnderlineTabs.Content value="definitions" class="min-w-0 pb-24"><CRMDefinitionsEditor vocabulary={controller.vocabulary} isSaving={controller.isSaving} errorMessage={controller.errorMessage} text={text.definitions} onSave={(vocabulary) => controller.saveVocabulary(vocabulary)} /></UnderlineTabs.Content>
 		</UnderlineTabs.Root>
 	{/if}
 </main>
