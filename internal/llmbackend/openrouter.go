@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -51,6 +52,33 @@ func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request
 	if isActionTurnStructuredRequest(request) {
 		return backend.completeActionStructured(ctx, apiKey, request, backend.actionModelNames(modelName))
 	}
+	return backend.completeStructuredModels(ctx, apiKey, request, backend.actionModelNames(modelName))
+}
+
+func (backend OpenRouterBackend) completeStructuredModels(ctx context.Context, apiKey string, request StructuredRequest, modelNames []string) (Response, error) {
+	attemptErrors := []error{}
+	for _, modelName := range modelNames {
+		if errorValue := ctx.Err(); errorValue != nil {
+			return Response{}, errors.Join(append(attemptErrors, errorValue)...)
+		}
+		response, errorValue := backend.completeStructuredModel(ctx, apiKey, request, modelName)
+		if errorValue == nil {
+			if len(attemptErrors) > 0 {
+				response.UsedFallback = true
+				response.FallbackReason = joinedErrors(attemptErrors)
+			}
+			return response, nil
+		}
+		log.Printf("structured completion attempt failed: model=%s error=%v", modelName, truncatedAttemptErrorText(errorValue))
+		attemptErrors = append(attemptErrors, fmt.Errorf("%s: %w", modelName, errorValue))
+		if contextError := ctx.Err(); contextError != nil {
+			return Response{}, errors.Join(append(attemptErrors, contextError)...)
+		}
+	}
+	return Response{}, errors.Join(attemptErrors...)
+}
+
+func (backend OpenRouterBackend) completeStructuredModel(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
 	if prefersPromptedStructuredJSON(modelName) {
 		return backend.completePromptedJSON(ctx, apiKey, request, modelName)
 	}
@@ -58,9 +86,18 @@ func (backend OpenRouterBackend) CompleteStructured(ctx context.Context, request
 	if errorValue == nil {
 		return response, nil
 	}
+	if isStructuredOutputLimitError(errorValue) {
+		return response, errorValue
+	}
+	if contextError := ctx.Err(); contextError != nil {
+		return Response{}, errors.Join(errorValue, contextError)
+	}
 	promptedResponse, promptedError := backend.completePromptedJSON(ctx, apiKey, request, modelName)
 	if promptedError == nil {
 		return promptedResponse, nil
+	}
+	if isStructuredOutputLimitError(promptedError) {
+		return promptedResponse, errors.Join(errorValue, promptedError)
 	}
 	// A model that answers with nothing has not refused the schema, it has
 	// dropped the turn: the same request succeeds on the next attempt. Giving up
@@ -144,22 +181,7 @@ func (backend OpenRouterBackend) completeJSONSchema(ctx context.Context, apiKey 
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
-	content, usage, errorValue := backend.send(ctx, apiKey, requestDocument)
-	if errorValue != nil {
-		return Response{}, errorValue
-	}
-	content = normalizeStructuredJSONContent(content)
-	if errorValue := validateStructuredJSONContent(content); errorValue != nil {
-		return Response{}, errorValue
-	}
-	return Response{
-		Provider:        "openrouter",
-		Model:           modelName,
-		Content:         content,
-		SelectedBackend: capabilities.LLMBackendRemote,
-		ConstraintMode:  ConstraintModeOpenAIJSONSchema,
-		Usage:           usage,
-	}, nil
+	return backend.completeStructuredDocument(ctx, apiKey, requestDocument, modelName, ConstraintModeOpenAIJSONSchema)
 }
 
 func (backend OpenRouterBackend) completePromptedJSON(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
@@ -167,11 +189,18 @@ func (backend OpenRouterBackend) completePromptedJSON(ctx context.Context, apiKe
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
-	content, usage, errorValue := backend.send(ctx, apiKey, requestDocument)
+	return backend.completeStructuredDocument(ctx, apiKey, requestDocument, modelName, ConstraintModePromptedJSON)
+}
+
+func (backend OpenRouterBackend) completeStructuredDocument(ctx context.Context, apiKey string, requestDocument []byte, modelName string, constraintMode string) (Response, error) {
+	completion, errorValue := backend.send(ctx, apiKey, requestDocument)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
-	content = normalizeStructuredJSONContent(content)
+	if completion.FinishReason == "length" {
+		return Response{}, structuredOutputLimitError{ModelName: modelName, Usage: completion.Usage}
+	}
+	content := normalizeStructuredJSONContent(completion.Content)
 	if errorValue := validateStructuredJSONContent(content); errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -180,8 +209,8 @@ func (backend OpenRouterBackend) completePromptedJSON(ctx context.Context, apiKe
 		Model:           modelName,
 		Content:         content,
 		SelectedBackend: capabilities.LLMBackendRemote,
-		ConstraintMode:  ConstraintModePromptedJSON,
-		Usage:           usage,
+		ConstraintMode:  constraintMode,
+		Usage:           completion.Usage,
 	}, nil
 }
 
@@ -195,16 +224,16 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
-	content, usage, errorValue := backend.send(ctx, apiKey, requestDocument)
+	completion, errorValue := backend.send(ctx, apiKey, requestDocument)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
 	return Response{
 		Provider:        "openrouter",
 		Model:           modelName,
-		Content:         content,
+		Content:         completion.Content,
 		SelectedBackend: capabilities.LLMBackendRemote,
-		Usage:           usage,
+		Usage:           completion.Usage,
 	}, nil
 }
 
@@ -272,10 +301,30 @@ func prefersPromptedStructuredJSON(modelName string) bool {
 	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(modelName)), ":free")
 }
 
-func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (string, Usage, error) {
+type openRouterCompletion struct {
+	Content      string
+	FinishReason string
+	Usage        Usage
+}
+
+type structuredOutputLimitError struct {
+	ModelName string
+	Usage     Usage
+}
+
+func (failure structuredOutputLimitError) Error() string {
+	return fmt.Sprintf("structured response exceeded completion limit: model=%s finish_reason=length completion_tokens=%d reasoning_tokens=%d", failure.ModelName, failure.Usage.CompletionTokens, failure.Usage.ReasoningTokens)
+}
+
+func isStructuredOutputLimitError(errorValue error) bool {
+	var failure structuredOutputLimitError
+	return errors.As(errorValue, &failure)
+}
+
+func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (openRouterCompletion, error) {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
-		return "", Usage{}, errorValue
+		return openRouterCompletion{}, errorValue
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
@@ -283,36 +332,33 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {
-		return "", Usage{}, errorValue
+		return openRouterCompletion{}, errorValue
 	}
 	defer httpResponse.Body.Close()
 
 	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
 	if errorValue != nil {
-		return "", Usage{}, errors.New("read openrouter response: " + errorValue.Error())
+		return openRouterCompletion{}, errors.New("read openrouter response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", Usage{}, normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
+		return openRouterCompletion{}, normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
 	}
 	if len(bytes.TrimSpace(responseDocument)) == 0 {
-		return "", Usage{}, errors.New("openrouter response body was empty")
+		return openRouterCompletion{}, errors.New("openrouter response body was empty")
 	}
 
-	var parsed struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Usage openAIUsage `json:"usage"`
-	}
+	var parsed openAIResponseWithUsage
 	if errorValue := json.Unmarshal(responseDocument, &parsed); errorValue != nil {
-		return "", Usage{}, errorValue
+		return openRouterCompletion{}, errorValue
 	}
 	if len(parsed.Choices) == 0 {
-		return "", Usage{}, errors.New("openrouter response did not include choices")
+		return openRouterCompletion{}, errors.New("openrouter response did not include choices")
 	}
-	return parsed.Choices[0].Message.Content, normalizeUsage(parsed.Usage), nil
+	return openRouterCompletion{
+		Content:      parsed.Choices[0].Message.Content,
+		FinishReason: parsed.Choices[0].FinishReason,
+		Usage:        normalizeUsage(parsed.Usage),
+	}, nil
 }
 
 func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet, lintResult NativeSchemaLintResult) (string, Usage, error) {
