@@ -20,6 +20,7 @@ function opportunity(
 		pipeline: 'sales',
 		stage,
 		ownerName: '이샘플',
+		ownerEmail: 'sample@example.com',
 		expectedValue,
 		currency,
 		importance: 'medium',
@@ -47,32 +48,34 @@ describe('CRM KPI money details', () => {
 
 		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], pipelines, stages, crmText.ko)[0];
 
-		expect(pipelineHealth?.totalValue).toBe('4개 통화');
+		expect(pipelineHealth?.totalValue).toBe('₩1,700만');
 		expect(pipelineHealth?.totalMoneyDetails).toEqual([
-			{ currency: 'KRW', displayValue: 'KRW 1,700만' },
-			{ currency: 'USD', displayValue: 'USD 2만' },
-			{ currency: 'JPY', displayValue: 'JPY 320만' },
-			{ currency: 'EUR', displayValue: 'EUR 5만' }
+			{ currency: 'KRW', displayValue: '₩1,700만' },
+			{ currency: 'USD', displayValue: '$2만' },
+			{ currency: 'JPY', displayValue: '¥320만' },
+			{ currency: 'EUR', displayValue: '€5만' }
 		]);
 		expect(pipelineHealth?.segments[0]).toMatchObject({
 			label: '정상 진행',
 			displayValue: '2건',
+			tone: 'neutral',
 			moneyDetails: [
-				{ currency: 'KRW', displayValue: 'KRW 1,200만' },
-				{ currency: 'USD', displayValue: 'USD 2만' }
+				{ currency: 'KRW', displayValue: '₩1,200만' },
+				{ currency: 'USD', displayValue: '$2만' }
 			]
 		});
 		expect(pipelineHealth?.segments[1]).toMatchObject({
 			label: '정체',
-			displayValue: 'EUR 5만'
+			displayValue: '€5만'
 		});
 		expect(pipelineHealth?.segments[1]?.moneyDetails).toBe(undefined);
 		expect(pipelineHealth?.segments[2]).toMatchObject({
 			label: '보류',
 			displayValue: '2건',
+			tone: 'attention',
 			moneyDetails: [
-				{ currency: 'KRW', displayValue: 'KRW 500만' },
-				{ currency: 'JPY', displayValue: 'JPY 320만' }
+				{ currency: 'KRW', displayValue: '₩500만' },
+				{ currency: 'JPY', displayValue: '¥320만' }
 			]
 		});
 	});
@@ -112,7 +115,31 @@ describe('CRM KPI money details', () => {
 		]);
 	});
 
-	test('counts the same records in the donut as in the number beside it', () => {
+	test('paints each composition segment with the colour its pipeline definition carries, leaving the remainder to the tone ladder', () => {
+		const pipelines: CRMPipeline[] = [
+			{ pipeline: 'e6c1', label: '연구 협력', direction: 'outbound', isActive: true, color: '#2563eb' },
+			{ pipeline: 'a24f', label: '판매', direction: 'outbound', isActive: true, color: '#0d9488' },
+			{ pipeline: 'b91d', label: '후원', direction: 'outbound', isActive: true }
+		];
+		const opportunities = [
+			{ ...opportunity('research', 'KRW', 1000, 'in_progress', 1), pipeline: 'e6c1' },
+			{ ...opportunity('sales', 'KRW', 1000, 'in_progress', 1), pipeline: 'a24f' },
+			{ ...opportunity('sponsor', 'KRW', 1000, 'in_progress', 1), pipeline: 'b91d' },
+			{ ...opportunity('other', 'KRW', 1000, 'in_progress', 1), pipeline: 'c02e' }
+		];
+		const stages: CRMPipelineStage[] = [{ stage: 'in_progress', label: 'in_progress', position: 1, outcome: 'open' }];
+
+		const composition = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], pipelines, stages, crmText.ko)[3];
+
+		expect(composition?.segments.map((segment) => [segment.label, segment.color])).toEqual([
+			['연구 협력', '#2563eb'],
+			['판매', '#0d9488'],
+			['후원', undefined],
+			['기타', undefined]
+		]);
+	});
+
+	test('counts the same records in the breakdown as in the hero value beside it', () => {
 		const organizations = [
 			{ ...organization('active-recent', '2026-08-02'), status: 'active' as const },
 			{ ...organization('paused-one', '2026-08-02'), status: 'paused' as const },
@@ -151,11 +178,11 @@ describe('CRM KPI money details', () => {
 
 		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], pipelines, stages, crmText.ko, undefined, 'ko', view)[0];
 
-		expect(pipelineHealth?.totalValue).toBe('2.9만');
+		expect(pipelineHealth?.totalValue).toBe('$2.9만');
 		expect(pipelineHealth?.totalMoneyDetails).toBe(undefined);
 	});
 
-	test('keeps the compact currency-count summary when the view currency does not cover every total', () => {
+	test('falls back to the view-currency total, never a currency count, when the rates do not cover every total', () => {
 		const opportunities = [
 			opportunity('moving-krw', 'KRW', 12000000, 'in_progress', 2),
 			opportunity('moving-usd', 'USD', 20000, 'review', 5),
@@ -174,12 +201,12 @@ describe('CRM KPI money details', () => {
 
 		const pipelineHealth = buildCRMKPICards(interimCurrencyCatalogue, [], opportunities, [], pipelines, stages, crmText.ko, undefined, 'ko', view)[0];
 
-		expect(pipelineHealth?.totalValue).toBe('4개 통화');
+		expect(pipelineHealth?.totalValue).toBe('$2만');
 		expect(pipelineHealth?.totalMoneyDetails).toEqual([
-			{ currency: 'KRW', displayValue: 'KRW 1,200만' },
-			{ currency: 'USD', displayValue: 'USD 2만' },
-			{ currency: 'JPY', displayValue: 'JPY 320만' },
-			{ currency: 'EUR', displayValue: 'EUR 5만' }
+			{ currency: 'KRW', displayValue: '₩1,200만' },
+			{ currency: 'USD', displayValue: '$2만' },
+			{ currency: 'JPY', displayValue: '¥320만' },
+			{ currency: 'EUR', displayValue: '€5만' }
 		]);
 	});
 });

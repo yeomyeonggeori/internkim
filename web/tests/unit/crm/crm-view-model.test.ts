@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { daysLabel, formatCRMDate, opportunityStageLabel } from '../../../src/routes/crm/crm-view-model';
+import { accountStatusRank, activityStatusRank, daysLabel, effectiveContactOwner, formatCRMDate, getActivityStatusVariant, getStageVariant, opportunityStageLabel } from '../../../src/routes/crm/crm-view-model';
 import { crmText, type CRMText } from '../../../src/routes/crm/text';
 import type { CRMPipelineStage } from '../../../src/routes/crm/crm-types';
 
@@ -21,7 +21,7 @@ describe('opportunityStageLabel', () => {
 	});
 
 	test('falls back to the static table when the label is just the id', () => {
-		expect(opportunityStageLabel(stages, 'waiting', text)).toBe('대기');
+		expect(opportunityStageLabel(stages, 'waiting', text)).toBe('신규');
 	});
 
 	test('shows the raw id when nothing knows it', () => {
@@ -48,5 +48,86 @@ describe('daysLabel', () => {
 
 	test('uses the plural template for more than one day', () => {
 		expect(daysLabel(3, minimalText)).toBe('3일');
+	});
+});
+
+describe('activity status badge variants', () => {
+	test('fills a finished status, outlines the ones still waiting, and marks a failure destructive', () => {
+		expect(getActivityStatusVariant('in_progress')).toBe('default');
+		expect(getActivityStatusVariant('completed')).toBe('secondary');
+		expect(getActivityStatusVariant('planned')).toBe('outline');
+		expect(getActivityStatusVariant('requested')).toBe('outline');
+		expect(getActivityStatusVariant('paused')).toBe('outline');
+		expect(getActivityStatusVariant('rejected')).toBe('destructive');
+		expect(getActivityStatusVariant('stopped')).toBe('destructive');
+	});
+
+	test('marks a failed activity the way a lost deal is marked', () => {
+		expect(getActivityStatusVariant('rejected')).toBe(getStageVariant('lost'));
+		expect(getActivityStatusVariant('stopped')).toBe(getStageVariant('lost'));
+	});
+});
+
+describe('status ranks', () => {
+	test('ranks what still needs doing above what is finished', () => {
+		const ranked = ['planned', 'in_progress', 'paused', 'completed', 'rejected']
+			.sort((left, right) => activityStatusRank(right) - activityStatusRank(left));
+
+		expect(ranked).toEqual(['planned', 'in_progress', 'paused', 'completed', 'rejected']);
+		expect(activityStatusRank('requested')).toBe(activityStatusRank('planned'));
+		expect(activityStatusRank('stopped')).toBe(activityStatusRank('rejected'));
+	});
+
+	test('ranks a live account above a lead, and a lead above a dormant one', () => {
+		const ranked = ['paused', 'active', 'prospect']
+			.sort((left, right) => accountStatusRank(right as never) - accountStatusRank(left as never));
+
+		expect(ranked).toEqual(['active', 'prospect', 'paused']);
+	});
+});
+
+describe('the owner a contact shows', () => {
+	const people = [{ memberID: 'person-own', handle: 'own', name: '박예시', email: 'yesi@example.com' }];
+	const organizations = [
+		{
+			id: 'organization-one',
+			name: '샘플 임팩트 랩',
+			types: ['customer' as const],
+			status: 'active' as const,
+			importance: 'medium' as const,
+			ownerName: '이샘플',
+			ownerEmail: 'sample@example.com',
+			ownerPersonID: 'person-account',
+			team: '',
+			tags: [],
+			description: '',
+			lastContactDate: '2026-08-01',
+			nextActionDate: '',
+			openOpportunityCount: 0,
+			expectedValues: {}
+		}
+	];
+
+	function contact(ownerPersonID?: string) {
+		return { id: 'contact-one', organizationID: 'organization-one', name: '최견본', title: '', email: '', ownerPersonID };
+	}
+
+	test('falls back to the account owner when the contact has none of its own', () => {
+		expect(effectiveContactOwner(contact(), organizations, people)).toEqual({
+			name: '이샘플',
+			email: 'sample@example.com',
+			seed: 'person-account'
+		});
+	});
+
+	test('keeps the contact’s own owner when it has one', () => {
+		expect(effectiveContactOwner(contact('person-own'), organizations, people)?.name).toBe('박예시');
+	});
+
+	test('has nobody to show when neither the contact nor its account names an owner', () => {
+		const ownerless = [{ ...organizations[0], ownerName: '', ownerEmail: '', ownerPersonID: undefined }];
+
+		expect(effectiveContactOwner(contact(), ownerless, people)).toBe(undefined);
+		expect(effectiveContactOwner(contact(), [], people)).toBe(undefined);
 	});
 });

@@ -2,10 +2,9 @@
 	import * as Select from '$lib/components/ui/select';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { currencyDisplayNamesFor, currencyNameOf } from '$lib/currency/currency-name';
-	import { isSupabaseConfigured } from '$lib/supabase-session';
 	import { toast } from 'svelte-sonner';
 	import type { CurrencyCatalogue } from '$lib/currency/currency-catalogue';
-	import { crmViewCurrency } from './crm-view-currency.svelte';
+	import { crmViewCurrency, isViewCurrencyAvailable } from './crm-view-currency.svelte';
 	import { formatViewRateHint } from './crm-money';
 	import type { CRMText } from './text';
 
@@ -24,18 +23,13 @@
 		formatViewRateHint(crmViewCurrency.selected, crmViewCurrency.ratesBySource)
 	);
 
-	$effect(() => {
-		if (!isSupabaseConfigured()) return;
-		void crmViewCurrency.follow(companyBaseCurrency, sourceCurrencies);
-	});
-
 	async function handleChange(value: string): Promise<void> {
 		const succeeded = await crmViewCurrency.choose(value, sourceCurrencies);
 		if (!succeeded) toast.error(text.viewCurrencyFailed);
 	}
 </script>
 
-{#if isSupabaseConfigured()}
+{#if isViewCurrencyAvailable()}
 	<Select.Root
 		type="single"
 		value={crmViewCurrency.selected}
@@ -44,9 +38,6 @@
 	>
 		<Select.Trigger class="shrink-0" aria-label={text.viewCurrency}>
 			{crmViewCurrency.selected || companyBaseCurrency || text.viewCurrency}
-			{#if rateHint !== ''}
-				<span class="text-xs whitespace-nowrap text-muted-foreground">{rateHint}</span>
-			{/if}
 		</Select.Trigger>
 		<Select.Content class="max-h-72">
 			{#each currencyCatalogue as option (option.code)}
@@ -55,6 +46,9 @@
 					<span class="truncate text-muted-foreground">{currencyNameOf(option, currencyDisplayNames)}</span>
 				</Select.Item>
 			{/each}
+			{#if rateHint !== ''}
+				<p class="mt-1 border-t px-2 pb-1 pt-2 text-xs text-muted-foreground">{rateHint}</p>
+			{/if}
 		</Select.Content>
 	</Select.Root>
 {/if}

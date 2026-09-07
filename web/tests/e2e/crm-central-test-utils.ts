@@ -7,9 +7,11 @@ export async function signInToTheCRM(page: Page, email?: string): Promise<void> 
 	await page.locator('[data-crm-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
 }
 
-export async function openQuickAdd(page: Page, kind: string): Promise<void> {
-	await page.getByRole('button', { name: '빠른 추가' }).click();
-	await page.getByRole('menuitem', { name: kind, exact: true }).click();
+export async function openCreateForm(page: Page, tab: string, createButton: string): Promise<void> {
+	await page.getByRole('tab', { name: tab, exact: true }).click();
+	// Scoped to the toolbar: sortable column headers are buttons carrying the same labels.
+	const toolbar = page.getByRole('tabpanel', { name: tab }).locator('div').first();
+	await toolbar.getByRole('button', { name: createButton, exact: true }).click();
 }
 
 export function recordSheet(page: Page): Locator {

@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
-	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipelineStage } from './crm-types';
+	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipeline, CRMPipelineStage } from './crm-types';
 	import { CRMPipelineBoardDragController } from './crm-pipeline-board-drag-controller.svelte';
 	import { crmLabel } from './crm-labels';
 	import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
 	import { findOrganizationByID, findNextActionByID, formatCRMDate, getProgressKind, opportunityStageLabel } from './crm-view-model';
+	import { dealStageIcon } from './crm-status-icons';
+	import CRMPipelineBadge from './crm-pipeline-badge.svelte';
 	import { formatViewMoney } from './crm-money';
 	import { crmViewCurrency } from './crm-view-currency.svelte';
 		import type { CRMText } from './text';
@@ -13,13 +15,14 @@
 	type Props = {
 		opportunities: CRMOpportunity[];
 		organizations: CRMOrganization[];
+		pipelines: CRMPipeline[];
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
 		text: CRMText;
 		onMove: (request: CRMPipelineBoardMoveRequest) => void;
 	};
 
-	let { opportunities, organizations, nextActions, stages, text, onMove }: Props = $props();
+	let { opportunities, organizations, pipelines, nextActions, stages, text, onMove }: Props = $props();
 
 	const columnClass = [
 		'crm-pipeline-board-column group flex h-full min-h-0',
@@ -58,6 +61,7 @@
 					{@const stage = stageDefinition.stage}
 					{@const canDrag = stageDefinition.outcome !== 'won' && stageDefinition.outcome !== 'lost'}
 					{@const stageOpportunities = opportunities.filter((opportunity) => opportunity.stage === stage)}
+					{@const StageIcon = dealStageIcon(stage)}
 				<section
 					class={columnClass}
 					role="group"
@@ -67,7 +71,10 @@
 					ondrop={(event) => boardDrag.handleColumnDrop(event, stage, stageOpportunities)}
 				>
 					<header class="flex h-11 items-center justify-between gap-3 border-b bg-card px-3">
-						<h2 class="truncate text-sm font-semibold text-foreground">{opportunityStageLabel(stages, stage, text)}</h2>
+						<h2 class="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-foreground">
+							<StageIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+							<span class="truncate">{opportunityStageLabel(stages, stage, text)}</span>
+						</h2>
 						<span
 							class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground"
 							aria-label={`${opportunityStageLabel(stages, stage, text)} ${stageOpportunities.length}`}
@@ -112,11 +119,9 @@
 										<p class="mt-1 truncate text-xs text-muted-foreground">{organization?.name ?? text.none}</p>
 									</div>
 									<div class="flex flex-wrap gap-1.5">
-										<Badge variant="outline" class="h-5 rounded-md border-border/70 bg-muted/30 px-1.5 py-0 text-[11px] font-normal text-muted-foreground shadow-none">
-											{crmLabel(text.progressKinds, getProgressKind(opportunity, organization))}
-										</Badge>
-										<Badge variant="secondary" class="h-5 rounded-md bg-muted px-1.5 py-0 text-[11px] font-medium text-foreground/75 shadow-none">
-											{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value, crmViewCurrency.selected)}
+										<CRMPipelineBadge {opportunity} {organization} {pipelines} {text} />
+										<Badge variant="secondary" class="ml-auto h-5 bg-muted px-1.5 py-0 text-[11px] font-medium tabular-nums text-foreground/75 shadow-none">
+											{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value)}
 										</Badge>
 									</div>
 									<div class="text-xs leading-5 text-muted-foreground">

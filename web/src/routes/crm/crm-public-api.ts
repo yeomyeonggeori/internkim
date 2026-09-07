@@ -222,7 +222,7 @@ function activityInput(payload: CRMActivityPayload): Record<string, unknown> {
 		note: payload.content ?? '',
 		status: payload.taskStatus || taskStatus.planned,
 		occurredAt: payload.occurredAt,
-		ownerPersonHint: payload.taskOwnerID ?? '',
+		participantPersonHints: payload.participantIDs,
 		isEvent: payload.isEvent,
 		isWholeDay: payload.isEvent && payload.isWholeDay,
 		...(payload.isEvent ? { startsAt: payload.startsAt || payload.occurredAt } : {}),

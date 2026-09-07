@@ -20,11 +20,6 @@ export function taskDefinitionPaletteColor(index: number): string {
 	return colorPickerPalette[strideIndex];
 }
 
-export function taskDefinitionOutlineBadgeStyle(color: string): string {
-	if (!color) return '';
-	return `color: ${color}; border-color: ${color}66; background: ${color}0f;`;
-}
-
 export function taskDefinitionBadgeStyle(color: string): string {
 	if (!color) return '';
 	return `background: ${color}; color: #ffffff;`;

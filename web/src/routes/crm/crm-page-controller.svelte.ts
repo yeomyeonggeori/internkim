@@ -31,12 +31,14 @@ import {
 	contactPayloadFromDraft,
 	crmPipelinesOf,
 	mapCRMViewData,
+	nextActionsOf,
 	opportunityPayload,
 	opportunityPayloadFromDraft,
 	resolveOwner,
+	withNextAction,
 	type CRMViewData
 } from './crm-mappers';
-import { crmOrganizations, crmActivities, crmContacts, crmNextActions, crmOpportunities } from './dev-crm-fixture';
+import { crmFixtureActivityKindColors, crmFixtureMode as fixtureMode, crmFixtureOrganizationTypeColors, crmFixturePeople, crmFixturePipelineColors, crmOrganizations, crmActivities, crmContacts, crmOpportunities } from './dev-crm-fixture';
 import { crmStages } from './crm-stages';
 import type {
 	CRMOrganization,
@@ -68,7 +70,6 @@ import {
 	CRMRelationshipContactCreateError
 } from './crm-relationship-create';
 
-const fixtureMode = import.meta.env.VITE_MOCK_CRM === '1';
 
 export class CRMPageController {
 	organizations = $state<CRMOrganization[]>([]);
@@ -237,7 +238,11 @@ export class CRMPageController {
 	}
 
 	async saveVocabulary(vocabulary: CRMVocabulary): Promise<void> {
-		if (fixtureMode) throw new Error(this.text.fixtureModeReadOnly);
+		if (fixtureMode) {
+			this.vocabulary = cloneCRMVocabulary(vocabulary);
+			this.pipelines = crmPipelinesOf(vocabulary);
+			return;
+		}
 		this.isSaving = true;
 		this.error = null;
 		this.permissionDenied = false;
@@ -303,7 +308,7 @@ export class CRMPageController {
 		};
 		await this.mutate(() => updateCRMActivity(activity.id, {
 			...activityPayload(updated),
-			taskOwnerID: draft.taskOwnerID || activity.taskOwnerID || '',
+			participantIDs: draft.participantPersonIDs.length > 0 ? draft.participantPersonIDs : activity.participantIDs,
 			taskStatus: draft.taskStatus || activity.taskStatus || taskStatus.planned
 		}));
 	}
@@ -428,26 +433,40 @@ export class CRMPageController {
 	}
 
 	private loadFixture(currentEmail: string): void {
-		this.people = [{ memberID: 'fixture-user', handle: 'fixture', name: crmOrganizations[0]?.ownerName ?? 'Fixture User', email: currentEmail || 'fixture@example.com' }];
+		this.people = [
+			...crmFixturePeople,
+			{ memberID: 'fixture-user', handle: 'fixture', name: 'Fixture User', email: currentEmail || 'fixture@example.com' }
+		];
 		this.groups = [];
 		this.organizations = structuredClone(crmOrganizations);
 		this.contacts = structuredClone(crmContacts);
-		this.opportunities = structuredClone(crmOpportunities);
 		this.activities = structuredClone(crmActivities);
-		this.nextActions = structuredClone(crmNextActions);
+		this.nextActions = nextActionsOf(this.activities, browserTimeZone());
+		this.opportunities = structuredClone(crmOpportunities).map((opportunity) =>
+			withNextAction(opportunity, this.nextActions)
+		);
 		const pipelineNames = [...new Set(this.opportunities.map((opportunity) => opportunity.kind ?? 'sales'))];
-		this.pipelines = pipelineNames.map((pipeline) => ({ pipeline, label: crmLabel(this.text.progressKinds, pipeline), direction: 'outbound', isActive: true }));
+		this.pipelines = pipelineNames.map((pipeline) => ({ pipeline, label: crmLabel(this.text.progressKinds, pipeline), direction: 'outbound', isActive: true, color: crmFixturePipelineColors[pipeline] }));
+		const organizationTypeNames = [...new Set(this.organizations.flatMap((organization) => organization.types))];
 		this.vocabulary = {
-			organization_types: [],
+			organization_types: organizationTypeNames.map((organizationType) => ({
+				id: organizationType,
+				name: crmLabel(this.text.organizationTypes, organizationType),
+				color: crmFixtureOrganizationTypeColors[organizationType]
+			})),
 			pipelines: this.pipelines.map((pipeline) => ({
 				id: pipeline.pipeline,
 				name: pipeline.label,
-				direction: pipeline.direction
+				direction: pipeline.direction,
+				color: pipeline.color
 			}))
 		};
 		this.taskVocabulary = {
 			businesses: [...new Set(this.opportunities.map((opportunity) => opportunity.business))].map((name) => ({ name })),
-			types: [...new Set(this.activities.map((activity) => activity.kind))].map((name) => ({ name }))
+			types: [...new Set(this.activities.map((activity) => activity.kind))].map((name) => ({
+				name,
+				color: crmFixtureActivityKindColors[name]
+			}))
 		};
 	}
 }

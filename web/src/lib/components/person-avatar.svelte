@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Identicon from '$lib/components/identicon.svelte';
+	import GradientAvatar from '$lib/components/gradient-avatar.svelte';
 	import { personAvatarSeed } from '$lib/person-avatar-seed';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { personPicture } from '$lib/stores/person-picture.svelte';
@@ -37,6 +37,6 @@
 		<Avatar.Image src={drawn} alt={avatarLabel} />
 	{/if}
 	<Avatar.Fallback class="size-full rounded-[inherit] p-0">
-		<Identicon seed={avatarSeed} class="size-full rounded-[inherit]" />
+		<GradientAvatar seed={avatarSeed} class="size-full rounded-[inherit]" />
 	</Avatar.Fallback>
 </Avatar.Root>

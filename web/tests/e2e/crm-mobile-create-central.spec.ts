@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
 	expectNoHorizontalOverflow,
-	openQuickAdd,
+	openCreateForm,
 	recordSheet,
 	removeOrganizationsNamed,
 	signInToTheCRM
@@ -20,7 +20,7 @@ test('completes a create flow on a mobile viewport', async ({ page }) => {
 	await signInToTheCRM(page);
 	await expectNoHorizontalOverflow(page.locator('html'));
 
-	await openQuickAdd(page, '관계처');
+	await openCreateForm(page, '관계처', '관계처');
 	const sheet = recordSheet(page);
 	await expectNoHorizontalOverflow(sheet);
 	await sheet.getByLabel('이름 또는 제목').fill(organizationName);

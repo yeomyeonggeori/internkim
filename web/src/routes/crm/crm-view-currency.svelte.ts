@@ -1,4 +1,6 @@
 import { loadConvertedAmount } from '$lib/currency/converted-amount';
+import { isSupabaseConfigured } from '$lib/supabase-session';
+import { crmFixtureMode, loadFixtureConvertedAmount } from './dev-crm-fixture';
 import { rateHintAnchorCurrency } from './crm-money';
 
 export type CRMViewAmount = {
@@ -73,4 +75,8 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 	}
 }
 
-export const crmViewCurrency = new CRMViewCurrency();
+export function isViewCurrencyAvailable(): boolean {
+	return isSupabaseConfigured() || crmFixtureMode;
+}
+
+export const crmViewCurrency = new CRMViewCurrency(crmFixtureMode ? loadFixtureConvertedAmount : loadConvertedAmount);
