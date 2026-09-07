@@ -41,6 +41,8 @@ func TestStructuredLLMFailurePersistsProviderExchanges(t *testing.T) {
 	configuration := DefaultConfiguration()
 	configuration.OpenRouterKeyPath = secretPath
 	configuration.OpenRouterBaseURL = providerServer.URL
+	configuration.OpenRouterModel = "router-model"
+	configuration.ForceOpenRouterModel = true
 	configuration.BlueclawWorkspacePath = workspacePath
 	service := Service{Configuration: configuration, HTTPClient: providerServer.Client()}
 

@@ -108,6 +108,9 @@ func TestOpenRouterStructuredRequestOmitsEmptyGenerationOptions(t *testing.T) {
 	if _, isFound := document["temperature"]; isFound {
 		t.Fatalf("expected empty temperature to be omitted, got %+v", document)
 	}
+	if _, isFound := document["max_tokens"]; isFound {
+		t.Fatalf("expected unset output limit to be omitted, got %+v", document)
+	}
 }
 
 func TestOpenRouterBackendNormalizesFencedStructuredJSON(t *testing.T) {
