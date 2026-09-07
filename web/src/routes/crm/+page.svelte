@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
@@ -10,10 +10,8 @@
 	import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
 	import AlertCircleIcon from '@lucide/svelte/icons/alert-circle';
 	import CheckCircle2Icon from '@lucide/svelte/icons/check-circle-2';
-	import HandshakeIcon from '@lucide/svelte/icons/handshake';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import SearchIcon from '@lucide/svelte/icons/search';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { onMount } from 'svelte';
 	import CRMActivityDetailSheet from './crm-activity-detail-sheet.svelte';
@@ -21,24 +19,24 @@
 	import CRMContactEditSheet from './crm-contact-edit-sheet.svelte';
 	import CRMContactTable from './crm-contact-table.svelte';
 	import CRMDefinitionsEditor from './crm-definitions-editor.svelte';
-	import { currentCRMDate, shiftCRMDate } from './crm-date';
+	import { currentCRMDate } from './crm-date';
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
-	import CRMKPICard from './crm-kpi-card.svelte';
+	import CRMKPICell from './crm-kpi-card.svelte';
 	import CRMOpportunityEditSheet from './crm-opportunity-edit-sheet.svelte';
 	import { CRMPageController } from './crm-page-controller.svelte';
 	import CRMPipelineBoard from './crm-pipeline-board.svelte';
 	import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
 	import CRMProgressTable from './crm-progress-table.svelte';
-	import CRMQuickCreateMenu from './crm-quick-create-menu.svelte';
 	import CRMRecordSheet from './crm-record-sheet.svelte';
 	import CRMRelationshipDetailSheet from './crm-relationship-detail-sheet.svelte';
 	import CRMRelationshipEditSheet from './crm-relationship-edit-sheet.svelte';
 	import CRMRelationshipTable from './crm-relationship-table.svelte';
 	import CRMReportDashboard from './crm-report-dashboard.svelte';
-	import CRMFilterPopover from './crm-filter-popover.svelte';
+	import * as Card from '$lib/components/ui/card';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import { buildCRMKPICards } from './crm-kpi';
-	import { crmViewCurrency } from './crm-view-currency.svelte';
+	import { crmViewCurrency, isViewCurrencyAvailable } from './crm-view-currency.svelte';
+	import { dealStageIcon } from './crm-status-icons';
 	import CRMViewCurrencySelect from './crm-view-currency-select.svelte';
 	import type {
 		CRMOrganization,
@@ -54,16 +52,23 @@
 		CRMRecordKind
 	} from './crm-types';
 	import {
-		organizationMatchesFilters,
+		crmImportanceOptions,
+		crmLastContactWindowOptions,
 		crmOrganizationStatusOptions,
 		findOrganizationByID,
+		opportunityStageLabel,
+		organizationMatchesFacets,
+		type CRMImportanceFilter,
+		type CRMLastContactWindow,
 		type CRMOrganizationStatusFilter,
 		type CRMOrganizationTypeFilter,
+		type CRMRelationshipFacets,
 		type CRMTab
 	} from './crm-view-model';
 	import { crmText } from './text';
+	import type { TaskDefinitions } from '../task/task-types';
 
-	type RelationshipView = 'all' | 'mine' | 'attention' | 'recent';
+	type RelationshipView = 'all' | 'mine';
 	type PipelineView = 'table' | 'board';
 	type PipelineFilter = CRMProgressKind | 'all';
 	type ActivityView = CRMActivityKind | 'all';
@@ -81,18 +86,13 @@
 		{ value: 'reports', label: text.reports },
 		{ value: 'definitions', label: text.definitions.title }
 	]);
-	const relationshipViews: Array<{ value: RelationshipView; label: string }> = $derived([
-		{ value: 'all', label: text.allRelationships },
-		{ value: 'mine', label: text.myRelationships },
-		{ value: 'attention', label: text.needsAttention },
-		{ value: 'recent', label: text.recentlyContacted }
-	]);
-	const recentContactThreshold = shiftCRMDate(currentCRMDate(), -30);
 
 	let selectedTab = $state<CRMTab>('relationships');
-	let searchQuery = $state('');
 	let selectedStatus = $state<CRMOrganizationStatusFilter>('all');
 	let selectedType = $state<CRMOrganizationTypeFilter>('all');
+	let selectedImportance = $state<CRMImportanceFilter>('all');
+	let selectedLastContact = $state<CRMLastContactWindow>('all');
+	let selectedStage = $state<CRMOpportunityStage | 'all'>('all');
 	let relationshipView = $state<RelationshipView>('all');
 	let activityView = $state<ActivityView>('all');
 	let pipelineView = $state<PipelineView>('table');
@@ -133,16 +133,55 @@
 	let activityKindFilterOptions = $derived(
 		activityKinds.map((activityKind) => ({ value: activityKind, label: crmLabel(text.activityKinds, activityKind) }))
 	);
-	let relationshipFilterCount = $derived((selectedStatus === 'all' ? 0 : 1) + (selectedType === 'all' ? 0 : 1));
+	let importanceFilterOptions = $derived(
+		crmImportanceOptions.map((importance) => ({ value: importance, label: text.importanceLabels[importance] }))
+	);
+	let lastContactFilterOptions = $derived(
+		crmLastContactWindowOptions.map((window) => ({ value: window, label: text.lastContactWindows[window] }))
+	);
+	let stageFilterOptions = $derived(
+		controller.stages.map((stage) => ({ value: stage.stage, label: opportunityStageLabel(controller.stages, stage.stage, text) }))
+	);
+	let relationshipFacets = $derived<CRMRelationshipFacets>({
+		status: selectedStatus,
+		type: selectedType,
+		importance: selectedImportance,
+		lastContact: selectedLastContact
+	});
+	let hasRelationshipFacets = $derived(
+		selectedStatus !== 'all' || selectedType !== 'all' || selectedImportance !== 'all' || selectedLastContact !== 'all'
+	);
+	let hasPipelineFacets = $derived(selectedPipeline !== 'all' || selectedStage !== 'all');
 
-	function resetRelationshipFilters(): void {
+	function resetRelationshipFacets(): void {
 		selectedStatus = 'all';
 		selectedType = 'all';
+		selectedImportance = 'all';
+		selectedLastContact = 'all';
 	}
+
+	function resetPipelineFacets(): void {
+		selectedPipeline = 'all';
+		selectedStage = 'all';
+	}
+
+	$effect(() => {
+		const requestedOrganizationID = page.url.searchParams.get('organization');
+		const requestedContactID = page.url.searchParams.get('contact');
+		if (!requestedOrganizationID && !requestedContactID) return;
+		if (requestedOrganizationID) openOrganization(requestedOrganizationID);
+		if (requestedContactID) openContactEdit(requestedContactID);
+		replaceState('/crm', page.state);
+	});
 
 	onMount(() => {
 		void controller.load(page.data.session?.email ?? '');
 		if (isSupabaseConfigured()) void supabaseMemberRole().then((role) => (isAdmin = role === 'admin'));
+	});
+
+	$effect(() => {
+		if (!isViewCurrencyAvailable()) return;
+		void crmViewCurrency.follow(companyBaseCurrency, opportunityCurrencies);
 	});
 
 	$effect(() => {
@@ -156,32 +195,35 @@
 	});
 
 	let filteredOrganizations = $derived(controller.organizations.filter((organization) => {
-		if (!organizationMatchesFilters(organization, searchQuery, selectedStatus, selectedType)) return false;
-		if (relationshipView === 'mine') return organization.ownerName === controller.currentOwnerName;
-		if (relationshipView === 'attention') return organization.status === 'paused' || organization.importance === 'low';
-		if (relationshipView === 'recent') return organization.lastContactDate >= recentContactThreshold;
-		return true;
+		if (!organizationMatchesFacets(organization, relationshipFacets, currentCRMDate())) return false;
+		return relationshipView === 'all' || organization.ownerName === controller.currentOwnerName;
 	}));
-	let filteredContacts = $derived(controller.contacts.filter((contact) => {
-		const organization = findOrganizationByID(controller.organizations, contact.organizationID);
-		const query = searchQuery.trim().toLowerCase();
-		return query === '' || [contact.name, contact.title, contact.email, contact.phone ?? '', contact.note ?? '', organization?.name ?? '']
-			.some((value) => value.toLowerCase().includes(query));
+	let filteredActivities = $derived(
+		activityView === 'all' ? controller.activities : controller.activities.filter((activity) => activity.kind === activityView)
+	);
+	let pipelineOpportunities = $derived(controller.opportunities.filter((opportunity) => {
+		if (selectedPipeline !== 'all' && (opportunity.pipeline ?? opportunity.kind) !== selectedPipeline) return false;
+		return selectedStage === 'all' || opportunity.stage === selectedStage;
 	}));
-	let filteredActivities = $derived(controller.activities.filter((activity) => {
-		if (activityView !== 'all' && activity.kind !== activityView) return false;
-		const organization = findOrganizationByID(controller.organizations, activity.organizationID);
-		const query = searchQuery.trim().toLowerCase();
-		return query === '' || [activity.title, activity.summary, organization?.name ?? ''].some((value) => value.toLowerCase().includes(query));
-	}));
-	let pipelineOpportunities = $derived(selectedPipeline === 'all'
-		? controller.opportunities
-		: controller.opportunities.filter((opportunity) => (opportunity.pipeline ?? opportunity.kind) === selectedPipeline));
 	let selectedOrganization = $derived(selectedOrganizationID ? findOrganizationByID(controller.organizations, selectedOrganizationID) : undefined);
 	let selectedContact = $derived(selectedContactID ? controller.contacts.find((contact) => contact.id === selectedContactID) : undefined);
 	let selectedOpportunity = $derived(selectedOpportunityID ? controller.opportunities.find((opportunity) => opportunity.id === selectedOpportunityID) : undefined);
 	let selectedActivity = $derived(selectedActivityID ? controller.activities.find((activity) => activity.id === selectedActivityID) : undefined);
 	let opportunityCurrencies = $derived([...new Set(controller.opportunities.map((opportunity) => opportunity.currency))]);
+	let activityTaskDefinitions = $derived<TaskDefinitions>({
+		categories: controller.taskVocabulary.businesses?.map((entry) => entry.name) ?? [],
+		categoryColors: Object.fromEntries(
+			(controller.taskVocabulary.businesses ?? []).flatMap((entry) =>
+				entry.color ? [[entry.name, entry.color]] : []
+			)
+		),
+		types: controller.taskVocabulary.types?.map((entry) => entry.name) ?? [],
+		typeColors: Object.fromEntries(
+			(controller.taskVocabulary.types ?? []).flatMap((entry) => (entry.color ? [[entry.name, entry.color]] : []))
+		),
+		sizes: []
+	});
+
 	let kpiCards = $derived(buildCRMKPICards(currencyCatalogue, controller.organizations, controller.opportunities, controller.nextActions, controller.pipelines, controller.stages, text, undefined, currentLocale.value, crmViewCurrency));
 
 	function openOrganization(organizationID: string): void {
@@ -291,19 +333,7 @@
 
 <svelte:head><title>{text.pageTitle}</title></svelte:head>
 
-<main data-crm-ready={!controller.isLoading && !controller.errorMessage} class="grid min-h-[calc(100svh-48px)] w-full content-start gap-4 px-4 pb-32 pt-4 sm:px-6 sm:pb-36 lg:px-8">
-	<header class="flex flex-wrap items-center gap-3 border-b pb-3" data-crm-toolbar>
-		<div class="flex shrink-0 items-center gap-2">
-			<span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground text-background"><HandshakeIcon class="size-4" /></span>
-			<h1 class="text-xl font-semibold">{text.title}</h1>
-		</div>
-		<label class="relative order-last min-w-0 basis-full lg:order-none lg:ml-auto lg:max-w-xs lg:flex-1">
-			<SearchIcon class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-			<Input bind:value={searchQuery} class="h-8 pl-9" placeholder={text.searchPlaceholder} disabled={controller.isLoading} />
-		</label>
-		<div class="ml-auto flex shrink-0 items-center gap-2 lg:ml-0"><CRMViewCurrencySelect {text} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} /><CRMQuickCreateMenu {text} onCreate={openCreateSheet} /></div>
-	</header>
-
+<main data-crm-ready={!controller.isLoading && !controller.errorMessage} class="grid min-h-[calc(100svh-48px)] w-full content-start gap-4 px-4 py-6 md:px-8">
 	{#if feedbackMessage}
 		<div role="status" class="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"><CheckCircle2Icon class="size-4 text-primary" /><span>{feedbackMessage}</span><Button type="button" variant="ghost" size="icon-sm" class="ml-auto" aria-label={text.cancel} onclick={() => (feedbackMessage = '')}><XIcon /></Button></div>
 	{/if}
@@ -317,58 +347,79 @@
 	{#if controller.isLoading}
 		<div role="status" class="flex min-h-64 items-center justify-center gap-2 rounded-md border text-sm text-muted-foreground"><LoaderCircleIcon class="size-4 animate-spin" />{text.loading}</div>
 	{:else if !controller.errorMessage}
-		<section class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-4" data-crm-metrics>
-			{#each kpiCards as card (card.id)}<CRMKPICard {card} />{/each}
+		<section class="min-w-0" data-crm-metrics>
+			<Card.Root class="grid min-w-0 grid-cols-2 gap-px bg-border py-0 lg:grid-cols-4">
+				{#each kpiCards as card (card.id)}<CRMKPICell {card} />{/each}
+			</Card.Root>
 		</section>
 
-		<UnderlineTabs.Root bind:value={selectedTab} class="min-w-0 gap-4">
+		<UnderlineTabs.Root bind:value={selectedTab} class="min-w-0 gap-3">
 			<UnderlineTabs.List class="overflow-x-clip">{#each tabItems as tab (tab.value)}<UnderlineTabs.Trigger value={tab.value}>{tab.label}</UnderlineTabs.Trigger>{/each}</UnderlineTabs.List>
 
-			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-4 pb-24">
-				<div class="flex min-w-0 flex-wrap items-center justify-end gap-3 rounded-md border bg-card p-3">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<Select.Root type="single" value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)}><Select.Trigger size="sm" class="w-44">{relationshipViews.find((view) => view.value === relationshipView)?.label}</Select.Trigger><Select.Content>{#each relationshipViews as view (view.value)}<Select.Item value={view.value} label={view.label}>{view.label}</Select.Item>{/each}</Select.Content></Select.Root>
-						<CRMFilterPopover {text} activeCount={relationshipFilterCount} onReset={resetRelationshipFilters}>
-							<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" searchable={false} class="w-full" />
-							<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" searchable={false} class="w-full" />
-						</CRMFilterPopover>
-					</div>
-					<Button type="button" size="sm" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
+			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-3 pb-24">
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
+					<Tabs.Root value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)} aria-label={text.relationships}><Tabs.List><Tabs.Trigger value="all">{text.allRelationships}</Tabs.Trigger><Tabs.Trigger value="mine">{text.myRelationships}</Tabs.Trigger></Tabs.List></Tabs.Root>
+					<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" searchable={false} class="w-auto" />
+					<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" searchable={false} class="w-auto" />
+					<FilterCombobox bind:value={selectedImportance} options={importanceFilterOptions} label={text.importance} clearValue="all" searchable={false} class="w-auto" />
+					<FilterCombobox bind:value={selectedLastContact} options={lastContactFilterOptions} label={text.lastContact} clearValue="all" searchable={false} class="w-auto" />
+					<CRMViewCurrencySelect {text} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} />
+					{#if hasRelationshipFacets}
+						<Button type="button" variant="ghost" onclick={resetRelationshipFacets}>{text.resetFilters}</Button>
+					{/if}
+					<Button type="button" class="ml-auto" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
 				</div>
 				<CRMRelationshipTable organizations={filteredOrganizations} contacts={controller.contacts} {organizationTypeDefinitions} {currencyCatalogue} {text} {openOrganization} />
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="contacts" class="grid min-w-0 gap-4 pb-24">
-				<div class="flex min-w-0 flex-col gap-3 rounded-md border bg-card p-3 sm:flex-row sm:items-center sm:justify-end">
-					<Button type="button" size="sm" onclick={() => openCreateSheet('contact')}><PlusIcon data-icon="inline-start" />{text.newContact}</Button>
+			<UnderlineTabs.Content value="contacts" class="grid min-w-0 gap-3 pb-24">
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
+					<Button type="button" class="ml-auto" onclick={() => openCreateSheet('contact')}><PlusIcon data-icon="inline-start" />{text.newContact}</Button>
 				</div>
-				<CRMContactTable contacts={filteredContacts} organizations={controller.organizations} {text} onEdit={openContactEdit} />
+				<CRMContactTable contacts={controller.contacts} organizations={controller.organizations} people={controller.people} {text} onEdit={openContactEdit} />
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="pipeline" class="grid min-w-0 gap-4 pb-24">
-				<div class="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
+			<UnderlineTabs.Content value="pipeline" class="grid min-w-0 gap-3 pb-24">
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					<Tabs.Root bind:value={pipelineView} aria-label={text.pipeline}><Tabs.List><Tabs.Trigger value="table">{text.tableView}</Tabs.Trigger><Tabs.Trigger value="board">{text.boardView}</Tabs.Trigger></Tabs.List></Tabs.Root>
-					<div class="flex flex-wrap items-center gap-3">
-						<FilterCombobox value={selectedPipeline} options={pipelineFilterOptions} label={text.progressKind} clearValue="all" onSelect={selectPipeline} searchable={false} class="w-44" />
-						<Button type="button" size="sm" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
-					</div>
+					<FilterCombobox value={selectedPipeline} options={pipelineFilterOptions} label={text.progressKind} clearValue="all" onSelect={selectPipeline} searchable={false} class="w-auto" />
+					<FilterCombobox bind:value={selectedStage} options={stageFilterOptions} label={text.stage} clearValue="all" searchable={false} class="w-auto">
+						{#snippet optionContent(option)}
+							{@const StageIcon = dealStageIcon(option.value)}
+							<StageIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+							<span class="min-w-0 truncate">{option.label}</span>
+						{/snippet}
+						{#snippet selectedContent(option)}
+							{@const StageIcon = dealStageIcon(option.value)}
+							<StageIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+							<span class="truncate">{text.stage}: {option.label}</span>
+						{/snippet}
+					</FilterCombobox>
+					<CRMViewCurrencySelect {text} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} />
+					{#if hasPipelineFacets}
+						<Button type="button" variant="ghost" onclick={resetPipelineFacets}>{text.resetFilters}</Button>
+					{/if}
+					<Button type="button" class="ml-auto" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
-					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {text} onEdit={openOpportunityEdit} />
+					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} onEdit={openOpportunityEdit} />
 				{:else}
-					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} nextActions={controller.nextActions} stages={controller.stages} {text} onMove={moveOpportunity} />
+					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} onMove={moveOpportunity} />
 				{/if}
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="activities" class="grid min-w-0 gap-4 pb-24">
-				<div class="flex min-w-0 flex-wrap items-center justify-end gap-3 rounded-md border bg-card p-3">
-					<FilterCombobox bind:value={activityView} options={activityKindFilterOptions} label={text.activityKind} clearValue="all" searchable={false} class="w-44" />
-					<Button type="button" size="sm" onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
+			<UnderlineTabs.Content value="activities" class="grid min-w-0 gap-3 pb-24">
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
+					<FilterCombobox bind:value={activityView} options={activityKindFilterOptions} label={text.activityKind} clearValue="all" searchable={false} class="w-auto" />
+					{#if activityView !== 'all'}
+						<Button type="button" variant="ghost" onclick={() => (activityView = 'all')}>{text.resetFilters}</Button>
+					{/if}
+					<Button type="button" class="ml-auto" onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
 				</div>
-				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} {text} onEdit={openActivityEdit} />
+				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} opportunities={controller.opportunities} people={controller.people} taskDefinitions={activityTaskDefinitions} {text} onEdit={openActivityEdit} />
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard organizations={controller.organizations} opportunities={controller.opportunities} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {text} onOpenOrganization={openOrganization} /></UnderlineTabs.Content>
+			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard organizations={controller.organizations} opportunities={controller.opportunities} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} {text} onOpenOrganization={openOrganization} /></UnderlineTabs.Content>
 			<UnderlineTabs.Content value="definitions" class="min-w-0 pb-24"><CRMDefinitionsEditor vocabulary={controller.vocabulary} {isAdmin} isSaving={controller.isSaving} errorMessage={controller.errorMessage} text={text.definitions} onSave={(vocabulary) => controller.saveVocabulary(vocabulary)} /></UnderlineTabs.Content>
 		</UnderlineTabs.Root>
 	{/if}

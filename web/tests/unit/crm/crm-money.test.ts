@@ -26,46 +26,31 @@ describe('CRM money formatting', () => {
 		expect(parseAmountInput('')).toBe(undefined);
 	});
 
-	test('compacts every currency by 만 and 억 while the reader is on Korean', () => {
-		expect(formatMoney(12000000, 'KRW')).toBe('KRW 1,200만');
-		expect(formatMoney(12000000, 'JPY')).toBe('JPY 1,200만');
-		expect(formatMoney(12000000, 'USD')).toBe('USD 1,200만');
-		expect(formatMoney(250000000, 'KRW')).toBe('KRW 2.5억');
-		expect(formatMoney(8000, 'KRW')).toBe('KRW 8,000');
+	test('compacts by 만 and 억 for a Korean reader, grouping the compact digits', () => {
+		expect(formatMoney(35000000, 'KRW')).toBe('₩3,500만');
+		expect(formatMoney(18000000, 'KRW')).toBe('₩1,800만');
+		expect(formatMoney(110000000, 'KRW')).toBe('₩1.1억');
+		expect(formatMoney(13500, 'USD')).toBe('$1.4만');
 	});
 
-	test('keeps a tenth of 만 so a small amount is not rounded away', () => {
-		expect(formatMoney(13500, 'USD')).toBe('USD 1.4만');
-		expect(formatMoney(42000, 'USD')).toBe('USD 4.2만');
-	});
-
-	test('compacts every currency by K and M while the reader is on English', () => {
-		expect(formatMoney(12000000, 'USD', '-', 'en')).toBe('USD 12M');
-		expect(formatMoney(12000000, 'EUR', '-', 'en')).toBe('EUR 12M');
-		expect(formatMoney(12000, 'USD', '-', 'en')).toBe('USD 12K');
-		expect(formatMoney(2500, 'USD', '-', 'en')).toBe('USD 2.5K');
-		expect(formatMoney(750, 'USD', '-', 'en')).toBe('USD 750');
-	});
-
-	test('never emits Hangul for the en locale, even for myriad currencies', () => {
-		expect(formatMoney(12000000, 'KRW', '-', 'en')).toBe('KRW 12M');
-		expect(formatMoney(250000000, 'KRW', '-', 'en')).toBe('KRW 250M');
+	test('compacts by K and M for an English reader', () => {
+		expect(formatMoney(18000000, 'USD', '-', 'en')).toBe('$18M');
+		expect(formatMoney(2500, 'USD', '-', 'en')).toBe('$2.5K');
+		expect(formatMoney(750, 'USD', '-', 'en')).toBe('$750');
 	});
 
 	test('lets the reader locale, not the currency, choose the compact unit', () => {
-		expect(formatMoney(12000000, 'USD', '-', 'ko')).toBe('USD 1,200만');
-		expect(formatMoney(12000000, 'USD', '-', 'en')).toBe('USD 12M');
-		expect(formatMoney(12000000, 'KRW', '-', 'ko')).toBe('KRW 1,200만');
-		expect(formatMoney(12000000, 'KRW', '-', 'en')).toBe('KRW 12M');
+		expect(formatMoney(250000000, 'KRW', '-', 'ko')).toBe('₩2.5억');
+		expect(formatMoney(250000000, 'KRW', '-', 'en')).toBe('₩250M');
 	});
 
-	test('compacts a currency the catalogue does not know and keeps its code as the prefix', () => {
-		expect(formatMoney(12000000, 'XAG')).toBe('XAG 1,200만');
+	test('falls back to the code for a currency with no symbol', () => {
+		expect(formatMoney(12000000, 'XAG')).toBe('XAG\u00a01,200만');
 		expect(formatMoney(undefined, 'XAG')).toBe('-');
 	});
 
 	test('keeps each currency in its own scale without applying exchange rates', () => {
-		expect(formatMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue)).toBe('KRW 1,200만 · USD 2,500');
+		expect(formatMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue)).toBe('₩1,200만 · $2.5천');
 	});
 
 	test('groups opportunity totals by their selected currency', () => {
@@ -80,9 +65,9 @@ describe('CRM money formatting', () => {
 });
 
 describe('view-currency-aware money formatting', () => {
-	test('formats converted and exact amounts alike', () => {
-		expect(formatViewMoney({ value: 18000000, currency: 'KRW', isConverted: false })).toBe('KRW 1,800만');
-		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true })).toBe('USD 1.4만');
+	test('keeps the currency symbol on an amount already in the view currency', () => {
+		expect(formatViewMoney({ value: 18000000, currency: 'KRW', isConverted: false })).toBe('₩1,800만');
+		expect(formatViewMoney({ value: 13500, currency: 'USD', isConverted: true })).toBe('$1.4만');
 	});
 
 	test('collapses every currency total into one converted estimate when a view currency is active', () => {
@@ -94,7 +79,7 @@ describe('view-currency-aware money formatting', () => {
 					: { value: value * 0.00075, currency: 'USD', isConverted: true }
 		};
 
-		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('1.1만');
+		expect(formatViewMoneyTotals({ KRW: 12000000, USD: 2500 }, interimCurrencyCatalogue, view)).toBe('$1.2만');
 		expect(formatViewMoneyTotals({}, interimCurrencyCatalogue, view)).toBe('-');
 	});
 

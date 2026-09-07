@@ -10,9 +10,19 @@ import type {
 	CRMPipelineStage,
 	CRMProgressKind
 } from './crm-types';
+import type { CRMImportance } from './crm-types';
 import { crmOrganizationTypes } from './crm-types';
+import type { UserRecord } from '$lib/organization/types';
+import { shiftCRMDate } from './crm-date';
 import { crmStageOutcomes } from '$lib/crm/crm-stage';
 import { taskStatus } from '$lib/task/central-task';
+import {
+	isTaskStatusCompleted,
+	isTaskStatusInProgress,
+	isTaskStatusPaused,
+	isTaskStatusRejected,
+	isTaskStatusStopped
+} from '../task/task-status';
 import type { CRMText } from './text';
 import type { Locale } from '$lib/i18n/locale.svelte';
 export { formatMoney, formatMoneyTotals } from './crm-money';
@@ -21,26 +31,62 @@ export { interimCurrencyCatalogue } from '$lib/currency/currency-catalogue';
 export type CRMTab = 'relationships' | 'contacts' | 'pipeline' | 'activities' | 'reports' | 'definitions';
 export type CRMOrganizationStatusFilter = CRMOrganizationStatus | 'all';
 export type CRMOrganizationTypeFilter = CRMOrganizationType | 'all';
+export type CRMImportanceFilter = CRMImportance | 'all';
+export type CRMLastContactWindow = 'all' | 'within_7' | 'within_30' | 'within_90' | 'over_90';
 export type CRMBadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
 export const crmOrganizationStatusOptions: CRMOrganizationStatusFilter[] = ['all', 'prospect', 'active', 'paused'];
 export const crmOrganizationTypeOptions: CRMOrganizationTypeFilter[] = ['all', ...crmOrganizationTypes];
 export const crmPrototypeToday = '2026-07-22';
+export const crmImportanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
+export const crmLastContactWindowOptions: Exclude<CRMLastContactWindow, 'all'>[] = ['within_7', 'within_30', 'within_90', 'over_90'];
 
-export function organizationMatchesFilters(
+const lastContactWindowDays: Record<Exclude<CRMLastContactWindow, 'all' | 'over_90'>, number> = {
+	within_7: 7,
+	within_30: 30,
+	within_90: 90
+};
+
+export type CRMRelationshipFacets = {
+	status: CRMOrganizationStatusFilter;
+	type: CRMOrganizationTypeFilter;
+	importance: CRMImportanceFilter;
+	lastContact: CRMLastContactWindow;
+};
+
+export function matchesLastContactWindow(lastContactDate: string, window: CRMLastContactWindow, today: string): boolean {
+	if (window === 'all') return true;
+	if (window === 'over_90') return lastContactDate < shiftCRMDate(today, -90);
+	return lastContactDate >= shiftCRMDate(today, -lastContactWindowDays[window]);
+}
+
+export function organizationMatchesFacets(
 	organization: CRMOrganization,
-	query: string,
-	statusFilter: CRMOrganizationStatusFilter,
-	typeFilter: CRMOrganizationTypeFilter
+	facets: CRMRelationshipFacets,
+	today: string
 ): boolean {
-	const normalizedQuery = query.trim().toLowerCase();
-	const matchesStatus = statusFilter === 'all' || organization.status === statusFilter;
-	const matchesType = typeFilter === 'all' || organization.types.includes(typeFilter);
-	if (!matchesStatus || !matchesType) return false;
-	if (normalizedQuery === '') return true;
-	return [organization.name, organization.ownerName, organization.team, organization.description, ...organization.tags, ...organization.types].some((value) =>
-		value.toLowerCase().includes(normalizedQuery)
-	);
+	if (facets.status !== 'all' && organization.status !== facets.status) return false;
+	if (facets.type !== 'all' && !organization.types.includes(facets.type)) return false;
+	if (facets.importance !== 'all' && organization.importance !== facets.importance) return false;
+	return matchesLastContactWindow(organization.lastContactDate, facets.lastContact, today);
+}
+
+export type CRMPersonChip = {
+	name: string;
+	email: string;
+	seed: string;
+};
+
+export function crmPersonChip(
+	people: UserRecord[],
+	personID: string | undefined,
+	recordedName = ''
+): CRMPersonChip | undefined {
+	const person = personID ? people.find((candidate) => candidate.memberID === personID) : undefined;
+	const name = person?.name || person?.email || recordedName;
+	if (!name) return undefined;
+	const email = person?.email ?? '';
+	return { name, email, seed: personID || email || name };
 }
 
 export function findOrganizationByID(organizations: CRMOrganization[], organizationID: string): CRMOrganization | undefined {
@@ -86,8 +132,33 @@ export function daysLabel(days: number, text: CRMText): string {
 
 export function getStatusVariant(status: CRMOrganizationStatus): CRMBadgeVariant {
 	if (status === 'active') return 'default';
-	if (status === 'paused') return 'outline';
-	return 'secondary';
+	if (status === 'paused') return 'secondary';
+	return 'outline';
+}
+
+const activityStatusOrder: Array<(status: string) => boolean> = [
+	(status) => isTaskStatusRejected(status) || isTaskStatusStopped(status),
+	isTaskStatusCompleted,
+	isTaskStatusPaused,
+	isTaskStatusInProgress
+];
+
+const accountStatusOrder: CRMOrganizationStatus[] = ['paused', 'prospect', 'active'];
+
+export function accountStatusRank(status: CRMOrganizationStatus): number {
+	return accountStatusOrder.indexOf(status);
+}
+
+export function activityStatusRank(status: string): number {
+	const matched = activityStatusOrder.findIndex((matches) => matches(status));
+	return matched === -1 ? activityStatusOrder.length : matched;
+}
+
+export function getActivityStatusVariant(status: string): CRMBadgeVariant {
+	if (isTaskStatusInProgress(status)) return 'default';
+	if (isTaskStatusRejected(status) || isTaskStatusStopped(status)) return 'destructive';
+	if (isTaskStatusCompleted(status)) return 'secondary';
+	return 'outline';
 }
 
 export function getStageVariant(stage: CRMOpportunityStage): CRMBadgeVariant {

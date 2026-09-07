@@ -1,11 +1,14 @@
 <script lang="ts">
 	import FilterCombobox, { type FilterComboboxOption } from '$lib/components/filter-combobox.svelte';
+	import PersonChip from '$lib/components/person-chip.svelte';
+	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import type { OrgGroup, UserRecord } from '$lib/organization/types';
 	import type { CRMText } from './text';
 
 	type OwnerOption = FilterComboboxOption & {
 		email: string;
-		team: string;
+		image: string;
 	};
 
 	type Props = {
@@ -20,10 +23,10 @@
 	let { value = $bindable(''), people, groups, text, id, disabled = false }: Props = $props();
 	let options = $derived<OwnerOption[]>(people.map((person) => ({
 		value: person.memberID,
-		label: person.name || person.email,
-		keywords: [person.email, person.handle, groupName(person.groupID)],
+		label: displayPersonName(person.name || person.email),
+		keywords: [person.name ?? '', person.email, person.handle, groupName(person.groupID)],
 		email: person.email,
-		team: groupName(person.groupID)
+		image: person.image ?? ''
 	})));
 
 	function groupName(groupID: string | undefined): string {
@@ -44,11 +47,11 @@
 >
 	{#snippet optionContent(option)}
 		<div class="flex min-w-0 items-center gap-2 text-left">
-			<span class="shrink-0">{option.label}</span>
-			<span class="truncate text-xs text-muted-foreground">{[option.email, option.team].filter(Boolean).join(' · ')}</span>
+			<PersonAvatar name={option.label} email={option.email} seed={option.value} image={option.image} class="size-4 shrink-0" /><span class="truncate">{option.label}</span>
+			<span class="truncate text-xs text-muted-foreground">{option.email}</span>
 		</div>
 	{/snippet}
 	{#snippet selectedContent(option)}
-		<span class="truncate">{option.label}</span>
+		<PersonChip name={option.label} email={option.email} seed={option.value} image={option.image} />
 	{/snippet}
 </FilterCombobox>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ColorMarker from '$lib/components/color-marker.svelte';
 	import TimeRangeText from '$lib/components/time-range-text.svelte';
 	import DurationText from '../shared/duration-text.svelte';
 
@@ -15,11 +16,7 @@
 <div class="grid min-w-0 gap-0.5" data-slot="leave-segment-summary">
 	<div class="flex min-w-0 items-center justify-between gap-3">
 		<div class="flex min-w-0 items-center gap-1.5">
-			<span
-				class="h-3 w-1 shrink-0 rounded-full bg-destructive"
-				aria-hidden="true"
-				data-slot="leave-segment-marker"
-			></span>
+			<ColorMarker class="bg-destructive" data-slot="leave-segment-marker" />
 			<span class="min-w-0 truncate text-xs font-medium">{label}</span>
 		</div>
 		<DurationText minutes={durationMinutes} size="small" tone="default" />

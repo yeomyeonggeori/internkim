@@ -5,6 +5,9 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as Table from '$lib/components/ui/table';
 	import CRMCurrencyComparisonChart from './crm-currency-comparison-chart.svelte';
+	import PersonChip from '$lib/components/person-chip.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
+	import CRMViewCurrencySelect from './crm-view-currency-select.svelte';
 	import { buildCRMReportPeriodBounds } from './crm-date';
 	import { crmLabel } from './crm-labels';
 	import { isTaskStatusFinished } from '../task/task-status';
@@ -24,6 +27,8 @@
 	type MetricRow = { key: string; label: string; count: number; values: CRMMoneyTotals };
 	type OwnerRow = {
 		name: string;
+		email: string;
+		seed: string;
 		organizationCount: number;
 		openCount: number;
 		openValues: CRMMoneyTotals;
@@ -36,11 +41,13 @@
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
 		currencyCatalogue: CurrencyCatalogue;
+		companyBaseCurrency: string;
+		sourceCurrencies: string[];
 		text: CRMText;
 		onOpenOrganization: (organizationID: string) => void;
 	};
 
-	let { organizations, opportunities, nextActions, stages, currencyCatalogue, text, onOpenOrganization }: Props = $props();
+	let { organizations, opportunities, nextActions, stages, currencyCatalogue, companyBaseCurrency, sourceCurrencies, text, onOpenOrganization }: Props = $props();
 	const { today, next90DaysEnd, quarterStart, quarterEnd } = buildCRMReportPeriodBounds();
 	let period = $state<ReportPeriod>('all');
 
@@ -107,9 +114,20 @@
 		return ownerNames
 			.map<OwnerRow>((name) => {
 				const ownerOpportunities = openOpportunities.filter((opportunity) => opportunity.ownerName === name);
+				const ownedOrganizations = organizations.filter((organization) => organization.ownerName === name);
+				const email =
+					ownedOrganizations.find((organization) => organization.ownerEmail)?.ownerEmail ??
+					periodOpportunities.find((opportunity) => opportunity.ownerName === name && opportunity.ownerEmail)?.ownerEmail ??
+					'';
+				const personID =
+					ownedOrganizations.find((organization) => organization.ownerPersonID)?.ownerPersonID ??
+					ownerOpportunities.find((opportunity) => opportunity.ownerPersonID)?.ownerPersonID ??
+					'';
 				return {
 					name,
-					organizationCount: organizations.filter((organization) => organization.ownerName === name).length,
+					email,
+					seed: personID || email || name,
+					organizationCount: ownedOrganizations.length,
 					openCount: ownerOpportunities.length,
 					openValues: sumOpportunityMoney(ownerOpportunities),
 					missingActionCount: ownerOpportunities.filter(
@@ -142,7 +160,7 @@
 			<p class="text-sm font-semibold">{text.reportPeriod}</p>
 			<p class="text-xs text-muted-foreground">{text.reportPeriodDescription}</p>
 		</div>
-		<div class="flex flex-col gap-2 sm:flex-row">
+		<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
 			<Select.Root type="single" value={period} onValueChange={(value) => (period = value as ReportPeriod)}>
 				<Select.Trigger class="w-full sm:w-44" aria-label={text.reportPeriod}>
 					{period === 'quarter' ? quarterLabel : period === 'next_90_days' ? text.reportPeriodNext90Days : text.reportPeriodAll}
@@ -153,6 +171,7 @@
 					<Select.Item value="all" label={text.reportPeriodAll}>{text.reportPeriodAll}</Select.Item>
 				</Select.Content>
 			</Select.Root>
+			<CRMViewCurrencySelect {text} {currencyCatalogue} {companyBaseCurrency} {sourceCurrencies} />
 		</div>
 	</div>
 
@@ -190,7 +209,7 @@
 				{#each progressKindRows as row (row.key)}
 					<div class="grid grid-cols-[5.5rem_minmax(0,1fr)_minmax(7rem,auto)] items-center gap-2 text-sm">
 						<span class="text-muted-foreground">{row.label} <strong class="text-foreground">{row.count}</strong></span>
-						<div class="h-2 overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-primary/75" style={`width: ${(row.count / maximumValue(progressKindRows)) * 100}%`}></div></div>
+						<div class="h-2 overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-foreground" style={`width: ${(row.count / maximumValue(progressKindRows)) * 100}%`}></div></div>
 						<span class="text-right font-medium">{formatViewMoneyTotals(row.values, currencyCatalogue, crmViewCurrency, text.noValue, currentLocale.value)}</span>
 					</div>
 				{/each}
@@ -227,15 +246,15 @@
 		<Card.Header><Card.Title class="text-base">{text.ownerReport}</Card.Title><Card.Description>{text.ownerReportDescription}</Card.Description></Card.Header>
 		<Card.Content class="min-w-0 px-0">
 			<Table.Root class="table-fixed text-left">
-				<Table.Header><Table.Row><Table.Head class="w-[45%] pl-6 sm:w-[35%] md:w-[25%] lg:w-[20%]">{text.owner}</Table.Head><Table.Head class="hidden w-[15%] sm:table-cell">{text.relationships}</Table.Head><Table.Head class="w-[20%] sm:w-[15%]">{text.openProgress}</Table.Head><Table.Head class="w-[35%] sm:w-[35%] md:w-[25%] lg:w-[30%]">{text.openValue}</Table.Head><Table.Head class="hidden w-[20%] pr-6 md:table-cell">{text.missingActions}</Table.Head></Table.Row></Table.Header>
+				<Table.Header><Table.Row><Table.Head class="w-[45%] pl-6 sm:w-[35%] md:w-[25%] lg:w-[20%]">{text.owner}</Table.Head><Table.Head class="hidden w-[15%] text-right tabular-nums sm:table-cell">{text.relationships}</Table.Head><Table.Head class="w-[20%] text-right tabular-nums sm:w-[15%]">{text.openProgress}</Table.Head><Table.Head class="w-[35%] text-right tabular-nums sm:w-[35%] md:w-[25%] lg:w-[30%]">{text.openValue}</Table.Head><Table.Head class="hidden w-[20%] pr-6 text-right tabular-nums md:table-cell">{text.missingActions}</Table.Head></Table.Row></Table.Header>
 				<Table.Body>
 					{#each ownerRows as owner (owner.name)}
 						<Table.Row>
-							<Table.Cell class="whitespace-normal pl-6 font-medium"><p class="truncate">{owner.name}</p></Table.Cell>
-							<Table.Cell class="hidden sm:table-cell">{owner.organizationCount}</Table.Cell>
-							<Table.Cell>{owner.openCount}</Table.Cell>
-							<Table.Cell class="whitespace-normal">{formatViewMoneyTotals(owner.openValues, currencyCatalogue, crmViewCurrency, text.noValue, currentLocale.value)}</Table.Cell>
-							<Table.Cell class="hidden pr-6 md:table-cell"><Badge variant={owner.missingActionCount > 0 ? 'secondary' : 'outline'}>{owner.missingActionCount}</Badge></Table.Cell>
+							<Table.Cell class="whitespace-normal pl-6 font-medium">{#if owner.name}<PersonChip name={displayPersonName(owner.name)} email={owner.email} seed={owner.seed} />{:else}<span class="text-muted-foreground">{text.none}</span>{/if}</Table.Cell>
+							<Table.Cell class="hidden text-right tabular-nums sm:table-cell">{owner.organizationCount}</Table.Cell>
+							<Table.Cell class="text-right tabular-nums">{owner.openCount}</Table.Cell>
+							<Table.Cell class="whitespace-normal text-right tabular-nums">{formatViewMoneyTotals(owner.openValues, currencyCatalogue, crmViewCurrency, text.noValue, currentLocale.value)}</Table.Cell>
+							<Table.Cell class="hidden pr-6 text-right tabular-nums md:table-cell"><Badge variant={owner.missingActionCount > 0 ? 'secondary' : 'outline'}>{owner.missingActionCount}</Badge></Table.Cell>
 						</Table.Row>
 					{/each}
 				</Table.Body>

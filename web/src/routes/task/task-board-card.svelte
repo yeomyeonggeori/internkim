@@ -7,8 +7,9 @@
 	import { buildTaskBoardCardDisplay } from './task-board-card-model';
 	import TaskChildProgress from './task-child-progress.svelte';
 	import TaskDateRange from './task-date-range.svelte';
+	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
 	import { sizeBadgeClass } from './task-style';
-	import { taskDefinitionBadgeStyle, taskDefinitionOutlineBadgeStyle } from './task-definition-colors';
+	import { taskDefinitionBadgeStyle } from './task-definition-colors';
 	import type { TaskChildProgress as ChildProgress } from './task-relationships';
 	import type { Task } from './task-types';
 	import type { Snippet } from 'svelte';
@@ -161,20 +162,14 @@
 			<div class="flex flex-wrap items-center gap-1.5">
 				{#if display.businessLabel}
 					<Badge
-						class="h-5 max-w-24 rounded-md border-transparent px-1.5 py-0 text-[11px] font-medium shadow-none"
+						class="h-5 max-w-24 border-transparent px-1.5 py-0 text-[11px] font-medium shadow-none"
 						style={taskDefinitionBadgeStyle(businessColor(task.business))}
 					>
 						{display.businessLabel}
 					</Badge>
 				{/if}
 				{#each display.metadataLabels as label}
-					<Badge
-						variant="outline"
-						class="h-5 max-w-24 rounded-md border px-1.5 py-0 text-[11px] font-medium shadow-none"
-						style={taskDefinitionOutlineBadgeStyle(taskTypeColor(label))}
-					>
-						{label}
-					</Badge>
+					<ColorMarkerBadge {label} color={taskTypeColor(label)} showMarker={false} class="max-w-24" />
 				{/each}
 				{#if task.startDate || task.endDate}
 					<Badge

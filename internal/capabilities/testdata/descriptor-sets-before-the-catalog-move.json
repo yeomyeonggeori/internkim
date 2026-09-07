@@ -24306,18 +24306,19 @@
       "worksOffline": false
     },
     "crm_activity_list": {
-      "answeredBy": "record",
-      "availability": {
-        "state": "ok"
-      },
+      "name": "crm_activity_list",
       "canonicalName": "crm_activity_list",
+      "namespace": "crm",
+      "answeredBy": "record",
+      "modelName": "crm_activity_list",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
       "description": "The work recorded against the organizations and deals this company holds, newest first, with the labels and colours the CRM screens draw it in. The same rows task_list answers, shaped for the CRM.",
+      "version": "1",
+      "privacyClass": "workspace_crm",
       "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -24342,12 +24343,6 @@
         },
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "crm_activity_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "crm_activity_list",
-      "namespace": "crm",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -24410,9 +24405,20 @@
                   "type": "string"
                 },
                 "ownerPersonID": {
+                  "description": "One of the participants, kept for callers written before participantIDs. Read participantIDs instead.",
                   "type": "string"
                 },
+                "participantIDs": {
+                  "description": "Everyone taking part, in no particular order.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "requesterPersonID": {
+                  "type": "string"
+                },
+                "size": {
                   "type": "string"
                 },
                 "startsAt": {
@@ -24439,6 +24445,8 @@
                 "occurredAt",
                 "content",
                 "taskStatus",
+                "size",
+                "participantIDs",
                 "ownerPersonID",
                 "requesterPersonID",
                 "isEvent",
@@ -24533,10 +24541,8 @@
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
-      "policyResource": "tool:crm_activity_list",
-      "privacyClass": "workspace_crm",
-      "requiresUserPresence": false,
       "resultContract": {
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -24600,9 +24606,20 @@
                     "type": "string"
                   },
                   "ownerPersonID": {
+                    "description": "One of the participants, kept for callers written before participantIDs. Read participantIDs instead.",
                     "type": "string"
                   },
+                  "participantIDs": {
+                    "description": "Everyone taking part, in no particular order.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "requesterPersonID": {
+                    "type": "string"
+                  },
+                  "size": {
                     "type": "string"
                   },
                   "startsAt": {
@@ -24629,6 +24646,8 @@
                   "occurredAt",
                   "content",
                   "taskStatus",
+                  "size",
+                  "participantIDs",
                   "ownerPersonID",
                   "requesterPersonID",
                   "isEvent",
@@ -24724,29 +24743,32 @@
           "type": "object"
         }
       },
-      "sideEffect": "read",
+      "policyResource": "tool:crm_activity_list",
       "sideEffectClass": "read",
-      "version": "1",
-      "worksOffline": false
-    },
-    "crm_activity_save": {
-      "answeredBy": "record",
+      "sideEffect": "read",
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "crm_activity_save",
-      "completionEvidence": {
-        "action": "write_crm",
-        "mode": "success",
-        "targetKind": "crm_activity"
-      },
-      "description": "Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, plus the calendar entry when the work goes in the calendar.",
-      "estimatedLatency": "medium",
       "idempotency": {
+        "supported": false,
         "required": false,
-        "scope": "operation",
-        "supported": false
-      },
+        "scope": "operation"
+      }
+    },
+    "crm_activity_save": {
+      "name": "crm_activity_save",
+      "canonicalName": "crm_activity_save",
+      "namespace": "crm",
+      "answeredBy": "record",
+      "modelName": "crm_activity_save",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "description": "Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, plus the calendar entry when the work goes in the calendar.",
+      "version": "1",
+      "privacyClass": "workspace_crm",
+      "estimatedLatency": "medium",
+      "requiresUserPresence": false,
+      "worksOffline": false,
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -24818,9 +24840,17 @@
             "type": "string"
           },
           "ownerPersonHint": {
-            "description": "Name, @handle or email of the colleague it belongs to.",
+            "description": "Deprecated alias for a single entry in participantPersonHints.",
             "maxLength": 256,
             "type": "string"
+          },
+          "participantPersonHints": {
+            "description": "Names, @handles or emails of the colleagues taking part. A task has participants, not one assignee.",
+            "items": {
+              "maxLength": 256,
+              "type": "string"
+            },
+            "type": "array"
           },
           "startsAt": {
             "description": "When the calendar entry starts. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
@@ -24848,12 +24878,6 @@
         },
         "type": "object"
       },
-      "inputSchemaStrict": true,
-      "modelName": "crm_activity_save",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
-      "name": "crm_activity_save",
-      "namespace": "crm",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -24912,9 +24936,20 @@
             "type": "string"
           },
           "ownerPersonID": {
+            "description": "One of the participants, kept for callers written before participantIDs. Read participantIDs instead.",
             "type": "string"
           },
+          "participantIDs": {
+            "description": "Everyone taking part, in no particular order.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "requesterPersonID": {
+            "type": "string"
+          },
+          "size": {
             "type": "string"
           },
           "startsAt": {
@@ -24941,6 +24976,8 @@
           "occurredAt",
           "content",
           "taskStatus",
+          "size",
+          "participantIDs",
           "ownerPersonID",
           "requesterPersonID",
           "isEvent",
@@ -24954,10 +24991,8 @@
         ],
         "type": "object"
       },
+      "inputSchemaStrict": true,
       "outputSchemaStrict": true,
-      "policyResource": "tool:crm_activity_save",
-      "privacyClass": "workspace_crm",
-      "requiresUserPresence": false,
       "resultContract": {
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -25017,9 +25052,20 @@
               "type": "string"
             },
             "ownerPersonID": {
+              "description": "One of the participants, kept for callers written before participantIDs. Read participantIDs instead.",
               "type": "string"
             },
+            "participantIDs": {
+              "description": "Everyone taking part, in no particular order.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "requesterPersonID": {
+              "type": "string"
+            },
+            "size": {
               "type": "string"
             },
             "startsAt": {
@@ -25046,6 +25092,8 @@
             "occurredAt",
             "content",
             "taskStatus",
+            "size",
+            "participantIDs",
             "ownerPersonID",
             "requesterPersonID",
             "isEvent",
@@ -25060,10 +25108,22 @@
           "type": "object"
         }
       },
-      "sideEffect": "workspace_write",
+      "policyResource": "tool:crm_activity_save",
       "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": false
+      "sideEffect": "workspace_write",
+      "completionEvidence": {
+        "mode": "success",
+        "action": "write_crm",
+        "targetKind": "crm_activity"
+      },
+      "availability": {
+        "state": "ok"
+      },
+      "idempotency": {
+        "supported": false,
+        "required": false,
+        "scope": "operation"
+      }
     },
     "person_update": {
       "answeredBy": "record",

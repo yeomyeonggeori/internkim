@@ -1,6 +1,7 @@
 <script lang="ts">
 	import TaskEditorSummary from './task-editor-summary.svelte';
-	import TaskPersonChip from './task-person-chip.svelte';
+	import PersonChip from '$lib/components/person-chip.svelte';
+	import { displayPersonName } from '$lib/person-name.svelte';
 	import { hasTaskRequestProvenance } from './task-options';
 	import type { TaskEditorText } from './task-editor-types';
 	import type { Task } from './task-types';
@@ -32,7 +33,7 @@
 			<div>
 				<p class="text-xs text-muted-foreground">{text.requester}</p>
 				<div class="mt-1 text-sm">
-					<TaskPersonChip
+					<PersonChip
 						name={task.requesterName || memberEmail(task.requesterID || '') || task.requesterID || text.requesterUnavailable}
 						email={memberEmail(task.requesterID || '')}
 						seed={task.requesterID || task.requesterName || text.requesterUnavailable}
@@ -46,8 +47,8 @@
 				<p class="text-xs text-muted-foreground">{text.participants}</p>
 				<div class="mt-1 flex flex-wrap gap-1">
 					{#each task.participantIDs as participantID, index (participantID)}
-						<TaskPersonChip
-								name={task.participantNames[index] ?? participantID}
+						<PersonChip
+								name={displayPersonName(task.participantNames[index] ?? participantID)}
 								email={memberEmail(participantID)}
 								seed={participantID}
 								

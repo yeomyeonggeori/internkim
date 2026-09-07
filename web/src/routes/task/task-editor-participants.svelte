@@ -2,7 +2,7 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
-	import { Badge } from '$lib/components/ui/badge';
+	import PersonChip from '$lib/components/person-chip.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
@@ -108,9 +108,7 @@
 			{@const selectedParticipant = participant(participantID)}
 			{@const name = participantName(participantID, index)}
 			{@const email = selectedParticipant?.email ?? ''}
-			<Badge variant="outline" class="gap-1.5 pl-1 pr-1">
-				<PersonAvatar name={displayPersonName(name)} {email} seed={participantID || name} image={selectedParticipant?.image ?? ''} class="size-4" />
-				{displayPersonName(name)}
+			<PersonChip name={displayPersonName(name)} {email} seed={participantID || name} image={selectedParticipant?.image ?? ''}>
 				{#if email}
 					<span class="text-[10px] text-muted-foreground">{email}</span>
 				{/if}
@@ -124,7 +122,7 @@
 						<XIcon class="size-3" />
 					</button>
 				{/if}
-			</Badge>
+			</PersonChip>
 		{/each}
 	</div>
 </div>
