@@ -19,7 +19,12 @@ const rightAlignedColumns: Record<string, string[]> = {
 	연락처: [],
 	거래: ['금액', '마감 예정일', '경과 기간'],
 	활동: ['시작일', '종료일'],
-	보고: ['관계처', '열린 거래', '금액', '다음 활동 없음']
+	보고: []
+};
+
+const reportTables: Record<string, string[]> = {
+	quiet: ['마지막 연락', '경과'],
+	owner: ['관계처', '열린 거래', '열린 거래 금액', '성사 금액', '활동 없는 거래']
 };
 
 let seededActivityID = '';
@@ -51,6 +56,18 @@ test('fits every CRM table to its content with the name column absorbing the sla
 			for (const container of await panel.locator('[data-slot="table-container"]').all()) {
 				await expectNoHorizontalOverflow(container);
 			}
+			if (tabName === '보고') {
+				for (const [card, rightAligned] of Object.entries(reportTables)) {
+					await expectColumnFit(
+						panel.locator(`[data-crm-report-card="${card}"]`),
+						rightAligned,
+						false,
+						`${width}px 보고 ${card}`
+					);
+				}
+				continue;
+			}
+
 			await expectColumnFit(
 				panel,
 				rightAlignedColumns[tabName] ?? [],

@@ -11,6 +11,7 @@ import type {
 	CRMProgressKind
 } from './crm-types';
 import type { CRMImportance } from './crm-types';
+import type { CRMContact } from './crm-types';
 import { crmOrganizationTypes } from './crm-types';
 import type { UserRecord } from '$lib/organization/types';
 import { shiftCRMDate } from './crm-date';
@@ -69,6 +70,22 @@ export function organizationMatchesFacets(
 	if (facets.type !== 'all' && !organization.types.includes(facets.type)) return false;
 	if (facets.importance !== 'all' && organization.importance !== facets.importance) return false;
 	return matchesLastContactWindow(organization.lastContactDate, facets.lastContact, today);
+}
+
+export function effectiveContactOwner(
+	contact: CRMContact,
+	organizations: CRMOrganization[],
+	people: UserRecord[]
+): CRMPersonChip | undefined {
+	const own = crmPersonChip(people, contact.ownerPersonID);
+	if (own) return own;
+	const organization = findOrganizationByID(organizations, contact.organizationID);
+	if (!organization?.ownerName) return undefined;
+	return {
+		name: organization.ownerName,
+		email: organization.ownerEmail,
+		seed: organization.ownerPersonID || organization.ownerEmail || organization.ownerName
+	};
 }
 
 export type CRMPersonChip = {
