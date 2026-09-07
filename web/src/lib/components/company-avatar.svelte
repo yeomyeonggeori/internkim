@@ -16,7 +16,7 @@
 	{#if image}
 		<Avatar.Image src={image} alt={name} class="object-cover" />
 	{/if}
-	<Avatar.Fallback class="size-full rounded-[inherit] p-0">
+	<Avatar.Fallback class="relative size-full rounded-[inherit] p-0">
 		<GradientAvatar {seed} class="size-full rounded-[inherit]" />
 	</Avatar.Fallback>
 </Avatar.Root>

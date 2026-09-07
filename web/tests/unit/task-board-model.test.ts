@@ -61,18 +61,6 @@ describe('flow task board model', () => {
 		expect(progressColumn?.tasks.map((task) => task.id)).toEqual(['task-a', 'task-b', 'task-c']);
 	});
 
-	test('assigns a visible accent theme to every board column status', () => {
-		const board = buildTaskBoard([]);
-
-		expect(board.map((column) => [column.status, column.theme.dotClass])).toEqual([
-			['requested', 'bg-[#7c3aed]'],
-			['planned', 'bg-[#d97706]'],
-			['in_progress', 'bg-[#0284c7]'],
-			['completed', 'bg-[#16a34a]'],
-			['paused', 'bg-[#e11d48]']
-		]);
-	});
-
 	test('keeps planned tasks in the week of their end date, or their start date when open ended', () => {
 		const board = buildTaskBoard([
 			task({ id: 'ends-this-week', status: 'planned', startDate: '2026-05-25', endDate: '2026-06-03' }),

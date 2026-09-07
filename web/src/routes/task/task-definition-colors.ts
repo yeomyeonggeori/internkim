@@ -1,4 +1,4 @@
-import { colorPickerPalette, normalizeColor } from '$lib/color-picker-palette';
+import { normalizeColor, paletteColorAt } from '$lib/color-picker-palette';
 import type { TaskDefinitions } from './task-types';
 
 export const unknownDefinitionColor = '#64748b';
@@ -11,13 +11,6 @@ export function taskBusinessColor(business: string | null, definitions: TaskDefi
 export function taskTypeColor(type: string | null, definitions: TaskDefinitions): string {
 	if (type === null) return definitions.etcTypeColor ?? unknownDefinitionColor;
 	return definitionColor(type, definitions.types, definitions.typeColors);
-}
-
-const paletteHueStride = 11;
-
-export function taskDefinitionPaletteColor(index: number): string {
-	const strideIndex = (Math.abs(index) * paletteHueStride) % colorPickerPalette.length;
-	return colorPickerPalette[strideIndex];
 }
 
 export function taskDefinitionBadgeStyle(color: string): string {
@@ -35,5 +28,5 @@ function definitionColor(
 	if (storedColor) return normalizeColor(storedColor);
 	const index = values.indexOf(trimmedValue);
 	if (index < 0) return unknownDefinitionColor;
-	return taskDefinitionPaletteColor(index);
+	return paletteColorAt(index);
 }

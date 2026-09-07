@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
-	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
+	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import { taskDefinitionBadgeStyle } from './task-definition-colors';
-	import { sizeBadgeClass, statusBadgeClass } from './task-style';
+	import TaskStatusBadge from '$lib/components/task-status-badge.svelte';
+	import { sizeBadgeClass } from './task-style';
 	import { taskDefinitionLabel } from './task-workspace-model';
 	import type { TaskEditorText } from './task-editor-types';
 	import type { Task } from './task-types';
@@ -19,10 +20,10 @@
 </script>
 
 <div class="flex flex-wrap gap-2">
-	<Badge class={statusBadgeClass(taskDraft.status)}>{statusLabel(taskDraft.status)}</Badge>
+	<TaskStatusBadge status={taskDraft.status} label={statusLabel(taskDraft.status)} />
 	<Badge class={sizeBadgeClass(taskDraft.size)}>{taskDraft.size}</Badge>
 	<Badge class="border-transparent" style={taskDefinitionBadgeStyle(businessColor(taskDraft.business))}>
 		{taskDefinitionLabel(taskDraft.business, text.etcLabel)}
 	</Badge>
-	<ColorMarkerBadge label={taskDefinitionLabel(taskDraft.type, text.etcLabel)} color={taskTypeColor(taskDraft.type)} />
+	<DefinitionBadge label={taskDefinitionLabel(taskDraft.type, text.etcLabel)} color={taskTypeColor(taskDraft.type)} />
 </div>

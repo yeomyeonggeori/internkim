@@ -1,6 +1,6 @@
 import { centralTaskStatusOptions } from '$lib/task/central-task';
 import { buildBusinessSelectOptions, buildTypeSelectOptions } from './task-workspace-model';
-import { taskStatus } from './task-status';
+import { taskStatus, taskStatusLabelFrom } from './task-status';
 import { taskText } from './text';
 import type { TaskDefinitions, TaskSummary, Task } from './task-types';
 import type { PageText } from '$lib/i18n/page-text.svelte';
@@ -30,8 +30,7 @@ export function hasTaskRequestProvenance(task?: Task | null): boolean {
 }
 
 export function taskStatusLabel(text: TaskPageText, status: string): string {
-	const labels = text.status as Record<string, string>;
-	return labels[status] ?? status;
+	return taskStatusLabelFrom(text.status as Record<string, string>, status);
 }
 
 export function categorySelectOptions(definitions: TaskDefinitions, etcLabel: string) {

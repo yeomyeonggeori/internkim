@@ -41,10 +41,3 @@ export function dealStageIcon(stage: string): IconComponent {
 	return dealStageIcons[stage] ?? RocketIcon;
 }
 
-export function activityStatusIcon(status: string): IconComponent {
-	if (isTaskStatusCompleted(status)) return CheckIcon;
-	if (isTaskStatusRejected(status) || isTaskStatusStopped(status)) return XIcon;
-	if (isTaskStatusPaused(status)) return PauseIcon;
-	if (isTaskStatusInProgress(status)) return LoaderIcon;
-	return CalendarIcon;
-}

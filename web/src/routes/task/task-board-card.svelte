@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { cn } from '$lib/utils';
@@ -7,7 +8,7 @@
 	import { buildTaskBoardCardDisplay } from './task-board-card-model';
 	import TaskChildProgress from './task-child-progress.svelte';
 	import TaskDateRange from './task-date-range.svelte';
-	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
+	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import { sizeBadgeClass } from './task-style';
 	import { taskDefinitionBadgeStyle } from './task-definition-colors';
 	import type { TaskChildProgress as ChildProgress } from './task-relationships';
@@ -71,7 +72,14 @@
 	let display = $derived(buildTaskBoardCardDisplay(task, etcLabel));
 	let primaryParticipantName = $derived(display.participantNames[0] ?? '');
 	let primaryParticipantID = $derived(display.participantIDs[0] ?? '');
-	let additionalParticipantCount = $derived(Math.max(display.participantNames.length - 1, 0));
+	let participants = $derived(
+		display.participantNames.map((name, index) => ({
+			name,
+			seed: display.participantIDs[index] || name,
+			email: memberEmail(display.participantIDs[index] ?? '')
+		}))
+	);
+	let participantNameList = $derived(participants.map((person) => displayPersonName(person.name)).join(', '));
 
 	function openCurrentTask(): void {
 		if (isPending || !isInteractive) return;
@@ -139,15 +147,17 @@
 			<div class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
 				{#if primaryParticipantChip}
 					{@render primaryParticipantChip()}
+				{:else if participants.length > 1}
+					<PersonAvatarStack
+						people={participants}
+						max={3}
+						avatarClass="size-6 ring-2 ring-card"
+						label={participantNameList}
+					/>
 				{:else if primaryParticipantName}
 					<span class="inline-flex min-w-0 max-w-24 items-center gap-1.5">
 						<PersonAvatar name={primaryParticipantName} email={memberEmail(primaryParticipantID)} seed={primaryParticipantID || primaryParticipantName} class="size-3.5 ring-1 ring-border/60" />
 						<span class="truncate">{displayPersonName(primaryParticipantName)}</span>
-					</span>
-				{/if}
-				{#if additionalParticipantCount > 0}
-					<span class="shrink-0 rounded-full bg-muted px-1.5 text-[11px] leading-5 text-muted-foreground">
-						+{additionalParticipantCount}
 					</span>
 				{/if}
 			</div>
@@ -169,7 +179,7 @@
 					</Badge>
 				{/if}
 				{#each display.metadataLabels as label}
-					<ColorMarkerBadge {label} color={taskTypeColor(label)} showMarker={false} class="max-w-24" />
+					<DefinitionBadge {label} color={taskTypeColor(label)} class="max-w-24" />
 				{/each}
 				{#if task.startDate || task.endDate}
 					<Badge
