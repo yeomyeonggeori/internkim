@@ -6,3 +6,4 @@ records="tests/e2e/attendance-clock-central.spec.ts tests/e2e/attendance-month-c
 "$(dirname "$0")/e2e-central.sh" "$records" 5196 "$@"
 "$(dirname "$0")/e2e-central.sh" "tests/e2e/attendance-settings-central.spec.ts" 5197 "$@"
 "$(dirname "$0")/e2e-central.sh" "tests/e2e/attendance-compliance-central.spec.ts" 5198 "$@"
+"$(dirname "$0")/e2e-central.sh" "tests/e2e/attendance-leave-summary-central.spec.ts" 5199 "$@"
