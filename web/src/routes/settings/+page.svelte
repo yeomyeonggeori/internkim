@@ -92,8 +92,8 @@
 	<SkillsSection />
 {/snippet}
 
-<main class="h-full min-h-0 w-full flex-1 overflow-y-auto bg-background text-foreground">
-	<div class="mx-auto grid max-w-3xl gap-6 px-4 py-6 sm:px-6">
+<main class="h-full min-h-0 w-full flex-1 overflow-y-auto bg-background text-foreground max-sm:scroll-pb-[calc(var(--app-mobile-nav-height)+var(--app-mobile-nav-bottom))]">
+	<div class="mx-auto grid max-w-3xl gap-6 px-4 py-6 max-sm:pb-[calc(var(--app-mobile-nav-height)+var(--app-mobile-nav-bottom)+1.5rem)] sm:px-6">
 		{#if !isLoading && isAdmin}
 			<Tabs.Root bind:value={activeTab}>
 				<Tabs.List class="mb-6">
