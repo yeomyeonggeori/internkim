@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const FailureEvidenceMarker = "llm failure evidence: /admin/api/diagnostics/llm-failure?id="
+
 func FailureEvidenceDirectory(workspacePath string) string {
 	return filepath.Join(workspacePath, ".blueclaw", "llm-failures")
 }
