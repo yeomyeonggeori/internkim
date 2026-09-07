@@ -30,9 +30,25 @@ describe('calculateWorkStandardCapacity', () => {
 		expect(capacity.actualWidthPercent).toBe(100);
 	});
 
-	test('expands to working days after one second over the baseline buffer', () => {
+	test('expands to the extended buffer after one second over the baseline buffer', () => {
 		const capacity = calculateWorkStandardCapacity({
 			actualSeconds: 10 * hour + 1,
+			provisionalSeconds: 0,
+			targetSeconds: 8 * hour,
+			workingCapacitySeconds: 5 * 24 * hour,
+			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 8 * hour,
+			hasBaseline: true
+		});
+
+		expect(capacity.stage).toBe('extended-buffer');
+		expect(capacity.capacitySeconds).toBe(12 * hour);
+		expect(capacity.targetPositionPercent).toBeCloseTo(66.7, 1);
+	});
+
+	test('expands to working days after one second over the extended buffer', () => {
+		const capacity = calculateWorkStandardCapacity({
+			actualSeconds: 12 * hour + 1,
 			provisionalSeconds: 0,
 			targetSeconds: 8 * hour,
 			workingCapacitySeconds: 5 * 24 * hour,
@@ -93,9 +109,25 @@ describe('calculateWorkStandardCapacity', () => {
 		expect(capacity.actualWidthPercent).toBe(4.5);
 	});
 
-	test('autonomous escalates to working-days once actual exceeds reference capacity by one second', () => {
+	test('autonomous escalates to the extended buffer once actual exceeds reference capacity by one second', () => {
 		const capacity = calculateWorkStandardCapacity({
 			actualSeconds: 40 * hour + 1,
+			provisionalSeconds: 0,
+			targetSeconds: 0,
+			workingCapacitySeconds: 5 * 24 * hour,
+			calendarCapacitySeconds: 7 * 24 * hour,
+			referenceCapacitySeconds: 40 * hour,
+			hasBaseline: false
+		});
+
+		expect(capacity.stage).toBe('extended-buffer');
+		expect(capacity.capacitySeconds).toBe(60 * hour);
+		expect(capacity.targetPositionPercent).toBeUndefined();
+	});
+
+	test('autonomous escalates to working-days once actual exceeds the extended buffer', () => {
+		const capacity = calculateWorkStandardCapacity({
+			actualSeconds: 60 * hour + 1,
 			provisionalSeconds: 0,
 			targetSeconds: 0,
 			workingCapacitySeconds: 5 * 24 * hour,
