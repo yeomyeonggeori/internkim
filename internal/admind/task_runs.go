@@ -122,6 +122,7 @@ func (service *Service) proxyScopedTaskDetail(responseWriter http.ResponseWriter
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
+	inlineLLMFailureEvidence(service.Configuration.BlueclawWorkspacePath, detail, isViewerAdmin)
 	service.writeJSON(responseWriter, detail)
 }
 

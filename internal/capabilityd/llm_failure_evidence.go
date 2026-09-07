@@ -17,6 +17,5 @@ func (service Service) writeLLMResponse(responseWriter http.ResponseWriter, resp
 		service.writeResponse(responseWriter, response, fmt.Errorf("llm failure evidence could not be saved: %v; %w", writeError, failure))
 		return
 	}
-	evidenceURL := "/admin/api/diagnostics/llm-failure?id=" + identifier
-	service.writeResponse(responseWriter, response, fmt.Errorf("llm failure evidence: %s; %w", evidenceURL, failure))
+	service.writeResponse(responseWriter, response, fmt.Errorf("%s%s; %w", llmbackend.FailureEvidenceMarker, identifier, failure))
 }
