@@ -46,6 +46,11 @@
 		return text.management.needsChanges;
 	}
 
+	function selectFromName(event: MouseEvent, employeeEmail: string): void {
+		event.stopPropagation();
+		void management.selectEmployee(employeeEmail);
+	}
+
 	function leaveTypeName(id: string, name: string): string {
 		return localizedLeaveTypeName(id, name, currentLocale.value);
 	}
@@ -116,13 +121,14 @@
 							{@const isSelected = management.selectedEmployeeEmail === employee.email}
 							<Table.Row
 								data-state={isSelected ? 'selected' : undefined}
-								class={isSelected ? 'bg-primary/10' : ''}
+								class={`cursor-pointer ${isSelected ? 'bg-primary/10' : ''}`}
+								onclick={() => management.selectEmployee(employee.email)}
 							>
 								<Table.Cell>
 									<button
 										type="button"
-										class="flex items-center gap-2 text-left hover:underline"
-										onclick={() => management.selectEmployee(employee.email)}
+										class="flex items-center gap-2 text-left"
+										onclick={(event) => selectFromName(event, employee.email)}
 										aria-current={isSelected ? 'true' : undefined}
 									>
 										<PersonAvatar
