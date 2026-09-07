@@ -222,6 +222,7 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		"restart-policy-survival":     always(service.restartPolicySurvivalScenarioPlans),
 		"workspace-persistence":       always(service.workspacePersistenceScenarioPlans),
 		"learning-settings":           always(service.learningSettingsScenarioPlans),
+		"morning-briefing":            always(service.morningBriefingScenarioPlans),
 		"web-backed-ui":               always(service.webBackedScenarioPlans),
 		"regression-proof":            always(service.webBackedScenarioPlans),
 	}

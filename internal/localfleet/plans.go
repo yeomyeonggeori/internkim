@@ -273,6 +273,16 @@ func (service Service) learningSettingsScenarioPlans() []CommandPlan {
 	return append(service.upPlans(true), service.labCommand("vm-ssh", quoteShellArguments(scriptArguments)))
 }
 
+func (service Service) morningBriefingScenarioPlans() []CommandPlan {
+	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-morning-briefing.py", service.virtualSessionArtifactDirectoryPath("morning-briefing")}
+	plans := []CommandPlan{
+		service.shellPlan("build morning briefing database tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -o ../../build/morning-briefing-postgres.test ./internal/store/postgres"),
+		service.shellPlan("build morning briefing model tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -tags 'appliance llmeval' -o ../../build/morning-briefing-live.test ./internal/e2e"),
+	}
+	plans = append(plans, service.upPlans(true)...)
+	return append(plans, service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
+}
+
 func (service Service) webBackedScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false),
 		service.shellPlan("verify api", service.verifyCommand("api")),
