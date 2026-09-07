@@ -189,6 +189,8 @@ func (service *Service) handleAdminDiagnosticsRoute(responseWriter http.Response
 		service.handleAttachmentCleanup(responseWriter, request, true)
 	case request.Method == http.MethodGet && path == "/diagnostics/service-logs":
 		service.writeServiceLogs(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/diagnostics/llm-failure":
+		service.writeLLMFailureEvidence(responseWriter, request)
 	default:
 		return false
 	}
