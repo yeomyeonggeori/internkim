@@ -5,6 +5,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
 	import { Input } from '$lib/components/ui/input';
+	import { Switch } from '$lib/components/ui/switch';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import LoaderIcon from '@lucide/svelte/icons/loader';
 	import { onMount } from 'svelte';
@@ -13,6 +14,8 @@
 	import { defaultCallMe, replyLanguageOptions } from '$lib/persona/languages';
 	import { fetchMyAgentDocument, updateMyAgentDocument } from './persona-api';
 	import { companySettingsText } from './text';
+	import { companyTimeZone } from '$lib/company/company-settings';
+	import { morningBriefingDefaults } from '$lib/persona/user-schema-defaults';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isSupabaseConfigured, supabaseMember } from '$lib/supabase-session';
 
@@ -24,6 +27,9 @@
 	let errorMessage = $state('');
 	let isLoading = $state(true);
 	let isSaving = $state(false);
+	let hasLoaded = $state(false);
+	let companyTimeZoneName = $state('');
+	let morningBriefing = $state(morningBriefingDefaults());
 
 	const selectableTraits = $derived([...toneTraits, ...draft.traits.filter((trait) => !toneTraits.includes(trait))]);
 	const isTraitLimitReached = $derived(draft.traits.length >= toneTraitLimit);
@@ -33,7 +39,9 @@
 	onMount(async () => {
 		try {
 			draft = userToDraft(await fetchMyAgentDocument());
-			await fillDefaultsFromMembership();
+			morningBriefing = { ...morningBriefingDefaults(), ...draft.morningBriefing };
+			await Promise.all([fillDefaultsFromMembership(), loadCompanyTimeZone()]);
+			hasLoaded = true;
 		} catch {
 			errorMessage = text.persona.userLoadError;
 		} finally {
@@ -49,11 +57,22 @@
 		if (!draft.callMe) draft.callMe = defaultCallMe(member.name, draft.languageDefault);
 	}
 
-	async function save() {
+	async function loadCompanyTimeZone() {
+		try {
+			companyTimeZoneName = await companyTimeZone();
+		} catch {
+			companyTimeZoneName = '';
+		}
+	}
+
+	async function save(event: SubmitEvent) {
+		event.preventDefault();
+		if (!hasLoaded || isSaving) return;
 		isSaving = true;
 		errorMessage = '';
 		try {
-			draft = userToDraft(await updateMyAgentDocument(draftToUser(draft)));
+			draft = userToDraft(await updateMyAgentDocument(draftToUser({ ...draft, morningBriefing })));
+			morningBriefing = { ...morningBriefingDefaults(), ...draft.morningBriefing };
 			toast.success(text.persona.saved);
 		} catch (error) {
 			errorMessage = error instanceof Error && error.message ? error.message : text.persona.userSaveError;
@@ -68,69 +87,94 @@
 		<Card.Title>{text.persona.userTitle}</Card.Title>
 		<Card.Description>{text.persona.userDescription}</Card.Description>
 	</Card.Header>
-	<Card.Content class="grid gap-5">
-		<div class="grid gap-5 md:grid-cols-2">
+	<form aria-label={text.persona.userTitle} onsubmit={save} class="grid gap-6">
+		<Card.Content class="grid gap-5">
+			<Field.Group class="grid gap-5 md:grid-cols-2">
+				<Field.Field>
+					<Field.Label for="{fieldID}-call-me">{text.persona.callMeLabel}</Field.Label>
+					<Input id="{fieldID}-call-me" bind:value={draft.callMe} placeholder={text.persona.callMePlaceholder} disabled={isLoading || isSaving} />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="{fieldID}-language">{text.persona.userLanguageLabel}</Field.Label>
+					<Select.Root type="single" bind:value={draft.languageDefault} disabled={isLoading || isSaving}>
+						<Select.Trigger id="{fieldID}-language" class="w-full">
+							{selectedLanguageLabel}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each languageOptions as option (option.value)}
+									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+				</Field.Field>
+			</Field.Group>
 			<Field.Field>
-				<Field.Label for="{fieldID}-call-me">{text.persona.callMeLabel}</Field.Label>
-				<Input id="{fieldID}-call-me" bind:value={draft.callMe} placeholder={text.persona.callMePlaceholder} disabled={isLoading} />
+				<Field.Label for="{fieldID}-about">{text.persona.aboutLabel}</Field.Label>
+				<Textarea id="{fieldID}-about" bind:value={draft.about} placeholder={text.persona.aboutPlaceholder} disabled={isLoading || isSaving} class="min-h-20" />
 			</Field.Field>
 			<Field.Field>
-				<Field.Label for="{fieldID}-language">{text.persona.userLanguageLabel}</Field.Label>
-				<Select.Root type="single" bind:value={draft.languageDefault} disabled={isLoading}>
-					<Select.Trigger id="{fieldID}-language" class="w-full">
-						{selectedLanguageLabel}
-					</Select.Trigger>
-					<Select.Content>
-						{#each languageOptions as option (option.value)}
-							<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+				<Field.Label for="{fieldID}-preferences">{text.persona.preferencesLabel}</Field.Label>
+				<Textarea id="{fieldID}-preferences" bind:value={draft.preferencesText} placeholder={text.persona.linesPlaceholder} disabled={isLoading || isSaving} class="min-h-28" />
+			</Field.Field>
+			<Field.Group class="grid gap-5 md:grid-cols-2">
+				<Field.Field>
+					<Field.Label for="{fieldID}-register">{text.persona.toneRegisterLabel}</Field.Label>
+					<Select.Root type="single" bind:value={draft.register} disabled={isLoading || isSaving}>
+						<Select.Trigger id="{fieldID}-register" class="w-full">
+							{text.persona.toneRegisters[draft.register]}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each toneRegisters as register (register)}
+									<Select.Item value={register} label={text.persona.toneRegisters[register]}>{text.persona.toneRegisters[register]}</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+				</Field.Field>
+				<Field.Field>
+					<Field.Label>{text.persona.traitsLabel}</Field.Label>
+					<ToggleGroup.Root type="multiple" bind:value={draft.traits} variant="outline" size="sm" spacing={2} disabled={isLoading || isSaving} aria-label={text.persona.traitsLabel} class="flex-wrap justify-start">
+						{#each selectableTraits as trait (trait)}
+							<ToggleGroup.Item value={trait} disabled={isLoading || isSaving || (isTraitLimitReached && !draft.traits.includes(trait))}>
+								{traitLabels[trait] || trait}
+							</ToggleGroup.Item>
 						{/each}
-					</Select.Content>
-				</Select.Root>
-			</Field.Field>
-		</div>
-		<Field.Field>
-			<Field.Label for="{fieldID}-about">{text.persona.aboutLabel}</Field.Label>
-			<Textarea id="{fieldID}-about" bind:value={draft.about} placeholder={text.persona.aboutPlaceholder} disabled={isLoading} class="min-h-20" />
-		</Field.Field>
-		<Field.Field>
-			<Field.Label for="{fieldID}-preferences">{text.persona.preferencesLabel}</Field.Label>
-			<Textarea id="{fieldID}-preferences" bind:value={draft.preferencesText} placeholder={text.persona.linesPlaceholder} disabled={isLoading} class="min-h-28" />
-		</Field.Field>
-		<div class="grid gap-5 md:grid-cols-2">
-			<Field.Field>
-				<Field.Label for="{fieldID}-register">{text.persona.toneRegisterLabel}</Field.Label>
-				<Select.Root type="single" bind:value={draft.register} disabled={isLoading}>
-					<Select.Trigger id="{fieldID}-register" class="w-full">
-						{text.persona.toneRegisters[draft.register]}
-					</Select.Trigger>
-					<Select.Content>
-						{#each toneRegisters as register (register)}
-							<Select.Item value={register} label={text.persona.toneRegisters[register]}>{text.persona.toneRegisters[register]}</Select.Item>
-						{/each}
-					</Select.Content>
-				</Select.Root>
-			</Field.Field>
-			<Field.Field>
-				<Field.Label>{text.persona.traitsLabel}</Field.Label>
-				<ToggleGroup.Root type="multiple" bind:value={draft.traits} variant="outline" size="sm" disabled={isLoading} class="flex-wrap justify-start">
-					{#each selectableTraits as trait (trait)}
-						<ToggleGroup.Item value={trait} disabled={isLoading || (isTraitLimitReached && !draft.traits.includes(trait))}>
-							{traitLabels[trait] || trait}
-						</ToggleGroup.Item>
-					{/each}
-				</ToggleGroup.Root>
-			</Field.Field>
-		</div>
-		{#if errorMessage}
-			<Field.Error>{errorMessage}</Field.Error>
-		{/if}
-	</Card.Content>
-	<Card.Footer class="justify-end">
-		<Button disabled={isLoading || isSaving} onclick={save}>
-			{#if isSaving}
-				<LoaderIcon class="animate-spin" />
+					</ToggleGroup.Root>
+				</Field.Field>
+			</Field.Group>
+			<Field.Set>
+				<Field.Legend>{text.persona.morningBriefingTitle}</Field.Legend>
+				<Field.Description>
+					{text.persona.morningBriefingDescription}
+				</Field.Description>
+				<Field.Group>
+					<Field.Field orientation="horizontal">
+						<Field.Label for="{fieldID}-morning-briefing-enabled">{text.persona.morningBriefingEnabled}</Field.Label>
+						<Switch id="{fieldID}-morning-briefing-enabled" bind:checked={morningBriefing.enabled} disabled={isLoading || isSaving} />
+					</Field.Field>
+					<Field.Field>
+						<Field.Label for="{fieldID}-morning-briefing-time">{text.persona.morningBriefingTime}</Field.Label>
+						<Input id="{fieldID}-morning-briefing-time" type="time" bind:value={morningBriefing.time} required disabled={isLoading || isSaving} />
+						<Field.Description>
+							{text.persona.morningBriefingTimeZone}{#if companyTimeZoneName}: {companyTimeZoneName}{/if}
+						</Field.Description>
+					</Field.Field>
+				</Field.Group>
+			</Field.Set>
+			{#if errorMessage}
+				<Field.Error>{errorMessage}</Field.Error>
 			{/if}
-			{text.persona.save}
-		</Button>
-	</Card.Footer>
+		</Card.Content>
+		<Card.Footer class="justify-end">
+			<Button type="submit" disabled={!hasLoaded || isLoading || isSaving}>
+				{#if isSaving}
+					<LoaderIcon data-icon="inline-start" class="animate-spin" />
+				{/if}
+				{text.persona.save}
+			</Button>
+		</Card.Footer>
+	</form>
 </Card.Root>
