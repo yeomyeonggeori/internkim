@@ -19,3 +19,14 @@ export function taskDateParts(date: string | undefined, currentYear: number): Ta
 export function taskDateText(parts: TaskDateParts): string {
 	return [parts.year, parts.month, parts.day].filter(Boolean).join('/');
 }
+
+export function taskDateRangeParts(
+	startDate: string | undefined,
+	endDate: string | undefined,
+	currentYear: number
+): TaskDateParts[] {
+	const dates = startDate === endDate ? [startDate] : [startDate, endDate];
+	return dates
+		.map((date) => taskDateParts(date, currentYear))
+		.filter((date): date is TaskDateParts => date !== undefined);
+}
