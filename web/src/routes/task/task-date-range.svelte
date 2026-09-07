@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { taskDateParts, taskDateText, type TaskDateParts } from './task-date-range';
+	import { taskDateRangeParts, taskDateText } from './task-date-range';
 
 	type Props = {
 		startDate?: string;
@@ -8,11 +8,8 @@
 	};
 
 	let { startDate, endDate, currentYear = new Date().getFullYear() }: Props = $props();
-	const dates = $derived(
-		[startDate, endDate]
-			.map((date) => taskDateParts(date, currentYear))
-			.filter((date): date is TaskDateParts => date !== undefined)
-	);
+	const dates = $derived(taskDateRangeParts(startDate, endDate, currentYear));
+
 	const accessibleLabel = $derived(dates.map(taskDateText).join(' - '));
 </script>
 
