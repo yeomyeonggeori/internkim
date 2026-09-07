@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { accountStatusRank, activityStatusRank, daysLabel, formatCRMDate, getActivityStatusVariant, getStageVariant, opportunityStageLabel } from '../../../src/routes/crm/crm-view-model';
+import { accountStatusRank, activityStatusRank, daysLabel, effectiveContactOwner, formatCRMDate, getActivityStatusVariant, getStageVariant, opportunityStageLabel } from '../../../src/routes/crm/crm-view-model';
 import { crmText, type CRMText } from '../../../src/routes/crm/text';
 import type { CRMPipelineStage } from '../../../src/routes/crm/crm-types';
 
@@ -83,5 +83,51 @@ describe('status ranks', () => {
 			.sort((left, right) => accountStatusRank(right as never) - accountStatusRank(left as never));
 
 		expect(ranked).toEqual(['active', 'prospect', 'paused']);
+	});
+});
+
+describe('the owner a contact shows', () => {
+	const people = [{ memberID: 'person-own', handle: 'own', name: '박예시', email: 'yesi@example.com' }];
+	const organizations = [
+		{
+			id: 'organization-one',
+			name: '샘플 임팩트 랩',
+			types: ['customer' as const],
+			status: 'active' as const,
+			importance: 'medium' as const,
+			ownerName: '이샘플',
+			ownerEmail: 'sample@example.com',
+			ownerPersonID: 'person-account',
+			team: '',
+			tags: [],
+			description: '',
+			lastContactDate: '2026-08-01',
+			nextActionDate: '',
+			openOpportunityCount: 0,
+			expectedValues: {}
+		}
+	];
+
+	function contact(ownerPersonID?: string) {
+		return { id: 'contact-one', organizationID: 'organization-one', name: '최견본', title: '', email: '', ownerPersonID };
+	}
+
+	test('falls back to the account owner when the contact has none of its own', () => {
+		expect(effectiveContactOwner(contact(), organizations, people)).toEqual({
+			name: '이샘플',
+			email: 'sample@example.com',
+			seed: 'person-account'
+		});
+	});
+
+	test('keeps the contact’s own owner when it has one', () => {
+		expect(effectiveContactOwner(contact('person-own'), organizations, people)?.name).toBe('박예시');
+	});
+
+	test('has nobody to show when neither the contact nor its account names an owner', () => {
+		const ownerless = [{ ...organizations[0], ownerName: '', ownerEmail: '', ownerPersonID: undefined }];
+
+		expect(effectiveContactOwner(contact(), ownerless, people)).toBe(undefined);
+		expect(effectiveContactOwner(contact(), [], people)).toBe(undefined);
 	});
 });

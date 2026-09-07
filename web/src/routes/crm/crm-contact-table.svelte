@@ -5,7 +5,7 @@
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import type { UserRecord } from '$lib/organization/types';
 	import type { CRMOrganization, CRMContact } from './crm-types';
-	import { crmPersonChip, findOrganizationByID } from './crm-view-model';
+	import { effectiveContactOwner, findOrganizationByID } from './crm-view-model';
 	import CRMTableColumnHeader from './crm-table-column-header.svelte';
 	import { nextSortState, sortRows, type CRMSortComparators, type CRMSortState } from './crm-table-sort';
 	import type { CRMText } from './text';
@@ -23,7 +23,7 @@
 		name: (contact) => contact.name,
 		organization: (contact) => findOrganizationByID(organizations, contact.organizationID)?.name ?? '',
 		title: (contact) => contact.title,
-		owner: (contact) => crmPersonChip(people, contact.ownerPersonID)?.name ?? ''
+		owner: (contact) => effectiveContactOwner(contact, organizations, people)?.name ?? ''
 	};
 
 	const pageSize = 10;
@@ -78,7 +78,7 @@
 			<Table.Body class="text-left">
 				{#each visibleContacts as contact (contact.id)}
 					{@const organization = findOrganizationByID(organizations, contact.organizationID)}
-					{@const owner = crmPersonChip(people, contact.ownerPersonID)}
+					{@const owner = effectiveContactOwner(contact, organizations, people)}
 					<Table.Row
 						class="cursor-pointer align-top hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
 						tabindex={0}

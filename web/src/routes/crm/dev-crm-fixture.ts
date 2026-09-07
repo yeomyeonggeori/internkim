@@ -25,6 +25,16 @@ export const crmFixtureActivityKindColors: Record<string, string> = {
 	stage_change: '#cf308f'
 };
 
+export const crmFixtureOrganizationTypeColors: Record<string, string> = {
+	customer: '#2563eb',
+	partner: '#0d9488',
+	sponsor: '#d97706',
+	vendor: '#7c3aed',
+	investor: '#db2777',
+	portfolio: '#1f841f',
+	other: '#475569'
+};
+
 export const crmFixturePipelineColors: Record<string, string> = {
 	sales: '#2563eb',
 	procurement: '#0d9488',

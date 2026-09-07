@@ -38,7 +38,7 @@ import {
 	withNextAction,
 	type CRMViewData
 } from './crm-mappers';
-import { crmFixtureActivityKindColors, crmFixturePeople, crmOrganizations, crmActivities, crmContacts, crmOpportunities } from './dev-crm-fixture';
+import { crmFixtureActivityKindColors, crmFixtureMode as fixtureMode, crmFixtureOrganizationTypeColors, crmFixturePeople, crmFixturePipelineColors, crmOrganizations, crmActivities, crmContacts, crmOpportunities } from './dev-crm-fixture';
 import { crmStages } from './crm-stages';
 import type {
 	CRMOrganization,
@@ -69,7 +69,6 @@ import {
 	createCRMRelationshipRecords,
 	CRMRelationshipContactCreateError
 } from './crm-relationship-create';
-import { crmFixtureMode as fixtureMode, crmFixturePipelineColors } from './dev-crm-fixture';
 
 
 export class CRMPageController {
@@ -239,7 +238,11 @@ export class CRMPageController {
 	}
 
 	async saveVocabulary(vocabulary: CRMVocabulary): Promise<void> {
-		if (fixtureMode) throw new Error(this.text.fixtureModeReadOnly);
+		if (fixtureMode) {
+			this.vocabulary = cloneCRMVocabulary(vocabulary);
+			this.pipelines = crmPipelinesOf(vocabulary);
+			return;
+		}
 		this.isSaving = true;
 		this.error = null;
 		this.permissionDenied = false;
@@ -444,8 +447,13 @@ export class CRMPageController {
 		);
 		const pipelineNames = [...new Set(this.opportunities.map((opportunity) => opportunity.kind ?? 'sales'))];
 		this.pipelines = pipelineNames.map((pipeline) => ({ pipeline, label: crmLabel(this.text.progressKinds, pipeline), direction: 'outbound', isActive: true, color: crmFixturePipelineColors[pipeline] }));
+		const organizationTypeNames = [...new Set(this.organizations.flatMap((organization) => organization.types))];
 		this.vocabulary = {
-			organization_types: [],
+			organization_types: organizationTypeNames.map((organizationType) => ({
+				id: organizationType,
+				name: crmLabel(this.text.organizationTypes, organizationType),
+				color: crmFixtureOrganizationTypeColors[organizationType]
+			})),
 			pipelines: this.pipelines.map((pipeline) => ({
 				id: pipeline.pipeline,
 				name: pipeline.label,
