@@ -125,7 +125,7 @@
 								class={cn(
 									'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums',
 									column.status === 'requested' && column.tasks.length > 0
-										? 'bg-destructive text-white'
+										? 'bg-destructive text-background'
 										: 'bg-muted text-muted-foreground'
 								)}
 								aria-label={taskCountLabel(column.tasks.length)}

@@ -84,6 +84,8 @@ export type CRMActivityResponse = {
 	occurredAt: string;
 	content?: string;
 	taskStatus?: string;
+	size?: string;
+	participantIDs?: string[];
 	taskOwnerID?: string;
 	isEvent?: boolean;
 	isWholeDay?: boolean;
@@ -144,7 +146,7 @@ export type CRMActivityPayload = {
 	occurredAt: string;
 	content: string;
 	taskStatus: string;
-	taskOwnerID: string;
+	participantIDs: string[];
 	isEvent: boolean;
 	isWholeDay: boolean;
 	startsAt: string;

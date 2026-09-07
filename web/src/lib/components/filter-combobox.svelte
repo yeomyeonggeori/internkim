@@ -95,7 +95,7 @@
 					{:else if selectedContent}
 						{@render selectedContent(selectedOption)}
 					{:else}
-						<span class="truncate">{selectedOption.label}</span>
+						<span class="truncate">{label}: {selectedOption.label}</span>
 					{/if}
 				</span>
 				<ChevronsUpDownIcon class="opacity-50" />

@@ -63,7 +63,6 @@
 	const organizationStatuses: CRMOrganizationStatus[] = ['prospect', 'active', 'paused'];
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let selectedOwner = $derived(people.find((person) => person.memberID === ownerPersonID));
-	let selectedTeam = $derived(groups.find((group) => group.id === selectedOwner?.groupID)?.name ?? '');
 
 	function setOrganizationType(organizationType: CRMOrganizationType, checked: boolean): void {
 		if (checked) {
@@ -95,7 +94,6 @@
 	<Field.Field><Field.Label for="crm-record-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-record-owner" bind:value={ownerPersonID} {people} {groups} {text} disabled={createdOrganizationID !== ''} /></Field.Field>
 	<div class="grid gap-4 sm:grid-cols-2">
 		<Field.Field><Field.Label for="crm-record-owner-email">{text.ownerEmail}</Field.Label><Input id="crm-record-owner-email" value={selectedOwner?.email ?? ''} disabled /></Field.Field>
-		<Field.Field><Field.Label for="crm-record-owner-team">{text.team}</Field.Label><Input id="crm-record-owner-team" value={selectedTeam} disabled /></Field.Field>
 	</div>
 	<Field.Field><Field.Label for="crm-record-address">{text.address}</Field.Label><Input id="crm-record-address" bind:value={address} /></Field.Field>
 	<Field.Field><Field.Label for="crm-record-tags">{text.tags}</Field.Label><TagsInput id="crm-record-tags" bind:value={tags} /></Field.Field>

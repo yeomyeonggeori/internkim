@@ -14,34 +14,30 @@ export type CRMKPIMoneyDetail = {
 	displayValue: string;
 };
 
+export type CRMKPITone = 'neutral' | 'attention';
+
 export type CRMKPISegment = {
 	label: string;
 	value: number;
 	displayValue: string;
-	color: string;
+	tone: CRMKPITone;
+	color?: string;
 	moneyDetails?: CRMKPIMoneyDetail[];
 };
 
 export type CRMKPICardData = {
 	id: string;
-	title: string;
-	description: string;
 	totalValue: string;
 	totalLabel: string;
 	totalMoneyDetails?: CRMKPIMoneyDetail[];
 	segments: CRMKPISegment[];
 };
 
-const movingColor = '#0f9f8f';
-const neutralColor = '#2495c9';
-const attentionColor = '#ef6351';
 const recentContactWindowDays = 30;
-const compositionPalette = [movingColor, neutralColor, attentionColor];
-const remainderColor = '#94a3b8';
-const namedCompositionSegments = compositionPalette.length;
+const namedCompositionSegments = 3;
 
-function countSegment(label: string, value: number, color: string, suffix: string): CRMKPISegment {
-	return { label, value, displayValue: `${value}${suffix}`, color };
+function countSegment(label: string, value: number, tone: CRMKPITone, suffix: string): CRMKPISegment {
+	return { label, value, displayValue: `${value}${suffix}`, tone };
 }
 
 function buildMoneySummary(
@@ -55,7 +51,7 @@ function buildMoneySummary(
 	const collapsedValue = view ? collapsedViewMoneyTotal(totals, view) : undefined;
 	if (view && collapsedValue !== undefined) {
 		return {
-			displayValue: formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, text.noValue, locale, view.selected)
+			displayValue: formatViewMoney({ value: collapsedValue, currency: view.selected, isConverted: true }, text.noValue, locale)
 		};
 	}
 	const moneyDetails = catalogue.reduce<CRMKPIMoneyDetail[]>((details, entry) => {
@@ -67,13 +63,11 @@ function buildMoneySummary(
 		];
 	}, []);
 	if (moneyDetails.length <= 1) return { displayValue: formatMoneyTotals(totals, catalogue, text.noValue, locale) };
-	return {
-		displayValue: text.currencyCount.replace('{count}', String(moneyDetails.length)),
-		moneyDetails
-	};
+	const primary = moneyDetails.find((detail) => detail.currency === view?.selected) ?? moneyDetails[0];
+	return { displayValue: primary.displayValue, moneyDetails };
 }
 
-function amountSegment(catalogue: CurrencyCatalogue, label: string, opportunities: CRMOpportunity[], color: string, text: CRMText, locale: Locale, view?: CRMViewCurrencyReader): CRMKPISegment {
+function amountSegment(catalogue: CurrencyCatalogue, label: string, opportunities: CRMOpportunity[], tone: CRMKPITone, text: CRMText, locale: Locale, view?: CRMViewCurrencyReader): CRMKPISegment {
 	const moneySummary = buildMoneySummary(catalogue, opportunities, text, locale, view);
 	return {
 		label,
@@ -81,7 +75,7 @@ function amountSegment(catalogue: CurrencyCatalogue, label: string, opportunitie
 		displayValue: moneySummary.moneyDetails
 			? `${opportunities.length}${text.kpiCountSuffix}`
 			: moneySummary.displayValue,
-		color,
+		tone,
 		moneyDetails: moneySummary.moneyDetails
 	};
 }
@@ -99,15 +93,13 @@ function buildPipelineHealth(catalogue: CurrencyCatalogue, opportunities: CRMOpp
 
 	return {
 		id: 'pipeline-health',
-		title: text.kpiPipelineHealth,
-		description: text.kpiPipelineHealthDescription,
 		totalValue: totalMoneySummary.displayValue,
 		totalLabel: text.kpiOpenValue,
 		totalMoneyDetails: totalMoneySummary.moneyDetails,
 		segments: [
-			amountSegment(catalogue, text.kpiMoving, moving, movingColor, text, locale, view),
-			amountSegment(catalogue, text.kpiStalled, stalled, neutralColor, text, locale, view),
-			amountSegment(catalogue, text.kpiOnHold, onHold, attentionColor, text, locale, view)
+			amountSegment(catalogue, text.kpiMoving, moving, 'neutral', text, locale, view),
+			amountSegment(catalogue, text.kpiStalled, stalled, 'neutral', text, locale, view),
+			amountSegment(catalogue, text.kpiOnHold, onHold, 'attention', text, locale, view)
 		]
 	};
 }
@@ -123,14 +115,12 @@ function buildRelationshipHealth(organizations: CRMOrganization[], text: CRMText
 
 	return {
 		id: 'relationship-health',
-		title: text.kpiRelationshipHealth,
-		description: text.kpiRelationshipHealthDescription,
 		totalValue: String(organizations.length),
 		totalLabel: text.kpiRelationships,
 		segments: [
-			countSegment(text.kpiRecentlyContacted, recentlyContacted.length, movingColor, text.kpiCountSuffix),
-			countSegment(text.kpiStable, stable.length, neutralColor, text.kpiCountSuffix),
-			countSegment(text.kpiNeedsAttention, needsAttention.length, attentionColor, text.kpiCountSuffix)
+			countSegment(text.kpiRecentlyContacted, recentlyContacted.length, 'neutral', text.kpiCountSuffix),
+			countSegment(text.kpiStable, stable.length, 'neutral', text.kpiCountSuffix),
+			countSegment(text.kpiNeedsAttention, needsAttention.length, 'attention', text.kpiCountSuffix)
 		]
 	};
 }
@@ -143,20 +133,25 @@ function buildFollowUpHealth(nextActions: CRMNextAction[], text: CRMText, today:
 
 	return {
 		id: 'follow-up-health',
-		title: text.kpiFollowUpHealth,
-		description: text.kpiFollowUpHealthDescription,
 		totalValue: String(openActions.length),
 		totalLabel: text.kpiOpenActions,
 		segments: [
-			countSegment(text.kpiScheduled, scheduled.length, movingColor, text.kpiCountSuffix),
-			countSegment(text.kpiDueSoon, dueSoon.length, neutralColor, text.kpiCountSuffix),
-			countSegment(text.kpiOverdue, overdue.length, attentionColor, text.kpiCountSuffix)
+			countSegment(text.kpiScheduled, scheduled.length, 'neutral', text.kpiCountSuffix),
+			countSegment(text.kpiDueSoon, dueSoon.length, 'neutral', text.kpiCountSuffix),
+			countSegment(text.kpiOverdue, overdue.length, 'attention', text.kpiCountSuffix)
 		]
 	};
 }
 
-function progressKindLabel(kind: string, pipelines: CRMPipeline[], text: CRMText): string {
-	return pipelines.find((pipeline) => pipeline.pipeline === kind)?.label ?? crmLabel(text.progressKinds, kind);
+function compositionSegment(kind: string, count: number, pipelines: CRMPipeline[], text: CRMText): CRMKPISegment {
+	const definition = pipelines.find((pipeline) => pipeline.pipeline === kind);
+	return {
+		label: definition?.label ?? crmLabel(text.progressKinds, kind),
+		value: count,
+		displayValue: `${count}${text.kpiCountSuffix}`,
+		tone: 'neutral',
+		color: definition?.color
+	};
 }
 
 function buildPipelineComposition(
@@ -175,15 +170,11 @@ function buildPipelineComposition(
 	const ranked = [...countsByKind.entries()].sort(([, left], [, right]) => right - left);
 	const named = ranked.slice(0, namedCompositionSegments);
 	const remainder = ranked.slice(namedCompositionSegments).reduce((sum, [, count]) => sum + count, 0);
-	const segments = named.map(([kind, count], index) =>
-		countSegment(progressKindLabel(kind, pipelines, text), count, compositionPalette[index] ?? remainderColor, text.kpiCountSuffix)
-	);
-	if (remainder > 0) segments.push(countSegment(text.kpiOtherProgressKinds, remainder, remainderColor, text.kpiCountSuffix));
+	const segments = named.map(([kind, count]) => compositionSegment(kind, count, pipelines, text));
+	if (remainder > 0) segments.push(countSegment(text.kpiOtherProgressKinds, remainder, 'neutral', text.kpiCountSuffix));
 
 	return {
 		id: 'pipeline-composition',
-		title: text.kpiPipelineComposition,
-		description: text.kpiPipelineCompositionDescription,
 		totalValue: String(openOpportunities.length),
 		totalLabel: text.kpiOpenProgress,
 		segments

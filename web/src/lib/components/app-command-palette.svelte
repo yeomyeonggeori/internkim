@@ -5,6 +5,7 @@
 	import CalendarEventListCard from '../../routes/calendar/embed/calendar-event-list-card.svelte';
 	import type { CalendarSearchResult } from '../../routes/calendar/embed/calendar-search';
 	import { mailMessageSearch } from '$lib/components/mail-message-search.svelte';
+	import { crmSearch } from '$lib/components/crm-search.svelte';
 	import { taskSearch } from '$lib/components/task-search.svelte';
 	import TaskBoardCard from '../../routes/task/task-board-card.svelte';
 	import { taskText } from '../../routes/task/text';
@@ -15,6 +16,11 @@
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../../routes/attendance/text';
+	import { crmText } from '../../routes/crm/text';
+	import { accountStatusIcon } from '../../routes/crm/crm-status-icons';
+	import { Badge } from '$lib/components/ui/badge';
+	import Building2Icon from '@lucide/svelte/icons/building-2';
+	import UserRoundIcon from '@lucide/svelte/icons/user-round';
 	import { koreanSearchScore } from '$lib/korean-search';
 	import { goto } from '$app/navigation';
 	import { calendarNavigation } from '../../routes/calendar/refresh-signal.svelte';
@@ -38,6 +44,7 @@
 	const attendanceLabels = createPageText(attendanceText);
 	const taskLabels = createPageText(taskText);
 	const mailLabels = createPageText(mailText);
+	const crmLabels = createPageText(crmText);
 	const clockOutShortcut = '0';
 	const locationShortcuts = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 	let searchValue = $state('');
@@ -53,11 +60,14 @@
 
 	const calendarResults = $derived(calendarEventSearch.search(searchValue));
 	const taskResults = $derived(taskSearch.search(searchValue));
+	const crmResults = $derived(crmSearch.search(searchValue));
+	const hasCRMResults = $derived(crmResults.organizations.length > 0 || crmResults.contacts.length > 0);
 	const currentSearchScope = $derived(searchScopeFromPath(appNavigation.currentPath));
 	const hasSuggestionResults = $derived(
 		(currentSearchScope === 'mail' && mailMessageSearch.results.length > 0) ||
 			(currentSearchScope === 'task' && taskResults.length > 0) ||
-			(currentSearchScope === 'calendar' && calendarResults.length > 0)
+			(currentSearchScope === 'calendar' && calendarResults.length > 0) ||
+			(currentSearchScope === 'crm' && hasCRMResults)
 	);
 
 	$effect(() => {
@@ -72,6 +82,7 @@
 		if (!open) return;
 		calendarEventSearch.load();
 		taskSearch.load();
+		crmSearch.load();
 	});
 
 	function searchResultTimeLabel(result: CalendarSearchResult): string {
@@ -86,7 +97,18 @@
 		if (pathname.startsWith('/mail')) return 'mail';
 		if (pathname.startsWith('/calendar')) return 'calendar';
 		if (pathname.startsWith('/task')) return 'task';
+		if (pathname.startsWith('/crm')) return 'crm';
 		return '';
+	}
+
+	async function openCRMOrganization(organizationID: string) {
+		open = false;
+		await goto(`/crm?organization=${encodeURIComponent(organizationID)}`);
+	}
+
+	async function openCRMContact(contactID: string) {
+		open = false;
+		await goto(`/crm?contact=${encodeURIComponent(contactID)}`);
 	}
 
 	async function openTask(task: Task) {
@@ -164,7 +186,7 @@
 <Command.Dialog bind:open title={text.search} description={text.search} filter={koreanSearchScore} onkeydown={handleShortcut}>
 	<Command.Input placeholder={text.search} bind:value={searchValue} />
 	<Command.List>
-		{#if !mailMessageSearch.results.length && !taskResults.length && !calendarResults.length}
+		{#if !mailMessageSearch.results.length && !taskResults.length && !calendarResults.length && !hasCRMResults}
 			<Command.Empty>{text.searchNoResults}</Command.Empty>
 		{/if}
 
@@ -196,6 +218,8 @@
 					{@render taskResultItems()}
 				{:else if currentSearchScope === 'calendar'}
 					{@render calendarResultItems()}
+				{:else if currentSearchScope === 'crm'}
+					{@render crmResultItems()}
 				{/if}
 			</Command.Group>
 		{/if}
@@ -218,6 +242,13 @@
 			<Command.Separator />
 			<Command.Group forceMount heading={text.calendar}>
 				{@render calendarResultItems()}
+			</Command.Group>
+		{/if}
+
+		{#if currentSearchScope !== 'crm' && hasCRMResults}
+			<Command.Separator />
+			<Command.Group forceMount heading={text.crm}>
+				{@render crmResultItems()}
 			</Command.Group>
 		{/if}
 
@@ -329,6 +360,24 @@
 				timeLabel={result.isAllDay ? '' : searchResultTimeLabel(result)}
 				openEvent={() => openCalendarEvent(result.startDate)}
 			/>
+		</Command.Item>
+	{/each}
+{/snippet}
+
+{#snippet crmResultItems()}
+	{#each crmResults.organizations as organization (organization.id)}
+		{@const StatusIcon = accountStatusIcon(organization.status)}
+		<Command.Item value="crm-organization-{organization.id}" forceMount onSelect={() => openCRMOrganization(organization.id)}>
+			<Building2Icon />
+			<span class="min-w-0 flex-1 truncate">{organization.name}</span>
+			<Badge variant="outline"><StatusIcon data-icon="inline-start" aria-hidden="true" />{crmLabels.organizationStatuses[organization.status]}</Badge>
+		</Command.Item>
+	{/each}
+	{#each crmResults.contacts as contact (contact.id)}
+		<Command.Item value="crm-contact-{contact.id}" forceMount onSelect={() => openCRMContact(contact.id)}>
+			<UserRoundIcon />
+			<span class="min-w-0 flex-1 truncate">{contact.name}</span>
+			<span class="truncate text-xs text-muted-foreground">{crmSearch.organizationNameOf(contact.organizationID)}</span>
 		</Command.Item>
 	{/each}
 {/snippet}

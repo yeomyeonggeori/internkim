@@ -11,7 +11,6 @@
 		title: string;
 		description: string;
 		items: CRMDefinition[];
-		isAdmin: boolean;
 		addLabel: string;
 		removeLabel: string;
 		colorLabel: string;
@@ -26,7 +25,6 @@
 		title,
 		description,
 		items,
-		isAdmin,
 		addLabel,
 		removeLabel,
 		colorLabel,
@@ -56,49 +54,33 @@
 	<Card.Content class="space-y-2">
 		{#each items as item (item.id)}
 			<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-				{#if isAdmin}
-					<ColorPicker
-						value={item.color ?? '#64748b'}
-						label={colorLabel}
-						class="size-7"
-						onChange={(color) => onColorChange(item.id, color)}
-					/>
-				{:else}
-					<span class="size-2.5 rounded-full" style={`background: ${item.color ?? '#64748b'}`}></span>
-				{/if}
+				<ColorPicker
+					value={item.color ?? '#64748b'}
+					label={colorLabel}
+					class="size-7"
+					onChange={(color) => onColorChange(item.id, color)}
+				/>
 				<Input
 					value={item.name}
-					disabled={!isAdmin}
 					oninput={(event) => onNameInput(item.id, event.currentTarget.value)}
 					onblur={onCommit}
 				/>
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={!isAdmin}
-					onclick={() => onRemove(item.id)}
-					aria-label={removeLabel}
-				>
+				<Button variant="ghost" size="icon" onclick={() => onRemove(item.id)} aria-label={removeLabel}>
 					<Trash2Icon class="size-4" />
 				</Button>
 			</div>
 		{/each}
-		{#if isAdmin}
-			<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-				<ColorPicker value={newColor} label={colorLabel} class="size-7" onChange={(color) => (newColor = color)} />
-				<Input
-					value={newName}
-					placeholder={title}
-					oninput={(event) => (newName = event.currentTarget.value)}
-					onkeydown={(event) => event.key === 'Enter' && add()}
-				/>
-				<Button variant="outline" size="icon" disabled={!newName.trim()} onclick={add} aria-label={addLabel}>
-					<PlusIcon class="size-4" />
-				</Button>
-			</div>
-		{/if}
-		{#if items.length === 0 && !isAdmin}
-			<p class="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">—</p>
-		{/if}
+		<div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+			<ColorPicker value={newColor} label={colorLabel} class="size-7" onChange={(color) => (newColor = color)} />
+			<Input
+				value={newName}
+				placeholder={title}
+				oninput={(event) => (newName = event.currentTarget.value)}
+				onkeydown={(event) => event.key === 'Enter' && add()}
+			/>
+			<Button variant="outline" size="icon" disabled={!newName.trim()} onclick={add} aria-label={addLabel}>
+				<PlusIcon class="size-4" />
+			</Button>
+		</div>
 	</Card.Content>
 </Card.Root>

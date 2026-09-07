@@ -55,7 +55,7 @@
 			isOutsideMonth && !isToday && 'opacity-40',
 			!isToday && isRedDate && 'text-destructive',
 			isToday && !isRedDate && 'bg-primary text-primary-foreground',
-			isToday && isRedDate && 'bg-destructive text-destructive-foreground'
+			isToday && isRedDate && 'bg-destructive text-background'
 		)}
 	>
 		{dayLabel}

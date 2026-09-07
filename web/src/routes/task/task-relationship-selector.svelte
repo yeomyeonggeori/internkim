@@ -4,7 +4,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import Link2Icon from '@lucide/svelte/icons/link-2';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import { taskDefinitionOutlineBadgeStyle } from './task-definition-colors';
+	import ColorMarkerBadge from '$lib/components/color-marker-badge.svelte';
 	import {
 		taskChildCandidates,
 		taskParentCandidates
@@ -113,13 +113,11 @@
 					<div class="min-w-0 flex-1">
 						<div class="truncate font-medium">{candidate.content}</div>
 						<div class="mt-1 flex min-w-0 items-center gap-2">
-							<Badge
-								variant="outline"
-								class="h-5 max-w-28 rounded-md px-1.5 py-0 text-[11px] font-medium shadow-none"
-								style={taskDefinitionOutlineBadgeStyle(taskTypeColor(candidate.type))}
-							>
-								<span class="truncate">{taskDefinitionLabel(candidate.type, text.etcLabel)}</span>
-							</Badge>
+							<ColorMarkerBadge
+								label={taskDefinitionLabel(candidate.type, text.etcLabel)}
+								color={taskTypeColor(candidate.type)}
+								class="max-w-28"
+							/>
 							<span class="truncate text-xs text-muted-foreground">{candidate.ownerName}</span>
 						</div>
 					</div>

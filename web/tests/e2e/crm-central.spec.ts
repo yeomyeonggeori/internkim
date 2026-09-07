@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { signInToTheCentralPlane } from './central-plane-sign-in';
 
 test.describe.configure({ mode: 'serial', timeout: 60_000 });
@@ -19,9 +19,11 @@ async function signIn(page: Page): Promise<void> {
 	await page.locator('[data-crm-ready="true"]').waitFor({ state: 'visible', timeout: 20000 });
 }
 
-async function openQuickAdd(page: Page, kind: string): Promise<void> {
-	await page.getByRole('button', { name: '빠른 추가' }).click();
-	await page.getByRole('menuitem', { name: kind, exact: true }).click();
+async function openCreateForm(page: Page, tab: string, createButton: string): Promise<void> {
+	await page.getByRole('tab', { name: tab, exact: true }).click();
+	// Scoped to the toolbar: sortable column headers are buttons carrying the same labels.
+	const toolbar = page.getByRole('tabpanel', { name: tab }).locator('div').first();
+	await toolbar.getByRole('button', { name: createButton, exact: true }).click();
 }
 
 function recordSheet(page: Page) {
@@ -30,7 +32,7 @@ function recordSheet(page: Page) {
 
 test('creates an organization and keeps it after reload', async ({ page }) => {
 	await signIn(page);
-	await openQuickAdd(page, '관계처');
+	await openCreateForm(page, '관계처', '관계처');
 	const sheet = recordSheet(page);
 	await sheet.getByLabel('이름 또는 제목').fill(organizationName);
 	await sheet.getByRole('checkbox', { name: '파트너' }).click();
@@ -39,13 +41,13 @@ test('creates an organization and keeps it after reload', async ({ page }) => {
 
 	await expect(page.getByRole('row', { name: new RegExp(organizationName) })).toBeVisible();
 	await page.reload();
-	await page.getByRole('button', { name: '빠른 추가' }).waitFor({ state: 'visible', timeout: 20000 });
+	await page.getByRole('tabpanel', { name: '관계처' }).locator('div').first().getByRole('button', { name: '관계처', exact: true }).waitFor({ state: 'visible', timeout: 20000 });
 	await expect(page.getByRole('row', { name: new RegExp(organizationName) })).toBeVisible();
 });
 
 test('registers a contact under the organization', async ({ page }) => {
 	await signIn(page);
-	await openQuickAdd(page, '담당자');
+	await openCreateForm(page, '연락처', '연락처');
 	const sheet = recordSheet(page);
 	await sheet.getByLabel('관계처').click();
 	await page.getByRole('option', { name: organizationName, exact: true }).click();
@@ -61,7 +63,7 @@ test('registers a contact under the organization', async ({ page }) => {
 test('links the same external contact to two opportunities', async ({ page }) => {
 	await signIn(page);
 	for (const name of [firstOpportunityName, secondOpportunityName]) {
-		await openQuickAdd(page, '진행 건');
+		await openCreateForm(page, '거래', '거래');
 		const sheet = recordSheet(page);
 		await sheet.getByLabel('관계처').click();
 		await page.getByRole('option', { name: organizationName, exact: true }).click();
@@ -72,7 +74,7 @@ test('links the same external contact to two opportunities', async ({ page }) =>
 		await expect(sheet).not.toBeVisible();
 	}
 
-	await page.getByRole('tab', { name: '진행상황' }).click();
+	await page.getByRole('tab', { name: '거래' }).click();
 	await expect(page.getByRole('row', { name: new RegExp(firstOpportunityName) })).toBeVisible();
 	await expect(page.getByRole('row', { name: new RegExp(secondOpportunityName) })).toBeVisible();
 });
@@ -108,11 +110,11 @@ test('an activity registered on the calendar stays off the task board, and one w
 
 test('stage change records an automatic activity and editing it keeps the stage', async ({ page }) => {
 	await signIn(page);
-	await page.getByRole('tab', { name: '진행상황' }).click();
+	await page.getByRole('tab', { name: '거래' }).click();
 	await page.getByRole('row', { name: new RegExp(firstOpportunityName) }).click();
-	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
+	const editSheet = page.getByRole('dialog', { name: '거래 수정' });
 	await editSheet.getByLabel('단계').click();
-	await page.getByRole('option', { name: '진행', exact: true }).click();
+	await page.getByRole('option', { name: '진행 중', exact: true }).click();
 	await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(editSheet).not.toBeVisible();
 
@@ -125,8 +127,8 @@ test('stage change records an automatic activity and editing it keeps the stage'
 	await activitySheet.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(activitySheet).not.toBeVisible();
 
-	await page.getByRole('tab', { name: '진행상황' }).click();
-	await expect(page.getByRole('row', { name: new RegExp(firstOpportunityName) })).toContainText('진행');
+	await page.getByRole('tab', { name: '거래' }).click();
+	await expect(page.getByRole('row', { name: new RegExp(firstOpportunityName) })).toContainText('진행 중');
 });
 
 test('rejects deleting an in-use CRM definition with guidance', async ({ page }) => {
@@ -160,7 +162,7 @@ test('rejects deleting an in-use flow business with guidance', async ({ page }) 
 	const confirm = page.locator('[role="alertdialog"][data-state="open"]').filter({ hasText: '사업하나' });
 	await confirm.locator('[data-alert-dialog-action]').last().click();
 	await expect(
-		page.getByText('등록된 업무나 진행 건에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.')
+		page.getByText('등록된 업무나 거래에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.')
 	).toBeVisible({ timeout: 10000 });
 });
 
@@ -170,10 +172,40 @@ async function chooseCurrencyOption(page: Page, code: string): Promise<void> {
 	await option.click();
 }
 
+/** Find a row's cell by its column header, so the assertion survives column changes. */
+async function cellUnder(page: Page, row: Locator, headerName: string): Promise<Locator> {
+	const headers = await page.getByRole('columnheader').allInnerTexts();
+	const index = headers.findIndex((header) => header.trim() === headerName);
+	expect(index, `column ${headerName} exists`).toBeGreaterThanOrEqual(0);
+	return row.getByRole('cell').nth(index);
+}
+
+function isOrdered(amounts: number[], direction: 'ascending' | 'descending'): boolean {
+	return amounts.every((amount, index) => {
+		if (index === 0) return true;
+		const previous = amounts[index - 1];
+		return direction === 'ascending' ? previous <= amount : previous >= amount;
+	});
+}
+
+const koreanCompactUnits: Record<string, number> = { 천: 1e3, 만: 1e4, 억: 1e8 };
+
+/** Read the compact amounts the table renders (₩1,800만, ₩4.6억) back into comparable numbers. */
+async function readAmounts(cells: Locator): Promise<number[]> {
+	const texts = await cells.allInnerTexts();
+	return texts.flatMap((text) => {
+		const match = text.match(/([\d,.]+)\s*([천만억])?/);
+		if (!match) return [];
+		const digits = Number(match[1].replaceAll(',', ''));
+		if (Number.isNaN(digits)) return [];
+		return [digits * (koreanCompactUnits[match[2] ?? ''] ?? 1)];
+	});
+}
+
 async function settledNoteOf(page: Page): Promise<string> {
-	await page.getByRole('tab', { name: '진행상황' }).click();
+	await page.getByRole('tab', { name: '거래' }).click();
 	await page.getByRole('row', { name: new RegExp(settledOpportunityName) }).click();
-	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
+	const editSheet = page.getByRole('dialog', { name: '거래 수정' });
 	const note = editSheet.getByText(/확정$/);
 	await expect(note).toBeVisible({ timeout: 20000 });
 	return (await note.innerText()).trim();
@@ -206,7 +238,7 @@ test('an administrator moves the company onto another base currency', async ({ p
 
 test('closing a deal priced in another currency settles it in the base currency', async ({ page }) => {
 	await signIn(page);
-	await openQuickAdd(page, '진행 건');
+	await openCreateForm(page, '거래', '거래');
 	const sheet = recordSheet(page);
 	await sheet.getByLabel('관계처').click();
 	await page.getByRole('option', { name: organizationName, exact: true }).click();
@@ -217,50 +249,65 @@ test('closing a deal priced in another currency settles it in the base currency'
 	await sheet.getByRole('button', { name: '추가', exact: true }).click();
 	await expect(sheet).not.toBeVisible();
 
-	await page.getByRole('tab', { name: '진행상황' }).click();
+	await page.getByRole('tab', { name: '거래' }).click();
 	await page.getByRole('row', { name: new RegExp(settledOpportunityName) }).click();
-	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
+	const editSheet = page.getByRole('dialog', { name: '거래 수정' });
 	await editSheet.getByLabel('단계').click();
-	await page.getByRole('option', { name: '완료', exact: true }).click();
+	await page.getByRole('option', { name: '성사', exact: true }).click();
 	await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(editSheet).not.toBeVisible();
 
 	const settled = await settledNoteOf(page);
 	expect(settled).toContain('확정');
-	expect(settled).toContain('USD ');
+	expect(settled).toContain('$');
 });
 
 test('a settled amount survives a move between terminal stages', async ({ page }) => {
 	await signIn(page);
 	const before = await settledNoteOf(page);
 
-	const editSheet = page.getByRole('dialog', { name: '진행 건 수정' });
+	const editSheet = page.getByRole('dialog', { name: '거래 수정' });
 	await editSheet.getByLabel('단계').click();
-	await page.getByRole('option', { name: '무산', exact: true }).click();
-	await editSheet.getByLabel('무산 사유').fill('예산 부족');
+	await page.getByRole('option', { name: '실패', exact: true }).click();
+	await editSheet.getByLabel('실패 사유').fill('예산 부족');
 	await editSheet.getByRole('button', { name: '저장', exact: true }).click();
 	await expect(editSheet).not.toBeVisible();
 
 	expect(await settledNoteOf(page)).toBe(before);
 });
 
-test('the view opens in the company base currency and a matching currency shows exact', async ({ page }) => {
+test('opens in the company base currency and re-denominates amounts when the view currency changes', async ({ page }) => {
 	await signIn(page);
-	await page.getByRole('tab', { name: '진행상황' }).click();
+	await page.getByRole('tab', { name: '거래' }).click();
 	const row = page.getByRole('row', { name: new RegExp(settledOpportunityName) });
 	await expect(row).toBeVisible();
 
-	const viewCurrency = page.getByLabel('보기 통화');
+	const viewCurrency = page.getByRole('tabpanel', { name: '거래' }).getByLabel('보기 통화');
 	await expect(viewCurrency).toHaveText(/USD/, { timeout: 20000 });
-	const amount = row.getByRole('cell').nth(5);
-	await expect(amount).toHaveText(/^[\d,]/, { timeout: 20000 });
+	const amount = await cellUnder(page, row, '금액');
+	await expect(amount).toHaveText(/^\$/, { timeout: 20000 });
 	const inDollars = (await amount.innerText()).trim();
 
 	await viewCurrency.click();
 	await chooseCurrencyOption(page, 'KRW');
 	await expect(viewCurrency).toHaveText(/KRW/, { timeout: 20000 });
 	await expect(amount).not.toHaveText(inDollars, { timeout: 20000 });
+	await expect(amount).toHaveText(/^₩/, { timeout: 20000 });
 	await expect(amount).toHaveText(/만|억/, { timeout: 20000 });
+});
+
+test('sorting the open amount column orders the accounts by value both ways', async ({ page }) => {
+	await signIn(page);
+	const header = page.getByRole('columnheader', { name: '열린 거래 금액' }).getByRole('button');
+	const amountCells = page.getByRole('row').locator('td:last-child');
+
+	expect((await readAmounts(amountCells)).length).toBeGreaterThan(1);
+
+	await header.click();
+	await expect.poll(async () => isOrdered(await readAmounts(amountCells), 'ascending')).toBe(true);
+
+	await header.click();
+	await expect.poll(async () => isOrdered(await readAmounts(amountCells), 'descending')).toBe(true);
 });
 
 test('an added definition shows at once and the list keeps its shape while saving', async ({ page }) => {
@@ -360,7 +407,7 @@ test('a renamed pipeline reaches the rest of the workspace without a reload', as
 	await page.getByRole('tab', { name: '정의' }).click();
 
 	const definitions = page.getByRole('region', { name: '정의', exact: true });
-	const card = definitions.locator('[data-slot="card"]').filter({ hasText: '진행 유형' });
+	const card = definitions.locator('[data-slot="card"]').filter({ hasText: '파이프라인' });
 	const firstName = card.getByRole('textbox').first();
 	await expect(firstName).toBeVisible();
 	const originalName = await firstName.inputValue();

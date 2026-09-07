@@ -29,6 +29,7 @@ function opportunity(organizationID: string, name: string, contactID: string): C
 		pipeline: 'sales',
 		stage: 'waiting',
 		ownerName: '담당자',
+		ownerEmail: 'owner@example.com',
 		currency: 'KRW',
 		importance: 'medium',
 		targetDate: '',
