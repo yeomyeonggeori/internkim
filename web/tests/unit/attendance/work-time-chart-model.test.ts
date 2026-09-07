@@ -258,7 +258,6 @@ describe('summarizeDailyValues', () => {
 		expect(summarizeDailyValues(dailyValues)).toEqual({
 			averageMinutes: 500,
 			maximumMinutes: 600,
-			minimumMinutes: 420,
 		});
 	});
 
@@ -271,7 +270,6 @@ describe('summarizeDailyValues', () => {
 		], { today: '2026-06-03' })).toEqual({
 			averageMinutes: 540,
 			maximumMinutes: 600,
-			minimumMinutes: 480,
 		});
 	});
 
