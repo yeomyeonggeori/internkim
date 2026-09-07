@@ -36,7 +36,7 @@
 	{#if remainingCount > 0}
 		<span
 			class={cn(
-				'grid place-items-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground',
+				'relative z-10 grid place-items-center rounded-full bg-muted text-[9px] font-semibold text-muted-foreground',
 				avatarClass
 			)}
 		>
