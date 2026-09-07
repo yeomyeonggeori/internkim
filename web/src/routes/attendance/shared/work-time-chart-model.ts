@@ -12,7 +12,6 @@ export type ChartPoint = {
 export type ChartPointsSummary = {
 	averageMinutes: number;
 	maximumMinutes: number;
-	minimumMinutes: number;
 };
 export type WorkTimeChartLocation = { key: string; name: string; color?: string };
 
@@ -48,7 +47,6 @@ export function summarizeDailyValues(
 	return {
 		averageMinutes: Math.round(dayTotals.reduce((sum, totalMinutes) => sum + totalMinutes, 0) / dayTotals.length),
 		maximumMinutes: Math.max(...dayTotals),
-		minimumMinutes: Math.min(...dayTotals),
 	};
 }
 
