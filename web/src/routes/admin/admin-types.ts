@@ -127,6 +127,7 @@ export type AgentUser = {
 	preferences?: string[];
 	tone?: { register?: AgentToneRegister; traits?: string[] };
 	language?: { default?: string };
+	morningBriefing?: { enabled?: boolean; time?: string };
 };
 
 export type CredentialProviderStatus = {
