@@ -114,8 +114,11 @@
 										name={conversation.name}
 										seed={conversation.id}
 										image={conversation.avatarURL ?? ''}
+										memberID={conversation.counterpart?.memberID ?? ''}
+										externalID={conversation.counterpart?.externalID ?? ''}
 										class="size-4"
 									/>
+
 									<span>{conversation.name}</span>
 								</Sidebar.MenuButton>
 								<ConversationMenu

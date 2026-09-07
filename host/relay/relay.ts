@@ -25,7 +25,8 @@ import {
 	type PublicAPIRequest
 } from './forward';
 import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
-import { connectToGateway } from './gateway-socket';
+import { connectToGateway, type GatewayConnection } from './gateway-socket';
+import { CredentialCache } from './credential-cache';
 import { BlueclawACPClient, defaultBlueclawACPSocketPath, type Addressing } from './acp-session';
 import { RecordCatalogs, ticketOf } from './record-catalog';
 import { displayNameForRequester, readInboundMessage } from './inbound-message';
@@ -89,15 +90,35 @@ console.log(`acting as the host of company ${companyID}`);
 setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
 
 
-function openGatewayConnection(): void {
+function openGatewayConnection(): GatewayConnection | null {
 	const gatewayURL = process.env.GATEWAY_URL?.trim();
 	const serverKey = process.env.GATEWAY_SERVER_KEY?.trim();
-	if (!gatewayURL || !serverKey) return;
+	if (!gatewayURL || !serverKey) return null;
 
-	connectToGateway({ gatewayURL, companyID, serverKey, dispatch, byteCeiling: answerByteCeiling });
+	return connectToGateway({ gatewayURL, companyID, serverKey, dispatch, byteCeiling: answerByteCeiling });
+}
+
+let gateway: GatewayConnection | null = null;
+
+function tellBrowsers(conversationID: string, messageID: string): void {
+	if (!conversationID) return;
+	gateway?.deliver({ kind: 'message.arrived', conversationID, messageID });
+}
+
+const credentials = new CredentialCache(readMessengerCredential);
+
+async function readMessengerCredential(memberID: string): Promise<{ kind: string; secret: string } | null> {
+	const kind = await messengerCredentialKind();
+	const held = await askTheRecord<{ credential?: { kind: string; secret: string } | null }>(
+		'GET',
+		`/api/agent/messenger-credential?memberID=${encodeURIComponent(memberID)}&kind=${encodeURIComponent(kind)}`
+	);
+	if (!held.credential) return null;
+	return { kind: held.credential.kind, secret: held.credential.secret };
 }
 
 const dispatch = {
+	messageArrived: tellBrowsers,
 	serveAsset: asset,
 	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestBytes ?? largestPictureBytes),
@@ -132,25 +153,18 @@ const dispatch = {
 		if (member.error) throw new Error(member.error.message);
 		return member.data?.email ?? null;
 	},
-	messengerCredentialOf: async (memberID: string) => {
-		const kind = await messengerCredentialKind();
-		const held = await askTheRecord<{ credential?: { kind: string; secret: string } | null }>(
-			'GET',
-			`/api/agent/messenger-credential?memberID=${encodeURIComponent(memberID)}&kind=${encodeURIComponent(kind)}`
-		);
-		if (!held.credential) return null;
-		return { kind: held.credential.kind, secret: held.credential.secret };
-	},
+	messengerCredentialOf: (memberID: string) => credentials.credentialOf(memberID),
 	connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 		await askTheRecord('POST', '/api/agent/messenger-account', {
 			platform: messengerPlatform,
 			memberID,
 			...account
 		});
+		credentials.forget(memberID);
 	}
 };
 
-openGatewayConnection();
+gateway = openGatewayConnection();
 
 let credentialKindAsked: Promise<string> | undefined;
 
@@ -321,6 +335,11 @@ function isRecord(offered: unknown): offered is Record<string, unknown> {
 	return typeof offered === 'object' && offered !== null;
 }
 
+function postedMessageIDOf(body: unknown): string {
+	const messageID = (body as { messageID?: unknown } | null)?.messageID;
+	return typeof messageID === 'string' ? messageID : '';
+}
+
 const inboundTurns: InboundTurns = new InboundTurns({
 	client: new BlueclawACPClient({
 		socketPath: blueclawACPSocketPath,
@@ -340,7 +359,8 @@ const inboundTurns: InboundTurns = new InboundTurns({
 		report: (line) => console.log(`inbound: ${line}`)
 	}),
 	postToConversation: async (addressing: Addressing, message: string) => {
-		await dispatch.askChatd('message.post', { channelID: addressing.conversationID, message });
+		const posted = await dispatch.askChatd('message.post', { channelID: addressing.conversationID, message });
+		if (posted.status < 300) tellBrowsers(addressing.conversationID, postedMessageIDOf(posted.body));
 	},
 	report: (line) => console.log(`acp: ${line}`)
 });
@@ -363,6 +383,7 @@ Bun.serve({
 			const inbound = readInboundMessage(localizedOffered);
 			if (!inbound) return new Response('that is not a message the agent can answer', { status: 400 });
 			const isNew = await inboundTurns.keep(inbound.key, localizedOffered);
+			tellBrowsers(inbound.addressing.conversationID, inbound.messageID);
 			return Response.json({ queued: isNew, key: inbound.key }, { status: 202 });
 		}
 		const arrived = readArrivedMessage(offered);
@@ -456,6 +477,8 @@ async function tellAdmindTheDirectoryChanged(): Promise<{ status: number; body: 
 	// The machine records a credential for whoever was just invited before it
 	// answers, so the projection on the member rows is healed right behind it.
 	isProjectionHealed = false;
+	credentials.forgetEveryone();
+
 	void keepGoing('healing the messenger projection after the directory changed', async () => {
 		await messengerCredentialKind();
 	});

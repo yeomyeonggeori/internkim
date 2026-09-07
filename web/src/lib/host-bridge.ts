@@ -1,5 +1,6 @@
 import { gatewayURL, supabase } from '$lib/supabase';
 import { supabaseMember } from '$lib/supabase-session';
+import { companyEventOf, type CompanyEvent } from '$lib/company-event';
 
 export type HostCall = {
 	capability: string;
@@ -20,10 +21,14 @@ export class HostUnreachableError extends Error {
 
 const answerTimeoutMilliseconds = 20_000;
 const tokenProtocol = 'internkim.bearer.';
+const firstRedialMilliseconds = 1_000;
+const longestRedialMilliseconds = 30_000;
 
 let joined: Promise<WebSocket> | undefined;
 let isServerConnected = false;
+let redialsInARow = 0;
 const waiting = new Map<string, (answer: HostAnswer) => void>();
+const listeners = new Set<(event: CompanyEvent) => void>();
 
 async function companyWire(): Promise<WebSocket> {
 	if (joined) return joined;
@@ -41,6 +46,16 @@ function forgetWire(attempt: Promise<WebSocket>): void {
 function dropTheWire(): void {
 	joined = undefined;
 	isServerConnected = false;
+	if (listeners.size > 0) redialLater();
+}
+
+function redialLater(): void {
+	redialsInARow += 1;
+	const delay = Math.min(firstRedialMilliseconds * 2 ** (redialsInARow - 1), longestRedialMilliseconds);
+	setTimeout(() => {
+		if (joined || listeners.size === 0) return;
+		void companyWire().catch(() => undefined);
+	}, delay);
 }
 
 async function openWire(): Promise<WebSocket> {
@@ -64,6 +79,7 @@ async function openWire(): Promise<WebSocket> {
 		socket.addEventListener('open', () => resolve(), { once: true });
 		socket.addEventListener('error', () => reject(new HostUnreachableError()), { once: true });
 	});
+	redialsInARow = 0;
 	return socket;
 }
 
@@ -79,12 +95,25 @@ function receive(data: unknown): void {
 		isServerConnected = payload.isServerConnected === true;
 		return;
 	}
+	if (payload.kind === 'deliver') {
+		const event = companyEventOf(payload.event);
+		if (event) for (const listener of listeners) listener(event);
+		return;
+	}
 	if (payload.kind !== 'result' || typeof payload.requestID !== 'string') return;
 	waiting.get(payload.requestID)?.({
 		status: typeof payload.status === 'number' ? payload.status : 500,
 		body: payload.body
 	});
 	waiting.delete(payload.requestID);
+}
+
+export function onCompanyEvent(listener: (event: CompanyEvent) => void): () => void {
+	listeners.add(listener);
+	void companyWire().catch(() => undefined);
+	return () => {
+		listeners.delete(listener);
+	};
 }
 
 export async function isCompanyAppRunning(): Promise<boolean> {
