@@ -359,6 +359,9 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 		if errorValue := service.restartReleaseCapabilitydServices(ctx); errorValue != nil {
 			return errorValue
 		}
+		if errorValue := service.waitForCapabilitydProtocolIdentity(ctx, manifest.ProtocolIdentity); errorValue != nil {
+			return errorValue
+		}
 	}
 	if errorValue := service.installReleaseWeb(stagingPath); errorValue != nil {
 		return errorValue
@@ -501,13 +504,37 @@ func (service *Service) waitForReleaseProtocolIdentity(ctx context.Context, mani
 	}
 }
 
-func (service *Service) checkReleaseProtocolIdentity(ctx context.Context, expected capabilityprotocol.ProtocolIdentity) error {
+func (service *Service) waitForCapabilitydProtocolIdentity(ctx context.Context, expected capabilityprotocol.ProtocolIdentity) error {
+	readinessContext, cancel := context.WithTimeout(ctx, releaseProtocolIdentityReadinessTimeout)
+	defer cancel()
+	var lastError error
+	for {
+		lastError = service.checkCapabilitydProtocolIdentity(readinessContext, expected)
+		if lastError == nil {
+			return nil
+		}
+		select {
+		case <-readinessContext.Done():
+			return fmt.Errorf("capabilityd protocol identity readiness failed: %w", lastError)
+		case <-time.After(releaseProtocolIdentityPollInterval):
+		}
+	}
+}
+
+func (service *Service) checkCapabilitydProtocolIdentity(ctx context.Context, expected capabilityprotocol.ProtocolIdentity) error {
 	registry, errorValue := service.fetchCapabilityRegistry(ctx)
 	if errorValue != nil {
 		return fmt.Errorf("capabilityd registry: %w", errorValue)
 	}
 	if registry.ProtocolIdentity != expected {
 		return capabilitydReleaseProtocolIdentityMismatchError(expected, registry.ProtocolIdentity)
+	}
+	return nil
+}
+
+func (service *Service) checkReleaseProtocolIdentity(ctx context.Context, expected capabilityprotocol.ProtocolIdentity) error {
+	if errorValue := service.checkCapabilitydProtocolIdentity(ctx, expected); errorValue != nil {
+		return errorValue
 	}
 	health := releaseBlueclawHealth{}
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, blueclawruntime.BlueclawHealthCheckPath, nil, &health); errorValue != nil {
