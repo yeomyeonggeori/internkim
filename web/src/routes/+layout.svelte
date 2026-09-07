@@ -104,10 +104,6 @@
 	}
 </script>
 
-<svelte:head>
-	<link rel="icon" href="/logo.svg" />
-</svelte:head>
-
 <svelte:window onkeydown={handleKeydown} onmessage={handleFrameShortcut} />
 
 <ModeWatcher />
