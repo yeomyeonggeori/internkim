@@ -277,6 +277,7 @@ func (service Service) learningSettingsScenarioPlans() []CommandPlan {
 func (service Service) morningBriefingScenarioPlans() []CommandPlan {
 	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-morning-briefing.py", service.virtualSessionArtifactDirectoryPath("morning-briefing")}
 	plans := []CommandPlan{
+		service.shellPlan("build briefing provider regression tests", "GOOS=linux GOARCH=arm64 go test -c -o build/briefing-provider.test ./internal/capabilityd"),
 		service.shellPlan("build morning briefing database tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -o ../../build/morning-briefing-postgres.test ./internal/store/postgres"),
 		service.shellPlan("build morning briefing model tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -tags 'appliance llmeval' -o ../../build/morning-briefing-live.test ./internal/e2e"),
 	}

@@ -281,8 +281,10 @@ func (service Service) handleStructuredLLM(responseWriter http.ResponseWriter, r
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	capturedClient, capture := llmbackend.NewFailureCapture(service.providerHTTPClient())
+	service.HTTPClient = capturedClient
 	response, errorValue := service.completeStructured(request.Context(), structuredRequest)
-	service.writeResponse(responseWriter, response, errorValue)
+	service.writeLLMResponse(responseWriter, response, errorValue, structuredRequest, capture)
 }
 
 func (service Service) handleChatLLM(responseWriter http.ResponseWriter, request *http.Request) {
@@ -291,8 +293,10 @@ func (service Service) handleChatLLM(responseWriter http.ResponseWriter, request
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	capturedClient, capture := llmbackend.NewFailureCapture(service.providerHTTPClient())
+	service.HTTPClient = capturedClient
 	response, errorValue := service.completeChat(request.Context(), chatRequest)
-	service.writeResponse(responseWriter, response, errorValue)
+	service.writeLLMResponse(responseWriter, response, errorValue, chatRequest, capture)
 }
 
 func (service Service) handleTextLLM(responseWriter http.ResponseWriter, request *http.Request) {
@@ -301,8 +305,10 @@ func (service Service) handleTextLLM(responseWriter http.ResponseWriter, request
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
 		return
 	}
+	capturedClient, capture := llmbackend.NewFailureCapture(service.providerHTTPClient())
+	service.HTTPClient = capturedClient
 	response, errorValue := service.completeText(request.Context(), textRequest)
-	service.writeResponse(responseWriter, response, errorValue)
+	service.writeLLMResponse(responseWriter, response, errorValue, textRequest, capture)
 }
 
 func (service Service) handleEmbeddingCreate(responseWriter http.ResponseWriter, request *http.Request) {
