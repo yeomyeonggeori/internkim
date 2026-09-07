@@ -14,11 +14,26 @@ export type MessengerDirectory = {
 type ContactRow = { name: string; messenger: Record<string, string> | null };
 type MemberRow = { id: string; name: string | null; email: string | null; messenger: Record<string, string> | null };
 
+let loading: Promise<MessengerDirectory> | null = null;
+
+export function fetchMessengerDirectory(): Promise<MessengerDirectory> {
+	loading ??= readMessengerDirectory().catch((refusal) => {
+		loading = null;
+		throw refusal;
+	});
+	return loading;
+}
+
+export function forgetMessengerDirectory(): void {
+	loading = null;
+}
+
 // A member's messenger account is part of who they are, and is kept on the
 // member. contact is the company's address book for people who are not members
 // of it, so a contact never names one.
-export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
+async function readMessengerDirectory(): Promise<MessengerDirectory> {
 	const client = supabase();
+
 	const members = await client
 		.from('member')
 		.select('id, name, email, messenger')

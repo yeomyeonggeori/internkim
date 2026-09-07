@@ -35,6 +35,8 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
+	import { personPicture } from '$lib/stores/person-picture.svelte';
+
 
 	let { children, data } = $props();
 	const text = createPageText(appShellText);
@@ -45,6 +47,8 @@
 		initializeLocale();
 		preloadWorkTimeChartPlot();
 		void myAttendanceToday.load();
+		if (data.session?.authenticated) void personPicture.rememberEveryone();
+
 		const revalidateSession = () => {
 			if (document.visibilityState !== 'visible') return;
 			void invalidate(webAuthSessionDependency);
