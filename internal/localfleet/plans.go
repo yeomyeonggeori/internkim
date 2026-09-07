@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
@@ -288,6 +289,17 @@ func (service Service) webBackedScenarioPlans() []CommandPlan {
 		service.shellPlan("verify api", service.verifyCommand("api")),
 		service.companyBrowserVerificationPlan(),
 	)
+}
+
+func (service Service) personalSettingsScenarioPlans() []CommandPlan {
+	return append(service.upPlans(true), service.command(
+		"bun", "run", filepath.Join(service.options.RepositoryRootPath, "tools", "verify-personal-settings.ts"),
+		"--state-root", service.options.StateRootPath,
+		"--app-port", strconv.Itoa(service.options.CompanyAppPort),
+		"--admin-port", strconv.Itoa(service.options.AdminHostPort),
+		"--chatd-url", blueclaw.ChatdEndpoint,
+		"--config", service.configurationPath(),
+	))
 }
 
 func (service Service) companyBrowserVerificationPlan() CommandPlan {
