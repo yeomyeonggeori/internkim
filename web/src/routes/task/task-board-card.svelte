@@ -151,7 +151,8 @@
 					<PersonAvatarStack
 						people={participants}
 						max={3}
-						avatarClass="size-6 ring-2 ring-card"
+						class="-space-x-1"
+						avatarClass="size-3.5 ring-1 ring-card"
 						label={participantNameList}
 					/>
 				{:else if primaryParticipantName}
