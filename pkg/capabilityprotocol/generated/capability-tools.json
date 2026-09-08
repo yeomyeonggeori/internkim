@@ -5356,7 +5356,7 @@
         "state": "ok"
       },
       "canonicalName": "leave_grant_set",
-      "description": "Set how much leave one person is entitled to in a year. Only an administrator may, and the record refuses anybody else. The number replaces the one they had, so 'give them three more days' is read with leave_balance first and written as the total. Somebody with no number of their own is on the company's, which company_settings_get answers as leaveDays. Requires approval; an entitlement is what every later leave is spent against.",
+      "description": "Set how much leave one person is entitled to in a year. Only an administrator may, and the record refuses anybody else. The number replaces every grant they hold, so 'give them three more days' is read with leave_balance first and written as the total. Somebody who has never been given a number of their own holds the company's annual grant, which company_settings_get answers as leaveDays. Requires approval; an entitlement is what every later leave is spent against.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -19042,7 +19042,7 @@
             "type": "string"
           },
           "leaveDays": {
-            "description": "The annual leave a person is granted, in days. This is the same number the leave policy's annual grant carries.",
+            "description": "The annual leave a person is granted, in days. It is the leave policy's annual grant, so this writes that, and attendance_leave_policy_set is where the rest of the policy is written.",
             "type": "number"
           },
           "locale": {

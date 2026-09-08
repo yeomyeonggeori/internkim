@@ -38,10 +38,21 @@ beforeAll(async () => {
 	adminID = provisioned.adminMemberID;
 	await client
 		.from('company')
-		.update({ leave_days: grantedDays, work_locations: [{ name: '사무실' }] })
+		.update({ work_locations: [{ name: '사무실' }] })
 		.eq('id', companyID);
 
 	sampleID = await addMember(client, companyID, `${slug}-sample@example.test`);
+	await client.from('leave').insert(
+		[adminID, sampleID].map((memberID) => ({
+			member_id: memberID,
+			kind: 'annual',
+			is_paid: true,
+			is_deducted: false,
+			days: grantedDays,
+			granted_on: '1970-01-01',
+			origin: 'manual'
+		}))
+	);
 	await client.from('member').update({ name: '이샘플' }).eq('id', sampleID);
 	await client.from('member').update({ name: '최견본' }).eq('id', adminID);
 

@@ -13,13 +13,17 @@ insert into public.company (id, name, slug, country, locale, timezone, work_loca
   ('7a000000-0000-0000-0000-0000000000c2', 'Theirs', 'theirs', 'KR', 'ko', 'Asia/Seoul', null);
 
 insert into public.member (id, company_id, email, user_id, status, is_admin, timezone, locale,
-                           work_hours, minimum_daily_minutes, leave_days) values
+                           work_hours, minimum_daily_minutes) values
   ('7a000000-0000-0000-0000-0000000000a1', '7a000000-0000-0000-0000-0000000000c1',
    'ours@example.test', '7a000000-0000-0000-0000-000000000011', 'active', false,
-   'Asia/Seoul', 'ko', '[[null,null,null,null,null,null,null]]', 180, 12.5),
+   'Asia/Seoul', 'ko', '[[null,null,null,null,null,null,null]]', 180),
   ('7a000000-0000-0000-0000-0000000000b1', '7a000000-0000-0000-0000-0000000000c2',
    'theirs@example.test', '7a000000-0000-0000-0000-000000000012', 'active', true,
-   'Asia/Seoul', 'ko', '[[null,null,null,null,null,null,null]]', 240, 7);
+   'Asia/Seoul', 'ko', '[[null,null,null,null,null,null,null]]', 240);
+
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin) values
+  ('7a000000-0000-0000-0000-0000000000a1', 'annual', true, false, 12.5, date '1970-01-01', 'manual'),
+  ('7a000000-0000-0000-0000-0000000000b1', 'annual', true, false, 7, date '1970-01-01', 'manual');
 
 -- What was measured before this closed: as an administrator of Theirs, with no
 -- standing in Ours at all, internal.member_leave_days returned 12.5 for a

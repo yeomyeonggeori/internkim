@@ -64,7 +64,7 @@ export const companySettingsUpdateInputSchema = z.strictObject({
   timeZone: z.string().min(1).max(64).describe("The company's time zone as an IANA name, e.g. 'Asia/Seoul'. Every date and time the record answers is read in it.").optional(),
   currencyCode: z.string().length(3).describe("The currency amounts are held in, as an ISO 4217 code, e.g. 'KRW'.").optional(),
   workLocations: z.array(workLocationSchema).describe('The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.').optional(),
-  leaveDays: z.number().describe("The annual leave a person is granted, in days. This is the same number the leave policy's annual grant carries.").optional(),
+  leaveDays: z.number().describe("The annual leave a person is granted, in days. It is the leave policy's annual grant, so this writes that, and attendance_leave_policy_set is where the rest of the policy is written.").optional(),
   teamViewVisibleToAll: z.boolean().describe("Whether everybody sees the whole company's attendance, or only the administrators do.").optional(),
 });
 

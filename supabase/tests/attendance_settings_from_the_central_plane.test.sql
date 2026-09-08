@@ -32,7 +32,7 @@ insert into auth.users (id, email) values
   ('64200000-0000-0000-0000-000000000002', 'settings-member@example.test'),
   ('64200000-0000-0000-0000-000000000003', 'other-admin@example.test');
 
-insert into public.company (id, name, slug, country, locale, timezone, leave_days, rules) values
+insert into public.company (id, name, slug, country, locale, timezone, rules) values
   (
     '64200000-0000-0000-0000-0000000000a0',
     'Settings Company',
@@ -40,7 +40,6 @@ insert into public.company (id, name, slug, country, locale, timezone, leave_day
     'KR',
     'ko',
     'Asia/Seoul',
-    15,
     '{"unrelatedSetting": {"kept": true}}'
   ),
   (
@@ -50,7 +49,6 @@ insert into public.company (id, name, slug, country, locale, timezone, leave_day
     'KR',
     'ko',
     'Asia/Seoul',
-    12,
     '{}'
   );
 
@@ -249,7 +247,7 @@ select is_empty(
 );
 
 select is(
-  (select leave_days from public.company where id = '64200000-0000-0000-0000-0000000000a0'),
+  internal.member_leave_days('64200000-0000-0000-0000-0000000000a2'),
   15.00::numeric,
   'settings: the annual grant is the days a member starts the year with'
 );
@@ -266,14 +264,14 @@ begin
 end $$;$block$, 'settings: an admin turns balance tracking off');
 
 select is(
-  (select leave_days from public.company where id = '64200000-0000-0000-0000-0000000000a0'),
+  internal.member_leave_days('64200000-0000-0000-0000-0000000000a2'),
   null::numeric,
   'settings: unlimited leave grants no balance to subtract from'
 );
 
--- Managed leave subtracts from company.leave_days, and nothing else fills that column,
--- so a managed policy without an annual type that grants would leave every member
--- reading zero remaining. It is refused instead.
+-- A managed policy is what writes the granted rows every member reads, so one
+-- without an annual type that grants would leave them all reading nothing. It is
+-- refused instead.
 select throws_ok($block$do $$
 begin
   set local role authenticated;

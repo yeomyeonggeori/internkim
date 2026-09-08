@@ -17,23 +17,43 @@ let seededLeaveDays: number | null = null;
 
 test.beforeAll(async () => {
 	const stored = await centralPlaneAdminClient()
-		.from('company')
-		.select('leave_days')
-		.eq('id', exampleCompanyID)
-		.single();
+		.from('leave')
+		.select('days, member!inner(company_id)')
+		.eq('member.company_id', exampleCompanyID)
+		.is('status', null)
+		.limit(1)
+		.maybeSingle();
 	if (stored.error) throw new Error(`Failed to read the company leave grant: ${stored.error.message}`);
-	seededLeaveDays = stored.data.leave_days as number | null;
+	seededLeaveDays = stored.data ? Number(stored.data.days) : null;
 });
 
 test.afterAll(async () => {
 	await setLeaveDays(seededLeaveDays);
 });
 
+// A balance is the grants that stand, so turning one off is removing them and
+// turning it back on is writing them again.
 async function setLeaveDays(leaveDays: number | null): Promise<void> {
-	const written = await centralPlaneAdminClient()
-		.from('company')
-		.update({ leave_days: leaveDays })
-		.eq('id', exampleCompanyID);
+	const admin = centralPlaneAdminClient();
+	const people = await admin.from('member').select('id').eq('company_id', exampleCompanyID);
+	if (people.error) throw new Error(`Failed to read the company members: ${people.error.message}`);
+	const memberIDs = people.data.map((person) => person.id as string);
+
+	const removed = await admin.from('leave').delete().is('status', null).in('member_id', memberIDs);
+	if (removed.error) throw new Error(`Failed to clear the company leave grant: ${removed.error.message}`);
+	if (leaveDays === null) return;
+
+	const written = await admin.from('leave').insert(
+		memberIDs.map((memberID) => ({
+			member_id: memberID,
+			kind: 'annual',
+			is_paid: true,
+			is_deducted: false,
+			days: leaveDays,
+			granted_on: '1970-01-01',
+			origin: 'manual'
+		}))
+	);
 	if (written.error) throw new Error(`Failed to write the company leave grant: ${written.error.message}`);
 }
 

@@ -1682,7 +1682,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_leave',
     policyResource: 'tool:leave_grant_set',
-    description: "Set how much leave one person is entitled to in a year. Only an administrator may, and the record refuses anybody else. The number replaces the one they had, so 'give them three more days' is read with leave_balance first and written as the total. Somebody with no number of their own is on the company's, which company_settings_get answers as leaveDays. Requires approval; an entitlement is what every later leave is spent against.",
+    description: "Set how much leave one person is entitled to in a year. Only an administrator may, and the record refuses anybody else. The number replaces every grant they hold, so 'give them three more days' is read with leave_balance first and written as the total. Somebody who has never been given a number of their own holds the company's annual grant, which company_settings_get answers as leaveDays. Requires approval; an entitlement is what every later leave is spent against.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveGrantSetInputSchema,

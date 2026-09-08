@@ -6,7 +6,7 @@ insert into auth.users (id, email) values
   ('47000000-0000-0000-0000-000000000001', 'autonomous@example.test'),
   ('47000000-0000-0000-0000-000000000002', 'fixed-hours@example.test');
 
-insert into public.company (id, name, slug, country, locale, timezone, leave_days, rules) values
+insert into public.company (id, name, slug, country, locale, timezone, rules) values
   (
     '47000000-0000-0000-0000-0000000000a0',
     'Autonomous',
@@ -14,7 +14,6 @@ insert into public.company (id, name, slug, country, locale, timezone, leave_day
     'KR',
     'ko',
     'Asia/Seoul',
-    15,
     '{"attendanceWorkPolicy": {"revisions": [{"workMode": "autonomous"}]}}'::jsonb
   ),
   (
@@ -24,7 +23,6 @@ insert into public.company (id, name, slug, country, locale, timezone, leave_day
     'KR',
     'ko',
     'Asia/Seoul',
-    15,
     '{"attendanceWorkPolicy": {"revisions": [{"workMode": "fixed"}]}}'::jsonb
   );
 
@@ -38,7 +36,7 @@ select is(
   'the work mode comes from the company the member belongs to'
 );
 
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, starts_at, ends_at) values
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
   (
     '47000000-0000-0000-0000-0000000000a2',
     '47000000-0000-0000-0000-0000000000a1',
@@ -46,6 +44,7 @@ insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, start
     true,
     true,
     1,
+    'requested',
     '2026-09-04 00:00+09',
     '2026-09-04 23:59+09'
   );
@@ -56,7 +55,7 @@ select is(
   'leave taken under autonomous work is approved without anyone deciding'
 );
 
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, starts_at, ends_at) values
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
   (
     '47000000-0000-0000-0000-0000000000b2',
     '47000000-0000-0000-0000-0000000000b1',
@@ -64,6 +63,7 @@ insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, start
     true,
     true,
     1,
+    'requested',
     '2026-09-04 00:00+09',
     '2026-09-04 23:59+09'
   );
