@@ -79,14 +79,13 @@ type CompanyRow = {
 	timezone: string;
 	currency_code: string;
 	work_locations: StoredWorkLocation[] | null;
-	leave_days: number | null;
 	rules: Record<string, unknown> | null;
 	profile: unknown;
 	profile_image: string | null;
 };
 
 const companyColumns =
-	'id, name, country, locale, timezone, currency_code, work_locations, leave_days, rules, profile, profile_image';
+	'id, name, country, locale, timezone, currency_code, work_locations, rules, profile, profile_image';
 
 async function companyRow(caller: SupabaseClient): Promise<CompanyRow> {
 	const { data, error } = await caller
@@ -136,7 +135,7 @@ export async function companySettingsGet(context: RecordContext): Promise<Compan
 			name: location.name,
 			color: location.color ?? null
 		})),
-		leaveDays: row.leave_days,
+		leaveDays: annualGrantDaysOf(row.rules?.attendanceLeavePolicy),
 		teamViewVisibleToAll: teamViewVisibleTo(row.rules),
 		profileImageURL: await readableURLOf(context.caller, row.profile_image)
 	};
@@ -157,17 +156,32 @@ export async function companySettingsUpdate(
 			...(location.color?.trim() ? { color: location.color.trim() } : {})
 		}));
 	}
-	if (input.leaveDays !== undefined) change.leave_days = input.leaveDays;
 	if (input.teamViewVisibleToAll !== undefined) {
 		const held = await companyRow(context.caller);
 		change.rules = { ...(held.rules ?? {}), teamViewVisibleToAll: input.teamViewVisibleToAll };
 	}
-	if (Object.keys(change).length === 0) {
+	if (input.leaveDays === undefined && Object.keys(change).length === 0) {
 		throw new Error('a settings change names at least one setting to change');
 	}
 
-	await writeTheCompany(context, change, 'only an administrator can change the company settings');
+	if (Object.keys(change).length > 0) {
+		await writeTheCompany(context, change, 'only an administrator can change the company settings');
+	}
+	if (input.leaveDays !== undefined) await writeTheAnnualGrant(context, input.leaveDays);
 	return companySettingsGet(context);
+}
+
+async function writeTheAnnualGrant(context: RecordContext, leaveDays: number): Promise<void> {
+	const policy = await attendanceLeavePolicyGet(context);
+	await attendanceLeavePolicySet(context, {
+		...policy,
+		balanceTrackingMode: 'managed',
+		leaveTypes: policy.leaveTypes.map((leaveType) =>
+			leaveType.id === 'annual'
+				? { ...leaveType, grantAmountMilliDays: Math.round(leaveDays * leaveDaysPerMilliDay) }
+				: leaveType
+		)
+	});
 }
 
 export async function companyInfoGet(
@@ -428,7 +442,7 @@ export async function attendanceLeavePolicyGet(
 	context: RecordContext
 ): Promise<AttendanceLeavePolicyResult> {
 	const row = await companyRow(context.caller);
-	return leavePolicyAnswered(row.rules?.attendanceLeavePolicy, row.leave_days);
+	return leavePolicyAnswered(row.rules?.attendanceLeavePolicy);
 }
 
 export async function attendanceLeavePolicySet(
@@ -452,17 +466,20 @@ export async function attendanceLeavePolicySet(
 	return attendanceLeavePolicyGet(context);
 }
 
-function leavePolicyAnswered(stored: unknown, leaveDays: number | null): AttendanceLeavePolicyResult {
-	const policy = isLeavePolicy(stored) ? stored : defaultLeavePolicy();
-	return {
-		...policy,
-		balanceTrackingMode: leaveDays === null ? 'unlimited' : 'managed',
-		leaveTypes: policy.leaveTypes.map((leaveType) =>
-			leaveType.id === 'annual' && leaveDays !== null
-				? { ...leaveType, grantAmountMilliDays: Math.round(leaveDays * leaveDaysPerMilliDay) }
-				: leaveType
-		)
-	};
+function leavePolicyAnswered(stored: unknown): AttendanceLeavePolicyResult {
+	if (isLeavePolicy(stored)) return stored;
+	return unconfiguredLeavePolicy();
+}
+
+function unconfiguredLeavePolicy(): AttendanceLeavePolicyResult {
+	return { ...defaultLeavePolicy(), balanceTrackingMode: 'unlimited' };
+}
+
+function annualGrantDaysOf(stored: unknown): number | null {
+	const policy = leavePolicyAnswered(stored);
+	if (policy.balanceTrackingMode === 'unlimited') return null;
+	const annual = policy.leaveTypes.find((leaveType) => leaveType.id === 'annual');
+	return annual ? annual.grantAmountMilliDays / leaveDaysPerMilliDay : null;
 }
 
 function isLeavePolicy(stored: unknown): stored is AttendanceLeavePolicyResult {

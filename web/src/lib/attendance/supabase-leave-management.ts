@@ -35,7 +35,7 @@ import {
 } from './attendance-record';
 import { supabaseLeaveTypeDirectory, type LeaveTypeDirectory } from './supabase-leave-types';
 
-type CompanyRow = { timezone: string; leave_days: number | null };
+type CompanyRow = { timezone: string };
 type DirectoryMember = {
 	id: string;
 	email: string | null;
@@ -43,7 +43,7 @@ type DirectoryMember = {
 	timezone: string | null;
 };
 
-type MemberRow = DirectoryMember & { leave_days: number | null };
+type MemberRow = DirectoryMember & { grantedDays: number | null };
 
 type LeaveManagementSource = {
 	company: CompanyRow;
@@ -88,7 +88,7 @@ export async function supabaseLeaveManagement(employeeEmail = ''): Promise<Leave
 export async function adjustSupabaseManagedLeave(input: LeaveManagementAdjustment): Promise<void> {
 	const company = await readCompany();
 	const answered = await leaveBalanceOfPerson(input.employeeEmail);
-	const granted = answered.balances[0]?.grantedDays ?? company.leave_days;
+	const granted = answered.balances[0]?.grantedDays ?? null;
 	if (granted === null) throw new EmployeeLeaveAPIError('invalidStatus', 409);
 	const next = granted + input.amountMilliDays / 1000;
 	if (next < 0) throw new EmployeeLeaveAPIError('insufficientBalance', 409);
@@ -160,7 +160,7 @@ async function readLeaveManagementSource(): Promise<LeaveManagementSource> {
 
 async function readCompany(): Promise<CompanyRow> {
 	const settings = await companySettings();
-	return { timezone: settings.timeZone, leave_days: settings.leaveDays };
+	return { timezone: settings.timeZone };
 }
 
 async function leaveManagementMembers(): Promise<DirectoryMember[]> {
@@ -185,7 +185,7 @@ async function leaveManagementRows(): Promise<LeaveManagementRows> {
 		balances.balances.map((balance) => [balance.personID, balance.grantedDays])
 	);
 	return {
-		members: members.map((member) => ({ ...member, leave_days: grantedTo.get(member.id) ?? null })),
+		members: members.map((member) => ({ ...member, grantedDays: grantedTo.get(member.id) ?? null })),
 		leaves
 	};
 }
@@ -197,7 +197,7 @@ async function readMemberByEmail(email: string): Promise<DirectoryMember> {
 }
 
 function trackingModeOf(source: LeaveManagementSource): EmployeeLeaveBalanceTrackingMode {
-	return source.company.leave_days === null ? 'unlimited' : 'managed';
+	return source.leaveTypes.trackingMode;
 }
 
 function employeeOf(
@@ -205,7 +205,7 @@ function employeeOf(
 	source: LeaveManagementSource,
 	trackingMode: EmployeeLeaveBalanceTrackingMode
 ): LeaveManagementEmployee {
-	const granted = member.leave_days ?? source.company.leave_days;
+	const granted = member.grantedDays;
 	const grantedMilliDays =
 		trackingMode === 'unlimited' || granted === null ? 0 : Math.round(granted * 1000);
 

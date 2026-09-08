@@ -5,8 +5,8 @@ select plan(5);
 insert into auth.users (id, email) values
   ('45000000-0000-0000-0000-000000000001', 'year-split@example.test');
 
-insert into public.company (id, name, slug, country, locale, timezone, leave_days) values
-  ('45000000-0000-0000-0000-0000000000a0', 'Year Split', 'year-split', 'KR', 'ko', 'Asia/Seoul', 15);
+insert into public.company (id, name, slug, country, locale, timezone) values
+  ('45000000-0000-0000-0000-0000000000a0', 'Year Split', 'year-split', 'KR', 'ko', 'Asia/Seoul');
 
 insert into public.member (id, company_id, email, user_id, status) values
   (
@@ -16,6 +16,9 @@ insert into public.member (id, company_id, email, user_id, status) values
     '45000000-0000-0000-0000-000000000001',
     'active'
   );
+
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin) values
+  ('45000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, date '1970-01-01', 'manual');
 
 insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
   (
