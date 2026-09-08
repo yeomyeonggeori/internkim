@@ -59,6 +59,15 @@ The config also sets `ios.contentInset` to `always`. Safari lays a standalone
 PWA out below the status bar on its own; the WebView covers the whole screen,
 and this inset is what keeps the page header from sitting behind the clock.
 
+The status bar takes the page's colour from the page itself. Inside the shell,
+`web/src/lib/native-shell/page-theme.ts` watches the `dark` class on `<html>`
+and hands the computed body background and the tone to a `PageTheme` plugin
+that each shell carries (`PageThemePlugin.java`, `PageThemePlugin.swift`), so
+the bar follows the page's own theme switch and the system switch alike. The
+Android theme still names a day/night colour pair for the moment before the
+page runs, and `android-status-bar-colour.test.ts` keeps that pair equal to
+the web app's `--background` tokens.
+
 Everything sits under `web/` because plugins are imported from web code
 (`subscribe.ts` will import `@capacitor/push-notifications`), and Capacitor
 resolves plugins from the same `package.json` the native projects belong to.
