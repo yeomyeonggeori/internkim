@@ -8,6 +8,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/internal/modelladder"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
 
@@ -43,6 +44,7 @@ type providerAvailability struct {
 
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
 	request.Model = service.llmRequestModel(request.Model)
+	request.ReasoningEffort = reasoningEffortForTier(request.ReasoningEffort, request.ModelTier)
 	provider, errorValue := service.providerForExecutionMode(ctx, "llm_structured", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
@@ -52,6 +54,7 @@ func (service Service) completeStructured(ctx context.Context, request Structure
 
 func (service Service) completeText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
 	request.Model = service.llmRequestModel(request.Model)
+	request.ReasoningEffort = reasoningEffortForTier(request.ReasoningEffort, request.ModelTier)
 	provider, errorValue := service.providerForExecutionMode(ctx, "llm_text", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
@@ -61,6 +64,7 @@ func (service Service) completeText(ctx context.Context, request TextLLMRequest)
 
 func (service Service) completeChat(ctx context.Context, request ChatLLMRequest) (ChatLLMResponse, error) {
 	request.Model = service.llmRequestModel(request.Model)
+	request.ReasoningEffort = reasoningEffortForTier(request.ReasoningEffort, request.ModelTier)
 	provider, errorValue := service.providerForExecutionMode(ctx, "llm.chat", request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return ChatLLMResponse{}, errorValue
@@ -70,6 +74,13 @@ func (service Service) completeChat(ctx context.Context, request ChatLLMRequest)
 		return ChatLLMResponse{}, errors.New("selected llm provider does not support native chat completions")
 	}
 	return chatProvider.CompleteChat(ctx, request)
+}
+
+func reasoningEffortForTier(requestedEffort string, modelTier string) string {
+	if requested := strings.TrimSpace(requestedEffort); requested != "" {
+		return requested
+	}
+	return modelladder.ReasoningEffort(modelTier)
 }
 
 func (service Service) llmRequestModel(requestModel string) string {
@@ -167,6 +178,8 @@ func (service Service) openRouterBackend() OpenRouterBackend {
 		FallbackModelNames:  service.openRouterActionFallbackModelNames(),
 		GatewaySecretPath:   service.Configuration.OpenRouterGatewaySecretPath,
 		GatewaySecretHeader: service.Configuration.OpenRouterGatewaySecretHeader,
+		ProviderOrder:       modelladder.PreferredProviders(),
+		ProviderSort:        modelladder.ProviderSort,
 		HTTPClient:          service.providerHTTPClient(),
 	}
 }
