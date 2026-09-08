@@ -55,6 +55,8 @@ type RequestContext struct {
 
 type StructuredRequest struct {
 	Model                  string                 `json:"model"`
+	ModelTier              string                 `json:"modelTier,omitempty"`
+	ReasoningEffort        string                 `json:"reasoningEffort,omitempty"`
 	Provider               string                 `json:"provider,omitempty"`
 	Accelerator            string                 `json:"accelerator,omitempty"`
 	ExecutionMode          string                 `json:"executionMode"`
@@ -68,6 +70,8 @@ type StructuredRequest struct {
 
 type TextRequest struct {
 	Model                 string         `json:"model"`
+	ModelTier             string         `json:"modelTier,omitempty"`
+	ReasoningEffort       string         `json:"reasoningEffort,omitempty"`
 	Provider              string         `json:"provider,omitempty"`
 	Accelerator           string         `json:"accelerator,omitempty"`
 	ExecutionMode         string         `json:"executionMode"`
@@ -79,6 +83,8 @@ type TextRequest struct {
 
 type ChatRequest struct {
 	Model             string          `json:"model"`
+	ModelTier         string          `json:"modelTier,omitempty"`
+	ReasoningEffort   string          `json:"reasoningEffort,omitempty"`
 	Provider          string          `json:"provider,omitempty"`
 	Accelerator       string          `json:"accelerator,omitempty"`
 	ExecutionMode     string          `json:"executionMode"`
@@ -101,12 +107,13 @@ type Usage struct {
 }
 
 type Response struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	Content         string `json:"content"`
-	SelectedBackend string `json:"selectedBackend"`
-	ConstraintMode  string `json:"constraintMode,omitempty"`
-	Usage           Usage  `json:"usage"`
+	Provider         string `json:"provider"`
+	UpstreamProvider string `json:"upstreamProvider,omitempty"`
+	Model            string `json:"model"`
+	Content          string `json:"content"`
+	SelectedBackend  string `json:"selectedBackend"`
+	ConstraintMode   string `json:"constraintMode,omitempty"`
+	Usage            Usage  `json:"usage"`
 	// A provider further down the chain answered because the ones before it
 	// failed. The caller asked for a model tier and got whatever was left, so
 	// the answer travels with the reason rather than passing for the one asked
@@ -116,11 +123,12 @@ type Response struct {
 }
 
 type ChatResponse struct {
-	FinishReason string              `json:"finishReason"`
-	Provider     string              `json:"provider"`
-	Model        string              `json:"model"`
-	Message      ChatResponseMessage `json:"message"`
-	Usage        Usage               `json:"usage"`
+	FinishReason     string              `json:"finishReason"`
+	Provider         string              `json:"provider"`
+	UpstreamProvider string              `json:"upstreamProvider,omitempty"`
+	Model            string              `json:"model"`
+	Message          ChatResponseMessage `json:"message"`
+	Usage            Usage               `json:"usage"`
 }
 
 type ChatResponseMessage struct {

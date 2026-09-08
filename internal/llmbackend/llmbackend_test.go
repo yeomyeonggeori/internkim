@@ -45,7 +45,7 @@ func createLiteRTConstrainedRunner(t *testing.T) string {
 func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 	seed := int64(42)
 	temperature := 0.1
-	requestDocument, errorValue := buildOpenRouterStructuredRequest(StructuredRequest{
+	requestDocument, errorValue := OpenRouterBackend{}.buildStructuredRequest(StructuredRequest{
 		Model: "openrouter/model",
 		Messages: []Message{
 			{Role: "user", Content: "hello"},
@@ -86,7 +86,7 @@ func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 }
 
 func TestOpenRouterStructuredRequestOmitsEmptyGenerationOptions(t *testing.T) {
-	requestDocument, errorValue := buildOpenRouterStructuredRequest(StructuredRequest{
+	requestDocument, errorValue := OpenRouterBackend{}.buildStructuredRequest(StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "hello"}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "reply",
@@ -621,7 +621,7 @@ func TestOpenAICompatibleMessagePartsBecomeMultimodalContent(t *testing.T) {
 }
 
 func TestOpenRouterChatActionRequestUsesDocumentedImageInputShape(t *testing.T) {
-	requestDocument, _, errorValue := buildOpenRouterChatActionRequest(StructuredRequest{
+	requestDocument, _, errorValue := OpenRouterBackend{}.buildChatActionRequest(StructuredRequest{
 		Messages: []Message{{
 			Role:    "user",
 			Content: "inspect this",
