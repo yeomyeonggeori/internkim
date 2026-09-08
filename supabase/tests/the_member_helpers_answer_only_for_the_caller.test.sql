@@ -14,19 +14,23 @@ insert into public.company (id, name, slug, country, locale, timezone, work_loca
   ('79000000-0000-0000-0000-0000000000c2', 'Theirs', 'theirs', 'US', 'en-US', 'America/New_York', null);
 
 insert into public.member (id, company_id, email, user_id, status, is_admin, timezone, locale,
-                           work_hours, minimum_daily_minutes, leave_days) values
+                           work_hours, minimum_daily_minutes) values
   ('79000000-0000-0000-0000-0000000000a1', '79000000-0000-0000-0000-0000000000c1',
    'ordinary@example.test', '79000000-0000-0000-0000-000000000011', 'active', false,
-   'Asia/Seoul', 'ko', '[[null,null,null,null,null,null,null]]', 180, 12),
+   'Asia/Seoul', 'ko', '[[null,null,null,null,null,null,null]]', 180),
   ('79000000-0000-0000-0000-0000000000a2', '79000000-0000-0000-0000-0000000000c1',
    'colleague@example.test', null, 'active', false,
-   'Europe/Berlin', 'de', '[[null,null,null,null,null,null,null]]', 300, 20),
+   'Europe/Berlin', 'de', '[[null,null,null,null,null,null,null]]', 300),
   ('79000000-0000-0000-0000-0000000000a3', '79000000-0000-0000-0000-0000000000c1',
    'boss@example.test', '79000000-0000-0000-0000-000000000012', 'active', true,
-   null, null, null, null, null),
+   null, null, null, null),
   ('79000000-0000-0000-0000-0000000000b1', '79000000-0000-0000-0000-0000000000c2',
    'otherboss@example.test', '79000000-0000-0000-0000-000000000013', 'active', true,
-   null, null, null, null, null);
+   null, null, null, null);
+
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin) values
+  ('79000000-0000-0000-0000-0000000000a1', 'annual', true, false, 12, date '1970-01-01', 'manual'),
+  ('79000000-0000-0000-0000-0000000000a2', 'annual', true, false, 20, date '1970-01-01', 'manual');
 
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
   ('79000000-0000-0000-0000-0000000000a2', '연차', true, true, 4, 'approved',
