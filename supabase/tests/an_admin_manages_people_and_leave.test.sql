@@ -8,9 +8,9 @@ insert into auth.users (id, email) values
   ('44000000-0000-0000-0000-000000000003', 'leave-colleague@example.test'),
   ('44000000-0000-0000-0000-000000000004', 'leave-outsider@example.test');
 
-insert into public.company (id, name, slug, country, locale, timezone, leave_days) values
-  ('44000000-0000-0000-0000-0000000000a0', 'Leave A', 'leave-a', 'KR', 'ko', 'Asia/Seoul', 15),
-  ('44000000-0000-0000-0000-0000000000b0', 'Leave B', 'leave-b', 'KR', 'ko', 'Asia/Seoul', 15);
+insert into public.company (id, name, slug, country, locale, timezone) values
+  ('44000000-0000-0000-0000-0000000000a0', 'Leave A', 'leave-a', 'KR', 'ko', 'Asia/Seoul'),
+  ('44000000-0000-0000-0000-0000000000b0', 'Leave B', 'leave-b', 'KR', 'ko', 'Asia/Seoul');
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
   (
