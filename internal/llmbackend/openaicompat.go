@@ -315,6 +315,7 @@ func openAIActionToolRequest(modelName string, messages []Message, tools []nativ
 
 func openAIChatCompletionRequest(modelName string, request ChatRequest) openAIRequest {
 	parallelToolCalls := request.ParallelToolCalls
+	options := generationOptionsValue(request.GenerationOptions)
 	return openAIRequest{
 		Model:         modelName,
 		Messages:      openAIChatMessages(request.Messages),
@@ -322,6 +323,9 @@ func openAIChatCompletionRequest(modelName string, request ChatRequest) openAIRe
 		Tools:         openAIChatTools(request.Tools),
 		ToolChoice:    request.ToolChoice,
 		ParallelTools: &parallelToolCalls,
+		Seed:          options.Seed,
+		Temperature:   options.Temperature,
+		MaxTokens:     options.MaxTokens,
 	}
 }
 
