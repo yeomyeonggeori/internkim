@@ -7,19 +7,18 @@ insert into auth.users (id, email) values
   ('4b000000-0000-0000-0000-000000000002', 'balances-member@example.test'),
   ('4b000000-0000-0000-0000-000000000003', 'balances-outsider@example.test');
 
-insert into public.company (id, name, slug, country, locale, timezone, leave_days) values
-  ('4b000000-0000-0000-0000-0000000000a0', 'Balances A', 'balances-a', 'KR', 'ko', 'Asia/Seoul', 15),
-  ('4b000000-0000-0000-0000-0000000000b0', 'Balances B', 'balances-b', 'KR', 'ko', 'Asia/Seoul', 15);
+insert into public.company (id, name, slug, country, locale, timezone) values
+  ('4b000000-0000-0000-0000-0000000000a0', 'Balances A', 'balances-a', 'KR', 'ko', 'Asia/Seoul'),
+  ('4b000000-0000-0000-0000-0000000000b0', 'Balances B', 'balances-b', 'KR', 'ko', 'Asia/Seoul');
 
-insert into public.member (id, company_id, email, user_id, status, is_admin, leave_days) values
+insert into public.member (id, company_id, email, user_id, status, is_admin) values
   (
     '4b000000-0000-0000-0000-0000000000a1',
     '4b000000-0000-0000-0000-0000000000a0',
     'balances-admin@example.test',
     '4b000000-0000-0000-0000-000000000001',
     'active',
-    true,
-    null
+    true
   ),
   (
     '4b000000-0000-0000-0000-0000000000a2',
@@ -27,8 +26,7 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, lea
     'balances-member@example.test',
     '4b000000-0000-0000-0000-000000000002',
     'active',
-    false,
-    18
+    false
   ),
   (
     '4b000000-0000-0000-0000-0000000000b1',
@@ -36,9 +34,13 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, lea
     'balances-outsider@example.test',
     '4b000000-0000-0000-0000-000000000003',
     'active',
-    true,
-    null
+    true
   );
+
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin) values
+  ('4b000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, date '1970-01-01', 'manual'),
+  ('4b000000-0000-0000-0000-0000000000a2', 'annual', true, false, 18, date '1970-01-01', 'manual'),
+  ('4b000000-0000-0000-0000-0000000000b1', 'annual', true, false, 15, date '1970-01-01', 'manual');
 
 insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
   (
@@ -59,7 +61,7 @@ begin
   assert jsonb_array_length(answered) = 2,
     'an administrator reads a balance for everybody who works here';
   assert (answered -> 0 ->> 'granted_days')::numeric = 15,
-    'a member with no grant of their own falls back to the company grant';
+    'an administrator reads the grant written for them';
   assert (answered -> 1 ->> 'granted_days')::numeric = 18,
     'a member with a grant of their own keeps it';
   assert (answered -> 1 ->> 'remaining_days')::numeric = 16,

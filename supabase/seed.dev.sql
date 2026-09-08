@@ -45,7 +45,7 @@ on conflict (provider, provider_id) do nothing;
 
 insert into public.company (
   id, name, slug, country, locale, timezone,
-  work_locations, task_vocabulary, crm_vocabulary, minimum_daily_minutes, leave_days
+  work_locations, task_vocabulary, crm_vocabulary, minimum_daily_minutes
 ) values (
   '000000cc-0000-0000-0000-000000000001',
   '예시회사', 'example-co', 'KR', 'ko', 'Asia/Seoul',
@@ -53,7 +53,7 @@ insert into public.company (
   '{"businesses": [{"name": "사업하나", "color": "#216fe4"}, {"name": "사업둘", "color": "#475569"}],
     "types": [{"name": "기능"}, {"name": "개선"}, {"name": "회의"}, {"name": "통화"}, {"name": "메일"}, {"name": "메모"}]}',
   '{"organization_types":[{"id":"partner","name":"파트너","color":"#2563eb"},{"id":"sponsor","name":"스폰서","color":"#16a34a"},{"id":"customer","name":"고객","color":"#f59e0b"},{"id":"investor","name":"투자자","color":"#7c3aed"}],"pipelines":[{"id":"partnership","name":"파트너십","color":"#2563eb","direction":"outbound"},{"id":"sales","name":"판매","color":"#16a34a","direction":"outbound"},{"id":"investment","name":"투자 유치","color":"#7c3aed","direction":"inbound"}]}',
-  480, 15
+  480
 ) on conflict (id) do nothing;
 
 insert into public.team (id, company_id, name, position) values
@@ -178,9 +178,53 @@ select member_id, kind, location, occurred_at from (values
 ) as entry(member_id, kind, location, occurred_at)
 where not exists (select 1 from public.attendance);
 
+-- A company that has granted nobody anything reads as untracked, so the fixture
+-- saves the policy it would have saved on its first visit to the leave settings.
+update public.company
+set rules = rules || jsonb_build_object('attendanceLeavePolicy', jsonb_build_object(
+  'version', 2,
+  'balanceTrackingMode', 'managed',
+  'fiscalYearStartMonth', 1,
+  'fiscalYearStartDay', 1,
+  'updatedAt', '',
+  'leaveTypes', jsonb_build_array(
+    jsonb_build_object('id', 'annual', 'systemKind', 'annual', 'name', '연차', 'paid', true,
+      'balanceMode', 'annual', 'grantCadence', 'annual', 'grantAmountMilliDays', 15000,
+      'expiryMode', 'fiscalYearEnd', 'carryoverEnabled', false,
+      'allowedUnits', jsonb_build_array('fullDay', 'halfDay', 'quarterDay'),
+      'includeInSummary', true, 'isActive', true, 'isSystem', true, 'sortOrder', 0),
+    jsonb_build_object('id', 'sick', 'systemKind', 'sick', 'name', '병가', 'paid', true,
+      'balanceMode', 'none', 'grantCadence', 'none', 'grantAmountMilliDays', 0,
+      'expiryMode', 'none', 'carryoverEnabled', false,
+      'allowedUnits', jsonb_build_array('fullDay', 'halfDay', 'quarterDay'),
+      'includeInSummary', false, 'isActive', true, 'isSystem', true, 'sortOrder', 1),
+    jsonb_build_object('id', 'maternity', 'systemKind', 'maternity', 'name', '출산·육아휴가', 'paid', true,
+      'balanceMode', 'none', 'grantCadence', 'none', 'grantAmountMilliDays', 0,
+      'expiryMode', 'none', 'carryoverEnabled', false,
+      'allowedUnits', jsonb_build_array('fullDay'),
+      'includeInSummary', false, 'isActive', true, 'isSystem', true, 'sortOrder', 2),
+    jsonb_build_object('id', 'unpaid', 'systemKind', 'unpaid', 'name', '무급휴가', 'paid', false,
+      'balanceMode', 'none', 'grantCadence', 'none', 'grantAmountMilliDays', 0,
+      'expiryMode', 'none', 'carryoverEnabled', false,
+      'allowedUnits', jsonb_build_array('fullDay', 'halfDay', 'quarterDay'),
+      'includeInSummary', false, 'isActive', true, 'isSystem', true, 'sortOrder', 3)
+  )
+))
+where id = '000000cc-0000-0000-0000-000000000001'
+  and rules -> 'attendanceLeavePolicy' is null;
+
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin)
+select member.id, 'annual', true, false, 15,
+  date_trunc('year', now() at time zone 'Asia/Seoul')::date,
+  (date_trunc('year', now() at time zone 'Asia/Seoul') + interval '1 year - 1 day')::date,
+  'accrual'
+from public.member
+where member.company_id = '000000cc-0000-0000-0000-000000000001'
+  and not exists (select 1 from public.leave where status is null);
+
 insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at, note)
 select '000000ee-0000-0000-0000-000000000003', '연차', true, 2, 'requested',
   (date_trunc('day', now() at time zone 'Asia/Seoul') + interval '7 days') at time zone 'Asia/Seoul',
   (date_trunc('day', now() at time zone 'Asia/Seoul') + interval '9 days') at time zone 'Asia/Seoul',
   '가족 행사'
-where not exists (select 1 from public.leave);
+where not exists (select 1 from public.leave where status is not null);
