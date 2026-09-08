@@ -82,17 +82,18 @@ type TextRequest struct {
 }
 
 type ChatRequest struct {
-	Model             string          `json:"model"`
-	ModelTier         string          `json:"modelTier,omitempty"`
-	ReasoningEffort   string          `json:"reasoningEffort,omitempty"`
-	Provider          string          `json:"provider,omitempty"`
-	Accelerator       string          `json:"accelerator,omitempty"`
-	ExecutionMode     string          `json:"executionMode"`
-	Context           RequestContext  `json:"context,omitempty"`
-	Messages          []ChatMessage   `json:"messages"`
-	Tools             []ChatTool      `json:"tools,omitempty"`
-	ToolChoice        json.RawMessage `json:"toolChoice,omitempty"`
-	ParallelToolCalls bool            `json:"parallelToolCalls"`
+	Model             string             `json:"model"`
+	ModelTier         string             `json:"modelTier,omitempty"`
+	ReasoningEffort   string             `json:"reasoningEffort,omitempty"`
+	Provider          string             `json:"provider,omitempty"`
+	Accelerator       string             `json:"accelerator,omitempty"`
+	ExecutionMode     string             `json:"executionMode"`
+	Context           RequestContext     `json:"context,omitempty"`
+	Messages          []ChatMessage      `json:"messages"`
+	Tools             []ChatTool         `json:"tools,omitempty"`
+	ToolChoice        json.RawMessage    `json:"toolChoice,omitempty"`
+	ParallelToolCalls bool               `json:"parallelToolCalls"`
+	GenerationOptions *GenerationOptions `json:"generationOptions,omitempty"`
 }
 
 type Usage struct {
