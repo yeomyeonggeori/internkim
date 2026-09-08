@@ -29,6 +29,7 @@
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { goWhereNotificationsPoint } from '$lib/notifications/opened-notification';
 	import { webAuthSessionDependency } from '$lib/web-auth-session';
+	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -48,6 +49,13 @@
 		preloadWorkTimeChartPlot();
 		void myAttendanceToday.load();
 		if (data.session?.authenticated) void personPicture.rememberEveryone();
+		let stopFollowingPageTheme = () => {};
+		keepShellStatusBarOnPageTheme().then(
+			(stop) => {
+				stopFollowingPageTheme = stop;
+			},
+			(failure: unknown) => console.warn('the shell status bar is not following the page theme', failure)
+		);
 
 		const revalidateSession = () => {
 			if (document.visibilityState !== 'visible') return;
@@ -57,6 +65,7 @@
 		document.addEventListener('visibilitychange', revalidateSession);
 		const stopFollowingNotifications = goWhereNotificationsPoint((path) => void goto(path));
 		return () => {
+			stopFollowingPageTheme();
 			stopFollowingNotifications();
 			window.removeEventListener('focus', revalidateSession);
 			document.removeEventListener('visibilitychange', revalidateSession);
