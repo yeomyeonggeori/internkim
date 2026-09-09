@@ -9,6 +9,7 @@ import type {
 
 export type LeaveTypeDirectory = {
 	trackingMode: EmployeeLeaveBalanceTrackingMode;
+	yearStart: { month: number; day: number };
 	offered: EmployeeLeaveType[];
 	nameOf: (leaveTypeID: string) => string;
 	ownsAnnualBalance: (leaveTypeID: string) => boolean;
@@ -30,6 +31,7 @@ export function leaveTypeDirectory(
 		trackingMode === 'managed' && leaveTypeID === annualLeaveTypeID;
 	return {
 		trackingMode,
+		yearStart: { month: policy.fiscalYearStartMonth, day: policy.fiscalYearStartDay },
 		offered: policy.leaveTypes
 			.filter((leaveType) => leaveType.isActive)
 			.map((leaveType) => employeeLeaveTypeOf(leaveType, ownsAnnualBalance(leaveType.id))),

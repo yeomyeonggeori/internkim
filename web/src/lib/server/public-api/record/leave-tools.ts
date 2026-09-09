@@ -1,3 +1,4 @@
+import { leaveYearOf } from '$lib/attendance/leave-year-share';
 import { dayIn, dayOfInstant, dayShifted, instantOfDay, instantWritten } from './days';
 import { personName } from '$lib/person-name';
 import { personOfHint } from './people';
@@ -169,7 +170,13 @@ async function balanceOfOne(
 export type LeaveBalanceInput = { personHints?: string[]; scope?: string; year?: number };
 
 export async function leaveBalance(context: RecordContext, input: LeaveBalanceInput) {
-	const year = input.year ?? Number(dayIn(context.labels.timezone, context.now).slice(0, 4));
+	const year =
+		input.year ??
+		leaveYearOf(
+			dayIn(context.labels.timezone, context.now),
+			context.leaveYearStart.month,
+			context.leaveYearStart.day
+		);
 	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
 	const balances = whose.everyone
 		? (await leaveBalancesOfCompany(context.caller, year)).map((row) =>

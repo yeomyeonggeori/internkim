@@ -108,7 +108,9 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 			localEndDate: request.endDate || request.startDate
 		})),
 		targetYear,
-		remainingDays
+		remainingDays,
+		directory.yearStart.month,
+		directory.yearStart.day
 	);
 	return {
 		balanceTrackingMode: balance.trackingMode,
