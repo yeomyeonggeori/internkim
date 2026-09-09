@@ -3,10 +3,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyMember } from '../../../supabase/functions/_shared/notify-member.ts';
 import { encodeBase64URL } from '../../src/lib/notifications/base64url';
 
-const vapid = {
-	publicKey: 'BG0w6CuCogoJKa593BzjeAk_VAOmSYtz4Crk7OBQPEYa3_peOcMJEln_GG6LyW-0nl82LPHDClzU8_0nB4Z5dcs',
-	privateKey: 'NNK7ZJuRBBHnpKs9X0R0aM4Tff6BaVUfPwmnYTdPuWA',
-	subject: 'mailto:support@example.com'
+const pushKeys = {
+	vapid: {
+		publicKey: 'BG0w6CuCogoJKa593BzjeAk_VAOmSYtz4Crk7OBQPEYa3_peOcMJEln_GG6LyW-0nl82LPHDClzU8_0nB4Z5dcs',
+		privateKey: 'NNK7ZJuRBBHnpKs9X0R0aM4Tff6BaVUfPwmnYTdPuWA',
+		subject: 'mailto:support@example.com'
+	},
+	apns: null,
+	fcm: null
 };
 
 const notification = { title: '이샘플', body: '보냈어요', openPath: '/messenger/', tag: 'message:channel-a' };
@@ -55,15 +59,13 @@ function clientWhere(options: {
 			return {
 				select: () => ({
 					eq: () => ({
-						eq: () => ({
-							returns: async () => ({
-								data: [{ kind: 'web-push', address: 'https://push.example.com/one', keys: options.deviceKeys }],
-								error: null
-							})
+						returns: async () => ({
+							data: [{ kind: 'web-push', address: 'https://push.example.com/one', keys: options.deviceKeys }],
+							error: null
 						})
 					})
 				}),
-				delete: () => ({ eq: async () => ({ error: null }) })
+				delete: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) })
 			};
 		}
 	} as unknown as SupabaseClient;
@@ -96,7 +98,7 @@ describe('a conversation a member has muted', () => {
 		});
 		const asked = answerWith(201);
 
-		const delivery = await notifyMember(client, 'member-1', 'message', notification, vapid, 1_700_000_000, 'channel-a');
+		const delivery = await notifyMember(client, 'member-1', 'message', notification, pushKeys, 1_700_000_000, 'channel-a');
 
 		expect(delivery).toEqual({ reached: 0, pruned: 0, silent: true });
 		expect(asked).toEqual([]);
@@ -110,7 +112,7 @@ describe('a conversation a member has muted', () => {
 		});
 		answerWith(201);
 
-		const delivery = await notifyMember(client, 'member-1', 'message', notification, vapid, 1_700_000_000, 'channel-b');
+		const delivery = await notifyMember(client, 'member-1', 'message', notification, pushKeys, 1_700_000_000, 'channel-b');
 
 		expect(delivery.silent).toBe(false);
 		expect(delivery.reached).toBe(1);
@@ -124,7 +126,7 @@ describe('a conversation a member has muted', () => {
 		});
 		answerWith(201);
 
-		const delivery = await notifyMember(client, 'member-1', 'task', notification, vapid, 1_700_000_000);
+		const delivery = await notifyMember(client, 'member-1', 'task', notification, pushKeys, 1_700_000_000);
 
 		expect(delivery.silent).toBe(false);
 		expect(delivery.reached).toBe(1);
@@ -139,7 +141,7 @@ describe('a conversation a member has muted', () => {
 		});
 		answerWith(201);
 
-		const delivery = await notifyMember(client, 'member-1', 'message', notification, vapid, 1_700_000_000, 'channel-a');
+		const delivery = await notifyMember(client, 'member-1', 'message', notification, pushKeys, 1_700_000_000, 'channel-a');
 
 		expect(delivery.silent).toBe(false);
 		expect(delivery.reached).toBe(1);
@@ -153,7 +155,7 @@ describe('a conversation a member has muted', () => {
 		});
 		const asked = answerWith(201);
 
-		const delivery = await notifyMember(client, 'member-1', 'message', notification, vapid, 1_700_000_000, 'channel-b');
+		const delivery = await notifyMember(client, 'member-1', 'message', notification, pushKeys, 1_700_000_000, 'channel-b');
 
 		expect(delivery.silent).toBe(true);
 		expect(asked).toEqual([]);
