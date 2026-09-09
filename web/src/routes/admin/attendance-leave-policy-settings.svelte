@@ -16,7 +16,11 @@
 		fetchAttendanceLeavePolicy,
 		updateAttendanceLeavePolicy
 	} from './attendance-settings-api';
-	import { leaveYearStartWithin, type LeaveYearStart } from './leave-year-start-model';
+	import {
+		leaveYearStartWithin,
+		sameLeaveYearStart,
+		type LeaveYearStart
+	} from './leave-year-start-model';
 	import type {
 		AdminPageText,
 		AttendanceLeavePolicy,
@@ -39,6 +43,7 @@
 	let validationAttempted = $state(false);
 	let previousSelectedID = $state('');
 	let expiryConfirmationOpen = $state(false);
+	let yearStartConfirmationOpen = $state(false);
 	let removalConfirmationOpen = $state(false);
 	let balanceTrackingMode = $state<LeaveBalanceTrackingMode>('managed');
 	let leaveYearStart = $state<LeaveYearStart>({ month: 1, day: 1 });
@@ -67,6 +72,14 @@
 
 	function savedLeaveYearStart(saved: AttendanceLeavePolicy): LeaveYearStart {
 		return leaveYearStartWithin(saved.fiscalYearStartMonth, saved.fiscalYearStartDay);
+	}
+
+	function requestLeaveOperationSave(): void {
+		if (policy && !sameLeaveYearStart(leaveYearStart, savedLeaveYearStart(policy))) {
+			yearStartConfirmationOpen = true;
+			return;
+		}
+		void saveLeaveOperation();
 	}
 
 	async function saveLeaveOperation(): Promise<void> {
@@ -226,7 +239,7 @@
 			onChange={(mode) => (balanceTrackingMode = mode)}
 			onYearStartChange={(yearStart) => (leaveYearStart = yearStart)}
 			onCancel={cancelLeaveOperation}
-			onSave={() => void saveLeaveOperation()}
+			onSave={requestLeaveOperationSave}
 		/>
 	{/if}
 
@@ -278,6 +291,31 @@
 				onclick={() => {
 					expiryConfirmationOpen = false;
 					void savePolicy();
+				}}
+			>
+				{text.attendanceSettings.expiryConfirmationSave}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<AlertDialog.Root
+	open={yearStartConfirmationOpen}
+	onOpenChange={(open) => (yearStartConfirmationOpen = open)}
+>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>{text.attendanceSettings.yearStartConfirmationTitle}</AlertDialog.Title>
+			<AlertDialog.Description>
+				{text.attendanceSettings.yearStartConfirmationDescription}
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>{text.attendanceSettings.expiryConfirmationCancel}</AlertDialog.Cancel>
+			<AlertDialog.Action
+				onclick={() => {
+					yearStartConfirmationOpen = false;
+					void saveLeaveOperation();
 				}}
 			>
 				{text.attendanceSettings.expiryConfirmationSave}

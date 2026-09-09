@@ -16,7 +16,7 @@ import {
 	leaveDisplayRange
 } from './supabase-leave-range';
 import { annualLeaveTypeID } from './leave-policy-defaults';
-import { leaveDaysInYear } from './leave-year-share';
+import { leaveDaysInYear, leaveYearOf } from './leave-year-share';
 import { leaveCountsAsUsage } from './supabase-leave-summary';
 import {
 	askTheRecord,
@@ -146,15 +146,18 @@ export async function correctSupabaseManagedLeaveTime(
 async function readLeaveManagementSource(): Promise<LeaveManagementSource> {
 	const company = await readCompany();
 	const rows = await leaveManagementRows();
-	const targetYear = Number(
-		companyDateOfTimestamp(new Date().toISOString(), company.timezone).slice(0, 4)
+	const leaveTypes = await supabaseLeaveTypeDirectory();
+	const targetYear = leaveYearOf(
+		companyDateOfTimestamp(new Date().toISOString(), company.timezone),
+		leaveTypes.yearStart.month,
+		leaveTypes.yearStart.day
 	);
 	return {
 		company,
 		members: rows.members,
 		leaves: rows.leaves,
 		targetYear,
-		leaveTypes: await supabaseLeaveTypeDirectory()
+		leaveTypes
 	};
 }
 
@@ -255,6 +258,8 @@ function daysFallingInTargetYear(
 		leave.days,
 		range.startDate,
 		range.endDate || range.startDate,
-		source.targetYear
+		source.targetYear,
+		source.leaveTypes.yearStart.month,
+		source.leaveTypes.yearStart.day
 	);
 }
