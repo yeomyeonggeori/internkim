@@ -252,6 +252,10 @@ func (service Service) buzzDirectMessageScenarioPlans() []CommandPlan {
 	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-direct-message"))
 }
 
+func (service Service) buzzInboundMentionScenarioPlans() []CommandPlan {
+	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-inbound-mention"))
+}
+
 func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
 }
