@@ -1,7 +1,7 @@
 import type { SupabaseClient } from './service-client.ts';
 import { readNotificationSettings, type NotificationCategory } from './categories.ts';
 import { pushToMemberDevices, type Notification } from './push-to-member-devices.ts';
-import type { VapidKeys } from './web-push-vapid.ts';
+import type { PushKeys } from './push-keys.ts';
 
 export type { Notification };
 
@@ -16,7 +16,7 @@ export async function notifyMember(
 	memberID: string,
 	category: NotificationCategory,
 	notification: Notification,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number,
 	conversationID = ''
 ): Promise<Delivery> {
@@ -27,7 +27,7 @@ export async function notifyMember(
 		return { reached: 0, pruned: 0, silent: true };
 	}
 
-	const { reached, pruned } = await pushToMemberDevices(client, memberID, notification, vapid, nowInSeconds);
+	const { reached, pruned } = await pushToMemberDevices(client, memberID, notification, pushKeys, nowInSeconds);
 	return { reached, pruned, silent: false };
 }
 

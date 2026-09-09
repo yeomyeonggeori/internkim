@@ -30,6 +30,7 @@
 	import { goWhereNotificationsPoint } from '$lib/notifications/opened-notification';
 	import { webAuthSessionDependency } from '$lib/web-auth-session';
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
+	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -64,8 +65,19 @@
 		window.addEventListener('focus', revalidateSession);
 		document.addEventListener('visibilitychange', revalidateSession);
 		const stopFollowingNotifications = goWhereNotificationsPoint((path) => void goto(path));
+		let stopFollowingNativeNotifications = () => {};
+		goWhereNativeNotificationsPoint((path) => void goto(path)).then(
+			(stop) => {
+				stopFollowingNativeNotifications = stop;
+			},
+			(failure: unknown) => console.warn('the shell is not following notification taps', failure)
+		);
+		keepNativeDeviceClaimed().catch((failure: unknown) =>
+			console.warn('this device is not claimed for push', failure)
+		);
 		return () => {
 			stopFollowingPageTheme();
+			stopFollowingNativeNotifications();
 			stopFollowingNotifications();
 			window.removeEventListener('focus', revalidateSession);
 			document.removeEventListener('visibilitychange', revalidateSession);

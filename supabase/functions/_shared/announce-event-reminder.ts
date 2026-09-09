@@ -9,7 +9,7 @@ import {
 	type Participant
 } from './event-reminder-rules.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
-import type { VapidKeys } from './web-push-vapid.ts';
+import type { PushKeys } from './push-keys.ts';
 
 type EventRow = {
 	id: string;
@@ -25,7 +25,7 @@ export type Announced = { told: number; reached: number };
 export async function announceEventReminders(
 	record: SupabaseClient,
 	moment: Date,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
 	let told = 0;
@@ -34,7 +34,7 @@ export async function announceEventReminders(
 		if (!isDue(asDueEvent(event), moment)) continue;
 		const notification = reminderNotification(event, moment);
 		for (const memberID of whoStillListens(event.task_participant)) {
-			const delivery = await notifyMember(record, memberID, 'calendar', notification, vapid, nowInSeconds);
+			const delivery = await notifyMember(record, memberID, 'calendar', notification, pushKeys, nowInSeconds);
 			if (!delivery.silent) told += 1;
 			reached += delivery.reached;
 		}

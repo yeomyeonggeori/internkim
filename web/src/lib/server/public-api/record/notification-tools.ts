@@ -20,13 +20,24 @@ export type ConversationMuteInput = { conversationID?: string };
 
 export type PushDeviceClaimInput = {
 	endpoint?: string;
+	kind?: string;
 	publicKey?: string;
 	authenticationSecret?: string;
 };
 
-export type PushDeviceReleaseInput = { endpoint?: string };
+export type PushDeviceReleaseInput = { endpoint?: string; kind?: string };
 
-const webPush = 'web-push';
+export type PushDeviceKind = 'web-push' | 'apns' | 'fcm';
+
+export const pushDeviceKinds: readonly PushDeviceKind[] = ['web-push', 'apns', 'fcm'];
+
+function kindAsked(carried: string | undefined): PushDeviceKind {
+	const named = carried?.trim() ?? '';
+	if (named === '' || named === 'web-push') return 'web-push';
+	if (named === 'apns') return 'apns';
+	if (named === 'fcm') return 'fcm';
+	throw new Error(`a device is reached by one of ${pushDeviceKinds.join(', ')}`);
+}
 
 function requesterAdministers(context: RecordContext): boolean {
 	return context.people.find((person) => person.personID === context.requesterID)?.isAdmin === true;
@@ -177,20 +188,24 @@ function endpointAsked(input: { endpoint?: string }): string {
 	return endpoint;
 }
 
-export async function pushDeviceClaim(
-	context: RecordContext,
-	input: PushDeviceClaimInput
-): Promise<PushReachabilityResult> {
+function encryptionKeysAsked(input: PushDeviceClaimInput): { p256dh: string; auth: string } {
 	const publicKey = input.publicKey?.trim();
 	const authenticationSecret = input.authenticationSecret?.trim();
 	if (!publicKey || !authenticationSecret) {
 		throw new Error('a claimed subscription carries both of the keys push is encrypted to');
 	}
+	return { p256dh: publicKey, auth: authenticationSecret };
+}
 
+export async function pushDeviceClaim(
+	context: RecordContext,
+	input: PushDeviceClaimInput
+): Promise<PushReachabilityResult> {
+	const kind = kindAsked(input.kind);
 	const { error } = await context.caller.rpc('push_device_claim', {
-		device_kind: webPush,
+		device_kind: kind,
 		device_address: endpointAsked(input),
-		device_keys: { p256dh: publicKey, auth: authenticationSecret }
+		device_keys: kind === 'web-push' ? encryptionKeysAsked(input) : {}
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return reachabilityAnswered(context);
@@ -201,7 +216,7 @@ export async function pushDeviceRelease(
 	input: PushDeviceReleaseInput
 ): Promise<PushReachabilityResult> {
 	const { error } = await context.caller.rpc('push_device_release', {
-		device_kind: webPush,
+		device_kind: kindAsked(input.kind),
 		device_address: endpointAsked(input)
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));

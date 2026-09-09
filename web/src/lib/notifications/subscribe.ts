@@ -1,8 +1,15 @@
 import { invokeTool } from '$lib/public-api-call';
 import { isSupabaseConfigured, vapidPublicKey } from '$lib/supabase';
 import { decodeBase64URL, encodeBase64URL } from './base64url';
+import { isInsideNativeShell } from '$lib/native-shell/shell';
+import {
+	nativeReachability,
+	startBeingNativelyReached,
+	stopBeingNativelyReached
+} from './native-device';
+import type { Reachability } from './reachability';
 
-export type Reachability = 'unsupported' | 'unconfigured' | 'blocked' | 'off' | 'on';
+export type { Reachability };
 
 type ServerKey = { key: string; vaulted: boolean };
 
@@ -58,6 +65,7 @@ export function stale(subscription: PushSubscription | null, serverKey: ServerKe
 }
 
 export async function reachability(): Promise<Reachability> {
+	if (isInsideNativeShell()) return nativeReachability();
 	if (!isSupported()) return 'unsupported';
 	const serverKey = await applicationServerKey();
 	if (!serverKey.key) return 'unconfigured';
@@ -67,6 +75,7 @@ export async function reachability(): Promise<Reachability> {
 }
 
 export async function startBeingReached(): Promise<Reachability> {
+	if (isInsideNativeShell()) return startBeingNativelyReached();
 	if (!isSupported()) return 'unsupported';
 	const serverKey = await applicationServerKey();
 	if (!serverKey.key) return 'unconfigured';
@@ -91,6 +100,7 @@ export async function startBeingReached(): Promise<Reachability> {
 }
 
 export async function stopBeingReached(): Promise<Reachability> {
+	if (isInsideNativeShell()) return stopBeingNativelyReached();
 	if (!isSupported()) return 'unsupported';
 	const subscription = await heldSubscription();
 	if (!subscription) return 'off';
