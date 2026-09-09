@@ -16,6 +16,7 @@
 		fetchAttendanceLeavePolicy,
 		updateAttendanceLeavePolicy
 	} from './attendance-settings-api';
+	import { leaveYearStartWithin, type LeaveYearStart } from './leave-year-start-model';
 	import type {
 		AdminPageText,
 		AttendanceLeavePolicy,
@@ -40,6 +41,7 @@
 	let expiryConfirmationOpen = $state(false);
 	let removalConfirmationOpen = $state(false);
 	let balanceTrackingMode = $state<LeaveBalanceTrackingMode>('managed');
+	let leaveYearStart = $state<LeaveYearStart>({ month: 1, day: 1 });
 
 	$effect(() => {
 		if (hasLoaded) return;
@@ -53,6 +55,7 @@
 		try {
 			policy = await fetchAttendanceLeavePolicy();
 			balanceTrackingMode = policy.balanceTrackingMode;
+			leaveYearStart = savedLeaveYearStart(policy);
 			draft = policy.leaveTypes[0] ? copyLeaveType(policy.leaveTypes[0]) : null;
 			previousSelectedID = draft?.id ?? '';
 		} catch (error) {
@@ -62,21 +65,34 @@
 		}
 	}
 
-	async function saveBalanceTrackingMode(): Promise<void> {
-		if (!policy || balanceTrackingMode === policy.balanceTrackingMode) return;
+	function savedLeaveYearStart(saved: AttendanceLeavePolicy): LeaveYearStart {
+		return leaveYearStartWithin(saved.fiscalYearStartMonth, saved.fiscalYearStartDay);
+	}
+
+	async function saveLeaveOperation(): Promise<void> {
+		if (!policy) return;
 		isSaving = true;
 		message = '';
 		try {
-			policy = await updateAttendanceLeavePolicy(
-				{ ...policy, balanceTrackingMode },
-			);
+			policy = await updateAttendanceLeavePolicy({
+				...policy,
+				balanceTrackingMode,
+				fiscalYearStartMonth: leaveYearStart.month,
+				fiscalYearStartDay: leaveYearStart.day
+			});
 			balanceTrackingMode = policy.balanceTrackingMode;
+			leaveYearStart = savedLeaveYearStart(policy);
 			message = text.attendanceSettings.saveSuccess;
 		} catch (error) {
 			message = apiErrorMessage(error, text.attendanceSettings.saveError);
 		} finally {
 			isSaving = false;
 		}
+	}
+
+	function cancelLeaveOperation(): void {
+		balanceTrackingMode = policy?.balanceTrackingMode ?? 'managed';
+		leaveYearStart = policy ? savedLeaveYearStart(policy) : { month: 1, day: 1 };
 	}
 
 	function selectLeaveType(leaveType: LeaveType): void {
@@ -203,11 +219,14 @@
 		<AttendanceLeaveBalanceTracking
 			mode={balanceTrackingMode}
 			savedMode={policy.balanceTrackingMode}
+			yearStart={leaveYearStart}
+			savedYearStart={savedLeaveYearStart(policy)}
 			{isSaving}
 			{text}
 			onChange={(mode) => (balanceTrackingMode = mode)}
-			onCancel={() => (balanceTrackingMode = policy?.balanceTrackingMode ?? 'managed')}
-			onSave={() => void saveBalanceTrackingMode()}
+			onYearStartChange={(yearStart) => (leaveYearStart = yearStart)}
+			onCancel={cancelLeaveOperation}
+			onSave={() => void saveLeaveOperation()}
 		/>
 	{/if}
 
