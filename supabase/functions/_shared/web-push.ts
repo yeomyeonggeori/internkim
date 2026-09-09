@@ -1,12 +1,13 @@
 import { encryptForSubscription, isUsableSubscriptionKey, type SubscriptionKeys } from './web-push-encrypt.ts';
 import { vapidAuthorization, type VapidKeys } from './web-push-vapid.ts';
+import type { PushOutcome } from './push-vocabulary.ts';
 
 export type PushTarget = {
 	address: string;
 	keys: SubscriptionKeys;
 };
 
-export type PushOutcome = 'delivered' | 'gone' | 'refused';
+export type { PushOutcome };
 
 const oneDayInSeconds = 86_400;
 

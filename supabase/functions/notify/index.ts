@@ -5,8 +5,8 @@ import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
 import { membersOfCompanyByExternalID, pictureURLOfMember } from '../_shared/member-directory.ts';
 import { notifyMember, type Delivery, type Notification } from '../_shared/notify-member.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
-import { vapidKeysFromVault } from '../_shared/vapid-from-vault.ts';
-import type { VapidKeys } from '../_shared/web-push-vapid.ts';
+import { pushKeysFromVault, reachesSomeDevice } from '../_shared/push-keys.ts';
+import type { PushKeys } from '../_shared/push-keys.ts';
 
 type NotifyRequest = {
 	platform?: unknown;
@@ -24,8 +24,8 @@ Deno.serve(
 	serveRefusals(async (request) => {
 		if (request.method !== 'POST') refuse(405, 'POST only');
 		const { client, companyID } = await callingAgent(request);
-		const vapid = await vapidKeysFromVault(client);
-		if (!vapid) refuse(503, 'this deployment cannot send notifications yet');
+		const pushKeys = await pushKeysFromVault(client);
+		if (!reachesSomeDevice(pushKeys)) refuse(503, 'this deployment cannot send notifications yet');
 
 		const asked = (await askedObject(request)) as NotifyRequest;
 		const recipients = askedExternalIDs(asked.externalIDs);
@@ -41,7 +41,7 @@ Deno.serve(
 			recipientMemberIDs,
 			askedCategory(asked.category),
 			{ ...askedNotification(asked), icon: await pictureURLOfMember(client, sender ?? '') },
-			vapid,
+			pushKeys,
 			conversationID
 		);
 		await rememberConversationMembers(client, conversationID, [...recipientMemberIDs, sender ?? '']);
@@ -55,13 +55,13 @@ async function tellEach(
 	memberIDs: string[],
 	category: NotificationCategory,
 	notification: Notification,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	conversationID: string
 ): Promise<{ told: number; reached: number; pruned: number }> {
 	const nowInSeconds = Math.floor(Date.now() / 1000);
 	const deliveries: Delivery[] = [];
 	for (const memberID of memberIDs) {
-		deliveries.push(await notifyMember(client, memberID, category, notification, vapid, nowInSeconds, conversationID));
+		deliveries.push(await notifyMember(client, memberID, category, notification, pushKeys, nowInSeconds, conversationID));
 	}
 	return {
 		told: deliveries.filter((delivery) => !delivery.silent).length,
