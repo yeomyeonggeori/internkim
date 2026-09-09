@@ -4,13 +4,17 @@ export const openedNotificationMessage = 'notification-opened';
 
 export type OpenedNotification = { type: typeof openedNotificationMessage; openPath: string };
 
+export function safeOpenPath(carried: unknown): string {
+	if (typeof carried !== 'string') return '';
+	if (!carried.startsWith('/') || carried.startsWith('//')) return '';
+	return carried;
+}
+
 export function pathOfOpenedNotification(sent: unknown): string {
 	if (typeof sent !== 'object' || sent === null) return '';
 	const held = sent as Record<string, unknown>;
 	if (held.type !== openedNotificationMessage) return '';
-	if (typeof held.openPath !== 'string') return '';
-	if (!held.openPath.startsWith('/') || held.openPath.startsWith('//')) return '';
-	return held.openPath;
+	return safeOpenPath(held.openPath);
 }
 
 export function goWhereNotificationsPoint(go: (path: string) => void): () => void {
