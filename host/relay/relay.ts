@@ -119,6 +119,7 @@ async function readMessengerCredential(memberID: string): Promise<{ kind: string
 
 const dispatch = {
 	messageArrived: tellBrowsers,
+	tellThoseAddressed,
 	serveAsset: asset,
 	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestBytes ?? largestPictureBytes),

@@ -1,4 +1,6 @@
+import type { ArrivedMessage } from './arrived';
 import { extensionOf } from './asset-store';
+import { tellAboutSentMessage } from './sent-arrival';
 
 export type Call = {
 	callID?: string;
@@ -165,6 +167,7 @@ export type Served = { status: number; body: unknown; replyTo: string | null };
 
 export type Dispatch = {
 	messageArrived: (conversationID: string, messageID: string) => void;
+	tellThoseAddressed: (arrived: ArrivedMessage) => Promise<number>;
 	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
 	askAdmindAPI: (request: PublicAPIRequest) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
@@ -247,7 +250,13 @@ async function serveForMember(
 	}
 	if (capability === sendCapability) {
 		const sent = await sendKeepingWhatIsRefused(dispatch, body, actor);
-		if (sent.status < 300) dispatch.messageArrived(String(body.conversationID ?? ''), messageIDOf(sent.body));
+		if (sent.status < 300) {
+			const messageID = messageIDOf(sent.body);
+			dispatch.messageArrived(String(body.conversationID ?? ''), messageID);
+			void tellAboutSentMessage(dispatch, body, actor, messageID).catch((error) => {
+				console.error('sent message not told:', error instanceof Error ? error.message : error);
+			});
+		}
 		return { ...sent, replyTo };
 	}
 	if (capability === readCapability) {
