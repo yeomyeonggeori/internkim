@@ -69,14 +69,19 @@ export const pushReachabilityResultSchema = z.strictObject({
   hasClaimedDevice: z.boolean(),
 });
 
+const deviceKindDescription =
+  'How this device is reached: web-push for a browser subscription, apns for an installed iOS app, fcm for an installed Android app. Omitted means web-push.';
+
 export const pushDeviceClaimInputSchema = z.strictObject({
-  endpoint: z.string().min(1).describe('The address the push service delivers to, as the browser subscription answers it.'),
-  publicKey: z.string().min(1).describe("The subscription's p256dh key, base64url encoded."),
-  authenticationSecret: z.string().min(1).describe("The subscription's auth secret, base64url encoded."),
+  endpoint: z.string().min(1).describe('The address the push service delivers to: a browser subscription endpoint, or the device token the app was issued.'),
+  kind: z.enum(['web-push', 'apns', 'fcm']).optional().describe(deviceKindDescription),
+  publicKey: z.string().min(1).optional().describe("The subscription's p256dh key, base64url encoded. Web push carries it; an app token does not."),
+  authenticationSecret: z.string().min(1).optional().describe("The subscription's auth secret, base64url encoded. Web push carries it; an app token does not."),
 });
 
 export const pushDeviceReleaseInputSchema = z.strictObject({
   endpoint: z.string().min(1).describe('The address to stop delivering to.'),
+  kind: z.enum(['web-push', 'apns', 'fcm']).optional().describe(deviceKindDescription),
 });
 
 export const notificationToolDefinitions: CapabilityToolDefinition[] = [
@@ -155,7 +160,7 @@ export const notificationToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'user_notification',
     policyResource: 'tool:push_device_claim',
-    description: 'Take the browser subscription this call carries for the requester, so push arrives at it. A subscription somebody else claimed moves to the requester, which is what a shared browser signed into a second account is.',
+    description: 'Take the device this call carries for the requester, so push arrives at it: a browser subscription, or the token an installed app was issued. A device somebody else claimed moves to the requester, which is what a shared browser or a handed-on phone signed into a second account is.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     modelVisibility: CapabilityModelVisibility.Hidden,
@@ -169,7 +174,7 @@ export const notificationToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'user_notification',
     policyResource: 'tool:push_device_release',
-    description: 'Stop delivering push to a browser subscription of the requester. A subscription the requester does not hold is left alone.',
+    description: 'Stop delivering push to a device of the requester. A device the requester does not hold is left alone.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     modelVisibility: CapabilityModelVisibility.Hidden,
