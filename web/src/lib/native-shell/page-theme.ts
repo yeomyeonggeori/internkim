@@ -1,3 +1,5 @@
+import { isInsideNativeShell } from './shell';
+
 export type PageTheme = {
 	background: string;
 	isDark: boolean;
@@ -6,17 +8,6 @@ export type PageTheme = {
 type PageThemePlugin = {
 	apply(theme: PageTheme): Promise<void>;
 };
-
-declare global {
-	interface Window {
-		Capacitor?: { isNativePlatform?: () => boolean };
-	}
-}
-
-export function isInsideNativeShell(): boolean {
-	if (typeof window === 'undefined') return false;
-	return window.Capacitor?.isNativePlatform?.() === true;
-}
 
 export function hexOfComputedColor(computed: string): string | null {
 	const channels = computed.match(/\d+/g)?.slice(0, 3).map(Number);

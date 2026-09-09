@@ -1,7 +1,7 @@
 import type { SupabaseClient } from './service-client.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
 import { whoAnswersFor } from './who-answers.ts';
-import type { VapidKeys } from './web-push-vapid.ts';
+import type { PushKeys } from './push-keys.ts';
 
 export type Member = {
 	id: string;
@@ -19,7 +19,7 @@ export async function announceClock(
 	caller: SupabaseClient,
 	record: SupabaseClient,
 	memberID: string,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
 	const clocked = await newestClock(caller, memberID);
@@ -32,14 +32,14 @@ export async function announceClock(
 		openPath: '/attendance/',
 		tag: `attendance-${clocked.id}`
 	};
-	return tellEachExcept(record, announcer.company_id, memberID, 'attendance', notification, vapid, nowInSeconds);
+	return tellEachExcept(record, announcer.company_id, memberID, 'attendance', notification, pushKeys, nowInSeconds);
 }
 
 export async function announceLeaveRequest(
 	caller: SupabaseClient,
 	record: SupabaseClient,
 	memberID: string,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
 	const asked = await newestLeaveRequest(caller, memberID);
@@ -52,7 +52,7 @@ export async function announceLeaveRequest(
 		openPath: '/attendance/',
 		tag: `leave-${asked.id}`
 	};
-	return tellWhoAnswers(record, announcer.company_id, memberID, notification, vapid, nowInSeconds);
+	return tellWhoAnswers(record, announcer.company_id, memberID, notification, pushKeys, nowInSeconds);
 }
 
 async function newestClock(caller: SupabaseClient, memberID: string): Promise<ClockRow | null> {
@@ -102,11 +102,11 @@ async function tellEachExcept(
 	announcerID: string,
 	category: 'attendance',
 	notification: Notification,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
 	const listeners = await companyMembers(record, companyID);
-	return tellEach(record, listeners.filter((id) => id !== announcerID), category, notification, vapid, nowInSeconds);
+	return tellEach(record, listeners.filter((id) => id !== announcerID), category, notification, pushKeys, nowInSeconds);
 }
 
 async function tellWhoAnswers(
@@ -114,11 +114,11 @@ async function tellWhoAnswers(
 	companyID: string,
 	announcerID: string,
 	notification: Notification,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
 	const answering = await whoAnswersFor(record, companyID, announcerID);
-	return tellEach(record, answering, 'leave', notification, vapid, nowInSeconds);
+	return tellEach(record, answering, 'leave', notification, pushKeys, nowInSeconds);
 }
 
 async function companyMembers(record: SupabaseClient, companyID: string): Promise<string[]> {
@@ -137,13 +137,13 @@ async function tellEach(
 	memberIDs: string[],
 	category: 'attendance' | 'leave',
 	notification: Notification,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
 	let told = 0;
 	let reached = 0;
 	for (const memberID of memberIDs) {
-		const delivery = await notifyMember(record, memberID, category, notification, vapid, nowInSeconds);
+		const delivery = await notifyMember(record, memberID, category, notification, pushKeys, nowInSeconds);
 		if (!delivery.silent) told += 1;
 		reached += delivery.reached;
 	}

@@ -22089,7 +22089,7 @@
         "state": "ok"
       },
       "canonicalName": "push_device_claim",
-      "description": "Take the browser subscription this call carries for the requester, so push arrives at it. A subscription somebody else claimed moves to the requester, which is what a shared browser signed into a second account is.",
+      "description": "Take the device this call carries for the requester, so push arrives at it: a browser subscription, or the token an installed app was issued. A device somebody else claimed moves to the requester, which is what a shared browser or a handed-on phone signed into a second account is.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -22101,25 +22101,32 @@
         "additionalProperties": false,
         "properties": {
           "authenticationSecret": {
-            "description": "The subscription's auth secret, base64url encoded.",
+            "description": "The subscription's auth secret, base64url encoded. Web push carries it; an app token does not.",
             "minLength": 1,
             "type": "string"
           },
           "endpoint": {
-            "description": "The address the push service delivers to, as the browser subscription answers it.",
+            "description": "The address the push service delivers to: a browser subscription endpoint, or the device token the app was issued.",
             "minLength": 1,
             "type": "string"
           },
+          "kind": {
+            "description": "How this device is reached: web-push for a browser subscription, apns for an installed iOS app, fcm for an installed Android app. Omitted means web-push.",
+            "enum": [
+              "web-push",
+              "apns",
+              "fcm"
+            ],
+            "type": "string"
+          },
           "publicKey": {
-            "description": "The subscription's p256dh key, base64url encoded.",
+            "description": "The subscription's p256dh key, base64url encoded. Web push carries it; an app token does not.",
             "minLength": 1,
             "type": "string"
           }
         },
         "required": [
-          "endpoint",
-          "publicKey",
-          "authenticationSecret"
+          "endpoint"
         ],
         "type": "object"
       },
@@ -22189,7 +22196,7 @@
         "state": "ok"
       },
       "canonicalName": "push_device_release",
-      "description": "Stop delivering push to a browser subscription of the requester. A subscription the requester does not hold is left alone.",
+      "description": "Stop delivering push to a device of the requester. A device the requester does not hold is left alone.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -22203,6 +22210,15 @@
           "endpoint": {
             "description": "The address to stop delivering to.",
             "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "description": "How this device is reached: web-push for a browser subscription, apns for an installed iOS app, fcm for an installed Android app. Omitted means web-push.",
+            "enum": [
+              "web-push",
+              "apns",
+              "fcm"
+            ],
             "type": "string"
           }
         },

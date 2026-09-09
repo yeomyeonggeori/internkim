@@ -1,7 +1,7 @@
 import type { SupabaseClient } from './service-client.ts';
 import { centralTaskStatuses } from './central-task-status.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
-import type { VapidKeys } from './web-push-vapid.ts';
+import type { PushKeys } from './push-keys.ts';
 
 type TaskRow = {
 	id: string;
@@ -26,7 +26,7 @@ export async function announceTaskMove(
 	record: SupabaseClient,
 	moverID: string,
 	taskID: string,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
 	const task = await taskOf(caller, taskID);
@@ -39,7 +39,7 @@ export async function announceTaskMove(
 		openPath: '/task/',
 		tag: `task-${task.id}`
 	};
-	return tellEach(record, whoTaskMoveConcerns(task, moverID), notification, vapid, nowInSeconds);
+	return tellEach(record, whoTaskMoveConcerns(task, moverID), notification, pushKeys, nowInSeconds);
 }
 
 function centralStatusWord(status: string): string {
@@ -73,13 +73,13 @@ async function tellEach(
 	record: SupabaseClient,
 	memberIDs: string[],
 	notification: Notification,
-	vapid: VapidKeys,
+	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<Announced> {
 	let told = 0;
 	let reached = 0;
 	for (const memberID of memberIDs) {
-		const delivery = await notifyMember(record, memberID, 'task', notification, vapid, nowInSeconds);
+		const delivery = await notifyMember(record, memberID, 'task', notification, pushKeys, nowInSeconds);
 		if (!delivery.silent) told += 1;
 		reached += delivery.reached;
 	}
