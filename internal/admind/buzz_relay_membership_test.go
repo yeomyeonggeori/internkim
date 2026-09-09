@@ -85,13 +85,13 @@ func TestDirectoryChangedSeatsMemberBeforeBuzzLogin(t *testing.T) {
 	service.Configuration.CentralPlaneAgentKeyPath = agentKeyPath
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.Path == "/api/agent/member" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"newcomer@example.com","name":"박예시","status":"active"}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"newcomer@example.com","name":"박예시","status":"invited"}]}`, nil), nil
 		}
 		if request.URL.Path == "/api/agent/messenger-credential" && request.Method == http.MethodPost {
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		}
 		if isBlueclawPolicyGet(request) {
-			return jsonResponse(http.StatusOK, `{"people":[{"displayName":"박예시","emails":["newcomer@example.com"]}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		}
 		return jsonResponse(http.StatusOK, `{}`, nil), nil
 	})}
