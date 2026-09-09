@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,4 +71,57 @@ func TestRelayMembershipIsGrantedBeforeAnyRoomExists(t *testing.T) {
 	if !strings.Contains(string(granted), agentPubkey) {
 		t.Fatalf("the agent must be a relay member before it can open the first room, got %s", strings.TrimSpace(string(granted)))
 	}
+}
+
+func TestDirectoryChangedSeatsMemberBeforeBuzzLogin(t *testing.T) {
+	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
+	agentKeyPath := filepath.Join(t.TempDir(), "agent-key")
+	if errorValue := os.WriteFile(agentKeyPath, []byte("agent-key"), 0o600); errorValue != nil {
+		t.Fatalf("write agent key: %v", errorValue)
+	}
+	service.Configuration.CentralPlaneAppURL = "http://central.test"
+	service.Configuration.CentralPlaneProjectURL = "http://supabase.test"
+	service.Configuration.CentralPlanePublishableKey = "publishable-key"
+	service.Configuration.CentralPlaneAgentKeyPath = agentKeyPath
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path == "/api/agent/member" && request.Method == http.MethodGet {
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"newcomer@example.com","name":"박예시","status":"invited"}]}`, nil), nil
+		}
+		if request.URL.Path == "/api/agent/messenger-credential" && request.Method == http.MethodPost {
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		}
+		if isBlueclawPolicyGet(request) {
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		}
+		return jsonResponse(http.StatusOK, `{}`, nil), nil
+	})}
+
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/directory/changed", nil)
+	response := httptest.NewRecorder()
+	service.handleDirectoryChanged(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("directory change answered %d: %s", response.Code, response.Body.String())
+	}
+
+	granted, errorValue := os.ReadFile(grantsPath)
+	if errorValue != nil {
+		t.Fatalf("directory change did not grant relay membership: %v", errorValue)
+	}
+	secretHex := service.buzzSecretForEmail(context.Background(), "newcomer@example.com")
+	pubkey, errorValue := buzzPublicKey(secretHex)
+	if errorValue != nil {
+		t.Fatalf("newcomer pubkey: %v", errorValue)
+	}
+	if !containsLine(string(granted), pubkey) {
+		t.Fatalf("directory change must seat a newcomer before first Buzz login, got %s", strings.TrimSpace(string(granted)))
+	}
+}
+
+func containsLine(content string, expected string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		if strings.TrimSpace(line) == expected {
+			return true
+		}
+	}
+	return false
 }
