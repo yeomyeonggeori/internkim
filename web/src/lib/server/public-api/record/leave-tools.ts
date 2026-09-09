@@ -170,6 +170,8 @@ async function balanceOfOne(
 export type LeaveBalanceInput = { personHints?: string[]; scope?: string; year?: number };
 
 export async function leaveBalance(context: RecordContext, input: LeaveBalanceInput) {
+	const accrued = await context.caller.rpc('leave_accrue_due');
+	if (accrued.error) throw new Error(accrued.error.message);
 	const year =
 		input.year ??
 		leaveYearOf(

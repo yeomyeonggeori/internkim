@@ -404,6 +404,10 @@ describe('the leave the company offers', () => {
 		expect(resultOf(written).balanceTrackingMode).toBe('managed');
 		expect(resultOf(written).fiscalYearStartMonth).toBe(3);
 		expect(resultOf(await asAdmin('company_settings_get')).leaveDays).toBe(18);
+
+		const balance = resultOf(await asAdmin('leave_balance'));
+		const mine = (balance.balances as { grantedDays: number | null }[])[0];
+		expect(mine.grantedDays).toBe(18);
 	});
 
 	test('refuses a fiscal year that starts on a day that is not one', async () => {
