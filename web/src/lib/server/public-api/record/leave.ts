@@ -50,6 +50,14 @@ export class NoSuchLeave extends Error {
 	}
 }
 
+export type LeaveYearStart = { month: number; day: number };
+
+export function leaveYearStartOfPolicy(rules: unknown): LeaveYearStart {
+	const held = (rules ?? {}) as { attendanceLeavePolicy?: AttendanceLeavePolicy };
+	const policy = held.attendanceLeavePolicy ?? defaultLeavePolicy();
+	return { month: policy.fiscalYearStartMonth, day: policy.fiscalYearStartDay };
+}
+
 export function leaveKindsOfPolicy(rules: unknown): LeaveKind[] {
 	const held = (rules ?? {}) as { attendanceLeavePolicy?: AttendanceLeavePolicy };
 	const policy = held.attendanceLeavePolicy ?? defaultLeavePolicy();
