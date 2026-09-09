@@ -193,21 +193,16 @@ set rules = rules || jsonb_build_object('attendanceLeavePolicy', jsonb_build_obj
       'expiryMode', 'fiscalYearEnd', 'carryoverEnabled', false,
       'allowedUnits', jsonb_build_array('fullDay', 'halfDay', 'quarterDay'),
       'includeInSummary', true, 'isActive', true, 'isSystem', true, 'sortOrder', 0),
-    jsonb_build_object('id', 'sick', 'systemKind', 'sick', 'name', '병가', 'paid', true,
+    jsonb_build_object('id', 'paid', 'systemKind', 'paid', 'name', '유급 휴가', 'paid', true,
       'balanceMode', 'none', 'grantCadence', 'none', 'grantAmountMilliDays', 0,
       'expiryMode', 'none', 'carryoverEnabled', false,
       'allowedUnits', jsonb_build_array('fullDay', 'halfDay', 'quarterDay'),
       'includeInSummary', false, 'isActive', true, 'isSystem', true, 'sortOrder', 1),
-    jsonb_build_object('id', 'maternity', 'systemKind', 'maternity', 'name', '출산·육아휴가', 'paid', true,
-      'balanceMode', 'none', 'grantCadence', 'none', 'grantAmountMilliDays', 0,
-      'expiryMode', 'none', 'carryoverEnabled', false,
-      'allowedUnits', jsonb_build_array('fullDay'),
-      'includeInSummary', false, 'isActive', true, 'isSystem', true, 'sortOrder', 2),
     jsonb_build_object('id', 'unpaid', 'systemKind', 'unpaid', 'name', '무급휴가', 'paid', false,
       'balanceMode', 'none', 'grantCadence', 'none', 'grantAmountMilliDays', 0,
       'expiryMode', 'none', 'carryoverEnabled', false,
       'allowedUnits', jsonb_build_array('fullDay', 'halfDay', 'quarterDay'),
-      'includeInSummary', false, 'isActive', true, 'isSystem', true, 'sortOrder', 3)
+      'includeInSummary', false, 'isActive', true, 'isSystem', true, 'sortOrder', 2)
   )
 ))
 where id = '000000cc-0000-0000-0000-000000000001'

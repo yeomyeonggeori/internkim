@@ -166,6 +166,7 @@ export type LeaveType = {
 	expiryMonths?: number;
 	carryoverEnabled: boolean;
 	carryoverLimitMilliDays?: number;
+	usageLimitMilliDays?: number;
 	allowedUnits: LeaveAllowedUnit[];
 	includeInSummary: boolean;
 	isActive: boolean;

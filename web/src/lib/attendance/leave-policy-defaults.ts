@@ -8,7 +8,6 @@ import type {
 } from '../../routes/admin/admin-types';
 
 const partialUnits: LeaveAllowedUnit[] = ['fullDay', 'halfDay', 'quarterDay'];
-const fullDayUnits: LeaveAllowedUnit[] = ['fullDay'];
 
 export const annualLeaveTypeID = 'annual';
 export const defaultAnnualGrantMilliDays = 15000;
@@ -28,13 +27,13 @@ type SystemLeaveType = {
 
 const systemLeaveTypes: SystemLeaveType[] = [
 	{ id: 'annual', systemKind: 'annual', name: '연차', paid: true, balanceMode: 'annual', grantCadence: 'annual', grantAmountMilliDays: defaultAnnualGrantMilliDays, expiryMode: 'fiscalYearEnd', allowedUnits: partialUnits, includeInSummary: true },
-	{ id: 'sick', systemKind: 'sick', name: '병가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false },
-	{ id: 'maternity', systemKind: 'maternity', name: '출산·육아휴가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: fullDayUnits, includeInSummary: false },
+	{ id: 'paid', systemKind: 'paid', name: '유급 휴가', paid: true, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false },
 	{ id: 'unpaid', systemKind: 'unpaid', name: '무급휴가', paid: false, balanceMode: 'none', grantCadence: 'none', grantAmountMilliDays: 0, expiryMode: 'none', allowedUnits: partialUnits, includeInSummary: false }
 ];
 
 const knownSystemLeaveTypeKinds: Record<string, string> = {
 	annual: 'annual',
+	paid: 'paid',
 	sick: 'sick',
 	unpaid: 'unpaid',
 	bereavement: 'bereavement',

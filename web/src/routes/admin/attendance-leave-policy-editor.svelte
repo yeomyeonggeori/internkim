@@ -9,15 +9,18 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
+	import LeaveDayCountInput from './leave-day-count-input.svelte';
 	import {
 		daysFromMilliDays,
 		isLeaveBalanceMode,
 		isLeaveExpiryMode,
 		isLeaveGrantCadence,
 		leaveAllowedUnits,
-		leaveTypeOwnsBalance,
+		leaveUnitsWith,
+		leaveTypeAccrues,
 		leaveTypeWithBalanceMode,
 		milliDaysFromDays,
+		optionalDaysFromMilliDays,
 		optionalMilliDaysFromDays
 	} from './attendance-leave-policy-model';
 	import type {
@@ -111,12 +114,10 @@
 		}));
 	}
 
-	function toggleAllowedUnit(unit: LeaveAllowedUnit): void {
+	function offerAllowedUnit(unit: LeaveAllowedUnit, offered: boolean): void {
 		update((current) => ({
 			...current,
-			allowedUnits: current.allowedUnits.includes(unit)
-				? current.allowedUnits.filter((value) => value !== unit)
-				: [...current.allowedUnits, unit]
+			allowedUnits: leaveUnitsWith(current.allowedUnits, unit, offered)
 		}));
 	}
 
@@ -170,7 +171,7 @@
 		<div class="relative h-full min-h-0">
 			<div
 				bind:this={scrollViewport}
-				class="h-full min-h-0 overflow-y-auto overscroll-contain pb-8 pr-1"
+				class="h-full min-h-0 overflow-x-clip overflow-y-auto overscroll-contain pb-8 pr-1"
 				data-testid="leave-policy-editor-scroll"
 				onscroll={updateScrollFade}
 			>
@@ -230,7 +231,7 @@
 				<p class="text-sm text-muted-foreground">
 					{text.attendanceSettings.annualBalanceDescription}
 				</p>
-			{:else if leaveTypeOwnsBalance(draft)}
+			{:else if leaveTypeAccrues(draft)}
 				<Field.Field orientation="horizontal">
 					<Field.Content>
 						<Field.Label for="leave-include-in-summary">
@@ -277,18 +278,19 @@
 						<Field.Label for="leave-amount">
 							{grantAmountLabel(draft.grantCadence)}
 						</Field.Label>
-						<Input
+						<LeaveDayCountInput
 							id="leave-amount"
-							type="number"
-							min="0"
-							step="0.25"
 							value={daysFromMilliDays(draft.grantAmountMilliDays)}
-							oninput={(event) =>
+							step={0.25}
+							unit={text.attendanceSettings.dayUnit}
+							disabled={isSaving}
+							increaseLabel={text.attendanceSettings.increaseDays}
+							decreaseLabel={text.attendanceSettings.decreaseDays}
+							onChange={(days) =>
 								update((current) => ({
 									...current,
-									grantAmountMilliDays: milliDaysFromDays(event.currentTarget.value)
+									grantAmountMilliDays: milliDaysFromDays(days)
 								}))}
-							disabled={isSaving}
 						/>
 					</Field.Field>
 					{/if}
@@ -370,28 +372,49 @@
 					<Field.Description>
 						{text.attendanceSettings.carryoverLimitDescription}
 					</Field.Description>
-					<Input
+					<LeaveDayCountInput
 						id="leave-carryover-limit"
-						type="number"
-						min="0"
-						step="0.25"
-						value={draft.carryoverLimitMilliDays === undefined
-							? ''
-							: daysFromMilliDays(draft.carryoverLimitMilliDays)}
-						oninput={(event) =>
+						value={optionalDaysFromMilliDays(draft.carryoverLimitMilliDays)}
+						step={0.25}
+						unit={text.attendanceSettings.dayUnit}
+						disabled={isSaving}
+						increaseLabel={text.attendanceSettings.increaseDays}
+						decreaseLabel={text.attendanceSettings.decreaseDays}
+						onChange={(days) =>
 							update((current) => ({
 								...current,
-								carryoverLimitMilliDays: optionalMilliDaysFromDays(
-									event.currentTarget.value
-								)
+								carryoverLimitMilliDays: optionalMilliDaysFromDays(days)
 							}))}
-						disabled={isSaving}
 					/>
 				</Field.Field>
 				{/if}
 			{/if}
 
+			{#if !draft.isSystem}
+				<Field.Field>
+					<Field.Label for="leave-usage-limit">{text.attendanceSettings.usageLimit}</Field.Label>
+					<Field.Description>{text.attendanceSettings.usageLimitDescription}</Field.Description>
+					<LeaveDayCountInput
+						id="leave-usage-limit"
+						value={optionalDaysFromMilliDays(draft.usageLimitMilliDays)}
+						step={0.25}
+						unit={text.attendanceSettings.dayUnit}
+						disabled={isSaving}
+						increaseLabel={text.attendanceSettings.increaseDays}
+						decreaseLabel={text.attendanceSettings.decreaseDays}
+						onChange={(days) =>
+							update((current) => ({
+								...current,
+								usageLimitMilliDays: optionalMilliDaysFromDays(days)
+							}))}
+					/>
+				</Field.Field>
+			{/if}
+
+			{#if draft.isSystem}
 			<Field.Set>
+				<Field.Legend>{text.attendanceSettings.allowedUnits}</Field.Legend>
+				<Field.Description>{text.attendanceSettings.allowedUnitsDescription}</Field.Description>
 				<Field.Group>
 					{#each leaveAllowedUnits as unit (unit)}
 						<Field.Field orientation="horizontal">
@@ -403,7 +426,7 @@
 							<Switch
 								id={`leave-unit-${unit}`}
 								checked={draft.allowedUnits.includes(unit)}
-								onCheckedChange={() => toggleAllowedUnit(unit)}
+								onCheckedChange={(offered) => offerAllowedUnit(unit, offered)}
 								disabled={isSaving}
 								aria-invalid={validationAttempted && draft.allowedUnits.length === 0}
 							/>
@@ -411,6 +434,7 @@
 					{/each}
 				</Field.Group>
 			</Field.Set>
+			{/if}
 
 				</Field.Group>
 			</div>
