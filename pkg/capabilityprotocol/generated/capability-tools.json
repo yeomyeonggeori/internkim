@@ -4196,7 +4196,7 @@
             "type": "string"
           },
           "year": {
-            "description": "The leave year to count against. Omit for the year the requester is in now.",
+            "description": "The leave year to count against, named by the calendar year it opens in: with a March start, February 2026 is leave year 2025. Omit for the year the requester is in now.",
             "type": "number"
           }
         },
