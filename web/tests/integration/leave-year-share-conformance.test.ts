@@ -23,6 +23,7 @@ type ShareCase = {
 	totalDays: number;
 	years: number[];
 	timeZone?: string;
+	yearStart?: { month: number; day: number };
 };
 
 const cases: ShareCase[] = [
@@ -89,6 +90,46 @@ const cases: ShareCase[] = [
 		localEndDate: '2027-01-02',
 		totalDays: 369,
 		years: [2025, 2026, 2027]
+	},
+	{
+		name: 'a February leave for a company whose year starts in March',
+		startsAt: '2026-02-10T00:00:00+09:00',
+		endsAt: '2026-02-12T00:00:00+09:00',
+		localStartDate: '2026-02-10',
+		localEndDate: '2026-02-11',
+		totalDays: 2,
+		years: [2025, 2026],
+		yearStart: { month: 3, day: 1 }
+	},
+	{
+		name: 'a leave over the last day of February for a March start',
+		startsAt: '2026-02-27T00:00:00+09:00',
+		endsAt: '2026-03-03T00:00:00+09:00',
+		localStartDate: '2026-02-27',
+		localEndDate: '2026-03-02',
+		totalDays: 4,
+		years: [2025, 2026],
+		yearStart: { month: 3, day: 1 }
+	},
+	{
+		name: 'a leave over new year for a March start',
+		startsAt: '2025-12-30T00:00:00+09:00',
+		endsAt: '2026-01-02T00:00:00+09:00',
+		localStartDate: '2025-12-30',
+		localEndDate: '2026-01-01',
+		totalDays: 3,
+		years: [2025, 2026],
+		yearStart: { month: 3, day: 1 }
+	},
+	{
+		name: 'a year that opens mid-month, over its own boundary',
+		startsAt: '2026-04-13T00:00:00+09:00',
+		endsAt: '2026-04-17T00:00:00+09:00',
+		localStartDate: '2026-04-13',
+		localEndDate: '2026-04-16',
+		totalDays: 4,
+		years: [2025, 2026],
+		yearStart: { month: 4, day: 15 }
 	}
 ];
 
@@ -101,7 +142,9 @@ for (const shareCase of cases) {
 				ends_at: shareCase.endsAt,
 				total_days: shareCase.totalDays,
 				time_zone: shareCase.timeZone ?? timeZone,
-				target_year: year
+				target_year: year,
+				year_start_month: shareCase.yearStart?.month ?? 1,
+				year_start_day: shareCase.yearStart?.day ?? 1
 			});
 			expect(answered.error).toBeNull();
 
@@ -109,7 +152,9 @@ for (const shareCase of cases) {
 				shareCase.totalDays,
 				shareCase.localStartDate,
 				shareCase.localEndDate,
-				year
+				year,
+				shareCase.yearStart?.month ?? 1,
+				shareCase.yearStart?.day ?? 1
 			);
 			expect(rounded(Number(answered.data))).toBe(rounded(inTypeScript));
 		}

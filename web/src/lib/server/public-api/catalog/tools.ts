@@ -921,7 +921,7 @@ export const leaveListInputSchema = z.strictObject({
 export const leaveBalanceInputSchema = z.strictObject({
   personHints: z.array(z.string()).describe(personHintsDescription('leave balance')).optional(),
   scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('leave balances')).optional(),
-  year: z.number().describe('The leave year to count against. Omit for the year the requester is in now.').optional(),
+  year: z.number().describe('The leave year to count against, named by the calendar year it opens in: with a March start, February 2026 is leave year 2025. Omit for the year the requester is in now.').optional(),
 });
 
 export const leaveRequestInputSchema = z.strictObject({
