@@ -1,0 +1,12 @@
+[
+	{
+		"path": "attendance_leave_policy_get.result.leaveTypes[].usageLimitMilliDays",
+		"reason": "A leave type a company invents now carries the most that may be taken of it in a year, and the leave settings screen is where that is written. A device reading the policy without the field sees a type whose ceiling it cannot show; the record still refuses a request over it, so nothing is granted that the policy does not allow.",
+		"release": "the release cut after #1630 merges, which carries the field to the fleet before the plane answers with it"
+	},
+	{
+		"path": "attendance_leave_policy_set.result.leaveTypes[].usageLimitMilliDays",
+		"reason": "The same field on the write's answer. A device that sets a policy reads back what the record kept, and this is the one property it did not send.",
+		"release": "the release cut after #1630 merges, which carries the field to the fleet before the plane answers with it"
+	}
+]

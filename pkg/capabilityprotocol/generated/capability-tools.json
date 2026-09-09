@@ -20888,6 +20888,11 @@
                 },
                 "systemKind": {
                   "type": "string"
+                },
+                "usageLimitMilliDays": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
                 }
               },
               "required": [
@@ -21014,6 +21019,11 @@
                   },
                   "systemKind": {
                     "type": "string"
+                  },
+                  "usageLimitMilliDays": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
                   }
                 },
                 "required": [
@@ -21206,6 +21216,12 @@
                   "description": "The kind a built-in type is, e.g. annual or sick. An empty string on a type this company invented.",
                   "maxLength": 64,
                   "type": "string"
+                },
+                "usageLimitMilliDays": {
+                  "description": "The most a person may take of this type in a year, in thousandths of a day. Omit for no ceiling.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
                 }
               },
               "required": [
@@ -21322,6 +21338,11 @@
                 },
                 "systemKind": {
                   "type": "string"
+                },
+                "usageLimitMilliDays": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
                 }
               },
               "required": [
@@ -21449,6 +21470,11 @@
                   },
                   "systemKind": {
                     "type": "string"
+                  },
+                  "usageLimitMilliDays": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
                   }
                 },
                 "required": [
