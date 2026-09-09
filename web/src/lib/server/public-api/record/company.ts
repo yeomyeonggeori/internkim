@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { localeOf, type Locale } from '$lib/i18n/locale';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
-import { leaveKindsOfPolicy, type LeaveKind } from './leave';
+import { leaveKindsOfPolicy, leaveYearStartOfPolicy, type LeaveYearStart, type LeaveKind } from './leave';
 import { peopleOfCompany, type RecordPerson } from './people';
 
 export type RecordContext = {
@@ -12,6 +12,7 @@ export type RecordContext = {
 	people: RecordPerson[];
 	labels: CompanyLabels;
 	leaveKinds: LeaveKind[];
+	leaveYearStart: LeaveYearStart;
 	locale: Locale;
 	now: Date;
 };
@@ -45,6 +46,7 @@ export async function recordContextOf(
 		people: await peopleOfCompany(caller),
 		labels: labelsOfVocabulary(company.data.task_vocabulary, company.data.timezone),
 		leaveKinds: leaveKindsOfPolicy(company.data.rules),
+		leaveYearStart: leaveYearStartOfPolicy(company.data.rules),
 		locale: localeOf(company.data.locale),
 		now
 	};
