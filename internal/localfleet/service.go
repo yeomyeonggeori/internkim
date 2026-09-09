@@ -219,11 +219,12 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		"dm-recipient-resolve":        always(service.dmRecipientResolveScenarioPlans),
 		"buzz-attachment":             always(service.buzzAttachmentScenarioPlans),
 		"buzz-direct-message":         always(service.buzzDirectMessageScenarioPlans),
+		"buzz-inbound-mention":        always(service.buzzInboundMentionScenarioPlans),
 		"restart-policy-survival":     always(service.restartPolicySurvivalScenarioPlans),
 		"workspace-persistence":       always(service.workspacePersistenceScenarioPlans),
 		"learning-settings":           always(service.learningSettingsScenarioPlans),
 		"morning-briefing":            always(service.morningBriefingScenarioPlans),
-		"personal-settings":          always(service.personalSettingsScenarioPlans),
+		"personal-settings":           always(service.personalSettingsScenarioPlans),
 		"web-backed-ui":               always(service.webBackedScenarioPlans),
 		"regression-proof":            always(service.webBackedScenarioPlans),
 	}

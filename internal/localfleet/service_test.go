@@ -705,6 +705,19 @@ func TestBuzzDirectMessageScenarioRunsTheBuzzScript(t *testing.T) {
 	}
 }
 
+func TestBuzzInboundMentionScenarioRunsTheBuzzScript(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	joinedPlans := joinedPlanArguments(service.buzzInboundMentionScenarioPlans())
+
+	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-inbound-mention.sh") {
+		t.Fatalf("expected the buzz inbound mention script in plans:\n%s", joinedPlans)
+	}
+}
+
 func TestEachFleetAsksForAKeyInItsOwnName(t *testing.T) {
 	ephemeral, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",
