@@ -19,6 +19,9 @@ func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWrite
 	service.reconcileBlueclawRosterWithTimeout(request.Context())
 	recording := service.recordBuzzCredentials(request.Context())
 	log.Printf("buzz credentials after the directory changed: %s", recording)
+	if service.canWriteToBuzzRelay() {
+		service.ensureMemberChannelMembership(request.Context())
+	}
 	go service.showOutWhoeverLeftTheCompany(context.Background())
 
 	// Answering 202 whatever happened is how somebody stayed unanswerable behind
