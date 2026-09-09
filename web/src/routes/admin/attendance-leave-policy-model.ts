@@ -16,7 +16,7 @@ export function createLeaveType(sortOrder: number): LeaveType {
 		systemKind: '',
 		name: '',
 		paid: false,
-		balanceMode: 'separate',
+		balanceMode: 'none',
 		grantCadence: 'none',
 		grantAmountMilliDays: 0,
 		expiryMode: 'none',
@@ -69,11 +69,8 @@ export function leaveTypeWithBalanceMode(
 	};
 }
 
-export function leaveTypeOwnsBalance(leaveType: LeaveType): boolean {
-	return (
-		leaveType.balanceMode === 'separate' ||
-		(leaveType.balanceMode === 'annual' && leaveType.id === 'annual')
-	);
+export function leaveTypeAccrues(leaveType: LeaveType): boolean {
+	return leaveType.balanceMode === 'annual' && leaveType.id === 'annual';
 }
 
 export function isLeaveBalanceMode(value: string | undefined): value is LeaveBalanceMode {
@@ -88,17 +85,33 @@ export function isLeaveExpiryMode(value: string | undefined): value is LeaveExpi
 	return value === 'fiscalYearEnd' || value === 'monthsAfterGrant' || value === 'none';
 }
 
-export function daysFromMilliDays(value: number | undefined): string {
-	return ((value ?? 0) / 1000).toString();
+export function daysFromMilliDays(value: number | undefined): number {
+	return (value ?? 0) / 1000;
 }
 
-export function milliDaysFromDays(value: string): number {
-	const parsed = Number(value);
-	return Number.isFinite(parsed) ? Math.round(parsed * 1000) : 0;
+export function optionalDaysFromMilliDays(value: number | undefined): number | null {
+	return value === undefined ? null : value / 1000;
 }
 
-export function optionalMilliDaysFromDays(value: string): number | undefined {
-	return value.trim() ? milliDaysFromDays(value) : undefined;
+export function milliDaysFromDays(value: number | null): number {
+	return value === null || !Number.isFinite(value) ? 0 : Math.round(value * 1000);
+}
+
+export function optionalMilliDaysFromDays(value: number | null): number | undefined {
+	return value === null ? undefined : milliDaysFromDays(value);
 }
 
 export const leaveAllowedUnits: LeaveAllowedUnit[] = ['fullDay', 'halfDay', 'quarterDay'];
+
+function leaveUnitsThrough(unit: LeaveAllowedUnit): LeaveAllowedUnit[] {
+	return leaveAllowedUnits.slice(0, leaveAllowedUnits.indexOf(unit) + 1);
+}
+
+export function leaveUnitsWith(
+	units: LeaveAllowedUnit[],
+	unit: LeaveAllowedUnit,
+	offered: boolean
+): LeaveAllowedUnit[] {
+	if (offered) return leaveUnitsThrough(unit);
+	return leaveAllowedUnits.slice(0, leaveAllowedUnits.indexOf(unit)).filter((held) => units.includes(held));
+}
