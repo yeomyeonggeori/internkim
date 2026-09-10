@@ -3,6 +3,8 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -63,6 +65,8 @@ func (service *Service) handleTaskRuns(responseWriter http.ResponseWriter, reque
 		service.proxyScopedTaskDetail(responseWriter, request, viewerEmail, isViewerAdmin)
 	case "/runs/api/approve":
 		service.proxyScopedTaskApproval(responseWriter, request, viewerEmail, isViewerAdmin)
+	case "/runs/api/retry":
+		service.proxyScopedTaskRetry(responseWriter, request, viewerEmail, isViewerAdmin)
 	default:
 		if request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/runs/api/") {
 			service.proxyScopedTaskDelete(responseWriter, request, viewerEmail, isViewerAdmin)
@@ -70,6 +74,71 @@ func (service *Service) handleTaskRuns(responseWriter http.ResponseWriter, reque
 		}
 		http.NotFound(responseWriter, request)
 	}
+}
+
+type taskRetryRequest struct {
+	TaskRunID string `json:"taskRunID"`
+}
+
+type trustedTaskRetryRequest struct {
+	TaskRunID     string `json:"taskRunID"`
+	ViewerEmail   string `json:"viewerEmail"`
+	ViewerIsAdmin bool   `json:"viewerIsAdmin"`
+}
+
+func (service *Service) proxyScopedTaskRetry(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {
+	if request.Method != http.MethodPost {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	var retryRequest taskRetryRequest
+	if json.NewDecoder(request.Body).Decode(&retryRequest) != nil {
+		http.Error(responseWriter, "invalid task retry request", http.StatusBadRequest)
+		return
+	}
+	taskRunID := strings.TrimSpace(retryRequest.TaskRunID)
+	if taskRunID == "" {
+		http.Error(responseWriter, "taskRunID is required", http.StatusBadRequest)
+		return
+	}
+	blueclawRequest := trustedTaskRetryRequest{
+		TaskRunID:     taskRunID,
+		ViewerEmail:   viewerEmail,
+		ViewerIsAdmin: isViewerAdmin,
+	}
+	status, responseBody, contentType, errorValue := service.blueclawTaskRetryRequest(request.Context(), blueclawRequest)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	if contentType != "" {
+		responseWriter.Header().Set("Content-Type", contentType)
+	}
+	responseWriter.WriteHeader(status)
+	_, _ = responseWriter.Write(responseBody)
+}
+
+func (service *Service) blueclawTaskRetryRequest(ctx context.Context, body trustedTaskRetryRequest) (int, []byte, string, error) {
+	document, errorValue := json.Marshal(body)
+	if errorValue != nil {
+		return 0, nil, "", errorValue
+	}
+	requestURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/admin/api/run/retry"
+	blueclawRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, strings.NewReader(string(document)))
+	if errorValue != nil {
+		return 0, nil, "", errorValue
+	}
+	blueclawRequest.Header.Set("Content-Type", "application/json")
+	response, errorValue := service.httpClient().Do(blueclawRequest)
+	if errorValue != nil {
+		return 0, nil, "", fmt.Errorf("Blueclaw retry unavailable: %w", errorValue)
+	}
+	defer response.Body.Close()
+	responseBody, errorValue := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if errorValue != nil {
+		return 0, nil, "", fmt.Errorf("reading Blueclaw retry response: %w", errorValue)
+	}
+	return response.StatusCode, responseBody, response.Header.Get("Content-Type"), nil
 }
 
 func (service *Service) proxyScopedTaskList(responseWriter http.ResponseWriter, request *http.Request, viewerEmail string, isViewerAdmin bool) {

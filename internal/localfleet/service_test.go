@@ -142,6 +142,23 @@ func TestLearningSettingsScenarioUsesDedicatedSettingsScript(t *testing.T) {
 	}
 }
 
+func TestTaskHistoryRetryScenarioRunsDatabaseAndRuntimeAcceptance(t *testing.T) {
+	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	plans := service.taskHistoryRetryScenarioPlans()
+	joined := joinedPlanArguments(plans)
+	if !strings.Contains(joined, "scenario-task-history-retry.py") {
+		t.Fatalf("task history retry scenario did not use its dedicated script:\n%s", joined)
+	}
+	for _, binary := range []string{"task-history-retry-postgres.test", "task-history-retry-runtime.test", "task-history-retry-admind.test"} {
+		if !strings.Contains(joined, binary) {
+			t.Fatalf("task history retry scenario did not build %s:\n%s", binary, joined)
+		}
+	}
+}
+
 func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) {
 	scriptPath := filepath.Join("..", "..", "lab", "scripts", "configure-local-embedding.sh")
 	document, errorValue := os.ReadFile(scriptPath)

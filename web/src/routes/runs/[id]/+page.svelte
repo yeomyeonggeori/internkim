@@ -19,8 +19,9 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
-	import { onMount } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import ApprovalDecision from '../approval-decision.svelte';
+	import RetryTaskButton from '../retry-task-button.svelte';
 	import {
 		eventLane,
 		fetchServiceLogs,
@@ -55,6 +56,8 @@
 	let serviceLogLines = $state<string[] | undefined>(undefined);
 	let serviceLogsLoading = $state(false);
 	let serviceLogsError = $state('');
+	let pollTimer: ReturnType<typeof setTimeout> | undefined;
+	let loadGeneration = 0;
 
 	const summary = $derived(detail ? summarizeTimeline(detail.taskEvents) : undefined);
 	const pendingApproval = $derived(detail ? pendingApprovalOf(detail) : undefined);
@@ -65,13 +68,26 @@
 	const timelineSummaryRows = $derived(summary && detail ? buildTimelineSummaryRows(summary, detail.taskEvents.length) : []);
 	const taskListPath = $derived(taskListPathOf(page.url.pathname));
 
-	async function load() {
+	async function load(taskRunID: string, generation: number) {
 		loadError = '';
 		try {
-			detail = await fetchTaskDetail(page.params.id ?? '');
+			const nextDetail = await fetchTaskDetail(taskRunID);
+			if (generation !== loadGeneration || page.params.id !== taskRunID) return;
+			detail = nextDetail;
+			if (isActiveTaskRunStatus(nextDetail.taskRun.status)) schedulePoll(taskRunID, generation);
 		} catch {
+			if (generation !== loadGeneration || page.params.id !== taskRunID) return;
 			loadError = text.detailLoadError;
 		}
+	}
+
+	function schedulePoll(taskRunID: string, generation: number) {
+		if (pollTimer) clearTimeout(pollTimer);
+		pollTimer = setTimeout(() => void load(taskRunID, generation), 2000);
+	}
+
+	function isActiveTaskRunStatus(status: string): boolean {
+		return ['planned', 'running', 'waiting_approval', 'waiting_user_input'].includes(status);
 	}
 
 	async function loadServiceLogs() {
@@ -153,7 +169,19 @@
 		];
 	}
 
-	onMount(load);
+	$effect(() => {
+		const taskRunID = page.params.id ?? '';
+		loadGeneration += 1;
+		const generation = loadGeneration;
+		detail = undefined;
+		if (pollTimer) clearTimeout(pollTimer);
+		void load(taskRunID, generation);
+	});
+
+	onDestroy(() => {
+		loadGeneration += 1;
+		if (pollTimer) clearTimeout(pollTimer);
+	});
 </script>
 
 <svelte:head>
@@ -167,9 +195,14 @@
 			{text.backToList}
 		</Button>
 		{#if detail}
-			<CopyButton text={taskShareText} variant="outline" size="sm">
-				<span>{text.copyForAI}</span>
-			</CopyButton>
+			<div class="flex flex-wrap items-center gap-2">
+				{#if detail.taskRun.status === 'failed'}
+					<RetryTaskButton taskRunID={detail.taskRun.taskRunID} label={text.retryTask} pendingLabel={text.retryingTask} successMessage={text.retrySuccess} errorMessage={text.retryError} />
+				{/if}
+				<CopyButton text={taskShareText} variant="outline" size="sm">
+					<span>{text.copyForAI}</span>
+				</CopyButton>
+			</div>
 		{/if}
 	</div>
 
@@ -216,7 +249,7 @@
 					</div>
 					{#if pendingApproval}
 						<Separator />
-						<ApprovalDecision approval={pendingApproval} {text} onDecided={load} />
+						<ApprovalDecision approval={pendingApproval} {text} onDecided={() => void load(page.params.id ?? '', loadGeneration)} />
 					{/if}
 					{#if detail.taskRun.failureReason}
 						<Separator />
