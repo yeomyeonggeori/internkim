@@ -23,6 +23,8 @@ type OpenRouterBackend struct {
 	FallbackModelNames  []string
 	GatewaySecretPath   string
 	GatewaySecretHeader string
+	ProviderOrder       []string
+	ProviderSort        string
 	HTTPClient          *http.Client
 }
 
@@ -158,26 +160,27 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 	if errorValue != nil || !isActionSchema {
 		return Response{}, isActionSchema, errorValue
 	}
-	requestDocument, lintResult, errorValue := buildOpenRouterChatActionRequest(request, modelName, toolSet.Tools, toolSet.NativeSchemaLint)
+	requestDocument, lintResult, errorValue := backend.buildChatActionRequest(request, modelName, toolSet.Tools, toolSet.NativeSchemaLint)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
-	content, usage, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet, lintResult)
+	completion, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet, lintResult)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
 	return Response{
-		Provider:        "openrouter",
-		Model:           modelName,
-		Content:         content,
-		SelectedBackend: capabilities.LLMBackendRemote,
-		ConstraintMode:  ConstraintModeNativeToolCall,
-		Usage:           usage,
+		Provider:         "openrouter",
+		UpstreamProvider: completion.UpstreamProvider,
+		Model:            modelName,
+		Content:          completion.Content,
+		SelectedBackend:  capabilities.LLMBackendRemote,
+		ConstraintMode:   ConstraintModeNativeToolCall,
+		Usage:            completion.Usage,
 	}, true, nil
 }
 
 func (backend OpenRouterBackend) completeJSONSchema(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
-	requestDocument, errorValue := buildOpenRouterStructuredRequest(request, modelName)
+	requestDocument, errorValue := backend.buildStructuredRequest(request, modelName)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -185,7 +188,7 @@ func (backend OpenRouterBackend) completeJSONSchema(ctx context.Context, apiKey 
 }
 
 func (backend OpenRouterBackend) completePromptedJSON(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
-	requestDocument, errorValue := buildOpenRouterPromptedStructuredRequest(request, modelName)
+	requestDocument, errorValue := backend.buildPromptedStructuredRequest(request, modelName)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -205,12 +208,13 @@ func (backend OpenRouterBackend) completeStructuredDocument(ctx context.Context,
 		return Response{}, errorValue
 	}
 	return Response{
-		Provider:        "openrouter",
-		Model:           modelName,
-		Content:         content,
-		SelectedBackend: capabilities.LLMBackendRemote,
-		ConstraintMode:  constraintMode,
-		Usage:           completion.Usage,
+		Provider:         "openrouter",
+		UpstreamProvider: completion.UpstreamProvider,
+		Model:            modelName,
+		Content:          content,
+		SelectedBackend:  capabilities.LLMBackendRemote,
+		ConstraintMode:   constraintMode,
+		Usage:            completion.Usage,
 	}, nil
 }
 
@@ -220,7 +224,7 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 		return Response{}, errorValue
 	}
 	modelName := backend.resolveModelName(request.Model)
-	requestDocument, errorValue := buildOpenRouterTextRequest(request, modelName)
+	requestDocument, errorValue := backend.buildTextRequest(request, modelName)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -229,11 +233,12 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 		return Response{}, errorValue
 	}
 	return Response{
-		Provider:        "openrouter",
-		Model:           modelName,
-		Content:         completion.Content,
-		SelectedBackend: capabilities.LLMBackendRemote,
-		Usage:           completion.Usage,
+		Provider:         "openrouter",
+		UpstreamProvider: completion.UpstreamProvider,
+		Model:            modelName,
+		Content:          completion.Content,
+		SelectedBackend:  capabilities.LLMBackendRemote,
+		Usage:            completion.Usage,
 	}, nil
 }
 
@@ -243,7 +248,10 @@ func (backend OpenRouterBackend) CompleteChat(ctx context.Context, request ChatR
 		return ChatResponse{}, errorValue
 	}
 	modelName := backend.resolveModelName(request.Model)
-	requestDocument, errorValue := json.Marshal(openAIChatCompletionRequest(modelName, request))
+	chatRequest := openAIChatCompletionRequest(modelName, request)
+	chatRequest.Provider = backend.providerRouting(false)
+	chatRequest.Reasoning = openAIReasoningFor(request.ReasoningEffort)
+	requestDocument, errorValue := json.Marshal(chatRequest)
 	if errorValue != nil {
 		return ChatResponse{}, errorValue
 	}
@@ -302,9 +310,16 @@ func prefersPromptedStructuredJSON(modelName string) bool {
 }
 
 type openRouterCompletion struct {
-	Content      string
-	FinishReason string
-	Usage        Usage
+	Content          string
+	FinishReason     string
+	UpstreamProvider string
+	Usage            Usage
+}
+
+type nativeActionCompletion struct {
+	Content          string
+	UpstreamProvider string
+	Usage            Usage
 }
 
 type structuredOutputLimitError struct {
@@ -355,16 +370,17 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 		return openRouterCompletion{}, errors.New("openrouter response did not include choices")
 	}
 	return openRouterCompletion{
-		Content:      parsed.Choices[0].Message.Content,
-		FinishReason: parsed.Choices[0].FinishReason,
-		Usage:        normalizeUsage(parsed.Usage),
+		Content:          parsed.Choices[0].Message.Content,
+		FinishReason:     parsed.Choices[0].FinishReason,
+		UpstreamProvider: parsed.Provider,
+		Usage:            normalizeUsage(parsed.Usage),
 	}, nil
 }
 
-func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet, lintResult NativeSchemaLintResult) (string, Usage, error) {
+func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet, lintResult NativeSchemaLintResult) (nativeActionCompletion, error) {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
-		return "", Usage{}, errorValue
+		return nativeActionCompletion{}, errorValue
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
@@ -372,32 +388,32 @@ func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey stri
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
 	if errorValue != nil {
-		return "", Usage{}, errorValue
+		return nativeActionCompletion{}, errorValue
 	}
 	defer httpResponse.Body.Close()
 
 	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
 	if errorValue != nil {
-		return "", Usage{}, errors.New("read openrouter response: " + errorValue.Error())
+		return nativeActionCompletion{}, errors.New("read openrouter response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return "", Usage{}, openAIErrorWithNativeSchemaLint("openrouter", httpResponse.StatusCode, responseDocument, lintResult)
+		return nativeActionCompletion{}, openAIErrorWithNativeSchemaLint("openrouter", httpResponse.StatusCode, responseDocument, lintResult)
 	}
 
 	var response openAIResponseWithUsage
 	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
-		return "", Usage{}, errorValue
+		return nativeActionCompletion{}, errorValue
 	}
 	if len(response.Choices) == 0 {
-		return "", Usage{}, errors.New("openrouter response did not include choices")
+		return nativeActionCompletion{}, errors.New("openrouter response did not include choices")
 	}
 	for _, toolCall := range response.Choices[0].Message.ToolCalls {
 		if toolCall.Type == "" || toolCall.Type == "function" {
 			content, errorValue := nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
-			return content, normalizeUsage(response.Usage), errorValue
+			return nativeActionCompletion{Content: content, UpstreamProvider: response.Provider, Usage: normalizeUsage(response.Usage)}, errorValue
 		}
 	}
-	return "", Usage{}, errors.New("openrouter chat completion response did not include tool_calls")
+	return nativeActionCompletion{}, errors.New("openrouter chat completion response did not include tool_calls")
 }
 
 func (backend OpenRouterBackend) sendChatCompletion(ctx context.Context, apiKey string, requestDocument []byte) (openAIResponseWithUsage, error) {
@@ -445,23 +461,35 @@ func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {
 	request.Header.Set(headerName, gatewaySecret)
 }
 
-// OpenRouter serves one model from several providers and picks for itself
-// unless it is told an order. These two are named first because they are the
-// ones this company wants serving it; allow_fallbacks leaves the rest reachable,
-// so naming them is a preference and never an outage when they are busy.
-//
 // https://openrouter.ai/docs/features/provider-routing
-var openRouterPreferredProviders = []string{"modal", "baseten"}
+func (backend OpenRouterBackend) providerRouting(requireParameters bool) map[string]any {
+	providerSort := strings.TrimSpace(backend.ProviderSort)
+	if providerSort == "" && len(backend.ProviderOrder) == 0 && !requireParameters {
+		return nil
+	}
+	routing := map[string]any{"allow_fallbacks": true}
+	if len(backend.ProviderOrder) > 0 {
+		routing["order"] = append([]string{}, backend.ProviderOrder...)
+	}
+	if providerSort != "" {
+		routing["sort"] = providerSort
+	}
+	if requireParameters {
+		routing["require_parameters"] = true
+	}
+	return routing
+}
 
-func openRouterProviderRouting() map[string]any {
-	return map[string]any{
-		"require_parameters": true,
-		"order":              openRouterPreferredProviders,
-		"allow_fallbacks":    true,
+func (backend OpenRouterBackend) applyServingPreferences(document map[string]any, requireParameters bool, reasoningEffort string) {
+	if routing := backend.providerRouting(requireParameters); routing != nil {
+		document["provider"] = routing
+	}
+	if reasoning := openAIReasoningFor(reasoningEffort); reasoning != nil {
+		document["reasoning"] = reasoning
 	}
 }
 
-func buildOpenRouterStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
+func (backend OpenRouterBackend) buildStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
 	document := map[string]any{
 		"model":    modelName,
 		"messages": openAIMessages(request.Messages),
@@ -475,9 +503,7 @@ func buildOpenRouterStructuredRequest(request StructuredRequest, modelName strin
 		},
 		"stream": false,
 	}
-	if request.RequireParameters {
-		document["provider"] = openRouterProviderRouting()
-	}
+	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
 	if request.EnableResponseHealing {
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
 	}
@@ -485,7 +511,7 @@ func buildOpenRouterStructuredRequest(request StructuredRequest, modelName strin
 	return json.Marshal(document)
 }
 
-func buildOpenRouterPromptedStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
+func (backend OpenRouterBackend) buildPromptedStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
 	messages := append([]openAIMessage{}, openAIMessages(request.Messages)...)
 	messages = append(messages, openAIMessage{
 		Role:    "user",
@@ -496,9 +522,7 @@ func buildOpenRouterPromptedStructuredRequest(request StructuredRequest, modelNa
 		"messages": messages,
 		"stream":   false,
 	}
-	if request.RequireParameters {
-		document["provider"] = openRouterProviderRouting()
-	}
+	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
 	if request.EnableResponseHealing {
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
 	}
@@ -561,21 +585,21 @@ func fencedJSONContent(content string) (string, bool) {
 	return strings.TrimSpace(strings.Join(lines[1:len(lines)-1], "\n")), true
 }
 
-func buildOpenRouterChatActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool, lintResults ...NativeSchemaLintResult) ([]byte, NativeSchemaLintResult, error) {
+func (backend OpenRouterBackend) buildChatActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool, lintResults ...NativeSchemaLintResult) ([]byte, NativeSchemaLintResult, error) {
 	document := openAIActionToolRequest(modelName, request.Messages, tools, generationOptionsValue(request.GenerationOptions), lintResults...)
+	document.Provider = backend.providerRouting(request.RequireParameters)
+	document.Reasoning = openAIReasoningFor(request.ReasoningEffort)
 	content, errorValue := json.Marshal(document)
 	return content, document.NativeToolSchemaLint, errorValue
 }
 
-func buildOpenRouterTextRequest(request TextRequest, modelName string) ([]byte, error) {
+func (backend OpenRouterBackend) buildTextRequest(request TextRequest, modelName string) ([]byte, error) {
 	document := map[string]any{
 		"model":    modelName,
 		"messages": openAIMessages(request.Messages),
 		"stream":   false,
 	}
-	if request.RequireParameters {
-		document["provider"] = openRouterProviderRouting()
-	}
+	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
 	if request.EnableResponseHealing {
 		document["plugins"] = []map[string]string{{"id": "response-healing"}}
 	}
