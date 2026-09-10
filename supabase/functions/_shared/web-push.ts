@@ -1,5 +1,6 @@
 import { encryptForSubscription, isUsableSubscriptionKey, type SubscriptionKeys } from './web-push-encrypt.ts';
 import { vapidAuthorization, type VapidKeys } from './web-push-vapid.ts';
+import { sayPushNotDelivered } from './push-diagnostics.ts';
 import type { PushOutcome } from './push-vocabulary.ts';
 
 export type PushTarget = {
@@ -23,17 +24,27 @@ export async function sendWebPush(
 	vapid: VapidKeys,
 	nowInSeconds: number
 ): Promise<PushOutcome> {
-	if (!isAddressable(target.address) || !hasUsableKeys(target.keys)) return 'gone';
+	if (!isAddressable(target.address) || !hasUsableKeys(target.keys)) {
+		sayPushNotDelivered({ channel: 'web-push', address: target.address, stage: 'subscription', outcome: 'gone' });
+		return 'gone';
+	}
 	const payload = JSON.stringify(notification);
 
 	let sealed: Uint8Array<ArrayBuffer>;
 	try {
 		sealed = await encryptForSubscription(payload, target.keys);
-	} catch {
+	} catch (failure) {
+		sayPushNotDelivered({ channel: 'web-push', address: target.address, stage: 'encryption', outcome: 'gone', failure });
 		return 'gone';
 	}
 
-	const authorization = await vapidAuthorization(target.address, vapid, nowInSeconds);
+	let authorization: string;
+	try {
+		authorization = await vapidAuthorization(target.address, vapid, nowInSeconds);
+	} catch (failure) {
+		sayPushNotDelivered({ channel: 'web-push', address: target.address, stage: 'authorization', outcome: 'refused', failure });
+		return 'refused';
+	}
 
 	try {
 		const response = await fetch(target.address, {
@@ -46,8 +57,19 @@ export async function sendWebPush(
 			},
 			body: sealed
 		});
-		return outcomeOfStatus(response.status);
-	} catch {
+		const outcome = outcomeOfStatus(response.status);
+		if (outcome !== 'delivered') {
+			sayPushNotDelivered({
+				channel: 'web-push',
+				address: target.address,
+				stage: 'answer',
+				outcome,
+				status: response.status
+			});
+		}
+		return outcome;
+	} catch (failure) {
+		sayPushNotDelivered({ channel: 'web-push', address: target.address, stage: 'request', outcome: 'refused', failure });
 		return 'refused';
 	}
 }
