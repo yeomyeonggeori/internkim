@@ -1,4 +1,5 @@
 import { pkcs8FromPEM, signedJWT } from './jwt.ts';
+import { sayPushNotDelivered } from './push-diagnostics.ts';
 import type { Notification, PushOutcome } from './push-vocabulary.ts';
 
 export type ApnsKey = {
@@ -71,7 +72,8 @@ export async function sendApns(
 	let authorization: string;
 	try {
 		authorization = await apnsAuthorization(key, nowInSeconds);
-	} catch {
+	} catch (failure) {
+		sayPushNotDelivered({ channel: 'apns', address: deviceToken, stage: 'authorization', outcome: 'refused', failure });
 		return 'refused';
 	}
 
@@ -87,8 +89,21 @@ export async function sendApns(
 			},
 			body: JSON.stringify(apnsPayload(notification))
 		});
-		return outcomeOfApnsAnswer(response.status, await refusalReason(response));
-	} catch {
+		const reason = await refusalReason(response);
+		const outcome = outcomeOfApnsAnswer(response.status, reason);
+		if (outcome !== 'delivered') {
+			sayPushNotDelivered({
+				channel: 'apns',
+				address: deviceToken,
+				stage: 'answer',
+				outcome,
+				status: response.status,
+				reason
+			});
+		}
+		return outcome;
+	} catch (failure) {
+		sayPushNotDelivered({ channel: 'apns', address: deviceToken, stage: 'request', outcome: 'refused', failure });
 		return 'refused';
 	}
 }
