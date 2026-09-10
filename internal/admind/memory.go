@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,8 +48,12 @@ func (service *Service) serveMemoryStaticFile(responseWriter http.ResponseWriter
 
 func (service *Service) handleMemory(responseWriter http.ResponseWriter, request *http.Request) {
 	path := strings.TrimPrefix(request.URL.Path, "/memory/api")
-	if request.Method == http.MethodGet && path == "/graph" {
-		service.writeUserMemoryGraph(responseWriter, request)
+	if request.Method == http.MethodGet && path == "/facts" {
+		service.writeUserMemoryFacts(responseWriter, request)
+		return
+	}
+	if request.Method == http.MethodPost && path == "/facts/forget" {
+		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/facts/forget")
 		return
 	}
 	if request.Method == http.MethodGet && path == "/schedules" {
@@ -67,42 +72,10 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 		service.updateUserMemorySchedule(responseWriter, request)
 		return
 	}
-	if request.Method == http.MethodPost && path == "/episodes/delete" {
-		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/episodes/delete")
-		return
-	}
-	if request.Method == http.MethodPost && path == "/facts/update" {
-		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/facts/update")
-		return
-	}
-	if request.Method == http.MethodPost && path == "/facts/delete" {
-		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/facts/delete")
-		return
-	}
-	if request.Method == http.MethodPost && path == "/pinned/update" {
-		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/pinned/update")
-		return
-	}
-	if request.Method == http.MethodPost && path == "/pinned/delete" {
-		service.writeUserMemoryMutation(responseWriter, request, "/admin/api/memory/pinned/delete")
-		return
-	}
-	if request.Method == http.MethodGet && path == "/identity-migration" {
-		service.writeMemoryIdentityMigrationMap(responseWriter, request)
-		return
-	}
-	if request.Method == http.MethodGet && path == "/identity-migration/messages" {
-		service.writeMemoryPersonMessages(responseWriter, request)
-		return
-	}
-	if request.Method == http.MethodPost && path == "/identity-migration/apply" {
-		service.applyMemoryIdentityMigration(responseWriter, request)
-		return
-	}
 	http.NotFound(responseWriter, request)
 }
 
-func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter, request *http.Request) {
+func (service *Service) writeUserMemoryFacts(responseWriter http.ResponseWriter, request *http.Request) {
 	actorEmail := service.memoryActorEmail(request)
 	if actorEmail == "" {
 		http.Error(responseWriter, "memory access required", http.StatusForbidden)
@@ -110,7 +83,7 @@ func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter,
 	}
 	personID, errorValue := service.resolveMemoryPersonID(request.Context(), actorEmail)
 	if errorValue != nil {
-		log.Printf("memory graph identity resolution failed: %v", errorValue)
+		log.Printf("memory facts identity resolution failed: %v", errorValue)
 		http.Error(responseWriter, "memory identity unavailable", http.StatusBadGateway)
 		return
 	}
@@ -119,14 +92,14 @@ func (service *Service) writeUserMemoryGraph(responseWriter http.ResponseWriter,
 		return
 	}
 
-	var graph map[string]any
-	path := "/admin/api/memory/graph?" + memoryGraphQuery(request, personID)
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &graph); errorValue != nil {
-		log.Printf("memory graph upstream failed: %v", errorValue)
-		http.Error(responseWriter, "memory graph unavailable", http.StatusBadGateway)
+	var facts map[string]any
+	path := "/admin/api/memory/facts?" + memoryFactsQuery(request, personID)
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &facts); errorValue != nil {
+		log.Printf("memory facts upstream failed: %v", errorValue)
+		http.Error(responseWriter, "memory facts unavailable", http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, graph)
+	service.writeJSON(responseWriter, facts)
 }
 
 func (service *Service) writeUserMemoryMutation(responseWriter http.ResponseWriter, request *http.Request, upstreamPath string) {
@@ -154,12 +127,7 @@ func (service *Service) writeUserMemoryMutation(responseWriter http.ResponseWrit
 	body["readerPersonID"] = personID
 
 	var response map[string]any
-	if upstreamPath == "/admin/api/memory/facts/update" || upstreamPath == "/admin/api/memory/facts/delete" {
-		errorValue = service.blueclawMemoryFactRequest(request.Context(), upstreamPath, body, &response)
-	} else {
-		errorValue = service.blueclawJSONRequest(request.Context(), http.MethodPost, upstreamPath, body, &response)
-	}
-	if errorValue != nil {
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodPost, upstreamPath, body, &response); errorValue != nil {
 		log.Printf("memory mutation upstream failed: %v", errorValue)
 		http.Error(responseWriter, "memory mutation unavailable", http.StatusBadGateway)
 		return
@@ -174,8 +142,11 @@ func (service *Service) memoryActorEmail(request *http.Request) string {
 	return assertedRequesterEmail(request)
 }
 
-func memoryGraphQuery(request *http.Request, personID string) string {
-	query := request.URL.Query()
+func memoryFactsQuery(request *http.Request, personID string) string {
+	query := url.Values{}
+	if limit := strings.TrimSpace(request.URL.Query().Get("limit")); limit != "" {
+		query.Set("limit", limit)
+	}
 	query.Set("readerPersonID", personID)
 	return query.Encode()
 }

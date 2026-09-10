@@ -25,8 +25,6 @@ container gets:
   LOG_DIRECTORY_PATH        /var/log/internkim
   MODEL_API_KEY_PATH        /root/.internkim/secrets/openrouter-key
   ADMIN_ASSERTION_KEY_PATH  /root/.internkim/secrets/agent-key
-  GRAPHITI_ENDPOINT         http://127.0.0.1:7791
-  GRAPHITI_KUZU_PATH        /workspace/.blueclaw/graphiti/kuzu
   MODEL_ENDPOINT            the ladder's own endpoint
 USAGE
   exit 2
@@ -64,8 +62,6 @@ fi
 : "${LOG_DIRECTORY_PATH:=/var/log/internkim}"
 : "${MODEL_API_KEY_PATH:=/root/.internkim/secrets/openrouter-key}"
 : "${ADMIN_ASSERTION_KEY_PATH:=/root/.internkim/secrets/agent-key}"
-: "${GRAPHITI_ENDPOINT:=http://127.0.0.1:7791}"
-: "${GRAPHITI_KUZU_PATH:=/workspace/.blueclaw/graphiti/kuzu}"
 
 if [ -z "${workDirectory}" ]; then
   workDirectory="$(dirname "${outputPath}")"
@@ -84,10 +80,8 @@ sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
     -e "s|\${MIGRATION_DIRECTORY_PATH}|${MIGRATION_DIRECTORY_PATH}|g" \
     -e "s|\${LOG_DIRECTORY_PATH}|${LOG_DIRECTORY_PATH}|g" \
     -e "s|\${ADMIN_ASSERTION_KEY_PATH}|${ADMIN_ASSERTION_KEY_PATH}|g" \
-    -e "s|\${GRAPHITI_ENDPOINT}|${GRAPHITI_ENDPOINT}|g" \
-    -e "s|\${GRAPHITI_KUZU_PATH}|${GRAPHITI_KUZU_PATH}|g" \
     "${templatePath}" > "${renderedPath}"
 
 "${capabilitydPath}" --print-capabilities --socket "${CAPABILITY_SOCKET_PATH}" > "${capabilitiesPath}"
 "${capabilitydPath}" --print-model-ladder "${MODEL_API_KEY_PATH}" --model-endpoint "${MODEL_ENDPOINT:-}" > "${languageModelPath}"
-jq -s '.[0] * {capabilities: .[1], languageModel: .[2]}' "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}" > "${outputPath}"
+jq -s '.[0] * {capabilities: .[1], languageModel: .[2], memory: {embeddingModel: .[2].embedding.model}}' "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}" > "${outputPath}"

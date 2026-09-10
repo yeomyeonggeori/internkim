@@ -201,8 +201,8 @@ describe('serveCallForMember', () => {
 
 		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
-			capability: 'person.memory.graph',
-			body: { personID: 'person-1' }
+			capability: 'person.memory.facts',
+			body: { limit: 50 }
 		}, 'member-1');
 
 		expect(served.status).toBe(200);
@@ -210,7 +210,7 @@ describe('serveCallForMember', () => {
 		expect(admindCalls).toEqual([
 			{
 				method: 'GET',
-				url: 'http://internkim/memory/api/graph?personID=person-1',
+				url: 'http://internkim/memory/api/facts?limit=50',
 				requester: 'sample@example.test'
 			}
 		]);
@@ -234,7 +234,7 @@ describe('serveCallForMember', () => {
 
 		const served = await serveCallForMember(dispatch, {
 			callID: 'c1',
-			capability: 'person.memory.graph',
+			capability: 'person.memory.facts',
 			body: {}
 		}, 'member-2');
 
@@ -774,11 +774,6 @@ describe('every capability the workspace family names', () => {
 
 	test('every memory change is posted to the workspace as the person who signed in', () => {
 		const changes: [string, string, Record<string, unknown>][] = [
-			['person.memory.episode_delete', '/memory/api/episodes/delete', { episodeID: 'episode-1' }],
-			['person.memory.fact_update', '/memory/api/facts/update', { factID: 'fact:sample', namespaceID: 'user:sample', content: 'Updated decision' }],
-			['person.memory.fact_delete', '/memory/api/facts/delete', { factID: 'fact:sample', namespaceID: 'user:sample' }],
-			['person.memory.pinned_update', '/memory/api/pinned/update', { content: '금요일마다 회고' }],
-			['person.memory.pinned_delete', '/memory/api/pinned/delete', {}],
 			['person.memory.schedule_cancel', '/memory/api/schedules/cancel', { taskScheduleID: 'schedule-1' }],
 			['person.memory.schedule_delete', '/memory/api/schedules/delete', { taskScheduleID: 'schedule-1' }],
 			['person.memory.schedule_update', '/memory/api/schedules/update', { taskScheduleID: 'schedule-1', name: '주간 보고' }]

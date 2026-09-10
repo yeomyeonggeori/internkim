@@ -12,7 +12,7 @@ internkim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skill
 2. Blueclaw는 의도 판단, 질문, 계획을 담당한다.
 3. `internkim-capabilityd`는 secret-bearing 실행, provider 선택, platform reply를 담당한다.
 4. Companion은 사용자 로컬 브라우저, 파일, 입력, 승인을 담당한다.
-5. Graphiti는 기억 저장과 검색을 담당한다.
+5. the blueclaw fact store는 기억 저장과 검색을 담당한다.
 6. Google Workspace는 기본값이 아니라 import/export/publish target이다.
 7. 이메일 발송, 외부 공유, Google import/publish, 파일 이동/삭제, 브라우저 제출, 터미널 write 명령은 승인 없이는 실행하지 않는다. Website publish capability는 prototype 생성의 기본 완료 단계이며 descriptor상 승인 불필요 작업이다.
 
@@ -50,7 +50,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 | PDF 생성/읽기 | `pdf` skill | 한글 폰트, 템플릿, 출력 파일 연결 |
 | 파일 전송 | native reply attachments | 파일 경로 검증, 메시지, 공유 대상 결정 |
 | 브라우저 자동화 | `agent-browser` skill, `browser.*` capability | 사용자 입력 대기, 제출 승인, 관찰 결과 요약 |
-| 기억 저장/검색 | Graphiti memory | 개인/직급/팀/회사 scope 선택 |
+| 기억 저장/검색 | the blueclaw fact store | 개인/직급/팀/회사 scope 선택 |
 | 업무/출퇴근 | Blueclaw task DB, future attendance capability | 상태 전이, 담당자, audit 기록 |
 
 ## Orchestration wrappers
@@ -141,7 +141,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 | 업무 투두 | `task-orchestrator` | Blueclaw task DB |
 | 파일 생성 및 공유 | `artifact-orchestrator` | native reply attachments |
 | 파일 인식/분석 | `artifact-orchestrator` | future artifact ingest |
-| 직원별/직급별 기억 분리 | `memory-orchestrator` | Graphiti memory |
+| 직원별/직급별 기억 분리 | `memory-orchestrator` | the blueclaw fact store |
 | 이메일 정리/작성/발송 | `workspace-orchestrator` | `.eml`/draft text first, optional Gmail bridge |
 | 파일/디렉토리 정리 | `local-orchestrator` | Companion local capability |
 | 터미널 인터랙티브 모드 | `local-orchestrator` | Blueclaw terminal, admin profile |
@@ -159,7 +159,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 - Google import/export는 기본 생성 후 선택 단계로 둔다.
 - 새 attachment uploader를 만들기 전에 Blueclaw `FileAttachment`와 internkim `reply.send` attachment 경로가 처리하는지 확인한다.
 - 새 browser adapter를 만들기 전에 `browser.*`와 `agent-browser` 경로가 처리하는지 확인한다.
-- 새 memory table을 만들기 전에 Graphiti scope로 해결 가능한지 확인한다.
+- 새 memory table을 만들기 전에 the blueclaw fact store scope로 해결 가능한지 확인한다.
 - 터미널을 제품 기능으로 승격하기 전에 typed capability로 표현할 수 있는지 확인한다.
 
 ## Acceptance scenarios

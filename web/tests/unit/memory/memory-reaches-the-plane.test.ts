@@ -1,10 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'bun:test';
-import {
-	episodeDeleteRequest,
-	pinnedDeleteRequest,
-	pinnedUpdateRequest
-} from '../../../src/routes/memory/memory-graph-api';
+import { factForgetRequest } from '../../../src/routes/memory/memory-facts-api';
 import type { MemoryChange } from '../../../src/routes/memory/memory-change';
 import {
 	memoryScheduleListBody,
@@ -26,9 +22,7 @@ const everyMemoryChange: MemoryChange[] = [
 	scheduleCancelRequest('schedule-1'),
 	scheduleDeleteRequest('schedule-2'),
 	scheduleUpdateRequest('schedule-3', { name: '주간 보고', kind: 'cron', cronExpression: '0 9 * * 1' }),
-	episodeDeleteRequest('episode-1', ['namespace-1', 'namespace-2']),
-	pinnedUpdateRequest('금요일마다 회고'),
-	pinnedDeleteRequest()
+	factForgetRequest(['fact-1'], '팀이 바뀜')
 ];
 
 describe('what the memory screen asks the plane to change', () => {
@@ -50,16 +44,10 @@ describe('what the memory screen asks the plane to change', () => {
 				body: { taskScheduleID: 'schedule-3', name: '주간 보고', kind: 'cron', cronExpression: '0 9 * * 1' }
 			},
 			{
-				capability: 'person.memory.episode_delete',
-				path: '/memory/api/episodes/delete',
-				body: { episodeID: 'episode-1', namespaceIDs: ['namespace-1', 'namespace-2'] }
-			},
-			{
-				capability: 'person.memory.pinned_update',
-				path: '/memory/api/pinned/update',
-				body: { content: '금요일마다 회고' }
-			},
-			{ capability: 'person.memory.pinned_delete', path: '/memory/api/pinned/delete', body: {} }
+				capability: 'person.memory.facts.forget',
+				path: '/memory/api/facts/forget',
+				body: { factIDs: ['fact-1'], reason: '팀이 바뀜' }
+			}
 		]);
 	});
 
@@ -87,10 +75,10 @@ describe('what the memory screen asks the plane to read', () => {
 		});
 	});
 
-	test('reads the list and the graph through capabilities the relay carries', () => {
+	test('reads the schedules and the facts through capabilities the relay carries', () => {
 		const carried = relayCapabilityPaths();
 
 		expect(carried['person.memory.schedules']).toBe('/memory/api/schedules');
-		expect(carried['person.memory.graph']).toBe('/memory/api/graph');
+		expect(carried['person.memory.facts']).toBe('/memory/api/facts');
 	});
 });

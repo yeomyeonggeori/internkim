@@ -6,14 +6,7 @@ const appRailSelector = '[data-app-rail]';
 const profileMenuSelector = '[data-app-rail-profile-menu]';
 const maximumProfileMenuRailGap = 8;
 
-const memoryGraphFixture = {
-	health: { configured: true, reachable: true },
-	namespaces: [],
-	episodes: [],
-	facts: [],
-	nodes: [],
-	edges: []
-};
+const memoryFactsFixture = { personID: 'person-1', profile: { identityLines: [], currentLines: [] }, facts: [] };
 
 type RailMetrics = {
 	menuLeft: number | null;
@@ -35,8 +28,8 @@ test.describe('app rail', () => {
 		await page.route('**/auth/session**', async (route) => {
 			await route.fulfill({ json: { authenticated: true, email: 'tester@example.com' } });
 		});
-		await page.route('**/memory/api/graph**', async (route) => {
-			await route.fulfill({ json: memoryGraphFixture });
+		await page.route('**/memory/api/facts**', async (route) => {
+			await route.fulfill({ json: memoryFactsFixture });
 		});
 	});
 

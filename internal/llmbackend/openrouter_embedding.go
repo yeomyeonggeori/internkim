@@ -7,7 +7,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
@@ -92,6 +94,54 @@ func (backend OpenRouterEmbeddingBackend) resolveModelName(requestedModel string
 }
 
 func (backend OpenRouterEmbeddingBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (EmbeddingResponse, error) {
+	var lastError error
+	for attempt := 0; attempt < openAIMaxRetryAttempts; attempt++ {
+		if attempt > 0 {
+			if errorValue := sleepWithContext(ctx, embeddingRetryDelay(attempt, lastError)); errorValue != nil {
+				return EmbeddingResponse{}, errorValue
+			}
+		}
+		response, errorValue := backend.sendOnce(ctx, apiKey, requestDocument)
+		if errorValue == nil {
+			return response, nil
+		}
+		var throttled retryableEmbeddingError
+		if !errors.As(errorValue, &throttled) {
+			return EmbeddingResponse{}, errorValue
+		}
+		lastError = errorValue
+	}
+	return EmbeddingResponse{}, lastError
+}
+
+type retryableEmbeddingError struct {
+	cause      error
+	retryAfter time.Duration
+}
+
+func (retryable retryableEmbeddingError) Error() string { return retryable.cause.Error() }
+
+func (retryable retryableEmbeddingError) Unwrap() error { return retryable.cause }
+
+func embeddingRetryDelay(attempt int, lastError error) time.Duration {
+	var throttled retryableEmbeddingError
+	if errors.As(lastError, &throttled) && throttled.retryAfter > 0 {
+		return min(throttled.retryAfter, maxEmbeddingRetryAfter)
+	}
+	return openAIRetryBackoff(attempt)
+}
+
+const maxEmbeddingRetryAfter = 30 * time.Second
+
+func parseRetryAfterHeader(value string) time.Duration {
+	seconds, errorValue := strconv.Atoi(strings.TrimSpace(value))
+	if errorValue != nil || seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func (backend OpenRouterEmbeddingBackend) sendOnce(ctx context.Context, apiKey string, requestDocument []byte) (EmbeddingResponse, error) {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return EmbeddingResponse{}, errorValue
@@ -113,7 +163,11 @@ func (backend OpenRouterEmbeddingBackend) send(ctx context.Context, apiKey strin
 		return EmbeddingResponse{}, errors.New("read openrouter embedding response: " + errorValue.Error())
 	}
 	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return EmbeddingResponse{}, normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
+		providerError := normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
+		if isRetryableUpstreamStatus(httpResponse.StatusCode) {
+			return EmbeddingResponse{}, retryableEmbeddingError{cause: providerError, retryAfter: parseRetryAfterHeader(httpResponse.Header.Get("Retry-After"))}
+		}
+		return EmbeddingResponse{}, providerError
 	}
 
 	var parsedResponse openRouterEmbeddingResponse
