@@ -14,8 +14,11 @@ import (
 )
 
 const (
-	EmbeddingGemmaModelName   = "embeddinggemma"
-	DefaultEmbeddingModelName = modelladder.EmbeddingModel
+	EmbeddingGemmaModelName         = "embeddinggemma"
+	DefaultEmbeddingModelName       = modelladder.EmbeddingModel
+	qwen3EmbeddingModelNamePrefix   = "qwen/qwen3-embedding"
+	qwen3EmbeddingInstructionPrefix = "Instruct: "
+	qwen3EmbeddingQueryInstruction  = "Instruct: Given a question about a person or their work, retrieve the memory facts that answer it\nQuery: "
 )
 
 type EmbeddingRequest struct {
@@ -125,14 +128,35 @@ func embeddingInputString(input any) string {
 }
 
 func prepareEmbeddingInputs(inputs []string, request EmbeddingRequest, modelName string, isBatch bool) []string {
-	if !strings.EqualFold(strings.TrimSpace(modelName), EmbeddingGemmaModelName) {
-		return inputs
+	trimmedModelName := strings.TrimSpace(modelName)
+	if strings.EqualFold(trimmedModelName, EmbeddingGemmaModelName) {
+		return mapEmbeddingInputs(inputs, func(input string) string {
+			return applyEmbeddingGemmaPrompt(input, request, isBatch)
+		})
 	}
-	promptedInputs := make([]string, 0, len(inputs))
+	if isQwen3EmbeddingModel(trimmedModelName) && embeddingInputType(request, isBatch) == "query" {
+		return mapEmbeddingInputs(inputs, applyQwen3QueryInstruction)
+	}
+	return inputs
+}
+
+func mapEmbeddingInputs(inputs []string, transform func(string) string) []string {
+	transformedInputs := make([]string, 0, len(inputs))
 	for _, input := range inputs {
-		promptedInputs = append(promptedInputs, applyEmbeddingGemmaPrompt(input, request, isBatch))
+		transformedInputs = append(transformedInputs, transform(input))
 	}
-	return promptedInputs
+	return transformedInputs
+}
+
+func isQwen3EmbeddingModel(modelName string) bool {
+	return strings.HasPrefix(strings.ToLower(modelName), qwen3EmbeddingModelNamePrefix)
+}
+
+func applyQwen3QueryInstruction(input string) string {
+	if strings.HasPrefix(input, qwen3EmbeddingInstructionPrefix) {
+		return input
+	}
+	return qwen3EmbeddingQueryInstruction + input
 }
 
 func applyEmbeddingGemmaPrompt(input string, request EmbeddingRequest, isBatch bool) string {

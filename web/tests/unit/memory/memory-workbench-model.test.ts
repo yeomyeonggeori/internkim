@@ -1,26 +1,47 @@
 import { describe, expect, test } from 'bun:test';
-import { isCurrentMemoryFact, memoryFactKey, memorySources } from '../../../src/routes/memory/memory-workbench-model';
-import type { MemoryGraphFact } from '../../../src/routes/memory/memory-graph-api';
+import { filterMemoryFacts, isLiveMemoryFact, memoryAudience, memoryKindLabel } from '../../../src/routes/memory/memory-workbench-model';
+import type { MemoryFact } from '../../../src/routes/memory/memory-facts-api';
+import { memoryText } from '../../../src/routes/memory/text';
 
-const fact: MemoryGraphFact = { factID: 'fact:sample', namespaceID: 'user:sample', scopeType: 'user', content: 'A useful decision' };
+const fact: MemoryFact = {
+	factID: 'fact:sample',
+	episodeID: 'episode:sample',
+	ownerPersonID: 'person:sample',
+	circleIDs: [],
+	kind: 'fact',
+	content: 'A useful decision',
+	validFrom: '2026-08-01T00:00:00Z',
+	reinforcementCount: 1
+};
 const now = Date.parse('2026-09-01T00:00:00Z');
 
 describe('the remembered facts people inspect', () => {
-	test('current means valid now, including future invalidation and past expiry', () => {
-		expect(isCurrentMemoryFact(fact, now)).toBe(true);
-		expect(isCurrentMemoryFact({ ...fact, validAt: '2026-09-02T00:00:00Z' }, now)).toBe(false);
-		expect(isCurrentMemoryFact({ ...fact, invalidAt: '2026-09-02T00:00:00Z' }, now)).toBe(true);
-		expect(isCurrentMemoryFact({ ...fact, invalidAt: '2026-08-31T00:00:00Z' }, now)).toBe(false);
-		expect(isCurrentMemoryFact({ ...fact, expiredAt: '2026-09-01T00:00:00Z' }, now)).toBe(false);
+	test('live means valid now: not before validFrom, not at or after validUntil', () => {
+		expect(isLiveMemoryFact(fact, now)).toBe(true);
+		expect(isLiveMemoryFact({ ...fact, validFrom: '2026-09-02T00:00:00Z' }, now)).toBe(false);
+		expect(isLiveMemoryFact({ ...fact, validUntil: '2026-09-02T00:00:00Z' }, now)).toBe(true);
+		expect(isLiveMemoryFact({ ...fact, validUntil: '2026-09-01T00:00:00Z' }, now)).toBe(false);
+		expect(isLiveMemoryFact({ ...fact, validUntil: '2026-08-31T00:00:00Z' }, now)).toBe(false);
 	});
 
-	test('selection stays distinct across namespace boundaries', () => {
-		expect(memoryFactKey(fact)).not.toBe(memoryFactKey({ ...fact, namespaceID: 'user:other' }));
+	test('search filters by content, kind and circle without asking the plane', () => {
+		const facts = [fact, { ...fact, factID: 'fact:shared', circleIDs: ['member'], kind: 'preference' as const, content: 'Short release notes' }];
+		expect(filterMemoryFacts(facts, '')).toEqual(facts);
+		expect(filterMemoryFacts(facts, 'DECISION').map((item) => item.factID)).toEqual(['fact:sample']);
+		expect(filterMemoryFacts(facts, 'preference').map((item) => item.factID)).toEqual(['fact:shared']);
+		expect(filterMemoryFacts(facts, 'member').map((item) => item.factID)).toEqual(['fact:shared']);
+		expect(filterMemoryFacts(facts, 'nothing here')).toEqual([]);
 	});
 
-	test('only recorded source IDs resolve, even when a fact ID matches an episode', () => {
-		const episodes = [{ episodeID: fact.factID }, { episodeID: 'source:1' }, { episodeID: 'source:2' }];
-		expect(memorySources(fact, episodes)).toEqual([]);
-		expect(memorySources({ ...fact, sourceEpisodeIDs: ['source:1', 'source:2'] }, episodes)).toEqual(episodes.slice(1));
+	test('audience names the circles a fact is shared with, or calls it mine', () => {
+		expect(memoryAudience(fact, memoryText.ko)).toBe('내 기억');
+		expect(memoryAudience({ ...fact, circleIDs: ['member', 'hr'] }, memoryText.en)).toBe('shared with circle · member, hr');
+	});
+
+	test('every fact kind has a label in both languages', () => {
+		for (const kind of ['identity', 'preference', 'fact', 'episode', 'temporary'] as const) {
+			expect(memoryKindLabel(kind, memoryText.ko)).not.toBe('');
+			expect(memoryKindLabel(kind, memoryText.en)).not.toBe('');
+		}
 	});
 });

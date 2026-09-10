@@ -10,7 +10,6 @@ func TestClassifyWorkspacePath(t *testing.T) {
 		{"/root/.blueclaw/workspace/skills/presentation/SKILL.md", WorkspaceSyncModeContent},
 		{"/workspace/sites/demo/app/dist/index.html", WorkspaceSyncModeContent},
 		{"/workspace/.blueclaw/postgres/base/1", WorkspaceSyncModeSealedSnapshot},
-		{"/workspace/.blueclaw/graphiti/kuzu/data.kz", WorkspaceSyncModeSealedSnapshot},
 		{"/workspace/.blueclaw/runtime/current/bin/blueclaw", WorkspaceSyncModeRuntimeCache},
 		{"/workspace/.blueclaw/tmp/socket.sock", WorkspaceSyncModeEphemeral},
 		{"/workspace/private/people/user-1/tmp/job-1/file.pdf", WorkspaceSyncModeEphemeral},

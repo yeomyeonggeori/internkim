@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/llmbackend"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
 )
@@ -31,11 +32,9 @@ var StepServices = Step{
 			trimmedRun(context, "systemctl is-active "+blueclaw.CapabilitydServiceName) == "active" &&
 			strings.Contains(trimmedRun(context, "cat "+blueclaw.CapabilitydServicePath), "--chatd-endpoint ") &&
 			trimmedRun(context, "systemctl is-active "+blueclaw.AdmindServiceName) == "active" &&
-			trimmedRun(context, "systemctl is-active "+blueclaw.GraphitiMemorydServiceName) == "active" &&
 			localLLMServiceUnitsAreReady(context) &&
 			trimmedRun(context, blueclaw.BlueclawHealthCheckCommand()) == "ok" &&
 			trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok" &&
-			trimmedRun(context, blueclaw.GraphitiMemorydHealthCheckCommand()) == "ok" &&
 			runtimeCheck == "ok" &&
 			rootfsBaseCheck == "ok"
 	},
@@ -64,7 +63,7 @@ chmod 700 /root/.internkim/secrets`)
 rm -rf agent-browser github summarize skill-creator 2>/dev/null; \
 echo "Cleaned unavailable skills"`)
 
-		connection.Run(`mkdir -p /root/.blueclaw/workspace/.blueclaw/postgres /root/.blueclaw/workspace/.blueclaw/graphiti /root/.blueclaw/workspace/.blueclaw/logs /root/.blueclaw/workspace/.blueclaw/blobs
+		connection.Run(`mkdir -p /root/.blueclaw/workspace/.blueclaw/postgres /root/.blueclaw/workspace/.blueclaw/logs /root/.blueclaw/workspace/.blueclaw/blobs
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.blueclaw
 chmod -R u=rwX,g=rwX,o= /root/.blueclaw/workspace/.blueclaw`)
 
@@ -184,7 +183,6 @@ func serviceUnitDocuments(context *Context) []serviceUnitDocument {
 	if !shouldManageLocalLLMServices(context) {
 		return services
 	}
-	services = append(services, serviceUnitDocument{path: blueclaw.GraphitiMemorydServicePath, document: blueclaw.GraphitiMemorydServiceUnit()})
 	return append(services,
 		serviceUnitDocument{path: locallm.LlamaCppServicePath, document: blueclaw.LlamaCppServiceUnit()},
 		serviceUnitDocument{path: locallm.LlamaCppEmbeddingServicePath, document: blueclaw.LlamaCppEmbeddingServiceUnit()},
@@ -210,7 +208,7 @@ func enabledServiceNames(context *Context) []string {
 	if !shouldManageLocalLLMServices(context) {
 		return serviceNames
 	}
-	return append([]string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName, blueclaw.GraphitiMemorydServiceName}, serviceNames...)
+	return append([]string{locallm.LlamaCppServiceName, locallm.LlamaCppEmbeddingServiceName}, serviceNames...)
 }
 
 func disabledServiceNames(context *Context) []string {
@@ -272,8 +270,6 @@ func serviceHealthChecks(context *Context) []serviceHealthCheck {
 		return checks
 	}
 	return append(checks,
-		serviceHealthCheck{name: "graphiti", command: "systemctl is-active " + blueclaw.GraphitiMemorydServiceName + " 2>/dev/null", expectedValue: "active"},
-		serviceHealthCheck{name: "graphitiHealth", command: blueclaw.GraphitiMemorydHealthCheckCommand(), expectedValue: "ok"},
 		serviceHealthCheck{name: "embedding", command: "systemctl is-active " + locallm.LlamaCppEmbeddingServiceName + " 2>/dev/null", expectedValue: "active"},
 	)
 }
@@ -354,11 +350,8 @@ if database.get("connectionString") != "user=blueclaw dbname=blueclaw host=/work
     raise SystemExit
 
 memory = runtime_configuration.get("memory", {})
-if memory.get("graphitiEndpoint") != "http://127.0.0.1:7791":
-    print("runtime-graphiti-endpoint")
-    raise SystemExit
-if memory.get("graphitiKuzuPath") != "/workspace/.blueclaw/graphiti/kuzu":
-    print("runtime-graphiti-path")
+if memory.get("embeddingModel") != "` + llmbackend.DefaultEmbeddingModelName + `":
+    print("runtime-memory-embedding-model")
     raise SystemExit
 
 terminal = runtime_configuration.get("terminal", {})
@@ -514,4 +507,8 @@ PY`
 
 func BlueclawRootfsBaseContractCheckCommand() string {
 	return blueclawRootfsBaseContractCheckCommand()
+}
+
+func capabilitydHealthIsReady(context *Context) bool {
+	return trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
 }

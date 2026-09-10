@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestMemorySignerMatchesCanonicalVerifierFixture(t *testing.T) {
 	if errorValue := json.Unmarshal(document, &fixture); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	header, errorValue := signMemoryAssertion([]byte(fixture.Body), fixture.ReaderPersonID, fixture.ExpiresAt, fixture.Path, fixture.Secret)
+	header, errorValue := signRequestAssertion(http.MethodPost, fixture.Path, []byte(fixture.Body), fixture.ReaderPersonID, fixture.ExpiresAt, fixture.Secret)
 	if errorValue != nil || header != fixture.Header {
 		t.Fatalf("signer differs from canonical verifier fixture: %v", errorValue)
 	}
