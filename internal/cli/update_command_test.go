@@ -1,6 +1,9 @@
 package cli
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 type updateCommandCall struct {
 	directoryPath string
@@ -197,4 +200,18 @@ func equalStrings(left []string, right []string) bool {
 		}
 	}
 	return true
+}
+
+func TestUpdateRefusesAWordItDoesNotKnow(t *testing.T) {
+	calls := captureUpdateCommandCalls(t)
+	withUpdateExecutablePath(t, "./internkim")
+
+	errorValue := runUpdateArguments([]string{"stauts", "--host", "192.0.2.10"})
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "stauts") {
+		t.Fatalf("expected the unknown word to be refused, got %v", errorValue)
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("a refused word must not build or deploy anything, got %+v", *calls)
+	}
 }
