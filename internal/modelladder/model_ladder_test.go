@@ -1,6 +1,7 @@
 package modelladder
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -56,5 +57,33 @@ func TestEveryModelNameIsAProviderQualifiedIdentifier(t *testing.T) {
 		if !strings.Contains(modelName, "/") {
 			t.Fatalf("%q is not a model identifier an endpoint would recognize", modelName)
 		}
+	}
+}
+
+func TestEveryRungAsksForTheSameServingAndTheTiersOwnEffort(t *testing.T) {
+	document := LanguageModelDocument("", "")
+	for _, tier := range Tiers {
+		for _, rung := range document.Tiers[tier] {
+			if rung.ProviderSort != ProviderSort || !reflect.DeepEqual(rung.ProviderOrder, PreferredProviders()) {
+				t.Fatalf("%s rung lost the serving preference: %+v", tier, rung)
+			}
+			if rung.ReasoningEffort != ReasoningEffort(tier) {
+				t.Fatalf("%s rung thinks at %q, the tier says %q", tier, rung.ReasoningEffort, ReasoningEffort(tier))
+			}
+		}
+	}
+}
+
+func TestEveryTierNamesAReasoningEffortAndTheLowestThinksNot(t *testing.T) {
+	for _, tier := range Tiers {
+		if ReasoningEffort(tier) == "" {
+			t.Fatalf("the %s tier names no reasoning effort", tier)
+		}
+	}
+	if ReasoningEffort("xlow") != "none" {
+		t.Fatalf("xlow answers without thinking, got %q", ReasoningEffort("xlow"))
+	}
+	if ReasoningEffort("unknown") != "" {
+		t.Fatal("a tier nobody defined must not be given an effort")
 	}
 }

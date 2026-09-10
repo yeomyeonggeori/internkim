@@ -277,7 +277,7 @@ func assertOpenRouterLiveSchemaAccepted(ctx context.Context, backend OpenRouterB
 	if errorValue != nil {
 		return errorValue
 	}
-	requestDocument, _, errorValue := buildOpenRouterChatActionRequest(request, backend.resolveModelName(request.Model), toolSet.Tools, toolSet.NativeSchemaLint)
+	requestDocument, _, errorValue := backend.buildChatActionRequest(request, backend.resolveModelName(request.Model), toolSet.Tools, toolSet.NativeSchemaLint)
 	if errorValue != nil {
 		return errorValue
 	}
