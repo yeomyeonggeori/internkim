@@ -1,12 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { outcomeOfStatus, sendWebPush } from '../../../supabase/functions/_shared/web-push.ts';
 import { encodeBase64URL } from '../../src/lib/notifications/base64url';
+import { aVapidPair } from '../support/a-vapid-pair';
 
-const keys = {
-	publicKey: 'BG0w6CuCogoJKa593BzjeAk_VAOmSYtz4Crk7OBQPEYa3_peOcMJEln_GG6LyW-0nl82LPHDClzU8_0nB4Z5dcs',
-	privateKey: 'NNK7ZJuRBBHnpKs9X0R0aM4Tff6BaVUfPwmnYTdPuWA',
-	subject: 'mailto:support@example.com'
-};
+const keys = aVapidPair;
 
 const subscriberPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
 const target = {
