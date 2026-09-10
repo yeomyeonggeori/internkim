@@ -1,4 +1,5 @@
 import { pkcs8FromPEM, signedJWT } from './jwt.ts';
+import { sayPushNotDelivered } from './push-diagnostics.ts';
 import type { Notification, PushOutcome } from './push-vocabulary.ts';
 
 export type FcmKey = {
@@ -67,7 +68,8 @@ export async function sendFcm(
 	let accessToken: string;
 	try {
 		accessToken = await fcmAccessToken(key, nowInSeconds);
-	} catch {
+	} catch (failure) {
+		sayPushNotDelivered({ channel: 'fcm', address: deviceToken, stage: 'authorization', outcome: 'refused', failure });
 		return 'refused';
 	}
 
@@ -77,8 +79,21 @@ export async function sendFcm(
 			headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
 			body: JSON.stringify(fcmMessage(deviceToken, notification))
 		});
-		return outcomeOfFcmAnswer(response.status, await refusalCode(response));
-	} catch {
+		const reason = await refusalCode(response);
+		const outcome = outcomeOfFcmAnswer(response.status, reason);
+		if (outcome !== 'delivered') {
+			sayPushNotDelivered({
+				channel: 'fcm',
+				address: deviceToken,
+				stage: 'answer',
+				outcome,
+				status: response.status,
+				reason
+			});
+		}
+		return outcome;
+	} catch (failure) {
+		sayPushNotDelivered({ channel: 'fcm', address: deviceToken, stage: 'request', outcome: 'refused', failure });
 		return 'refused';
 	}
 }
