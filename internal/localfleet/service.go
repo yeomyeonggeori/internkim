@@ -221,6 +221,7 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		"buzz-inbound-mention":        always(service.buzzInboundMentionScenarioPlans),
 		"restart-policy-survival":     always(service.restartPolicySurvivalScenarioPlans),
 		"workspace-persistence":       always(service.workspacePersistenceScenarioPlans),
+		"workspace-ownership":         always(service.workspaceOwnershipScenarioPlans),
 		"learning-settings":           always(service.learningSettingsScenarioPlans),
 		"morning-briefing":            always(service.morningBriefingScenarioPlans),
 		"personal-settings":           always(service.personalSettingsScenarioPlans),

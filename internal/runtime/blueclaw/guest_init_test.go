@@ -2,6 +2,7 @@ package blueclaw
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -41,24 +42,12 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 	}
 }
 
-func TestGuestInitCreatesResourceFirstWorkspaceLayout(t *testing.T) {
+func TestGuestInitDelegatesWorkspaceLayoutToPOSIXPolicy(t *testing.T) {
 	document := readGuestInit(t)
 	for _, expectedFragment := range []string{
-		"/workspace/circles/member",
-		"/workspace/circles/c-level",
-		"/workspace/circles/representative",
-		"/workspace/circles/admin",
-		"/workspace/circles/hr",
-		"/workspace/private/people",
-		"/workspace/shared/public",
-		"chown -R blueclaw:blueclaw",
-		"/workspace/circles",
-		"/workspace/private",
-		"/workspace/shared",
-		"chmod 0711 /workspace/circles /workspace/private /workspace/private/people",
-		"chmod 0755 /workspace/shared /workspace/shared/public",
-		"shared/cache/dependencies",
-		"shared/cache/dependencies/bun",
+		"blueclaw-posix-helper sync",
+		"--policy /delivery/config/policy.json",
+		"--workspace /workspace",
 		"seed_blueclaw_bun_cache",
 		"/opt/blueclaw/bun-cache",
 	} {
@@ -66,6 +55,66 @@ func TestGuestInitCreatesResourceFirstWorkspaceLayout(t *testing.T) {
 			t.Fatalf("expected guest init to contain %q", expectedFragment)
 		}
 	}
+}
+
+func TestGuestInitPreservesUserWorkspaceOwnership(t *testing.T) {
+	script := `set -eu
+ensure_workspace_directory() { printf 'mkdir %s\n' "$*"; }
+rmdir() { :; }
+chmod() { printf 'chmod %s\n' "$*"; }
+find() { printf 'find %s\n' "$*"; }
+chown() { printf 'chown %s\n' "$*"; }
+`
+	script += guestInitFunction(t, "prepare_blueclaw_workspace") + "\nprepare_blueclaw_workspace\n"
+	output, errorValue := exec.Command("bash", "-c", script).CombinedOutput()
+	if errorValue != nil {
+		t.Fatalf("prepare workspace: %v\n%s", errorValue, output)
+	}
+	for _, operation := range strings.Split(string(output), "\n") {
+		for _, argument := range strings.Fields(operation) {
+			if !strings.HasPrefix(argument, "/workspace") {
+				continue
+			}
+			if argument == "/workspace" && !strings.Contains(operation, " -R ") {
+				continue
+			}
+			if argument == "/workspace/.blueclaw" || strings.HasPrefix(argument, "/workspace/.blueclaw/") {
+				continue
+			}
+			t.Errorf("boot must leave user workspace management to POSIX policy: %s", operation)
+		}
+	}
+}
+
+func TestGuestInitStopsWhenPOSIXPolicySynchronizationFails(t *testing.T) {
+	workspacePath := t.TempDir()
+	if errorValue := os.MkdirAll(filepath.Join(workspacePath, ".blueclaw", "logs"), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	function := strings.ReplaceAll(guestInitFunction(t, "sync_blueclaw_posix_policy"), "/workspace", workspacePath)
+	script := "set -eu\n/usr/local/bin/blueclaw-posix-helper() { return 23; }\nlog_guest_init() { printf '%s\\n' \"$*\"; }\n"
+	script += function + "\nsync_blueclaw_posix_policy\nprintf 'continued boot\\n'\n"
+	output, errorValue := exec.Command("bash", "-c", script).CombinedOutput()
+	if errorValue == nil || strings.Contains(string(output), "continued boot") {
+		t.Fatalf("boot continued after failed POSIX synchronization: %s", output)
+	}
+	if !strings.Contains(string(output), "posix policy synchronization failed") {
+		t.Fatalf("missing actionable boot failure: %s", output)
+	}
+}
+
+func guestInitFunction(t *testing.T, name string) string {
+	t.Helper()
+	document := readGuestInit(t)
+	start := strings.Index(document, name+"() {")
+	if start < 0 {
+		t.Fatalf("missing guest-init function %s", name)
+	}
+	end := strings.Index(document[start:], "\n}\n")
+	if end < 0 {
+		t.Fatalf("missing guest-init function boundary for %s", name)
+	}
+	return document[start : start+end+2]
 }
 
 func readGuestInit(t *testing.T) string {

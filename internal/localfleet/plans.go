@@ -208,6 +208,17 @@ func (service Service) prepareContainerKernelPlan() CommandPlan {
 	return service.command(filepath.Join(service.options.RepositoryRootPath, "tools", "prepare-container-kernel"))
 }
 
+func (service Service) workspaceOwnershipScenarioPlans() []CommandPlan {
+	return []CommandPlan{
+		service.command("env", "GOOS=linux", "GOARCH=arm64", "CGO_ENABLED=0", "go", "-C", ".dependency/blueclaw", "build",
+			"-o", "../../.artifacts/workspace-ownership/blueclaw-posix-helper", "./cmd/blueclaw-posix-helper"),
+		service.prepareContainerKernelPlan(),
+		service.labCommand("vm-up"),
+		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
+		service.labCommand("vm-ssh", "sudo bash /mnt/shared/workspace/lab/scripts/scenario-workspace-ownership.sh /mnt/shared/workspace"),
+	}
+}
+
 func (service Service) downPlans() []CommandPlan {
 	return []CommandPlan{
 		service.shellPlan("stop localhost tunnel", service.stopTunnelCommand()),
