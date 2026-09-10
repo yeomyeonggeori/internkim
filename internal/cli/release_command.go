@@ -537,7 +537,8 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 		if errorValue := os.MkdirAll(filepath.Dir(outputPath), 0o755); errorValue != nil {
 			return errorValue
 		}
-		command := exec.Command("go", "build", "-o", outputPath, packagePath)
+		arguments := append([]string{"build"}, releaseBinaryBuildFlags(repositoryRootPath)...)
+		command := exec.Command("go", append(arguments, "-o", outputPath, packagePath)...)
 		command.Dir = repositoryRootPath
 		command.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
 		output, errorValue := command.CombinedOutput()
@@ -546,6 +547,17 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 		}
 		return nil
 	}
+}
+
+func releaseBinaryBuildFlags(repositoryRootPath string) []string {
+	revision := strings.TrimSpace(runCmd("git", "-C", repositoryRootPath, "rev-parse", "--short", "HEAD"))
+	if revision == "" {
+		revision = "unknown"
+	}
+	return []string{"-ldflags", strings.Join([]string{
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + revision,
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
+	}, " ")}
 }
 
 func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {
