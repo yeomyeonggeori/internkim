@@ -568,6 +568,7 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
 	'person.task.quick_task': '/task/api/tasks/quick',
 	'person.runs.approve': '/runs/api/approve',
+	'person.runs.retry': '/runs/api/retry',
 	'person.memory.episode_delete': '/memory/api/episodes/delete',
 	'person.memory.fact_update': '/memory/api/facts/update',
 	'person.memory.fact_delete': '/memory/api/facts/delete',

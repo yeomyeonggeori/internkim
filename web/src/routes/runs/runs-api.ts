@@ -95,6 +95,27 @@ export async function deleteTaskRun(taskRunID: string): Promise<void> {
 	}
 }
 
+export type RetryTaskRunResponse = {
+	taskRunID: string;
+	status: string;
+};
+
+export async function retryTaskRun(taskRunID: string): Promise<RetryTaskRunResponse> {
+	const request = { taskRunID };
+	const document = isSupabaseConfigured()
+		? await askTheCompanyAppToRetry(request)
+		: await askTheDeviceToRetry(request);
+	return readRetryTaskRunResponse(document);
+}
+
+export function readRetryTaskRunResponse(document: unknown): RetryTaskRunResponse {
+	const record = readRecord(document);
+	if (!record || typeof record.taskRunID !== 'string' || !record.taskRunID.trim() || typeof record.status !== 'string' || !record.status.trim()) {
+		throw new Error('Retry task run response was malformed');
+	}
+	return { taskRunID: record.taskRunID, status: record.status };
+}
+
 export const waitingApprovalStatus = 'waiting_approval';
 export const confirmationRequestedEventName = 'confirmation.requested';
 export const askRequestedEventName = 'ask.requested';
@@ -179,6 +200,22 @@ async function askTheDeviceToDecide(request: ApprovalDecisionRequest): Promise<u
 async function askTheCompanyAppToDecide(request: ApprovalDecisionRequest): Promise<unknown> {
 	const answer = await callCompanyApp({ capability: 'person.runs.approve', body: { ...request } });
 	if (answer.status >= 400) throw new Error(`Task approval request returned ${answer.status}`);
+	return answer.body;
+}
+
+async function askTheDeviceToRetry(request: { taskRunID: string }): Promise<unknown> {
+	const response = await adminApiFetch('/runs/api/retry', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(request)
+	});
+	if (!response.ok) throw new Error(`Task retry request returned ${response.status}`);
+	return response.json();
+}
+
+async function askTheCompanyAppToRetry(request: { taskRunID: string }): Promise<unknown> {
+	const answer = await callCompanyApp({ capability: 'person.runs.retry', body: request });
+	if (answer.status >= 400) throw new Error(`Task retry request returned ${answer.status}`);
 	return answer.body;
 }
 
@@ -443,7 +480,7 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 
 async function askTheDeviceForDetail(taskRunID: string): Promise<unknown> {
 	const query = new URLSearchParams({ taskRunID });
-	const response = await adminApiFetch(`/runs/api/run-detail?${query.toString()}`);
+	const response = await adminApiFetch(`/runs/api/detail?${query.toString()}`);
 	if (!response.ok) throw new Error(`Task detail request returned ${response.status}`);
 	return response.json();
 }

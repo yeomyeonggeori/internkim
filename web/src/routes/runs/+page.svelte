@@ -22,6 +22,7 @@
 	import { deleteTaskRun, fetchTaskRuns, formatCostUSD, type DailyCostScope, type DailyCostSummary, type TaskRunSummary } from './runs-api';
 	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './runs-view';
 	import { tasksText } from './text';
+	import RetryTaskButton from './retry-task-button.svelte';
 
 	const text = createPageText(tasksText);
 	const taskPageSize = 15;
@@ -301,6 +302,9 @@
 								<span class="truncate">{formatTaskTimestamp(taskRun.updatedAt)}</span>
 								<div class="flex shrink-0 items-center gap-2">
 									<span class="font-medium text-foreground tabular-nums">{taskRunCostLabel(taskRun)}</span>
+									{#if taskRun.status === 'failed'}
+										<RetryTaskButton taskRunID={taskRun.taskRunID} label={text.retryTask} pendingLabel={text.retryingTask} successMessage={text.retrySuccess} errorMessage={text.retryError} />
+									{/if}
 									{#if deletableTaskStatuses.has(taskRun.status)}
 										<DropdownMenu.Root>
 											<DropdownMenu.Trigger onclick={stopRowActionClick}>
@@ -381,6 +385,9 @@
 										{formatTaskTimestamp(taskRun.updatedAt)}
 									</Table.Cell>
 									<Table.Cell class="text-right">
+										{#if taskRun.status === 'failed'}
+											<RetryTaskButton taskRunID={taskRun.taskRunID} label={text.retryTask} pendingLabel={text.retryingTask} successMessage={text.retrySuccess} errorMessage={text.retryError} />
+										{/if}
 										{#if deletableTaskStatuses.has(taskRun.status)}
 											<DropdownMenu.Root>
 												<DropdownMenu.Trigger onclick={stopRowActionClick}>
