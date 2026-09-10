@@ -29,7 +29,20 @@ type openAIRequest struct {
 	Seed                 *int64                 `json:"seed,omitempty"`
 	Temperature          *float64               `json:"temperature,omitempty"`
 	MaxTokens            *int                   `json:"max_tokens,omitempty"`
+	Provider             map[string]any         `json:"provider,omitempty"`
+	Reasoning            *openAIReasoning       `json:"reasoning,omitempty"`
 	NativeToolSchemaLint NativeSchemaLintResult `json:"-"`
+}
+
+type openAIReasoning struct {
+	Effort string `json:"effort"`
+}
+
+func openAIReasoningFor(effort string) *openAIReasoning {
+	if strings.TrimSpace(effort) == "" {
+		return nil
+	}
+	return &openAIReasoning{Effort: strings.TrimSpace(effort)}
 }
 
 type openAIMessage struct {
@@ -68,7 +81,8 @@ type openAIUsage struct {
 }
 
 type openAIResponse struct {
-	Choices []struct {
+	Provider string `json:"provider"`
+	Choices  []struct {
 		FinishReason string `json:"finish_reason"`
 		Message      struct {
 			Role      string           `json:"role"`
@@ -79,7 +93,8 @@ type openAIResponse struct {
 }
 
 type openAIResponseWithUsage struct {
-	Choices []struct {
+	Provider string `json:"provider"`
+	Choices  []struct {
 		FinishReason string `json:"finish_reason"`
 		Message      struct {
 			Role      string           `json:"role"`
@@ -300,6 +315,7 @@ func openAIActionToolRequest(modelName string, messages []Message, tools []nativ
 
 func openAIChatCompletionRequest(modelName string, request ChatRequest) openAIRequest {
 	parallelToolCalls := request.ParallelToolCalls
+	options := generationOptionsValue(request.GenerationOptions)
 	return openAIRequest{
 		Model:         modelName,
 		Messages:      openAIChatMessages(request.Messages),
@@ -307,6 +323,9 @@ func openAIChatCompletionRequest(modelName string, request ChatRequest) openAIRe
 		Tools:         openAIChatTools(request.Tools),
 		ToolChoice:    request.ToolChoice,
 		ParallelTools: &parallelToolCalls,
+		Seed:          options.Seed,
+		Temperature:   options.Temperature,
+		MaxTokens:     options.MaxTokens,
 	}
 }
 
@@ -462,9 +481,10 @@ func chatResponseFromOpenAI(providerName string, modelName string, response open
 	choice := response.Choices[0]
 	role := firstNonEmpty(choice.Message.Role, "assistant")
 	return ChatResponse{
-		FinishReason: choice.FinishReason,
-		Provider:     providerName,
-		Model:        modelName,
+		FinishReason:     choice.FinishReason,
+		Provider:         providerName,
+		UpstreamProvider: response.Provider,
+		Model:            modelName,
 		Message: ChatResponseMessage{
 			Role:      role,
 			Content:   choice.Message.Content,

@@ -18,10 +18,39 @@ var DegradedModels = []string{
 
 var Tiers = []string{"xlow", "low", "medium", "high", "xhigh", "max"}
 
+// OpenRouter balances a request across a model's providers by price unless
+// the request names an order or a sort.
+// https://openrouter.ai/docs/features/provider-routing
+const ProviderSort = "throughput"
+
+var preferredProviders = []string{"modal", "baseten"}
+
+func PreferredProviders() []string {
+	return append([]string{}, preferredProviders...)
+}
+
+// OpenRouter's effort levels: none, minimal, low, medium, high, xhigh, max.
+// https://openrouter.ai/docs/use-cases/reasoning-tokens
+var reasoningEffortByTier = map[string]string{
+	"xlow":   "none",
+	"low":    "low",
+	"medium": "medium",
+	"high":   "high",
+	"xhigh":  "xhigh",
+	"max":    "max",
+}
+
+func ReasoningEffort(tier string) string {
+	return reasoningEffortByTier[strings.TrimSpace(tier)]
+}
+
 type Rung struct {
-	Endpoint   string `json:"endpoint"`
-	Model      string `json:"model"`
-	APIKeyPath string `json:"apiKeyPath,omitempty"`
+	Endpoint        string   `json:"endpoint"`
+	Model           string   `json:"model"`
+	APIKeyPath      string   `json:"apiKeyPath,omitempty"`
+	ProviderOrder   []string `json:"providerOrder,omitempty"`
+	ProviderSort    string   `json:"providerSort,omitempty"`
+	ReasoningEffort string   `json:"reasoningEffort,omitempty"`
 }
 
 type Document struct {
@@ -33,10 +62,17 @@ func ModelNames() []string {
 	return append([]string{PrimaryModel}, DegradedModels...)
 }
 
-func rungsForOneTier(endpointURL string, apiKeyPath string) []Rung {
+func rungsForOneTier(tier string, endpointURL string, apiKeyPath string) []Rung {
 	rungs := []Rung{}
 	for _, modelName := range ModelNames() {
-		rungs = append(rungs, Rung{Endpoint: endpointURL, Model: modelName, APIKeyPath: apiKeyPath})
+		rungs = append(rungs, Rung{
+			Endpoint:        endpointURL,
+			Model:           modelName,
+			APIKeyPath:      apiKeyPath,
+			ProviderOrder:   PreferredProviders(),
+			ProviderSort:    ProviderSort,
+			ReasoningEffort: ReasoningEffort(tier),
+		})
 	}
 	return rungs
 }
@@ -48,7 +84,7 @@ func LanguageModelDocument(endpointURL string, apiKeyPath string) Document {
 	}
 	tiers := map[string][]Rung{}
 	for _, tier := range Tiers {
-		tiers[tier] = rungsForOneTier(reachedEndpoint, apiKeyPath)
+		tiers[tier] = rungsForOneTier(tier, reachedEndpoint, apiKeyPath)
 	}
 	return Document{
 		Tiers:     tiers,
