@@ -285,7 +285,7 @@ func TestScenarioPlanPassesConfigBeforeRemoteCommand(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	plan := service.blueclawLabScenarioScriptPlan("dm-recipient-resolve")
+	plan := service.blueclawLabScenarioScriptPlan("buzz-direct-message")
 	configIndex := -1
 	commandIndex := -1
 	for index, argument := range plan.Arguments {
