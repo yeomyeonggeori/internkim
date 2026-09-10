@@ -1,4 +1,4 @@
-package kim.intern.app;
+package app.intern.kim;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;

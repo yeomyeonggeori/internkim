@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "kim.intern.app"
+    namespace = "app.intern.kim"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "kim.intern.app"
+        applicationId "app.intern.kim"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

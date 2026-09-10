@@ -30,7 +30,7 @@ async function apnsKeys() {
 	return {
 		keyID: 'ABC123DEFG',
 		teamID: 'HIJ456KLMN',
-		bundleID: 'kim.intern.app',
+		bundleID: 'app.intern.kim',
 		privateKey: `-----BEGIN PRIVATE KEY-----\n${asPEMBody(pkcs8)}\n-----END PRIVATE KEY-----`,
 		environment: 'production' as const
 	};
