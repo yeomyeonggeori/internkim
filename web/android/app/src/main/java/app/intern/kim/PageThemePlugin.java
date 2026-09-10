@@ -1,4 +1,4 @@
-package kim.intern.app;
+package app.intern.kim;
 
 import android.graphics.Color;
 import android.view.Window;
