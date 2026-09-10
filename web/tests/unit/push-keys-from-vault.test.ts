@@ -7,7 +7,7 @@ const vapid = { publicKey: 'vault-public', privateKey: 'vault-private', subject:
 const apns: ApnsKey = {
 	keyID: 'ABC123DEFG',
 	teamID: 'HIJ456KLMN',
-	bundleID: 'kim.intern.app',
+	bundleID: 'app.intern.kim',
 	privateKey: '-----BEGIN PRIVATE KEY-----\nMIG\n-----END PRIVATE KEY-----',
 	environment: 'production'
 };
