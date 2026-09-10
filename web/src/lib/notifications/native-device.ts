@@ -41,9 +41,11 @@ export function reachabilityOfPermission(permission: PermissionState): Reachabil
 	return 'off';
 }
 
-async function pushPlugin(): Promise<PushPlugin> {
+type PushPluginBox = { push: PushPlugin };
+
+async function pushPlugin(): Promise<PushPluginBox> {
 	const { PushNotifications } = await import('@capacitor/push-notifications');
-	return PushNotifications as unknown as PushPlugin;
+	return { push: PushNotifications as unknown as PushPlugin };
 }
 
 function rememberToken(token: string): void {
@@ -94,12 +96,12 @@ async function claim(token: string): Promise<void> {
 }
 
 export async function nativeReachability(): Promise<Reachability> {
-	const push = await pushPlugin();
+	const { push } = await pushPlugin();
 	return reachabilityOfPermission((await push.checkPermissions()).receive);
 }
 
 export async function startBeingNativelyReached(): Promise<Reachability> {
-	const push = await pushPlugin();
+	const { push } = await pushPlugin();
 	const asked = await push.requestPermissions();
 	if (asked.receive !== 'granted') return reachabilityOfPermission(asked.receive);
 	await claim(await registeredToken(push));
@@ -107,7 +109,7 @@ export async function startBeingNativelyReached(): Promise<Reachability> {
 }
 
 export async function stopBeingNativelyReached(): Promise<Reachability> {
-	const push = await pushPlugin();
+	const { push } = await pushPlugin();
 	const token = heldToken();
 	if (token) {
 		await invokeTool('push_device_release', { endpoint: token, kind: nativeDeviceKind() });
@@ -119,14 +121,14 @@ export async function stopBeingNativelyReached(): Promise<Reachability> {
 
 export async function keepNativeDeviceClaimed(): Promise<void> {
 	if (!isInsideNativeShell()) return;
-	const push = await pushPlugin();
+	const { push } = await pushPlugin();
 	if ((await push.checkPermissions()).receive !== 'granted') return;
 	await claim(await registeredToken(push));
 }
 
 export async function goWhereNativeNotificationsPoint(go: (path: string) => void): Promise<() => void> {
 	if (!isInsideNativeShell()) return () => {};
-	const push = await pushPlugin();
+	const { push } = await pushPlugin();
 	const handle = await push.addListener('pushNotificationActionPerformed', (tapped) => {
 		const path = openPathOfTappedNotification(tapped);
 		if (path) go(path);
