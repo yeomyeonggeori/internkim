@@ -307,6 +307,16 @@ func (service Service) personalSettingsScenarioPlans() []CommandPlan {
 	))
 }
 
+func (service Service) taskHistoryRetryScenarioPlans() []CommandPlan {
+	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-task-history-retry.py", service.virtualSessionArtifactDirectoryPath("task-history-retry")}
+	return append(service.upPlans(true),
+		service.shellPlan("build task retry database acceptance", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -o ../../build/task-history-retry-postgres.test ./internal/store/postgres"),
+		service.shellPlan("build task retry runtime acceptance", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -o ../../build/task-history-retry-runtime.test ./internal/connectors"),
+		service.shellPlan("build task retry proxy acceptance", "GOOS=linux GOARCH=arm64 go test -c -o build/task-history-retry-admind.test ./internal/admind"),
+		service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)),
+	)
+}
+
 func (service Service) companyBrowserVerificationPlan() CommandPlan {
 	return CommandPlan{
 		DirectoryPath: filepath.Join(service.options.RepositoryRootPath, "web"),
