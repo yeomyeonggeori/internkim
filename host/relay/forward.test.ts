@@ -745,6 +745,24 @@ describe('every capability the workspace family names', () => {
 		expect(call?.requester).toBe('sample@example.test');
 	});
 
+	test('a retry request is posted with the actor removed', () => {
+		const call = workspaceCallOf(
+			'person.runs.retry',
+			{ taskRunID: 'run-1', actor: { kind: 'forged' }, viewerEmail: 'forged@example.test', viewerIsAdmin: false },
+			'sample@example.test'
+		);
+
+		expect(call?.method).toBe('POST');
+		expect(call?.url).toBe('http://internkim/runs/api/retry');
+		expect(call?.contentType).toBe('application/json');
+		expect(JSON.parse(String(call?.body))).toEqual({
+			taskRunID: 'run-1',
+			viewerEmail: 'forged@example.test',
+			viewerIsAdmin: false
+		});
+		expect(call?.requester).toBe('sample@example.test');
+	});
+
 	test('the skill inventory is a workspace read, not a message to the agent', () => {
 		expect(isWorkspaceCapability('person.skills.list')).toBe(true);
 		const call = workspaceCallOf('person.skills.list', { actor: { kind: 'buzz' } }, 'sample@example.test');
