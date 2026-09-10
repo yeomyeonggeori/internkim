@@ -49,24 +49,12 @@ prepare_blueclaw_workspace() {
     /workspace/.blueclaw/config \
     /workspace/.blueclaw/migrations \
     /workspace/.blueclaw/runtime \
-    /workspace/.blueclaw/tmp \
-    /workspace/circles/member \
-    /workspace/circles/c-level \
-    /workspace/circles/representative \
-    /workspace/circles/admin \
-    /workspace/circles/hr \
-    /workspace/private/people \
-    /workspace/shared/public \
-    /workspace/shared/cache/dependencies \
-    /workspace/shared/cache/dependencies/bun; do
+    /workspace/.blueclaw/tmp; do
     ensure_workspace_directory "$workspaceDirectory"
   done
 
   chown blueclaw:blueclaw /workspace /workspace/.blueclaw
   chown -R blueclaw:blueclaw \
-    /workspace/circles \
-    /workspace/private \
-    /workspace/shared \
     /workspace/.blueclaw/logs \
     /workspace/.blueclaw/blobs \
     /workspace/.blueclaw/config \
@@ -74,8 +62,6 @@ prepare_blueclaw_workspace() {
     /workspace/.blueclaw/runtime \
     /workspace/.blueclaw/tmp
   chmod 0755 /workspace /workspace/.blueclaw
-  chmod 0711 /workspace/circles /workspace/private /workspace/private/people
-  chmod 0755 /workspace/shared /workspace/shared/public
   chmod 0750 /workspace/.blueclaw/config
   chmod 0770 \
     /workspace/.blueclaw/logs \
@@ -100,10 +86,11 @@ seed_blueclaw_bun_cache() {
 }
 
 sync_blueclaw_posix_policy() {
-  if [ -x /usr/local/bin/blueclaw-posix-helper ] && [ -s /delivery/config/policy.json ]; then
-    /usr/local/bin/blueclaw-posix-helper sync \
-      --policy /delivery/config/policy.json \
-      --workspace /workspace >/workspace/.blueclaw/logs/posix-sync.log 2>&1 || true
+  if ! /usr/local/bin/blueclaw-posix-helper sync \
+    --policy /delivery/config/policy.json \
+    --workspace /workspace >/workspace/.blueclaw/logs/posix-sync.log 2>&1; then
+    log_guest_init "posix policy synchronization failed; see /workspace/.blueclaw/logs/posix-sync.log"
+    return 1
   fi
 }
 
