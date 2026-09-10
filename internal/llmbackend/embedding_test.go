@@ -91,6 +91,33 @@ func TestEmbeddingInputsRemainUnchangedForOtherModels(t *testing.T) {
 	}
 }
 
+func TestQwen3EmbeddingQueriesCarryTheRetrievalInstruction(t *testing.T) {
+	preparedInputs := prepareEmbeddingInputs([]string{"who runs payroll"}, EmbeddingRequest{InputType: "query"}, "qwen/qwen3-embedding-8b", false)
+
+	expected := "Instruct: Given a question about a person or their work, retrieve the memory facts that answer it\nQuery: who runs payroll"
+	if len(preparedInputs) != 1 || preparedInputs[0] != expected {
+		t.Fatalf("expected the query instruction prefix, got %+v", preparedInputs)
+	}
+}
+
+func TestQwen3EmbeddingDocumentsAreSentAsIs(t *testing.T) {
+	inputs := []string{"이샘플 runs payroll", "박예시 prefers morning meetings"}
+	preparedInputs := prepareEmbeddingInputs(inputs, EmbeddingRequest{InputType: "document"}, "Qwen/Qwen3-Embedding-8B", true)
+
+	if len(preparedInputs) != 2 || preparedInputs[0] != inputs[0] || preparedInputs[1] != inputs[1] {
+		t.Fatalf("expected documents unchanged, got %+v", preparedInputs)
+	}
+}
+
+func TestQwen3EmbeddingKeepsAnInstructionTheCallerAlreadyWrote(t *testing.T) {
+	input := "Instruct: Retrieve passages\nQuery: who runs payroll"
+	preparedInputs := prepareEmbeddingInputs([]string{input}, EmbeddingRequest{InputType: "query"}, "qwen/qwen3-embedding-8b", false)
+
+	if len(preparedInputs) != 1 || preparedInputs[0] != input {
+		t.Fatalf("expected the caller's instruction kept, got %+v", preparedInputs)
+	}
+}
+
 func TestOpenRouterEmbeddingBackendKeepsCanonicalModelName(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "openrouter-key")
 	if errorValue := os.WriteFile(secretPath, []byte("test-key"), 0o600); errorValue != nil {

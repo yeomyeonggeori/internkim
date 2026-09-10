@@ -1,43 +1,18 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-const memoryGraphNodeCount = 12;
-const graphSizeTolerancePixel = 1;
-
-const memoryGraphFixture = {
-	health: { configured: true, reachable: true },
-	namespaces: [
-		{
-			namespaceID: 'workspace-memory',
-			scopeType: 'workspace',
-			episodeCount: memoryGraphNodeCount
-		}
-	],
-	episodes: Array.from({ length: memoryGraphNodeCount }, (_, index) => ({ episodeID: `episode-${index}` })),
-	facts: Array.from({ length: memoryGraphNodeCount }, (_, index) => ({
+const memoryFactsFixture = {
+	personID: 'person-1',
+	profile: { identityLines: ['이샘플은 플랫폼 팀 소속이다.'], currentLines: [] },
+	facts: Array.from({ length: 12 }, (_, index) => ({
 		factID: `fact-${index}`,
-		scopeType: 'workspace',
-		namespaceID: 'workspace-memory',
-		content: `Memory fact ${index}`
-	})),
-	nodes: [
-		{ nodeID: 'namespace', label: 'workspace-memory', kind: 'namespace', scopeType: 'workspace' },
-		...Array.from({ length: memoryGraphNodeCount }, (_, index) => ({
-			nodeID: `fact-${index}`,
-			label: `Fact ${index}`,
-			kind: 'fact',
-			scopeType: 'workspace'
-		}))
-	],
-	edges: Array.from({ length: memoryGraphNodeCount }, (_, index) => ({
-		sourceID: 'namespace',
-		targetID: `fact-${index}`,
-		weight: (index % 3) + 1
+		episodeID: `episode-${index}`,
+		ownerPersonID: 'person-1',
+		circleIDs: ['member'],
+		kind: 'fact',
+		content: `Memory fact ${index}`,
+		validFrom: `2026-06-${String(index + 1).padStart(2, '0')}T09:00:00Z`,
+		reinforcementCount: 1
 	}))
-};
-
-const unavailableMemoryGraphFixture = {
-	...memoryGraphFixture,
-	health: { configured: false, reachable: false }
 };
 
 const memoryScheduleFixture = {
@@ -76,19 +51,7 @@ const memoryScheduleFixture = {
 	checkedAt: '2026-06-08T00:00:00Z'
 };
 
-type GraphMetrics = {
-	canvas: GraphSize | null;
-	container: GraphSize | null;
-	hasHorizontalOverflow: boolean;
-	viewportWidth: number;
-};
-
-type GraphSize = {
-	height: number;
-	width: number;
-};
-
-test.describe('memory graph', () => {
+test.describe('memory facts', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.route('**/admin/api/session', async (route) => {
 			await route.fulfill({ json: { email: 'tester@example.com' } });
@@ -99,37 +62,21 @@ test.describe('memory graph', () => {
 		await page.route('**/admin/api/locale', async (route) => {
 			await route.fulfill({ json: { locale: 'ko' } });
 		});
-		await page.route('**/memory/api/graph**', async (route) => {
-			await route.fulfill({ json: memoryGraphFixture });
+		await page.route('**/memory/api/facts**', async (route) => {
+			await route.fulfill({ json: memoryFactsFixture });
 		});
 		await page.route('**/memory/api/schedules**', async (route) => {
 			await route.fulfill({ json: memoryScheduleFixture });
 		});
 	});
 
-	test('keeps graph canvas synced with its container after viewport resize', async ({ page }) => {
+	test('shows the profile above the remembered facts', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 800 });
-		await page.goto('/memory/map/');
-		await page.waitForSelector('canvas');
+		await page.goto('/memory/');
 
-		await expect(page.getByText('Memory fact 0')).toBeVisible();
-		await expect(page.getByText('검색 점수 미제공').first()).toBeVisible();
-
-		await expect.poll(async () => graphMetrics(page)).toMatchObject({
-			hasHorizontalOverflow: false,
-			viewportWidth: 1280
-		});
-
-		await expectCanvasToMatchContainer(page);
-
-		await page.setViewportSize({ width: 390, height: 844 });
-
-		await expect.poll(async () => graphMetrics(page)).toMatchObject({
-			hasHorizontalOverflow: false,
-			viewportWidth: 390
-		});
-
-		await expectCanvasToMatchContainer(page);
+		await expect(page.getByLabel('프로필').getByText('이샘플은 플랫폼 팀 소속이다.')).toBeVisible();
+		await expect(page.getByRole('button', { name: /Memory fact 0/ })).toBeVisible();
+		await expect(page.getByRole('link', { name: '기억 지도' })).toHaveCount(0);
 	});
 
 	test('opens schedules from the memory page', async ({ page }) => {
@@ -221,14 +168,14 @@ test.describe('memory graph', () => {
 		await expect(page.getByText('private backend detail')).toHaveCount(0);
 	});
 
-	test('keeps memory graph health badges tied to graph health', async ({ page }) => {
-		await page.route('**/memory/api/graph**', async (route) => {
-			await route.fulfill({ json: unavailableMemoryGraphFixture });
+	test('reports a memory load failure without upstream detail', async ({ page }) => {
+		await page.route('**/memory/api/facts**', async (route) => {
+			await route.fulfill({ status: 502, body: 'private backend detail' });
 		});
-		await page.goto('/memory/map/');
+		await page.goto('/memory/');
 
-		await expect(page.getByText('미설정')).toBeVisible();
-		await expect(page.getByText('연결 불가')).toBeVisible();
+		await expect(page.getByRole('alert')).toHaveText(/기억을 불러오지 못했습니다\.|Memories could not be loaded\./);
+		await expect(page.getByText('private backend detail')).toHaveCount(0);
 	});
 
 	test('formats schedule next run in the selected English locale', async ({ page }) => {
@@ -244,33 +191,3 @@ test.describe('memory graph', () => {
 	});
 });
 
-async function graphMetrics(page: Page): Promise<GraphMetrics> {
-	return page.evaluate(() => {
-		const canvas = document.querySelector('canvas');
-		const container = canvas?.parentElement ?? null;
-		const canvasRectangle = canvas?.getBoundingClientRect() ?? null;
-		return {
-			canvas: canvasRectangle
-				? { height: canvasRectangle.height, width: canvasRectangle.width }
-				: null,
-			container: container ? { height: container.clientHeight, width: container.clientWidth } : null,
-			hasHorizontalOverflow: document.body.scrollWidth > window.innerWidth,
-			viewportWidth: window.innerWidth
-		};
-	});
-}
-
-async function expectCanvasToMatchContainer(page: Page): Promise<void> {
-	await expect
-		.poll(async () => calculateGraphSizeDifference(await graphMetrics(page)))
-		.toBeLessThanOrEqual(graphSizeTolerancePixel);
-}
-
-function calculateGraphSizeDifference(metrics: GraphMetrics): number {
-	if (!metrics.canvas || !metrics.container) return Number.MAX_SAFE_INTEGER;
-
-	return Math.max(
-		Math.abs(metrics.canvas.width - metrics.container.width),
-		Math.abs(metrics.canvas.height - metrics.container.height)
-	);
-}

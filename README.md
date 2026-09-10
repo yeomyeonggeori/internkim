@@ -63,7 +63,6 @@ operator on the same network ── Jetson Orin Nano Super
                                  ├── Mattermost :8065
                                  ├── internkim-admind (127.0.0.1:18080)
                                  ├── internkim-capabilityd
-                                 ├── graphiti-memoryd :7791
                                  ├── Cloud Hypervisor blueclaw guest
                                  └── /root/.internkim
                                        ├── secrets/
@@ -192,9 +191,8 @@ model path directly; it reaches them through the typed capability boundary that
 | `/root/.internkim/models/*` | `internkim-capabilityd`, the local model wrapper | the local model runtime |
 | `/root/.internkim/state/companion-jobs.json` | `internkim-admind` | companion broker restart recovery |
 
-Graphiti runs as a memory sidecar and reads none of these. A companion's signing
-private key lives in the user's own secure storage, and the device state file
-keeps only a reference to it.
+A companion's signing private key lives in the user's own secure storage, and
+the device state file keeps only a reference to it.
 
 ### Where operator secrets live
 
@@ -217,14 +215,13 @@ reading one.
 | **local model** | Generation and embedding both on a resident `llama-server`: gemma-4-E2B QAT with MTP drafting (`--chat-template gemma`) for generation, BGE-M3 Q8 on CPU (`-ngl 0`) for embedding. `internkim-local-llm-runner` (LiteRT) is a legacy fallback. |
 | **blueclaw** | The agent runtime. On a device it runs as a Cloud Hypervisor guest under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json`. |
 | **chatd** | Per-person messenger operations, with Mattermost and Buzz adapters behind one gateway. |
-| **Graphiti memoryd** | The memory sidecar: episode ingestion, temporal graph extraction and hybrid graph search through `graphiti-core[kuzu]`. |
 | **internkim-companion** | A trusted runtime on the user's own computer for browser handoff, confirmation, input and file picking, and later for local-only inference. |
 | **Mattermost** | The self-hostable messenger used as the collaboration channel and the entry point for work. |
 | **SvelteKit web app** (`web/`) | The company app on Cloudflare Pages, and the operating surfaces served same-origin from a device: `/admin`, `/flow`, `/memory`, `/calendar`, `/mail`, `/attendance`, `/files`, `/ops`. |
 | **workspace assets** (`assets/blueclaw-workspace/`) | AGENTS.md, skills and helpers, installed to the host workspace and mounted into the guest. |
 
-The [memory verification review](docs/internal/memory-verification-review.md)
-records inspection limitations and a procedure for testing recall in a fresh session.
+[Agent memory](docs/internal/memory-redesign.md) is one Postgres store of episodes,
+extracted facts and per-person profiles, read through the requester's own clearance.
 
 ## Running it
 
@@ -466,10 +463,7 @@ After deploying to a real device:
 down even with healthy Mattermost and blueclaw services. `journalctl` on
 `internkim-llamacpp` and `internkim-llamacpp-embedding` says which one.
 
-Two more checks stand on their own. `make verify-graphiti-local` exercises the
-real `graphiti-core[kuzu]` sidecar, capabilityd, OpenRouter and the llama.cpp
-BGE-M3 path from macOS without a board, and needs `OPENROUTER_API_KEY`. Live LLM
-end-to-end tests cost money and stay out of `go test ./...`:
+Live LLM end-to-end tests cost money and stay out of `go test ./...`:
 
 `tools/verify` checks deterministic logic with controlled protocol responses.
 Model and provider evaluations require the `llmeval` build tag as well as their
@@ -493,7 +487,7 @@ go test -tags appliance,llmeval ./internal/e2e -run TestPresentationLocalMultitu
 ```
 
 The reset clears blueclaw tasks, raw events, conversations, legacy memory, the
-Graphiti mirror and Kuzu files, along with the posts, reactions and threads
+memory episodes, facts, profiles and jobs, along with the posts, reactions and threads
 visible in Mattermost. Invited users, policy, platform account links, secrets,
 Mattermost users, teams and channels survive.
 

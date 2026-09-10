@@ -15,9 +15,8 @@
   },
   "memory": {
     "adminAssertionKeyPath": "${ADMIN_ASSERTION_KEY_PATH}",
-    "graphitiEndpoint": "${GRAPHITI_ENDPOINT}",
-    "graphitiKuzuPath": "${GRAPHITI_KUZU_PATH}",
-    "timeoutSecond": 30
+    "embeddingExecutionMode": "auto",
+    "extractionDisabled": false
   },
   "connectors": {
     "chatd": {

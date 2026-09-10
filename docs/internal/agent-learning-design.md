@@ -2,7 +2,7 @@
 
 The learning store, reflection worker, admin routes, company bridge mappings and
 web views are wired for read-only review and explicit administrator controls.
-Learning remains disabled by default. It extends [memory architecture](memory-design.md).
+Learning remains disabled by default. It extends [agent memory](memory-redesign.md).
 
 The central-plane `person.agent_learning.*` capabilities carry typed skill,
 settings and soul reads and explicit skill actions. The persona signature binds

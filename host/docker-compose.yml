@@ -11,7 +11,7 @@ name: internkim-host
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     container_name: internkim-postgres
     environment:
       POSTGRES_USER: ${HOST_POSTGRES_USER:-blueclaw}
