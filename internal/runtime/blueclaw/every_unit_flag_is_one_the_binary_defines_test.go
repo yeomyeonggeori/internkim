@@ -20,7 +20,6 @@ func TestEveryUnitFlagIsOneTheBinaryDefines(t *testing.T) {
 
 	units := map[string]string{
 		"blueclaw":                     BlueclawServiceUnit(),
-		"graphiti-memoryd":             GraphitiMemorydServiceUnit(),
 		"internkim-capabilityd":        CapabilitydServiceUnit(),
 		"internkim-capabilityd-remote": CapabilitydServiceUnitForLocalInferenceMode("remote"),
 		"internkim-admind":             AdmindServiceUnit(),

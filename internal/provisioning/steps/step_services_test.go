@@ -221,17 +221,6 @@ func TestServicesRunReturnsErrorWhenBlueclawHealthFails(t *testing.T) {
 	}
 }
 
-func TestServicesSatisfiedRequiresGraphiti(t *testing.T) {
-	context := &Context{
-		Backend: BackendSSH,
-		SSH:     serviceSatisfiedWithoutGraphitiBoardConnection{},
-	}
-
-	if StepServices.IsSatisfied(context) {
-		t.Fatal("expected services not to be satisfied when graphiti memoryd is inactive")
-	}
-}
-
 func TestSimulationServicesDoNotInstallLlamaCppUnits(t *testing.T) {
 	command := serviceUnitInstallCommand(&Context{BoardType: BoardSimulation})
 
@@ -261,38 +250,25 @@ func TestServicesInstallCommandRemovesLegacySDKDUnit(t *testing.T) {
 	}
 }
 
-func TestServicesInstallGraphitiMemoryd(t *testing.T) {
-	command := serviceUnitInstallCommand(&Context{
+func TestServicesInstallOnlyTheAgentAndModelUnits(t *testing.T) {
+	context := &Context{
 		BoardType:    BoardJetsonOrinNano,
 		PlannedSteps: map[string]bool{"local-llm": true},
-	})
-
-	for _, expectedValue := range []string{
-		blueclaw.GraphitiMemorydServicePath,
-		blueclaw.GraphitiMemorydPath,
-		"systemctl enable " + blueclaw.GraphitiMemorydServiceName,
-		"systemctl restart " + blueclaw.GraphitiMemorydServiceName,
-	} {
-		if !strings.Contains(command, expectedValue) {
-			t.Fatalf("expected service command to include %q, got:\n%s", expectedValue, command)
-		}
 	}
-	if strings.Contains(command, "disable "+blueclaw.GraphitiMemorydServiceName) {
-		t.Fatalf("expected service command not to disable graphiti memoryd, got:\n%s", command)
+	expectedPaths := []string{
+		blueclaw.BlueclawServicePath,
+		blueclaw.CapabilitydServicePath,
+		blueclaw.AdmindServicePath,
+		locallm.LlamaCppServicePath,
+		locallm.LlamaCppEmbeddingServicePath,
 	}
-}
 
-func TestServicesSkipGraphitiMemorydWithoutLocalLLM(t *testing.T) {
-	command := serviceUnitInstallCommand(&Context{BoardType: BoardJetsonOrinNano})
-	for _, unexpectedValue := range []string{
-		blueclaw.GraphitiMemorydServicePath,
-		blueclaw.GraphitiMemorydPath,
-		"systemctl enable " + blueclaw.GraphitiMemorydServiceName,
-		"systemctl restart " + blueclaw.GraphitiMemorydServiceName,
-	} {
-		if strings.Contains(command, unexpectedValue) {
-			t.Fatalf("expected service command to exclude %q without local LLM, got:\n%s", unexpectedValue, command)
-		}
+	installedPaths := []string{}
+	for _, service := range serviceUnitDocuments(context) {
+		installedPaths = append(installedPaths, service.path)
+	}
+	if strings.Join(installedPaths, "\n") != strings.Join(expectedPaths, "\n") {
+		t.Fatalf("expected the memory store to live inside blueclaw with no sidecar unit, got %v", installedPaths)
 	}
 }
 
@@ -368,12 +344,10 @@ func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 		"systemctl is-active internkim-capabilityd",
 		"printf '%s=' 'admind'",
 		"systemctl is-active internkim-admind",
-		"printf '%s=' 'graphiti'",
-		"systemctl is-active graphiti-memoryd",
 		"printf '%s=' 'blueclawHealth'",
 		"curl --max-time 15 -fsS http://127.0.0.1:8080/admin/api/health",
-		"printf '%s=' 'graphitiHealth'",
-		"curl --max-time 5 -fsS http://127.0.0.1:7791/health | jq -e '.status == \"ok\"'",
+		"printf '%s=' 'capabilitydHealth'",
+		"curl --max-time 5 -fsS --unix-socket /run/internkim/capability.sock",
 		"printf '%s=' 'embedding'",
 		locallm.LlamaCppEmbeddingServiceName,
 	} {
@@ -383,7 +357,7 @@ func TestServiceHealthReportChecksAllServicesInOneCommand(t *testing.T) {
 	}
 }
 
-func TestBlueclawServicesHealthRequiresGraphiti(t *testing.T) {
+func TestBlueclawServicesHealthRequiresEmbeddingWithLocalLLM(t *testing.T) {
 	context := &Context{
 		BoardType:    BoardJetsonOrinNano,
 		PlannedSteps: map[string]bool{"local-llm": true},
@@ -392,20 +366,19 @@ func TestBlueclawServicesHealthRequiresGraphiti(t *testing.T) {
 				"blueclaw=active",
 				"capabilityd=active",
 				"admind=active",
-				"graphiti=inactive",
 				"blueclawHealth=ok",
 				"capabilitydHealth=ok",
-				"graphitiHealth=no",
+				"embedding=inactive",
 			}, "\n"),
 		},
 	}
 
 	if blueclawServicesAreHealthy(context) {
-		t.Fatal("expected graphiti inactive report to fail health check")
+		t.Fatal("expected an inactive embedding server to fail the health check")
 	}
 }
 
-func TestBlueclawServicesHealthSkipsGraphitiWithoutLocalLLM(t *testing.T) {
+func TestBlueclawServicesHealthSkipsEmbeddingWithoutLocalLLM(t *testing.T) {
 	context := &Context{
 		BoardType: BoardJetsonOrinNano,
 		SSH: serviceHealthReportBoardConnection{
@@ -420,7 +393,7 @@ func TestBlueclawServicesHealthSkipsGraphitiWithoutLocalLLM(t *testing.T) {
 	}
 
 	if !blueclawServicesAreHealthy(context) {
-		t.Fatal("expected graphiti to be skipped without local LLM")
+		t.Fatal("expected the embedding server to be skipped without local LLM")
 	}
 }
 
@@ -533,8 +506,6 @@ func (connection capabilitydHealthBoardConnection) Run(command string) string {
 		return "ExecStart=" + blueclaw.CapabilitydBinaryPath + " --chatd-endpoint " + blueclaw.ChatdEndpoint + " --chatd-platform buzz"
 	case strings.Contains(command, blueclaw.CapabilitySocketPath):
 		return connection.capabilitydHealth
-	case strings.Contains(command, blueclaw.GraphitiEndpoint):
-		return "ok"
 	case strings.Contains(command, blueclaw.BlueclawHealthCheckURL()):
 		return "ok"
 	case strings.HasPrefix(command, "systemctl is-active "):
@@ -554,8 +525,6 @@ type serviceHealthReportBoardConnection struct {
 	report string
 }
 
-type serviceSatisfiedWithoutGraphitiBoardConnection struct{}
-
 type stringMatchingBoardConnection struct{}
 
 func (connection serviceHealthReportBoardConnection) Run(command string) string {
@@ -563,33 +532,6 @@ func (connection serviceHealthReportBoardConnection) Run(command string) string 
 }
 
 func (connection serviceHealthReportBoardConnection) SCP(localPath, remotePath string) error {
-	return nil
-}
-
-func (connection serviceSatisfiedWithoutGraphitiBoardConnection) Run(command string) string {
-	switch {
-	case strings.Contains(command, "runtime_path ="):
-		return "ok"
-	case strings.Contains(command, "rootfs_path="):
-		return "ok"
-	case strings.Contains(command, blueclaw.RetiredLLMDServiceIsGoneCommand()):
-		return "inactive"
-	case strings.Contains(command, "systemctl is-active graphiti-memoryd"):
-		return "inactive"
-	case strings.Contains(command, "systemctl is-active blueclaw"):
-		return "active"
-	case strings.Contains(command, "systemctl is-active internkim-capabilityd"):
-		return "active"
-	case strings.Contains(command, "systemctl is-active internkim-admind"):
-		return "active"
-	case strings.Contains(command, "curl --max-time 5 -fsS"):
-		return "ok"
-	default:
-		return ""
-	}
-}
-
-func (connection serviceSatisfiedWithoutGraphitiBoardConnection) SCP(localPath, remotePath string) error {
 	return nil
 }
 
@@ -616,8 +558,6 @@ func (connection serviceHealthFailureBoardConnection) Run(command string) string
 		return "active"
 	case strings.Contains(command, "systemctl is-active internkim-admind"):
 		return "active"
-	case strings.Contains(command, "systemctl is-active graphiti-memoryd"):
-		return "inactive"
 	case strings.Contains(command, "curl -fsS "):
 		return "missing"
 	default:

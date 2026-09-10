@@ -1,5 +1,4 @@
 <script lang="ts">
-	import NetworkIcon from '@lucide/svelte/icons/network';
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import { Button } from '$lib/components/ui/button';
 	import { appNavigation } from '$lib/components/app-navigation.svelte';
@@ -22,8 +21,7 @@
 			<p class="max-w-2xl text-sm text-muted-foreground">{text.description}</p>
 		</div>
 		<nav class="flex shrink-0 flex-wrap gap-2" aria-label={text.relatedViews}>
-			<Button href={appNavigation.link('/memory/map/')} variant="outline" size="sm"><NetworkIcon data-icon="inline-start" />{text.graphTab}</Button>
-			<Button href={appNavigation.link('/memory/schedules/')} variant="ghost" size="sm"><CalendarClockIcon data-icon="inline-start" />{text.scheduleTab}</Button>
+			<Button href={appNavigation.link('/memory/schedules/')} variant="outline" size="sm"><CalendarClockIcon data-icon="inline-start" />{text.scheduleTab}</Button>
 		</nav>
 	</header>
 	<MemoryFactBrowser {text} />

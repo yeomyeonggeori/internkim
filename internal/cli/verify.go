@@ -352,7 +352,7 @@ curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json
 echo "checking the paths the company web reaches through the relay"
 ` + verifyRelayActorsScript(blueclaw.InternKimCentralPlaneAgentKeyPath, blueclaw.InternKimCentralPlaneAppURLPath) + `
 ` + verifySkillInventoryScript() + `
-for relay_path in /memory/api/graph /memory/api/schedules /files/api/roots /files/api/list /runs/api /runs/api/detail /agent/api/buzz-claim /agent/api/buzz-relay-config /persona/api/user /persona/api/soul /persona/api/identity /agent-learning/api/skills /agent-learning/api/skills?includeRetired=true /agent-learning/api/settings /agent-learning/api/soul /agent-learning/api/soul/history; do
+for relay_path in /memory/api/facts /memory/api/schedules /files/api/roots /files/api/list /runs/api /runs/api/detail /agent/api/buzz-claim /agent/api/buzz-relay-config /persona/api/user /persona/api/soul /persona/api/identity /agent-learning/api/skills /agent-learning/api/skills?includeRetired=true /agent-learning/api/settings /agent-learning/api/soul /agent-learning/api/soul/history; do
   relay_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --unix-socket ` + blueclaw.AdmindSocketPath + ` -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_requester" "http://internkim$relay_path")"
   case "$relay_status" in
     401|403|404)

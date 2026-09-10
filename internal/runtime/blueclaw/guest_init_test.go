@@ -31,7 +31,6 @@ func TestGuestInitRunsBlueclawAsNonRootUser(t *testing.T) {
 		"posix helper is not executable by blueclaw",
 		"su -s /bin/bash blueclaw -c \"BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills $blueclaw_binary",
 		"-runtime /delivery/config/runtime.json",
-		"su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=",
 	} {
 		if !strings.Contains(document, expectedFragment) {
 			t.Fatalf("expected guest init to contain %q", expectedFragment)
