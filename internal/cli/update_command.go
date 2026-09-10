@@ -36,6 +36,11 @@ func runUpdateArguments(arguments []string) error {
 			return runReleaseUpdateApply(arguments[1:])
 		case "blueclaw-payload":
 			return runBlueclawPayloadHTTPUpdate(arguments[1:])
+		case "status":
+			return runReleaseUpdateCheck(arguments[1:])
+		}
+		if !strings.HasPrefix(arguments[0], "-") {
+			return fmt.Errorf("update does not know %q; use check, apply, status, or blueclaw-payload, or a flag", arguments[0])
 		}
 	}
 	setupSlice, errorValue := updateSetupSlice(arguments)
@@ -130,11 +135,12 @@ func runStreamingUpdateCommand(directoryPath string, name string, arguments ...s
 }
 
 func printUpdateUsage() {
-	fmt.Println("Usage: internkim update [check|apply] [--all|--web|--binaries] [--sim-first] [--plan] [target options]")
+	fmt.Println("Usage: internkim update [check|apply|status|blueclaw-payload] [--all|--web|--binaries] [--sim-first] [--plan] [target options]")
 	fmt.Println("Examples:")
 	fmt.Println("  internkim update")
 	fmt.Println("  internkim update check --node 1")
 	fmt.Println("  internkim update apply --node 1")
+	fmt.Println("  internkim update status --node 1")
 	fmt.Println("  internkim update blueclaw-payload")
 	fmt.Println("  internkim update --web")
 	fmt.Println("  internkim update --binaries --host 192.168.1.50")
