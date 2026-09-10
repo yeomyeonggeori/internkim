@@ -21,9 +21,6 @@ func ClassifyWorkspacePath(path string) string {
 	if hasWorkspacePathPrefix(normalizedPath, ".blueclaw/postgres") {
 		return WorkspaceSyncModeSealedSnapshot
 	}
-	if hasWorkspacePathPrefix(normalizedPath, ".blueclaw/graphiti/kuzu") {
-		return WorkspaceSyncModeSealedSnapshot
-	}
 	if hasWorkspacePathPrefix(normalizedPath, ".blueclaw/runtime") {
 		return WorkspaceSyncModeRuntimeCache
 	}

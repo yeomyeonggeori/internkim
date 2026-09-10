@@ -163,7 +163,7 @@ describe('memory schedule api normalizer', () => {
 
 	test('does not expose schedule mutation failure response text', async () => {
 		const originalFetch = globalThis.fetch;
-		const fetchStub = createFetchStub(async () => new Response('Graphiti stack trace', { status: 502 }));
+		const fetchStub = createFetchStub(async () => new Response('upstream stack trace', { status: 502 }));
 		globalThis.fetch = fetchStub;
 
 		try {
@@ -174,9 +174,9 @@ describe('memory schedule api normalizer', () => {
 			expect(cancelErrorMessage).toBe('Memory schedules request returned 502');
 			expect(deleteErrorMessage).toBe('Memory schedules request returned 502');
 			expect(updateErrorMessage).toBe('Memory schedules request returned 502');
-			expect(cancelErrorMessage.includes('Graphiti')).toBe(false);
-			expect(deleteErrorMessage.includes('Graphiti')).toBe(false);
-			expect(updateErrorMessage.includes('Graphiti')).toBe(false);
+			expect(cancelErrorMessage.includes('stack trace')).toBe(false);
+			expect(deleteErrorMessage.includes('stack trace')).toBe(false);
+			expect(updateErrorMessage.includes('stack trace')).toBe(false);
 		} finally {
 			globalThis.fetch = originalFetch;
 		}

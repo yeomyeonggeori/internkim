@@ -94,16 +94,15 @@ func printBlueclawHistoryResetPlan() {
 	fmt.Println("  - task runs, task events, task steps, task artifacts, waits, sessions, schedules")
 	fmt.Println("  - raw events, attachments, content segments, conversations")
 	fmt.Println("  - legacy memory records/sources")
-	fmt.Println("  - Graphiti episode/namespace mirror rows")
-	fmt.Println("  - Graphiti Kuzu files under /root/.blueclaw/workspace/.blueclaw/graphiti/kuzu*")
-	fmt.Println("  - guest workspace Postgres/Kuzu runtime state when /var/lib/blueclaw/workspace.ext4 exists")
+	fmt.Println("  - memory episodes, facts, profiles, and jobs")
+	fmt.Println("  - guest workspace Postgres runtime state when /var/lib/blueclaw/workspace.ext4 exists")
 	fmt.Println("This will keep host policy and secrets. Guest runtime mirrors are rebuilt from policy on restart.")
 }
 
 func blueclawHistoryResetScript() string {
 	return `set -euo pipefail
 echo "stopping blueclaw services"
-systemctl stop blueclaw graphiti-memoryd 2>/dev/null || true
+systemctl stop blueclaw 2>/dev/null || true
 
 echo "resetting host blueclaw task, conversation, and memory tables"
 if su -s /bin/bash postgres -c "psql -d blueclaw -Atc 'SELECT 1'" >/dev/null 2>&1; then
@@ -122,8 +121,10 @@ TRUNCATE TABLE
   attachment,
   raw_event,
   conversation,
-  graphiti_episode,
-  graphiti_namespace
+  memory_job,
+  memory_profile,
+  memory_fact,
+  memory_episode
 RESTART IDENTITY CASCADE;
 SQL
 fi
@@ -139,23 +140,15 @@ if [ -s /var/lib/blueclaw/workspace.ext4 ]; then
   }
   trap cleanup_workspace_mount EXIT
   mount -o loop /var/lib/blueclaw/workspace.ext4 "$mount_path"
-  mkdir -p "$mount_path/.blueclaw/postgres" "$mount_path/.blueclaw/graphiti"
+  mkdir -p "$mount_path/.blueclaw/postgres"
   rm -rf "$mount_path/.blueclaw/postgres/data"
-  find "$mount_path/.blueclaw/graphiti" -maxdepth 1 -name 'kuzu*' -exec rm -rf -- {} +
   chown -R postgres:postgres "$mount_path/.blueclaw/postgres"
-  chown -R blueclaw:blueclaw "$mount_path/.blueclaw/graphiti"
-  chmod 0770 "$mount_path/.blueclaw/postgres" "$mount_path/.blueclaw/graphiti"
+  chmod 0770 "$mount_path/.blueclaw/postgres"
   cleanup_workspace_mount
   trap - EXIT
 fi
 
-echo "removing graphiti kuzu files"
-mkdir -p /root/.blueclaw/workspace/.blueclaw/graphiti
-find /root/.blueclaw/workspace/.blueclaw/graphiti -maxdepth 1 -name 'kuzu*' -exec rm -rf -- {} +
-chown -R blueclaw:blueclaw /root/.blueclaw/workspace/.blueclaw/graphiti
-
 echo "starting blueclaw services"
-systemctl start graphiti-memoryd 2>/dev/null || true
 systemctl start blueclaw
 
 echo "waiting for blueclaw"

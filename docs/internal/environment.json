@@ -1,238 +1,926 @@
 {
-  "ADMIN_ASSERTION_KEY_PATH": {"process": "tools/render-company-runtime", "description": "path to the key used to authenticate company-plane requests to Blueclaw"},
-  "ADMIND_BASE_URL": {"process": "relay", "description": "admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080"},
-  "ADMIND_PORT": {"process": "host", "description": "the loopback port host/entrypoint.sh starts admind on; defaults to 18080"},
-  "ADMIND_SOCKET_PATH": {"process": "relay", "description": "the admind Unix socket the relay calls for workspace screens; defaults to /run/internkim/admind.sock"},
-  "AGENT_API_KEY": {"process": "relay", "description": "the company agent key as a value, read only when AGENT_API_KEY_PATH is unset; for a shell driven by hand, never a deployment"},
-  "AGENT_API_KEY_PATH": {"process": "relay", "description": "the path to the file holding the company agent key, so the key never lands in the process environment (ps eww)"},
-  "AGENT_BROWSER_BINARY": {"process": "tools/prepare-companion-agent-browser", "description": "path to a prebuilt agent-browser binary to bundle, instead of downloading or building one"},
-  "AGENT_BROWSER_EXECUTABLE_PATH": {"process": "companion", "description": "override path to the agent-browser binary the companion's browser runtime launches"},
-  "ANSWER_BYTE_CEILING": {"process": "relay", "description": "maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit"},
-  "ARRIVALS_PORT": {"process": "relay", "description": "the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091"},
-  "AUTH_CLAIM_WITHOUT_EMAIL": {"process": "web", "description": "when \"1\", lets a member claim (register) an account without email verification; off by default"},
-  "BLUECLAW": {"process": "tools/e2e-ask-flow-remote.sh", "description": "the fleet VM's Blueclaw admin API base URL; the file's own text never assigns it, but the driver always concatenates it after e2e-crud-remote.sh, which hardcodes it to http://127.0.0.1:8080"},
-  "BLUECLAW_ACP_SOCKET_PATH": {"process": "relay", "description": "the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/blueclaw-acp.sock"},
-  "BLUECLAW_BASE_URL": {"process": "tools/render-company-runtime", "description": "Blueclaw's base URL rendered into the company plane's runtime document; defaults to http://127.0.0.1:8080"},
-  "BLUECLAW_BUILD_KERNEL": {"process": "tools/prepare-blueclaw-runtime", "description": "when \"1\", builds the guest Linux kernel from source instead of requiring BLUECLAW_KERNEL_IMAGE_SOURCE"},
-  "BLUECLAW_BUN_VERSION": {"process": "tools/prepare-blueclaw-runtime", "description": "the Bun version installed into the Blueclaw guest rootfs; defaults to 1.3.10"},
-  "BLUECLAW_BUNDLED_SKILLS_PATH": {"process": "host", "description": "where host/entrypoint.sh and blueclaw look for the bundled skills directory; defaults to /opt/internkim/skills"},
-  "BLUECLAW_E2E_LLM_PROVIDER": {"process": "cli tests", "description": "overrides the model provider internal/cli/test_command.go's scenario runner uses"},
-  "BLUECLAW_GRAPHITI_EMBEDDING_EXECUTION_MODE": {"process": "tools/verify-graphiti-local", "description": "the embedding execution mode passed to graphiti-memoryd for the local verification run; defaults to \"device\""},
-  "BLUECLAW_KERNEL_IMAGE_SOURCE": {"process": "tools/prepare-blueclaw-runtime", "description": "a prebuilt arm64 guest kernel image to use instead of building one"},
-  "BLUECLAW_LINUX_KERNEL_VERSION": {"process": "tools/prepare-blueclaw-runtime", "description": "the Linux kernel version built for the Blueclaw guest; defaults to 6.1.129"},
-  "BLUECLAW_MARP_CLI_VERSION": {"process": "tools/prepare-blueclaw-runtime", "description": "the Marp CLI version installed into the Blueclaw guest rootfs; defaults to 4.3.1"},
-  "BLUECLAW_ROOTFS_IMAGE_SOURCE": {"process": "tools/prepare-blueclaw-runtime", "description": "a prebuilt guest rootfs image to use instead of building one"},
-  "BLUECLAW_RUNTIME_ROOTFS_SIZE": {"process": "tools/prepare-blueclaw-runtime", "description": "the size of the Blueclaw guest rootfs ext4 image; defaults to 4G"},
-  "BLUECLAW_UV_VERSION": {"process": "tools/prepare-blueclaw-runtime", "description": "the uv (Python package manager) version installed into the Blueclaw guest rootfs; defaults to 0.11.11"},
-  "BUN_INSTALL_CACHE_DIR": {"process": "device", "description": "Bun's install cache directory inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /opt/blueclaw/bun-cache"},
-  "BUZZ_IMPORT_KEEP": {"process": "buzzimport live tests", "description": "when \"1\", keeps the imported rows after internal/buzzimport's live end-to-end test instead of cleaning up"},
-  "BUZZ_IMPORT_KEEP_AUTHOR_SECRET": {"process": "buzzimport live tests", "description": "a Buzz author's signing secret used by internal/buzzimport/inject_visibility_test.go (a live/manual test)"},
-  "BUZZ_IMPORT_KEEP_CHANNEL_ID": {"process": "buzzimport live tests", "description": "the Buzz channel ID internal/buzzimport/inject_visibility_test.go (a live/manual test) injects into"},
-  "BUZZ_IMPORT_KEEP_DATABASE_URL": {"process": "buzzimport live tests", "description": "the Buzz relay database internal/buzzimport/inject_visibility_test.go (a live/manual test) connects to"},
-  "BUZZ_IMPORT_TEST_AUTHOR_SECRET": {"process": "buzzimport live tests", "description": "a Buzz author's signing secret used by internal/buzzimport's live end-to-end and inject-probe tests"},
-  "BUZZ_IMPORT_TEST_CHANNEL_ID": {"process": "buzzimport live tests", "description": "the Buzz channel ID internal/buzzimport's live end-to-end and inject-probe tests inject into"},
-  "BUZZ_IMPORT_TEST_DATABASE_URL": {"process": "buzzimport live tests", "description": "the Buzz relay database internal/buzzimport's live end-to-end and inject-probe tests connect to"},
-  "BUZZ_IMPORT_TEST_SECOND_AUTHOR_SECRET": {"process": "buzzimport live tests", "description": "a second Buzz author's signing secret used by internal/buzzimport/end_to_end_live_test.go (a live/manual test)"},
-  "BUZZ_MEDIA_TEST_ACTOR_SECRET": {"process": "buzzimport live tests", "description": "the Buzz actor's signing secret used by internal/buzzimport/media's live upload test"},
-  "BUZZ_MEDIA_TEST_HTTP_URL": {"process": "buzzimport live tests", "description": "the Buzz media HTTP base URL internal/buzzimport/media's live upload test uploads to"},
-  "BUZZ_MEDIA_TEST_IMAGE": {"process": "buzzimport live tests", "description": "path to an image file internal/buzzimport/media's live upload test uploads; optional"},
-  "CAPABILITY_SOCKET_PATH": {"process": "tools/render-company-runtime", "description": "the capabilityd Unix socket rendered into the company plane's runtime document; defaults to /run/internkim/capability.sock"},
-  "CHATD_BASE_URL": {"process": "relay", "description": "chatd's base URL the relay calls; defaults to http://127.0.0.1:18090"},
-  "CHATD_BOT_USER_NAME": {"process": "host", "description": "the messenger bot's display name, required by host/entrypoint.sh"},
-  "CHATD_ENDPOINT": {"process": "tools/render-company-runtime", "description": "chatd's endpoint rendered into the company plane's runtime document; defaults to http://127.0.0.1:18090"},
-  "CHATD_LISTEN_PORT": {"process": "host", "description": "the loopback port host/entrypoint.sh starts chatd on; defaults to 18090"},
-  "COMPANY_PLANE_GRAPHITI_PYTHON": {"process": "web/tests/plane/a-company-plane.ts", "description": "optional Python executable for the pinned Graphiti memory service in company-plane tests"},
-  "CHROME_PATH": {"process": "device", "description": "override Chromium path inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /usr/bin/chromium"},
-  "CLOUD_HYPERVISOR_VERSION": {"process": "tools/prepare-blueclaw-runtime", "description": "the cloud-hypervisor version fetched for the Blueclaw guest runtime; defaults to 53.0"},
-  "CLOUDFLARE_ACCOUNT_ID": {"process": "cli", "description": "the Cloudflare account ID for R2 release uploads, falling back from INTERNKIM_RELEASE_R2_ACCOUNT_ID"},
-  "CLOUDFLARE_API_TOKEN": {"process": "tools/provision-cloudflare-ssh-service-token", "description": "a Cloudflare API token with Pages edit rights, used to provision an SSH Access service token and implicitly by Wrangler for Pages deploys"},
-  "CLOUDFLARE_DOMAIN": {"process": "web, cli", "description": "the zone the web app treats as home when redirecting a company hostname, and the CLI's fallback zone when INTERNKIM_DOMAIN is unset; falls back to the compiled-in default zone"},
-  "COMPANY_CONNECTIONS": {"process": "connection-gateway worker", "description": "the Durable Object namespace binding backing one company's gateway connections"},
-  "COMPANY_PLANE_APP_PORT": {"process": "tools/company-plane", "description": "the port tools/company-plane starts the local company web app on; defaults to 5183"},
-  "COMPANY_PLANE_BIN": {"process": "web plane tests", "description": "the directory tools/company-plane built internkim-capabilityd, internkim-admind and blueclaw into, read by web/tests/plane/a-company-plane.ts"},
-  "COMPANY_PLANE_DB_URL": {"process": "web plane tests", "description": "the local Supabase database URL tools/company-plane forwards, read by web/tests/plane/a-company-plane.ts to reset per-test state"},
-  "COMPANY_PLANE_KEEP": {"process": "web plane tests", "description": "when \"1\", web/tests/plane/a-company-plane.ts keeps the run directory after the test instead of deleting it"},
-  "COMPANY_PLANE_SKILLS": {"process": "web plane tests", "description": "the skills directory tools/company-plane assembles and hands to web/tests/plane for the sandboxed company plane"},
-  "DATABASE_URL": {"process": "host", "description": "the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime)"},
-  "GRAPHITI_ENDPOINT": {"process": "tools/render-company-runtime", "description": "Graphiti memory service endpoint rendered into the company plane's runtime document"},
-  "GRAPHITI_KUZU_PATH": {"process": "tools/render-company-runtime", "description": "Graphiti Kuzu database path rendered into the company plane's runtime document"},
-  "DEV": {"process": "docs site", "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"},
-  "DISPLAY": {"process": "companion", "description": "the X11 display name; the companion's browser runtime checks it is unset under Wayland before choosing a Wayland-native launch path"},
-  "E2E_NONCE": {"process": "tools/e2e-crud-remote.sh", "description": "the per-run nonce (forwarded from INTERNKIM_E2E_NONCE) this remote script suffixes its test person, channel and entity names with"},
-  "E2E_SKIP_RESET": {"process": "tools/e2e-crud-remote.sh", "description": "when \"1\", skips this remote script's global admind/entity reset for a parallel-safe run"},
-  "GATEWAY_ADMIN_TOKEN": {"process": "web, connection-gateway worker", "description": "the bearer token the web app's public-API gateway caller and the connection-gateway worker's admin endpoints share"},
-  "GATEWAY_SERVER_KEY": {"process": "relay", "description": "the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection"},
-  "GATEWAY_URL": {"process": "relay, web, connection-gateway worker", "description": "the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway"},
-  "GEMMA_GGUF_NAME": {"process": "tools/fetch-gemma-gguf", "description": "the filename to save the fetched Gemma GGUF model as"},
-  "GEMMA_GGUF_URL": {"process": "tools/fetch-gemma-gguf", "description": "the URL to download the Gemma GGUF model from"},
-  "GO_CACHE": {"process": "tools/company-plane", "description": "the Go build cache directory tools/company-plane forwards to `go build` as GOCACHE; defaults to a per-OS/arch /tmp path"},
-  "GO_MOD_CACHE": {"process": "tools/company-plane", "description": "the Go module cache directory tools/company-plane forwards to `go build` as GOMODCACHE; defaults to a per-OS/arch /tmp path"},
-  "GOCACHE": {"process": "tools/prepare-blueclaw-runtime, tools/verify-graphiti-local", "description": "the Go build cache directory these scripts read (with a /tmp fallback) and forward to the `go build` they run"},
-  "GOMODCACHE": {"process": "tools/prepare-blueclaw-runtime", "description": "the Go module cache directory, forwarded unchanged to the `go build` tools/prepare-blueclaw-runtime runs when the caller has set one"},
-  "HOME": {"process": "companion, tools", "description": "the invoking user's home directory (standard POSIX/Windows variable), read to locate default browser, SSH and cache paths"},
-  "INTERNKIM_ADMIN_EMAIL": {"process": "cli, web e2e tests", "description": "the console/admin sign-in email the CLI's setup flow and the CRUD/delete/matrix e2e specs use"},
-  "INTERNKIM_ADMIN_PASSWORD": {"process": "web e2e tests", "description": "the admin sign-in password the CRUD/delete/matrix Playwright specs use"},
-  "INTERNKIM_AGENT_BROWSER_PATH": {"process": "companion", "description": "override path to the agent-browser binary; also read by internal/browser's real-Chrome test"},
-  "INTERNKIM_APP_URL": {"process": "relay, host", "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"},
-  "INTERNKIM_APPROVE_BUTTON": {"process": "web e2e tests", "description": "the approval button's label text tests/e2e/crud-evidence.spec.ts looks for; defaults to the Korean confirm label"},
-  "INTERNKIM_APPROVE_PROMPT": {"process": "web e2e tests", "description": "overrides the approval-triggering prompt tools/e2e-approve-button sends"},
-  "INTERNKIM_APPROVE_TIMEOUT_MS": {"process": "web e2e tests", "description": "how long tests/e2e/crud-approve.spec.ts waits for the ephemeral approval button; defaults to 150000"},
-  "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {"process": "tools/prepare-blueclaw-payload", "description": "where the built Blueclaw payload artifact is written; defaults under .dependency/blueclaw-payload"},
-  "INTERNKIM_BLUECLAW_RUNTIME_ARTIFACT_DIR": {"process": "tools/prepare-blueclaw-runtime", "description": "where the built Blueclaw guest runtime artifact is written; defaults under .dependency/blueclaw-runtime"},
-  "INTERNKIM_BLUECLAW_RUNTIME_CACHE_DIR": {"process": "tools/prepare-blueclaw-runtime", "description": "the scratch cache directory for downloaded build inputs; defaults under the scratch directory"},
-  "INTERNKIM_BLUECLAW_RUNTIME_SCRATCH_DIR": {"process": "tools/prepare-blueclaw-runtime", "description": "the scratch working root for the guest runtime build; defaults under $TMPDIR"},
-  "INTERNKIM_BLUECLAW_RUNTIME_WORK_DIR": {"process": "tools/prepare-blueclaw-runtime", "description": "the working directory for the guest runtime build's stage and rootfs trees; defaults under the scratch directory"},
-  "INTERNKIM_BLUECLAW_USE_LOCAL": {"process": "device", "description": "when \"1\", internal/runtime/blueclaw uses the uncommitted local .dependency/blueclaw checkout instead of the committed payload artifact"},
-  "INTERNKIM_BOT_TOKEN": {"process": "web e2e tests", "description": "the messenger bot's own token, read by tests/e2e/ephemeral-render-check.spec.ts and matrix-evidence.spec.ts"},
-  "INTERNKIM_BROWSER_EXECUTABLE_PATH": {"process": "companion", "description": "override path to the browser executable the companion's browser runtime launches"},
-  "INTERNKIM_BROWSER_EXTENSION_PATH": {"process": "companion", "description": "override path to a browser extension the companion's browser runtime loads"},
-  "INTERNKIM_BUZZ_KEY_SEED": {"process": "cli, tools/mirror-local", "description": "the Buzz identity seed value; internal/cli reads it as a setup-time override, tools/mirror-local writes it to the local bridge's seed file"},
-  "INTERNKIM_CONSOLE_PASSWORD": {"process": "cli", "description": "the console password used for a Jetson's physical login during setup/flashing"},
-  "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {"process": "tools/prepare-container-kernel", "description": "the download cache directory for the container kernel build; defaults per-OS under XDG_CACHE_HOME or HOME"},
-  "INTERNKIM_CONTAINER_KERNEL_CONFIG_REF": {"process": "tools/prepare-container-kernel", "description": "the git ref of the kernel config to build against; defaults to \"main\""},
-  "INTERNKIM_CONTAINER_KERNEL_DIR": {"process": "tools/prepare-container-kernel", "description": "where the built container kernel artifact is written; defaults under .dependency/container-kernel"},
-  "INTERNKIM_CONTAINER_KERNEL_VERSION": {"process": "tools/prepare-container-kernel", "description": "the kernel version built for the Apple Container VM; defaults to 6.1.68"},
-  "INTERNKIM_CRUD_CHANNEL": {"process": "web e2e tests", "description": "the Mattermost channel name the CRUD/delete e2e specs post to and screenshot"},
-  "INTERNKIM_CRUD_CHANNEL_PATH": {"process": "web e2e tests", "description": "the channel's URL path tests/e2e/crud-evidence.spec.ts navigates to for its screenshot"},
-  "INTERNKIM_CRUD_EXPECT_APPROVAL": {"process": "web e2e tests", "description": "when set, tells tests/e2e/crud-evidence.spec.ts to wait for the ephemeral approval control before screenshotting"},
-  "INTERNKIM_CRUD_MIN_POSTS": {"process": "web e2e tests", "description": "the minimum post count tests/e2e/crud-evidence.spec.ts requires in the channel; defaults to 2"},
-  "INTERNKIM_CRUD_SCREENSHOT": {"process": "web e2e tests", "description": "the file path the CRUD/delete Playwright specs save their channel screenshot to"},
-  "INTERNKIM_DELETE_AFTER_SHOT": {"process": "web e2e tests", "description": "the file path tests/e2e/delete-evidence.spec.ts saves its after-delete screenshot to"},
-  "INTERNKIM_DELETE_BEFORE_SHOT": {"process": "web e2e tests", "description": "the file path tests/e2e/delete-evidence.spec.ts saves its before-delete screenshot to"},
-  "INTERNKIM_DELETE_PROMPT": {"process": "web e2e tests", "description": "the delete-triggering prompt tests/e2e/delete-evidence.spec.ts records alongside its screenshots"},
-  "INTERNKIM_API_URL": {"process": "cli", "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"},
-  "INTERNKIM_DEVICE_BROWSER_PATH": {"process": "device", "description": "override path to the device-bundled browser binary, read by internkim-capabilityd at startup"},
-  "INTERNKIM_DOMAIN": {"process": "cli", "description": "overrides the CLI's compiled-in zone; everything else (the API URL, hostnames) derives from it"},
-  "INTERNKIM_E2E_CONFIG": {"process": "tools/e2e-crud", "description": "overrides the fleet run config.json path the e2e-crud/e2e-approve-button/e2e-ask-flow/reprovision-local-fleet drivers use instead of the newest one under .local/local-fleet/runs"},
-  "INTERNKIM_E2E_HEADLESS": {"process": "tools/e2e-crud", "description": "when \"1\", runs the e2e drivers' Playwright screenshot steps headless instead of headed"},
-  "INTERNKIM_E2E_INGRESS_READY_SECONDS": {"process": "tools/e2e-crud", "description": "how long tools/e2e-crud sleeps after setup for the messenger ingress to be ready; defaults to 12"},
-  "INTERNKIM_E2E_MODEL": {"process": "tools/e2e-crud", "description": "overrides the model the e2e-crud/e2e-approve-button drivers pin capabilityd to before running cases"},
-  "INTERNKIM_E2E_NONCE": {"process": "tools/e2e-crud", "description": "overrides the per-run nonce the e2e-crud/e2e-approve-button drivers use for a fresh test person and channel"},
-  "INTERNKIM_E2E_PACE_SECONDS": {"process": "tools/e2e-crud", "description": "how long tools/e2e-crud sleeps between cases; defaults to 40"},
-  "INTERNKIM_E2E_RESTART_BLUECLAW": {"process": "tools/e2e-crud", "description": "when \"1\", tools/e2e-crud restarts Blueclaw's messenger ingress before running cases"},
-  "INTERNKIM_E2E_SKIP_MODEL": {"process": "tools/e2e-crud", "description": "when \"1\", skips the e2e-crud/e2e-approve-button drivers' model-pin step because it is already set"},
-  "INTERNKIM_E2E_SKIP_RESET": {"process": "tools/e2e-crud", "description": "forwarded to tools/e2e-crud-remote.sh's setup step to skip the global admind/entity reset"},
-  "INTERNKIM_FLASH_CACHE_DIR": {"process": "device", "description": "override cache directory for Jetson image downloads during internal/cli's flash flow"},
-  "INTERNKIM_FLEET_SECRET": {"process": "cli", "description": "the shared fleet secret internal/cli/target_context.go reads when a device target's own secret is unset"},
-  "INTERNKIM_GATE_MODEL": {"process": "tools/verify-api", "description": "overrides which model tools/verify-api asks a live question through, gating the paid check behind an explicit opt-in"},
-  "INTERNKIM_GATE_OPENROUTER_KEY_PATH": {"process": "tools/verify-api", "description": "the OpenRouter key file path required when INTERNKIM_GATE_MODEL is set, also read by internal/capabilityd's gate backend test"},
-  "INTERNKIM_JETSON_IMAGE_URL": {"process": "device", "description": "override URL for the Jetson base image internal/cli/jetson_flash.go downloads"},
-  "INTERNKIM_KEEP_CONTAINER_VM": {"process": "tools/prepare-blueclaw-runtime", "description": "when \"1\", leaves the container-based runtime builder VM running after the build instead of stopping it"},
-  "INTERNKIM_LITERT_MODEL_PATH": {"process": "device", "description": "override path to the local LiteRT model file, read by internal/cli/main.go"},
-  "INTERNKIM_LIVE_LLM_TEST": {"process": "llmbackend live tests", "description": "when \"1\", internal/llmbackend/openrouter_live_test.go makes a real OpenRouter call instead of skipping"},
-  "INTERNKIM_LLM_DEBUG": {"process": "cli", "description": "when \"1\", internal/cli/llm.go prints extra debug output for a model call"},
-  "INTERNKIM_MATRIX_SHOT": {"process": "web e2e tests", "description": "the file path tests/e2e/matrix-evidence.spec.ts saves its screenshot to"},
-  "INTERNKIM_MATTERMOST_TEAM_NAME": {"process": "web e2e tests", "description": "the Mattermost team name the e2e specs sign into; defaults to \"internkim\""},
-  "INTERNKIM_MATTERMOST_URL": {"process": "web e2e tests", "description": "the Mattermost base URL the e2e specs drive; defaults to http://127.0.0.1:8065"},
-  "INTERNKIM_MM_ADMIN_PASSWORD_PATH": {"process": "tools/mirror-local", "description": "path to the local Mattermost admin password file, passed to admind's -mattermost-admin-password flag"},
-  "INTERNKIM_PROFILE": {"process": "cli", "description": "overrides which saved target profile internal/cli/target_context.go resolves against"},
-  "INTERNKIM_PUBLIC_URL": {"process": "web e2e tests", "description": "the published site's public URL tests/e2e/public-url.spec.ts and site-evidence.spec.ts check"},
-  "INTERNKIM_REAL_CHROME_BROWSER_TEST": {"process": "internal/browser tests", "description": "when \"1\", internal/browser/runtime_test.go launches a real Chrome instead of skipping"},
-  "INTERNKIM_REGISTER_SECRET": {"process": "web", "description": "the shared secret a device presents to the fleet registration API (the older device-fleet path's Cloudflare Pages KV binding, web/src/routes/api/fleet and api/register)"},
-  "INTERNKIM_RELEASE_DOWNLOAD_TOKEN": {"process": "cli", "description": "the bearer token required to download a published OTA release, read by internal/cli's release-publish and setup flows"},
-  "INTERNKIM_RELEASE_PUBLIC_BASE_URL": {"process": "cli", "description": "the public base URL published releases are served from"},
-  "INTERNKIM_RELEASE_R2_ACCESS_KEY_ID": {"process": "cli", "description": "the R2 access key ID used when publishing a release with PUBLISHER=s3"},
-  "INTERNKIM_RELEASE_R2_ACCOUNT_ID": {"process": "cli", "description": "the Cloudflare account ID for R2 release uploads, preferred over CLOUDFLARE_ACCOUNT_ID when set"},
-  "INTERNKIM_RELEASE_R2_BUCKET": {"process": "cli", "description": "the R2 bucket releases are uploaded to"},
-  "INTERNKIM_RELEASE_R2_PUBLISHER": {"process": "cli", "description": "which uploader publishes a release to R2: \"wrangler\" (OAuth session, R2 keys unused) or \"s3\" (R2 keys used)"},
-  "INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY": {"process": "cli", "description": "the R2 secret access key used when publishing a release with PUBLISHER=s3"},
-  "INTERNKIM_RELEASE_SIGNING_KEY": {"process": "cli", "description": "the key a release manifest is signed with when published"},
-  "INTERNKIM_RELEASE_WRANGLER_BIN": {"process": "cli", "description": "override path to the wrangler binary used for PUBLISHER=wrangler release uploads"},
-  "INTERNKIM_RENDER_SHOT": {"process": "web e2e tests", "description": "the file path tests/e2e/ephemeral-render-check.spec.ts saves its screenshot to"},
-  "INTERNKIM_RUNTIME_BUILDER_MAX_TRANSFER_BYTES": {"process": "tools/prepare-blueclaw-runtime", "description": "the transfer size ceiling for the remote runtime-builder rsync; defaults to 5000000000"},
-  "INTERNKIM_RUNTIME_BUILDER_PROBE_SECONDS": {"process": "tools/prepare-blueclaw-runtime", "description": "how long the remote runtime-builder waits when probing the transfer; defaults to 120"},
-  "INTERNKIM_SITE_ABSENT_TEXT": {"process": "web e2e tests", "description": "text tests/e2e/site-evidence.spec.ts asserts is absent from the published site"},
-  "INTERNKIM_SITE_EVIDENCE_MODE": {"process": "web e2e tests", "description": "which mode tests/e2e/site-evidence.spec.ts checks the site in (\"published\" or \"deleted\"); defaults to \"published\""},
-  "INTERNKIM_SITE_EXPECT_TEXT": {"process": "web e2e tests", "description": "text tests/e2e/site-evidence.spec.ts asserts is present on the published site"},
-  "INTERNKIM_SITE_SCREENSHOT": {"process": "web e2e tests", "description": "the file path tests/e2e/site-evidence.spec.ts saves its site screenshot to"},
-  "INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB": {"process": "cli", "description": "when \"1\", internal/cli/setup_flow.go skips the Cloudflare Pages deploy step for a lab/local-fleet run"},
-  "INTERNKIM_TARGET_USERNAME": {"process": "web e2e tests", "description": "the messenger username the ephemeral-render-check and matrix-evidence specs target"},
-  "INTERNKIM_TOKEN": {"process": "web plane tests", "description": "a personal-access-token bearer for the public API; web/tests/plane/a-company-plane.ts strips it from the sandboxed company plane's environment so a token in the caller's own shell cannot skip approval and requester identity there"},
-  "KV": {"process": "web", "description": "the Cloudflare Pages KV namespace binding backing the device fleet registry (web/src/routes/api/fleet, api/invite, api/register)"},
-  "LARGEST_FILE_BYTES": {"process": "relay", "description": "the largest attachment the relay holds in memory while copying it into the asset bucket; defaults to 200,000,000"},
-  "LD_LIBRARY_PATH": {"process": "device", "description": "the shared-library search path cmd/internkim-local-llm-runner extends with the LiteRT main library directory before launching litert_lm_main"},
-  "LITERT_LM_BAZELISK_VERSION": {"process": "tools/build-litert-lm-main", "description": "the Bazelisk version used to build litert_lm_main"},
-  "LITERT_LM_BUILD_HOST": {"process": "tools/build-litert-lm-main", "description": "the remote build host litert_lm_main is cross-built on"},
-  "LITERT_LM_BUILD_PASSWORD": {"process": "tools/build-litert-lm-main", "description": "the SSH password for the remote litert_lm_main build host"},
-  "LITERT_LM_BUILD_USER": {"process": "tools/build-litert-lm-main", "description": "the SSH user for the remote litert_lm_main build host"},
-  "LITERT_LM_REMOTE_WORK_ROOT": {"process": "tools/build-litert-lm-main", "description": "the working directory on the remote host litert_lm_main is built in"},
-  "LITERT_LM_VERSION": {"process": "tools/build-litert-lm-main", "description": "the litert_lm_main source version/ref to build"},
-  "LIVE_PLANE_AGENT_KEY": {"process": "admind live tests", "description": "the company agent key internal/admind/task_notify_live_test.go (a live/manual test) authenticates to the plane with"},
-  "LIVE_PLANE_APP_URL": {"process": "admind live tests", "description": "the central plane app URL internal/admind/task_notify_live_test.go (a live/manual test) sends a real task notification through"},
-  "LIVE_PLANE_PROJECT_URL": {"process": "admind live tests", "description": "the Supabase project URL internal/admind/task_notify_live_test.go (a live/manual test) connects to"},
-  "LIVE_PLANE_PUBLISHABLE_KEY": {"process": "admind live tests", "description": "the Supabase publishable key internal/admind/task_notify_live_test.go (a live/manual test) connects with"},
-  "LIVE_REQUESTER_PERSON_ID": {"process": "admind live tests", "description": "the requester's person ID internal/admind/task_notify_live_test.go (a live/manual test) sends the notification as"},
-  "LLAMA_CPP_BUILD_HOST": {"process": "tools/build-llama-cpp-jetson", "description": "the remote build host llama.cpp is cross-built on for the Jetson"},
-  "LLAMA_CPP_BUILD_JOBS": {"process": "tools/build-llama-cpp-jetson", "description": "the parallel job count for the remote llama.cpp build"},
-  "LLAMA_CPP_BUILD_PASSWORD": {"process": "tools/build-llama-cpp-jetson", "description": "the SSH password for the remote llama.cpp build host"},
-  "LLAMA_CPP_BUILD_USER": {"process": "tools/build-llama-cpp-jetson", "description": "the SSH user for the remote llama.cpp build host"},
-  "LLAMA_CPP_CUDA_ARCH": {"process": "tools/build-llama-cpp-jetson", "description": "the CUDA architecture llama.cpp is built for on the Jetson"},
-  "LLAMA_CPP_REMOTE_WORK_ROOT": {"process": "tools/build-llama-cpp-jetson", "description": "the working directory on the remote host llama.cpp is built in"},
-  "LLAMA_CPP_VERSION": {"process": "tools/build-llama-cpp-jetson", "description": "the llama.cpp source version/ref to build"},
-  "LLAMACPP_EMBEDDING_MODEL": {"process": "tools/verify-graphiti-local", "description": "the embedding model name passed to the local capabilityd for the graphiti verification run; defaults to baai/bge-m3"},
-  "LLAMACPP_EMBEDDING_URL": {"process": "tools/verify-graphiti-local", "description": "the llama.cpp embedding server URL passed to the local capabilityd for the graphiti verification run; defaults to http://127.0.0.1:18082"},
-  "LOCALAPPDATA": {"process": "companion", "description": "the Windows per-user app data directory, read to locate the default Chrome path on Windows"},
-  "LOCAL_PLANE_LOCK_HOLDER": {"process": "tools/with-local-plane", "description": "the process ID of the tools/with-local-plane run already holding this machine's local Supabase stack; a script or command that sees it set is already inside the lock and runs without taking it again"},
-  "LOG_DIRECTORY_PATH": {"process": "tools/render-company-runtime", "description": "the log directory rendered into the company plane's runtime document; defaults to /var/log/internkim"},
-  "MAILD_BASE_URL": {"process": "relay", "description": "maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092"},
-  "MAILD_PORT": {"process": "host", "description": "the loopback port host/entrypoint.sh starts maild on; defaults to 18092"},
-  "MATTERMOST": {"process": "tools/e2e-ask-flow-remote.sh", "description": "the fleet VM's Mattermost base URL; the file's own text never assigns it, but the driver always concatenates it after e2e-crud-remote.sh, which hardcodes it to http://localhost:8065"},
-  "MATTERMOST_IMPORT_TEST_DATABASE_URL": {"process": "buzzimport live tests", "description": "the Mattermost database internal/buzzimport's live end-to-end and mattermost-import tests read from"},
-  "MATTERMOST_IMPORT_TEST_TEAM": {"process": "buzzimport live tests", "description": "the Mattermost team internal/buzzimport's live end-to-end and mattermost-import tests import"},
-  "MEASURE_ACCESS_TOKEN": {"process": "relay diagnostics", "description": "a Supabase Realtime access token host/relay/measure-broadcast-ceiling.ts uses instead of the anonymous publishable key"},
-  "MEASURE_TOPIC": {"process": "relay diagnostics", "description": "the Realtime topic host/relay/measure-broadcast-ceiling.ts binary-searches the broadcast size ceiling against; defaults to \"size-probe\""},
-  "MESSENGER_PLATFORM": {"process": "relay, host", "description": "which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it"},
-  "MIGRATION_DIRECTORY_PATH": {"process": "tools/render-company-runtime", "description": "the Blueclaw migrations directory rendered into the company plane's runtime document; defaults to /opt/blueclaw/migrations"},
-  "MODEL_API_KEY_PATH": {"process": "tools/render-company-runtime", "description": "the path to the file holding the key the rendered model ladder names on every endpoint, so the key never lands in the runtime document; defaults to the file capabilityd is given"},
-  "MODEL_ENDPOINT": {"process": "tools/render-company-runtime", "description": "the OpenAI-compatible endpoint the rendered model ladder reaches, for a company running its models through a gateway of its own; defaults to the ladder's own endpoint"},
-  "OLLAMA_INSTALL_HOST": {"process": "tools/install-ollama-jetson", "description": "the remote Jetson host Ollama is installed on"},
-  "OLLAMA_INSTALL_PASSWORD": {"process": "tools/install-ollama-jetson", "description": "the SSH password for the remote Jetson host"},
-  "OLLAMA_INSTALL_USER": {"process": "tools/install-ollama-jetson", "description": "the SSH user for the remote Jetson host"},
-  "OPENROUTER_API_KEY": {"process": "cli", "description": "the OpenRouter API key for remote model inference from tooling run on this machine; also read by internal/llmbackend's live OpenRouter test and tools/verify-graphiti-local"},
-  "PATH": {"process": "cli verification tests", "description": "the inherited executable search path, preserved after a temporary curl stub directory when testing verification scripts without network calls"},
-  "PLAYWRIGHT_BASE_URL": {"process": "web e2e tests", "description": "the base URL web/playwright.config.ts points its browser at; defaults to http://127.0.0.1:5174"},
-  "PLAYWRIGHT_CENTRAL_PLANE": {"process": "web e2e tests", "description": "when \"1\", web/playwright.config.ts runs against a real local central plane instead of the mocked device path"},
-  "PLAYWRIGHT_CHANNEL": {"process": "web e2e tests", "description": "the browser channel (e.g. chrome) web/playwright.config.ts launches, when set"},
-  "PLAYWRIGHT_START_WEB_SERVER": {"process": "web e2e tests", "description": "when \"1\", web/playwright.config.ts starts its own dev server instead of expecting one already running"},
-  "PROGRAMFILES": {"process": "companion", "description": "the Windows Program Files directory, read to locate the default Chrome path on Windows"},
-  "PUPPETEER_EXECUTABLE_PATH": {"process": "device", "description": "override Chromium path inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /usr/bin/chromium"},
-  "RELEASE_BUCKET": {"process": "release-registry worker", "description": "the R2 bucket binding the release-registry worker serves published release objects from"},
-  "RELEASE_DOWNLOAD_TOKEN": {"process": "release-registry worker", "description": "the bearer token the release-registry worker requires on every download request"},
-  "REMOTE_TIMEOUT": {"process": "tools/e2e-crud", "description": "how long the e2e-crud/e2e-ask-flow drivers wait for one SSH command to the fleet VM; defaults to 120 (e2e-crud) or 600 (e2e-ask-flow) seconds, and is raised per case for long-running ones"},
-  "SMOKE_AGENT_PUBKEY": {"process": "host smoke test", "description": "the agent's Buzz public key host/smoke.sh signs its smoke message with"},
-  "SMOKE_CHANNEL_ID": {"process": "host smoke test", "description": "the Buzz channel host/smoke.sh sends its smoke message to"},
-  "SMOKE_QUESTION": {"process": "host smoke test", "description": "the question text host/smoke.sh asks in its smoke message"},
-  "SMOKE_RELAY_URL": {"process": "host smoke test", "description": "the relay's Buzz websocket URL host/smoke.sh connects to"},
-  "SMOKE_SENDER_KEY_PATH": {"process": "host smoke test", "description": "path to the private key host/smoke.sh signs its smoke message with"},
-  "SMOKE_WAIT_SECONDS": {"process": "host smoke test", "description": "how long host/smoke.sh and host/smoke-listen.ts wait for the smoke message's answer; defaults to 90"},
-  "RELAY_STATE_DIR": {"process": "relay, host", "description": "where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay"},
-  "SUPABASE_ACCESS_TOKEN": {"process": "web scripts", "description": "a Supabase management API access token, read by web/scripts/remote-query.ts"},
-  "SUPABASE_DB_URL": {"process": "tooling", "description": "the database supabase/scripts/generate-record-surface.ts reads pg_proc from; defaults to the local Supabase at postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"},
-  "SUPABASE_JWKS_URL": {"process": "connection-gateway worker", "description": "override JWKS URL the connection-gateway worker verifies member tokens against, instead of deriving it from SUPABASE_URL"},
-  "SUPABASE_PROJECT_REF": {"process": "web scripts", "description": "the Supabase project reference web/scripts/remote-query.ts targets"},
-  "SUPABASE_PUBLISHABLE_KEY": {"process": "relay, host, web, connection-gateway worker, web scripts", "description": "the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts"},
-  "SUPABASE_SECRET_KEY": {"process": "web scripts", "description": "the Supabase project's service-role secret key, used by web/scripts' one-off ops scripts and integration tests; never in a build"},
-  "SUPABASE_SERVICE_ROLE_KEY": {"process": "web scripts", "description": "fallback name for the Supabase service-role key, read when SUPABASE_SECRET_KEY is unset"},
-  "SUPABASE_URL": {"process": "relay, host, web, connection-gateway worker, web scripts", "description": "the Supabase project URL; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts"},
-  "TMPDIR": {"process": "tools", "description": "the system temporary-directory override several tools/* build and verification scripts use as a scratch-directory base, with /tmp as the fallback"},
-  "TZ": {"process": "admind", "description": "the IANA time zone name internal/admind/system_time_zone.go reads as the environment's declared zone"},
-  "USER": {"process": "tools/prepare-blueclaw-runtime", "description": "the invoking user's login name, used as the default SSH user for the remote runtime-builder"},
-  "VAPID_PUBLIC_KEY": {"process": "web", "description": "the VAPID public key injected into the page for push-notification subscription; the matching private key lives in Supabase Vault, not the environment"},
-  "VIRTIOFSD_VERSION": {"process": "tools/prepare-blueclaw-runtime", "description": "the virtiofsd version fetched for the Blueclaw guest runtime; defaults to 1.10.0-1ubuntu0.1"},
-  "VITE_ADMIND_TARGET": {"process": "web", "description": "the admind base URL the local Vite dev server proxies to; defaults to http://127.0.0.1:18080"},
-  "VITE_ALLOWED_HOSTS": {"process": "web", "description": "a comma-separated list of extra hostnames the local Vite dev server accepts requests for"},
-  "VITE_BUILD_TARGET": {"process": "web", "description": "when \"board\", the client build renders the device board UI's home route instead of the central-plane app"},
-  "VITE_DEV_USER_EMAIL": {"process": "web", "description": "the fake signed-in user's email for the local Vite dev server's mock-data screens; defaults to kim@example.com"},
-  "VITE_DEV_USER_ROLE": {"process": "web", "description": "the fake signed-in user's role for the local Vite dev server's mock-data screens"},
-  "VITE_MOCK_ADMIN": {"process": "web", "description": "when \"1\", enables the local dev server's mocked admin/CRM screen instead of the Supabase-backed one"},
-  "VITE_MOCK_CRM": {"process": "web", "description": "when \"1\", enables the local dev server's mocked CRM screen instead of the Supabase-backed one"},
-  "VITE_MOCK_FILES": {"process": "web", "description": "when \"1\", enables the local dev server's mocked files screen instead of the Supabase-backed one"},
-  "VITE_MOCK_MAIL": {"process": "web", "description": "when \"1\", enables the local dev server's mocked mail screen instead of the Supabase-backed one"},
-  "VITE_MOCK_MEMORY": {"process": "web", "description": "when \"1\", enables the local dev server's mocked memory screen instead of the Supabase-backed one"},
-  "VITE_MOCK_TASKS": {"process": "web", "description": "when \"1\", enables the local dev server's mocked tasks screen (a second, distinct mock flag from VITE_MOCK_TASK) instead of the Supabase-backed one"},
-  "VITE_SUPABASE_PUBLISHABLE_KEY": {"process": "web scripts", "description": "fallback name for the Supabase publishable key, read by web/scripts/send-magic-link.ts when SUPABASE_PUBLISHABLE_KEY is unset"},
-  "WAYLAND_DISPLAY": {"process": "companion", "description": "the Wayland display socket name; the companion's browser runtime checks it is set (with DISPLAY unset) before choosing a Wayland-native launch path"},
-  "WORKSPACE_ROOT_PATH": {"process": "tools/render-company-runtime, relay", "description": "the workspace root rendered into the company plane's runtime document, and the cwd the relay opens an ACP session with; defaults to /workspace"},
-  "XDG_CACHE_HOME": {"process": "tools/prepare-container-kernel", "description": "the XDG cache directory, read on Linux to locate the default container-kernel cache path"},
-  "XDG_SESSION_TYPE": {"process": "companion", "description": "the desktop session type (\"wayland\" or otherwise); the companion's browser runtime reads it to detect a Wayland session"}
+  "ADMIN_ASSERTION_KEY_PATH": {
+    "process": "tools/render-company-runtime",
+    "description": "path to the key used to authenticate company-plane requests to Blueclaw"
+  },
+  "ADMIND_BASE_URL": {
+    "process": "relay",
+    "description": "admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080"
+  },
+  "ADMIND_PORT": {
+    "process": "host",
+    "description": "the loopback port host/entrypoint.sh starts admind on; defaults to 18080"
+  },
+  "ADMIND_SOCKET_PATH": {
+    "process": "relay",
+    "description": "the admind Unix socket the relay calls for workspace screens; defaults to /run/internkim/admind.sock"
+  },
+  "AGENT_API_KEY": {
+    "process": "relay",
+    "description": "the company agent key as a value, read only when AGENT_API_KEY_PATH is unset; for a shell driven by hand, never a deployment"
+  },
+  "AGENT_API_KEY_PATH": {
+    "process": "relay",
+    "description": "the path to the file holding the company agent key, so the key never lands in the process environment (ps eww)"
+  },
+  "AGENT_BROWSER_BINARY": {
+    "process": "tools/prepare-companion-agent-browser",
+    "description": "path to a prebuilt agent-browser binary to bundle, instead of downloading or building one"
+  },
+  "AGENT_BROWSER_EXECUTABLE_PATH": {
+    "process": "companion",
+    "description": "override path to the agent-browser binary the companion's browser runtime launches"
+  },
+  "ANSWER_BYTE_CEILING": {
+    "process": "relay",
+    "description": "maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit"
+  },
+  "ARRIVALS_PORT": {
+    "process": "relay",
+    "description": "the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091"
+  },
+  "AUTH_CLAIM_WITHOUT_EMAIL": {
+    "process": "web",
+    "description": "when \"1\", lets a member claim (register) an account without email verification; off by default"
+  },
+  "BLUECLAW": {
+    "process": "tools/e2e-ask-flow-remote.sh",
+    "description": "the fleet VM's Blueclaw admin API base URL; the file's own text never assigns it, but the driver always concatenates it after e2e-crud-remote.sh, which hardcodes it to http://127.0.0.1:8080"
+  },
+  "BLUECLAW_ACP_SOCKET_PATH": {
+    "process": "relay",
+    "description": "the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/blueclaw-acp.sock"
+  },
+  "BLUECLAW_BASE_URL": {
+    "process": "tools/render-company-runtime",
+    "description": "Blueclaw's base URL rendered into the company plane's runtime document; defaults to http://127.0.0.1:8080"
+  },
+  "BLUECLAW_BUILD_KERNEL": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "when \"1\", builds the guest Linux kernel from source instead of requiring BLUECLAW_KERNEL_IMAGE_SOURCE"
+  },
+  "BLUECLAW_BUN_VERSION": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the Bun version installed into the Blueclaw guest rootfs; defaults to 1.3.10"
+  },
+  "BLUECLAW_BUNDLED_SKILLS_PATH": {
+    "process": "host",
+    "description": "where host/entrypoint.sh and blueclaw look for the bundled skills directory; defaults to /opt/internkim/skills"
+  },
+  "BLUECLAW_E2E_LLM_PROVIDER": {
+    "process": "cli tests",
+    "description": "overrides the model provider internal/cli/test_command.go's scenario runner uses"
+  },
+  "BLUECLAW_KERNEL_IMAGE_SOURCE": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "a prebuilt arm64 guest kernel image to use instead of building one"
+  },
+  "BLUECLAW_LINUX_KERNEL_VERSION": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the Linux kernel version built for the Blueclaw guest; defaults to 6.1.129"
+  },
+  "BLUECLAW_MARP_CLI_VERSION": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the Marp CLI version installed into the Blueclaw guest rootfs; defaults to 4.3.1"
+  },
+  "BLUECLAW_ROOTFS_IMAGE_SOURCE": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "a prebuilt guest rootfs image to use instead of building one"
+  },
+  "BLUECLAW_RUNTIME_ROOTFS_SIZE": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the size of the Blueclaw guest rootfs ext4 image; defaults to 4G"
+  },
+  "BLUECLAW_UV_VERSION": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the uv (Python package manager) version installed into the Blueclaw guest rootfs; defaults to 0.11.11"
+  },
+  "BUN_INSTALL_CACHE_DIR": {
+    "process": "device",
+    "description": "Bun's install cache directory inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /opt/blueclaw/bun-cache"
+  },
+  "BUZZ_IMPORT_KEEP": {
+    "process": "buzzimport live tests",
+    "description": "when \"1\", keeps the imported rows after internal/buzzimport's live end-to-end test instead of cleaning up"
+  },
+  "BUZZ_IMPORT_KEEP_AUTHOR_SECRET": {
+    "process": "buzzimport live tests",
+    "description": "a Buzz author's signing secret used by internal/buzzimport/inject_visibility_test.go (a live/manual test)"
+  },
+  "BUZZ_IMPORT_KEEP_CHANNEL_ID": {
+    "process": "buzzimport live tests",
+    "description": "the Buzz channel ID internal/buzzimport/inject_visibility_test.go (a live/manual test) injects into"
+  },
+  "BUZZ_IMPORT_KEEP_DATABASE_URL": {
+    "process": "buzzimport live tests",
+    "description": "the Buzz relay database internal/buzzimport/inject_visibility_test.go (a live/manual test) connects to"
+  },
+  "BUZZ_IMPORT_TEST_AUTHOR_SECRET": {
+    "process": "buzzimport live tests",
+    "description": "a Buzz author's signing secret used by internal/buzzimport's live end-to-end and inject-probe tests"
+  },
+  "BUZZ_IMPORT_TEST_CHANNEL_ID": {
+    "process": "buzzimport live tests",
+    "description": "the Buzz channel ID internal/buzzimport's live end-to-end and inject-probe tests inject into"
+  },
+  "BUZZ_IMPORT_TEST_DATABASE_URL": {
+    "process": "buzzimport live tests",
+    "description": "the Buzz relay database internal/buzzimport's live end-to-end and inject-probe tests connect to"
+  },
+  "BUZZ_IMPORT_TEST_SECOND_AUTHOR_SECRET": {
+    "process": "buzzimport live tests",
+    "description": "a second Buzz author's signing secret used by internal/buzzimport/end_to_end_live_test.go (a live/manual test)"
+  },
+  "BUZZ_MEDIA_TEST_ACTOR_SECRET": {
+    "process": "buzzimport live tests",
+    "description": "the Buzz actor's signing secret used by internal/buzzimport/media's live upload test"
+  },
+  "BUZZ_MEDIA_TEST_HTTP_URL": {
+    "process": "buzzimport live tests",
+    "description": "the Buzz media HTTP base URL internal/buzzimport/media's live upload test uploads to"
+  },
+  "BUZZ_MEDIA_TEST_IMAGE": {
+    "process": "buzzimport live tests",
+    "description": "path to an image file internal/buzzimport/media's live upload test uploads; optional"
+  },
+  "CAPABILITY_SOCKET_PATH": {
+    "process": "tools/render-company-runtime",
+    "description": "the capabilityd Unix socket rendered into the company plane's runtime document; defaults to /run/internkim/capability.sock"
+  },
+  "CHATD_BASE_URL": {
+    "process": "relay",
+    "description": "chatd's base URL the relay calls; defaults to http://127.0.0.1:18090"
+  },
+  "CHATD_BOT_USER_NAME": {
+    "process": "host",
+    "description": "the messenger bot's display name, required by host/entrypoint.sh"
+  },
+  "CHATD_ENDPOINT": {
+    "process": "tools/render-company-runtime",
+    "description": "chatd's endpoint rendered into the company plane's runtime document; defaults to http://127.0.0.1:18090"
+  },
+  "CHATD_LISTEN_PORT": {
+    "process": "host",
+    "description": "the loopback port host/entrypoint.sh starts chatd on; defaults to 18090"
+  },
+  "CHROME_PATH": {
+    "process": "device",
+    "description": "override Chromium path inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /usr/bin/chromium"
+  },
+  "CLOUD_HYPERVISOR_VERSION": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the cloud-hypervisor version fetched for the Blueclaw guest runtime; defaults to 53.0"
+  },
+  "CLOUDFLARE_ACCOUNT_ID": {
+    "process": "cli",
+    "description": "the Cloudflare account ID for R2 release uploads, falling back from INTERNKIM_RELEASE_R2_ACCOUNT_ID"
+  },
+  "CLOUDFLARE_API_TOKEN": {
+    "process": "tools/provision-cloudflare-ssh-service-token",
+    "description": "a Cloudflare API token with Pages edit rights, used to provision an SSH Access service token and implicitly by Wrangler for Pages deploys"
+  },
+  "CLOUDFLARE_DOMAIN": {
+    "process": "web, cli",
+    "description": "the zone the web app treats as home when redirecting a company hostname, and the CLI's fallback zone when INTERNKIM_DOMAIN is unset; falls back to the compiled-in default zone"
+  },
+  "COMPANY_CONNECTIONS": {
+    "process": "connection-gateway worker",
+    "description": "the Durable Object namespace binding backing one company's gateway connections"
+  },
+  "COMPANY_PLANE_APP_PORT": {
+    "process": "tools/company-plane",
+    "description": "the port tools/company-plane starts the local company web app on; defaults to 5183"
+  },
+  "COMPANY_PLANE_BIN": {
+    "process": "web plane tests",
+    "description": "the directory tools/company-plane built internkim-capabilityd, internkim-admind and blueclaw into, read by web/tests/plane/a-company-plane.ts"
+  },
+  "COMPANY_PLANE_DB_URL": {
+    "process": "web plane tests",
+    "description": "the local Supabase database URL tools/company-plane forwards, read by web/tests/plane/a-company-plane.ts to reset per-test state"
+  },
+  "COMPANY_PLANE_KEEP": {
+    "process": "web plane tests",
+    "description": "when \"1\", web/tests/plane/a-company-plane.ts keeps the run directory after the test instead of deleting it"
+  },
+  "COMPANY_PLANE_SKILLS": {
+    "process": "web plane tests",
+    "description": "the skills directory tools/company-plane assembles and hands to web/tests/plane for the sandboxed company plane"
+  },
+  "DATABASE_URL": {
+    "process": "host",
+    "description": "the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime)"
+  },
+  "DEV": {
+    "process": "docs site",
+    "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"
+  },
+  "DISPLAY": {
+    "process": "companion",
+    "description": "the X11 display name; the companion's browser runtime checks it is unset under Wayland before choosing a Wayland-native launch path"
+  },
+  "E2E_NONCE": {
+    "process": "tools/e2e-crud-remote.sh",
+    "description": "the per-run nonce (forwarded from INTERNKIM_E2E_NONCE) this remote script suffixes its test person, channel and entity names with"
+  },
+  "E2E_SKIP_RESET": {
+    "process": "tools/e2e-crud-remote.sh",
+    "description": "when \"1\", skips this remote script's global admind/entity reset for a parallel-safe run"
+  },
+  "GATEWAY_ADMIN_TOKEN": {
+    "process": "web, connection-gateway worker",
+    "description": "the bearer token the web app's public-API gateway caller and the connection-gateway worker's admin endpoints share"
+  },
+  "GATEWAY_SERVER_KEY": {
+    "process": "relay",
+    "description": "the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection"
+  },
+  "GATEWAY_URL": {
+    "process": "relay, web, connection-gateway worker",
+    "description": "the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway"
+  },
+  "GEMMA_GGUF_NAME": {
+    "process": "tools/fetch-gemma-gguf",
+    "description": "the filename to save the fetched Gemma GGUF model as"
+  },
+  "GEMMA_GGUF_URL": {
+    "process": "tools/fetch-gemma-gguf",
+    "description": "the URL to download the Gemma GGUF model from"
+  },
+  "GO_CACHE": {
+    "process": "tools/company-plane",
+    "description": "the Go build cache directory tools/company-plane forwards to `go build` as GOCACHE; defaults to a per-OS/arch /tmp path"
+  },
+  "GO_MOD_CACHE": {
+    "process": "tools/company-plane",
+    "description": "the Go module cache directory tools/company-plane forwards to `go build` as GOMODCACHE; defaults to a per-OS/arch /tmp path"
+  },
+  "GOCACHE": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the Go build cache directory the script reads (with a /tmp fallback) and forwards to the `go build` it runs"
+  },
+  "GOMODCACHE": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the Go module cache directory, forwarded unchanged to the `go build` tools/prepare-blueclaw-runtime runs when the caller has set one"
+  },
+  "HOME": {
+    "process": "companion, tools",
+    "description": "the invoking user's home directory (standard POSIX/Windows variable), read to locate default browser, SSH and cache paths"
+  },
+  "INTERNKIM_ADMIN_EMAIL": {
+    "process": "cli, web e2e tests",
+    "description": "the console/admin sign-in email the CLI's setup flow and the CRUD/delete/matrix e2e specs use"
+  },
+  "INTERNKIM_ADMIN_PASSWORD": {
+    "process": "web e2e tests",
+    "description": "the admin sign-in password the CRUD/delete/matrix Playwright specs use"
+  },
+  "INTERNKIM_AGENT_BROWSER_PATH": {
+    "process": "companion",
+    "description": "override path to the agent-browser binary; also read by internal/browser's real-Chrome test"
+  },
+  "INTERNKIM_APP_URL": {
+    "process": "relay, host",
+    "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
+  },
+  "INTERNKIM_APPROVE_BUTTON": {
+    "process": "web e2e tests",
+    "description": "the approval button's label text tests/e2e/crud-evidence.spec.ts looks for; defaults to the Korean confirm label"
+  },
+  "INTERNKIM_APPROVE_PROMPT": {
+    "process": "web e2e tests",
+    "description": "overrides the approval-triggering prompt tools/e2e-approve-button sends"
+  },
+  "INTERNKIM_APPROVE_TIMEOUT_MS": {
+    "process": "web e2e tests",
+    "description": "how long tests/e2e/crud-approve.spec.ts waits for the ephemeral approval button; defaults to 150000"
+  },
+  "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {
+    "process": "tools/prepare-blueclaw-payload",
+    "description": "where the built Blueclaw payload artifact is written; defaults under .dependency/blueclaw-payload"
+  },
+  "INTERNKIM_BLUECLAW_RUNTIME_ARTIFACT_DIR": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "where the built Blueclaw guest runtime artifact is written; defaults under .dependency/blueclaw-runtime"
+  },
+  "INTERNKIM_BLUECLAW_RUNTIME_CACHE_DIR": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the scratch cache directory for downloaded build inputs; defaults under the scratch directory"
+  },
+  "INTERNKIM_BLUECLAW_RUNTIME_SCRATCH_DIR": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the scratch working root for the guest runtime build; defaults under $TMPDIR"
+  },
+  "INTERNKIM_BLUECLAW_RUNTIME_WORK_DIR": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the working directory for the guest runtime build's stage and rootfs trees; defaults under the scratch directory"
+  },
+  "INTERNKIM_BLUECLAW_USE_LOCAL": {
+    "process": "device",
+    "description": "when \"1\", internal/runtime/blueclaw uses the uncommitted local .dependency/blueclaw checkout instead of the committed payload artifact"
+  },
+  "INTERNKIM_BOT_TOKEN": {
+    "process": "web e2e tests",
+    "description": "the messenger bot's own token, read by tests/e2e/ephemeral-render-check.spec.ts and matrix-evidence.spec.ts"
+  },
+  "INTERNKIM_BROWSER_EXECUTABLE_PATH": {
+    "process": "companion",
+    "description": "override path to the browser executable the companion's browser runtime launches"
+  },
+  "INTERNKIM_BROWSER_EXTENSION_PATH": {
+    "process": "companion",
+    "description": "override path to a browser extension the companion's browser runtime loads"
+  },
+  "INTERNKIM_BUZZ_KEY_SEED": {
+    "process": "cli, tools/mirror-local",
+    "description": "the Buzz identity seed value; internal/cli reads it as a setup-time override, tools/mirror-local writes it to the local bridge's seed file"
+  },
+  "INTERNKIM_CONSOLE_PASSWORD": {
+    "process": "cli",
+    "description": "the console password used for a Jetson's physical login during setup/flashing"
+  },
+  "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {
+    "process": "tools/prepare-container-kernel",
+    "description": "the download cache directory for the container kernel build; defaults per-OS under XDG_CACHE_HOME or HOME"
+  },
+  "INTERNKIM_CONTAINER_KERNEL_CONFIG_REF": {
+    "process": "tools/prepare-container-kernel",
+    "description": "the git ref of the kernel config to build against; defaults to \"main\""
+  },
+  "INTERNKIM_CONTAINER_KERNEL_DIR": {
+    "process": "tools/prepare-container-kernel",
+    "description": "where the built container kernel artifact is written; defaults under .dependency/container-kernel"
+  },
+  "INTERNKIM_CONTAINER_KERNEL_VERSION": {
+    "process": "tools/prepare-container-kernel",
+    "description": "the kernel version built for the Apple Container VM; defaults to 6.1.68"
+  },
+  "INTERNKIM_CRUD_CHANNEL": {
+    "process": "web e2e tests",
+    "description": "the Mattermost channel name the CRUD/delete e2e specs post to and screenshot"
+  },
+  "INTERNKIM_CRUD_CHANNEL_PATH": {
+    "process": "web e2e tests",
+    "description": "the channel's URL path tests/e2e/crud-evidence.spec.ts navigates to for its screenshot"
+  },
+  "INTERNKIM_CRUD_EXPECT_APPROVAL": {
+    "process": "web e2e tests",
+    "description": "when set, tells tests/e2e/crud-evidence.spec.ts to wait for the ephemeral approval control before screenshotting"
+  },
+  "INTERNKIM_CRUD_MIN_POSTS": {
+    "process": "web e2e tests",
+    "description": "the minimum post count tests/e2e/crud-evidence.spec.ts requires in the channel; defaults to 2"
+  },
+  "INTERNKIM_CRUD_SCREENSHOT": {
+    "process": "web e2e tests",
+    "description": "the file path the CRUD/delete Playwright specs save their channel screenshot to"
+  },
+  "INTERNKIM_DELETE_AFTER_SHOT": {
+    "process": "web e2e tests",
+    "description": "the file path tests/e2e/delete-evidence.spec.ts saves its after-delete screenshot to"
+  },
+  "INTERNKIM_DELETE_BEFORE_SHOT": {
+    "process": "web e2e tests",
+    "description": "the file path tests/e2e/delete-evidence.spec.ts saves its before-delete screenshot to"
+  },
+  "INTERNKIM_DELETE_PROMPT": {
+    "process": "web e2e tests",
+    "description": "the delete-triggering prompt tests/e2e/delete-evidence.spec.ts records alongside its screenshots"
+  },
+  "INTERNKIM_API_URL": {
+    "process": "cli",
+    "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
+  },
+  "INTERNKIM_DEVICE_BROWSER_PATH": {
+    "process": "device",
+    "description": "override path to the device-bundled browser binary, read by internkim-capabilityd at startup"
+  },
+  "INTERNKIM_DOMAIN": {
+    "process": "cli",
+    "description": "overrides the CLI's compiled-in zone; everything else (the API URL, hostnames) derives from it"
+  },
+  "INTERNKIM_E2E_CONFIG": {
+    "process": "tools/e2e-crud",
+    "description": "overrides the fleet run config.json path the e2e-crud/e2e-approve-button/e2e-ask-flow/reprovision-local-fleet drivers use instead of the newest one under .local/local-fleet/runs"
+  },
+  "INTERNKIM_E2E_HEADLESS": {
+    "process": "tools/e2e-crud",
+    "description": "when \"1\", runs the e2e drivers' Playwright screenshot steps headless instead of headed"
+  },
+  "INTERNKIM_E2E_INGRESS_READY_SECONDS": {
+    "process": "tools/e2e-crud",
+    "description": "how long tools/e2e-crud sleeps after setup for the messenger ingress to be ready; defaults to 12"
+  },
+  "INTERNKIM_E2E_MODEL": {
+    "process": "tools/e2e-crud",
+    "description": "overrides the model the e2e-crud/e2e-approve-button drivers pin capabilityd to before running cases"
+  },
+  "INTERNKIM_E2E_NONCE": {
+    "process": "tools/e2e-crud",
+    "description": "overrides the per-run nonce the e2e-crud/e2e-approve-button drivers use for a fresh test person and channel"
+  },
+  "INTERNKIM_E2E_PACE_SECONDS": {
+    "process": "tools/e2e-crud",
+    "description": "how long tools/e2e-crud sleeps between cases; defaults to 40"
+  },
+  "INTERNKIM_E2E_RESTART_BLUECLAW": {
+    "process": "tools/e2e-crud",
+    "description": "when \"1\", tools/e2e-crud restarts Blueclaw's messenger ingress before running cases"
+  },
+  "INTERNKIM_E2E_SKIP_MODEL": {
+    "process": "tools/e2e-crud",
+    "description": "when \"1\", skips the e2e-crud/e2e-approve-button drivers' model-pin step because it is already set"
+  },
+  "INTERNKIM_E2E_SKIP_RESET": {
+    "process": "tools/e2e-crud",
+    "description": "forwarded to tools/e2e-crud-remote.sh's setup step to skip the global admind/entity reset"
+  },
+  "INTERNKIM_FLASH_CACHE_DIR": {
+    "process": "device",
+    "description": "override cache directory for Jetson image downloads during internal/cli's flash flow"
+  },
+  "INTERNKIM_FLEET_SECRET": {
+    "process": "cli",
+    "description": "the shared fleet secret internal/cli/target_context.go reads when a device target's own secret is unset"
+  },
+  "INTERNKIM_GATE_MODEL": {
+    "process": "tools/verify-api",
+    "description": "overrides which model tools/verify-api asks a live question through, gating the paid check behind an explicit opt-in"
+  },
+  "INTERNKIM_GATE_OPENROUTER_KEY_PATH": {
+    "process": "tools/verify-api",
+    "description": "the OpenRouter key file path required when INTERNKIM_GATE_MODEL is set, also read by internal/capabilityd's gate backend test"
+  },
+  "INTERNKIM_JETSON_IMAGE_URL": {
+    "process": "device",
+    "description": "override URL for the Jetson base image internal/cli/jetson_flash.go downloads"
+  },
+  "INTERNKIM_KEEP_CONTAINER_VM": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "when \"1\", leaves the container-based runtime builder VM running after the build instead of stopping it"
+  },
+  "INTERNKIM_LITERT_MODEL_PATH": {
+    "process": "device",
+    "description": "override path to the local LiteRT model file, read by internal/cli/main.go"
+  },
+  "INTERNKIM_LIVE_LLM_TEST": {
+    "process": "llmbackend live tests",
+    "description": "when \"1\", internal/llmbackend/openrouter_live_test.go makes a real OpenRouter call instead of skipping"
+  },
+  "INTERNKIM_LLM_DEBUG": {
+    "process": "cli",
+    "description": "when \"1\", internal/cli/llm.go prints extra debug output for a model call"
+  },
+  "INTERNKIM_MATRIX_SHOT": {
+    "process": "web e2e tests",
+    "description": "the file path tests/e2e/matrix-evidence.spec.ts saves its screenshot to"
+  },
+  "INTERNKIM_MATTERMOST_TEAM_NAME": {
+    "process": "web e2e tests",
+    "description": "the Mattermost team name the e2e specs sign into; defaults to \"internkim\""
+  },
+  "INTERNKIM_MATTERMOST_URL": {
+    "process": "web e2e tests",
+    "description": "the Mattermost base URL the e2e specs drive; defaults to http://127.0.0.1:8065"
+  },
+  "INTERNKIM_MM_ADMIN_PASSWORD_PATH": {
+    "process": "tools/mirror-local",
+    "description": "path to the local Mattermost admin password file, passed to admind's -mattermost-admin-password flag"
+  },
+  "INTERNKIM_PROFILE": {
+    "process": "cli",
+    "description": "overrides which saved target profile internal/cli/target_context.go resolves against"
+  },
+  "INTERNKIM_PUBLIC_URL": {
+    "process": "web e2e tests",
+    "description": "the published site's public URL tests/e2e/public-url.spec.ts and site-evidence.spec.ts check"
+  },
+  "INTERNKIM_REAL_CHROME_BROWSER_TEST": {
+    "process": "internal/browser tests",
+    "description": "when \"1\", internal/browser/runtime_test.go launches a real Chrome instead of skipping"
+  },
+  "INTERNKIM_REGISTER_SECRET": {
+    "process": "web",
+    "description": "the shared secret a device presents to the fleet registration API (the older device-fleet path's Cloudflare Pages KV binding, web/src/routes/api/fleet and api/register)"
+  },
+  "INTERNKIM_RELEASE_DOWNLOAD_TOKEN": {
+    "process": "cli",
+    "description": "the bearer token required to download a published OTA release, read by internal/cli's release-publish and setup flows"
+  },
+  "INTERNKIM_RELEASE_PUBLIC_BASE_URL": {
+    "process": "cli",
+    "description": "the public base URL published releases are served from"
+  },
+  "INTERNKIM_RELEASE_R2_ACCESS_KEY_ID": {
+    "process": "cli",
+    "description": "the R2 access key ID used when publishing a release with PUBLISHER=s3"
+  },
+  "INTERNKIM_RELEASE_R2_ACCOUNT_ID": {
+    "process": "cli",
+    "description": "the Cloudflare account ID for R2 release uploads, preferred over CLOUDFLARE_ACCOUNT_ID when set"
+  },
+  "INTERNKIM_RELEASE_R2_BUCKET": {
+    "process": "cli",
+    "description": "the R2 bucket releases are uploaded to"
+  },
+  "INTERNKIM_RELEASE_R2_PUBLISHER": {
+    "process": "cli",
+    "description": "which uploader publishes a release to R2: \"wrangler\" (OAuth session, R2 keys unused) or \"s3\" (R2 keys used)"
+  },
+  "INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY": {
+    "process": "cli",
+    "description": "the R2 secret access key used when publishing a release with PUBLISHER=s3"
+  },
+  "INTERNKIM_RELEASE_SIGNING_KEY": {
+    "process": "cli",
+    "description": "the key a release manifest is signed with when published"
+  },
+  "INTERNKIM_RELEASE_WRANGLER_BIN": {
+    "process": "cli",
+    "description": "override path to the wrangler binary used for PUBLISHER=wrangler release uploads"
+  },
+  "INTERNKIM_RENDER_SHOT": {
+    "process": "web e2e tests",
+    "description": "the file path tests/e2e/ephemeral-render-check.spec.ts saves its screenshot to"
+  },
+  "INTERNKIM_RUNTIME_BUILDER_MAX_TRANSFER_BYTES": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the transfer size ceiling for the remote runtime-builder rsync; defaults to 5000000000"
+  },
+  "INTERNKIM_RUNTIME_BUILDER_PROBE_SECONDS": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "how long the remote runtime-builder waits when probing the transfer; defaults to 120"
+  },
+  "INTERNKIM_SITE_ABSENT_TEXT": {
+    "process": "web e2e tests",
+    "description": "text tests/e2e/site-evidence.spec.ts asserts is absent from the published site"
+  },
+  "INTERNKIM_SITE_EVIDENCE_MODE": {
+    "process": "web e2e tests",
+    "description": "which mode tests/e2e/site-evidence.spec.ts checks the site in (\"published\" or \"deleted\"); defaults to \"published\""
+  },
+  "INTERNKIM_SITE_EXPECT_TEXT": {
+    "process": "web e2e tests",
+    "description": "text tests/e2e/site-evidence.spec.ts asserts is present on the published site"
+  },
+  "INTERNKIM_SITE_SCREENSHOT": {
+    "process": "web e2e tests",
+    "description": "the file path tests/e2e/site-evidence.spec.ts saves its site screenshot to"
+  },
+  "INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB": {
+    "process": "cli",
+    "description": "when \"1\", internal/cli/setup_flow.go skips the Cloudflare Pages deploy step for a lab/local-fleet run"
+  },
+  "INTERNKIM_TARGET_USERNAME": {
+    "process": "web e2e tests",
+    "description": "the messenger username the ephemeral-render-check and matrix-evidence specs target"
+  },
+  "INTERNKIM_TOKEN": {
+    "process": "web plane tests",
+    "description": "a personal-access-token bearer for the public API; web/tests/plane/a-company-plane.ts strips it from the sandboxed company plane's environment so a token in the caller's own shell cannot skip approval and requester identity there"
+  },
+  "KV": {
+    "process": "web",
+    "description": "the Cloudflare Pages KV namespace binding backing the device fleet registry (web/src/routes/api/fleet, api/invite, api/register)"
+  },
+  "LARGEST_FILE_BYTES": {
+    "process": "relay",
+    "description": "the largest attachment the relay holds in memory while copying it into the asset bucket; defaults to 200,000,000"
+  },
+  "LD_LIBRARY_PATH": {
+    "process": "device",
+    "description": "the shared-library search path cmd/internkim-local-llm-runner extends with the LiteRT main library directory before launching litert_lm_main"
+  },
+  "LITERT_LM_BAZELISK_VERSION": {
+    "process": "tools/build-litert-lm-main",
+    "description": "the Bazelisk version used to build litert_lm_main"
+  },
+  "LITERT_LM_BUILD_HOST": {
+    "process": "tools/build-litert-lm-main",
+    "description": "the remote build host litert_lm_main is cross-built on"
+  },
+  "LITERT_LM_BUILD_PASSWORD": {
+    "process": "tools/build-litert-lm-main",
+    "description": "the SSH password for the remote litert_lm_main build host"
+  },
+  "LITERT_LM_BUILD_USER": {
+    "process": "tools/build-litert-lm-main",
+    "description": "the SSH user for the remote litert_lm_main build host"
+  },
+  "LITERT_LM_REMOTE_WORK_ROOT": {
+    "process": "tools/build-litert-lm-main",
+    "description": "the working directory on the remote host litert_lm_main is built in"
+  },
+  "LITERT_LM_VERSION": {
+    "process": "tools/build-litert-lm-main",
+    "description": "the litert_lm_main source version/ref to build"
+  },
+  "LIVE_PLANE_AGENT_KEY": {
+    "process": "admind live tests",
+    "description": "the company agent key internal/admind/task_notify_live_test.go (a live/manual test) authenticates to the plane with"
+  },
+  "LIVE_PLANE_APP_URL": {
+    "process": "admind live tests",
+    "description": "the central plane app URL internal/admind/task_notify_live_test.go (a live/manual test) sends a real task notification through"
+  },
+  "LIVE_PLANE_PROJECT_URL": {
+    "process": "admind live tests",
+    "description": "the Supabase project URL internal/admind/task_notify_live_test.go (a live/manual test) connects to"
+  },
+  "LIVE_PLANE_PUBLISHABLE_KEY": {
+    "process": "admind live tests",
+    "description": "the Supabase publishable key internal/admind/task_notify_live_test.go (a live/manual test) connects with"
+  },
+  "LIVE_REQUESTER_PERSON_ID": {
+    "process": "admind live tests",
+    "description": "the requester's person ID internal/admind/task_notify_live_test.go (a live/manual test) sends the notification as"
+  },
+  "LLAMA_CPP_BUILD_HOST": {
+    "process": "tools/build-llama-cpp-jetson",
+    "description": "the remote build host llama.cpp is cross-built on for the Jetson"
+  },
+  "LLAMA_CPP_BUILD_JOBS": {
+    "process": "tools/build-llama-cpp-jetson",
+    "description": "the parallel job count for the remote llama.cpp build"
+  },
+  "LLAMA_CPP_BUILD_PASSWORD": {
+    "process": "tools/build-llama-cpp-jetson",
+    "description": "the SSH password for the remote llama.cpp build host"
+  },
+  "LLAMA_CPP_BUILD_USER": {
+    "process": "tools/build-llama-cpp-jetson",
+    "description": "the SSH user for the remote llama.cpp build host"
+  },
+  "LLAMA_CPP_CUDA_ARCH": {
+    "process": "tools/build-llama-cpp-jetson",
+    "description": "the CUDA architecture llama.cpp is built for on the Jetson"
+  },
+  "LLAMA_CPP_REMOTE_WORK_ROOT": {
+    "process": "tools/build-llama-cpp-jetson",
+    "description": "the working directory on the remote host llama.cpp is built in"
+  },
+  "LLAMA_CPP_VERSION": {
+    "process": "tools/build-llama-cpp-jetson",
+    "description": "the llama.cpp source version/ref to build"
+  },
+  "LOCALAPPDATA": {
+    "process": "companion",
+    "description": "the Windows per-user app data directory, read to locate the default Chrome path on Windows"
+  },
+  "LOCAL_PLANE_LOCK_HOLDER": {
+    "process": "tools/with-local-plane",
+    "description": "the process ID of the tools/with-local-plane run already holding this machine's local Supabase stack; a script or command that sees it set is already inside the lock and runs without taking it again"
+  },
+  "LOG_DIRECTORY_PATH": {
+    "process": "tools/render-company-runtime",
+    "description": "the log directory rendered into the company plane's runtime document; defaults to /var/log/internkim"
+  },
+  "MAILD_BASE_URL": {
+    "process": "relay",
+    "description": "maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092"
+  },
+  "MAILD_PORT": {
+    "process": "host",
+    "description": "the loopback port host/entrypoint.sh starts maild on; defaults to 18092"
+  },
+  "MATTERMOST": {
+    "process": "tools/e2e-ask-flow-remote.sh",
+    "description": "the fleet VM's Mattermost base URL; the file's own text never assigns it, but the driver always concatenates it after e2e-crud-remote.sh, which hardcodes it to http://localhost:8065"
+  },
+  "MATTERMOST_IMPORT_TEST_DATABASE_URL": {
+    "process": "buzzimport live tests",
+    "description": "the Mattermost database internal/buzzimport's live end-to-end and mattermost-import tests read from"
+  },
+  "MATTERMOST_IMPORT_TEST_TEAM": {
+    "process": "buzzimport live tests",
+    "description": "the Mattermost team internal/buzzimport's live end-to-end and mattermost-import tests import"
+  },
+  "MEASURE_ACCESS_TOKEN": {
+    "process": "relay diagnostics",
+    "description": "a Supabase Realtime access token host/relay/measure-broadcast-ceiling.ts uses instead of the anonymous publishable key"
+  },
+  "MEASURE_TOPIC": {
+    "process": "relay diagnostics",
+    "description": "the Realtime topic host/relay/measure-broadcast-ceiling.ts binary-searches the broadcast size ceiling against; defaults to \"size-probe\""
+  },
+  "MESSENGER_PLATFORM": {
+    "process": "relay, host",
+    "description": "which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it"
+  },
+  "MIGRATION_DIRECTORY_PATH": {
+    "process": "tools/render-company-runtime",
+    "description": "the Blueclaw migrations directory rendered into the company plane's runtime document; defaults to /opt/blueclaw/migrations"
+  },
+  "MODEL_API_KEY_PATH": {
+    "process": "tools/render-company-runtime",
+    "description": "the path to the file holding the key the rendered model ladder names on every endpoint, so the key never lands in the runtime document; defaults to the file capabilityd is given"
+  },
+  "MODEL_ENDPOINT": {
+    "process": "tools/render-company-runtime",
+    "description": "the OpenAI-compatible endpoint the rendered model ladder reaches, for a company running its models through a gateway of its own; defaults to the ladder's own endpoint"
+  },
+  "OLLAMA_INSTALL_HOST": {
+    "process": "tools/install-ollama-jetson",
+    "description": "the remote Jetson host Ollama is installed on"
+  },
+  "OLLAMA_INSTALL_PASSWORD": {
+    "process": "tools/install-ollama-jetson",
+    "description": "the SSH password for the remote Jetson host"
+  },
+  "OLLAMA_INSTALL_USER": {
+    "process": "tools/install-ollama-jetson",
+    "description": "the SSH user for the remote Jetson host"
+  },
+  "OPENROUTER_API_KEY": {
+    "process": "cli",
+    "description": "the OpenRouter API key for remote model inference from tooling run on this machine; also read by internal/llmbackend's live OpenRouter test"
+  },
+  "PATH": {
+    "process": "cli verification tests",
+    "description": "the inherited executable search path, preserved after a temporary curl stub directory when testing verification scripts without network calls"
+  },
+  "PLAYWRIGHT_BASE_URL": {
+    "process": "web e2e tests",
+    "description": "the base URL web/playwright.config.ts points its browser at; defaults to http://127.0.0.1:5174"
+  },
+  "PLAYWRIGHT_CENTRAL_PLANE": {
+    "process": "web e2e tests",
+    "description": "when \"1\", web/playwright.config.ts runs against a real local central plane instead of the mocked device path"
+  },
+  "PLAYWRIGHT_CHANNEL": {
+    "process": "web e2e tests",
+    "description": "the browser channel (e.g. chrome) web/playwright.config.ts launches, when set"
+  },
+  "PLAYWRIGHT_START_WEB_SERVER": {
+    "process": "web e2e tests",
+    "description": "when \"1\", web/playwright.config.ts starts its own dev server instead of expecting one already running"
+  },
+  "PROGRAMFILES": {
+    "process": "companion",
+    "description": "the Windows Program Files directory, read to locate the default Chrome path on Windows"
+  },
+  "PUPPETEER_EXECUTABLE_PATH": {
+    "process": "device",
+    "description": "override Chromium path inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /usr/bin/chromium"
+  },
+  "RELEASE_BUCKET": {
+    "process": "release-registry worker",
+    "description": "the R2 bucket binding the release-registry worker serves published release objects from"
+  },
+  "RELEASE_DOWNLOAD_TOKEN": {
+    "process": "release-registry worker",
+    "description": "the bearer token the release-registry worker requires on every download request"
+  },
+  "REMOTE_TIMEOUT": {
+    "process": "tools/e2e-crud",
+    "description": "how long the e2e-crud/e2e-ask-flow drivers wait for one SSH command to the fleet VM; defaults to 120 (e2e-crud) or 600 (e2e-ask-flow) seconds, and is raised per case for long-running ones"
+  },
+  "SMOKE_AGENT_PUBKEY": {
+    "process": "host smoke test",
+    "description": "the agent's Buzz public key host/smoke.sh signs its smoke message with"
+  },
+  "SMOKE_CHANNEL_ID": {
+    "process": "host smoke test",
+    "description": "the Buzz channel host/smoke.sh sends its smoke message to"
+  },
+  "SMOKE_QUESTION": {
+    "process": "host smoke test",
+    "description": "the question text host/smoke.sh asks in its smoke message"
+  },
+  "SMOKE_RELAY_URL": {
+    "process": "host smoke test",
+    "description": "the relay's Buzz websocket URL host/smoke.sh connects to"
+  },
+  "SMOKE_SENDER_KEY_PATH": {
+    "process": "host smoke test",
+    "description": "path to the private key host/smoke.sh signs its smoke message with"
+  },
+  "SMOKE_WAIT_SECONDS": {
+    "process": "host smoke test",
+    "description": "how long host/smoke.sh and host/smoke-listen.ts wait for the smoke message's answer; defaults to 90"
+  },
+  "RELAY_STATE_DIR": {
+    "process": "relay, host",
+    "description": "where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay"
+  },
+  "SUPABASE_ACCESS_TOKEN": {
+    "process": "web scripts",
+    "description": "a Supabase management API access token, read by web/scripts/remote-query.ts"
+  },
+  "SUPABASE_DB_URL": {
+    "process": "tooling",
+    "description": "the database supabase/scripts/generate-record-surface.ts reads pg_proc from; defaults to the local Supabase at postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"
+  },
+  "SUPABASE_JWKS_URL": {
+    "process": "connection-gateway worker",
+    "description": "override JWKS URL the connection-gateway worker verifies member tokens against, instead of deriving it from SUPABASE_URL"
+  },
+  "SUPABASE_PROJECT_REF": {
+    "process": "web scripts",
+    "description": "the Supabase project reference web/scripts/remote-query.ts targets"
+  },
+  "SUPABASE_PUBLISHABLE_KEY": {
+    "process": "relay, host, web, connection-gateway worker, web scripts",
+    "description": "the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts"
+  },
+  "SUPABASE_SECRET_KEY": {
+    "process": "web scripts",
+    "description": "the Supabase project's service-role secret key, used by web/scripts' one-off ops scripts and integration tests; never in a build"
+  },
+  "SUPABASE_SERVICE_ROLE_KEY": {
+    "process": "web scripts",
+    "description": "fallback name for the Supabase service-role key, read when SUPABASE_SECRET_KEY is unset"
+  },
+  "SUPABASE_URL": {
+    "process": "relay, host, web, connection-gateway worker, web scripts",
+    "description": "the Supabase project URL; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts"
+  },
+  "TMPDIR": {
+    "process": "tools",
+    "description": "the system temporary-directory override several tools/* build and verification scripts use as a scratch-directory base, with /tmp as the fallback"
+  },
+  "TZ": {
+    "process": "admind",
+    "description": "the IANA time zone name internal/admind/system_time_zone.go reads as the environment's declared zone"
+  },
+  "USER": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the invoking user's login name, used as the default SSH user for the remote runtime-builder"
+  },
+  "VAPID_PUBLIC_KEY": {
+    "process": "web",
+    "description": "the VAPID public key injected into the page for push-notification subscription; the matching private key lives in Supabase Vault, not the environment"
+  },
+  "VIRTIOFSD_VERSION": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the virtiofsd version fetched for the Blueclaw guest runtime; defaults to 1.10.0-1ubuntu0.1"
+  },
+  "VITE_ADMIND_TARGET": {
+    "process": "web",
+    "description": "the admind base URL the local Vite dev server proxies to; defaults to http://127.0.0.1:18080"
+  },
+  "VITE_ALLOWED_HOSTS": {
+    "process": "web",
+    "description": "a comma-separated list of extra hostnames the local Vite dev server accepts requests for"
+  },
+  "VITE_BUILD_TARGET": {
+    "process": "web",
+    "description": "when \"board\", the client build renders the device board UI's home route instead of the central-plane app"
+  },
+  "VITE_DEV_USER_EMAIL": {
+    "process": "web",
+    "description": "the fake signed-in user's email for the local Vite dev server's mock-data screens; defaults to kim@example.com"
+  },
+  "VITE_DEV_USER_ROLE": {
+    "process": "web",
+    "description": "the fake signed-in user's role for the local Vite dev server's mock-data screens"
+  },
+  "VITE_MOCK_ADMIN": {
+    "process": "web",
+    "description": "when \"1\", enables the local dev server's mocked admin/CRM screen instead of the Supabase-backed one"
+  },
+  "VITE_MOCK_CRM": {
+    "process": "web",
+    "description": "when \"1\", enables the local dev server's mocked CRM screen instead of the Supabase-backed one"
+  },
+  "VITE_MOCK_FILES": {
+    "process": "web",
+    "description": "when \"1\", enables the local dev server's mocked files screen instead of the Supabase-backed one"
+  },
+  "VITE_MOCK_MAIL": {
+    "process": "web",
+    "description": "when \"1\", enables the local dev server's mocked mail screen instead of the Supabase-backed one"
+  },
+  "VITE_MOCK_MEMORY": {
+    "process": "web",
+    "description": "when \"1\", enables the local dev server's mocked memory screen instead of the Supabase-backed one"
+  },
+  "VITE_MOCK_TASKS": {
+    "process": "web",
+    "description": "when \"1\", enables the local dev server's mocked tasks screen (a second, distinct mock flag from VITE_MOCK_TASK) instead of the Supabase-backed one"
+  },
+  "VITE_SUPABASE_PUBLISHABLE_KEY": {
+    "process": "web scripts",
+    "description": "fallback name for the Supabase publishable key, read by web/scripts/send-magic-link.ts when SUPABASE_PUBLISHABLE_KEY is unset"
+  },
+  "WAYLAND_DISPLAY": {
+    "process": "companion",
+    "description": "the Wayland display socket name; the companion's browser runtime checks it is set (with DISPLAY unset) before choosing a Wayland-native launch path"
+  },
+  "WORKSPACE_ROOT_PATH": {
+    "process": "tools/render-company-runtime, relay",
+    "description": "the workspace root rendered into the company plane's runtime document, and the cwd the relay opens an ACP session with; defaults to /workspace"
+  },
+  "XDG_CACHE_HOME": {
+    "process": "tools/prepare-container-kernel",
+    "description": "the XDG cache directory, read on Linux to locate the default container-kernel cache path"
+  },
+  "XDG_SESSION_TYPE": {
+    "process": "companion",
+    "description": "the desktop session type (\"wayland\" or otherwise); the companion's browser runtime reads it to detect a Wayland session"
+  },
+  "INTERNKIM_LIVE_ARTIFACT_DIR": {
+    "process": "llmbackend live tests",
+    "description": "the directory internal/llmbackend's live OpenRouter truncation test writes its request and response evidence into; the test skips when it is unset"
+  }
 }

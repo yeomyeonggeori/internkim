@@ -25,7 +25,7 @@
 | 사용자 로컬 실행 | `internkim-companion` | `browser_*`를 사용자 컴퓨터에서 실행 |
 | Portable artifacts | ICS, CalDAV, DOCX, XLSX, CSV, HTML, PDF | Google 인증 없이 먼저 생성/공유 가능한 기본 산출물 |
 | Google Workspace | `gws`, `gws-bot`, Apps Script bridge | optional import/export/publish target으로 유지 |
-| 기억 | Graphiti memory sidecar | 대화, 업무, 사람, 파일 요약을 장기 기억으로 저장 |
+| 기억 | the blueclaw fact store | 대화, 업무, 사람, 파일 요약을 장기 기억으로 저장 |
 
 현재 부족한 것은 기능별 실행 계약, 권한 승인 흐름, 산출물 관리, 개인별 preference 저장, 반복 작업 스케줄러, 문서/파일 ingest pipeline이다.
 
@@ -182,7 +182,7 @@ Companion의 approval grant는 task-scoped로 유지하고, `user_confirm`과 `u
 3. anydoc으로 텍스트 추출
 4. 이미지/PDF page는 OCR 또는 VLM caption 추출
 5. chunking과 요약
-6. Graphiti memory 저장
+6. the blueclaw fact store 저장
 7. artifact registry에 extraction 결과 저장
 
 VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote model 중 정책으로 선택한다.
@@ -200,7 +200,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 | native reply attachments | Mattermost/Slack/Signal 파일 전송 | attachment upload를 별도 tool이나 skill로 중복 구현하지 않는다 |
 | `pdf` skill | PDF 생성과 PDF 읽기/편집 | 문서형 PDF 생성기를 중복 구현하지 않는다 |
 | `agent-browser` skill, `browser.*` capability | 브라우저 자동화 | raw Playwright, Chrome, `agent-browser` 호출을 제품 코드에 흩뿌리지 않는다 |
-| Graphiti memory | 장기 기억 저장과 검색 | 별도 기억 저장소를 만들지 않는다 |
+| the blueclaw fact store | 장기 기억 저장과 검색 | 별도 기억 저장소를 만들지 않는다 |
 | Blueclaw terminal | dev/admin용 터미널 | 제품 기본 업무 경로로 확대하지 않는다 |
 
 새 skill은 실행 구현이 아니라 orchestration layer여야 한다. 즉, 언제 기존 skill을 호출할지, 무엇을 더 물어볼지, 어떤 승인 규칙을 적용할지, 결과를 어떤 task/artifact/memory scope에 연결할지만 정의한다.
@@ -222,7 +222,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 | 업무 투두리스트 | task transition API, assignee request, status audit | Blueclaw task DB |
 | 파일 생성 및 공유 | artifact registry, Drive/platform share approval | native reply attachments |
 | 파일 인식/분석 | ingest pipeline, anydoc/OCR/VLM routing | artifact ingest pipeline |
-| 직원별/직급별 기억 분리 | memory scope router, member/role identity map | Graphiti memory |
+| 직원별/직급별 기억 분리 | memory scope router, member/role identity map | the blueclaw fact store |
 | 이메일 정리 | provider-neutral search/classify, thread summary, label/archive plan | email provider bridge, optional Gmail |
 | 이메일 작성 | draft generator, context retrieval, tone presets | `.eml`/draft text first, optional Gmail |
 | 이메일 보내기 | draft preview, mandatory manual approval, audit log | provider send after approval |
@@ -250,7 +250,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 - task, member schema를 실제 migration으로 연결
 - task transition API 추가
 - attendance, reminder, meeting schema 추가
-- Graphiti memory scope와 member/role scope 연결
+- the blueclaw fact store scope와 member/role scope 연결
 
 이 단계가 끝나면 출퇴근, 업무 투두, 회의록, 직원별 기억 분리가 가능해진다.
 

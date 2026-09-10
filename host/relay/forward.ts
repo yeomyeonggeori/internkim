@@ -546,7 +546,7 @@ async function serveWorkspace(
 }
 
 export const workspaceCapabilityPaths: Record<string, string> = {
-	'person.memory.graph': '/memory/api/graph',
+	'person.memory.facts': '/memory/api/facts',
 	'person.memory.schedules': '/memory/api/schedules',
 	'person.skills.list': '/skills/api',
 	[workspaceRootsCapability]: '/files/api/roots',
@@ -566,14 +566,10 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 };
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
+	'person.memory.facts.forget': '/memory/api/facts/forget',
 	'person.task.quick_task': '/task/api/tasks/quick',
 	'person.runs.approve': '/runs/api/approve',
 	'person.runs.retry': '/runs/api/retry',
-	'person.memory.episode_delete': '/memory/api/episodes/delete',
-	'person.memory.fact_update': '/memory/api/facts/update',
-	'person.memory.fact_delete': '/memory/api/facts/delete',
-	'person.memory.pinned_update': '/memory/api/pinned/update',
-	'person.memory.pinned_delete': '/memory/api/pinned/delete',
 	'person.memory.schedule_cancel': '/memory/api/schedules/cancel',
 	'person.memory.schedule_delete': '/memory/api/schedules/delete',
 	'person.memory.schedule_update': '/memory/api/schedules/update',

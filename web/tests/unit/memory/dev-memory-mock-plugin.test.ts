@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createDevMemoryMockResponse, createDevMemoryMockState } from '../../../dev-memory-mock-plugin';
 import type { MemoryScheduleListResponse } from '../../../src/routes/memory/memory-schedule-api';
-import type { MemoryGraphResponse } from '../../../src/routes/memory/memory-graph-api';
+import type { MemoryFactsResponse } from '../../../src/routes/memory/memory-facts-api';
 
 describe('dev memory mock plugin', () => {
 	test('returns schedules with page and page size pagination', async () => {
@@ -21,18 +21,32 @@ describe('dev memory mock plugin', () => {
 		expect(body.schedules?.[0]?.taskScheduleID).toBe('dev-schedule-016');
 	});
 
-	test('returns a graph payload so the memory tab can load', async () => {
+	test('returns facts and a profile so the memory tab can load, and forgets on request', async () => {
 		const state = createDevMemoryMockState('admin@example.com');
 		const response = await createDevMemoryMockResponse(state, {
 			method: 'GET',
-			pathname: '/memory/api/graph',
-			searchParams: new URLSearchParams('limit=120')
+			pathname: '/memory/api/facts',
+			searchParams: new URLSearchParams('limit=200')
 		});
 
 		expect(response?.status).toBe(200);
-		const body = response?.body as MemoryGraphResponse;
-		expect(body.health).toMatchObject({ configured: true, reachable: true });
-		expect((body.nodes?.length ?? 0) > 0).toBe(true);
+		const body = response?.body as MemoryFactsResponse;
+		expect(body.profile.identityLines.length > 0).toBe(true);
+		expect(body.facts.length).toBe(5);
+
+		const forgotten = await createDevMemoryMockResponse(state, {
+			method: 'POST',
+			pathname: '/memory/api/facts/forget',
+			searchParams: new URLSearchParams(),
+			body: JSON.stringify({ factIDs: ['dev-fact-2'], reason: 'test' })
+		});
+		expect(forgotten?.status).toBe(200);
+		const after = await createDevMemoryMockResponse(state, {
+			method: 'GET',
+			pathname: '/memory/api/facts',
+			searchParams: new URLSearchParams()
+		});
+		expect((after?.body as MemoryFactsResponse).facts.map((fact) => fact.factID)).not.toContain('dev-fact-2');
 	});
 
 	test('returns an authenticated development session', async () => {

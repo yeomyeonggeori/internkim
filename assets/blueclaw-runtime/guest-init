@@ -44,7 +44,6 @@ prepare_blueclaw_workspace() {
   local workspaceDirectory
   for workspaceDirectory in \
     /workspace/.blueclaw/postgres/data \
-    /workspace/.blueclaw/graphiti \
     /workspace/.blueclaw/logs \
     /workspace/.blueclaw/blobs \
     /workspace/.blueclaw/config \
@@ -63,14 +62,11 @@ prepare_blueclaw_workspace() {
     ensure_workspace_directory "$workspaceDirectory"
   done
 
-  rmdir /workspace/.blueclaw/graphiti/kuzu 2>/dev/null || true
-
   chown blueclaw:blueclaw /workspace /workspace/.blueclaw
   chown -R blueclaw:blueclaw \
     /workspace/circles \
     /workspace/private \
     /workspace/shared \
-    /workspace/.blueclaw/graphiti \
     /workspace/.blueclaw/logs \
     /workspace/.blueclaw/blobs \
     /workspace/.blueclaw/config \
@@ -82,7 +78,6 @@ prepare_blueclaw_workspace() {
   chmod 0755 /workspace/shared /workspace/shared/public
   chmod 0750 /workspace/.blueclaw/config
   chmod 0770 \
-    /workspace/.blueclaw/graphiti \
     /workspace/.blueclaw/logs \
     /workspace/.blueclaw/blobs \
     /workspace/.blueclaw/migrations \
@@ -124,7 +119,8 @@ check_blueclaw_posix_helper() {
 }
 
 run_postgres_sql() {
-  timeout 30s su -s /bin/bash postgres -c "$postgres_bindir/psql -h /workspace/.blueclaw/postgres -p 5432 -U postgres -d template1 -tAc \"$1\""
+  local database="${2:-template1}"
+  timeout 30s su -s /bin/bash postgres -c "$postgres_bindir/psql -h /workspace/.blueclaw/postgres -p 5432 -U postgres -d $database -tAc \"$1\""
 }
 
 wait_for_postgres_sql() {
@@ -147,26 +143,6 @@ wait_for_postgres_socket() {
   done
   log_guest_init "postgres socket readiness timed out"
   exit 1
-}
-
-wait_for_graphiti_health() {
-  local graphiti_process_id="$1"
-  for attempt in $(seq 1 120); do
-    if ! kill -0 "$graphiti_process_id" >/dev/null 2>&1; then
-      log_guest_init "graphiti exited before health at attempt $attempt"
-      tail -n 80 /workspace/.blueclaw/logs/graphiti-memoryd.log >/dev/console 2>/dev/null || true
-      return 1
-    fi
-    if curl --silent --fail --max-time 5 http://127.0.0.1:7791/health >/dev/null 2>&1; then
-      log_guest_init "graphiti health ready"
-      return
-    fi
-    sleep 1
-  done
-  log_guest_init "graphiti health readiness timed out"
-  ps -ef | grep '[g]raphiti' >/dev/console 2>/dev/null || true
-  tail -n 80 /workspace/.blueclaw/logs/graphiti-memoryd.log >/dev/console 2>/dev/null || true
-  return 1
 }
 
 configure_outbound_network() {
@@ -292,6 +268,8 @@ if ! run_postgres_sql "SELECT 1 FROM pg_database WHERE datname='blueclaw'" | gre
   run_postgres_sql "CREATE DATABASE blueclaw OWNER blueclaw"
 fi
 log_guest_init "postgres database ready"
+run_postgres_sql "CREATE EXTENSION IF NOT EXISTS vector" blueclaw >/dev/null
+log_guest_init "postgres vector extension ready"
 
 /usr/local/bin/blueclaw-vsock-http-proxy -listen 127.0.0.1:18081 -host-cid 2 -host-port 7000 >>/workspace/.blueclaw/logs/vsock-http-proxy.log 2>&1 &
 outbound_proxy_process_id="$!"
@@ -324,12 +302,6 @@ log_guest_init "guest clock synchronized"
   done
 ) &
 
-su -s /bin/bash blueclaw -c 'INTERNKIM_CAPABILITY_ENDPOINT=http://127.0.0.1:18081 BLUECLAW_GRAPHITI_KUZU_PATH=/workspace/.blueclaw/graphiti/kuzu BLUECLAW_GRAPHITI_LISTEN_ADDRESS=127.0.0.1 BLUECLAW_GRAPHITI_PORT=7791 /usr/local/bin/graphiti-memoryd' >>/workspace/.blueclaw/logs/graphiti-memoryd.log 2>&1 &
-graphiti_process_id="$!"
-log_guest_init "graphiti started pid=$graphiti_process_id"
-
-wait_for_graphiti_health "$graphiti_process_id" &
-
 blueclaw_binary="$(blueclaw_binary_path)"
 su -s /bin/bash blueclaw -c "BLUECLAW_BUNDLED_SKILLS_PATH=/delivery/skills $blueclaw_binary -runtime /delivery/config/runtime.json -policy /delivery/config/policy.json" >>/workspace/.blueclaw/logs/blueclaw.log 2>&1 &
 blueclaw_process_id="$!"
@@ -339,5 +311,5 @@ log_guest_init "blueclaw started"
 inbound_proxy_process_id="$!"
 log_guest_init "guest http proxy started"
 
-wait -n "$postgres_process_id" "$graphiti_process_id" "$blueclaw_process_id" "$outbound_proxy_process_id" "$inbound_proxy_process_id"
+wait -n "$postgres_process_id" "$blueclaw_process_id" "$outbound_proxy_process_id" "$inbound_proxy_process_id"
 shutdown_guest

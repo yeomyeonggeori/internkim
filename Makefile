@@ -7,7 +7,7 @@ AGENT_BROWSER_VERSION ?= 0.26.0
 COMPANION_BETA_DIST ?= dist/companion
 COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-maild build-relay build-companion build-companion-shell package-companion-beta verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast deps-graphiti setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser verify-graphiti-local
+.PHONY: build build-maild build-relay build-companion build-companion-shell package-companion-beta verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -93,10 +93,6 @@ smoke-blueclaw-runtime-lab-fast: build
 build-litert-lm-main:
 	tools/build-litert-lm-main
 
-deps-graphiti:
-	cd .dependency/blueclaw && test -x .venv-graphiti/bin/python || uv venv .venv-graphiti
-	cd .dependency/blueclaw && uv pip install --python .venv-graphiti/bin/python -r tools/graphiti_memoryd/requirements.txt
-
 setup-sim: build
 	./internkim setup --sim
 
@@ -114,6 +110,3 @@ deploy-after-sim: deploy-after-fleet
 verify-browser: build
 	./internkim verify browser --local
 	./internkim verify browser --public
-
-verify-graphiti-local:
-	tools/verify-graphiti-local

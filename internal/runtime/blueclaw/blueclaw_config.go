@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 
@@ -13,23 +12,21 @@ import (
 )
 
 const (
-	BlueclawCapabilityTimeoutSecond                     = 0
-	BlueclawPinnedMemoryHardLimitCharacterCount         = 6000
-	BlueclawPinnedMemoryCompressionTargetCharacterCount = 3500
-	BlueclawGuestDefaultVirtualCPUCount                 = 2
-	BlueclawGuestDefaultMemoryMiB                       = 4096
-	BlueclawTestEscalationModelName                     = modelladder.PrimaryModel
-	BlueclawTestModelEnvironment                        = "INTERNKIM_TEST_MODEL"
-	BlueclawTestModelTierEnvironment                    = "INTERNKIM_TEST_MODEL_TIER"
-	BlueclawTestMaximumModelTierEnvironment             = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
-	BlueclawTestMinimumModelTierEnvironment             = "INTERNKIM_TEST_MINIMUM_MODEL_TIER"
-	BlueclawTestGenerationSeedEnvironment               = "INTERNKIM_TEST_GENERATION_SEED"
-	BlueclawTestGenerationTemperatureEnvironment        = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
-	BlueclawAdminTaskDiagnosticEnvironment              = "INTERNKIM_BLUECLAW_ADMIN_TASK_DIAGNOSTIC"
-	BlueclawModelPathDiagnosticProfileName              = "model-path-diagnostic"
-	BlueclawModelPathDiagnosticToolSentinel             = "model_path.diagnostic.no_tools"
-	LocalOnlyEnvironment                                = "INTERNKIM_LOCAL_ONLY"
-	BlueclawVirtualCPUCountEnvironment                  = "INTERNKIM_BLUECLAW_VCPU_COUNT"
+	BlueclawCapabilityTimeoutSecond              = 0
+	BlueclawGuestDefaultVirtualCPUCount          = 2
+	BlueclawGuestDefaultMemoryMiB                = 4096
+	BlueclawTestEscalationModelName              = modelladder.PrimaryModel
+	BlueclawTestModelEnvironment                 = "INTERNKIM_TEST_MODEL"
+	BlueclawTestModelTierEnvironment             = "INTERNKIM_TEST_MODEL_TIER"
+	BlueclawTestMaximumModelTierEnvironment      = "INTERNKIM_TEST_MAXIMUM_MODEL_TIER"
+	BlueclawTestMinimumModelTierEnvironment      = "INTERNKIM_TEST_MINIMUM_MODEL_TIER"
+	BlueclawTestGenerationSeedEnvironment        = "INTERNKIM_TEST_GENERATION_SEED"
+	BlueclawTestGenerationTemperatureEnvironment = "INTERNKIM_TEST_GENERATION_TEMPERATURE"
+	BlueclawAdminTaskDiagnosticEnvironment       = "INTERNKIM_BLUECLAW_ADMIN_TASK_DIAGNOSTIC"
+	BlueclawModelPathDiagnosticProfileName       = "model-path-diagnostic"
+	BlueclawModelPathDiagnosticToolSentinel      = "model_path.diagnostic.no_tools"
+	LocalOnlyEnvironment                         = "INTERNKIM_LOCAL_ONLY"
+	BlueclawVirtualCPUCountEnvironment           = "INTERNKIM_BLUECLAW_VCPU_COUNT"
 )
 
 type defaultCircleDefinition struct {
@@ -48,7 +45,6 @@ type RuntimeConfigOptions struct {
 	MigrationDirectoryPath     string
 	CapabilitySocketPath       string
 	CapabilityVSockPort        int
-	GraphitiEndpoint           string
 	AdminAssertionKeyPath      string
 	HostWorkspacePath          string
 	RootFilesystemImagePath    string
@@ -194,10 +190,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	virtualMachineMonitor := firstNonEmptyString(options.VirtualMachineMonitor, BlueclawVirtualMachineMonitor)
 	databaseConnectionString := firstNonEmptyString(options.DatabaseConnectionString, BlueclawGuestDatabaseConnectionString)
 	migrationDirectoryPath := firstNonEmptyString(options.MigrationDirectoryPath, guestMigrationDirectoryPath(virtualMachineMonitor))
-	graphitiEndpoint := firstNonEmptyString(options.GraphitiEndpoint, GraphitiEndpoint)
-	if options.DirectExecution && strings.TrimSpace(options.GraphitiEndpoint) == "" {
-		graphitiEndpoint = ""
-	}
 	adminAssertionKeyPath := strings.TrimSpace(options.AdminAssertionKeyPath)
 	if adminAssertionKeyPath == "" {
 		if options.DirectExecution {
@@ -335,14 +327,10 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"migrationDirectoryPath": migrationDirectoryPath,
 		},
 		"memory": map[string]any{
-			"adminAssertionKeyPath":                       adminAssertionKeyPath,
-			"workspaceID":                                 "default",
-			"graphitiEndpoint":                            graphitiEndpoint,
-			"graphitiKuzuPath":                            path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "graphiti", "kuzu"),
-			"pinnedMemoryRootPath":                        path.Join(BlueclawGuestWorkspacePath, ".blueclaw", "memory"),
-			"pinnedMemoryHardLimitCharacterCount":         BlueclawPinnedMemoryHardLimitCharacterCount,
-			"pinnedMemoryCompressionTargetCharacterCount": BlueclawPinnedMemoryCompressionTargetCharacterCount,
-			"timeoutSecond":                               60,
+			"adminAssertionKeyPath":  adminAssertionKeyPath,
+			"embeddingModel":         modelladder.EmbeddingModel,
+			"embeddingExecutionMode": "auto",
+			"extractionDisabled":     false,
 		},
 		"agent": agentConfiguration,
 		"connectors": map[string]any{

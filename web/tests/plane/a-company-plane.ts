@@ -7,7 +7,7 @@
 // how the processes are started. So this starts them.
 
 import { SQL } from 'bun';
-import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -59,11 +59,6 @@ type PlaneRequest = {
 	inbound?: 'connectors' | 'acp';
 	keepRunDirectory?: boolean;
 };
-
-function isHealthyGraphitiResponse(value: unknown): boolean {
-	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-	return 'status' in value && value.status === 'ok';
-}
 
 function environmentValue(name: string): string {
 	const value = process.env[name];
@@ -157,23 +152,6 @@ async function untilReady(what: string, ready: () => Promise<boolean>, seconds =
 		await Bun.sleep(250);
 	}
 	throw new Error(`${what} never became ready`);
-}
-
-function graphitiPythonPath(): string {
-	const configuredPath = process.env.COMPANY_PLANE_GRAPHITI_PYTHON;
-	if (configuredPath) return configuredPath;
-	const environmentPath = join(repositoryRoot, '.local', 'company-plane', 'graphiti-venv');
-	const pythonPath = join(environmentPath, 'bin', 'python');
-	if (!existsSync(pythonPath)) {
-		const created = Bun.spawnSync(['uv', 'venv', environmentPath], { stdout: 'inherit', stderr: 'inherit' });
-		if (created.exitCode !== 0) throw new Error('could not create the company-plane Graphiti Python environment');
-	}
-	const installed = Bun.spawnSync(
-		['uv', 'pip', 'install', '--python', pythonPath, '-r', join(repositoryRoot, '.dependency', 'blueclaw', 'tools', 'graphiti_memoryd', 'requirements.txt')],
-		{ stdout: 'inherit', stderr: 'inherit' }
-	);
-	if (installed.exitCode !== 0) throw new Error('could not install the pinned company-plane Graphiti requirements');
-	return pythonPath;
 }
 
 // Every process that can name a messenger is told the same one, and the plane
@@ -297,8 +275,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		const capabilitySocketPath = join(socketDirectory, 'capability.sock');
 		const blueclawACPSocketPath = join(socketDirectory, 'blueclaw-acp.sock');
 		const arrivalsPort = await aFreePort();
-		const graphitiPort = await aFreePort();
-		const graphitiKuzuPath = join(runDirectory, 'workspace', '.blueclaw', 'graphiti', 'kuzu');
 		const relayInboundURL = `http://127.0.0.1:${arrivalsPort}/inbound`;
 		// The public API only trusts a requester that arrived on this socket, which is
 		// the door the relay uses; over TCP the same call is an anonymous 401.
@@ -371,8 +347,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					MODEL_ENDPOINT: model.url,
 					MODEL_API_KEY_PATH: openRouterKeyPath,
 					ADMIN_ASSERTION_KEY_PATH: agentKeyPath,
-					GRAPHITI_ENDPOINT: `http://127.0.0.1:${graphitiPort}`,
-					GRAPHITI_KUZU_PATH: graphitiKuzuPath,
 					WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
 					MIGRATION_DIRECTORY_PATH: join(repositoryRoot, '.dependency', 'blueclaw', 'migrations'),
 					LOG_DIRECTORY_PATH: join(runDirectory, 'logs')
@@ -382,41 +356,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		if (render.exitCode !== 0) {
 			throw new Error(`render-company-runtime failed: ${render.stderr.toString()}`);
 		}
-
-		const runtimeDocument = JSON.parse(readFileSync(runtimeConfigurationPath, 'utf8')) as {
-			languageModel?: { tiers?: { low?: { model?: string }[] } };
-		};
-		const graphitiModel = runtimeDocument.languageModel?.tiers?.low?.[0]?.model;
-		const graphitiPython = graphitiPythonPath();
-		started.push(
-			Bun.spawn(
-				[graphitiPython, join(repositoryRoot, '.dependency', 'blueclaw', 'tools', 'graphiti_memoryd', 'main.py')],
-				{
-					...logsTo(join(runDirectory, 'graphiti-memoryd.log')),
-					cwd: join(repositoryRoot, '.dependency', 'blueclaw', 'tools'),
-					env: {
-						...theBoxEnvironment(),
-						PYTHONPATH: join(repositoryRoot, '.dependency', 'blueclaw', 'tools'),
-						BLUECLAW_CAPABILITY_ENDPOINT: `http+unix://${encodeURIComponent(capabilitySocketPath)}`,
-						BLUECLAW_GRAPHITI_KUZU_PATH: graphitiKuzuPath,
-						BLUECLAW_GRAPHITI_PORT: String(graphitiPort),
-						BLUECLAW_GRAPHITI_LISTEN_ADDRESS: '127.0.0.1',
-						BLUECLAW_GRAPHITI_EXECUTION_MODE: 'remote',
-						BLUECLAW_GRAPHITI_EMBEDDING_EXECUTION_MODE: 'remote',
-						...(graphitiModel ? { BLUECLAW_GRAPHITI_MODEL: graphitiModel } : {})
-					}
-				}
-			)
-		);
-		await untilReady('graphiti-memoryd', async () => {
-			try {
-				const response = await fetch(`http://127.0.0.1:${graphitiPort}/health`);
-				const payload: unknown = await response.json();
-				return response.ok && isHealthyGraphitiResponse(payload);
-			} catch {
-				return false;
-			}
-		});
 
 		const startBlueclaw = () =>
 			Bun.spawn(
