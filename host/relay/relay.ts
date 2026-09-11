@@ -24,7 +24,7 @@ import {
 	type KeptFileReference,
 	type PublicAPIRequest
 } from './forward';
-import { readArrivedMessage, tellingOf, type ArrivedMessage } from './arrived';
+import { notifyRequestOf, readArrivedMessage, type ArrivedMessage } from './arrived';
 import { connectToGateway, type GatewayConnection } from './gateway-socket';
 import { CredentialCache } from './credential-cache';
 import { BlueclawACPClient, defaultBlueclawACPSocketPath, type Addressing } from './acp-session';
@@ -258,13 +258,10 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 
 async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	if (arrived.recipientExternalIDs.length === 0) return 0;
-	const spoken = await askTheProject<{ told?: number }>('notify', {
-		platform: messengerPlatform,
-		externalIDs: arrived.recipientExternalIDs,
-		category: 'message',
-		conversationID: arrived.conversationID,
-		...tellingOf(arrived, await authorNameOf(arrived))
-	});
+	const spoken = await askTheProject<{ told?: number }>(
+		'notify',
+		notifyRequestOf(arrived, await authorNameOf(arrived), messengerPlatform)
+	);
 	return spoken.told ?? 0;
 }
 
