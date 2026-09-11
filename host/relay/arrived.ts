@@ -34,12 +34,31 @@ export function readArrivedMessage(offered: unknown): ArrivedMessage | null {
 	};
 }
 
+export type NotifyRequest = Told & {
+	platform: string;
+	externalIDs: string[];
+	senderExternalID: string;
+	category: 'message';
+	conversationID: string;
+};
+
 export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
 	return {
 		title: authorName || 'internkim',
 		body: arrived.preview,
 		openPath: '/messenger/',
 		tag: `message:${arrived.conversationID}`
+	};
+}
+
+export function notifyRequestOf(arrived: ArrivedMessage, authorName: string, platform: string): NotifyRequest {
+	return {
+		platform,
+		externalIDs: arrived.recipientExternalIDs,
+		senderExternalID: arrived.authorExternalID,
+		category: 'message',
+		conversationID: arrived.conversationID,
+		...tellingOf(arrived, authorName)
 	};
 }
 
