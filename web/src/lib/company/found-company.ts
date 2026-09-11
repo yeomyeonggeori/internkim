@@ -1,5 +1,6 @@
 import { supabase } from '$lib/supabase';
 import { tellTheCompanyServerTheDirectoryChanged } from '$lib/organization/invite-member';
+import { companyMembership } from '$lib/signed-in-account-memo';
 
 export type FoundingInvitation = {
 	memberID: string;
@@ -46,8 +47,12 @@ export async function foundCompany(company: {
 
 export async function belongsToACompany(): Promise<boolean> {
 	const { data } = await supabase().auth.getSession();
-	const accessToken = data.session?.access_token;
-	if (!accessToken) return false;
+	const session = data.session;
+	if (!session?.access_token) return false;
+	return companyMembership.of(session.user.id, () => claimCompanyMembership(session.access_token));
+}
+
+async function claimCompanyMembership(accessToken: string): Promise<boolean> {
 	const response = await fetch('/api/member/me', { headers: { Authorization: `Bearer ${accessToken}` } });
 	if (!response.ok) return false;
 	const claimed = (await response.json()) as {

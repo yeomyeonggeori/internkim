@@ -29,6 +29,7 @@
 	import { isPlainShortcut } from '$lib/keyboard-shortcut';
 	import { goWhereNotificationsPoint } from '$lib/notifications/opened-notification';
 	import { webAuthSessionDependency } from '$lib/web-auth-session';
+	import { forgetSignedInAccount } from '$lib/signed-in-account-memo';
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
@@ -60,6 +61,7 @@
 
 		const revalidateSession = () => {
 			if (document.visibilityState !== 'visible') return;
+			forgetSignedInAccount();
 			void invalidate(webAuthSessionDependency);
 		};
 		window.addEventListener('focus', revalidateSession);
