@@ -5,6 +5,7 @@ import { forgetLastSeenTask } from '../routes/task/task-last-seen';
 import { forgetLastSeenDirectory } from '../routes/organization/organization-last-seen';
 import { signedOutSession, type WebAuthSession } from '$lib/web-auth-session';
 import { stopBeingReached } from '$lib/notifications/subscribe';
+import { forgetSignedInAccount, signedInMember } from '$lib/signed-in-account-memo';
 
 export { isSupabaseConfigured };
 
@@ -37,25 +38,27 @@ export async function supabaseMember(): Promise<SignedInMember> {
 	if (!accountID) {
 		return { memberID: '', companyID: '', role: 'member', name: '', companySlug: '', companyLocale: '' };
 	}
-	const member = await supabase()
-		.from('member')
-		.select('id, company_id, is_admin, name, company (slug, locale)')
-		.eq('user_id', accountID)
-		.maybeSingle<{
-			id: string;
-			company_id: string;
-			is_admin: boolean;
-			name: string | null;
-			company: { slug: string; locale: string } | null;
-		}>();
-	return {
-		memberID: member.data?.id ?? '',
-		companyID: member.data?.company_id ?? '',
-		role: memberRoleOf(member.data?.is_admin ?? false),
-		name: member.data?.name ?? '',
-		companySlug: member.data?.company?.slug ?? '',
-		companyLocale: member.data?.company?.locale ?? ''
-	};
+	return signedInMember.of(accountID, async () => {
+		const member = await supabase()
+			.from('member')
+			.select('id, company_id, is_admin, name, company (slug, locale)')
+			.eq('user_id', accountID)
+			.maybeSingle<{
+				id: string;
+				company_id: string;
+				is_admin: boolean;
+				name: string | null;
+				company: { slug: string; locale: string } | null;
+			}>();
+		return {
+			memberID: member.data?.id ?? '',
+			companyID: member.data?.company_id ?? '',
+			role: memberRoleOf(member.data?.is_admin ?? false),
+			name: member.data?.name ?? '',
+			companySlug: member.data?.company?.slug ?? '',
+			companyLocale: member.data?.company?.locale ?? ''
+		};
+	});
 }
 
 export async function supabaseMemberRole(): Promise<MemberRole> {
@@ -66,6 +69,7 @@ export async function signOutOfSupabase(): Promise<void> {
 	await stopBeingReached().catch(() => undefined);
 	forgetLastSeenTask();
 	forgetLastSeenDirectory();
+	forgetSignedInAccount();
 	await supabase().auth.signOut({ scope: 'local' });
 }
 
