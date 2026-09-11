@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readArrivedMessage, tellingOf } from './arrived';
+import { notifyRequestOf, readArrivedMessage, tellingOf } from './arrived';
 
 const posted = {
 	conversationID: 'channel-1',
@@ -73,5 +73,21 @@ describe('tellingOf', () => {
 
 	test('a sender we cannot name still says something', () => {
 		expect(tellingOf(readArrivedMessage(posted)!, '').title).toBe('internkim');
+	});
+});
+
+describe('notifyRequestOf', () => {
+	test('the project is told who wrote the message, so it can show their picture', () => {
+		expect(notifyRequestOf(readArrivedMessage(posted)!, '이샘플', 'buzz')).toEqual({
+			platform: 'buzz',
+			externalIDs: ['U-first', 'U-second'],
+			senderExternalID: 'U-author',
+			category: 'message',
+			conversationID: 'channel-1',
+			title: '이샘플',
+			body: '오늘 회의 30분 미뤄도 될까요',
+			openPath: '/messenger/',
+			tag: 'message:channel-1'
+		});
 	});
 });
