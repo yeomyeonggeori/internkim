@@ -60,7 +60,7 @@ try:
         f"BLUECLAW_TEST_POSTGRES_URL=postgresql://postgres@/{database_name}?host=/var/run/postgresql&sslmode=disable",
         str(workspace / "build/memory-integration.test"), "-test.v",
         "-test.run=^TestMemory",
-    ], workspace, os.environ, host_integration_tests)
+    ], workspace / ".dependency/blueclaw/tests/integration", os.environ, host_integration_tests)
     database_tests = [
         "TestApplyMigrationsSerializesConcurrentCalls",
         "TestApplyMigrationsRollsBackWhenLedgerInsertFails",
