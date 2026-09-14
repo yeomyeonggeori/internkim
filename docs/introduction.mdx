@@ -74,22 +74,27 @@ machine in your office.
 
 ## The software
 
-The agent itself is two repositories.
+The agent itself is three repositories.
 [blueclaw](https://github.com/yeomyeonggeori/blueclaw) is the agent host:
-it runs tools as the person who asked, and owns approval and the task ledger.
-[bluecollar](https://github.com/yeomyeonggeori/bluecollar) is the agent
-loop that runs inside it. This repository, `internkim`, is the layer that puts
-those two on a machine and operates them: the relay, the surrounding daemons,
-the operator CLI (`cmd/internkim/`), the web app (`web/`) and the schema
-(`supabase/migrations`). blueclaw is vendored at `.dependency/blueclaw/`.
+it owns approval and the task ledger, and it is the agent the relay hands
+each message to. [bluecollar](https://github.com/yeomyeonggeori/bluecollar)
+is the agent loop and model client running inside it, and
+[bluememo](https://github.com/yeomyeonggeori/bluememo) is its long-term
+memory. The skills it loads come from `internkim-plugin`. This repository,
+`internkim`, is the layer that puts those on a machine and operates them: the
+relay, the surrounding daemons, the operator CLI (`cmd/internkim/`), the web
+app and its tool catalog (`web/`) and the schema (`supabase/migrations`).
+blueclaw is vendored at `.dependency/blueclaw/`, the other two inside it.
+[Architecture](/docs/architecture#what-the-agent-is-made-of) shows how they
+fit.
 
 ## What stays yours
 
 **The messenger.** internkim attaches to the messenger you already run. No conversation reaches the records, because the schema has no
 table for one.
 
-**The model.** The agent talks to whichever provider you configure, or to a
-model running on your own box.
+**The model.** The agent calls models with the provider key the host holds,
+through tiers named in one place, `internal/modelladder`.
 
 **The computer.** Replaceable at any time. Everything a company would still
 need after replacing every machine it owns lives in the records.

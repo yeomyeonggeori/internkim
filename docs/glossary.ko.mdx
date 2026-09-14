@@ -39,8 +39,18 @@ API이고, 이쪽은 키를 쥡니다.
 
 `web/src/routes/api/v1/` 아래의 라우트들로, `api.<zone>/v1`과 어느 회사
 호스트의 `/api/v1`에 답합니다. 부르는 쪽은 로그인한 세션이나 사람에게 발급된
-토큰을 들고 오고, 모든 호출은 그 사람으로 실행됩니다. 도구 카탈로그와 토큰은
-앱이 직접 답하고, 실행은 도구가 도는 곳인 회사 컴퓨터로 옮깁니다.
+토큰을 들고 오고, 모든 호출은 그 사람으로 실행됩니다. 토큰과 도구 카탈로그는
+앱이 직접 답하고, 기록이 답할 수 있는 도구는 앱이 직접 실행하며, 나머지는 회사
+컴퓨터로 옮깁니다. `/api/v1/mcp`는 같은 카탈로그를 MCP로 서빙합니다.
+
+## 도구 카탈로그 [#the-tool-catalog]
+
+에이전트나 토큰이 부를 수 있는 모든 도구로,
+`web/src/lib/server/public-api/catalog/`에서 한 번만 정의되어
+`pkg/capabilityprotocol/generated/`로 생성됩니다. 도구마다 누가 답하는지를
+`answeredBy`에 밝힙니다. `record` 도구는 앱 안에서 기록에 대고 돌고, `company`
+도구는 호스트로 실려 가고, `local` 도구는 에이전트 곁에서만 돕니다. 전체 목록은
+[카탈로그](/ko/docs/tools/catalog)에 있습니다.
 
 ## 커넥션 게이트웨이 [#the-connection-gateway]
 
@@ -71,10 +81,11 @@ Buzz 클라이언트. 채팅을 읽으려고 사람이 여는 평범한
 
 ## 릴레이 [#the-relay]
 
-앱에 답하는 프로세스: `host/relay/`에서 빌드되는 `internkim-relay`.
-게이트웨이로의 상시 연결을 쥐고, 각 호출을 게이트웨이가 지목한 멤버로서
-처리하고, 메신저 도착을 알림으로 나릅니다. 회사 하나에 릴레이 프로세스
-하나입니다.
+앱에 답하고 에이전트에게 일을 먹이는 프로세스: `host/relay/`에서 빌드되는
+`internkim-relay`. 게이트웨이로의 상시 연결을 쥐고, 각 호출을 게이트웨이가
+지목한 멤버로서 처리합니다. 커넥터가 넘기는 메시지를 디스크의 큐에 두었다가
+에이전트의 ACP 턴으로 바꾸고, 에이전트에게 도구를 서빙하고, 메신저 도착을
+알림으로 나릅니다. 회사 하나에 릴레이 프로세스 하나입니다.
 
 이름에 대한 주의 둘. 예전 문서는 이 프로세스를 "브리지"라고 불렀습니다.
 그리고 **Buzz 릴레이는 다른 것입니다**. 그쪽은 회사가 굴리는 메신저 서버이고
@@ -84,23 +95,45 @@ Buzz 클라이언트. 채팅을 읽으려고 사람이 여는 평범한
 ## 커넥터 [#the-connector]
 
 `chatd`, `.dependency/blueclaw/chatd/`에 있습니다. 플랫폼 어댑터로 회사
-메신저에 붙어 봇으로 로그인하고, 도착하는 메시지를
-에이전트의 일로 바꿉니다. 릴레이와는 반대 방향을 봅니다. 릴레이는 브라우저를
-서빙하고, 커넥터는 에이전트를 서빙합니다.
+메신저에 붙어 봇으로 로그인하고, 도착하는 메시지를 정규화해 릴레이로 보냅니다.
+에이전트의 답장과 채팅 화면의 메신저 작업은 커넥터를 통해 다시 나갑니다.
 
 ## 에이전트 [#the-agent]
 
-blueclaw, 즉 에이전트 호스트와 그 안에서 도는 bluecollar 루프. blueclaw는
-시킨 사람의 신원으로 도구를 실행하고 승인과 태스크 원장을 소유합니다.
-`.dependency/blueclaw/`에 서브모듈로 들어 있고 `127.0.0.1:8080`에서
-응답합니다.
+blueclaw, 즉 에이전트 호스트로 `.dependency/blueclaw/`에 서브모듈로 들어
+있습니다. 릴레이가 세션을 여는 ACP 에이전트이고, 같은 프로세스 안에서
+bluecollar 루프를 돌리고, 기억을 bluememo에 두고, 승인과 태스크 원장을
+소유합니다. `/run/internkim/blueclaw-acp.sock`에서 듣고, 관리 API는
+`127.0.0.1:8080`에 있습니다.
+
+## 기억 [#memory]
+
+bluememo, blueclaw가 품는 라이브러리로
+`.dependency/blueclaw/.dependency/bluememo/`에 있습니다. 모델이 끝난 일에서
+뽑은 사실을 에이전트의 저장소에 두고, 사실마다 주인 한 사람과 공유된 서클
+여럿(없을 수도 있음)을 매기며, 읽는 사람이 볼 수 있는 것만 회상합니다.
+
+## 스킬 [#the-skills]
+
+에이전트가 일의 종류마다 읽어들이는 지침과 스크립트로,
+`.dependency/internkim-plugin/`의 internkim-plugin 저장소에서 옵니다. 호스트
+이미지가 `/opt/internkim/skills`로 복사합니다.
+
+## ACP와 MCP [#acp-and-mcp]
+
+방향마다 하나씩, 프로토콜 둘. 릴레이는 blueclaw에게
+[ACP](https://agentclientprotocol.com)로 말합니다. 대화마다 세션을 열고, 메시지를
+프롬프트로 보내고, 에이전트의 승인 질문을 사람에게 나릅니다. 에이전트는 도구를
+부를 때 [MCP](https://modelcontextprotocol.io)로 말하고, 그 주소는 릴레이가
+서빙하며 요청자로서 `/api/v1/mcp`로 전달합니다.
 
 ## capabilityd [#capabilityd]
 
 `internkim-capabilityd`, 타입 있는 능력 경계. 프로바이더 자격증명을 쥐고
 `/run/internkim/capability.sock`에서 능력 API만 노출하므로, 에이전트는
-프로바이더 토큰도, 브라우저 바이너리도, 모델 경로도 보지 못합니다. 코드는
-`internal/capabilityd/`.
+프로바이더 토큰도, 브라우저 바이너리도, 모델 경로도 보지 못합니다. 모델 호출도
+여기를 거칩니다. 에이전트는 티어를 요청하고, 티어의 이름은
+`internal/modelladder`에 있습니다. 코드는 `internal/capabilityd/`.
 
 ## 컴패니언 [#the-companion]
 
@@ -111,8 +144,9 @@ blueclaw, 즉 에이전트 호스트와 그 안에서 도는 bluecollar 루프. 
 
 ## 에이전트의 저장소 [#the-agents-store]
 
-호스트 위의 Postgres 데이터베이스로, `.dependency/blueclaw/migrations/`가
-정의합니다. 대화, 태스크 실행, 기억, 폴리시. 회사의 기록은 결코 아닙니다.
+호스트 위의 Postgres 데이터베이스로, `vector` 확장을 갖추고
+`.dependency/blueclaw/migrations/`가 정의합니다. 대화, 태스크 실행, 기억,
+폴리시. 회사의 기록은 결코 아닙니다.
 
 ## 디바이스 경로 [#the-device-path]
 
