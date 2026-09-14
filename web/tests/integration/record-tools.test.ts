@@ -568,10 +568,13 @@ describe('looking at what a delete would touch', () => {
 
 		const previewed = await previewOf('event_delete', { eventHint: '미리 볼 일정' });
 		expect(previewed.status).toBe(200);
-		const target = (previewed.body as { target: { inputField: string; id: string; title: string } }).target;
+		const target = (
+			previewed.body as { target: { inputField: string; id: string; title: string; startsAt: string } }
+		).target;
 		expect(target.id).toBe(made.eventID as string);
 		expect(target.title).toBe('미리 볼 일정');
 		expect(target.inputField).toBe('eventHint');
+		expect(target.startsAt).toBe(`${companyDay}T20:00:00+09:00`);
 
 		const stillThere = resultOf(await run('event_list', { query: '미리 볼 일정' }));
 		expect((stillThere.events as unknown[]).length).toBe(1);
