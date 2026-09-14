@@ -20,7 +20,11 @@ agentKeyPath="/root/.internkim/secrets/agent-key"
 buzzKeySeedPath="/root/.internkim/secrets/buzz-key-seed"
 modelAPIKeyPath="/root/.internkim/secrets/openrouter-key"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime pg_isready nc cp install"
+blueclawSecretsDirectory="/run/internkim/secrets"
+blueclawAgentKeyPath="${blueclawSecretsDirectory}/agent-key"
+blueclawModelAPIKeyPath="${blueclawSecretsDirectory}/openrouter-key"
+
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime pg_isready nc cp install mkdir chown"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
@@ -39,6 +43,13 @@ install -d -o root -g root -m 0700 /root/.internkim
 [ -r "${agentKeyPath}" ] || { echo "[host] no agent key at ${agentKeyPath}" >&2; exit 1; }
 [ -r "${buzzKeySeedPath}" ] \
   || echo "[host] no buzz identity seed at ${buzzKeySeedPath}; the agent answers, and a message it sends under a person's own name cannot be signed" >&2
+install -d -o root -g blueclaw -m 0770 /run/internkim
+install -d -o root -g blueclaw -m 0750 "${blueclawSecretsDirectory}"
+install -o root -g blueclaw -m 0440 "${agentKeyPath}" "${blueclawAgentKeyPath}"
+[ ! -r "${modelAPIKeyPath}" ] || install -o root -g blueclaw -m 0440 "${modelAPIKeyPath}" "${blueclawModelAPIKeyPath}"
+install -d -o blueclaw -g blueclaw -m 0750 /var/log/internkim
+mkdir -p /workspace/.blueclaw
+chown blueclaw:blueclaw /workspace /workspace/.blueclaw
 
 capabilitydPid=""
 admindPid=""
@@ -89,8 +100,8 @@ if [ ! -r "${runtimeConfigurationPath}" ]; then
   CAPABILITY_SOCKET_PATH="${capabilitySocketPath}" \
   BLUECLAW_BASE_URL="http://${blueclawAddress}" \
   CHATD_ENDPOINT="http://127.0.0.1:${chatdPort}" \
-  MODEL_API_KEY_PATH="${modelAPIKeyPath}" \
-  ADMIN_ASSERTION_KEY_PATH="${agentKeyPath}" \
+  MODEL_API_KEY_PATH="${blueclawModelAPIKeyPath}" \
+  ADMIN_ASSERTION_KEY_PATH="${blueclawAgentKeyPath}" \
     render-company-runtime \
       --template /opt/internkim/runtime.template.json \
       --out "${runtimeConfigurationPath}" \
