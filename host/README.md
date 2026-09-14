@@ -1,6 +1,6 @@
-# Host mode
+# The company's computer
 
-The company agent on a spare Linux box. It reaches the tenant's messenger and the
+The company agent on a computer the company keeps on. It reaches the tenant's messenger and the
 central plane **outbound only** — nothing listens off loopback, so there is no
 tunnel, no inbound port and no public hostname to maintain.
 
@@ -21,9 +21,9 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **chatd** | optional — only if a messenger is attached |
 | **admind** | the workspace screens and the tools the central plane cannot run itself arrive on its socket; without it a person's memory, files, tasks and buzz claim answer `500` |
 | **the relay** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
+| **the POSIX helper** | `shell` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`; without it blueclaw refuses every one of them, and health still reports `ok` |
 
-A virtual-machine guest, the POSIX helper, Mattermost, a relay and cloudflared
-are **not** needed. The device stack required them; this does not.
+A virtual-machine guest, Mattermost and cloudflared are **not** needed.
 
 ## The relay
 
