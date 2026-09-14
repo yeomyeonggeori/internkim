@@ -11,12 +11,17 @@ RUN CGO_ENABLED=0 go build -o /out/internkim-capabilityd ./cmd/internkim-capabil
 	&& CGO_ENABLED=0 go build -o /out/internkim-admind ./cmd/internkim-admind \
 	&& CGO_ENABLED=0 go build -o /out/internkim-maild ./cmd/internkim-maild
 WORKDIR /src/.dependency/blueclaw
-RUN CGO_ENABLED=0 go build -o /out/blueclaw ./cmd/blueclaw
+RUN CGO_ENABLED=0 go build -o /out/blueclaw ./cmd/blueclaw \
+	&& CGO_ENABLED=0 go build -o /out/blueclaw-posix-helper ./cmd/blueclaw-posix-helper
 
 FROM oven/bun:1 AS bun-build
-WORKDIR /src
+WORKDIR /src/blueclaw
+COPY .dependency/blueclaw/package.json .dependency/blueclaw/bun.lock ./
+COPY .dependency/blueclaw/admin/package.json ./admin/
+COPY .dependency/blueclaw/protocol ./protocol
 COPY .dependency/blueclaw/chatd ./chatd
-RUN cd chatd && bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --filter ./chatd
+WORKDIR /src
 COPY host/relay ./relay
 RUN cd relay && bun install --frozen-lockfile
 
@@ -27,10 +32,11 @@ RUN apt-get update \
 RUN curl -fsSL https://bun.sh/install | bash && ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
 COPY --from=go-build /out/blueclaw /usr/local/bin/blueclaw
+COPY --from=go-build /out/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-helper
 COPY --from=go-build /out/internkim-capabilityd /usr/local/bin/internkim-capabilityd
 COPY --from=go-build /out/internkim-admind /usr/local/bin/internkim-admind
 COPY --from=go-build /out/internkim-maild /usr/local/bin/internkim-maild
-COPY --from=bun-build /src/chatd /opt/chatd
+COPY --from=bun-build /src/blueclaw /opt/blueclaw-workspace
 COPY --from=bun-build /src/relay /opt/internkim/host/relay
 COPY web/src/lib/person-name.ts /opt/internkim/web/src/lib/person-name.ts
 COPY .dependency/blueclaw/migrations /opt/blueclaw/migrations
@@ -40,10 +46,17 @@ COPY tools/render-company-runtime /usr/local/bin/render-company-runtime
 COPY host/runtime.template.json /opt/internkim/runtime.template.json
 
 # entrypoint.sh calls these by name; a wrapper keeps the script free of paths.
-RUN printf '#!/bin/sh\nexec bun run /opt/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \
+RUN printf '#!/bin/sh\nexec bun run /opt/blueclaw-workspace/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \
 	&& printf '#!/bin/sh\nexec bun run /opt/internkim/host/relay/relay.ts "$@"\n' > /usr/local/bin/internkim-relay \
 	&& chmod 0755 /usr/local/bin/chatd /usr/local/bin/internkim-relay /usr/local/bin/entrypoint.sh \
 	&& mkdir -p /run/internkim /workspace /etc/blueclaw
+
+RUN groupadd --system blueclaw \
+	&& useradd --system --gid blueclaw --no-create-home --shell /usr/sbin/nologin blueclaw \
+	&& chown root:root /usr/local/bin/blueclaw-posix-helper \
+	&& chmod 4755 /usr/local/bin/blueclaw-posix-helper \
+	&& /usr/local/bin/blueclaw-posix-helper capabilities \
+		| jq -e '.version >= 2 and (.capabilities | index("exec")) and (.capabilities | index("fs"))' >/dev/null
 
 RUN /usr/local/bin/entrypoint.sh --check-programs
 

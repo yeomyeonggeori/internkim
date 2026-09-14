@@ -67,7 +67,7 @@ services:
       - ./secrets:/root/.internkim/secrets:ro
       - ./runtime:/etc/blueclaw:ro
       - workspace:/workspace
-    # Host mode's whole shape is that everything answers on loopback and nothing
+    # The bundle's whole shape is that everything answers on loopback and nothing
     # listens off it. Sharing the host's network keeps that true inside the
     # container: the messenger, the agent and the connector all reach each other
     # at 127.0.0.1, and a relay that picks its community from the Host header
