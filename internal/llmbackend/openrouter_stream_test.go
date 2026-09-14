@@ -200,3 +200,43 @@ func readAllBody(request *http.Request) ([]byte, error) {
 	defer request.Body.Close()
 	return io.ReadAll(request.Body)
 }
+
+func TestTheSecondAskIsWaitedForHoweverSlowItServes(t *testing.T) {
+	record := freshServingRecord(t)
+	for index := 0; index < servingJudgementMinimumSamples; index++ {
+		record.recordSample("a-model", servingSample{Provider: "BaseTen", Duration: 20 * time.Millisecond, CharactersPerSecond: 1000})
+	}
+	var mutex sync.Mutex
+	attempts := 0
+	backend := streamingBackend(t, func(responseWriter http.ResponseWriter, request *http.Request) {
+		mutex.Lock()
+		attempts++
+		attempt := attempts
+		mutex.Unlock()
+		responseWriter.Header().Set("Content-Type", "text/event-stream")
+		writeStreamChunk(t, responseWriter, `{"provider":"StreamLake","choices":[{"delta":{"role":"assistant","content":"s"},"finish_reason":null}]}`)
+		if attempt == 1 {
+			<-request.Context().Done()
+			return
+		}
+		select {
+		case <-request.Context().Done():
+			return
+		case <-time.After(3 * servingWatchInterval):
+		}
+		writeStreamChunk(t, responseWriter, `{"provider":"StreamLake","choices":[{"delta":{"content":"low but done"},"finish_reason":"stop"}]}`)
+		writeStreamChunk(t, responseWriter, "[DONE]")
+	})
+
+	response, errorValue := backend.CompleteChat(context.Background(), ChatRequest{Model: "a-model", Messages: []ChatMessage{{Role: "user", Content: "hi"}}})
+
+	if errorValue != nil {
+		t.Fatalf("the second ask is the last word, however slow: %v", errorValue)
+	}
+	if response.Message.Content != "slow but done" || !response.UsedFallback {
+		t.Fatalf("expected the slow second answer to be delivered with the cut noted, got %+v", response)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected exactly one cut and one waited-for answer, got %d asks", attempts)
+	}
+}
