@@ -83,7 +83,7 @@
 	let childProgressByParent = $derived(buildTaskChildProgressByParent(allTasks));
 
 	$effect(() => {
-		boardDrag.sync({ pendingTaskIDs, canUpdateTask, moveTask });
+		boardDrag.sync({ isTaskPending, canUpdateTask, moveTask });
 	});
 
 	function addTaskLabel(status: string): string {
@@ -91,7 +91,7 @@
 	}
 
 	function isTaskPending(taskID: string): boolean {
-		return boardDrag.isTaskPending(taskID);
+		return pendingTaskIDs.includes(taskID);
 	}
 
 	function taskCountLabel(count: number): string {
