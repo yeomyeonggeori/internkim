@@ -160,11 +160,15 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 	if errorValue != nil || !isActionSchema {
 		return Response{}, isActionSchema, errorValue
 	}
-	requestDocument, lintResult, errorValue := backend.buildChatActionRequest(request, modelName, toolSet.Tools, toolSet.NativeSchemaLint)
+	document := backend.chatActionDocument(request, modelName, toolSet.Tools, toolSet.NativeSchemaLint)
+	response, servingNote, errorValue := backend.streamWithOneRetry(ctx, apiKey, modelName, func(ignoredProviders []string) ([]byte, error) {
+		document.Provider = backend.providerRoutingIgnoring(request.RequireParameters, ignoredProviders)
+		return json.Marshal(document)
+	})
 	if errorValue != nil {
-		return Response{}, true, errorValue
+		return Response{}, true, withNativeSchemaLint(errorValue, document.NativeToolSchemaLint)
 	}
-	completion, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet, lintResult)
+	completion, errorValue := nativeActionCompletionFromStream(response, toolSet)
 	if errorValue != nil {
 		return Response{}, true, errorValue
 	}
@@ -176,7 +180,49 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 		SelectedBackend:  capabilities.LLMBackendRemote,
 		ConstraintMode:   ConstraintModeNativeToolCall,
 		Usage:            completion.Usage,
+		UsedFallback:     servingNote != "",
+		FallbackReason:   servingNote,
 	}, true, nil
+}
+
+func withNativeSchemaLint(errorValue error, lintResult NativeSchemaLintResult) error {
+	var slowServing slowServingError
+	if lintResult.ToolCount == 0 || errors.As(errorValue, &slowServing) || errors.Is(errorValue, context.Canceled) || errors.Is(errorValue, context.DeadlineExceeded) {
+		return errorValue
+	}
+	return errors.New(strings.TrimSpace(errorValue.Error()) + "; " + NativeSchemaLintDiagnostics(lintResult))
+}
+
+func nativeActionCompletionFromStream(response openAIResponseWithUsage, toolSet nativeActionToolSet) (nativeActionCompletion, error) {
+	if len(response.Choices) == 0 {
+		return nativeActionCompletion{}, errors.New("openrouter response did not include choices")
+	}
+	for _, toolCall := range response.Choices[0].Message.ToolCalls {
+		if toolCall.Type == "" || toolCall.Type == "function" {
+			content, errorValue := nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
+			return nativeActionCompletion{Content: content, UpstreamProvider: response.Provider, Usage: normalizeUsage(response.Usage)}, errorValue
+		}
+	}
+	return nativeActionCompletion{}, errors.New("openrouter chat completion response did not include tool_calls")
+}
+
+func (backend OpenRouterBackend) streamWithOneRetry(ctx context.Context, apiKey string, modelName string, buildRequest func(ignoredProviders []string) ([]byte, error)) (openAIResponseWithUsage, string, error) {
+	requestDocument, errorValue := buildRequest(sharedServingRecord.ignoredProviders(modelName))
+	if errorValue != nil {
+		return openAIResponseWithUsage{}, "", errorValue
+	}
+	response, errorValue := backend.streamCompletion(ctx, apiKey, requestDocument, modelName)
+	var slowServing slowServingError
+	if !errors.As(errorValue, &slowServing) || ctx.Err() != nil {
+		return response, "", errorValue
+	}
+	log.Printf("openrouter serving cut, asking again without it: model=%s %s", modelName, slowServing.Error())
+	requestDocument, errorValue = buildRequest(sharedServingRecord.ignoredProviders(modelName))
+	if errorValue != nil {
+		return openAIResponseWithUsage{}, "", errorValue
+	}
+	response, errorValue = backend.streamCompletion(ctx, apiKey, requestDocument, modelName)
+	return response, slowServing.Error(), errorValue
 }
 
 func (backend OpenRouterBackend) completeJSONSchema(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
@@ -249,17 +295,23 @@ func (backend OpenRouterBackend) CompleteChat(ctx context.Context, request ChatR
 	}
 	modelName := backend.resolveModelName(request.Model)
 	chatRequest := openAIChatCompletionRequest(modelName, request)
-	chatRequest.Provider = backend.providerRouting(false)
 	chatRequest.Reasoning = openAIReasoningFor(request.ReasoningEffort)
-	requestDocument, errorValue := json.Marshal(chatRequest)
+	chatRequest.Stream = true
+	chatRequest.Usage = &openAIUsageOptions{Include: true}
+	response, servingNote, errorValue := backend.streamWithOneRetry(ctx, apiKey, modelName, func(ignoredProviders []string) ([]byte, error) {
+		chatRequest.Provider = backend.providerRoutingIgnoring(false, ignoredProviders)
+		return json.Marshal(chatRequest)
+	})
 	if errorValue != nil {
 		return ChatResponse{}, errorValue
 	}
-	response, errorValue := backend.sendChatCompletion(ctx, apiKey, requestDocument)
-	if errorValue != nil {
-		return ChatResponse{}, errorValue
+	if len(response.Choices) == 0 {
+		return ChatResponse{}, errors.New("openrouter response did not include choices")
 	}
-	return chatResponseFromOpenAI("openrouter", modelName, response), nil
+	chatResponse := chatResponseFromOpenAI("openrouter", modelName, response)
+	chatResponse.UsedFallback = servingNote != ""
+	chatResponse.FallbackReason = servingNote
+	return chatResponse, nil
 }
 
 func (backend OpenRouterBackend) resolveAPIKey() (string, error) {
@@ -377,78 +429,6 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 	}, nil
 }
 
-func (backend OpenRouterBackend) sendChatAction(ctx context.Context, apiKey string, requestDocument []byte, toolSet nativeActionToolSet, lintResult NativeSchemaLintResult) (nativeActionCompletion, error) {
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
-	if errorValue != nil {
-		return nativeActionCompletion{}, errorValue
-	}
-	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
-	httpRequest.Header.Set("Content-Type", "application/json")
-	backend.setGatewaySecretHeader(httpRequest)
-
-	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
-	if errorValue != nil {
-		return nativeActionCompletion{}, errorValue
-	}
-	defer httpResponse.Body.Close()
-
-	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
-	if errorValue != nil {
-		return nativeActionCompletion{}, errors.New("read openrouter response: " + errorValue.Error())
-	}
-	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return nativeActionCompletion{}, openAIErrorWithNativeSchemaLint("openrouter", httpResponse.StatusCode, responseDocument, lintResult)
-	}
-
-	var response openAIResponseWithUsage
-	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
-		return nativeActionCompletion{}, errorValue
-	}
-	if len(response.Choices) == 0 {
-		return nativeActionCompletion{}, errors.New("openrouter response did not include choices")
-	}
-	for _, toolCall := range response.Choices[0].Message.ToolCalls {
-		if toolCall.Type == "" || toolCall.Type == "function" {
-			content, errorValue := nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
-			return nativeActionCompletion{Content: content, UpstreamProvider: response.Provider, Usage: normalizeUsage(response.Usage)}, errorValue
-		}
-	}
-	return nativeActionCompletion{}, errors.New("openrouter chat completion response did not include tool_calls")
-}
-
-func (backend OpenRouterBackend) sendChatCompletion(ctx context.Context, apiKey string, requestDocument []byte) (openAIResponseWithUsage, error) {
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
-	if errorValue != nil {
-		return openAIResponseWithUsage{}, errorValue
-	}
-	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
-	httpRequest.Header.Set("Content-Type", "application/json")
-	backend.setGatewaySecretHeader(httpRequest)
-
-	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
-	if errorValue != nil {
-		return openAIResponseWithUsage{}, errorValue
-	}
-	defer httpResponse.Body.Close()
-
-	responseDocument, errorValue := io.ReadAll(httpResponse.Body)
-	if errorValue != nil {
-		return openAIResponseWithUsage{}, errors.New("read openrouter response: " + errorValue.Error())
-	}
-	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return openAIResponseWithUsage{}, normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
-	}
-
-	var response openAIResponseWithUsage
-	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
-		return openAIResponseWithUsage{}, errorValue
-	}
-	if len(response.Choices) == 0 {
-		return openAIResponseWithUsage{}, errors.New("openrouter response did not include choices")
-	}
-	return response, nil
-}
-
 func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {
 	gatewaySecret := strings.TrimSpace(readOpenRouterKey(backend.GatewaySecretPath))
 	if gatewaySecret == "" {
@@ -477,6 +457,18 @@ func (backend OpenRouterBackend) providerRouting(requireParameters bool) map[str
 	if requireParameters {
 		routing["require_parameters"] = true
 	}
+	return routing
+}
+
+func (backend OpenRouterBackend) providerRoutingIgnoring(requireParameters bool, ignoredProviders []string) map[string]any {
+	routing := backend.providerRouting(requireParameters)
+	if len(ignoredProviders) == 0 {
+		return routing
+	}
+	if routing == nil {
+		routing = map[string]any{"allow_fallbacks": true}
+	}
+	routing["ignore"] = append([]string{}, ignoredProviders...)
 	return routing
 }
 
@@ -585,10 +577,17 @@ func fencedJSONContent(content string) (string, bool) {
 	return strings.TrimSpace(strings.Join(lines[1:len(lines)-1], "\n")), true
 }
 
-func (backend OpenRouterBackend) buildChatActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool, lintResults ...NativeSchemaLintResult) ([]byte, NativeSchemaLintResult, error) {
+func (backend OpenRouterBackend) chatActionDocument(request StructuredRequest, modelName string, tools []nativeActionTool, lintResults ...NativeSchemaLintResult) openAIRequest {
 	document := openAIActionToolRequest(modelName, request.Messages, tools, generationOptionsValue(request.GenerationOptions), lintResults...)
 	document.Provider = backend.providerRouting(request.RequireParameters)
 	document.Reasoning = openAIReasoningFor(request.ReasoningEffort)
+	document.Stream = true
+	document.Usage = &openAIUsageOptions{Include: true}
+	return document
+}
+
+func (backend OpenRouterBackend) buildChatActionRequest(request StructuredRequest, modelName string, tools []nativeActionTool, lintResults ...NativeSchemaLintResult) ([]byte, NativeSchemaLintResult, error) {
+	document := backend.chatActionDocument(request, modelName, tools, lintResults...)
 	content, errorValue := json.Marshal(document)
 	return content, document.NativeToolSchemaLint, errorValue
 }

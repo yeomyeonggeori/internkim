@@ -130,6 +130,8 @@ type ChatResponse struct {
 	Model            string              `json:"model"`
 	Message          ChatResponseMessage `json:"message"`
 	Usage            Usage               `json:"usage"`
+	UsedFallback     bool                `json:"usedFallback,omitempty"`
+	FallbackReason   string              `json:"fallbackReason,omitempty"`
 }
 
 type ChatResponseMessage struct {
