@@ -7,8 +7,8 @@ proposed and rejected are absent, and which rules a client has to keep because
 the database cannot.
 
 Every new surface — the SaaS web app, the host agent, the central API — targets
-this schema. The device-era attendance and leave code in `internal/admind` does
-**not** match it and is the thing that changes, not this. See §5.
+this schema. The device-era attendance code in `internal/admind` does **not**
+match it and is the thing that changes, not this.
 
 Companion documents: [`saas-design.md`](./saas-design.md) decides where things
 run; this one decides what the data is.
@@ -101,8 +101,8 @@ column. `member_work_hours_on(member, day)` hides the cycle arithmetic — do no
 reimplement it at a call site.
 
 **Everything resolves member → company.** `timezone`, `locale`, `work_hours`,
-`minimum_daily_minutes`, `leave_days`: set on the company, override
-on the member, read through the `member_*()` function. Never read the columns
+`minimum_daily_minutes`: set on the company, override on the member, read
+through the `member_*()` function. Never read the columns
 directly, or the fallback goes missing in one place and that is the bug.
 
 **A task carries two timestamps.** `updated_at` is stamped by a trigger on every
@@ -126,27 +126,57 @@ without it, a Seoul employee's New Year leave is charged to the previous year.
 - a location outside `company.work_locations` → rejected
 - a clock-out carries no location
 
-## 5. Leave — and what is wrong with the current implementation
+## 5. Leave
 
-**The schema holds global facts. Policy lives in the client.** Accrual period,
-tenure increments, carryover caps and their expiry, part-time proration — those
-differ by country and by company, and columns for them were tried and removed.
-What the database keeps is the *result*:
+**The policy is a document, and the record enforces it.**
+`company.rules.attendanceLeavePolicy` holds what differs by company and by
+country: the leave types, how often and how much the annual type grants, when a
+grant lapses, whether what is left carries over and up to what, a yearly ceiling
+per type, and the day the leave year starts. The settings screen writes it
+through `attendance_leave_policy_save`, which validates it. Grants and balances
+are computed by the database, so the web app and the agent quote one figure.
 
-```
-company.leave_days   default entitlement          member.leave_days   override
-leave.days           what one leave consumes      leave.is_deducted   does it consume
-```
+**A row on `leave` is leave somebody was given or leave somebody took, and the
+sign of `days` says which.**
 
-**The rule that keeps this from breaking: the client computes, but it must write
-the result to `member.leave_days`.** A client that derives the number on the fly
-and only renders it will disagree with the next client — the web app and the
-agent would quote different balances. The stored number is the one answer.
+| Column | Given (`days >= 0`) | Taken (`days < 0`) |
+|---|---|---|
+| `status` | `approved` | `requested`, `approved` or `rejected` |
+| `granted_on`, `origin` | the day it arrived; `accrual`, `manual` or `carryover` | null |
+| `expires_on` | the day it lapses, null for never | null |
+| `carried_from_id` | the grant a carryover came from | null |
+| `starts_at`, `ends_at` | null | the span |
 
-The schema also knows nothing about 반차 or 반반차, and it must stay that way.
+Check constraints hold each column to its side. `leave_in_full`,
+`leave_management_source` and `leave_return_early` answer the days of leave
+taken as a positive number, so the sign stays inside the record.
+
+**A balance is a sum.** `internal.member_leave_days` adds the grants that have
+not lapsed. `internal.member_leave_remaining(member, year)` subtracts the
+approved, deducting leave in that leave year, prorated by `leave_days_in_year`
+when a leave straddles two. A leave year is named by the calendar year it opens
+in. `member.leave_days` holds the remaining figure for the year running today:
+triggers on `leave` and `company.rules` and the accrual run rewrite it, and a
+read of the running year takes the column. `authenticated` has no select on it,
+so a balance is read through the functions that check `may_read_member`.
+
+**One run writes the grants.** `internal.leave_accrue_member` is called by the
+policy save, by the trigger that greets a new member, and by `leave_balance`;
+nothing schedules it. A yearly cadence grants everybody on the leave year's
+opening and a monthly one grants on each person's hire day. Every period keeps
+its own row, and a run grants each period opened since the latest grant. A
+lapsed grant carries what is left of it, counted against every grant lapsing
+that day, into a `carryover` row that lapses by the same rule. Changing the
+cadence or the leave year start replaces the grants still standing, and lapsed
+rows stay. A figure an administrator states by hand, through
+`member_leave_days_set`, is one `manual` row that replaces every grant, and the
+run leaves that member alone.
+
+The schema knows nothing about 반차 or 반반차, and it must stay that way.
 
 - `kind` is **free text**, the company's own vocabulary (`연차`, `경조사`,
-  `예비군`). Leave types vary by company and by country; a fixed enum is wrong.
+  `예비군`), and the policy's leave types name it. Leave types vary by company
+  and by country; a fixed enum is wrong.
 - `days` is the quantity, `numeric`. Half-day and quarter-day are presets a
   client offers (0.5, 0.25); hourly leave is a fraction of a day. 반차 is
   international, 반반차 is essentially Korean — elsewhere the same need is met
@@ -154,35 +184,12 @@ The schema also knows nothing about 반차 or 반반차, and it must stay that w
 - `is_paid` and `is_deducted` are the two axes the system actually branches on.
   They vary per row: a normally paid leave can be taken unpaid, and a leave can
   be granted without consuming the entitlement. Statutory-ness is **not** one of
-  them — it never varies per row and depends on `company.country`, so it belongs
-  to the policy the client applies.
+  them. It never varies per row and depends on `company.country`, so it belongs
+  to the policy.
 - `starts_at`/`ends_at` are the span (when someone is away, what the calendar
-  draws); `days` is the consumption. They legitimately disagree — a Friday to
+  draws); `days` is the consumption. They legitimately disagree: a Friday to
   Monday leave spans four days and costs two, and a half day is a one-day span
   costing 0.5.
-
-**The device-era implementation contradicts all of this and must be rewritten
-against this schema:**
-
-| Where | What is wrong |
-|---|---|
-| `internal/admind/attendance_leave_accrual.go:16` | `attendanceLeaveUnitMilliDays` accepts only `fullDay`, `halfDay`, `quarterDay` and errors on anything else. There is no way to record a ninety-day parental leave — this is why it surfaces as "출산휴가 1일". |
-| same file | Quantities are **milli-days** (1000/500/250), a third unit nothing else uses. |
-| `internal/admind/attendance_absence_kinds.go:17` | Absence kinds are `leave` and `other`, with `day_off` folded into `leave`. There is no concept of a leave type at all. |
-
-Rewrite target: quantity is `leave.days`, type is `leave.kind` free text, and
-any preset (half day, quarter day, an hour) is the client's own arithmetic.
-
-**Keep the logic, move it.** That Go code does implement accrual, carryover,
-expiry and proportional grants, and those are real requirements — the defect is
-that they sit on three hardcoded units and two absence kinds. Rebuild them where
-policy belongs, and have them write `member.leave_days`.
-
-**Two things the schema deliberately cannot express**, so they are the client's
-job: leave whose carried-over portion expires on its own date, and entitlement
-history ("how many days did they have in 2025"). Both need a grant ledger. It
-was designed and rejected as premature — the upgrade path is clean, because
-`leave` rows never reference a grant.
 
 ## 6. Access control
 
