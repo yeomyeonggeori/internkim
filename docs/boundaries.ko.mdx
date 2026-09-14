@@ -25,27 +25,20 @@ description: 무엇이 일어나도 되는지를 두 가지가 정하고, 각각
 
 ## 파일과 실행 [#files-and-execution]
 
-POSIX 헬퍼가 설치된 곳에서 사람은 진짜 운영체제 사용자이고 서클은 진짜
-그룹입니다. 사람은
-안정적인 `bc_person_<shortID>` 사용자가 되고, 서클은
-`bc_circle_<circleID>` 그룹이 됩니다. 에이전트는 그 사람의 일을 그 사용자로
-실행하므로, 워크스페이스도, 터미널도, 그가 띄우는 어떤 프로그램도 평범한 파일
-권한에 갇힙니다.
+사람은 진짜 운영체제 사용자이고 서클은 진짜 그룹입니다. 사람은 안정적인
+`bc_person_<shortID>` 사용자가 되고, 서클은 `bc_circle_<circleID>` 그룹이
+됩니다. 에이전트는 그 사람의 일을 그 사용자로 실행하므로, 워크스페이스도,
+터미널도, 그가 띄우는 어떤 프로그램도 평범한 파일 권한에 갇힙니다.
 
-장치에는 좁은 허리가 하나 있습니다. blueclaw 서비스는 `blueclaw` 사용자로
-돌고 요청자의 파일을 직접 만지지 않습니다. 모든 워크스페이스 읽기, 쓰기,
-프로세스 실행은 `WorkspaceActor → blueclaw-posix-helper`로 내려갑니다.
-헬퍼는 `root:root 4755` setuid 다리이고, 실행할 수 있다는 것이 곧 권한은
-아닙니다. 자신을 부른 real UID가 `root`나 `blueclaw`인지 확인한 뒤, 무엇을
-하기 전에 요청자의 UID, GID, 보조 그룹으로 내려갑니다. 디바이스에서는
-Cloud Hypervisor 게스트의 rootfs 안에 들어 있습니다.
-
-<Callout type="warn">
-호스트 번들은 헬퍼 없이 나가고(`host/README.md`), 그 런타임 문서도 헬퍼를
-지목하지 않습니다. 호스트에서는 에이전트의 실행과 파일이 서비스의 단일 계정으로
-돌므로, 아래 경로들을 권한으로 가르는 것은 디바이스 경로에서만입니다. 기록은
-양쪽 모두 row level security에 묶입니다.
-</Callout>
+이 장치에는 좁은 허리가 하나 있습니다. blueclaw 서비스는 요청자의 파일을 직접
+만지지 않습니다. 모든 워크스페이스 읽기, 쓰기, 프로세스 실행은
+`WorkspaceActor → blueclaw-posix-helper`로 내려갑니다. 헬퍼는
+`root:root 4755` setuid 다리이고, 실행할 수 있다는 것이 곧 권한은 아닙니다.
+자신을 부른 real UID가 `root`나 `blueclaw`인지 확인한 뒤, 무엇을 하기 전에
+요청자의 UID, GID, 보조 그룹으로 내려갑니다. 호스트 이미지는 헬퍼를
+`/usr/local/bin/blueclaw-posix-helper`에 설치하고, 디바이스는 같은 바이너리를
+게스트 rootfs 안에 둡니다. 헬퍼가 없으면 blueclaw는 워크스페이스 도구를 모두
+거부합니다.
 
 | 워크스페이스 경로 | 권한 모델 | 담는 것 |
 |---|---|---|
