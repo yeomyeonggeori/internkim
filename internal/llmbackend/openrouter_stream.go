@@ -68,23 +68,21 @@ type streamedCompletion struct {
 	toolOrder []int
 }
 
-func (backend OpenRouterBackend) streamCompletion(ctx context.Context, apiKey string, requestDocument []byte, modelName string, isJudged bool) (openAIResponseWithUsage, error) {
-	requestContext, cancelRequest := context.WithCancelCause(ctx)
-	defer cancelRequest(nil)
+type streamOutcome struct {
+	response   openAIResponseWithUsage
+	errorValue error
+}
+
+func (backend OpenRouterBackend) streamCompletion(ctx context.Context, apiKey string, requestDocument []byte, modelName string, slowSignal chan<- slowServingError) (openAIResponseWithUsage, error) {
 	progress := &streamProgress{startedAt: time.Now()}
-	if expectation, isKnown := sharedServingRecord.expectation(modelName); isKnown && isJudged {
-		go watchServing(requestContext, cancelRequest, progress, expectation)
+	if expectation, isKnown := sharedServingRecord.expectation(modelName); isKnown && slowSignal != nil {
+		go watchServing(ctx, slowSignal, progress, expectation)
 	}
-	response, errorValue := backend.readStream(requestContext, apiKey, requestDocument, progress)
+	response, errorValue := backend.readStream(ctx, apiKey, requestDocument, progress)
 	provider, elapsed, outputCharacters := progress.snapshot(time.Now())
 	if errorValue == nil {
 		sharedServingRecord.recordSample(modelName, servingSample{Provider: provider, Duration: elapsed, CharactersPerSecond: float64(outputCharacters) / elapsed.Seconds()})
 		return response, nil
-	}
-	var slowServing slowServingError
-	if errors.As(context.Cause(requestContext), &slowServing) {
-		sharedServingRecord.noteCut(modelName, slowServing.Provider)
-		return openAIResponseWithUsage{}, slowServing
 	}
 	if ctx.Err() != nil {
 		sharedServingRecord.noteCut(modelName, provider)
@@ -92,7 +90,7 @@ func (backend OpenRouterBackend) streamCompletion(ctx context.Context, apiKey st
 	return openAIResponseWithUsage{}, errorValue
 }
 
-func watchServing(ctx context.Context, cancel context.CancelCauseFunc, progress *streamProgress, expectation servingExpectation) {
+func watchServing(ctx context.Context, slowSignal chan<- slowServingError, progress *streamProgress, expectation servingExpectation) {
 	ticker := time.NewTicker(servingWatchInterval)
 	defer ticker.Stop()
 	for {
@@ -104,7 +102,7 @@ func watchServing(ctx context.Context, cancel context.CancelCauseFunc, progress 
 			if !expectation.judgesSlow(elapsed, outputCharacters) {
 				continue
 			}
-			cancel(slowServingError{Provider: provider, Elapsed: elapsed, CharactersPerSecond: float64(outputCharacters) / elapsed.Seconds(), Expectation: expectation})
+			slowSignal <- slowServingError{Provider: provider, Elapsed: elapsed, CharactersPerSecond: float64(outputCharacters) / elapsed.Seconds(), Expectation: expectation}
 			return
 		}
 	}
