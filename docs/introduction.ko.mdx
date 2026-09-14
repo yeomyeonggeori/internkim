@@ -69,22 +69,27 @@ security, 스키마가 쓰는 vault 확장이 그대로 들어 있습니다.
 
 ## 소프트웨어 [#the-software]
 
-에이전트 자체는 두 개의 저장소입니다.
+에이전트 자체는 세 개의 저장소입니다.
 [blueclaw](https://github.com/yeomyeonggeori/blueclaw)는 에이전트 호스트로,
-시킨 사람의 신원으로 도구를 실행하고 승인과 태스크 원장을 소유합니다.
+승인과 태스크 원장을 소유하고, 릴레이가 메시지를 넘기는 에이전트입니다.
 [bluecollar](https://github.com/yeomyeonggeori/bluecollar)는 그 안에서 도는
-에이전트 루프입니다. 이 저장소 `internkim`은 그 둘을 기계 위에 올리고 운영하는
-층입니다. 릴레이, 주변 데몬들, 운영자 CLI(`cmd/internkim/`), 웹 앱(`web/`),
+에이전트 루프이자 모델 클라이언트이고,
+[bluememo](https://github.com/yeomyeonggeori/bluememo)는 장기 기억입니다.
+에이전트가 읽어들이는 스킬은 `internkim-plugin`에서 옵니다. 이 저장소
+`internkim`은 그것들을 기계 위에 올리고 운영하는 층입니다. 릴레이, 주변
+데몬들, 운영자 CLI(`cmd/internkim/`), 웹 앱과 그 도구 카탈로그(`web/`),
 스키마(`supabase/migrations`)가 여기 있고, blueclaw는
-`.dependency/blueclaw/`에 서브모듈로 들어 있습니다.
+`.dependency/blueclaw/`에, 나머지 둘은 그 안에 서브모듈로 들어 있습니다.
+어떻게 맞물리는지는 [아키텍처](/ko/docs/architecture#what-the-agent-is-made-of)에
+있습니다.
 
 ## 회사 것으로 남는 것 [#what-stays-yours]
 
 **메신저.** 김인턴은 회사가 이미 굴리는 메신저에 붙습니다.
 스키마에 메시지 테이블이 없으므로, 어떤 대화도 기록에 닿지 않습니다.
 
-**모델.** 에이전트는 회사가 설정한 프로바이더, 또는 회사 컴퓨터 위에서 도는
-모델과 이야기합니다.
+**모델.** 에이전트는 호스트가 쥔 프로바이더 키로, `internal/modelladder`
+한 곳에 이름이 적힌 티어를 통해 모델을 부릅니다.
 
 **컴퓨터.** 언제든 갈아치울 수 있습니다. 회사의 모든 기계를 바꾼 뒤에도 여전히
 필요할 것은 전부 기록 안에 있습니다.

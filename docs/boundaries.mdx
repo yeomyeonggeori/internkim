@@ -27,8 +27,8 @@ sees.
 
 ## Files and execution
 
-On the host, each person is a real operating-system user and each circle a
-real group: a person becomes a stable `bc_person_<shortID>` user, a circle
+Where the POSIX helper is installed, each person is a real operating-system
+user and each circle a real group: a person becomes a stable `bc_person_<shortID>` user, a circle
 becomes a `bc_circle_<circleID>` group. The agent runs a person's work as
 that user, so the workspace, the terminal, and any program it starts are
 bounded by ordinary file permissions.
@@ -41,6 +41,14 @@ setuid bridge, and being able to execute it is not authorization: it checks
 that its real UID is `root` or `blueclaw`, then drops to the requester's UID,
 GID and supplementary groups before doing anything. On a device it sits
 inside the Cloud Hypervisor guest's rootfs.
+
+<Callout type="warn">
+The host bundle ships without the helper (`host/README.md`), and its runtime
+document names none. On the host, the agent's own runs and files execute as
+the service's single account, so the paths below are separated by the
+permissions on the device path only. Records stay bound by row level security
+on both.
+</Callout>
 
 | Workspace path | Permission model | Holds |
 |---|---|---|
