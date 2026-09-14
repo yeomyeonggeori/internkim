@@ -374,8 +374,8 @@ companion UI (guest on an employee's machine).
   carry both; "localhost + REST" understated this. Booting was the wrong test for
   the POSIX helper: blueclaw reports `ok` without it and then refuses every
   `shell` and file tool, so the bundle carries it too.
-- Started in **`host` mode** (headless): the same app via CLI/package, or the
-  desktop app set to host mode.
+- Started headless from the same bundle, by CLI or package, on whatever machine
+  the company keeps on.
 
 ### The relay — the daemon the web app talks to
 
@@ -614,9 +614,9 @@ visible immediately rather than theoretical.
   in S3; membership is invite-gated.
 - **Rollback:** pilot is greenfield → just delete it.
 
-### Phase 2 — Client app (one app, host mode first)
+### Phase 2 — Client app (one app, headless first)
 - Build the **single app** (blueclaw + Buzz connector + permission boundary,
-  BYO-LLM), starting with **`host` mode headless** (CLI/package install) for a
+  BYO-LLM), starting **headless** (CLI/package install) for a
   spare Linux box. This is the same deliverable as the `blueclaw host` terminal
   entry point in `harness-split-design.md` §5 — build it once.
 - The **harness is selectable at this point**, not later: bluecollar or an AI SDK
@@ -625,10 +625,10 @@ visible immediately rather than theoretical.
   first, then a real spare machine), connected **outbound** to the central relay.
   Validate the full loop (chat → agent → tools/terminal → reply) with **no device
   hardware and no tunnel**.
-- Then the **desktop app** with the mode selector — `host` for a one-click spare
-  box, `guest` for employees’ optional local capabilities.
+- Then the **desktop app**: the same bundle on a one-click spare box, and the
+  companion for employees’ optional local capabilities.
 - **Gate:** host joins as `Bot`, does real work end-to-end from a plain Linux
-  host; desktop app install + mode selection works for a non-technical user.
+  host; desktop app install works for a non-technical user.
 - **Rollback:** none (pilot only).
 
 ### Phase 3 — External-participant adapter: ACP over Buzz (parallel / optional)

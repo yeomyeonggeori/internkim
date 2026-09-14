@@ -78,7 +78,7 @@ test('the entrypoint names the model key file once', () => {
 	const literalKeyPaths = entrypoint.match(/\/secrets\/openrouter-key/g) ?? [];
 	expect(
 		literalKeyPaths.length,
-		'capabilityd and the rendered ladder read the same key file, so the path is written once'
+		'capabilityd reads the model key and blueclaw a copy of it, so the source path is written once'
 	).toBe(1);
 });
 

@@ -31,7 +31,7 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 RUN curl -fsSL https://bun.sh/install | bash && ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
-COPY --from=go-build /out/blueclaw /usr/local/bin/blueclaw
+COPY --from=go-build /out/blueclaw /opt/blueclaw/bin/blueclaw
 COPY --from=go-build /out/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-helper
 COPY --from=go-build /out/internkim-capabilityd /usr/local/bin/internkim-capabilityd
 COPY --from=go-build /out/internkim-admind /usr/local/bin/internkim-admind
@@ -48,11 +48,13 @@ COPY host/runtime.template.json /opt/internkim/runtime.template.json
 # entrypoint.sh calls these by name; a wrapper keeps the script free of paths.
 RUN printf '#!/bin/sh\nexec bun run /opt/blueclaw-workspace/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \
 	&& printf '#!/bin/sh\nexec bun run /opt/internkim/host/relay/relay.ts "$@"\n' > /usr/local/bin/internkim-relay \
-	&& chmod 0755 /usr/local/bin/chatd /usr/local/bin/internkim-relay /usr/local/bin/entrypoint.sh \
+	&& printf '#!/bin/sh\ncd /workspace\nexec setpriv --reuid blueclaw --regid blueclaw --init-groups env HOME=/home/blueclaw /opt/blueclaw/bin/blueclaw "$@"\n' > /usr/local/bin/blueclaw \
+	&& chmod 0755 /usr/local/bin/chatd /usr/local/bin/internkim-relay /usr/local/bin/blueclaw /usr/local/bin/entrypoint.sh \
 	&& mkdir -p /run/internkim /workspace /etc/blueclaw
 
 RUN groupadd --system blueclaw \
-	&& useradd --system --gid blueclaw --no-create-home --shell /usr/sbin/nologin blueclaw \
+	&& useradd --system --gid blueclaw --create-home --home-dir /home/blueclaw --shell /usr/sbin/nologin blueclaw \
+	&& setpriv --reuid blueclaw --regid blueclaw --init-groups id -un | grep -qx blueclaw \
 	&& chown root:root /usr/local/bin/blueclaw-posix-helper \
 	&& chmod 4755 /usr/local/bin/blueclaw-posix-helper \
 	&& /usr/local/bin/blueclaw-posix-helper capabilities \
