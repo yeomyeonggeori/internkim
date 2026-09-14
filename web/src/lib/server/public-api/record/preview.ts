@@ -1,6 +1,7 @@
 import { holidayOfCompanyHint } from './company-tools';
 import { companyRecordOfHint } from './company-ledger-tools';
 import { contactOfCRMHint, opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
+import { momentIn } from './days';
 import { eventOfHint } from './event-tools';
 import { taskRowOfHint } from './task-tools';
 import type { RecordContext } from './company';
@@ -20,9 +21,9 @@ type Preview = (context: RecordContext, input: Record<string, unknown>) => Promi
 // resolves a second time.
 const previewsOverTheRecord: Record<string, Preview> = {
 	task_delete: async (context, input) =>
-		targetOf('taskHint', await taskRowOfHint(context, hintOf(input, 'taskHint'))),
+		targetOf('taskHint', await taskRowOfHint(context, hintOf(input, 'taskHint')), context),
 	event_delete: async (context, input) =>
-		targetOf('eventHint', await eventOfHint(context, hintOf(input, 'eventHint'))),
+		targetOf('eventHint', await eventOfHint(context, hintOf(input, 'eventHint')), context),
 	company_holiday_delete: async (context, input) => {
 		const holiday = await holidayOfCompanyHint(context, hintOf(input, 'holidayHint'));
 		return { inputField: 'holidayHint', id: holiday.id, title: `${holiday.date} ${holiday.title}` };
@@ -54,11 +55,11 @@ function hintOf(input: Record<string, unknown>, field: string): string {
 	return typeof hint === 'string' ? hint : '';
 }
 
-function targetOf(inputField: string, row: TaskRow): PreviewedTarget {
+function targetOf(inputField: string, row: TaskRow, context: RecordContext): PreviewedTarget {
 	return {
 		inputField,
 		id: row.id,
 		title: row.title,
-		...(row.starts_at ? { startsAt: row.starts_at } : {})
+		...(row.starts_at ? { startsAt: momentIn(context.labels.timezone, row.starts_at) } : {})
 	};
 }
