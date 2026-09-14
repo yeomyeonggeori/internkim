@@ -3,7 +3,7 @@ import { isTaskBoardStatus } from './task-board-model';
 import type { Task } from './task-types';
 
 type TaskBoardDragControllerInput = {
-	pendingTaskIDs: string[];
+	isTaskPending: (taskID: string) => boolean;
 	canUpdateTask: (task: Task) => boolean;
 	moveTask: (request: TaskBoardMoveRequest) => void | Promise<void>;
 };
@@ -12,22 +12,21 @@ const boardDragDataType = 'application/x-internkim-task-id';
 
 export class TaskBoardDragController {
 	private draggedTaskID = $state('');
-	private pendingTaskIDs: string[] = [];
+	private isTaskPending: (taskID: string) => boolean;
 	private canUpdateTask: (task: Task) => boolean;
 	private moveTask: (request: TaskBoardMoveRequest) => void | Promise<void>;
 
 	constructor() {
+		this.isTaskPending = () => false;
 		this.canUpdateTask = () => false;
 		this.moveTask = () => {};
 	}
 
 	sync = (input: TaskBoardDragControllerInput): void => {
-		this.pendingTaskIDs = input.pendingTaskIDs;
+		this.isTaskPending = input.isTaskPending;
 		this.canUpdateTask = input.canUpdateTask;
 		this.moveTask = input.moveTask;
 	};
-
-	isTaskPending = (taskID: string): boolean => this.pendingTaskIDs.includes(taskID);
 
 	handleTaskDragStart = (event: DragEvent, task: Task): void => {
 		if (this.isTaskPending(task.id) || !this.canUpdateTask(task)) {
