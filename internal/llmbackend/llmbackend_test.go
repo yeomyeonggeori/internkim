@@ -45,7 +45,7 @@ func createLiteRTConstrainedRunner(t *testing.T) string {
 func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 	seed := int64(42)
 	temperature := 0.1
-	requestDocument, errorValue := OpenRouterBackend{}.buildStructuredRequest(StructuredRequest{
+	requestDocument, errorValue := json.Marshal(OpenRouterBackend{}.buildStructuredRequest(StructuredRequest{
 		Model: "openrouter/model",
 		Messages: []Message{
 			{Role: "user", Content: "hello"},
@@ -58,7 +58,7 @@ func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 		GenerationOptions:     &GenerationOptions{Seed: &seed, Temperature: &temperature},
 		RequireParameters:     true,
 		EnableResponseHealing: true,
-	}, "openrouter/model")
+	}, "openrouter/model").Document)
 	if errorValue != nil {
 		t.Fatalf("expected request document: %v", errorValue)
 	}
@@ -86,14 +86,14 @@ func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 }
 
 func TestOpenRouterStructuredRequestOmitsEmptyGenerationOptions(t *testing.T) {
-	requestDocument, errorValue := OpenRouterBackend{}.buildStructuredRequest(StructuredRequest{
+	requestDocument, errorValue := json.Marshal(OpenRouterBackend{}.buildStructuredRequest(StructuredRequest{
 		Messages: []Message{{Role: "user", Content: "hello"}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "reply",
 			Document:           json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 			IsStrictlyEnforced: true,
 		},
-	}, "openrouter/model")
+	}, "openrouter/model").Document)
 	if errorValue != nil {
 		t.Fatalf("expected request document: %v", errorValue)
 	}
