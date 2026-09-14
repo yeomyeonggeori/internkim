@@ -34,7 +34,7 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, joi
 
 select results_eq(
   $$select granted_on, expires_on, days::numeric from public.leave
-    where member_id = 'ac000000-0000-0000-0000-0000000000a1' and status is null$$,
+    where member_id = 'ac000000-0000-0000-0000-0000000000a1' and days >= 0$$,
   $$select internal.leave_year_opening_on_or_before(current_date, 3, 1),
            (internal.leave_year_opening_on_or_before(current_date, 3, 1) + interval '1 year' - interval '1 day')::date,
            15::numeric$$,
@@ -49,7 +49,7 @@ select is(
 
 select is(
   (select count(*)::integer from public.leave
-   where member_id = 'ac000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'),
+   where member_id = 'ac000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'accrual'),
   1,
   'and the member still holds exactly one row for it'
 );
@@ -79,13 +79,13 @@ where id = 'ac000000-0000-0000-0000-0000000000a0';
 
 select results_eq(
   $$select granted_on from public.leave
-    where member_id = 'ac000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'$$,
+    where member_id = 'ac000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'accrual'$$,
   $$select internal.monthly_opening_on_or_before(internal.member_today('ac000000-0000-0000-0000-0000000000a1'), 15)$$,
   'changing the cadence grants the running period under the new rule'
 );
 select is(
   (select count(*)::integer from public.leave
-   where member_id = 'ac000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'),
+   where member_id = 'ac000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'accrual'),
   1,
   'so the member holds one accrual row, not one per cadence'
 );
@@ -97,11 +97,11 @@ select is(
 
 -- The monthly grant lands on the hire day, clamped to the month, and lapses the
 -- stated months later.
-delete from public.leave where status is null;
+delete from public.leave where days >= 0;
 select internal.leave_accrue_member('ac000000-0000-0000-0000-0000000000a1', date '2026-09-09');
 select results_eq(
   $$select granted_on, expires_on from public.leave
-    where member_id = 'ac000000-0000-0000-0000-0000000000a1' and status is null$$,
+    where member_id = 'ac000000-0000-0000-0000-0000000000a1' and days >= 0$$,
   $$values (date '2026-08-15', date '2027-02-14')$$,
   'a monthly grant lands on the hire day and lapses the stated months later'
 );
@@ -115,9 +115,9 @@ select is(
 update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy('annual', 'fiscalYearEnd', 'managed'))
 where id = 'ac000000-0000-0000-0000-0000000000a0';
-delete from public.leave where status is null;
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin)
-values ('ac000000-0000-0000-0000-0000000000a1', 'annual', true, false, 12, date '1970-01-01', 'manual');
+delete from public.leave where days >= 0;
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin)
+values ('ac000000-0000-0000-0000-0000000000a1', 'annual', true, false, 12, 'approved', date '1970-01-01', 'manual');
 select is(
   internal.leave_accrue_member('ac000000-0000-0000-0000-0000000000a1', current_date),
   'skipped:manual',
@@ -130,7 +130,7 @@ select is(
 );
 
 -- Unlimited tracking accrues nothing and drops what it had on save.
-delete from public.leave where status is null;
+delete from public.leave where days >= 0;
 select lives_ok($block$do $$
 begin
   set local role authenticated;

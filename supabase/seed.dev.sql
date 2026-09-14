@@ -208,18 +208,18 @@ set rules = rules || jsonb_build_object('attendanceLeavePolicy', jsonb_build_obj
 where id = '000000cc-0000-0000-0000-000000000001'
   and rules -> 'attendanceLeavePolicy' is null;
 
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin)
-select member.id, 'annual', true, false, 15,
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin)
+select member.id, 'annual', true, false, 15, 'approved',
   date_trunc('year', now() at time zone 'Asia/Seoul')::date,
   (date_trunc('year', now() at time zone 'Asia/Seoul') + interval '1 year - 1 day')::date,
   'accrual'
 from public.member
 where member.company_id = '000000cc-0000-0000-0000-000000000001'
-  and not exists (select 1 from public.leave where status is null);
+  and not exists (select 1 from public.leave where days >= 0);
 
 insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at, note)
-select '000000ee-0000-0000-0000-000000000003', '연차', true, 2, 'requested',
+select '000000ee-0000-0000-0000-000000000003', '연차', true, -2, 'requested',
   (date_trunc('day', now() at time zone 'Asia/Seoul') + interval '7 days') at time zone 'Asia/Seoul',
   (date_trunc('day', now() at time zone 'Asia/Seoul') + interval '9 days') at time zone 'Asia/Seoul',
   '가족 행사'
-where not exists (select 1 from public.leave where status is not null);
+where not exists (select 1 from public.leave where days < 0);

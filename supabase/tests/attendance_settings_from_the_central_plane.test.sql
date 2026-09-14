@@ -58,7 +58,7 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
   ('64200000-0000-0000-0000-0000000000b1', '64200000-0000-0000-0000-0000000000b0', 'other-admin@example.test', '64200000-0000-0000-0000-000000000003', 'active', true);
 
 insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at) values
-  ('64200000-0000-0000-0000-0000000000a2', 'sick', false, 1, 'approved', '2026-08-10 00:00+09', '2026-08-10 23:59+09');
+  ('64200000-0000-0000-0000-0000000000a2', 'sick', false, -1, 'approved', '2026-08-10 00:00+09', '2026-08-10 23:59+09');
 
 set constraints all immediate;
 

@@ -127,10 +127,11 @@ export async function leaveRowsOf(memberID: string): Promise<LeaveCentralRow[]> 
 		.from('leave')
 		.select('id, member_id, kind, days, status, starts_at, ends_at, note')
 		.eq('member_id', memberID)
+		.lt('days', 0)
 		.order('starts_at', { ascending: true })
 		.returns<LeaveCentralRow[]>();
 	if (rows.error) throw new Error(`Failed to read leave: ${rows.error.message}`);
-	return rows.data;
+	return rows.data.map((row) => ({ ...row, days: -row.days }));
 }
 
 export async function renameMember(memberID: string, name: string): Promise<void> {

@@ -30,8 +30,8 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
 -- The March company saved a policy, so joining it granted its member the annual
 -- 15 already. The January company saved none, so its member is given the same
 -- figure by hand.
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin) values
-  ('1e000000-0000-0000-0000-0000000000b1', 'annual', true, false, 15, date '1970-01-01', 'manual');
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin) values
+  ('1e000000-0000-0000-0000-0000000000b1', 'annual', true, false, 15, 'approved', date '1970-01-01', 'manual');
 
 -- The splitter itself, asked directly. A leave in February 2026 is in leave year
 -- 2025 for a March start, and in 2026 for a January one.
@@ -76,9 +76,9 @@ select is(
 -- The balance reads the company policy for the start, so a February leave is
 -- charged to the year an administrator would expect.
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
-  ('1e000000-0000-0000-0000-0000000000a1', 'annual', true, true, 2, 'approved',
+  ('1e000000-0000-0000-0000-0000000000a1', 'annual', true, true, -2, 'approved',
    '2026-02-10 00:00+09', '2026-02-12 00:00+09'),
-  ('1e000000-0000-0000-0000-0000000000b1', 'annual', true, true, 2, 'approved',
+  ('1e000000-0000-0000-0000-0000000000b1', 'annual', true, true, -2, 'approved',
    '2026-02-10 00:00+09', '2026-02-12 00:00+09');
 
 select is(

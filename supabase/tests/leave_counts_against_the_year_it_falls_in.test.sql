@@ -17,14 +17,14 @@ insert into public.member (id, company_id, email, user_id, status) values
     'active'
   );
 
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin) values
-  ('45000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, date '1970-01-01', 'manual');
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin) values
+  ('45000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved', date '1970-01-01', 'manual');
 
 insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
   (
     '45000000-0000-0000-0000-0000000000e1',
     '45000000-0000-0000-0000-0000000000a1',
-    'leave', true, true, 4, 'approved',
+    'leave', true, true, -4, 'approved',
     '2026-12-30 00:00:00+09', '2027-01-03 00:00:00+09'
   );
 

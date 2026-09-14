@@ -20,7 +20,7 @@ test.beforeAll(async () => {
 		.from('leave')
 		.select('days, member!inner(company_id)')
 		.eq('member.company_id', exampleCompanyID)
-		.is('status', null)
+		.gte('days', 0)
 		.limit(1)
 		.maybeSingle();
 	if (stored.error) throw new Error(`Failed to read the company leave grant: ${stored.error.message}`);
@@ -39,7 +39,7 @@ async function setLeaveDays(leaveDays: number | null): Promise<void> {
 	if (people.error) throw new Error(`Failed to read the company members: ${people.error.message}`);
 	const memberIDs = people.data.map((person) => person.id as string);
 
-	const removed = await admin.from('leave').delete().is('status', null).in('member_id', memberIDs);
+	const removed = await admin.from('leave').delete().gte('days', 0).in('member_id', memberIDs);
 	if (removed.error) throw new Error(`Failed to clear the company leave grant: ${removed.error.message}`);
 	if (leaveDays === null) return;
 
@@ -50,6 +50,7 @@ async function setLeaveDays(leaveDays: number | null): Promise<void> {
 			is_paid: true,
 			is_deducted: false,
 			days: leaveDays,
+			status: 'approved',
 			granted_on: '1970-01-01',
 			origin: 'manual'
 		}))
