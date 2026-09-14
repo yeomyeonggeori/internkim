@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	createLeaveType,
 	leaveTypeIsValid,
 	leaveTypeWithBalanceMode
 } from '../../../src/routes/admin/attendance-leave-policy-model';
@@ -60,5 +61,12 @@ describe('attendance leave policy model', () => {
 			carryoverLimitMilliDays: undefined,
 			includeInSummary: false
 		});
+	});
+
+	test('a new leave type keeps no balance, so the record takes it as written', () => {
+		const created = createLeaveType(3);
+
+		expect(created).toEqual(leaveTypeWithBalanceMode(created, 'none'));
+		expect(created.includeInSummary).toBe(false);
 	});
 });
