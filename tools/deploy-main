@@ -137,8 +137,9 @@ def load_fleet_targets():
     return [{"id": target["id"], "adminURL": target["adminURL"]} for target in targets]
 
 
+# Cloudflare answers 403 to urllib's default User-Agent; any named agent passes.
 def fetch_health(admin_url):
-    request = urllib.request.Request(admin_url.rstrip("/") + "/admin/api/health")
+    request = urllib.request.Request(admin_url.rstrip("/") + "/admin/api/health", headers={"User-Agent": "internkim-deploy-main"})
     with urllib.request.urlopen(request, timeout=10) as response:
         return json.load(response)
 
