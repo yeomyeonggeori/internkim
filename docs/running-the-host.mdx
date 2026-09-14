@@ -50,6 +50,11 @@ blueclaw -runtime /run/internkim/runtime.json -policy /run/internkim/policy.json
 The admin API stays on `127.0.0.1:8080`, which is what the entrypoint waits
 for. The skills come from `BLUECLAW_BUNDLED_SKILLS_PATH`, which the image fills
 from internkim-plugin.
+
+The image's `blueclaw` drops to the `blueclaw` user before it starts, because
+the terminal refuses to run for root. `/root` is closed to that user, so the
+entrypoint copies the agent key and the model key into `/run/internkim/secrets`,
+group `blueclaw`, mode `0440`.
 </Step>
 <Step>
 **`internkim-admind`** on `127.0.0.1:18080`, which the relay routes every
@@ -64,9 +69,9 @@ arriving message to the relay's `/inbound`.
 </Step>
 </Steps>
 
-What the box does without: it boots to `status: ok` with no Cloud
-Hypervisor, no setuid helper, no messenger of its own and no cloudflared. The
-device stack required all four.
+What the box does without: Cloud Hypervisor, a messenger of its own and
+cloudflared. It does carry the setuid POSIX helper, because blueclaw boots to
+`status: ok` without one and then refuses every workspace tool.
 
 ## Settings
 

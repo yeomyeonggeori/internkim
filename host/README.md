@@ -21,7 +21,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **chatd** | optional — only if a messenger is attached |
 | **admind** | the workspace screens and the tools the central plane cannot run itself arrive on its socket; without it a person's memory, files, tasks and buzz claim answer `500` |
 | **the relay** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
-| **the POSIX helper** | `shell` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`; without it blueclaw refuses every one of them, and health still reports `ok` |
+| **the POSIX helper** | `shell` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`, called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
 
 A virtual-machine guest, Mattermost and cloudflared are **not** needed.
 
@@ -211,7 +211,9 @@ DATABASE_URL=postgres://…            # the host's own Postgres
 
 The agent key is never a value in the environment. It lives in
 `/root/.internkim/secrets/agent-key`, mode 0600, beside `/root/.internkim/secrets/openrouter-key`, and the relay
-is handed the path; rotating the file is enough.
+is handed the path, so rotating the file is enough for it. blueclaw runs as the
+`blueclaw` user and cannot open `/root`, so the entrypoint copies both keys to
+`/run/internkim/secrets` as it starts; blueclaw sees a rotated key after a restart.
 
 Plus the messenger the tenant runs, one of:
 

@@ -47,6 +47,11 @@ blueclaw -runtime /run/internkim/runtime.json -policy /run/internkim/policy.json
 관리 API는 `127.0.0.1:8080`에 남고, entrypoint가 기다리는 것도 이 포트입니다.
 스킬은 이미지가 internkim-plugin에서 채워 둔 `BLUECLAW_BUNDLED_SKILLS_PATH`에서
 읽습니다.
+
+이미지의 `blueclaw`는 시작하기 전에 `blueclaw` 사용자로 내려갑니다. 터미널이
+root로는 실행을 거부하기 때문입니다. 그 사용자에게 `/root`는 닫혀 있으므로
+entrypoint가 에이전트 키와 모델 키를 `/run/internkim/secrets`에 그룹 `blueclaw`,
+모드 `0440`으로 복사해 둡니다.
 </Step>
 <Step>
 **`internkim-admind`**, `127.0.0.1:18080`. 릴레이가 워크스페이스 호출을 전부
@@ -61,9 +66,9 @@ blueclaw -runtime /run/internkim/runtime.json -policy /run/internkim/policy.json
 </Step>
 </Steps>
 
-이 컴퓨터에 없어도 되는 것: Cloud Hypervisor도, setuid 헬퍼도, 자체 메신저도,
-cloudflared도 없이 `status: ok`까지 부팅합니다. 디바이스 스택은 네 가지 모두
-필요로 했습니다.
+이 컴퓨터에 없어도 되는 것: Cloud Hypervisor, 자체 메신저, cloudflared. setuid
+POSIX 헬퍼는 싣습니다. blueclaw는 헬퍼 없이도 `status: ok`로 부팅하고, 그다음
+워크스페이스 도구를 모두 거부하기 때문입니다.
 
 ## 설정 [#settings]
 
