@@ -81,10 +81,11 @@ for (const company of companies ?? []) {
 	const { data: leaves } = await client
 		.from('leave')
 		.select('kind, is_paid, is_deducted, days, status, starts_at, ends_at, note')
+		.lt('days', 0)
 		.order('starts_at');
 	for (const leave of leaves ?? []) {
 		console.log(
-			`  leave ${leave.kind} paid=${leave.is_paid} deducted=${leave.is_deducted} days=${leave.days} ` +
+			`  leave ${leave.kind} paid=${leave.is_paid} deducted=${leave.is_deducted} days=${-leave.days} ` +
 				`${dayIn(leave.starts_at)}~${dayIn(leave.ends_at)} ${leave.note ?? ''}`,
 		);
 	}

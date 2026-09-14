@@ -14,7 +14,7 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
   ('000000ff-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000f0', 'holder@example.test', '00000000-0000-0000-0000-0000000000f1', 'active', false);
 
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
-  ('000000ff-0000-0000-0000-000000000001', '연차', true, true, 4, 'approved',
+  ('000000ff-0000-0000-0000-000000000001', '연차', true, true, -4, 'approved',
    '2026-03-02 00:00+09', '2026-03-05 23:59+09');
 
 insert into public.attendance (member_id, kind, occurred_at) values
