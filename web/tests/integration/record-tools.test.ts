@@ -5,6 +5,9 @@ import { projectURL, publishableKey, serviceRoleKey } from './supabase-environme
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import { dayIn } from '../../src/lib/server/public-api/record/days';
 import { toolInputRecovered } from '../../src/lib/server/public-api/tool-input';
+import { taskOf } from '../../src/lib/task/task-state';
+import type { RecordTask } from '../../src/lib/task/task-record';
+import { buildTaskChildProgress } from '../../src/routes/task/task-relationships';
 import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
@@ -643,6 +646,56 @@ describe('what the board reads a task by', () => {
 		const asked = (listed.tasks as Record<string, string>[]).find((task) => task.content === '박예시에게 부탁한 일');
 		expect(asked?.requesterID).toBe(sampleID);
 		expect(asked?.requesterName).toBe('이샘플');
+	});
+});
+
+async function parentAsTheBoardReadsIt(parentID: string): Promise<{ status: string; endDate: string; percent: number }> {
+	const listed = resultOf(await run('task_list', { scope: 'all', everyWeek: true }));
+	const tasks = (listed.tasks as RecordTask[]).map(taskOf);
+	const parent = tasks.find((task) => task.id === parentID);
+	return {
+		status: parent?.status ?? '',
+		endDate: parent?.endDate ?? '',
+		percent: buildTaskChildProgress(parentID, tasks)?.percent ?? 0
+	};
+}
+
+describe('a parent follows its children', () => {
+	test('completes when the last child does, and reopens when one comes back', async () => {
+		const parent = resultOf(
+			await run('task_add', { title: '자녀를 따라가는 상위', status: 'in_progress', startsAt: dayAround(-3), endsAt: dayAround(5) })
+		);
+		const first = resultOf(
+			await run('task_add', {
+				title: '먼저 끝나는 자녀',
+				status: 'in_progress',
+				parentTaskHint: parent.taskID as string,
+				startsAt: dayAround(-3),
+				endsAt: dayAround(5)
+			})
+		);
+		const second = resultOf(
+			await run('task_add', {
+				title: '나중에 끝나는 자녀',
+				status: 'in_progress',
+				parentTaskHint: parent.taskID as string,
+				startsAt: dayAround(-3),
+				endsAt: dayAround(7)
+			})
+		);
+
+		await run('task_update', { taskHint: first.taskID as string, status: 'completed' });
+		expect(await parentAsTheBoardReadsIt(parent.taskID as string)).toMatchObject({ status: 'in_progress', percent: 50 });
+
+		await run('task_update', { taskHint: second.taskID as string, status: 'completed' });
+		expect(await parentAsTheBoardReadsIt(parent.taskID as string)).toMatchObject({ status: 'completed', percent: 100 });
+
+		await run('task_update', { taskHint: second.taskID as string, status: 'in_progress' });
+		expect(await parentAsTheBoardReadsIt(parent.taskID as string)).toMatchObject({
+			status: 'in_progress',
+			percent: 50,
+			endDate: companyDay
+		});
 	});
 });
 
