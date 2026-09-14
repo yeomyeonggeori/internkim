@@ -5,6 +5,7 @@ import {
 	columnTaskCount,
 	dragCardOntoColumn,
 	expectTaskStatus,
+	openTaskCard,
 	removeTasks,
 	seedTasks,
 	showEveryParticipant,
@@ -90,6 +91,29 @@ test('a card dragged into another column carries that status on the record', asy
 	await page.reload();
 	await expect(taskColumn(page, 'in_progress').locator(`[data-task-board-card="${movedTaskID}"]`)).toBeVisible();
 	await expect(taskColumn(page, 'planned').locator(`[data-task-board-card="${movedTaskID}"]`)).toHaveCount(0);
+});
+
+test('a card says its move is in flight, and opens again once the record has it', async ({ page }) => {
+	const [movedTaskID] = await seedForThisRun([{ title: 'E2E 보드 이동 후 열기', status: 'planned' }]);
+	await signInToTheTaskBoard(page);
+	await expect(taskColumn(page, 'planned').locator(`[data-task-board-card="${movedTaskID}"]`)).toBeVisible();
+
+	let releaseMove = (): void => {};
+	const moveHeld = new Promise<void>((resolve) => {
+		releaseMove = resolve;
+	});
+	await page.route('**/api/v1/tools/task_update/invoke', async (route) => {
+		await moveHeld;
+		await route.continue();
+	});
+
+	await dragCardOntoColumn(page, movedTaskID, 'in_progress');
+	await expect(taskCard(page, movedTaskID)).toHaveAttribute('data-task-board-pending', 'true');
+
+	releaseMove();
+	await expectTaskStatus(movedTaskID, 'in_progress');
+	await expect(taskCard(page, movedTaskID)).toHaveAttribute('data-task-board-pending', 'false');
+	await openTaskCard(page, movedTaskID);
 });
 
 test('a move the record refuses puts the card back and says why', async ({ page }) => {
