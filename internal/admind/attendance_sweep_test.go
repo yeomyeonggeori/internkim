@@ -315,6 +315,9 @@ func TestAttendanceCarryLandsADecidedLeaveWithItsStatus(t *testing.T) {
 	if written[0]["is_paid"] != true || written[0]["is_deducted"] != true {
 		t.Fatalf("the leave lost what its kind meant: %#v", written[0])
 	}
+	if written[0]["days"] != float64(-2) {
+		t.Fatalf("the record keeps leave taken as days below zero, so two days are written as -2: %#v", written[0])
+	}
 	if !slices.Contains(signers, "admin@example.com") {
 		t.Fatalf("a decided leave is an administrator's to record, signers = %v", signers)
 	}

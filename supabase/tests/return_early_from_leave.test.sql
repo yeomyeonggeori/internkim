@@ -20,7 +20,7 @@ insert into public.member (id, company_id, email, name, user_id, status, is_admi
 create function pg_temp.covering_leave(target_member uuid, whole_days numeric)
 returns uuid language sql as $$
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-  values (target_member, '연차', true, true, whole_days, 'approved',
+  values (target_member, '연차', true, true, -(whole_days), 'approved',
           now() - interval '2 hours', now() + interval '2 hours')
   returning id;
 $$;
@@ -43,7 +43,7 @@ begin
   select * into shortened from public.leave
   where member_id = '1005aa00-0000-0000-0000-000000000001';
   assert shortened.ends_at <= now(), 'the leave now ends when they came back';
-  assert shortened.days = 0.5,
+  assert -shortened.days = 0.5,
     'half the interval had passed, so half the day is what it costs';
 
   select count(*) into clocked from public.attendance
@@ -71,7 +71,7 @@ begin
 
   select * into untouched from public.leave where id = colleague_leave;
   assert untouched.ends_at > now(), 'a colleague leave is not shortened by anybody else';
-  assert untouched.days = 1, 'and it still costs what it cost';
+  assert -untouched.days = 1, 'and it still costs what it cost';
 end $$;$block$, 'returning early leaves a colleague leave alone');
 
 select lives_ok($block$do $$
@@ -84,7 +84,7 @@ begin
   delete from public.leave;
   delete from public.attendance;
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, 1, 'approved',
+  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, -1, 'approved',
           now() - interval '5 hours', now() - interval '1 hour')
   returning id into finished;
 
@@ -96,7 +96,7 @@ begin
   assert not (answered ->> 'shortened')::boolean, 'a leave that already ended is not shortened';
 
   select * into untouched from public.leave where id = finished;
-  assert untouched.days = 1, 'a day already taken still costs a day';
+  assert -untouched.days = 1, 'a day already taken still costs a day';
 
   select count(*) into clocked from public.attendance
   where member_id = '1005aa00-0000-0000-0000-000000000001' and kind = 'clock_in';
@@ -112,7 +112,7 @@ begin
   delete from public.leave;
   delete from public.attendance;
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, 1, 'requested',
+  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, -1, 'requested',
           now() - interval '2 hours', now() + interval '2 hours')
   returning id into pending;
 
@@ -136,7 +136,7 @@ begin
   delete from public.leave;
   delete from public.attendance;
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, 1, 'approved',
+  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, -1, 'approved',
           now() - interval '1 minute', now() + interval '4 hours')
   returning id into shortened.id;
 
@@ -147,7 +147,7 @@ begin
 
   select * into shortened from public.leave
   where member_id = '1005aa00-0000-0000-0000-000000000001';
-  assert shortened.days = 0.25,
+  assert -shortened.days = 0.25,
     'coming back at once still costs the smallest bookable part of a day';
 end $$;$block$, 'a leave returned from at once costs the smallest part that can be booked');
 

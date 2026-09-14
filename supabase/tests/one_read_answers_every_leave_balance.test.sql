@@ -37,16 +37,16 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
     true
   );
 
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin) values
-  ('4b000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, date '1970-01-01', 'manual'),
-  ('4b000000-0000-0000-0000-0000000000a2', 'annual', true, false, 18, date '1970-01-01', 'manual'),
-  ('4b000000-0000-0000-0000-0000000000b1', 'annual', true, false, 15, date '1970-01-01', 'manual');
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin) values
+  ('4b000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved', date '1970-01-01', 'manual'),
+  ('4b000000-0000-0000-0000-0000000000a2', 'annual', true, false, 18, 'approved', date '1970-01-01', 'manual'),
+  ('4b000000-0000-0000-0000-0000000000b1', 'annual', true, false, 15, 'approved', date '1970-01-01', 'manual');
 
 insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
   (
     '4b000000-0000-0000-0000-0000000000e1',
     '4b000000-0000-0000-0000-0000000000a2',
-    'leave', true, true, 2, 'approved',
+    'leave', true, true, -2, 'approved',
     '2026-07-02 00:00:00+09', '2026-07-04 00:00:00+09'
   );
 

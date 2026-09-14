@@ -43,7 +43,7 @@ export async function seedLeave(leave: CentralPlaneLeave[]): Promise<string[]> {
 	const rows = leave.map((entry) => ({
 		member_id: entry.memberID,
 		kind: entry.kind,
-		days: entry.days,
+		days: -entry.days,
 		is_paid: entry.isPaid ?? true,
 		status: entry.status,
 		starts_at: entry.startISO,

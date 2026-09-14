@@ -44,7 +44,7 @@ insert into public.task (company_id, title, starts_at, ends_at, is_event) values
   ('00000000-0000-0000-0000-0000000000b0', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
 
 insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at) values
-  ('000000aa-0000-0000-0000-000000000001', '연차', true, 3, 'requested', '2026-08-10 00:00+09', '2026-08-12 23:59+09');
+  ('000000aa-0000-0000-0000-000000000001', '연차', true, -3, 'requested', '2026-08-10 00:00+09', '2026-08-12 23:59+09');
 
 select lives_ok($block$do $$
 declare
@@ -446,7 +446,7 @@ begin
 
   begin
     insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at)
-    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, 2, '2026-09-01 00:00+09', '2026-09-02 23:59+09');
+    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, -2, '2026-09-01 00:00+09', '2026-09-02 23:59+09');
   exception when insufficient_privilege then
     colleague_request_blocked := true;
   end;
@@ -755,9 +755,9 @@ begin
   assert internal.member_leave_remaining(veteran, 2026) is null,
     'with no entitlement set, there is nothing to count against';
 
-  insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin)
-    values (newcomer, 'annual', true, false, 15, date '1970-01-01', 'manual'),
-           (veteran, 'annual', true, false, 20, date '1970-01-01', 'manual');
+  insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin)
+    values (newcomer, 'annual', true, false, 15, 'approved', date '1970-01-01', 'manual'),
+           (veteran, 'annual', true, false, 20, 'approved', date '1970-01-01', 'manual');
 
   assert internal.member_leave_days(newcomer) = 15,
     'an entitlement is what the member was granted';
@@ -765,22 +765,22 @@ begin
     'a single member entitlement can be raised';
 
   update public.leave set status = 'requested'
-    where member_id = veteran and status is not null;
+    where member_id = veteran and days < 0;
   assert internal.member_leave_remaining(veteran, 2026) = 20,
     'a leave that is still only requested has not been consumed';
 
   update public.leave set status = 'approved'
-    where member_id = veteran and status is not null;
+    where member_id = veteran and days < 0;
   assert internal.member_leave_remaining(veteran, 2026) = 17,
     'an approved leave is deducted';
 
   insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
-    values (veteran, '반차', true, 0.5, 'approved', '2026-08-13 09:00+09', '2026-08-13 13:00+09');
+    values (veteran, '반차', true, -0.5, 'approved', '2026-08-13 09:00+09', '2026-08-13 13:00+09');
   assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'a half day consumes half a day';
 
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-    values (veteran, '경조사', true, false, 3, 'approved', '2026-08-17 00:00+09', '2026-08-19 23:59+09');
+    values (veteran, '경조사', true, false, -3, 'approved', '2026-08-17 00:00+09', '2026-08-19 23:59+09');
   assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'leave granted outside the entitlement does not consume it';
 
@@ -788,7 +788,7 @@ begin
     'last year is counted separately';
 
   insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
-    values (veteran, '연차', true, 1, 'approved', '2027-01-01 09:00+09', '2027-01-01 18:00+09');
+    values (veteran, '연차', true, -1, 'approved', '2027-01-01 09:00+09', '2027-01-01 18:00+09');
   assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'a new year leave in Seoul must not be charged to the year that is still running in UTC';
   assert internal.member_leave_remaining(veteran, 2027) = 19,
@@ -1173,10 +1173,10 @@ insert into public.member (id, company_id, email, name, user_id, status, is_admi
    'hr-admin@example.test', '최견본', '0f000000-0000-0000-0000-000000000009', 'active', true,
    '010-0000-0009', 'kept about the admin');
 
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin) values
-  ('0f0000aa-0000-0000-0000-000000000001', 'annual', true, false, 20, date '1970-01-01', 'manual'),
-  ('0f0000aa-0000-0000-0000-000000000002', 'annual', true, false, 15, date '1970-01-01', 'manual'),
-  ('0f0000aa-0000-0000-0000-000000000009', 'annual', true, false, 25, date '1970-01-01', 'manual');
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin) values
+  ('0f0000aa-0000-0000-0000-000000000001', 'annual', true, false, 20, 'approved', date '1970-01-01', 'manual'),
+  ('0f0000aa-0000-0000-0000-000000000002', 'annual', true, false, 15, 'approved', date '1970-01-01', 'manual'),
+  ('0f0000aa-0000-0000-0000-000000000009', 'annual', true, false, 25, 'approved', date '1970-01-01', 'manual');
 
 select lives_ok($block$do $$
 declare
@@ -1197,7 +1197,7 @@ begin
   from public.member where id = '0f0000aa-0000-0000-0000-000000000002';
 
   select count(*) = 0 into entitlement_refused
-  from public.leave where status is null;
+  from public.leave where days >= 0;
   begin
     perform notification_settings from public.member;
   exception when insufficient_privilege then
@@ -1248,7 +1248,7 @@ declare
   reason_refused boolean := false;
 begin
   insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at, note)
-    values ('0f0000aa-0000-0000-0000-000000000002', '연차', true, 1, 'requested',
+    values ('0f0000aa-0000-0000-0000-000000000002', '연차', true, -1, 'requested',
             '2026-09-01 00:00+09', '2026-09-01 23:59+09', 'a reason of their own');
 
   set local role authenticated;
@@ -1259,7 +1259,7 @@ begin
   reset role;
 
   update public.leave set status = 'approved'
-    where member_id = '0f0000aa-0000-0000-0000-000000000002' and status is not null;
+    where member_id = '0f0000aa-0000-0000-0000-000000000002' and days < 0;
 
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"0f000000-0000-0000-0000-000000000001"}', true);

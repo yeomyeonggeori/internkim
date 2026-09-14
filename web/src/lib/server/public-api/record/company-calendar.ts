@@ -136,13 +136,14 @@ async function approvedLeave(
 		.from('leave')
 		.select(leaveSelection)
 		.eq('status', 'approved')
+		.lt('days', 0)
 		.lt('starts_at', to.toISOString())
 		.gte('ends_at', from.toISOString())
 		.order('starts_at')
 		.returns<ApprovedLeaveRow[]>();
 	if (leave.error) throw new Error(`Failed to load approved leave calendar events: ${leave.error.message}`);
 	return leave.data.map((row) =>
-		calendarEntryOfApprovedLeave(row, reader.members, reader.timeZone, reader.locale)
+		calendarEntryOfApprovedLeave({ ...row, days: -row.days }, reader.members, reader.timeZone, reader.locale)
 	);
 }
 
