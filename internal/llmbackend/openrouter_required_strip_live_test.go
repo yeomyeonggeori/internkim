@@ -232,7 +232,7 @@ func sendExperimentNativeActionRequest(ctx context.Context, backend OpenRouterBa
 	if errorValue != nil {
 		return "", errorValue
 	}
-	response, errorValue := backend.streamCompletion(ctx, apiKey, requestDocument, modelName)
+	response, errorValue := backend.streamCompletion(ctx, apiKey, requestDocument, modelName, true)
 	if errorValue != nil {
 		return "", withNativeSchemaLint(errorValue, lintResult)
 	}
