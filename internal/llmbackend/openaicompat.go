@@ -31,7 +31,13 @@ type openAIRequest struct {
 	MaxTokens            *int                   `json:"max_tokens,omitempty"`
 	Provider             map[string]any         `json:"provider,omitempty"`
 	Reasoning            *openAIReasoning       `json:"reasoning,omitempty"`
+	Usage                *openAIUsageOptions    `json:"usage,omitempty"`
 	NativeToolSchemaLint NativeSchemaLintResult `json:"-"`
+}
+
+// https://openrouter.ai/docs/use-cases/usage-accounting
+type openAIUsageOptions struct {
+	Include bool `json:"include"`
 }
 
 type openAIReasoning struct {
@@ -80,29 +86,26 @@ type openAIUsage struct {
 	} `json:"cost_details"`
 }
 
+type openAIChoiceMessage struct {
+	Role      string           `json:"role"`
+	Content   string           `json:"content"`
+	ToolCalls []openAIToolCall `json:"tool_calls"`
+}
+
+type openAIChoice struct {
+	FinishReason string              `json:"finish_reason"`
+	Message      openAIChoiceMessage `json:"message"`
+}
+
 type openAIResponse struct {
-	Provider string `json:"provider"`
-	Choices  []struct {
-		FinishReason string `json:"finish_reason"`
-		Message      struct {
-			Role      string           `json:"role"`
-			Content   string           `json:"content"`
-			ToolCalls []openAIToolCall `json:"tool_calls"`
-		} `json:"message"`
-	} `json:"choices"`
+	Provider string         `json:"provider"`
+	Choices  []openAIChoice `json:"choices"`
 }
 
 type openAIResponseWithUsage struct {
-	Provider string `json:"provider"`
-	Choices  []struct {
-		FinishReason string `json:"finish_reason"`
-		Message      struct {
-			Role      string           `json:"role"`
-			Content   string           `json:"content"`
-			ToolCalls []openAIToolCall `json:"tool_calls"`
-		} `json:"message"`
-	} `json:"choices"`
-	Usage openAIUsage `json:"usage"`
+	Provider string         `json:"provider"`
+	Choices  []openAIChoice `json:"choices"`
+	Usage    openAIUsage    `json:"usage"`
 }
 
 type openAITool struct {

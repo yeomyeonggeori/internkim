@@ -227,11 +227,16 @@ func sendExperimentNativeActionRequest(ctx context.Context, backend OpenRouterBa
 	if !isActionSchema {
 		return "", fmt.Errorf("experiment schema was not recognized as an action schema")
 	}
-	requestDocument, lintResult, errorValue := backend.buildChatActionRequest(request, backend.resolveModelName(request.Model), toolSet.Tools, toolSet.NativeSchemaLint)
+	modelName := backend.resolveModelName(request.Model)
+	requestDocument, lintResult, errorValue := backend.buildChatActionRequest(request, modelName, toolSet.Tools, toolSet.NativeSchemaLint)
 	if errorValue != nil {
 		return "", errorValue
 	}
-	completion, errorValue := backend.sendChatAction(ctx, apiKey, requestDocument, toolSet, lintResult)
+	response, errorValue := backend.streamCompletion(ctx, apiKey, requestDocument, modelName)
+	if errorValue != nil {
+		return "", withNativeSchemaLint(errorValue, lintResult)
+	}
+	completion, errorValue := nativeActionCompletionFromStream(response, toolSet)
 	return completion.Content, errorValue
 }
 
