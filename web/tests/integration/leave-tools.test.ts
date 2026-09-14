@@ -49,6 +49,7 @@ beforeAll(async () => {
 			is_paid: true,
 			is_deducted: false,
 			days: grantedDays,
+			status: 'approved',
 			granted_on: '1970-01-01',
 			origin: 'manual'
 		}))

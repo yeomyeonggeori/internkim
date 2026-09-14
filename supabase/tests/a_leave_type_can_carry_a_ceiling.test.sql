@@ -73,19 +73,19 @@ begin
 end $$;$block$, '22023', null, 'a ceiling below nothing is refused');
 
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-values ('ce000000-0000-0000-0000-0000000000a2', 'family-care', false, false, 2, 'approved',
+values ('ce000000-0000-0000-0000-0000000000a2', 'family-care', false, false, -2, 'approved',
         '2026-04-01 00:00+09', '2026-04-03 00:00+09');
 
 select lives_ok(
   $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-    values ('ce000000-0000-0000-0000-0000000000a2', 'family-care', false, false, 1, 'requested',
+    values ('ce000000-0000-0000-0000-0000000000a2', 'family-care', false, false, -1, 'requested',
             '2026-05-01 00:00+09', '2026-05-02 00:00+09')$$,
   'a request that reaches the ceiling exactly is taken'
 );
 
 select throws_ok(
   $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-    values ('ce000000-0000-0000-0000-0000000000a2', 'family-care', false, false, 1, 'requested',
+    values ('ce000000-0000-0000-0000-0000000000a2', 'family-care', false, false, -1, 'requested',
             '2026-06-01 00:00+09', '2026-06-02 00:00+09')$$,
   '22023',
   'this leave type allows 3 days a year',
@@ -95,7 +95,7 @@ select throws_ok(
 -- The ceiling is a year's, so the year after it starts empty again.
 select lives_ok(
   $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-    values ('ce000000-0000-0000-0000-0000000000a2', 'family-care', false, false, 3, 'approved',
+    values ('ce000000-0000-0000-0000-0000000000a2', 'family-care', false, false, -3, 'approved',
             '2027-02-01 00:00+09', '2027-02-04 00:00+09')$$,
   'the next year is counted on its own'
 );
