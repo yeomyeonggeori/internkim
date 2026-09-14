@@ -304,14 +304,18 @@ func (service Service) webBackedScenarioPlans() []CommandPlan {
 }
 
 func (service Service) personalSettingsScenarioPlans() []CommandPlan {
-	return append(service.upPlans(true), service.command(
+	return append(service.upPlans(true), service.companyBrowserVerificationPlan())
+}
+
+func (service Service) companyBrowserVerificationPlan() CommandPlan {
+	return service.command(
 		"bun", "run", filepath.Join(service.options.RepositoryRootPath, "tools", "verify-personal-settings.ts"),
 		"--state-root", service.options.StateRootPath,
 		"--app-port", strconv.Itoa(service.options.CompanyAppPort),
 		"--admin-port", strconv.Itoa(service.options.AdminHostPort),
 		"--chatd-url", blueclaw.ChatdEndpoint,
 		"--config", service.configurationPath(),
-	))
+	)
 }
 
 func (service Service) taskHistoryRetryScenarioPlans() []CommandPlan {
@@ -322,18 +326,6 @@ func (service Service) taskHistoryRetryScenarioPlans() []CommandPlan {
 		service.shellPlan("build task retry proxy acceptance", "GOOS=linux GOARCH=arm64 go test -c -o build/task-history-retry-admind.test ./internal/admind"),
 		service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)),
 	)
-}
-
-func (service Service) companyBrowserVerificationPlan() CommandPlan {
-	return CommandPlan{
-		DirectoryPath: filepath.Join(service.options.RepositoryRootPath, "web"),
-		Name:          "bun",
-		Arguments:     []string{"run", "test:e2e:local-fleet"},
-		Environment: append(os.Environ(),
-			fmt.Sprintf("PLAYWRIGHT_BASE_URL=http://127.0.0.1:%d", service.options.CompanyAppPort),
-			"PLAYWRIGHT_START_WEB_SERVER=0",
-		),
-	}
 }
 
 func (service Service) baseRegressionPlans(base string, scenario string) []CommandPlan {
