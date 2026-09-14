@@ -28,9 +28,12 @@ without a monitor, a keyboard, or anyone from us touching it.
 
 1. The box boots empty. It generates a keypair on first boot; the private key is
    written to its own disk and never leaves it.
-2. It broadcasts a Wi-Fi network named `Kim mini` with the password `kimmini`.
-   The password is printed in the manual and on the product page. It keeps
-   passers-by from joining by accident and protects nothing.
+2. It broadcasts a WPA3 network named `kimmini` with the password `intern-kim`,
+   printed in the manual and on the product page. Every box shares it, so it
+   identifies nobody. What it buys is WPA3's key exchange: someone nearby who
+   knows the password still cannot read another phone's session, which carries
+   the office Wi-Fi password and the connection code. A phone without WPA3 joins
+   over WPA2 and loses that protection.
 3. Joining opens a captive portal. If no LAN cable is connected, the portal
    asks for an office network and its password, choosing from the networks the
    box scanned before it started broadcasting.
@@ -42,11 +45,11 @@ without a monitor, a keyboard, or anyone from us touching it.
    public key to the central plane, which binds that public key to the company.
 6. The `intern.kim` page shows the box as connected, and the box starts the host
    bundle as that company's host. If the office password was wrong or the code
-   had expired, the box reopens `Kim mini` and the portal says which.
+   had expired, the box reopens `kimmini` and the portal says which.
 
 The box is either broadcasting or connected to the office, never both, so setup
 works on a Wi-Fi chip that cannot act as access point and client at once. The
-phone losing the `Kim mini` network at step 5 is expected; the result is read
+phone losing the `kimmini` network at step 5 is expected; the result is read
 on the page that issued the code.
 
 The portal accepts injection only while the box is empty and never displays a
@@ -134,7 +137,7 @@ presses inside a short window, and either shuts down or resets.
 
 A reset deletes the private key, the company binding, the local Postgres, agent
 memory, and the workspace. It then generates a new keypair and reopens the
-`Kim mini` network, so the box is indistinguishable from one that just arrived.
+`kimmini` network, so the box is indistinguishable from one that just arrived.
 This is the whole answer to a stranger who configured the box first: five
 presses and set it up again. The old public key stays on the other company's
 fleet credential, where it can no longer sign anything.
@@ -151,3 +154,13 @@ fleet credential, where it can no longer sign anything.
   identity; reclaiming the company from another box is the recovery.
 - **Race at setup.** Anyone in range between power-on and claim can inject first.
   The reset button bounds the damage to the time it takes the owner to notice.
+- **A fake `kimmini`.** Someone nearby can broadcast their own `kimmini` with the
+  same public password and collect the office Wi-Fi password and the code the
+  user types, then redeem the code from their own box. WPA3 does not stop this,
+  and comparing the addresses that issued and redeemed the code does not
+  either, because the fake portal hands them the office network too. The tell
+  is that the real box keeps broadcasting. Connecting the real box with a new
+  code moves the company to it, since a company has one host, so the page that
+  issued the code should name the box that redeemed it and when.
+- **WPA3 access point.** Whether the box's Wi-Fi firmware offers WPA3 in
+  access point mode, with WPA2 as the fallback.
