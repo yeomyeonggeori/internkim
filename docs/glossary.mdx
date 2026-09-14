@@ -41,10 +41,20 @@ those do hold keys.
 ## The public API
 
 The routes under `web/src/routes/api/v1/`, which answer `api.<zone>/v1` and
-any company host's own `/api/v1`. A caller carries either a signed-in session
-or a token issued to a person, and every call runs as that person. The app
-answers the tool catalog and the tokens itself and carries an invocation to
-the company's computer, because that is where a tool runs.
+any company host's own `/api/v1`. A
+caller carries either a signed-in session or a token issued to a person, and
+every call runs as that person. The app answers the tokens and the tool
+catalog itself, runs the tools the record can answer, and carries the rest to
+the company's computer. `/api/v1/mcp` serves the same catalog over MCP.
+
+## The tool catalog
+
+Every tool the agent or a token can call, defined once in
+`web/src/lib/server/public-api/catalog/` and generated into
+`pkg/capabilityprotocol/generated/`. Each tool names who answers it in
+`answeredBy`: a `record` tool runs in the app against the record, a `company`
+tool is carried to the host, and a `local` tool runs only beside the agent.
+The [catalog](/docs/tools/catalog) lists them.
 
 ## The connection gateway
 
@@ -75,9 +85,11 @@ one host. `host/entrypoint.sh` is its boot order.
 
 ## The relay
 
-The process that answers the app: `internkim-relay`, built from
-`host/relay/`. It holds the standing connection to the gateway, serves each
-call as the member the gateway named, and reports messenger arrivals as
+The process that answers the app and feeds the agent: `internkim-relay`,
+built from `host/relay/`. It holds the standing connection to the gateway and
+serves each call as the member the gateway named. It keeps each message the
+connector hands it in a queue on disk, turns it into an ACP turn for the
+agent, serves the agent its tools, and reports messenger arrivals as
 notifications. One company, one relay process.
 
 Two cautions about the name. Older pages called this process "the bridge".
@@ -88,24 +100,47 @@ runs, brought up by `host/buzz/`. When both appear in one sentence, say
 ## The connector
 
 `chatd`, at `.dependency/blueclaw/chatd/`. It attaches to the company's
-messenger through a platform adapter, signs in as the
-bot, and turns arriving messages into work for the agent. Pointed the
-opposite way from the relay: the relay serves the browser, the connector
-serves the agent.
+messenger through a platform adapter, signs in as the bot, normalizes each
+arriving message and posts it to the relay. It carries the agent's replies
+and the chat screen's messenger operations back out.
 
 ## The agent
 
-blueclaw, the agent host, with the bluecollar loop running inside it.
-blueclaw runs tools as the person who asked and owns approval and the task
-ledger; it is vendored at `.dependency/blueclaw/` and answers on
-`127.0.0.1:8080`.
+blueclaw, the agent host, vendored at `.dependency/blueclaw/`. It is the ACP
+agent the relay opens sessions with, runs the bluecollar loop in-process,
+keeps memory in bluememo, and owns approval and the task ledger. It listens on
+`/run/internkim/blueclaw-acp.sock`, with its admin API on `127.0.0.1:8080`.
+
+## Memory
+
+bluememo, a library blueclaw embeds, at
+`.dependency/blueclaw/.dependency/bluememo/`. It keeps the facts a model
+extracts from finished work in the agent's store, each owned by a person and
+shared with zero or more circles, and recalls only what the reader may see.
+
+## The skills
+
+The instructions and scripts the agent loads for a kind of work, from the
+internkim-plugin repository at `.dependency/internkim-plugin/`. The host image
+copies them to `/opt/internkim/skills`.
+
+## ACP and MCP
+
+Two protocols, one for each direction. The relay speaks
+[ACP](https://agentclientprotocol.com) to blueclaw: it opens a session per
+conversation, sends each message as a prompt, and carries the agent's approval
+questions to the person. The agent speaks
+[MCP](https://modelcontextprotocol.io) to call its tools, at an address the
+relay serves and forwards to `/api/v1/mcp` as the requester.
 
 ## capabilityd
 
 `internkim-capabilityd`, the typed capability boundary. It holds provider
 credentials and exposes only a capability API on
 `/run/internkim/capability.sock`, so the agent never sees a provider token, a
-browser binary or a model path. Code in `internal/capabilityd/`.
+browser binary or a model path. Model calls go through it too: the agent asks
+for a tier, and the tiers are named in `internal/modelladder`. Code in
+`internal/capabilityd/`.
 
 ## The companion
 
@@ -116,7 +151,7 @@ it is online. Code in `cmd/internkim-companion/` and `internal/companion/`.
 
 ## The agent's store
 
-The Postgres database on the host, defined by
+The Postgres database on the host, with the `vector` extension, defined by
 `.dependency/blueclaw/migrations/`. Conversations, task runs, memory, and
 policy. Never company records.
 

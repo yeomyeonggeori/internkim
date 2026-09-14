@@ -30,16 +30,20 @@ a candidate list to choose from, and choosing is what `person_list` is for.
 **Capability tools** touch shared records and the world outside: tasks, the
 calendar, messages, channels, the public web, served sites, the browser.
 The catalog holds <ToolCount /> of them under protocol
-<ToolProtocolVersion />. The agent reaches all of them through
-`internkim-capabilityd`; over the [HTTP API](/docs/api/tools) the task,
-calendar, people, leave and attendance tools run on the central plane instead,
-and the rest are carried to the company's computer. The
-[catalog](/docs/tools/catalog) lists every one.
+<ToolProtocolVersion />. Each one names who answers it: the task, calendar,
+people, leave and attendance tools run on the central plane against the
+record, the browser and model tools run only beside the agent, and the rest
+are carried to the company's computer. On the host the agent calls them over
+MCP through the relay, the same catalog the [HTTP API](/docs/api/tools)
+serves; on the device path it reaches them through `internkim-capabilityd`.
+The [catalog](/docs/tools/catalog) lists every one.
 
 **Workspace tools** touch your files and the terminal: read, write, edit,
 run a command, deliver a finished file. They are built into the agent host
-(blueclaw) and execute as your own Linux user, so POSIX permissions bound
-what they can reach. See [Files and the terminal](/docs/tools/workspace).
+(blueclaw) and, where the POSIX helper is installed, execute as your own
+Linux user, so POSIX permissions bound what they can reach
+([Boundaries](/docs/boundaries#files-and-execution) says where that holds).
+See [Files and the terminal](/docs/tools/workspace).
 
 ## What a side-effect class means [#side-effects]
 

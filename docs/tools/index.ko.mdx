@@ -29,16 +29,20 @@ description: 에이전트가 부를 수 있는 것들, 각 호출의 대가, 그
 
 **능력 도구**는 공용 기록과 바깥 세계를 건드립니다. 업무, 캘린더, 메시지,
 채널, 공개 웹, 게시된 사이트, 브라우저. 카탈로그에는 프로토콜
-<ToolProtocolVersion />로 <ToolCount />개가 들어 있습니다. 에이전트는 전부
-`internkim-capabilityd`를 거쳐 닿고, [HTTP API](/ko/docs/api/tools)에서는
-업무·캘린더·사람·연차·근태 도구가 중앙 평면에서 돌며 나머지는 회사의
-컴퓨터로 실려 갑니다. 전체 목록은 [카탈로그](/ko/docs/tools/catalog)에
-있습니다.
+<ToolProtocolVersion />로 <ToolCount />개가 들어 있습니다. 도구마다 누가
+답하는지를 밝힙니다. 업무·캘린더·사람·연차·근태 도구는 중앙 평면에서 기록에
+대고 돌고, 브라우저와 모델 도구는 에이전트 곁에서만 돌며, 나머지는 회사의
+컴퓨터로 실려 갑니다. 호스트에서 에이전트는
+[HTTP API](/ko/docs/api/tools)가 서빙하는 바로 그 카탈로그를 릴레이를 거쳐
+MCP로 부르고, 디바이스 경로에서는 `internkim-capabilityd`를 거쳐 닿습니다.
+전체 목록은 [카탈로그](/ko/docs/tools/catalog)에 있습니다.
 
 **워크스페이스 도구**는 요청자의 파일과 터미널을 다룹니다. 읽기, 쓰기,
-편집, 명령 실행, 완성물 전달. 에이전트 호스트(blueclaw)에 내장되어 있고
-요청자 본인의 리눅스 사용자로 실행되므로, 닿을 수 있는 범위를 POSIX 권한이
-정합니다. [파일과 터미널](/ko/docs/tools/workspace)에서 다룹니다.
+편집, 명령 실행, 완성물 전달. 에이전트 호스트(blueclaw)에 내장되어 있고,
+POSIX 헬퍼가 설치된 곳에서는 요청자 본인의 리눅스 사용자로 실행되므로 닿을 수
+있는 범위를 POSIX 권한이 정합니다(어디서 그런지는
+[경계](/ko/docs/boundaries#files-and-execution)에 있습니다).
+[파일과 터미널](/ko/docs/tools/workspace)에서 다룹니다.
 
 ## 부작용 등급이 뜻하는 것 [#side-effects]
 
