@@ -70,17 +70,18 @@ select is(
 );
 
 -- A monthly cadence lands on each person's hire day. The member already holds
--- the leave-year row from above; moving the cadence moves that row rather than
--- adding a second beside it, and a member the record knows no hire date for is
--- reported rather than guessed at.
+-- the leave-year row from above; changing the cadence replaces that row rather
+-- than adding a second beside it, and a member the record knows no hire date for
+-- is reported rather than guessed at.
 update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy('monthly', 'monthsAfterGrant', 'managed'))
 where id = 'ac000000-0000-0000-0000-0000000000a0';
 
-select is(
-  internal.leave_accrue_member('ac000000-0000-0000-0000-0000000000a1', date '2026-09-09'),
-  'restated',
-  'changing the cadence restates the running period'
+select results_eq(
+  $$select granted_on from public.leave
+    where member_id = 'ac000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'$$,
+  $$select internal.monthly_opening_on_or_before(internal.member_today('ac000000-0000-0000-0000-0000000000a1'), 15)$$,
+  'changing the cadence grants the running period under the new rule'
 );
 select is(
   (select count(*)::integer from public.leave
