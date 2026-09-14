@@ -1,0 +1,291 @@
+#!/usr/bin/env python3
+"""Ship origin/main to the device as one operation.
+
+Today a human runs four build steps and `./internkim deploy` by hand, and the
+release engine only refuses a mismatched tree or a device another session
+already moved forward. This script is the whole thing: it refuses first,
+builds every artifact a deploy can ship, deploys every component the release
+engine knows about, and confirms the device answers with the revision it just
+shipped.
+"""
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+LOCK_PATH = REPOSITORY_ROOT / ".artifacts" / "deploy-main.lock"
+BLUECLAW_PATH = REPOSITORY_ROOT / ".dependency" / "blueclaw"
+STRAY_BLUECLAW_APP_ARTIFACT = BLUECLAW_PATH / "internal" / "app" / ".blueclaw"
+IGNORED_ARTIFACT_STATUS_PATH = ".dependency/blueclaw/internal/app/.blueclaw/"
+TARGETS_PATH = REPOSITORY_ROOT / ".local" / "ops" / "targets.json"
+HEALTH_POLL_TIMEOUT_SECONDS = 300
+HEALTH_POLL_INTERVAL_SECONDS = 5
+
+BUILD_STEPS = [
+    ["make", "build"],
+    ["make", "prepare-blueclaw-payload"],
+    ["make", "prepare-buzz-relay"],
+    ["bun", "run", "build:board"],
+]
+
+PLAN_STEPS = [
+    "acquire the deploy lock under .artifacts/deploy-main.lock, waiting if another session holds it",
+    "git fetch origin",
+    "refuse unless the working tree is clean and HEAD equals origin/main",
+    "read every fleet target's current revision from its health endpoint",
+    "refuse unless every target's revision is an ancestor of origin/main",
+    "make build",
+    "make prepare-blueclaw-payload",
+    "make prepare-buzz-relay",
+    "(cd web && bun run build:board)",
+    "remove .dependency/blueclaw/internal/app/.blueclaw if a build step recreated it",
+    "./internkim deploy --components <every component from --help's Available: line>",
+    "poll every target's health endpoint until gitRevision matches origin/main, up to 5 minutes",
+    "print the before/after revision table",
+]
+
+
+class Refusal(Exception):
+    pass
+
+
+def run(command, working_directory=None):
+    return subprocess.run(command, cwd=working_directory or REPOSITORY_ROOT, capture_output=True, text=True)
+
+
+def run_streaming(command, working_directory=None):
+    process = subprocess.Popen(
+        command,
+        cwd=working_directory or REPOSITORY_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    output_lines = []
+    for line in process.stdout:
+        print(line, end="", flush=True)
+        output_lines.append(line.rstrip("\n"))
+    process.wait()
+    return process.returncode, output_lines
+
+
+def delete_stray_blueclaw_app_artifact():
+    if STRAY_BLUECLAW_APP_ARTIFACT.exists():
+        shutil.rmtree(STRAY_BLUECLAW_APP_ARTIFACT)
+
+
+def working_tree_is_clean(status_lines):
+    relevant_lines = [line for line in status_lines if IGNORED_ARTIFACT_STATUS_PATH not in line]
+    return not relevant_lines
+
+
+def blueclaw_pointer_matches_head():
+    recorded_tree_entry = run(["git", "ls-tree", "HEAD", ".dependency/blueclaw"]).stdout.split()
+    recorded_revision = recorded_tree_entry[2] if len(recorded_tree_entry) >= 3 else None
+    checked_out_revision = run(["git", "rev-parse", "HEAD"], working_directory=BLUECLAW_PATH).stdout.strip()
+    return recorded_revision is not None and recorded_revision == checked_out_revision
+
+
+def combined_status_lines():
+    top_level_lines = [line for line in run(["git", "status", "--porcelain"]).stdout.splitlines() if line.strip()]
+    lines_outside_blueclaw = [line for line in top_level_lines if line[3:].strip() != ".dependency/blueclaw"]
+    blueclaw_lines = [line for line in run(["git", "status", "--porcelain"], working_directory=BLUECLAW_PATH).stdout.splitlines() if line.strip()]
+    prefixed_blueclaw_lines = [f"{line[:2]} .dependency/blueclaw/{line[3:].strip()}" for line in blueclaw_lines]
+    if not blueclaw_pointer_matches_head():
+        lines_outside_blueclaw.append(" M .dependency/blueclaw")
+    return lines_outside_blueclaw + prefixed_blueclaw_lines
+
+
+def fetch_origin():
+    fetched = run(["git", "fetch", "origin"])
+    if fetched.returncode != 0:
+        raise Refusal(f"git fetch origin failed: {fetched.stderr.strip()}")
+
+
+def require_head_matches_origin_main():
+    delete_stray_blueclaw_app_artifact()
+    if not working_tree_is_clean(combined_status_lines()):
+        raise Refusal(
+            "working tree is not clean; commit or stash before deploying, then "
+            "git checkout --detach origin/main && git submodule update --init --recursive"
+        )
+    head = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    origin_main = run(["git", "rev-parse", "origin/main"]).stdout.strip()
+    if head != origin_main:
+        raise Refusal(
+            "HEAD does not equal origin/main; run "
+            "git checkout --detach origin/main && git submodule update --init --recursive"
+        )
+
+
+def load_fleet_targets():
+    if not TARGETS_PATH.exists():
+        raise Refusal(f"no fleet registry at {TARGETS_PATH}; deploy-main needs a populated targets.json")
+    registry = json.loads(TARGETS_PATH.read_text())
+    targets = registry.get("targets", [])
+    if not targets:
+        raise Refusal(f"{TARGETS_PATH} names no targets")
+    return [{"id": target["id"], "adminURL": target["adminURL"]} for target in targets]
+
+
+def fetch_health(admin_url):
+    request = urllib.request.Request(admin_url.rstrip("/") + "/admin/api/health")
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.load(response)
+
+
+def device_revision_of(target):
+    try:
+        health = fetch_health(target["adminURL"])
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+        raise Refusal(f"could not read {target['id']}'s health endpoint: {error}")
+    revision = health.get("gitRevision", "")
+    if not revision:
+        raise Refusal(f"{target['id']}'s health endpoint carries no gitRevision")
+    return revision
+
+
+def is_ancestor(revision, ancestor_of, runner=run):
+    result = runner(["git", "merge-base", "--is-ancestor", revision, ancestor_of])
+    return result.returncode == 0
+
+
+def require_targets_are_shippable(targets):
+    for target in targets:
+        revision = device_revision_of(target)
+        target["revisionBefore"] = revision
+        if not is_ancestor(revision, "origin/main"):
+            raise Refusal(
+                f"{target['id']} already runs {revision}, which origin/main does not contain; "
+                "another session shipped something this tree does not have"
+            )
+
+
+class DeployLock:
+    def __init__(self, path):
+        self.path = path
+        self.handle = None
+
+    def __enter__(self):
+        import fcntl
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.handle = open(self.path, "w")
+        try:
+            fcntl.flock(self.handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("waiting for another deploy-main session to release the lock", flush=True)
+            fcntl.flock(self.handle, fcntl.LOCK_EX)
+        self.handle.write(f"{os.getpid()}\n")
+        self.handle.flush()
+        return self
+
+    def __exit__(self, *exception_info):
+        import fcntl
+
+        fcntl.flock(self.handle, fcntl.LOCK_UN)
+        self.handle.close()
+
+
+def run_build_steps():
+    for step in BUILD_STEPS:
+        working_directory = REPOSITORY_ROOT / "web" if step[:2] == ["bun", "run"] else REPOSITORY_ROOT
+        print(f"$ {' '.join(step)}", flush=True)
+        returncode, _ = run_streaming(step, working_directory=working_directory)
+        if returncode != 0:
+            raise Refusal(f"build step failed: {' '.join(step)}")
+        delete_stray_blueclaw_app_artifact()
+
+
+def parse_available_components(help_text):
+    for line in help_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Available:"):
+            listed = stripped[len("Available:"):].strip()
+            return [name.strip() for name in listed.split(",") if name.strip()]
+    raise Refusal("./internkim deploy --help printed no Available: line")
+
+
+def every_release_component():
+    help_run = run(["./internkim", "deploy", "--help"])
+    return parse_available_components(help_run.stdout)
+
+
+def run_deploy(components):
+    print(f"$ ./internkim deploy --components {','.join(components)}", flush=True)
+    returncode, output_lines = run_streaming(["./internkim", "deploy", "--components", ",".join(components)])
+    if returncode != 0:
+        raise Refusal("./internkim deploy exited non-zero")
+    deploy_lines = [line for line in output_lines if line.startswith("Deploy:")]
+    return deploy_lines[-1] if deploy_lines else ""
+
+
+def short_revision_of_origin_main():
+    return run(["git", "rev-parse", "--short", "origin/main"]).stdout.strip()
+
+
+def poll_until_revision_matches(target, short_sha):
+    deadline = time.monotonic() + HEALTH_POLL_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            revision = fetch_health(target["adminURL"]).get("gitRevision", "")
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+            revision = ""
+        if revision == short_sha:
+            return revision
+        time.sleep(HEALTH_POLL_INTERVAL_SECONDS)
+    raise Refusal(f"{target['id']} still reports a stale revision after {HEALTH_POLL_TIMEOUT_SECONDS}s")
+
+
+def print_revision_table(targets, deploy_line):
+    print()
+    print(f"{'target':<20}{'before':<12}{'after':<12}")
+    for target in targets:
+        print(f"{target['id']:<20}{target['revisionBefore']:<12}{target['revisionAfter']:<12}")
+    print(deploy_line)
+
+
+def print_plan():
+    for step in PLAN_STEPS:
+        print(step)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--plan", action="store_true", help="print every step and exit without running anything")
+    arguments = parser.parse_args()
+
+    if arguments.plan:
+        print_plan()
+        return 0
+
+    try:
+        with DeployLock(LOCK_PATH):
+            fetch_origin()
+            require_head_matches_origin_main()
+            targets = load_fleet_targets()
+            require_targets_are_shippable(targets)
+            run_build_steps()
+            components = every_release_component()
+            deploy_line = run_deploy(components)
+            short_sha = short_revision_of_origin_main()
+            for target in targets:
+                target["revisionAfter"] = poll_until_revision_matches(target, short_sha)
+        print_revision_table(targets, deploy_line)
+        return 0
+    except Refusal as refusal:
+        print(f"deploy-main: {refusal}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
