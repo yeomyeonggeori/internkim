@@ -401,6 +401,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmOrganizationAddInputIntentSchema,
     result: { schema: crmOrganizationResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_organization' },
   },
   {
@@ -417,6 +418,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmOrganizationUpdateInputIntentSchema,
     result: { schema: crmOrganizationResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_organization' },
   },
   {
@@ -433,6 +435,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmOrganizationArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Destructive,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_organization' },
   },
@@ -462,6 +465,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmContactAddInputIntentSchema,
     result: { schema: crmContactResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_contact' },
   },
   {
@@ -478,6 +482,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmContactUpdateInputIntentSchema,
     result: { schema: crmContactResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_contact' },
   },
   {
@@ -494,6 +499,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmContactArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Destructive,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_contact' },
   },
@@ -523,6 +529,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmOpportunityAddInputIntentSchema,
     result: { schema: crmOpportunityResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
   },
   {
@@ -538,6 +545,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmOpportunityUpdateInputIntentSchema,
     result: { schema: crmOpportunityResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
   },
   {
@@ -553,6 +561,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmOpportunityMoveInputIntentSchema,
     result: { schema: crmOpportunityResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
   },
@@ -570,6 +579,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: crmOpportunityArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Destructive,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
   },
@@ -600,6 +610,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     inputSchema: crmActivitySaveInputSchema,
     result: { schema: crmActivityResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_activity' },
   },
   {

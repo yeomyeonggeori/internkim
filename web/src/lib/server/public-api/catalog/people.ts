@@ -191,6 +191,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
   },
   {
     name: 'person_invite',
@@ -213,6 +214,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
   },
   {
@@ -250,6 +252,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
   },
   {
     name: 'team_update',
@@ -272,6 +275,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    idempotency: { supported: true, required: false, scope: 'operation' },
   },
   {
     name: 'team_delete',
@@ -294,6 +298,7 @@ export const peopleToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.Destructive,
+    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
   },
 ];
