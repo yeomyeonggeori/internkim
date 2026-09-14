@@ -161,7 +161,7 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 		return Response{}, isActionSchema, errorValue
 	}
 	document := backend.chatActionDocument(request, modelName, toolSet.Tools, toolSet.NativeSchemaLint)
-	response, servingNote, errorValue := backend.streamWithOneRetry(ctx, apiKey, modelName, func(ignoredProviders []string) ([]byte, error) {
+	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, modelName, func(ignoredProviders []string) ([]byte, error) {
 		document.Provider = backend.providerRoutingIgnoring(request.RequireParameters, ignoredProviders)
 		return json.Marshal(document)
 	})
@@ -206,23 +206,62 @@ func nativeActionCompletionFromStream(response openAIResponseWithUsage, toolSet 
 	return nativeActionCompletion{}, errors.New("openrouter chat completion response did not include tool_calls")
 }
 
-func (backend OpenRouterBackend) streamWithOneRetry(ctx context.Context, apiKey string, modelName string, buildRequest func(ignoredProviders []string) ([]byte, error)) (openAIResponseWithUsage, string, error) {
-	requestDocument, errorValue := buildRequest(sharedServingRecord.ignoredProviders(modelName))
+func (backend OpenRouterBackend) streamWithHedge(ctx context.Context, apiKey string, modelName string, buildRequest func(ignoredProviders []string) ([]byte, error)) (openAIResponseWithUsage, string, error) {
+	ignoredProviders := sharedServingRecord.ignoredProviders(modelName)
+	firstDocument, errorValue := buildRequest(ignoredProviders)
 	if errorValue != nil {
 		return openAIResponseWithUsage{}, "", errorValue
 	}
-	response, errorValue := backend.streamCompletion(ctx, apiKey, requestDocument, modelName, true)
-	var slowServing slowServingError
-	if !errors.As(errorValue, &slowServing) || ctx.Err() != nil {
-		return response, "", errorValue
+	firstContext, cancelFirst := context.WithCancel(ctx)
+	defer cancelFirst()
+	slowSignal := make(chan slowServingError, 1)
+	firstOutcome := make(chan streamOutcome, 1)
+	go func() {
+		response, streamError := backend.streamCompletion(firstContext, apiKey, firstDocument, modelName, slowSignal)
+		firstOutcome <- streamOutcome{response: response, errorValue: streamError}
+	}()
+	select {
+	case outcome := <-firstOutcome:
+		return outcome.response, "", outcome.errorValue
+	case slow := <-slowSignal:
+		return backend.raceHedge(ctx, apiKey, modelName, buildRequest, append(ignoredProviders, providerSlug(slow.Provider)), slow, firstOutcome, cancelFirst)
 	}
-	log.Printf("openrouter serving cut, asking again without it: model=%s %s", modelName, slowServing.Error())
-	requestDocument, errorValue = buildRequest(sharedServingRecord.ignoredProviders(modelName))
+}
+
+func (backend OpenRouterBackend) raceHedge(ctx context.Context, apiKey string, modelName string, buildRequest func(ignoredProviders []string) ([]byte, error), ignoredProviders []string, slow slowServingError, firstOutcome <-chan streamOutcome, cancelFirst context.CancelFunc) (openAIResponseWithUsage, string, error) {
+	hedgeDocument, errorValue := buildRequest(ignoredProviders)
 	if errorValue != nil {
-		return openAIResponseWithUsage{}, "", errorValue
+		outcome := <-firstOutcome
+		return outcome.response, "", outcome.errorValue
 	}
-	response, errorValue = backend.streamCompletion(ctx, apiKey, requestDocument, modelName, false)
-	return response, slowServing.Error(), errorValue
+	log.Printf("openrouter serving is slow, hedging without it: model=%s %s", modelName, slow.Error())
+	hedgeContext, cancelHedge := context.WithCancel(ctx)
+	defer cancelHedge()
+	hedgeOutcome := make(chan streamOutcome, 1)
+	go func() {
+		response, streamError := backend.streamCompletion(hedgeContext, apiKey, hedgeDocument, modelName, nil)
+		hedgeOutcome <- streamOutcome{response: response, errorValue: streamError}
+	}()
+	var lastError error
+	for remaining := 2; remaining > 0; remaining-- {
+		select {
+		case outcome := <-firstOutcome:
+			if outcome.errorValue == nil {
+				return outcome.response, "", nil
+			}
+			lastError = outcome.errorValue
+			firstOutcome = nil
+		case outcome := <-hedgeOutcome:
+			if outcome.errorValue == nil {
+				cancelFirst()
+				sharedServingRecord.noteCut(modelName, slow.Provider)
+				return outcome.response, slow.Error() + "; the hedged ask answered first", nil
+			}
+			lastError = outcome.errorValue
+			hedgeOutcome = nil
+		}
+	}
+	return openAIResponseWithUsage{}, "", lastError
 }
 
 func (backend OpenRouterBackend) completeJSONSchema(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
@@ -298,7 +337,7 @@ func (backend OpenRouterBackend) CompleteChat(ctx context.Context, request ChatR
 	chatRequest.Reasoning = openAIReasoningFor(request.ReasoningEffort)
 	chatRequest.Stream = true
 	chatRequest.Usage = &openAIUsageOptions{Include: true}
-	response, servingNote, errorValue := backend.streamWithOneRetry(ctx, apiKey, modelName, func(ignoredProviders []string) ([]byte, error) {
+	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, modelName, func(ignoredProviders []string) ([]byte, error) {
 		chatRequest.Provider = backend.providerRoutingIgnoring(false, ignoredProviders)
 		return json.Marshal(chatRequest)
 	})
