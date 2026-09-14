@@ -265,28 +265,20 @@ func (backend OpenRouterBackend) raceHedge(ctx context.Context, apiKey string, m
 }
 
 func (backend OpenRouterBackend) completeJSONSchema(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
-	requestDocument, errorValue := backend.buildStructuredRequest(request, modelName)
-	if errorValue != nil {
-		return Response{}, errorValue
-	}
-	return backend.completeStructuredDocument(ctx, apiKey, requestDocument, modelName, ConstraintModeOpenAIJSONSchema)
+	return backend.completeStructuredDocument(ctx, apiKey, backend.buildStructuredRequest(request, modelName), ConstraintModeOpenAIJSONSchema)
 }
 
 func (backend OpenRouterBackend) completePromptedJSON(ctx context.Context, apiKey string, request StructuredRequest, modelName string) (Response, error) {
-	requestDocument, errorValue := backend.buildPromptedStructuredRequest(request, modelName)
-	if errorValue != nil {
-		return Response{}, errorValue
-	}
-	return backend.completeStructuredDocument(ctx, apiKey, requestDocument, modelName, ConstraintModePromptedJSON)
+	return backend.completeStructuredDocument(ctx, apiKey, backend.buildPromptedStructuredRequest(request, modelName), ConstraintModePromptedJSON)
 }
 
-func (backend OpenRouterBackend) completeStructuredDocument(ctx context.Context, apiKey string, requestDocument []byte, modelName string, constraintMode string) (Response, error) {
-	completion, errorValue := backend.send(ctx, apiKey, requestDocument)
+func (backend OpenRouterBackend) completeStructuredDocument(ctx context.Context, apiKey string, request openRouterRequest, constraintMode string) (Response, error) {
+	completion, errorValue := backend.send(ctx, apiKey, request)
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
 	if completion.FinishReason == "length" {
-		return Response{}, structuredOutputLimitError{ModelName: modelName, Usage: completion.Usage}
+		return Response{}, structuredOutputLimitError{ModelName: request.ModelName, Usage: completion.Usage}
 	}
 	content := normalizeStructuredJSONContent(completion.Content)
 	if errorValue := validateStructuredJSONContent(content); errorValue != nil {
@@ -295,11 +287,13 @@ func (backend OpenRouterBackend) completeStructuredDocument(ctx context.Context,
 	return Response{
 		Provider:         "openrouter",
 		UpstreamProvider: completion.UpstreamProvider,
-		Model:            modelName,
+		Model:            request.ModelName,
 		Content:          content,
 		SelectedBackend:  capabilities.LLMBackendRemote,
 		ConstraintMode:   constraintMode,
 		Usage:            completion.Usage,
+		UsedFallback:     completion.ServingNote != "",
+		FallbackReason:   completion.ServingNote,
 	}, nil
 }
 
@@ -309,11 +303,7 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 		return Response{}, errorValue
 	}
 	modelName := backend.resolveModelName(request.Model)
-	requestDocument, errorValue := backend.buildTextRequest(request, modelName)
-	if errorValue != nil {
-		return Response{}, errorValue
-	}
-	completion, errorValue := backend.send(ctx, apiKey, requestDocument)
+	completion, errorValue := backend.send(ctx, apiKey, backend.buildTextRequest(request, modelName))
 	if errorValue != nil {
 		return Response{}, errorValue
 	}
@@ -324,6 +314,8 @@ func (backend OpenRouterBackend) CompleteText(ctx context.Context, request TextR
 		Content:          completion.Content,
 		SelectedBackend:  capabilities.LLMBackendRemote,
 		Usage:            completion.Usage,
+		UsedFallback:     completion.ServingNote != "",
+		FallbackReason:   completion.ServingNote,
 	}, nil
 }
 
@@ -400,11 +392,19 @@ func prefersPromptedStructuredJSON(modelName string) bool {
 	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(modelName)), ":free")
 }
 
+type openRouterRequest struct {
+	ModelName         string
+	Document          map[string]any
+	RequireParameters bool
+	IsResponseHealed  bool
+}
+
 type openRouterCompletion struct {
 	Content          string
 	FinishReason     string
 	UpstreamProvider string
 	Usage            Usage
+	ServingNote      string
 }
 
 type nativeActionCompletion struct {
@@ -427,7 +427,56 @@ func isStructuredOutputLimitError(errorValue error) bool {
 	return errors.As(errorValue, &failure)
 }
 
-func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, requestDocument []byte) (openRouterCompletion, error) {
+// Response healing only applies to non-streaming requests.
+// https://openrouter.ai/docs/features/response-healing
+func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, request openRouterRequest) (openRouterCompletion, error) {
+	if request.IsResponseHealed {
+		return backend.sendWhole(ctx, apiKey, request)
+	}
+	return backend.sendStreamed(ctx, apiKey, request)
+}
+
+func (backend OpenRouterBackend) sendStreamed(ctx context.Context, apiKey string, request openRouterRequest) (openRouterCompletion, error) {
+	request.Document["stream"] = true
+	request.Document["usage"] = openAIUsageOptions{Include: true}
+	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, request.ModelName, func(ignoredProviders []string) ([]byte, error) {
+		setProviderRouting(request.Document, backend.providerRoutingIgnoring(request.RequireParameters, ignoredProviders))
+		return json.Marshal(request.Document)
+	})
+	if errorValue != nil {
+		return openRouterCompletion{}, errorValue
+	}
+	completion, errorValue := completionOf(response)
+	completion.ServingNote = servingNote
+	return completion, errorValue
+}
+
+func setProviderRouting(document map[string]any, routing map[string]any) {
+	if routing == nil {
+		delete(document, "provider")
+		return
+	}
+	document["provider"] = routing
+}
+
+func completionOf(response openAIResponseWithUsage) (openRouterCompletion, error) {
+	if len(response.Choices) == 0 {
+		return openRouterCompletion{}, errors.New("openrouter response did not include choices")
+	}
+	return openRouterCompletion{
+		Content:          response.Choices[0].Message.Content,
+		FinishReason:     response.Choices[0].FinishReason,
+		UpstreamProvider: response.Provider,
+		Usage:            normalizeUsage(response.Usage),
+	}, nil
+}
+
+func (backend OpenRouterBackend) sendWhole(ctx context.Context, apiKey string, request openRouterRequest) (openRouterCompletion, error) {
+	request.Document["stream"] = false
+	requestDocument, errorValue := json.Marshal(request.Document)
+	if errorValue != nil {
+		return openRouterCompletion{}, errorValue
+	}
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return openRouterCompletion{}, errorValue
@@ -457,15 +506,7 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 	if errorValue := json.Unmarshal(responseDocument, &parsed); errorValue != nil {
 		return openRouterCompletion{}, errorValue
 	}
-	if len(parsed.Choices) == 0 {
-		return openRouterCompletion{}, errors.New("openrouter response did not include choices")
-	}
-	return openRouterCompletion{
-		Content:          parsed.Choices[0].Message.Content,
-		FinishReason:     parsed.Choices[0].FinishReason,
-		UpstreamProvider: parsed.Provider,
-		Usage:            normalizeUsage(parsed.Usage),
-	}, nil
+	return completionOf(parsed)
 }
 
 func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {
@@ -520,7 +561,7 @@ func (backend OpenRouterBackend) applyServingPreferences(document map[string]any
 	}
 }
 
-func (backend OpenRouterBackend) buildStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
+func (backend OpenRouterBackend) buildStructuredRequest(request StructuredRequest, modelName string) openRouterRequest {
 	document := map[string]any{
 		"model":    modelName,
 		"messages": openAIMessages(request.Messages),
@@ -532,17 +573,14 @@ func (backend OpenRouterBackend) buildStructuredRequest(request StructuredReques
 				"schema": request.StructuredOutputSchema.Document,
 			},
 		},
-		"stream": false,
 	}
 	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
-	if request.EnableResponseHealing {
-		document["plugins"] = []map[string]string{{"id": "response-healing"}}
-	}
+	addResponseHealing(document, request.EnableResponseHealing)
 	addGenerationOptions(document, request.GenerationOptions)
-	return json.Marshal(document)
+	return openRouterRequest{ModelName: modelName, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
 }
 
-func (backend OpenRouterBackend) buildPromptedStructuredRequest(request StructuredRequest, modelName string) ([]byte, error) {
+func (backend OpenRouterBackend) buildPromptedStructuredRequest(request StructuredRequest, modelName string) openRouterRequest {
 	messages := append([]openAIMessage{}, openAIMessages(request.Messages)...)
 	messages = append(messages, openAIMessage{
 		Role:    "user",
@@ -551,14 +589,18 @@ func (backend OpenRouterBackend) buildPromptedStructuredRequest(request Structur
 	document := map[string]any{
 		"model":    modelName,
 		"messages": messages,
-		"stream":   false,
 	}
 	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
-	if request.EnableResponseHealing {
-		document["plugins"] = []map[string]string{{"id": "response-healing"}}
-	}
+	addResponseHealing(document, request.EnableResponseHealing)
 	addGenerationOptions(document, request.GenerationOptions)
-	return json.Marshal(document)
+	return openRouterRequest{ModelName: modelName, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
+}
+
+func addResponseHealing(document map[string]any, isEnabled bool) {
+	if !isEnabled {
+		return
+	}
+	document["plugins"] = []map[string]string{{"id": "response-healing"}}
 }
 
 func promptedStructuredOutputInstruction(schema StructuredOutputSchema) string {
@@ -631,17 +673,14 @@ func (backend OpenRouterBackend) buildChatActionRequest(request StructuredReques
 	return content, document.NativeToolSchemaLint, errorValue
 }
 
-func (backend OpenRouterBackend) buildTextRequest(request TextRequest, modelName string) ([]byte, error) {
+func (backend OpenRouterBackend) buildTextRequest(request TextRequest, modelName string) openRouterRequest {
 	document := map[string]any{
 		"model":    modelName,
 		"messages": openAIMessages(request.Messages),
-		"stream":   false,
 	}
 	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
-	if request.EnableResponseHealing {
-		document["plugins"] = []map[string]string{{"id": "response-healing"}}
-	}
-	return json.Marshal(document)
+	addResponseHealing(document, request.EnableResponseHealing)
+	return openRouterRequest{ModelName: modelName, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
 }
 
 func addGenerationOptions(document map[string]any, options *GenerationOptions) {
