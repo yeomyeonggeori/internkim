@@ -26,13 +26,18 @@ export function outcomeOfApnsAnswer(status: number, reason: string): PushOutcome
 }
 
 export function apnsPayload(notification: Notification): Record<string, unknown> {
+	const aps: Record<string, unknown> = {
+		alert: { title: notification.title, body: notification.body },
+		sound: 'default',
+		'thread-id': notification.tag
+	};
+	const pictureURL = notification.icon?.startsWith('https://') ? notification.icon : '';
+	if (!pictureURL) return { aps, openPath: notification.openPath };
 	return {
-		aps: {
-			alert: { title: notification.title, body: notification.body },
-			sound: 'default',
-			'thread-id': notification.tag
-		},
-		openPath: notification.openPath
+		aps: { ...aps, 'mutable-content': 1 },
+		openPath: notification.openPath,
+		senderName: notification.title,
+		pictureURL
 	};
 }
 
