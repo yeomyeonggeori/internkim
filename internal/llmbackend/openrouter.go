@@ -211,7 +211,7 @@ func (backend OpenRouterBackend) streamWithOneRetry(ctx context.Context, apiKey 
 	if errorValue != nil {
 		return openAIResponseWithUsage{}, "", errorValue
 	}
-	response, errorValue := backend.streamCompletion(ctx, apiKey, requestDocument, modelName)
+	response, errorValue := backend.streamCompletion(ctx, apiKey, requestDocument, modelName, true)
 	var slowServing slowServingError
 	if !errors.As(errorValue, &slowServing) || ctx.Err() != nil {
 		return response, "", errorValue
@@ -221,7 +221,7 @@ func (backend OpenRouterBackend) streamWithOneRetry(ctx context.Context, apiKey 
 	if errorValue != nil {
 		return openAIResponseWithUsage{}, "", errorValue
 	}
-	response, errorValue = backend.streamCompletion(ctx, apiKey, requestDocument, modelName)
+	response, errorValue = backend.streamCompletion(ctx, apiKey, requestDocument, modelName, false)
 	return response, slowServing.Error(), errorValue
 }
 
