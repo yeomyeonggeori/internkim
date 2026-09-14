@@ -578,6 +578,8 @@ and delete the duplicates.
   rule, the local LLM — is [docs/internal/device/deploying-a-device.md](docs/internal/device/deploying-a-device.md).
   A company on the central plane is deployed by `web/scripts/deploy-pages.ts`;
   see SaaS Web Deployment.
+- `tools/deploy-main` ships `origin/main` to the device as one operation; it
+  refuses a dirty tree, a device ahead of this tree, or a second run.
 
 ## Blueclaw Terminal Permission Boundary
 
