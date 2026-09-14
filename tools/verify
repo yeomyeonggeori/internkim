@@ -161,6 +161,7 @@ GROUPS = [
             "docs/web/app/lib/openapi.ts",
             "supabase/functions/_shared/*",
             "supabase/tests/*",
+            "host/relay/arrived.ts",
         ],
         [
             BUN_INSTALL,

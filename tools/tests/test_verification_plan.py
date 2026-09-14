@@ -31,6 +31,11 @@ class VerificationPlanTests(unittest.TestCase):
         selected = {group.name for group in groups if group.is_touched_by(["internal/tasksize/definitions.json"])}
         self.assertTrue({"go", "web", "generated-protocol"}.issubset(selected))
 
+    def test_relay_message_tag_changes_verify_the_shell_that_matches_it(self):
+        groups = verification_module().GROUPS
+        selected = {group.name for group in groups if group.is_touched_by(["host/relay/arrived.ts"])}
+        self.assertIn("web", selected)
+
     def test_plan_prints_groups_and_commands_without_running(self):
         module = verification_module()
         output = io.StringIO()

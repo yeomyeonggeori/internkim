@@ -30,6 +30,7 @@
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
 	import { loadChannelOrder, saveChannelOrder, orderChannels, moveChannel } from './channel-order';
+	import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
 
 	const lastChannelKey = 'messenger-last-channel';
 
@@ -211,7 +212,18 @@
 
 	let stopListeningForArrivals = () => {};
 
-	onDestroy(() => stopListeningForArrivals());
+	$effect(() => {
+		holdBackNotificationsFor(activeID).catch((failure: unknown) =>
+			console.warn('the shell is not holding back this conversation', failure)
+		);
+	});
+
+	onDestroy(() => {
+		stopListeningForArrivals();
+		holdBackNotificationsFor(undefined).catch((failure: unknown) =>
+			console.warn('the shell is still holding back a closed conversation', failure)
+		);
+	});
 
 	onMount(async () => {
 		userChannelOrder = loadChannelOrder();
