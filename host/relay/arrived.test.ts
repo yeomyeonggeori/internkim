@@ -78,12 +78,14 @@ describe('tellingOf', () => {
 
 describe('notifyRequestOf', () => {
 	test('the project is told who wrote the message, so it can show their picture', () => {
-		expect(notifyRequestOf(readArrivedMessage(posted)!, '이샘플', 'buzz')).toEqual({
+		const picturePath = '43000000-0000-0000-0000-0000000000a0/shared/sender-picture/ab.png';
+		expect(notifyRequestOf(readArrivedMessage(posted)!, '이샘플', 'buzz', picturePath)).toEqual({
 			platform: 'buzz',
 			externalIDs: ['U-first', 'U-second'],
 			senderExternalID: 'U-author',
 			category: 'message',
 			conversationID: 'channel-1',
+			senderPicturePath: picturePath,
 			title: '이샘플',
 			body: '오늘 회의 30분 미뤄도 될까요',
 			openPath: '/messenger/',

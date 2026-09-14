@@ -2,7 +2,8 @@ import { callingAgent } from '../_shared/agent-caller.ts';
 import { notificationCategories, type NotificationCategory } from '../_shared/categories.ts';
 import { rememberConversationMembers } from '../_shared/conversation-members.ts';
 import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
-import { membersOfCompanyByExternalID, pictureURLOfMember } from '../_shared/member-directory.ts';
+import { membersOfCompanyByExternalID } from '../_shared/member-directory.ts';
+import { pictureURLOfSender } from '../_shared/sender-picture.ts';
 import { notifyMember, type Delivery, type Notification } from '../_shared/notify-member.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
 import { pushKeysFromVault, reachesSomeDevice } from '../_shared/push-keys.ts';
@@ -18,6 +19,7 @@ type NotifyRequest = {
 	tag?: unknown;
 	conversationID?: unknown;
 	senderExternalID?: unknown;
+	senderPicturePath?: unknown;
 };
 
 Deno.serve(
@@ -40,7 +42,7 @@ Deno.serve(
 			client,
 			recipientMemberIDs,
 			askedCategory(asked.category),
-			{ ...askedNotification(asked), icon: await pictureURLOfMember(client, sender ?? '') },
+			{ ...askedNotification(asked), icon: await pictureURLOfSender(client, companyID, asked.senderPicturePath, sender ?? '') },
 			pushKeys,
 			conversationID
 		);

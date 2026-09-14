@@ -31,9 +31,11 @@ export async function pictureURLOfMember(client: SupabaseClient, memberID: strin
 		.maybeSingle<{ profile_image: string | null }>();
 	if (member.error) throw new Error(member.error.message);
 
-	const path = member.data?.profile_image ?? '';
-	if (!path) return '';
+	return signedPictureURL(client, member.data?.profile_image ?? '');
+}
 
+export async function signedPictureURL(client: SupabaseClient, path: string): Promise<string> {
+	if (!path) return '';
 	const signed = await client.storage.from(assetBucket).createSignedUrl(path, readableForSeconds);
 	if (signed.error) return '';
 	return signed.data?.signedUrl ?? '';
