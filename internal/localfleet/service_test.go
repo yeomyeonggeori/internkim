@@ -96,7 +96,7 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 		"sudo bash '/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh'",
 		"--admin-email local-fleet-admin@internkim.test",
 		"verify api",
-		"bun run test:e2e:local-fleet",
+		"verify-personal-settings.ts",
 	} {
 		if !strings.Contains(joinedPlans, expectedFragment) {
 			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
@@ -105,7 +105,13 @@ func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
 }
 
 func TestCompanyBrowserVerificationUsesManagedCentralPlane(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", CompanyAppPort: 5197})
+	service, errorValue := NewService(Options{
+		RepositoryRootPath: "/repo",
+		ExecutablePath:     "/repo/internkim",
+		StateRootPath:      "/repo/.local/local-fleet/runs/browser-check",
+		CompanyAppPort:     5197,
+		AdminHostPort:      19080,
+	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -113,17 +119,24 @@ func TestCompanyBrowserVerificationUsesManagedCentralPlane(t *testing.T) {
 	if plan.Name != "bun" {
 		t.Fatalf("browser executable = %q", plan.Name)
 	}
-	if plan.DirectoryPath != "/repo/web" {
+	if plan.DirectoryPath != "/repo" {
 		t.Fatalf("browser working directory = %q", plan.DirectoryPath)
 	}
-	if strings.Join(plan.Arguments, " ") != "run test:e2e:local-fleet" {
-		t.Fatalf("browser arguments = %q", strings.Join(plan.Arguments, " "))
+	expectedArguments := []string{
+		"run", filepath.Join("/repo", "tools", "verify-personal-settings.ts"),
+		"--state-root", "/repo/.local/local-fleet/runs/browser-check",
+		"--app-port", "5197",
+		"--admin-port", "19080",
+		"--chatd-url", blueclaw.ChatdEndpoint,
+		"--config", "/repo/.local/local-fleet/runs/browser-check/config.json",
 	}
-	if !containsEnvironmentValue(plan.Environment, "PLAYWRIGHT_BASE_URL=http://127.0.0.1:5197") {
-		t.Fatal("browser base URL missing")
+	if strings.Join(plan.Arguments, " ") != strings.Join(expectedArguments, " ") {
+		t.Fatalf("browser arguments = %q, want %q", strings.Join(plan.Arguments, " "), strings.Join(expectedArguments, " "))
 	}
-	if !containsEnvironmentValue(plan.Environment, "PLAYWRIGHT_START_WEB_SERVER=0") {
-		t.Fatal("browser server startup must be disabled")
+	personalSettingsPlans := service.personalSettingsScenarioPlans()
+	personalSettingsPlan := personalSettingsPlans[len(personalSettingsPlans)-1]
+	if strings.Join(personalSettingsPlan.Arguments, " ") != strings.Join(plan.Arguments, " ") {
+		t.Fatalf("personal settings arguments = %q, want shared browser verification arguments %q", strings.Join(personalSettingsPlan.Arguments, " "), strings.Join(plan.Arguments, " "))
 	}
 }
 
