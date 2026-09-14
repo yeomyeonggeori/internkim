@@ -224,6 +224,7 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		"workspace-ownership":         always(service.workspaceOwnershipScenarioPlans),
 		"learning-settings":           always(service.learningSettingsScenarioPlans),
 		"morning-briefing":            always(service.morningBriefingScenarioPlans),
+		"memory-store":                always(service.memoryStoreScenarioPlans),
 		"personal-settings":           always(service.personalSettingsScenarioPlans),
 		"task-history-retry":          always(service.taskHistoryRetryScenarioPlans),
 		"web-backed-ui":               always(service.webBackedScenarioPlans),
