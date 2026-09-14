@@ -79,13 +79,14 @@ func TestAStreamedChatIsAssembledIntoOneResponse(t *testing.T) {
 	}
 }
 
-func TestASlowStreamIsCutAndAskedAgainWithoutItsProvider(t *testing.T) {
+func TestASlowStreamIsHedgedWithoutItsProviderAndTheHedgeAnswers(t *testing.T) {
 	record := freshServingRecord(t)
 	for index := 0; index < servingJudgementMinimumSamples; index++ {
 		record.recordSample("a-model", servingSample{Provider: "BaseTen", Duration: 20 * time.Millisecond, CharactersPerSecond: 1000})
 	}
 	var mutex sync.Mutex
 	requestBodies := [][]byte{}
+	firstCancelled := make(chan struct{}, 1)
 	backend := streamingBackend(t, func(responseWriter http.ResponseWriter, request *http.Request) {
 		body, _ := readAllBody(request)
 		mutex.Lock()
@@ -96,6 +97,7 @@ func TestASlowStreamIsCutAndAskedAgainWithoutItsProvider(t *testing.T) {
 		if attempt == 1 {
 			writeStreamChunk(t, responseWriter, `{"provider":"Wafer","choices":[{"delta":{"role":"assistant","content":"h"},"finish_reason":null}]}`)
 			<-request.Context().Done()
+			firstCancelled <- struct{}{}
 			return
 		}
 		writeStreamChunk(t, responseWriter, `{"provider":"BaseTen","choices":[{"delta":{"role":"assistant","content":"quick answer"},"finish_reason":"stop"}]}`)
@@ -108,22 +110,67 @@ func TestASlowStreamIsCutAndAskedAgainWithoutItsProvider(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	if response.UpstreamProvider != "BaseTen" || !response.UsedFallback || !strings.Contains(response.FallbackReason, "Wafer") {
-		t.Fatalf("the second ask should have answered and said why: %+v", response)
+		t.Fatalf("the hedge should have answered and said why: %+v", response)
+	}
+	select {
+	case <-firstCancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the slow first ask is let go once the hedge has answered")
 	}
 	mutex.Lock()
 	defer mutex.Unlock()
 	if len(requestBodies) != 2 {
-		t.Fatalf("expected one cut and one answer, got %d requests", len(requestBodies))
+		t.Fatalf("expected the slow ask and one hedge, got %d requests", len(requestBodies))
 	}
 	if _, isIgnoring := routingOf(t, requestBodies[0])["ignore"]; isIgnoring {
 		t.Fatalf("the first ask had nothing to ignore: %s", requestBodies[0])
 	}
 	ignored, _ := json.Marshal(routingOf(t, requestBodies[1])["ignore"])
 	if string(ignored) != `["wafer"]` {
-		t.Fatalf("the second ask must leave the cut provider out: %s", requestBodies[1])
+		t.Fatalf("the hedge must leave the slow provider out: %s", requestBodies[1])
 	}
 	if slugs := record.ignoredProviders("a-model"); len(slugs) != 1 || slugs[0] != "wafer" {
-		t.Fatalf("the cut is remembered for the next call too: %v", slugs)
+		t.Fatalf("a provider the hedge beat is remembered for the next call: %v", slugs)
+	}
+}
+
+func TestASlowFirstAskThatFinishesBeforeItsHedgeIsTheAnswer(t *testing.T) {
+	record := freshServingRecord(t)
+	for index := 0; index < servingJudgementMinimumSamples; index++ {
+		record.recordSample("a-model", servingSample{Provider: "BaseTen", Duration: 20 * time.Millisecond, CharactersPerSecond: 1000})
+	}
+	var mutex sync.Mutex
+	attempts := 0
+	backend := streamingBackend(t, func(responseWriter http.ResponseWriter, request *http.Request) {
+		mutex.Lock()
+		attempts++
+		attempt := attempts
+		mutex.Unlock()
+		responseWriter.Header().Set("Content-Type", "text/event-stream")
+		writeStreamChunk(t, responseWriter, `{"provider":"StreamLake","choices":[{"delta":{"role":"assistant","content":"s"},"finish_reason":null}]}`)
+		if attempt == 2 {
+			<-request.Context().Done()
+			return
+		}
+		select {
+		case <-request.Context().Done():
+			return
+		case <-time.After(3 * servingWatchInterval):
+		}
+		writeStreamChunk(t, responseWriter, `{"provider":"StreamLake","choices":[{"delta":{"content":"low but done"},"finish_reason":"stop"}]}`)
+		writeStreamChunk(t, responseWriter, "[DONE]")
+	})
+
+	response, errorValue := backend.CompleteChat(context.Background(), ChatRequest{Model: "a-model", Messages: []ChatMessage{{Role: "user", Content: "hi"}}})
+
+	if errorValue != nil {
+		t.Fatalf("a slow ask that finishes is still the answer: %v", errorValue)
+	}
+	if response.Message.Content != "slow but done" || response.UsedFallback {
+		t.Fatalf("the first ask won, so nothing fell back: %+v", response)
+	}
+	if slugs := record.ignoredProviders("a-model"); len(slugs) != 0 {
+		t.Fatalf("a provider that answered is not cut: %v", slugs)
 	}
 }
 
@@ -199,44 +246,4 @@ func TestACutIsForgottenAfterOpenRouterOwnWindow(t *testing.T) {
 func readAllBody(request *http.Request) ([]byte, error) {
 	defer request.Body.Close()
 	return io.ReadAll(request.Body)
-}
-
-func TestTheSecondAskIsWaitedForHoweverSlowItServes(t *testing.T) {
-	record := freshServingRecord(t)
-	for index := 0; index < servingJudgementMinimumSamples; index++ {
-		record.recordSample("a-model", servingSample{Provider: "BaseTen", Duration: 20 * time.Millisecond, CharactersPerSecond: 1000})
-	}
-	var mutex sync.Mutex
-	attempts := 0
-	backend := streamingBackend(t, func(responseWriter http.ResponseWriter, request *http.Request) {
-		mutex.Lock()
-		attempts++
-		attempt := attempts
-		mutex.Unlock()
-		responseWriter.Header().Set("Content-Type", "text/event-stream")
-		writeStreamChunk(t, responseWriter, `{"provider":"StreamLake","choices":[{"delta":{"role":"assistant","content":"s"},"finish_reason":null}]}`)
-		if attempt == 1 {
-			<-request.Context().Done()
-			return
-		}
-		select {
-		case <-request.Context().Done():
-			return
-		case <-time.After(3 * servingWatchInterval):
-		}
-		writeStreamChunk(t, responseWriter, `{"provider":"StreamLake","choices":[{"delta":{"content":"low but done"},"finish_reason":"stop"}]}`)
-		writeStreamChunk(t, responseWriter, "[DONE]")
-	})
-
-	response, errorValue := backend.CompleteChat(context.Background(), ChatRequest{Model: "a-model", Messages: []ChatMessage{{Role: "user", Content: "hi"}}})
-
-	if errorValue != nil {
-		t.Fatalf("the second ask is the last word, however slow: %v", errorValue)
-	}
-	if response.Message.Content != "slow but done" || !response.UsedFallback {
-		t.Fatalf("expected the slow second answer to be delivered with the cut noted, got %+v", response)
-	}
-	if attempts != 2 {
-		t.Fatalf("expected exactly one cut and one waited-for answer, got %d asks", attempts)
-	}
 }
