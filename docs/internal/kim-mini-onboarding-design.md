@@ -32,13 +32,22 @@ without a monitor, a keyboard, or anyone from us touching it.
    The password is printed in the manual and on the product page. It keeps
    passers-by from joining by accident and protects nothing.
 3. Joining opens a captive portal. If no LAN cable is connected, the portal
-   first asks which office network to use.
+   asks for an office network and its password, choosing from the networks the
+   box scanned before it started broadcasting.
 4. At `intern.kim`, an administrator of the company asks for a connection code.
-   The code is short, single-use, and expires after about ten minutes.
-5. The portal takes the code. The box sends the code and its public key to the
-   central plane, which binds that public key to the company.
-6. The box turns off the portal and its own network, joins the office network,
-   and starts the host bundle as that company's host.
+   The code is short, single-use, and expires after about ten minutes. That
+   page stays open and waits for the code to be redeemed.
+5. The portal takes the code. The box turns off the portal and its own network,
+   joins the office network (or uses the cable), and sends the code and its
+   public key to the central plane, which binds that public key to the company.
+6. The `intern.kim` page shows the box as connected, and the box starts the host
+   bundle as that company's host. If the office password was wrong or the code
+   had expired, the box reopens `Kim mini` and the portal says which.
+
+The box is either broadcasting or connected to the office, never both, so setup
+works on a Wi-Fi chip that cannot act as access point and client at once. The
+phone losing the `Kim mini` network at step 5 is expected; the result is read
+on the page that issued the code.
 
 The portal accepts injection only while the box is empty and never displays a
 value back. A phone that later joins a claimed box's network finds no network
@@ -132,10 +141,6 @@ fleet credential, where it can no longer sign anything.
 
 ## Open questions
 
-- **Radio.** Whether the box Wi-Fi can run an access point and a client
-  connection at the same time, which step 3 needs when there is no LAN cable. If
-  it cannot, the portal switches between the two and the page has to survive the
-  gap.
 - **Captive webviews.** iOS opens captive portals in a restricted webview that
   may not follow a link to `intern.kim`. The portal should work when the code is
   fetched on a second device or in a normal browser tab.
