@@ -173,6 +173,11 @@ async function main(): Promise<number> {
 	await Bun.sleep(1000);
 	if (tunnel.exitCode !== null) throw new Error('the Local Fleet socket tunnel exited');
 
+	await commandOutput([
+		'./internkim', 'lab', 'vm-ssh', '--config', fleetConfigPath, '--',
+		`sudo sh -c ${shellQuote('cd /mnt/shared/workspace/host/relay && bun install --frozen-lockfile')}`
+	]);
+
 	const oldPIDPath = join(stateRoot, 'central-plane-app.pid');
 	const oldPID = Number((await readFile(oldPIDPath, 'utf8').catch(() => '')).trim());
 	if (oldPID) {
