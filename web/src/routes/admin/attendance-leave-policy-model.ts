@@ -11,22 +11,25 @@ export function copyLeaveType(leaveType: LeaveType): LeaveType {
 }
 
 export function createLeaveType(sortOrder: number): LeaveType {
-	return {
-		id: '',
-		systemKind: '',
-		name: '',
-		paid: false,
-		balanceMode: 'none',
-		grantCadence: 'none',
-		grantAmountMilliDays: 0,
-		expiryMode: 'none',
-		carryoverEnabled: false,
-		allowedUnits: ['fullDay'],
-		includeInSummary: true,
-		isActive: true,
-		isSystem: false,
-		sortOrder
-	};
+	return leaveTypeWithBalanceMode(
+		{
+			id: '',
+			systemKind: '',
+			name: '',
+			paid: false,
+			balanceMode: 'none',
+			grantCadence: 'none',
+			grantAmountMilliDays: 0,
+			expiryMode: 'none',
+			carryoverEnabled: false,
+			allowedUnits: ['fullDay'],
+			includeInSummary: false,
+			isActive: true,
+			isSystem: false,
+			sortOrder
+		},
+		'none'
+	);
 }
 
 export function leaveTypeIsValid(leaveType: LeaveType): boolean {
