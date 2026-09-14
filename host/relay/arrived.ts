@@ -40,6 +40,7 @@ export type NotifyRequest = Told & {
 	senderExternalID: string;
 	category: 'message';
 	conversationID: string;
+	senderPicturePath: string;
 };
 
 export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
@@ -51,13 +52,19 @@ export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
 	};
 }
 
-export function notifyRequestOf(arrived: ArrivedMessage, authorName: string, platform: string): NotifyRequest {
+export function notifyRequestOf(
+	arrived: ArrivedMessage,
+	authorName: string,
+	platform: string,
+	senderPicturePath: string
+): NotifyRequest {
 	return {
 		platform,
 		externalIDs: arrived.recipientExternalIDs,
 		senderExternalID: arrived.authorExternalID,
 		category: 'message',
 		conversationID: arrived.conversationID,
+		senderPicturePath,
 		...tellingOf(arrived, authorName)
 	};
 }

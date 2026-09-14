@@ -75,8 +75,18 @@ export async function keepMessageAttachment(
 	bytes: Uint8Array,
 	contentType: string
 ): Promise<{ path: string; digest: string }> {
+	return keepSharedAsset(uploader, companyID, attachmentKind, bytes, contentType);
+}
+
+export async function keepSharedAsset(
+	uploader: AssetUploader,
+	companyID: string,
+	kind: string,
+	bytes: Uint8Array,
+	contentType: string
+): Promise<{ path: string; digest: string }> {
 	const digest = await digestOf(bytes);
-	const path = sharedAssetPath(companyID, attachmentKind, digest, contentType);
+	const path = sharedAssetPath(companyID, kind, digest, contentType);
 	const written = await uploader.upload(path, bytes, { contentType, upsert: false });
 	if (written.error && !isAlreadyStored(written.error.message)) {
 		// The size and the type are what a refusal usually turns on, and neither is

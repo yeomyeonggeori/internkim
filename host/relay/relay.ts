@@ -8,8 +8,10 @@ import {
 	attachmentAlreadyKept,
 	attachmentKind,
 	keepMessageAttachment,
+	keepSharedAsset,
 	sharedAssetPath
 } from './asset-store';
+import { SenderPictures, senderPictureKind } from './sender-picture';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
 import {
@@ -258,11 +260,35 @@ async function previewOf(link: string): Promise<LinkPreview | null> {
 
 async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	if (arrived.recipientExternalIDs.length === 0) return 0;
+	const [authorName, senderPicturePath] = await Promise.all([
+		authorNameOf(arrived),
+		senderPictures.pathOf(arrived.authorExternalID)
+	]);
 	const spoken = await askTheProject<{ told?: number }>(
 		'notify',
-		notifyRequestOf(arrived, await authorNameOf(arrived), messengerPlatform)
+		notifyRequestOf(arrived, authorName, messengerPlatform, senderPicturePath)
 	);
 	return spoken.told ?? 0;
+}
+
+const senderPictures = new SenderPictures({
+	memberIDOf,
+	credentialOf: (memberID) => credentials.credentialOf(memberID),
+	askChatd: (capability, body) => dispatch.askChatd(capability, body),
+	keep: async (bytes, contentType) =>
+		(await keepSharedAsset(client.storage.from(assetBucket), companyID, senderPictureKind, bytes, contentType)).path,
+	report: (line) => console.log(line)
+});
+
+async function memberIDOf(externalID: string): Promise<string | null> {
+	const member = await client
+		.from('member')
+		.select('id')
+		.eq('company_id', companyID)
+		.eq(`messenger->>${messengerPlatform}`, externalID)
+		.maybeSingle<{ id: string }>();
+	if (member.error) throw new Error(member.error.message);
+	return member.data?.id ?? null;
 }
 
 async function authorNameOf(arrived: ArrivedMessage): Promise<string> {
