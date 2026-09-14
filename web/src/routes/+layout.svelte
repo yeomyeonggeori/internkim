@@ -228,7 +228,7 @@
 						</div>
 					</header>
 				{/if}
-				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-0">
+				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height)+0.5rem)] sm:pb-0">
 					{#if usesWebAuthGate(page.url.pathname)}
 						<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
 							{@render children()}
