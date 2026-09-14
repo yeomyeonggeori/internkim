@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
 const recordToolPathPrefix = "/record/api/tools/"
@@ -39,7 +41,13 @@ func (service *Service) handleRecordTool(responseWriter http.ResponseWriter, req
 		return
 	}
 
-	answer, errorValue := client.InvokeRecordTool(request.Context(), requesterEmail, toolName, verb, json.RawMessage(input))
+	answer, errorValue := client.InvokeRecordTool(request.Context(), centralplane.RecordToolCall{
+		RequesterEmail: requesterEmail,
+		ToolName:       toolName,
+		Verb:           verb,
+		Input:          json.RawMessage(input),
+		IdempotencyKey: strings.TrimSpace(request.Header.Get(idempotencyKeyHeader)),
+	})
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -19,16 +20,18 @@ type RecordToolAnswer struct {
 	Body   json.RawMessage
 }
 
-func (client *Client) InvokeRecordTool(
-	ctx context.Context,
-	requesterEmail string,
-	toolName string,
-	verb string,
-	input json.RawMessage,
-) (RecordToolAnswer, error) {
-	email := strings.ToLower(strings.TrimSpace(requesterEmail))
+type RecordToolCall struct {
+	RequesterEmail string
+	ToolName       string
+	Verb           string
+	Input          json.RawMessage
+	IdempotencyKey string
+}
+
+func (client *Client) InvokeRecordTool(ctx context.Context, call RecordToolCall) (RecordToolAnswer, error) {
+	email := strings.ToLower(strings.TrimSpace(call.RequesterEmail))
 	if email == "" {
-		return RecordToolAnswer{}, fmt.Errorf("%s runs as the person who asked, and this call named nobody", toolName)
+		return RecordToolAnswer{}, fmt.Errorf("%s runs as the person who asked, and this call named nobody", call.ToolName)
 	}
 
 	session, errorValue := client.sessionFor(ctx, "email", email)
@@ -36,12 +39,12 @@ func (client *Client) InvokeRecordTool(
 		return RecordToolAnswer{}, errorValue
 	}
 
-	payload, errorValue := json.Marshal(map[string]json.RawMessage{"input": inputOrEmptyObject(input)})
+	payload, errorValue := json.Marshal(recordToolPayload(call))
 	if errorValue != nil {
 		return RecordToolAnswer{}, errorValue
 	}
 
-	address := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/v1/tools/" + toolName + "/" + verb
+	address := strings.TrimSuffix(client.settings.AppURL, "/") + "/api/v1/tools/" + call.ToolName + "/" + call.Verb
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, address, bytes.NewReader(payload))
 	if errorValue != nil {
 		return RecordToolAnswer{}, errorValue
@@ -60,6 +63,14 @@ func (client *Client) InvokeRecordTool(
 		return RecordToolAnswer{}, errorValue
 	}
 	return RecordToolAnswer{Status: response.StatusCode, Body: json.RawMessage(body)}, nil
+}
+
+func recordToolPayload(call RecordToolCall) map[string]json.RawMessage {
+	payload := map[string]json.RawMessage{"input": inputOrEmptyObject(call.Input)}
+	if key := strings.TrimSpace(call.IdempotencyKey); key != "" {
+		payload["idempotencyKey"] = json.RawMessage(strconv.Quote(key))
+	}
+	return payload
 }
 
 func inputOrEmptyObject(input json.RawMessage) json.RawMessage {
@@ -82,7 +93,12 @@ func (client *Client) runRecordTool(
 	if errorValue != nil {
 		return errorValue
 	}
-	answer, errorValue := client.InvokeRecordTool(ctx, requesterEmail, toolName, "invoke", payload)
+	answer, errorValue := client.InvokeRecordTool(ctx, RecordToolCall{
+		RequesterEmail: requesterEmail,
+		ToolName:       toolName,
+		Verb:           "invoke",
+		Input:          payload,
+	})
 	if errorValue != nil {
 		return errorValue
 	}

@@ -21,7 +21,7 @@ func (service Service) invokeRecordTool(ctx context.Context, request capabilitie
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("record tool is not configured: %s", toolName)
 	}
 
-	answer, status, errorValue := service.askTheRecord(ctx, toolName, "invoke", request.Input, request.Context.RequesterEmail)
+	answer, status, errorValue := service.askTheRecord(ctx, "invoke", request)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
@@ -45,23 +45,24 @@ func (service Service) invokeRecordTool(ctx context.Context, request capabilitie
 
 func (service Service) askTheRecord(
 	ctx context.Context,
-	toolName string,
 	verb string,
-	input json.RawMessage,
-	requesterEmail string,
+	request capabilities.ToolInvokeRequest,
 ) (json.RawMessage, int, error) {
-	body := input
+	body := request.Input
 	if len(bytes.TrimSpace(body)) == 0 {
 		body = json.RawMessage("{}")
 	}
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost,
-		admindRequesterURL("/record/api/tools/"+toolName+"/"+verb), bytes.NewReader(body))
+		admindRequesterURL("/record/api/tools/"+strings.TrimSpace(request.ToolName)+"/"+verb), bytes.NewReader(body))
 	if errorValue != nil {
 		return nil, 0, errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
+	if idempotencyKey := strings.TrimSpace(request.IdempotencyKey); idempotencyKey != "" {
+		httpRequest.Header.Set(admindIdempotencyKeyHeader, idempotencyKey)
+	}
 
-	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, requesterEmail)
+	httpResponse, errorValue := service.askAdmindAsTheRequester(httpRequest, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return nil, 0, errorValue
 	}
@@ -138,7 +139,7 @@ func theRecordAnswers(toolName string) bool {
 
 func (service Service) previewRecordToolTarget(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	toolName := strings.TrimSpace(request.ToolName)
-	answer, status, errorValue := service.askTheRecord(ctx, toolName, "target", request.Input, request.Context.RequesterEmail)
+	answer, status, errorValue := service.askTheRecord(ctx, "target", request)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
