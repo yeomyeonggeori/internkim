@@ -72,7 +72,7 @@
 
 <Sidebar.Provider
 	bind:open={isMailboxSidebarOpen}
-	class="relative h-[calc(100svh-48px)] min-h-0 w-full transform-gpu overflow-hidden bg-background text-foreground"
+	class="relative h-full min-h-0 w-full transform-gpu overflow-hidden bg-background text-foreground"
 >
 	{@render mailboxSidebar()}
 

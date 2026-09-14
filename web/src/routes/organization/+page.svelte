@@ -88,7 +88,7 @@
 </svelte:head>
 
 <main class="h-full min-h-0 w-full flex-1 overflow-hidden bg-background text-foreground">
-	<div class="grid h-[calc(100vh-3rem)] min-h-0">
+	<div class="grid h-full min-h-0">
 		<section class="min-h-0 overflow-hidden">
 			{#if controller.isLoading}
 				<OrganizationLoadingSkeleton />
@@ -112,7 +112,7 @@
 
 					<div class="grid min-h-0 min-w-0 grid-cols-1">
 						<div class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-							<div class="flex items-center gap-2 px-4 py-3 sm:px-6">
+							<div class="flex min-w-0 items-center gap-2 px-4 py-3 sm:px-6">
 								{#if controller.canManage}
 									<Button type="button" size="icon" variant="outline" aria-label={text.inviteMember} onclick={() => (isInviteOpen = true)}>
 										<UserPlusIcon />
