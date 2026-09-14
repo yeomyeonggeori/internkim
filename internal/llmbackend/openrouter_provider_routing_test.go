@@ -41,9 +41,9 @@ func everyWayOfAsking(backend OpenRouterBackend, requireParameters bool, reasoni
 	}
 	actionTools := []nativeActionTool{{FunctionName: "answer", Description: "answer", Parameters: json.RawMessage(`{"type":"object"}`)}}
 	bodies := map[string][]byte{}
-	bodies["structured"], _ = backend.buildStructuredRequest(structuredRequest, "a-model")
-	bodies["prompted"], _ = backend.buildPromptedStructuredRequest(structuredRequest, "a-model")
-	bodies["text"], _ = backend.buildTextRequest(textRequest, "a-model")
+	bodies["structured"], _ = json.Marshal(backend.buildStructuredRequest(structuredRequest, "a-model").Document)
+	bodies["prompted"], _ = json.Marshal(backend.buildPromptedStructuredRequest(structuredRequest, "a-model").Document)
+	bodies["text"], _ = json.Marshal(backend.buildTextRequest(textRequest, "a-model").Document)
 	bodies["action"], _, _ = backend.buildChatActionRequest(structuredRequest, "a-model", actionTools)
 	return bodies
 }

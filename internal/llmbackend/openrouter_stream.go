@@ -138,6 +138,9 @@ func readWholeResponse(body io.Reader, progress *streamProgress) (openAIResponse
 	if errorValue != nil {
 		return openAIResponseWithUsage{}, errors.New("read openrouter response: " + errorValue.Error())
 	}
+	if len(bytes.TrimSpace(responseDocument)) == 0 {
+		return openAIResponseWithUsage{}, errors.New("openrouter response body was empty")
+	}
 	var response openAIResponseWithUsage
 	if errorValue := json.Unmarshal(responseDocument, &response); errorValue != nil {
 		return openAIResponseWithUsage{}, errorValue
