@@ -156,3 +156,33 @@ func admindOnLoopbackThatFailsTheTest(t *testing.T) string {
 	t.Cleanup(server.Close)
 	return server.URL
 }
+
+// The key is what lets the record answer a retried write once, so a call that
+// arrived with one leaves for admind with it, and a call without one does not
+// invent one.
+func TestARecordCallCarriesItsIdempotencyKeyToAdmind(t *testing.T) {
+	var carriedKeys []string
+	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		carriedKeys = append(carriedKeys, request.Header.Get(admindIdempotencyKeyHeader))
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"tool":"task_add","result":{"taskID":"t1"}}`))
+	}))
+	service := Service{Configuration: Configuration{
+		AdmindBaseURL:    admindOnLoopbackThatFailsTheTest(t),
+		AdmindSocketPath: socketPath,
+	}}
+
+	keyed := recordRequestOf("task_add", `{"title":"분기 보고서 초안"}`)
+	keyed.IdempotencyKey = "run-1:observation-1:task_add"
+	if _, errorValue := service.invokeRecordTool(context.Background(), keyed); errorValue != nil {
+		t.Fatalf("task_add with a key: %v", errorValue)
+	}
+	unkeyed := recordRequestOf("task_add", `{"title":"분기 보고서 초안"}`)
+	if _, errorValue := service.invokeRecordTool(context.Background(), unkeyed); errorValue != nil {
+		t.Fatalf("task_add without a key: %v", errorValue)
+	}
+
+	if !reflect.DeepEqual(carriedKeys, []string{"run-1:observation-1:task_add", ""}) {
+		t.Fatalf("admind was handed the keys %q", carriedKeys)
+	}
+}
