@@ -765,8 +765,8 @@ func TestSendDescriptorsOwnIdempotencyMetadata(t *testing.T) {
 			t.Fatalf("%s must explicitly support operation idempotency: %+v", toolName, descriptor)
 		}
 	}
-	if descriptorForTool(t, TaskToolDescriptors(), "task_add").Idempotency.Supported {
-		t.Fatal("task_add must not inherit idempotency from its name")
+	if descriptorForTool(t, TaskToolDescriptors(), "task_list").Idempotency.Supported {
+		t.Fatal("task_list reads, and a read declares no idempotency")
 	}
 }
 

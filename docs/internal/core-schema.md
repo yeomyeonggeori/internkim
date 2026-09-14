@@ -30,6 +30,10 @@ stale the first time. What the names do not say:
   the way `team` is, unique per company, and the two answer different questions:
   see §6.
 - `company` is one customer, and the tenant boundary every RLS policy resolves to.
+- `idempotency_key` is a write the public API already answered, kept by the
+  member who made it under the key the call carried, so a retry of that call
+  reads the answer back instead of writing again. Only a successful answer is
+  kept; a refused call may be retried.
 
 Tables are singular. Timestamps are `timestamptz` named `_at`. Booleans use an
 `is_` prefix. Creation timestamps exist only where product behavior or audit
@@ -207,6 +211,7 @@ go through the central API with the service role.
 | `leave` | company members | requested by the member, approved by an admin |
 | `push_device` | the owning member | the owning member |
 | `circle`, `circle_member` | company members | admins, own company only |
+| `idempotency_key` | the owning member | the owning member, once per key |
 
 A circle is the unit the asset bucket grants on, so a member reads
 `<company>/circle/<circleID>/…` when `circle_member` puts them there. `team` is
