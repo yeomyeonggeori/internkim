@@ -27,12 +27,12 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, joi
 
 -- Joining granted the running year. Replace it with last year's grant, lapsed
 -- yesterday, so the run has something to carry.
-delete from public.leave where status is null;
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('ca000000-0000-0000-0000-00000000e001', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+delete from public.leave where days >= 0;
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('ca000000-0000-0000-0000-00000000e001', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2025-01-01', date '2025-12-31', 'accrual');
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
-  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, true, 12, 'approved',
+  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, true, -12, 'approved',
    '2025-07-01 00:00+09', '2025-07-13 00:00+09');
 
 select internal.leave_accrue_member('ca000000-0000-0000-0000-0000000000a1', date '2026-09-09');
@@ -66,11 +66,11 @@ select is(
 
 -- Over the limit: 15 granted, 7 taken, a limit of 5 carries 5 and loses 3.
 delete from public.leave where member_id = 'ca000000-0000-0000-0000-0000000000a1';
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('ca000000-0000-0000-0000-00000000e002', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('ca000000-0000-0000-0000-00000000e002', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2025-01-01', date '2025-12-31', 'accrual');
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
-  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, true, 7, 'approved',
+  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, true, -7, 'approved',
    '2025-07-01 00:00+09', '2025-07-08 00:00+09');
 select internal.leave_accrue_member('ca000000-0000-0000-0000-0000000000a1', date '2026-09-09');
 select is(
@@ -85,11 +85,11 @@ update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy(true, '{}'::jsonb, 'fiscalYearEnd'))
 where id = 'ca000000-0000-0000-0000-0000000000a0';
 delete from public.leave where member_id = 'ca000000-0000-0000-0000-0000000000a1';
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('ca000000-0000-0000-0000-00000000e003', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('ca000000-0000-0000-0000-00000000e003', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2025-01-01', date '2025-12-31', 'accrual');
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
-  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, true, 7, 'approved',
+  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, true, -7, 'approved',
    '2025-07-01 00:00+09', '2025-07-08 00:00+09');
 select internal.leave_accrue_member('ca000000-0000-0000-0000-0000000000a1', date '2026-09-09');
 select is(
@@ -104,8 +104,8 @@ update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy(false, '{}'::jsonb, 'fiscalYearEnd'))
 where id = 'ca000000-0000-0000-0000-0000000000a0';
 delete from public.leave where member_id = 'ca000000-0000-0000-0000-0000000000a1';
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('ca000000-0000-0000-0000-00000000e004', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('ca000000-0000-0000-0000-00000000e004', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2025-01-01', date '2025-12-31', 'accrual');
 select internal.leave_accrue_member('ca000000-0000-0000-0000-0000000000a1', date '2026-09-09');
 select is(
@@ -121,8 +121,8 @@ update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy(true, '{}'::jsonb, 'monthsAfterGrant'))
 where id = 'ca000000-0000-0000-0000-0000000000a0';
 delete from public.leave where member_id = 'ca000000-0000-0000-0000-0000000000a1';
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('ca000000-0000-0000-0000-00000000e005', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('ca000000-0000-0000-0000-00000000e005', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2025-10-15', date '2026-04-14', 'accrual');
 select internal.leave_accrue_member('ca000000-0000-0000-0000-0000000000a1', date '2026-09-09');
 select results_eq(
@@ -138,16 +138,16 @@ update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy(true, '{}'::jsonb, 'fiscalYearEnd'))
 where id = 'ca000000-0000-0000-0000-0000000000a0';
 delete from public.leave where member_id = 'ca000000-0000-0000-0000-0000000000a1';
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('ca000000-0000-0000-0000-00000000e007', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('ca000000-0000-0000-0000-00000000e007', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2024-01-01', date '2024-12-31', 'accrual'),
-  ('ca000000-0000-0000-0000-00000000e008', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+  ('ca000000-0000-0000-0000-00000000e008', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2025-01-01', date '2025-12-31', 'accrual');
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin, carried_from_id) values
-  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 3,
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin, carried_from_id) values
+  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 3, 'approved',
    date '2025-01-01', date '2025-12-31', 'carryover', 'ca000000-0000-0000-0000-00000000e007');
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
-  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, true, 5, 'approved',
+  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, true, -5, 'approved',
    '2025-07-01 00:00+09', '2025-07-06 00:00+09');
 select internal.leave_accrue_member('ca000000-0000-0000-0000-0000000000a1', date '2026-09-09');
 select is(
@@ -159,13 +159,13 @@ select is(
 );
 
 delete from public.leave where member_id = 'ca000000-0000-0000-0000-0000000000a1';
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('ca000000-0000-0000-0000-00000000e009', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('ca000000-0000-0000-0000-00000000e009', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2024-01-01', date '2024-12-31', 'accrual'),
-  ('ca000000-0000-0000-0000-00000000e010', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+  ('ca000000-0000-0000-0000-00000000e010', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2025-01-01', date '2025-12-31', 'accrual');
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin, carried_from_id) values
-  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 3,
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin, carried_from_id) values
+  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 3, 'approved',
    date '2025-01-01', date '2025-12-31', 'carryover', 'ca000000-0000-0000-0000-00000000e009');
 select internal.leave_accrue_member('ca000000-0000-0000-0000-0000000000a1', date '2026-09-09');
 select is(
@@ -178,11 +178,11 @@ select is(
 
 -- A carried row that lapses again is gone; only an accrual carries.
 delete from public.leave where member_id = 'ca000000-0000-0000-0000-0000000000a1';
-insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('ca000000-0000-0000-0000-00000000e006', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15,
+insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('ca000000-0000-0000-0000-00000000e006', 'ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved',
    date '2024-01-01', date '2024-12-31', 'accrual');
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin, carried_from_id) values
-  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 4,
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin, carried_from_id) values
+  ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 4, 'approved',
    date '2025-01-01', date '2025-12-31', 'carryover', 'ca000000-0000-0000-0000-00000000e006');
 select internal.leave_accrue_member('ca000000-0000-0000-0000-0000000000a1', date '2026-09-09');
 select is(
@@ -195,8 +195,8 @@ select is(
 -- The record refuses a carried row that names no source, and a source named by
 -- anything but a carried row.
 select throws_ok(
-  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin, carried_from_id)
-    values ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 1, date '2026-01-01', 'accrual',
+  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin, carried_from_id)
+    values ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 1, 'approved', date '2026-01-01', 'accrual',
             'ca000000-0000-0000-0000-00000000e006')$$,
   '23514',
   null,
@@ -204,8 +204,8 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin, carried_from_id)
-    values ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 1, date '2026-01-01', 'carryover',
+  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin, carried_from_id)
+    values ('ca000000-0000-0000-0000-0000000000a1', 'annual', true, false, 1, 'approved', date '2026-01-01', 'carryover',
             'ca000000-0000-0000-0000-00000000e006')$$,
   '23505',
   null,

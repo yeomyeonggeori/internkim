@@ -33,7 +33,7 @@ insert into public.member (id, company_id, email, user_id, status, is_admin, joi
 -- of December of the year it opened in.
 select is(
   (select expires_on from public.leave
-   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and status is null),
+   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and days >= 0),
   make_date(extract(year from current_date)::integer, 12, 31),
   'a grant under a January leave year lapses on the 31st of December'
 );
@@ -53,7 +53,7 @@ $$;
 select pg_temp.save(pg_temp.policy('monthsAfterGrant', 18, 1));
 select is(
   (select expires_on from public.leave
-   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'),
+   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'accrual'),
   (make_date(extract(year from current_date)::integer, 1, 1) + interval '18 months' - interval '1 day')::date,
   'switching to months after grant moves the live grant to that many months after it opened'
 );
@@ -61,7 +61,7 @@ select is(
 select pg_temp.save(pg_temp.policy('none', 18, 1));
 select is(
   (select expires_on from public.leave
-   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'),
+   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'accrual'),
   null::date,
   'switching to none clears the date rather than leaving it'
 );
@@ -70,7 +70,7 @@ select is(
 select pg_temp.save(pg_temp.policy('fiscalYearEnd', 12, 3));
 select results_eq(
   $$select granted_on, expires_on from public.leave
-    where member_id = 'e0000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'$$,
+    where member_id = 'e0000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'accrual'$$,
   $$select internal.leave_year_opening_on_or_before(current_date, 3, 1),
            (internal.leave_year_opening_on_or_before(current_date, 3, 1) + interval '1 year' - interval '1 day')::date$$,
   'moving the leave year start moves the live grant onto the year that now contains today'
@@ -78,15 +78,15 @@ select results_eq(
 
 select is(
   (select count(*)::integer from public.leave
-   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'),
+   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'accrual'),
   1,
   'and three policy changes left one row, not four'
 );
 
 -- A grant past its date leaves the balance and stays on the record. A change
 -- of policy afterwards leaves the lapsed row alone.
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin)
-values ('e0000000-0000-0000-0000-0000000000a1', 'annual', true, false, 8,
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin)
+values ('e0000000-0000-0000-0000-0000000000a1', 'annual', true, false, 8, 'approved',
         (internal.leave_year_opening_on_or_before(current_date, 3, 1) - interval '1 year')::date,
         (internal.leave_year_opening_on_or_before(current_date, 3, 1) - interval '1 day')::date,
         'accrual');
@@ -100,7 +100,7 @@ select is(
 select pg_temp.save(pg_temp.policy('none', 18, 3));
 select is(
   (select expires_on from public.leave
-   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and status is null
+   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and days >= 0
      and origin = 'accrual' and days = 8),
   (internal.leave_year_opening_on_or_before(current_date, 3, 1) - interval '1 day')::date,
   'and a later policy change leaves the lapsed row where it was'
@@ -108,18 +108,18 @@ select is(
 
 select is(
   (select count(*)::integer from public.leave
-   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and status is null and origin = 'accrual'),
+   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'accrual'),
   2,
   'nothing deletes a lapsed grant'
 );
 
 -- A figure an administrator stated by hand carries no date and is not given one.
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin)
-values ('e0000000-0000-0000-0000-0000000000a1', 'annual', true, false, 10, date '1970-01-01', 'manual');
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin)
+values ('e0000000-0000-0000-0000-0000000000a1', 'annual', true, false, 10, 'approved', date '1970-01-01', 'manual');
 select pg_temp.save(pg_temp.policy('fiscalYearEnd', 12, 3));
 select is(
   (select expires_on from public.leave
-   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and status is null and origin = 'manual'),
+   where member_id = 'e0000000-0000-0000-0000-0000000000a1' and days >= 0 and origin = 'manual'),
   null::date,
   'a hand-stated figure never lapses, whatever the policy says'
 );

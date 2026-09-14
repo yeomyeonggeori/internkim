@@ -154,7 +154,7 @@ beforeAll(async () => {
 		kind: '연차',
 		is_paid: true,
 		is_deducted: true,
-		days: 2,
+		days: -2,
 		status: 'approved',
 		starts_at: companyMidnight(inDays(3), 0),
 		ends_at: companyMidnight(inDays(3), 2)

@@ -265,7 +265,7 @@ export async function leaveRequest(
 		kind: kind.id,
 		is_paid: kind.isPaid,
 		is_deducted: kind.isDeducted,
-		days: input.days,
+		days: -input.days,
 		status: 'requested',
 		starts_at: instantWritten(context.labels.timezone, input.startsAt),
 		ends_at:
@@ -302,7 +302,7 @@ export async function leaveUpdate(
 	const held = answeredLeave(context, row);
 	const days = input.days ?? held.days;
 	const corrected: Record<string, unknown> = {
-		days,
+		days: -days,
 		starts_at: instantWritten(context.labels.timezone, input.startsAt ?? held.startDate),
 		ends_at:
 			days > halfADay
