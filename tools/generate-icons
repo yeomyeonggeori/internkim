@@ -1,38 +1,24 @@
 #!/usr/bin/env python3
-"""Cut every shipped icon from the two masters in assets/.
+"""Cut the Companion, docs and bot icons from the two masters in assets/.
 
 assets/internkim.icon.png is the finished app icon, drawn in Icon Composer,
-and takes the slots that show a file as it is: the manifest icons Chrome
-installs from, and the Companion Tauri set. assets/internkim.square.png is the
-same face drawn full bleed, and takes the slots a platform recuts or shrinks:
-the docs favicon, the menu-bar tray, and the bot avatar.
+and takes the Companion Tauri set. assets/internkim.square.png is the same
+face drawn full bleed, and takes the slots a platform recuts or shrinks: the
+docs favicon, the menu-bar tray, and the bot avatar.
 
-The two slots a platform reshapes take one each. iOS paints an icon's
-transparency black and then cuts its own squircle, less round than the
-master's frame (22.4% of the side against 30.9%), so the frame would show
-inside the squircle as a second border. apple-touch-icon is therefore the
-rounded master cropped to the largest square that frame contains, which leaves
-the frame out of the image and invents nothing. The artwork is composed inside
-that frame, so its body narrows toward the bottom and the crop keeps the
-narrowing.
+The web app's icons in web/static are supplied artwork, not cut from these
+masters, so this script does not write them.
 
-Android cannot take the same crop, which magnifies the artwork by 18% into a
-mask that cuts more than the iOS one, so the maskable icon is the square
-master whole and a circular mask reads as a crop of the face. The tray icon is
-the square's white silhouette as alpha, which macOS tints as a template.
-
-A tab favicon is drawn at 16 to 32 pixels, and the whole square is unreadable
-there: the face lands on a dozen pixels and the frame around it takes the rest.
-The docs favicon is cut to FAVICON_FRAME instead, which fills the tile with the
-sprout, head and glasses. The app's tab favicon does not take that crop at all:
-it has a third master, assets/internkim.favicon.svg, a flat mark drawn for the
-size, copied to web/static/logo.svg so a vector stays a vector.
+The tray icon is the square's white silhouette as alpha, which macOS tints as
+a template. A tab favicon is drawn at 16 to 32 pixels, and the whole square is
+unreadable there: the face lands on a dozen pixels and the frame around it
+takes the rest. The docs favicon is cut to FAVICON_FRAME instead, which fills
+the tile with the sprout, head and glasses.
 
 Needs Pillow and numpy on the running Python, and bun for the Tauri set.
 """
 
 import pathlib
-import shutil
 import subprocess
 import sys
 
@@ -45,7 +31,6 @@ except ImportError as error:
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 ICON_MASTER = REPOSITORY_ROOT / "assets" / "internkim.icon.png"
 SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
-FAVICON_VECTOR_MASTER = REPOSITORY_ROOT / "assets" / "internkim.favicon.svg"
 FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
 TEMPLATE_DARKEST_WHITE = 150
 TEMPLATE_LIGHTEST_WHITE = 240
@@ -57,18 +42,6 @@ def save(image: Image.Image, relative_path: str, size: int, mode: str) -> None:
     output = image.resize((size, size), Image.LANCZOS).convert(mode)
     output.save(REPOSITORY_ROOT / relative_path, optimize=True)
     print(relative_path, output.size, output.mode)
-
-
-def inscribed_square(image: Image.Image) -> Image.Image:
-    opaque = numpy.array(image)[..., 3] == 255
-    size = opaque.shape[0]
-    inset = next(
-        (edge for edge in range(size // 2) if opaque[edge : size - edge, edge : size - edge].all()),
-        None,
-    )
-    if inset is None:
-        sys.exit(f"{ICON_MASTER} has no opaque square to crop to; its centre is transparent")
-    return image.crop((inset, inset, size - inset, size - inset))
 
 
 def template_from_square(image: Image.Image, size: int) -> Image.Image:
@@ -96,12 +69,6 @@ def write_favicon(square: Image.Image) -> None:
     print("docs/web/public/favicon.ico", FAVICON_SIZES)
 
 
-def write_logo_svg() -> None:
-    destination = REPOSITORY_ROOT / "web/static/logo.svg"
-    shutil.copyfile(FAVICON_VECTOR_MASTER, destination)
-    print("web/static/logo.svg", destination.stat().st_size, "bytes")
-
-
 def write_tauri_set() -> None:
     subprocess.run(
         ["bunx", "tauri", "icon", str(ICON_MASTER)],
@@ -113,16 +80,10 @@ def write_tauri_set() -> None:
 
 
 def main() -> None:
-    icon = Image.open(ICON_MASTER).convert("RGBA")
     square = Image.open(SQUARE_MASTER).convert("RGB")
 
-    save(icon, "web/static/icon-192.png", 192, "RGBA")
-    save(icon, "web/static/icon-512.png", 512, "RGBA")
-    save(inscribed_square(icon), "web/static/apple-touch-icon.png", 180, "RGB")
-    save(square, "web/static/icon-maskable-512.png", 512, "RGB")
     save(square, "assets/internkim.png", 512, "RGB")
     write_favicon(square)
-    write_logo_svg()
 
     write_tauri_set()
     tray = template_from_square(square, 128)
