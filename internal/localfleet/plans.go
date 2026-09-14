@@ -296,6 +296,16 @@ func (service Service) morningBriefingScenarioPlans() []CommandPlan {
 	return append(plans, service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
 }
 
+func (service Service) memoryStoreScenarioPlans() []CommandPlan {
+	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-memory-store.py", service.virtualSessionArtifactDirectoryPath("memory-store")}
+	plans := []CommandPlan{
+		service.shellPlan("build memory database regression tests", "cd .dependency/blueclaw/.dependency/bluememo && GOOS=linux GOARCH=arm64 go test -c -o ../../../../build/memory-postgres.test ./postgres"),
+		service.shellPlan("build memory model regression tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -tags 'appliance llmeval' -o ../../build/memory-live.test ./internal/e2e"),
+	}
+	plans = append(plans, service.upPlans(true)...)
+	return append(plans, service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
+}
+
 func (service Service) webBackedScenarioPlans() []CommandPlan {
 	return append(service.upPlans(false),
 		service.shellPlan("verify api", service.verifyCommand("api")),
