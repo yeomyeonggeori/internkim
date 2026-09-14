@@ -68,11 +68,11 @@ type streamedCompletion struct {
 	toolOrder []int
 }
 
-func (backend OpenRouterBackend) streamCompletion(ctx context.Context, apiKey string, requestDocument []byte, modelName string) (openAIResponseWithUsage, error) {
+func (backend OpenRouterBackend) streamCompletion(ctx context.Context, apiKey string, requestDocument []byte, modelName string, isJudged bool) (openAIResponseWithUsage, error) {
 	requestContext, cancelRequest := context.WithCancelCause(ctx)
 	defer cancelRequest(nil)
 	progress := &streamProgress{startedAt: time.Now()}
-	if expectation, isKnown := sharedServingRecord.expectation(modelName); isKnown {
+	if expectation, isKnown := sharedServingRecord.expectation(modelName); isKnown && isJudged {
 		go watchServing(requestContext, cancelRequest, progress, expectation)
 	}
 	response, errorValue := backend.readStream(requestContext, apiKey, requestDocument, progress)
