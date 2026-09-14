@@ -93,6 +93,10 @@ describe('paths that still need a company in front of them', () => {
 		expect(wantsCompanyPrefix('/api/company')).toBe(false);
 	});
 
+	test('leaves the apple manifest outside any company', () => {
+		expect(wantsCompanyPrefix('/manifest-apple.webmanifest')).toBe(false);
+	});
+
 	test('leaves the root alone, because it names no app', () => {
 		expect(wantsCompanyPrefix('/')).toBe(false);
 	});
