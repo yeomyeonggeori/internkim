@@ -20,7 +20,7 @@ $$;
 create function pg_temp.grants() returns table (granted_on date, expires_on date, days numeric)
 language sql as $$
   select leave.granted_on, leave.expires_on, leave.days::numeric from public.leave
-  where leave.member_id = 'bb000000-0000-0000-0000-0000000000a1' and leave.status is null
+  where leave.member_id = 'bb000000-0000-0000-0000-0000000000a1' and leave.days >= 0
   order by leave.granted_on
 $$;
 
@@ -114,9 +114,9 @@ select results_eq(
 -- lapsed grant written under the old one. Dates are counted from today because
 -- what stands is decided on the member's today.
 delete from public.leave where member_id = 'bb000000-0000-0000-0000-0000000000a1';
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('bb000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, current_date - 400, current_date - 35, 'accrual'),
-  ('bb000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, current_date - 30, current_date + 335, 'accrual');
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('bb000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved', current_date - 400, current_date - 35, 'accrual'),
+  ('bb000000-0000-0000-0000-0000000000a1', 'annual', true, false, 15, 'approved', current_date - 30, current_date + 335, 'accrual');
 update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy('monthly', 1000, 'monthsAfterGrant', 12, 1))
 where id = 'bb000000-0000-0000-0000-0000000000a0';
@@ -132,8 +132,8 @@ delete from public.leave where member_id = 'bb000000-0000-0000-0000-0000000000a1
 update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy('none', 1000, 'monthsAfterGrant', 12, 1))
 where id = 'bb000000-0000-0000-0000-0000000000a0';
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('bb000000-0000-0000-0000-0000000000a1', 'annual', true, false, 1, current_date - 5, current_date + 360, 'accrual');
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('bb000000-0000-0000-0000-0000000000a1', 'annual', true, false, 1, 'approved', current_date - 5, current_date + 360, 'accrual');
 update public.company
 set rules = jsonb_build_object('attendanceLeavePolicy', pg_temp.policy('none', 1000, 'monthsAfterGrant', 12, 3))
 where id = 'bb000000-0000-0000-0000-0000000000a0';

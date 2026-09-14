@@ -85,7 +85,7 @@ async function companyWithAnEvent(slug: string, title: string): Promise<Company>
 		kind: '연차',
 		is_paid: true,
 		is_deducted: true,
-		days: 1,
+		days: -1,
 		status: 'approved',
 		starts_at: companyMidnight(dayOff, 0),
 		ends_at: companyMidnight(dayOff, 1)

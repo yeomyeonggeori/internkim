@@ -43,7 +43,7 @@ insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, statu
     'annual',
     true,
     true,
-    1,
+    -1,
     'requested',
     '2026-09-04 00:00+09',
     '2026-09-04 23:59+09'
@@ -62,7 +62,7 @@ insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, statu
     'annual',
     true,
     true,
-    1,
+    -1,
     'requested',
     '2026-09-04 00:00+09',
     '2026-09-04 23:59+09'
@@ -81,7 +81,7 @@ insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, statu
     'annual',
     true,
     true,
-    1,
+    -1,
     'rejected',
     '2026-09-11 00:00+09',
     '2026-09-11 23:59+09'

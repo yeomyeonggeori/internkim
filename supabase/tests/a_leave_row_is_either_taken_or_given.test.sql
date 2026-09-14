@@ -18,12 +18,12 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
   ('c1000000-0000-0000-0000-0000000000b1', 'c1000000-0000-0000-0000-0000000000b0',
    'credit-untracked@example.test', null, 'active', false);
 
-insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, expires_on, origin) values
-  ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 15,
+insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, expires_on, origin) values
+  ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 15, 'approved',
    current_date - 60, current_date + 60, 'accrual'),
-  ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 3,
+  ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 3, 'approved',
    current_date - 60, current_date + 10, 'carryover'),
-  ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 8,
+  ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 8, 'approved',
    current_date - 400, current_date - 1, 'accrual');
 
 create function pg_temp.leave_policy(annual_grant integer) returns jsonb
@@ -56,7 +56,7 @@ select is(
 );
 
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
-  ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, true, 2, 'approved',
+  ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, true, -2, 'approved',
    date_trunc('year', now()) + interval '90 days',
    date_trunc('year', now()) + interval '92 days');
 
@@ -73,23 +73,23 @@ select is(
 -- balance stops counting it on the day it says.
 select is(
   (select count(*)::integer from public.leave
-   where member_id = 'c1000000-0000-0000-0000-0000000000a2' and status is null),
+   where member_id = 'c1000000-0000-0000-0000-0000000000a2' and days >= 0),
   3,
   'a lapsed grant stays on the record'
 );
 
 select throws_ok(
-  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on)
-    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 1, current_date)$$,
+  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on)
+    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 1, 'approved', current_date)$$,
   '23514',
   null,
   'a grant that names no origin is refused'
 );
 
 select throws_ok(
-  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin,
+  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin,
                               starts_at, ends_at)
-    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 1, date '2026-01-01',
+    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 1, 'approved', date '2026-01-01',
             'manual', now(), now() + interval '1 day')$$,
   '23514',
   null,
@@ -99,7 +99,7 @@ select throws_ok(
 select throws_ok(
   $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status,
                               starts_at, ends_at, granted_on, origin)
-    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, true, 1, 'requested',
+    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, true, -1, 'requested',
             now(), now() + interval '1 day', current_date, 'manual')$$,
   '23514',
   null,
@@ -107,9 +107,9 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on,
+  $$insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on,
                               expires_on, origin)
-    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 1, current_date,
+    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 1, 'approved', current_date,
             current_date - 1, 'accrual')$$,
   '23514',
   null,
@@ -124,12 +124,12 @@ begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"c1000000-0000-0000-0000-000000000002"}', true);
 
-  select count(*) into granted_rows from public.leave where status is null;
+  select count(*) into granted_rows from public.leave where days >= 0;
   assert granted_rows = 0, 'a member reads no grant through the table, not even their own';
 
   begin
-    insert into public.leave (member_id, kind, is_paid, is_deducted, days, granted_on, origin)
-    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 99,
+    insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, granted_on, origin)
+    values ('c1000000-0000-0000-0000-0000000000a2', 'annual', true, false, 99, 'approved',
             current_date, 'manual');
   exception when insufficient_privilege then
     own_grant_refused := true;
