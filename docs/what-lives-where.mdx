@@ -20,38 +20,59 @@ Calendar events are tasks with a span and `is_event`, which is why there is
 no separate table for them. There is no table for a message, which is why no
 conversation can reach the record.
 
+Attachments and pictures the chat screen shows are copied into the company's
+`asset` bucket in Supabase Storage, addressed by their content, so a browser
+on another network can open them. The conversation they came from stays on
+the messenger.
+
 ## The agent's store
 
-The host's own Postgres, defined in `.dependency/blueclaw/migrations/`.
+The host's own Postgres, defined in `.dependency/blueclaw/migrations/`. It
+needs the `vector` extension, which is why `host/docker-compose.yml` runs
+`pgvector/pgvector:pg17`.
 
 | | |
 |---|---|
-| Conversation | `raw_event`, `conversation`, `attachment`, `content_segment`, `connector_outbox` |
-| Execution | `task_run`, `task_attempt`, `task_step`, `task_event`, `task_schedule`, `task_session`, `task_artifact`, `task_wait_token` |
-| Memory | `memory_episode`, `memory_fact`, `memory_fact_embedding`, `memory_profile`, `memory_job` |
-| Policy and identity | `person`, `person_circle`, `person_email`, `circle`, `platform_account`, `policy_channel_rule`, `policy_revision`, `resource_access_rule` |
-| Operations | `admin_audit_log`, `backup_lock`, and the platform link tables |
+| Conversation | `raw_event`, `conversation`, `attachment`, `connector_outbox`, `live_reply_post` |
+| Execution | `task_run`, `task_attempt`, `task_step`, `task_event`, `task_schedule`, `task_session`, `task_artifact`, `task_wait_token`, `morning_briefing_schedule` |
+| Memory | `memory_episode`, `memory_fact`, `memory_fact_circle`, `memory_fact_embedding`, `memory_profile`, `memory_job` |
+| Policy and identity | `person`, `person_email`, `platform_account`, `policy_channel_rule`, `policy_revision` |
+| Operations | `admin_audit_log`, `backup_lock` |
 
 None of it is a company record. It is the agent's working state: what was
 said, what it did, what it remembers, and what it is allowed to touch.
-`task_event` is the ledger the rest of the system trusts — every tool call,
+`task_event` is the ledger the rest of the system trusts: every tool call,
 its full input, and every routing decision land there, which is what makes a
 failed run diagnosable after the fact.
+
+The memory tables are [bluememo](https://github.com/yeomyeonggeori/bluememo)'s:
+episodes of finished work, the facts a model extracted from them, the circles
+each fact is shared with, the embeddings recall searches, and the jobs that
+extract and condense.
+
+## The relay's state
+
+`RELAY_STATE_DIR`, `/var/lib/internkim/relay` unless set, holds what the relay
+must survive a restart with: `inbound/`, the messages the agent has not taken
+yet, and `questions/`, the approval questions still waiting for an answer.
+Both empty themselves as the work moves on.
 
 ## Files
 
 The workspace lives on the host, under the permissions described in
 [Boundaries](/docs/boundaries). Private space per person, shared space per
-circle, and a service-owned area the agent's own machinery uses.
+circle, and a service-owned area the agent's own machinery uses. The skills
+the agent loads ship in the image, from `.dependency/internkim-plugin/`, and
+belong to no company.
 
 Backing the host up is the company's job. Losing it loses the agent's memory,
-its history and the files, and loses none of the company's records. That
-asymmetry is deliberate: keeping the agent's memory central would mean holding
-a company's internal knowledge on our side, the thing this design avoids for
-messages and mail.
+its history, the files and any message still queued, and loses none of the
+company's records. That asymmetry is deliberate: keeping the agent's memory
+central would mean holding a company's internal knowledge on our side, the
+thing this design avoids for messages and mail.
 
 ## Where the line is still moving
 
-**Workspace file browsing and agent-published sites** reach the host's
-`admind` over its unix socket. Their central answers are open questions in
-`docs/internal/saas-design.md` §11.
+**The workspace screens and agent-published sites** reach the host's
+`admind` over its unix socket: files, memory, runs, skills. Their central
+answers are open questions in `docs/internal/saas-design.md` §11.

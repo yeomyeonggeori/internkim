@@ -13,28 +13,43 @@ else from the network.
 
 <Steps>
 <Step>
-**The relay**, before anything else, even before Postgres answers. It talks
-only to the central plane and the messenger, so the chat screen keeps
-answering while everything below is down or restarting. The entrypoint
-restarts it five seconds after any exit.
+**The relay**, before anything else, even before Postgres answers. Nothing
+else in the bundle has to be up for it to start, so the chat screen keeps
+answering while everything below is down or restarting, and a message that
+arrives meanwhile waits in its queue until the agent can take it. The
+entrypoint restarts it five seconds after any exit.
 </Step>
 <Step>
-**Wait for Postgres** at `DATABASE_URL` — the agent's own store.
+**The runtime and the roster.** `tools/render-company-runtime` fills
+`runtime.template.json` with this box's own addresses and writes
+`/run/internkim/runtime.json`; a `runtime.json` mounted at `/etc/blueclaw` is
+read instead. A `policy.json` mounted there seeds `/run/internkim/policy.json`
+rather than being it, because admind rewrites that file whenever the company
+changes, and the boot stops if the file is not writable.
+</Step>
+<Step>
+**Wait for Postgres** at `DATABASE_URL`, the agent's own store, with the
+`vector` extension memory search uses.
 </Step>
 <Step>
 **`internkim-capabilityd`** on `/run/internkim/capability.sock`. The entrypoint
 waits for that socket and gives up if the daemon dies before it appears; once
 it is up nothing watches it again, and only the agent's own exit brings the
-bundle down. The calendar, task, mail and site tools disappear without it.
+bundle down. Every model call and every tool that holds a provider credential
+goes through it.
 </Step>
 <Step>
-**The agent**: `blueclaw -runtime /run/internkim/runtime.json -policy
-/run/internkim/policy.json`, answering on `127.0.0.1:8080`.
-`tools/render-company-runtime` fills `runtime.template.json` from this box's
-own addresses and merges capabilityd's `--print-capabilities` block into it. A
-`runtime.json` mounted at `/etc/blueclaw` is read instead; a `policy.json`
-mounted there seeds the roster rather than being it, because admind rewrites
-that file whenever the company changes.
+**The agent**:
+
+```
+blueclaw -runtime /run/internkim/runtime.json -policy /run/internkim/policy.json \
+  -acp-socket /run/internkim/blueclaw-acp.sock -inbound acp
+```
+
+`-inbound acp` means messages arrive only from the relay, over that socket.
+The admin API stays on `127.0.0.1:8080`, which is what the entrypoint waits
+for. The skills come from `BLUECLAW_BUNDLED_SKILLS_PATH`, which the image fills
+from internkim-plugin.
 </Step>
 <Step>
 **`internkim-admind`** on `127.0.0.1:18080`, which the relay routes every
@@ -44,8 +59,8 @@ is not up yet waits two minutes for the next one.
 </Step>
 <Step>
 **`internkim-maild`** on `127.0.0.1:18092`, then **the connector** (`chatd`)
-on `127.0.0.1:18090`, which signs into the messenger as the bot and hands
-arriving messages to the agent.
+on `127.0.0.1:18090`, which signs into the messenger as the bot and posts each
+arriving message to the relay's `/inbound`.
 </Step>
 </Steps>
 
@@ -60,16 +75,17 @@ The entrypoint requires six values and passes the rest through:
 ```
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
-INTERNKIM_APP_URL=https://<company>.intern.kim
+INTERNKIM_APP_URL=https://intern.kim
 CHATD_BOT_USER_NAME=<the bot's display name>
 MESSENGER_PLATFORM=buzz
 DATABASE_URL=postgres://…
 ```
 
-The agent key is never one of these. It is a file at `/secrets/agent-key`,
-mode `0600`, read by path, so it stays out of the process environment where
-anything reading `/proc` could find it. Rotating the file is the whole
-rotation procedure. The relay takes the path as `AGENT_API_KEY_PATH`.
+The agent key is never one of these. It is a file at
+`/root/.internkim/secrets/agent-key`, mode `0600`, read by path, so it stays out
+of the process environment where anything reading `/proc` could find it.
+Rotating the file is the whole rotation procedure. The model provider's key
+sits beside it as `openrouter-key`, and capabilityd reads that by path too.
 
 Then the messenger the company runs:
 
@@ -89,21 +105,26 @@ and answers neither the app nor the API. An empty messenger screen with a
 green process table is the symptom.
 </Callout>
 
-Without `admind` a person's memory, files, tasks and buzz claim answer `500`,
-and a direct message cannot go out under the name of the person who asked for
-it, because the seed that signs as them lives on this box, at
-`/secrets/buzz-key-seed`.
+Every other setting the relay and the bundle read is in the generated table in
+`host/README.md`, with its default. Put `RELAY_STATE_DIR` on a disk that
+survives a reboot: the queue of messages the agent has not taken yet lives
+there.
+
+Without `admind` a person's memory, files, runs and buzz claim answer `500`.
+A direct message sent under the name of the person who asked for it is signed
+with a seed at `/root/.internkim/secrets/buzz-key-seed`; without that file the
+box still boots, says so, and cannot send one.
 
 A company that chats on Buzz also runs the Buzz stack itself; `host/buzz/`
-carries a compose file that brings up Postgres, Redis, MinIO and the relay
-binary from `.dependency/buzz-relay/` on this same machine.
+carries a compose file that brings up Postgres, Redis, MinIO and the Buzz
+relay on this same machine.
 
 ## How big an answer may be
 
 The transport refuses an oversize frame silently, leaving the caller waiting
 forever, so the relay measures every answer first and replies `413` with the
 byte count, which does reach them. The default ceiling is 3,000,000 bytes
-(decimal — a Supabase figure, so `3 * 1024 * 1024` lands 145 KB over), and
+(decimal, a Supabase figure, so `3 * 1024 * 1024` lands 145 KB over), and
 `ANSWER_BYTE_CEILING` overrides it. Anything that is not a positive number
 stops the boot, so a bad value cannot quietly refuse every answer. The
 profile-picture limit is derived from the ceiling, since base64 inflates by a
@@ -121,8 +142,9 @@ comes back after a crash or a reboot.
 | launchd | `host/relay/launchagent.plist.template` — `KeepAlive` |
 | the bundle | `entrypoint.sh` starts and restarts the relay itself |
 
-A relay that dies without coming back leaves the chat screen empty, which is
-the failure worth guarding against.
+A relay that dies without coming back leaves the chat screen empty and stops
+every message from reaching the agent, which is the failure worth guarding
+against.
 
 `make build-relay` compiles the relay into a single `internkim-relay`
 executable, so the box needs no Bun and no `node_modules`; `RELAY_TARGET`
