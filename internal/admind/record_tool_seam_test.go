@@ -202,3 +202,29 @@ func TestAnEmptyBodyReachesThePlaneAsAnEmptyInput(t *testing.T) {
 		t.Fatalf("the plane was sent %v", plane.invoked)
 	}
 }
+
+// A retried write answers once only if the plane sees the same key both
+// times, so the key capabilityd put on the socket call travels into the body
+// the plane reads, and a call without one sends no key at all.
+func TestTheSeamCarriesTheIdempotencyKeyToThePlane(t *testing.T) {
+	plane := planeAnswering(t, func(string) (int, string) {
+		return http.StatusOK, `{"tool":"task_add","result":{"taskID":"t1"}}`
+	})
+	service := serviceReachingThePlane(t, plane)
+
+	keyed := httptest.NewRequest(http.MethodPost, "/record/api/tools/task_add/invoke", strings.NewReader(`{"title":"분기 보고서 초안"}`))
+	keyed.Header.Set(requesterEmailHeader, "member@example.com")
+	keyed.Header.Set(idempotencyKeyHeader, "run-1:observation-1:task_add")
+	markRequestsAsAssertedByTheListener(http.HandlerFunc(service.handleRecordTool)).ServeHTTP(httptest.NewRecorder(), keyed)
+	askedOnTheSocket(service, "task_add", `{"title":"분기 보고서 초안"}`, "member@example.com")
+
+	if len(plane.invoked) != 2 {
+		t.Fatalf("the plane was invoked %d times", len(plane.invoked))
+	}
+	if plane.invoked[0].Body != `{"idempotencyKey":"run-1:observation-1:task_add","input":{"title":"분기 보고서 초안"}}` {
+		t.Fatalf("the keyed call was sent as %s", plane.invoked[0].Body)
+	}
+	if plane.invoked[1].Body != `{"input":{"title":"분기 보고서 초안"}}` {
+		t.Fatalf("the call without a key was sent as %s", plane.invoked[1].Body)
+	}
+}

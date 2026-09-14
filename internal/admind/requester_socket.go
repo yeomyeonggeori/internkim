@@ -17,6 +17,7 @@ import (
 const (
 	requesterEmailHeader      = "X-INTERNKIM-REQUESTER-EMAIL"
 	requesterPermissionHeader = "X-INTERNKIM-REQUESTER-PERMISSION"
+	idempotencyKeyHeader      = "X-INTERNKIM-IDEMPOTENCY-KEY"
 
 	requesterSocketMode      = 0o660
 	requesterSocketOwnerName = blueclawruntime.RelayUserName
