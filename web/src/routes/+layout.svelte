@@ -39,6 +39,7 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
 	import { personPicture } from '$lib/stores/person-picture.svelte';
+	import { keepDrawnPicture } from '$lib/profile/keep-drawn-picture';
 
 
 	let { children, data } = $props();
@@ -50,7 +51,12 @@
 		initializeLocale();
 		preloadWorkTimeChartPlot();
 		void myAttendanceToday.load();
-		if (data.session?.authenticated) void personPicture.rememberEveryone();
+		if (data.session?.authenticated) {
+			void personPicture.rememberEveryone();
+			keepDrawnPicture(data.session.email).catch((failure: unknown) =>
+				console.warn('the drawn picture was not kept', failure)
+			);
+		}
 		let stopFollowingPageTheme = () => {};
 		keepShellStatusBarOnPageTheme().then(
 			(stop) => {

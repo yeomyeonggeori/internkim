@@ -595,6 +595,39 @@ describe("the company's picture", () => {
 	});
 });
 
+function drawnPictureCall(token: string, picture?: File): Promise<RouteAnswer> {
+	const carried = new FormData();
+	if (picture) carried.set('file', picture);
+	return reach('/member/profile-image', token, {
+		method: 'POST',
+		...(picture ? { body: carried } : { headers: { 'Content-Type': 'application/json' }, body: '{}' })
+	});
+}
+
+describe("a member's drawn picture", () => {
+	const png = () => new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1])], 'drawn.png', { type: 'image/png' });
+
+	test('is refused to a token that may only read', async () => {
+		expect((await drawnPictureCall(readersToken, png())).status).toBe(403);
+	});
+
+	test('is refused when the call carries no picture, and when it carries something other than a png', async () => {
+		expect((await drawnPictureCall(holdersToken)).status).toBe(400);
+		const jpeg = new File([new Uint8Array([255, 216, 255])], 'drawn.jpg', { type: 'image/jpeg' });
+		expect((await drawnPictureCall(holdersToken, jpeg)).status).toBe(400);
+	});
+
+	test('is kept once for a member with no picture, and left alone after that', async () => {
+		const first = await drawnPictureCall(holdersToken, png());
+		expect(first.status).toBe(200);
+		expect((first.body as { kept: boolean }).kept).toBe(true);
+
+		const again = await drawnPictureCall(holdersToken, png());
+		expect(again.status).toBe(200);
+		expect((again.body as { kept: boolean }).kept).toBe(false);
+	});
+});
+
 type Operation = { path: string; method: string };
 type PathsOfDocument = Record<string, Record<string, unknown> | undefined>;
 
@@ -684,6 +717,7 @@ describe('the documented endpoints', () => {
 			'post /files',
 			'post /company/profile-image',
 			'delete /company/profile-image',
+			'post /member/profile-image',
 			'post /agent/messages',
 			'get /agent/replies'
 		];

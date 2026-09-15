@@ -46,7 +46,8 @@ type ApiCopy = {
 		| 'invokeTool'
 	| 'previewTool'
 		| 'saveCompanyPicture'
-		| 'forgetCompanyPicture',
+		| 'forgetCompanyPicture'
+		| 'keepDrawnMemberPicture',
 		EndpointCopy
 	>;
 	errors: Record<
@@ -143,6 +144,11 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			forgetCompanyPicture: {
 				summary: '회사 사진 내리기',
 				description: '회사 사진을 지웁니다. 관리자만 내릴 수 있고, 답의 `profileImageURL`은 `null`입니다.'
+			},
+			keepDrawnMemberPicture: {
+				summary: '내 그라데이션 사진 저장하기',
+				description:
+					'사진이 없는 직원에게 앱이 이메일로 그려 주는 그라데이션을 `multipart/form-data`의 `file` 필드에 `image/png`로 올려, 내 사진으로 저장합니다. 알림은 그림을 그릴 수 없어서 저장된 사진만 보여 줄 수 있습니다. 이미 사진이 있으면 아무것도 바꾸지 않고 `kept`가 `false`입니다.'
 			},
 			previewTool: {
 				summary: '무엇을 건드릴지 미리 보기',
@@ -258,6 +264,11 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 				summary: "Take the company's picture down",
 				description:
 					"Removes the company's picture. Only an administrator may take it down, and the answer's `profileImageURL` is `null`."
+			},
+			keepDrawnMemberPicture: {
+				summary: 'Keep my drawn picture',
+				description:
+					'The gradient the app draws from the email of a member who has no picture, sent as `image/png` in the `file` field of `multipart/form-data` and kept as that member\'s picture. A notification cannot draw, so it can only show a picture that is kept. A member who already has a picture is left as they are, and `kept` is `false`.'
 			},
 			previewTool: {
 				summary: 'Look at what a call would touch',
@@ -462,6 +473,36 @@ function companyPicturePath(copy: ApiCopy) {
 				'200': pictureResponse,
 				'401': errorResponse(copy.errors.unauthorized),
 				'403': errorResponse(copy.errors.forbidden)
+			}
+		}
+	};
+}
+
+function memberPicturePath(copy: ApiCopy) {
+	return {
+		post: {
+			tags: [copy.tags.token],
+			operationId: 'keepDrawnMemberPicture',
+			summary: copy.endpoints.keepDrawnMemberPicture.summary,
+			description: copy.endpoints.keepDrawnMemberPicture.description,
+			requestBody: {
+				required: true,
+				content: {
+					'multipart/form-data': {
+						schema: {
+							type: 'object',
+							required: ['file'],
+							properties: { file: { type: 'string', format: 'binary' } }
+						}
+					}
+				}
+			},
+			responses: {
+				'200': jsonResponse(copy.endpoints.keepDrawnMemberPicture.summary, 'DrawnMemberPicture'),
+				'400': errorResponse(copy.errors.badRequest),
+				'401': errorResponse(copy.errors.unauthorized),
+				'403': errorResponse(copy.errors.forbidden),
+				'413': errorResponse(copy.errors.tooLarge)
 			}
 		}
 	};
@@ -751,6 +792,7 @@ function createPaths(copy: ApiCopy) {
 		'/token': tokenPath(copy),
 		'/files': uploadFilePath(copy),
 		'/company/profile-image': companyPicturePath(copy),
+		'/member/profile-image': memberPicturePath(copy),
 		'/agent/messages': agentMessagePath(copy),
 		'/agent/replies': agentRepliesPath(copy),
 		'/tools': listToolsPath(copy),
@@ -817,6 +859,11 @@ function createComponents(copy: ApiCopy) {
 				type: 'object',
 				required: ['profileImageURL'],
 				properties: { profileImageURL: { type: 'string', nullable: true } }
+			},
+			DrawnMemberPicture: {
+				type: 'object',
+				required: ['kept'],
+				properties: { kept: { type: 'boolean' } }
 			},
 			TokenRevoked: {
 				type: 'object',
