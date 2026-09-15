@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	calendarEmbedPath,
 	cleanupCalendarEvents,
 	seedCalendarEvents,
 	signInToCalendar
@@ -79,7 +80,7 @@ test.describe('calendar route shell', () => {
 		]);
 		try {
 			await signInToCalendar(page);
-			await page.goto('/calendar/embed');
+			await page.goto(calendarEmbedPath);
 
 			const holiday = page.locator('[data-calendar-event-id="holiday-2026-06-15"]:visible').first();
 			await expect(holiday).toBeVisible();
@@ -100,7 +101,7 @@ test.describe('calendar route shell', () => {
 		]);
 		try {
 			await signInToCalendar(page);
-			await page.goto('/calendar/embed');
+			await page.goto(calendarEmbedPath);
 
 			const fullDayLeave = page.locator('[data-calendar-event-id^="leave:"]', { hasText: '이샘플' }).first();
 			const partialLeave = page.locator('[data-calendar-event-id^="leave:"]', { hasText: '김예시' }).first();
@@ -123,7 +124,7 @@ test.describe('calendar route shell', () => {
 		]);
 		try {
 			await signInToCalendar(page);
-			await page.goto('/calendar/embed');
+			await page.goto(calendarEmbedPath);
 
 			await expect(page.locator(`[data-calendar-event-id="${eventID}"]:visible`).first()).toBeVisible();
 			await expect(page.getByRole('status')).toHaveText(
@@ -175,7 +176,7 @@ test.describe('calendar route shell', () => {
 		await expect(page.locator('iframe')).toBeVisible();
 		await expectHorizontalOverflow(page, false);
 
-		await page.goto('/calendar/embed');
+		await page.goto(calendarEmbedPath);
 		await expect(page.locator('.calendar-toolbar-title')).toBeVisible();
 		await expectHorizontalOverflow(page, false);
 	});

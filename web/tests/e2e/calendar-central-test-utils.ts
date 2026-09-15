@@ -11,8 +11,11 @@ export type CalendarCentralEvent = {
 	participantIDs?: string[];
 };
 
+const calendarPath = '/example-co/calendar';
+export const calendarEmbedPath = `${calendarPath}/embed`;
+
 export async function signInToCalendar(page: Page): Promise<void> {
-	await page.goto('/example-co/calendar');
+	await page.goto(calendarPath);
 	const email = page.getByRole('textbox', { name: '이메일' });
 	const needsSignIn = await email
 		.waitFor({ state: 'visible', timeout: 8000 })
@@ -22,7 +25,7 @@ export async function signInToCalendar(page: Page): Promise<void> {
 	await email.fill('member1@example.com');
 	await page.getByRole('textbox', { name: '비밀번호' }).fill('seed-password');
 	await page.getByRole('button', { name: '로그인', exact: true }).click();
-	await page.waitForURL('**/example-co/calendar**');
+	await page.waitForURL(`**${calendarPath}**`);
 	await page.locator('iframe').waitFor({ state: 'visible' });
 }
 

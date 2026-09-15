@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
+import { calendarEmbedPath, cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
 import {
 	clickOutsideDraftPopover,
 	dragBetweenCells,
@@ -16,7 +16,7 @@ test.describe('calendar draft popover', () => {
 		await routeCalendarHolidays(page);
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await signInToCalendar(page);
-		await page.goto('/calendar/embed');
+		await page.goto(calendarEmbedPath);
 		await waitForClientHydration(page);
 	});
 

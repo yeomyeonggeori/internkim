@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signInToCalendar } from './calendar-central-test-utils';
+import { calendarEmbedPath, signInToCalendar } from './calendar-central-test-utils';
 
 test.describe('embedded calendar month long-press and drag creation', () => {
 	test.use({ locale: 'ko-KR' });
@@ -54,7 +54,7 @@ async function routeCalendarHolidays(page: Page): Promise<void> {
 async function openDesktopMonthView(page: Page): Promise<void> {
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await signInToCalendar(page);
-	await page.goto('/calendar/embed?date=2026-06-10');
+	await page.goto(`${calendarEmbedPath}?date=2026-06-10`);
 	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'month'));
 	await page.reload();
 	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-month/);

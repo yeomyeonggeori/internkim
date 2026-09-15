@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
+import { calendarEmbedPath, cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
 import {
 	cancelMonthRangeDrag,
 	routeCalendarHolidays,
@@ -24,7 +24,7 @@ test.describe('calendar draft popover anchors', () => {
 			{ title: '하단 편집 일정', startISO: '2026-06-17T00:00:00+09:00', endISO: '2026-06-18T00:00:00+09:00', isAllDay: true }
 		]);
 		try {
-			await page.goto('/calendar/embed');
+			await page.goto(calendarEmbedPath);
 			await waitForClientHydration(page);
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`).first();
 			await expect(chip).toBeVisible();
@@ -47,7 +47,7 @@ test.describe('calendar draft popover anchors', () => {
 			{ title: '스크롤 기준 일정', startISO: '2026-06-10T09:00:00+09:00', endISO: '2026-06-10T10:00:00+09:00' }
 		]);
 		try {
-			await page.goto('/calendar/embed');
+			await page.goto(calendarEmbedPath);
 			await waitForClientHydration(page);
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);
 			await expect(chip).toBeVisible();
@@ -67,7 +67,7 @@ test.describe('calendar draft popover anchors', () => {
 	});
 
 	test('cancels a dragged month range on pointer cancel without opening a draft', async ({ page }) => {
-		await page.goto('/calendar/embed');
+		await page.goto(calendarEmbedPath);
 		await waitForClientHydration(page);
 
 		await startDragBetweenCells(page, '2026-06-10', '2026-06-12');

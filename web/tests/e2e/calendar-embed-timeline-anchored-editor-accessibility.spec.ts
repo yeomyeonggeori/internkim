@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
+import { calendarEmbedPath, cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
 import {
 	accessibleEventActivator,
 	prepareAccessibleParticipantSuggestions
@@ -151,7 +151,7 @@ async function routeCalendarHolidays(page: Page): Promise<void> {
 async function openDesktopDayView(page: Page): Promise<void> {
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await signInToCalendar(page);
-	await page.goto('/calendar/embed?date=2026-06-08');
+	await page.goto(`${calendarEmbedPath}?date=2026-06-08`);
 	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'day'));
 	await page.reload();
 	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-day/);
