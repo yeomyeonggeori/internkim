@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
+import { calendarEmbedPath, cleanupCalendarEvents, seedCalendarEvents, signInToCalendar } from './calendar-central-test-utils';
 import { routeCalendarHolidays, routeEventDelete, waitForClientHydration } from './calendar-draft-popover-test-utils';
 
 test.describe('calendar draft popover edit mode', () => {
@@ -19,7 +19,7 @@ test.describe('calendar draft popover edit mode', () => {
 		]);
 		try {
 			await signInToCalendar(page);
-			await page.goto('/calendar/embed');
+			await page.goto(calendarEmbedPath);
 			await waitForClientHydration(page);
 
 			const chip = page.locator(`[data-calendar-event-id="${eventID}"]`);

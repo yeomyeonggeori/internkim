@@ -1,7 +1,8 @@
 import { expect, type Page } from '@playwright/test';
+import { calendarEmbedPath } from './calendar-central-test-utils';
 
 export async function openCalendarEmbed(page: Page, viewLabel: '일' | '주' | '월'): Promise<void> {
-	await page.goto('/calendar/embed?date=2026-06-08');
+	await page.goto(`${calendarEmbedPath}?date=2026-06-08`);
 	await page.evaluate((view) => {
 		window.localStorage.setItem('internkim.calendar.view', view);
 	}, calendarViewStorageValue(viewLabel));

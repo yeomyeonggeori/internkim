@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
+	calendarEmbedPath,
 	cleanupCalendarEvents,
 	seedCalendarEvents,
 	signInToCalendar
@@ -154,7 +155,7 @@ async function settledScrollTop(scroller: Locator): Promise<number> {
 async function openMonthView(page: Page, dateKey: string): Promise<void> {
 	await page.clock.setFixedTime(new Date(`${dateKey}T12:00:00`));
 	await signInToCalendar(page);
-	await page.goto(`/calendar/embed?date=${dateKey}`);
+	await page.goto(`${calendarEmbedPath}?date=${dateKey}`);
 	await page.evaluate(() => {
 		window.localStorage.setItem('internkim.calendar.view', 'month');
 	});
