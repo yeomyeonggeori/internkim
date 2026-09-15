@@ -22,10 +22,13 @@ function seoulParts(): { date: string; hour: number; minute: number } {
 	};
 }
 
-function startedHalfAnHourAgo(): string {
+const quarterDayMinutes = 120;
+const latestQuarterDayStart = 23 * 60 + 59 - quarterDayMinutes;
+
+function startedBeforeNowWithinTheDay(): string {
 	const { hour, minute } = seoulParts();
 	const started = hour * 60 + minute - 30;
-	const clamped = Math.max(0, started);
+	const clamped = Math.min(latestQuarterDayStart, Math.max(0, started));
 	return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
 }
 
@@ -40,7 +43,7 @@ async function requestLeaveCoveringNow(page: Page): Promise<void> {
 	await form
 		.getByTestId('leave-start-time-field')
 		.locator('input[type="time"]')
-		.fill(startedHalfAnHourAgo());
+		.fill(startedBeforeNowWithinTheDay());
 	await form.getByRole('button', { name: '승인 요청' }).click();
 }
 
