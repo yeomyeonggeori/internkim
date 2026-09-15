@@ -595,7 +595,7 @@ describe("the company's picture", () => {
 	});
 });
 
-function drawnPictureCall(token: string, picture?: File): Promise<RouteAnswer> {
+function memberPictureCall(token: string, picture?: File): Promise<RouteAnswer> {
 	const carried = new FormData();
 	if (picture) carried.set('file', picture);
 	return reach('/member/profile-image', token, {
@@ -604,27 +604,24 @@ function drawnPictureCall(token: string, picture?: File): Promise<RouteAnswer> {
 	});
 }
 
-describe("a member's drawn picture", () => {
-	const png = () => new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1])], 'drawn.png', { type: 'image/png' });
+describe("a member's own picture", () => {
+	const drawn = () => new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1])], 'drawn.png', { type: 'image/png' });
+	const messenger = () => new File([new Uint8Array([255, 216, 255, 224, 2])], 'messenger.jpg', { type: 'image/jpeg' });
 
 	test('is refused to a token that may only read', async () => {
-		expect((await drawnPictureCall(readersToken, png())).status).toBe(403);
+		expect((await memberPictureCall(readersToken, drawn())).status).toBe(403);
 	});
 
-	test('is refused when the call carries no picture, and when it carries something other than a png', async () => {
-		expect((await drawnPictureCall(holdersToken)).status).toBe(400);
-		const jpeg = new File([new Uint8Array([255, 216, 255])], 'drawn.jpg', { type: 'image/jpeg' });
-		expect((await drawnPictureCall(holdersToken, jpeg)).status).toBe(400);
+	test('is refused when the call carries no picture, and when it carries something that is not a picture', async () => {
+		expect((await memberPictureCall(holdersToken)).status).toBe(400);
+		const document = new File([new Uint8Array([37, 80, 68, 70])], 'terms.pdf', { type: 'application/pdf' });
+		expect((await memberPictureCall(holdersToken, document)).status).toBe(400);
 	});
 
-	test('is kept once for a member with no picture, and left alone after that', async () => {
-		const first = await drawnPictureCall(holdersToken, png());
-		expect(first.status).toBe(200);
-		expect((first.body as { kept: boolean }).kept).toBe(true);
-
-		const again = await drawnPictureCall(holdersToken, png());
-		expect(again.status).toBe(200);
-		expect((again.body as { kept: boolean }).kept).toBe(false);
+	test('is kept, left alone when the same picture comes again, and replaced by the messenger picture', async () => {
+		expect((await memberPictureCall(holdersToken, drawn())).body).toEqual({ kept: true });
+		expect((await memberPictureCall(holdersToken, drawn())).body).toEqual({ kept: false });
+		expect((await memberPictureCall(holdersToken, messenger())).body).toEqual({ kept: true });
 	});
 });
 

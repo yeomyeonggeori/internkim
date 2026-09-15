@@ -39,7 +39,7 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount } from 'svelte';
 	import { personPicture } from '$lib/stores/person-picture.svelte';
-	import { keepDrawnPicture } from '$lib/profile/keep-drawn-picture';
+	import { keepMemberPicture } from '$lib/profile/keep-member-picture';
 
 
 	let { children, data } = $props();
@@ -53,8 +53,8 @@
 		void myAttendanceToday.load();
 		if (data.session?.authenticated) {
 			void personPicture.rememberEveryone();
-			keepDrawnPicture(data.session.email).catch((failure: unknown) =>
-				console.warn('the drawn picture was not kept', failure)
+			keepMemberPicture(data.session.email).catch((failure: unknown) =>
+				console.warn('the member picture was not kept', failure)
 			);
 		}
 		let stopFollowingPageTheme = () => {};
