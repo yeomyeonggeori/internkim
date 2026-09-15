@@ -264,6 +264,42 @@ func TestRequiredBinaryAssetsIncludePocketBase(t *testing.T) {
 	}
 }
 
+func TestHostBundlePinsTheBrowserReleasesDeviceSetupInstalls(t *testing.T) {
+	dockerfile, errorValue := os.ReadFile(filepath.Join("..", "..", "host", "Dockerfile"))
+	if errorValue != nil {
+		t.Fatalf("read host Dockerfile: %v", errorValue)
+	}
+	state := &setupFlowState{boardBinDir: t.TempDir()}
+	for _, pin := range []struct{ argument, assetName string }{{"MOLI_VERSION", "moli"}, {"AGENT_BROWSER_VERSION", "agent-browser"}} {
+		version := dockerfileArgumentValue(string(dockerfile), pin.argument)
+		if version == "" {
+			t.Fatalf("host Dockerfile declares no ARG %s", pin.argument)
+		}
+		downloadURL := binaryAssetDownloadURL(state.requiredBinaryAssets(), pin.assetName)
+		if !strings.Contains(downloadURL, "/v"+version+"/") {
+			t.Fatalf("host bundle pins %s %s but device setup downloads %s", pin.assetName, version, downloadURL)
+		}
+	}
+}
+
+func dockerfileArgumentValue(dockerfile string, argument string) string {
+	for _, line := range strings.Split(dockerfile, "\n") {
+		if value, isDeclared := strings.CutPrefix(strings.TrimSpace(line), "ARG "+argument+"="); isDeclared {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func binaryAssetDownloadURL(assets []localBinaryAsset, name string) string {
+	for _, asset := range assets {
+		if asset.name == name {
+			return asset.downloadURL
+		}
+	}
+	return ""
+}
+
 func containsBinaryAsset(assets []localBinaryAsset, name string, remotePath string) bool {
 	for _, asset := range assets {
 		if asset.name == name && asset.remotePath == remotePath {

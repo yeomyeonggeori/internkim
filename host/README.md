@@ -21,6 +21,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **chatd** | optional — only if a messenger is attached |
 | **admind** | the workspace screens and the tools the central plane cannot run itself arrive on its socket; without it a person's memory, files, tasks and buzz claim answer `500` |
 | **the relay** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
+| **Moli** | the device browser, a headless engine agent-browser drives over the Chrome DevTools Protocol; without it the browser tools report unavailable and everything else answers |
 | **the POSIX helper** | `shell` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`, called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
 
 A virtual-machine guest, Mattermost and cloudflared are **not** needed.
@@ -113,6 +114,8 @@ read, whether required or optional, in one table:
 | `CHATD_BOT_USER_NAME` | host | the messenger bot's display name, required by host/entrypoint.sh |
 | `CHATD_LISTEN_PORT` | host | the loopback port host/entrypoint.sh starts chatd on; defaults to 18090 |
 | `DATABASE_URL` | host | the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime) |
+| `DEVICE_BROWSER_PORT` | host | the loopback port the bundle starts moli serve on and tells capabilityd to reach the device browser at; defaults to 9222 |
+| `DEVICE_BROWSER_STATE_DIR` | host | where the device browser keeps its profile and HTTP cache across restarts; defaults to /var/lib/internkim-moli |
 | `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |
 | `GATEWAY_URL` | relay | the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway |
 | `INTERNKIM_APP_URL` | relay + host | where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh |
