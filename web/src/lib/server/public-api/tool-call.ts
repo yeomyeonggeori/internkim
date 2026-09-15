@@ -5,13 +5,6 @@ import { fullPublicAPIPermission, reachesPermission } from '$lib/public-api-perm
 import { callCompany } from '$lib/server/public-api/company-call';
 import { answererOfTool, permissionForTool, toolReachableBy } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
-import {
-	answerRemembered,
-	idempotencyKeyOffered,
-	keyRemembersTheWrite,
-	rememberTheWrite,
-	writeRememberedFor
-} from '$lib/server/public-api/idempotency';
 import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
 import { refusalOfToolInput, toolInputRecovered } from '$lib/server/public-api/tool-input';
 import type { CallingMember } from '$lib/server/member-request';
@@ -64,7 +57,7 @@ export async function toolCalledByMember(
 	const local = refusalOfALocalTool(name);
 	if (local) return local;
 
-	const descriptor = descriptorTheTokenReaches(name, member);
+	descriptorTheTokenReaches(name, member);
 	const input = inputTheToolWillRead(name, payload.input);
 
 	if (!recordRunsTheTool(name)) {
@@ -78,22 +71,6 @@ export async function toolCalledByMember(
 		});
 	}
 
-	const key = idempotencyKeyOffered(payload);
-	if (!keyRemembersTheWrite(descriptor, key)) return runOverTheRecord(environment, member, name, input);
-
-	const remembered = await writeRememberedFor(member.caller, member.memberID, key);
-	if (remembered) return answerRemembered(remembered, name);
-	const answered = await runOverTheRecord(environment, member, name, input);
-	await rememberTheWrite(member.caller, member.memberID, key, name, answered);
-	return answered;
-}
-
-async function runOverTheRecord(
-	environment: Environment,
-	member: CallingMember,
-	name: string,
-	input: Record<string, unknown>
-): Promise<ToolCallAnswer> {
 	const answered = await runToolOverTheRecord(
 		member.caller,
 		member.record,

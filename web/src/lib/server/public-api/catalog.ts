@@ -6,7 +6,6 @@ import { statesAResultContract } from './catalog/contract';
 export type ToolDescriptor = {
 	name: string;
 	sideEffectClass: string;
-	idempotency: { supported: boolean };
 	description: string;
 	inputSchema: Record<string, unknown>;
 	outputSchema: Record<string, unknown>;
