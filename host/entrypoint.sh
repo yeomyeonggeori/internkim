@@ -16,6 +16,8 @@ chatdPort="${CHATD_LISTEN_PORT:-18090}"
 arrivalsPort="${ARRIVALS_PORT:-18091}"
 maildPort="${MAILD_PORT:-18092}"
 admindPort="${ADMIND_PORT:-18080}"
+deviceBrowserPort="${DEVICE_BROWSER_PORT:-9222}"
+deviceBrowserStateDirectory="${DEVICE_BROWSER_STATE_DIR:-/var/lib/internkim-moli}"
 agentKeyPath="/root/.internkim/secrets/agent-key"
 buzzKeySeedPath="/root/.internkim/secrets/buzz-key-seed"
 modelAPIKeyPath="/root/.internkim/secrets/openrouter-key"
@@ -24,7 +26,7 @@ blueclawSecretsDirectory="/run/internkim/secrets"
 blueclawAgentKeyPath="${blueclawSecretsDirectory}/agent-key"
 blueclawModelAPIKeyPath="${blueclawSecretsDirectory}/openrouter-key"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay render-company-runtime pg_isready nc cp install mkdir chown"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cp install mkdir chown setpriv"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
@@ -48,9 +50,11 @@ install -d -o root -g blueclaw -m 0750 "${blueclawSecretsDirectory}"
 install -o root -g blueclaw -m 0440 "${agentKeyPath}" "${blueclawAgentKeyPath}"
 [ ! -r "${modelAPIKeyPath}" ] || install -o root -g blueclaw -m 0440 "${modelAPIKeyPath}" "${blueclawModelAPIKeyPath}"
 install -d -o blueclaw -g blueclaw -m 0750 /var/log/internkim
+install -d -o blueclaw -g blueclaw -m 0750 "${deviceBrowserStateDirectory}"
 mkdir -p /workspace/.blueclaw
 chown blueclaw:blueclaw /workspace /workspace/.blueclaw
 
+deviceBrowserPid=""
 capabilitydPid=""
 admindPid=""
 blueclawPid=""
@@ -61,10 +65,10 @@ relayPid=""
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}" "${deviceBrowserPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}" "${deviceBrowserPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   exit "${exitCode}"
@@ -124,6 +128,27 @@ fi
 echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done
 
+echo "[host] starting the device browser"
+keepDeviceBrowserRunning() {
+  while true; do
+    setpriv --reuid blueclaw --regid blueclaw --init-groups env HOME=/home/blueclaw \
+      moli serve --host 127.0.0.1 --port "${deviceBrowserPort}" --layout --resource \
+        --profile-dir "${deviceBrowserStateDirectory}/profile" --http-cache-dir "${deviceBrowserStateDirectory}/cache" &
+    deviceBrowserChild="$!"
+    trap 'kill "${deviceBrowserChild}" 2>/dev/null; exit 0' TERM
+    wait "${deviceBrowserChild}" || true
+    echo "[host] the device browser stopped — restarting in 5s"
+    sleep 5
+  done
+}
+keepDeviceBrowserRunning &
+deviceBrowserPid="$!"
+
+until nc -z 127.0.0.1 "${deviceBrowserPort}" >/dev/null 2>&1; do
+  kill -0 "${deviceBrowserPid}" 2>/dev/null || { wait "${deviceBrowserPid}"; exit 1; }
+  sleep 1
+done
+
 # capabilityd chooses the messenger a message leaves on from these two flags and
 # nothing else, and refuses to start without --chatd-platform: a daemon that does
 # not know the company's messenger has nowhere to deliver.
@@ -135,7 +160,8 @@ internkim-capabilityd \
   --blueclaw-url "http://${blueclawAddress}" \
   --admind-url "http://127.0.0.1:${admindPort}" \
   --chatd-endpoint "http://127.0.0.1:${chatdPort}" \
-  --chatd-platform "${MESSENGER_PLATFORM}" &
+  --chatd-platform "${MESSENGER_PLATFORM}" \
+  --device-browser-cdp "http://127.0.0.1:${deviceBrowserPort}" &
 capabilitydPid="$!"
 
 while [ ! -S "${capabilitySocketPath}" ]; do

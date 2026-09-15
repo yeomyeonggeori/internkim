@@ -215,6 +215,14 @@
     "process": "docs site",
     "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"
   },
+  "DEVICE_BROWSER_PORT": {
+    "process": "host",
+    "description": "the loopback port the bundle starts moli serve on and tells capabilityd to reach the device browser at; defaults to 9222"
+  },
+  "DEVICE_BROWSER_STATE_DIR": {
+    "process": "host",
+    "description": "where the device browser keeps its profile and HTTP cache across restarts; defaults to /var/lib/internkim-moli"
+  },
   "DISPLAY": {
     "process": "companion",
     "description": "the X11 display name; the companion's browser runtime checks it is unset under Wayland before choosing a Wayland-native launch path"
