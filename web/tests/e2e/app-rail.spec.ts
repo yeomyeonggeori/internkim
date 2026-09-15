@@ -103,7 +103,7 @@ test.describe('app rail', () => {
 		await openUntilVisible(openChannelList, page.getByRole('dialog', { name: '채널' }));
 	});
 
-	test('treats mobile bottom navigation as a subtle overlay instead of a reserved well', async ({ page }) => {
+	test('keeps the end of every page scrollable clear of the translucent mobile bottom navigation', async ({ page }) => {
 		await page.setViewportSize({ width: 444, height: 866 });
 		await page.goto('/memory/');
 
@@ -114,7 +114,7 @@ test.describe('app rail', () => {
 		expect(metrics.backgroundAlpha).toBeGreaterThanOrEqual(0.72);
 		expect(metrics.backgroundAlpha).toBeLessThanOrEqual(0.86);
 		expect(metrics.backdropFilter).toContain('blur');
-		expect(metrics.scrollPaddingBottom).toBeLessThan(metrics.navigationHeight);
+		expect(metrics.scrollPaddingBottom).toBeGreaterThan(metrics.navigationHeight);
 	});
 
 	test('keeps task pagination controls reachable above the mobile overlay', async ({ page }) => {
