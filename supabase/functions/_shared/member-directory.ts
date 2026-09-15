@@ -34,6 +34,34 @@ export async function pictureURLOfMember(client: SupabaseClient, memberID: strin
 	return signedPictureURL(client, member.data?.profile_image ?? '');
 }
 
+export type NotificationSenderFields = { senderName: string; icon: string };
+
+type MemberWhoSends = { id: string; name: string | null; company_id: string | null; profile_image: string | null };
+
+export async function colleagueWhoSent(
+	client: SupabaseClient,
+	senderID: string,
+	recipientID: string
+): Promise<NotificationSenderFields | null> {
+	if (!senderID || !recipientID) return null;
+
+	const { data, error } = await client
+		.from('member')
+		.select('id, name, company_id, profile_image')
+		.in('id', [senderID, recipientID])
+		.returns<MemberWhoSends[]>();
+	if (error) throw new Error(error.message);
+
+	const sender = data.find((member) => member.id === senderID);
+	const recipient = data.find((member) => member.id === recipientID);
+	if (!sender?.company_id || sender.company_id !== recipient?.company_id) return null;
+
+	return {
+		senderName: (sender.name ?? '').trim(),
+		icon: await signedPictureURL(client, sender.profile_image ?? '')
+	};
+}
+
 export async function signedPictureURL(client: SupabaseClient, path: string): Promise<string> {
 	if (!path) return '';
 	const signed = await client.storage.from(assetBucket).createSignedUrl(path, readableForSeconds);

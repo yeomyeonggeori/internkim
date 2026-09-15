@@ -1,4 +1,5 @@
 import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
+import { colleagueWhoSent } from '../_shared/member-directory.ts';
 import { notifyMember } from '../_shared/notify-member.ts';
 import { callingPlane } from '../_shared/plane-caller.ts';
 import { tellingAsked, type Asked } from '../_shared/tell-one-member.ts';
@@ -14,12 +15,15 @@ Deno.serve(
 		const telling = tellingAsked((await askedObject(request)) as Asked, crypto.randomUUID());
 		if (!telling) refuse(400, 'a member, a known category and a title are what it takes');
 
+		const sender = telling.senderMemberID
+			? await colleagueWhoSent(record, telling.senderMemberID, telling.memberID)
+			: null;
 		const now = Math.floor(Date.now() / 1000);
 		const delivery = await notifyMember(
 			record,
 			telling.memberID,
 			telling.category,
-			{ title: telling.title, body: telling.body, openPath: telling.openPath, tag: telling.tag },
+			{ title: telling.title, body: telling.body, openPath: telling.openPath, tag: telling.tag, ...(sender ?? {}) },
 			pushKeys,
 			now
 		);

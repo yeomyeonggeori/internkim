@@ -52,6 +52,17 @@ describe('the plane asks the project to tell one member', () => {
 		expect(tellingAsked({ memberID: 'member-one', category: 'attendance', title: long }, uniquely)?.title).toHaveLength(200);
 	});
 
+	test('the member who sent it is carried when named, and left out when not', () => {
+		const named = tellingAsked(
+			{ memberID: 'member-one', category: 'attendance', title: '제목', senderMemberID: 'member-two' },
+			uniquely
+		);
+		const unnamed = tellingAsked({ memberID: 'member-one', category: 'attendance', title: '제목', senderMemberID: 7 }, uniquely);
+
+		expect(named?.senderMemberID).toBe('member-two');
+		expect(unnamed).not.toHaveProperty('senderMemberID');
+	});
+
 	test('two tellings of one category do not share a tag, so neither replaces the other', () => {
 		const first = tellingAsked({ memberID: 'member-one', category: 'attendance', title: '제목' }, 'first');
 		const second = tellingAsked({ memberID: 'member-one', category: 'attendance', title: '제목' }, 'second');
