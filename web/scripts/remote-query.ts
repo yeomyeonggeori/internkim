@@ -7,10 +7,9 @@ export function accessToken(): string {
 	if (fromEnvironment) return fromEnvironment;
 	const stored = execFileSync(
 		'security',
-		['find-generic-password', '-s', 'Supabase CLI', '-a', 'access-token', '-w'],
+		['find-generic-password', '-s', 'Supabase CLI', '-a', 'supabase', '-w'],
 		{ encoding: 'utf8' }
 	).trim();
-	// The CLI stores the token through go-keyring, which base64s it behind a prefix.
 	const encodedPrefix = 'go-keyring-base64:';
 	if (!stored.startsWith(encodedPrefix)) return stored;
 	return Buffer.from(stored.slice(encodedPrefix.length), 'base64').toString('utf8');
