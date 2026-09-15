@@ -124,7 +124,7 @@ command -v git >/dev/null 2>&1`)
 }
 
 func baseDeviceToolPackages() []string {
-	return []string{"bc", "ca-certificates", "curl", "git", "iproute2", "iptables", "procps", "unzip"}
+	return []string{"bc", "ca-certificates", "curl", "git", "iproute2", "iptables", "libfontconfig1", "procps", "unzip"}
 }
 
 func usersSyncDependencyInstallScript() string {
