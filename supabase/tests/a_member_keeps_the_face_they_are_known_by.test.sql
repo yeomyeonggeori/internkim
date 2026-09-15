@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(9);
 
 insert into auth.users (id, email) values
   ('45000000-0000-0000-0000-000000000001', 'drawn-a@example.test'),
@@ -18,27 +18,40 @@ select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"45000000-0000-0000-0000-000000000001"}', true);
-  assert public.member_picture_keep_drawn('45000000-0000-0000-0000-0000000000a0/shared/member/drawn.png'),
+  assert public.member_picture_keep('45000000-0000-0000-0000-0000000000a0/shared/member/drawn.png'),
     'a member with no picture was not given the drawn one';
-  assert not public.member_picture_keep_drawn('45000000-0000-0000-0000-0000000000a0/shared/member/again.png'),
-    'a second drawing replaced the first';
+  assert not public.member_picture_keep('45000000-0000-0000-0000-0000000000a0/shared/member/drawn.png'),
+    'the same picture was written again';
   reset role;
-end $$;$block$, 'a member with no picture keeps the drawn one, once');
+end $$;$block$, 'a member with no picture keeps one, and the same one is not written twice');
+
+select lives_ok($block$do $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"45000000-0000-0000-0000-000000000001"}', true);
+  assert public.member_picture_keep('45000000-0000-0000-0000-0000000000a0/shared/member/messenger.jpg'),
+    'the messenger picture did not replace the one the app kept';
+  reset role;
+end $$;$block$, 'a picture the app kept is replaced by the one the member is known by');
 
 select is(
   (select profile_image from public.member where id = '45000000-0000-0000-0000-0000000000b0'),
-  '45000000-0000-0000-0000-0000000000a0/shared/member/drawn.png',
-  'the first drawing is the one kept'
+  '45000000-0000-0000-0000-0000000000a0/shared/member/messenger.jpg',
+  'the member now shows the picture they are known by'
 );
+
+select isnt_empty($$
+  select 1 from public.abandoned_asset where path = '45000000-0000-0000-0000-0000000000a0/shared/member/drawn.png'
+$$, 'the picture it replaced is left to be collected');
 
 select lives_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"45000000-0000-0000-0000-000000000002"}', true);
-  assert not public.member_picture_keep_drawn('45000000-0000-0000-0000-0000000000a0/shared/member/drawn-b.png'),
-    'a drawing replaced a chosen picture';
+  assert not public.member_picture_keep('45000000-0000-0000-0000-0000000000a0/shared/member/drawn-b.png'),
+    'a kept picture replaced one chosen elsewhere';
   reset role;
-end $$;$block$, 'a picture already chosen is left alone');
+end $$;$block$, 'a picture chosen outside the member folder is left alone');
 
 select is(
   (select profile_image from public.member where id = '45000000-0000-0000-0000-0000000000b1'),
@@ -50,22 +63,22 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"45000000-0000-0000-0000-000000000001"}', true);
-  perform public.member_picture_keep_drawn('45000000-0000-0000-0000-0000000000a1/shared/member/other.png');
-end $$;$block$, '22023', null, 'a drawing kept under another company is refused');
+  perform public.member_picture_keep('45000000-0000-0000-0000-0000000000a1/shared/member/other.png');
+end $$;$block$, '22023', null, 'a picture kept under another company is refused');
 
 select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"45000000-0000-0000-0000-000000000001"}', true);
-  perform public.member_picture_keep_drawn('45000000-0000-0000-0000-0000000000a0/shared/company/logo.png');
-end $$;$block$, '22023', null, 'a drawing kept outside the member folder is refused');
+  perform public.member_picture_keep('45000000-0000-0000-0000-0000000000a0/shared/company/logo.png');
+end $$;$block$, '22023', null, 'a picture kept outside the member folder is refused');
 
 select throws_ok($block$do $$
 begin
   set local role anon;
   perform set_config('request.jwt.claims', '{}', true);
-  perform public.member_picture_keep_drawn('45000000-0000-0000-0000-0000000000a0/shared/member/drawn.png');
-end $$;$block$, '42501', null, 'a signed-out caller cannot keep a drawing');
+  perform public.member_picture_keep('45000000-0000-0000-0000-0000000000a0/shared/member/drawn.png');
+end $$;$block$, '42501', null, 'a signed-out caller cannot keep a picture');
 
 select * from finish();
 rollback;
