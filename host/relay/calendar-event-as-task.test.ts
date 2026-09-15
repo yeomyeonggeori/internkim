@@ -51,25 +51,29 @@ describe('the person a participant names', () => {
 		expect(match).toEqual({ email: 'kimyesi@example.com', by: 'personID' });
 	});
 
-	test('refuses an id nobody holds rather than falling back to the name', () => {
-		expect(matchParticipant({ personID: 'ffffffffffff', name: '김예시' }, people, directory)).toBeUndefined();
+	test('an unknown id falls through to an exact unique name', () => {
+		expect(matchParticipant({ personID: 'ffffffffffff', name: '김예시' }, people, directory)).toEqual({
+			email: 'kimyesi@example.com',
+			by: 'nameOrHandle'
+		});
 	});
 
-	test('matches a full name or a handle outright', () => {
+	test('matches an exact member email before an exact name or handle', () => {
+		expect(matchParticipant({ email: 'KIMYESI@EXAMPLE.COM', name: '다른 이름' }, people, directory)).toEqual({
+			email: 'kimyesi@example.com',
+			by: 'email'
+		});
 		expect(matchParticipant({ name: '최견본' }, people, directory)?.by).toBe('nameOrHandle');
 		expect(matchParticipant({ name: 'kimyesi' }, people, directory)?.email).toBe('kimyesi@example.com');
 	});
 
-	test('matches a given name only when one person bears it', () => {
-		expect(matchParticipant({ name: '견본' }, people, directory)).toEqual({
-			email: 'gyeonbon@example.com',
-			by: 'givenName'
-		});
-		const twoBearIt: DevicePerson[] = [
+	test('rejects ambiguous or suffix-only names', () => {
+		const duplicateNames: DevicePerson[] = [
 			{ name: '김예시', email: 'one@example.com' },
-			{ name: '이예시', email: 'two@example.com' }
+			{ name: '김예시', email: 'two@example.com' }
 		];
-		expect(matchParticipant({ name: '예시' }, twoBearIt, emailByPersonIDOf(twoBearIt))).toBeUndefined();
+		expect(matchParticipant({ name: '김예시' }, duplicateNames, emailByPersonIDOf(duplicateNames))).toBeUndefined();
+		expect(matchParticipant({ name: '예시' }, people, directory)).toBeUndefined();
 	});
 
 	test('is nobody when the box holds something that is not a person', () => {
