@@ -12,24 +12,14 @@ const boardDragDataType = 'application/x-internkim-task-id';
 
 export class TaskBoardDragController {
 	private draggedTaskID = $state('');
-	private isTaskPending: (taskID: string) => boolean;
-	private canUpdateTask: (task: Task) => boolean;
-	private moveTask: (request: TaskBoardMoveRequest) => void | Promise<void>;
+	private readonly input: TaskBoardDragControllerInput;
 
-	constructor() {
-		this.isTaskPending = () => false;
-		this.canUpdateTask = () => false;
-		this.moveTask = () => {};
+	constructor(input: TaskBoardDragControllerInput) {
+		this.input = input;
 	}
 
-	sync = (input: TaskBoardDragControllerInput): void => {
-		this.isTaskPending = input.isTaskPending;
-		this.canUpdateTask = input.canUpdateTask;
-		this.moveTask = input.moveTask;
-	};
-
 	handleTaskDragStart = (event: DragEvent, task: Task): void => {
-		if (this.isTaskPending(task.id) || !this.canUpdateTask(task)) {
+		if (this.input.isTaskPending(task.id) || !this.input.canUpdateTask(task)) {
 			event.preventDefault();
 			return;
 		}
@@ -45,7 +35,7 @@ export class TaskBoardDragController {
 
 	handleColumnDragOver = (event: DragEvent, status: string, columnTasks: Task[]): void => {
 		const taskID = this.currentDragTaskID(event);
-		if (!taskID || this.isTaskPending(taskID) || !isTaskBoardStatus(status)) return;
+		if (!taskID || this.input.isTaskPending(taskID) || !isTaskBoardStatus(status)) return;
 		if (this.isSameColumnDrag(taskID, columnTasks)) return;
 		event.preventDefault();
 		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
@@ -54,12 +44,12 @@ export class TaskBoardDragController {
 	handleColumnDrop = (event: DragEvent, status: string, columnTasks: Task[]): void => {
 		event.preventDefault();
 		const taskID = this.currentDragTaskID(event);
-		if (!taskID || this.isTaskPending(taskID) || !isTaskBoardStatus(status)) return;
+		if (!taskID || this.input.isTaskPending(taskID) || !isTaskBoardStatus(status)) return;
 		if (this.isSameColumnDrag(taskID, columnTasks)) {
 			this.handleTaskDragEnd();
 			return;
 		}
-		void this.moveTask({ taskID, targetStatus: status });
+		void this.input.moveTask({ taskID, targetStatus: status });
 		this.handleTaskDragEnd();
 	};
 

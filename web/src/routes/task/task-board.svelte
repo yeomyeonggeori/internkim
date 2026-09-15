@@ -72,7 +72,11 @@
 		'overflow-x-auto overflow-y-hidden px-4 pb-2 scroll-px-4 md:px-8 md:scroll-px-8',
 		'snap-x snap-mandatory'
 	].join(' ');
-	const boardDrag = new TaskBoardDragController();
+	const boardDrag = new TaskBoardDragController({
+		isTaskPending,
+		canUpdateTask: (task) => canUpdateTask(task),
+		moveTask: (request) => moveTask(request)
+	});
 
 	let columns = $derived(buildTaskBoard(tasks, {
 		weekStartISO,
@@ -81,10 +85,6 @@
 		hideEmptyRequestColumn: shouldHideEmptyRequestColumn(participantScope)
 	}));
 	let childProgressByParent = $derived(buildTaskChildProgressByParent(allTasks));
-
-	$effect(() => {
-		boardDrag.sync({ isTaskPending, canUpdateTask, moveTask });
-	});
 
 	function addTaskLabel(status: string): string {
 		return boardText.addTask.replace('{status}', statusLabel(status));
