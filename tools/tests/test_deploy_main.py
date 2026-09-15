@@ -3,6 +3,8 @@ import importlib.util
 import io
 from contextlib import redirect_stdout
 from pathlib import Path
+import subprocess
+import tempfile
 import unittest
 
 
@@ -99,6 +101,76 @@ class PlanTests(unittest.TestCase):
         printed = output.getvalue()
         for step in module.PLAN_STEPS:
             self.assertIn(step, printed)
+
+
+class ShippableTargetTests(unittest.TestCase):
+    def create_repository(self):
+        directory = tempfile.TemporaryDirectory()
+        repository = Path(directory.name)
+        self.run_git(repository, "init", "-q")
+        self.run_git(repository, "config", "user.email", "test@example.com")
+        self.run_git(repository, "config", "user.name", "Test User")
+        (repository / "state.txt").write_text("base\n")
+        self.run_git(repository, "add", "state.txt")
+        self.run_git(repository, "commit", "-qm", "base")
+        base_revision = self.run_git(repository, "rev-parse", "HEAD")
+        (repository / "state.txt").write_text("main\n")
+        self.run_git(repository, "commit", "-qam", "main change")
+        main_revision = self.run_git(repository, "rev-parse", "HEAD")
+        self.run_git(repository, "branch", "-M", "main")
+        self.run_git(repository, "update-ref", "refs/remotes/origin/main", main_revision)
+        return directory, repository, base_revision, main_revision
+
+    def run_git(self, repository, *arguments):
+        result = subprocess.run(["git", *arguments], cwd=repository, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+
+    def require_target(self, module, repository, revision):
+        module.REPOSITORY_ROOT = repository
+        module.device_revision_of = lambda target: revision
+        return module.require_targets_are_shippable([{"id": "sample", "adminURL": "", "revision": revision}])
+
+    def test_rewritten_revision_with_matching_ancestor_tree_is_shippable(self):
+        module = deploy_main_module()
+        directory, repository, base_revision, _ = self.create_repository()
+        self.addCleanup(directory.cleanup)
+        tree = self.run_git(repository, "rev-parse", f"{base_revision}^{{tree}}")
+        rewritten_revision = subprocess.run(
+            ["git", "commit-tree", tree, "-p", base_revision, "-m", "rewritten"],
+            cwd=repository,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.require_target(module, repository, rewritten_revision)
+        self.assertIn(f"deployed {rewritten_revision} has the identical Git tree as main ancestor {base_revision}", output.getvalue())
+
+    def test_different_side_branch_tree_is_refused(self):
+        module = deploy_main_module()
+        directory, repository, _, _ = self.create_repository()
+        self.addCleanup(directory.cleanup)
+        self.run_git(repository, "checkout", "-qb", "side")
+        (repository / "side.txt").write_text("side\n")
+        self.run_git(repository, "add", "side.txt")
+        self.run_git(repository, "commit", "-qm", "side change")
+        side_revision = self.run_git(repository, "rev-parse", "HEAD")
+        with self.assertRaisesRegex(module.Refusal, "exact Git tree are absent"):
+            self.require_target(module, repository, side_revision)
+
+    def test_unavailable_revision_is_refused(self):
+        module = deploy_main_module()
+        directory, repository, _, _ = self.create_repository()
+        self.addCleanup(directory.cleanup)
+        with self.assertRaisesRegex(module.Refusal, "exact Git tree are absent"):
+            self.require_target(module, repository, "unavailable-revision")
+
+    def test_direct_ancestor_revision_is_shippable(self):
+        module = deploy_main_module()
+        directory, repository, base_revision, _ = self.create_repository()
+        self.addCleanup(directory.cleanup)
+        self.require_target(module, repository, base_revision)
 
 
 if __name__ == "__main__":
