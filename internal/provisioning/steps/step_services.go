@@ -406,10 +406,6 @@ if ! run_contract_check_command 20s mount -o loop,ro,noload "$rootfs_path" "$mou
   echo rootfs-mount-failed
   exit 0
 fi
-if [ ! -x "$mount_path/usr/local/bin/marp" ]; then
-  echo rootfs-marp-missing
-  exit 0
-fi
 if [ ! -x "$mount_path/usr/local/bin/bun" ]; then
   echo rootfs-bun-missing
   exit 0
@@ -422,7 +418,7 @@ if [ ! -x "$mount_path/usr/local/bin/uv" ]; then
   echo rootfs-uv-missing
   exit 0
 fi
-for managed_executable in marp bun bunx uv; do
+for managed_executable in bun bunx uv; do
   managed_path="$mount_path/usr/local/bin/$managed_executable"
   managed_stat_path="$managed_path"
   if [ -L "$managed_path" ]; then

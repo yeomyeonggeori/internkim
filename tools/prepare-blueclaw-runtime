@@ -16,7 +16,6 @@ linux_kernel_version="${BLUECLAW_LINUX_KERNEL_VERSION:-6.1.129}"
 guest_kernel_configuration_path="$repository_root/assets/blueclaw-runtime/guest-kernel-aarch64.config"
 rootfs_size="${BLUECLAW_RUNTIME_ROOTFS_SIZE:-4G}"
 blueclaw_bun_version="${BLUECLAW_BUN_VERSION:-1.3.10}"
-marp_cli_version="${BLUECLAW_MARP_CLI_VERSION:-4.3.1}"
 blueclaw_uv_version="${BLUECLAW_UV_VERSION:-0.11.11}"
 kernel_source="${BLUECLAW_KERNEL_IMAGE_SOURCE:-}"
 rootfs_source="${BLUECLAW_ROOTFS_IMAGE_SOURCE:-}"
@@ -579,26 +578,6 @@ run_chroot_with_runtime_mounts() {
   return "$command_status"
 }
 
-ensure_rootfs_marp() {
-  local base_directory="$1"
-
-  run_root mkdir -p "$base_directory/opt/blueclaw/bun-cache" "$base_directory/opt/blueclaw/marp"
-  run_root tee "$base_directory/opt/blueclaw/marp/package.json" >/dev/null <<EOF
-{"dependencies":{"@marp-team/marp-cli":"$marp_cli_version"}}
-EOF
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/bun install --cwd /opt/blueclaw/marp --production >/dev/null
-  run_root tee "$base_directory/usr/local/bin/marp" >/dev/null <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-export BUN_INSTALL_CACHE_DIR="\${BUN_INSTALL_CACHE_DIR:-/opt/blueclaw/bun-cache}"
-export PUPPETEER_EXECUTABLE_PATH="\${PUPPETEER_EXECUTABLE_PATH:-/usr/bin/chromium}"
-export CHROME_PATH="\${CHROME_PATH:-/usr/bin/chromium}"
-exec /usr/local/bin/bun /opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js "\$@"
-EOF
-  run_root chmod 0755 "$base_directory/usr/local/bin/marp"
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/marp --version >/dev/null
-}
-
 ensure_rootfs_site_scaffold_cache() {
   local base_directory="$1"
   local scaffold_package_json_path="$2"
@@ -665,7 +644,7 @@ ensure_rootfs_base() {
   local prepare_script_hash
   prepare_script_hash="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
   local cache_key
-  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$rootfs_pgvector_package" "$builtin_skills_requirements_hash" "$blueclaw_bun_version" "$marp_cli_version" "$blueclaw_uv_version" "$site_scaffold_package_json_hash" "$prepare_script_hash" | sha256sum | cut -c1-16)"
+  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$rootfs_pgvector_package" "$builtin_skills_requirements_hash" "$blueclaw_bun_version" "$blueclaw_uv_version" "$site_scaffold_package_json_hash" "$prepare_script_hash" | sha256sum | cut -c1-16)"
   rootfs_base_cache_path="$cache_directory/rootfs-base-${cache_key}.tar"
 
   if [ -s "$rootfs_base_cache_path" ]; then
@@ -687,13 +666,11 @@ ensure_rootfs_base() {
   ensure_rootfs_uv "$base_directory"
   ensure_rootfs_builtin_skills_python "$base_directory" "$builtin_skills_requirements_path"
   ensure_rootfs_bun "$base_directory"
-  ensure_rootfs_marp "$base_directory"
   ensure_rootfs_site_scaffold_cache "$base_directory" "$site_scaffold_package_json_path"
   run_root chroot "$base_directory" uv --version >/dev/null
   run_root chroot "$base_directory" bun --version >/dev/null
   run_root chroot "$base_directory" bunx --version >/dev/null
   run_root chroot "$base_directory" /bin/sh -c "command -v bc >/dev/null"
-  run_root test -f "$base_directory/opt/blueclaw/marp/node_modules/@marp-team/marp-cli/marp-cli.js"
   run_root test -x "$base_directory/opt/blueclaw/builtin-skills-venv/bin/python"
   run_root chroot "$base_directory" chromium --version >/dev/null
   run_root test -f "$base_directory/usr/share/postgresql/15/extension/vector.control"
