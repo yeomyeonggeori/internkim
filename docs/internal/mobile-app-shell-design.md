@@ -80,6 +80,13 @@ regenerating them loses that.
 issued names it. The companion holds `kim.intern.companion`, and the two must
 never collide in a keychain or a store listing.
 
+`android/app/google-services.json` is committed because every Android build
+needs it to register for FCM, and a build without it only logs a line and
+ships without push. Its API key is readable in any installed APK anyway, so it
+is restricted in the Google Cloud console to two APIs: FCM Registration and
+Firebase Installations. An Android feature that adds another Firebase SDK
+fails until its API is allowed on that key.
+
 ## Signing in
 
 The existing gate (`web-auth-gate.svelte`) is the sign-in screen. Email and
