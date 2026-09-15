@@ -47,7 +47,7 @@ type ApiCopy = {
 	| 'previewTool'
 		| 'saveCompanyPicture'
 		| 'forgetCompanyPicture'
-		| 'keepDrawnMemberPicture',
+		| 'keepMemberPicture',
 		EndpointCopy
 	>;
 	errors: Record<
@@ -145,10 +145,10 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 				summary: '회사 사진 내리기',
 				description: '회사 사진을 지웁니다. 관리자만 내릴 수 있고, 답의 `profileImageURL`은 `null`입니다.'
 			},
-			keepDrawnMemberPicture: {
-				summary: '내 그라데이션 사진 저장하기',
+			keepMemberPicture: {
+				summary: '내 사진 저장하기',
 				description:
-					'사진이 없는 직원에게 앱이 이메일로 그려 주는 그라데이션을 `multipart/form-data`의 `file` 필드에 `image/png`로 올려, 내 사진으로 저장합니다. 알림은 그림을 그릴 수 없어서 저장된 사진만 보여 줄 수 있습니다. 이미 사진이 있으면 아무것도 바꾸지 않고 `kept`가 `false`입니다.'
+					'메신저에 등록한 내 사진을, 없으면 앱이 이메일로 그려 주는 그라데이션을 `multipart/form-data`의 `file` 필드로 올려 내 사진으로 저장합니다. PNG, JPEG, WebP, GIF, HEIC, HEIF를 받습니다. 알림은 그림을 그릴 수 없어서 저장된 사진만 보여 줄 수 있습니다. 이 엔드포인트로 저장한 사진은 새 사진으로 바뀌고, 그 밖의 곳에서 정한 사진이나 이미 같은 사진이면 아무것도 바꾸지 않고 `kept`가 `false`입니다.'
 			},
 			previewTool: {
 				summary: '무엇을 건드릴지 미리 보기',
@@ -265,10 +265,10 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 				description:
 					"Removes the company's picture. Only an administrator may take it down, and the answer's `profileImageURL` is `null`."
 			},
-			keepDrawnMemberPicture: {
-				summary: 'Keep my drawn picture',
+			keepMemberPicture: {
+				summary: 'Keep my picture',
 				description:
-					'The gradient the app draws from the email of a member who has no picture, sent as `image/png` in the `file` field of `multipart/form-data` and kept as that member\'s picture. A notification cannot draw, so it can only show a picture that is kept. A member who already has a picture is left as they are, and `kept` is `false`.'
+					'The picture the member set on their messenger, or when there is none the gradient the app draws from their email, sent in the `file` field of `multipart/form-data` as PNG, JPEG, WebP, GIF, HEIC or HEIF and kept as that member\'s picture. A notification cannot draw, so it can only show a picture that is kept. A picture kept through this endpoint is replaced by a new one; a picture set anywhere else, or the same picture again, is left as it is and `kept` is `false`.'
 			},
 			previewTool: {
 				summary: 'Look at what a call would touch',
@@ -482,9 +482,9 @@ function memberPicturePath(copy: ApiCopy) {
 	return {
 		post: {
 			tags: [copy.tags.token],
-			operationId: 'keepDrawnMemberPicture',
-			summary: copy.endpoints.keepDrawnMemberPicture.summary,
-			description: copy.endpoints.keepDrawnMemberPicture.description,
+			operationId: 'keepMemberPicture',
+			summary: copy.endpoints.keepMemberPicture.summary,
+			description: copy.endpoints.keepMemberPicture.description,
 			requestBody: {
 				required: true,
 				content: {
@@ -498,7 +498,7 @@ function memberPicturePath(copy: ApiCopy) {
 				}
 			},
 			responses: {
-				'200': jsonResponse(copy.endpoints.keepDrawnMemberPicture.summary, 'DrawnMemberPicture'),
+				'200': jsonResponse(copy.endpoints.keepMemberPicture.summary, 'MemberPicture'),
 				'400': errorResponse(copy.errors.badRequest),
 				'401': errorResponse(copy.errors.unauthorized),
 				'403': errorResponse(copy.errors.forbidden),
@@ -860,7 +860,7 @@ function createComponents(copy: ApiCopy) {
 				required: ['profileImageURL'],
 				properties: { profileImageURL: { type: 'string', nullable: true } }
 			},
-			DrawnMemberPicture: {
+			MemberPicture: {
 				type: 'object',
 				required: ['kept'],
 				properties: { kept: { type: 'boolean' } }

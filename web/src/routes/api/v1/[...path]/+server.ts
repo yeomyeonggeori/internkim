@@ -11,7 +11,7 @@ import {
 } from '$lib/company/company-picture';
 import { assetBucket, attachmentKind, companyPictureKind } from '$lib/server/public-api/asset-address';
 import { memberPicturePath } from '$lib/profile/member-picture';
-import { keepTheDrawnPicture } from '$lib/server/public-api/member-drawn-picture';
+import { keepTheMemberPicture } from '$lib/server/public-api/member-picture-keep';
 import {
 	AssetStoreRefused,
 	assetStoreCredentialsOf,
@@ -55,7 +55,7 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 		return forgetTheCompanyPicture(member);
 	}
 	if (path === memberPicturePath && request.method === 'POST') {
-		return keepTheDrawnPicture(request, environment, member);
+		return keepTheMemberPicture(request, environment, member);
 	}
 	if (request.method === 'GET' && !asksForTheLiveSet(url)) {
 		const answered = discoveryAnswer(path, member);
