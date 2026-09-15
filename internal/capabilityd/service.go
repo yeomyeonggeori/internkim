@@ -330,8 +330,17 @@ func (service Service) writeResponse(responseWriter http.ResponseWriter, respons
 }
 
 func (service Service) writeJSON(responseWriter http.ResponseWriter, response any) {
+	body, errorValue := json.Marshal(response)
 	responseWriter.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(responseWriter).Encode(response)
+	if errorValue != nil {
+		log.Printf("capability.response_serialization_failed: type=%T error=%v", response, errorValue)
+		responseWriter.WriteHeader(http.StatusInternalServerError)
+		_, _ = responseWriter.Write([]byte(`{"error":"capability response serialization failed"}`))
+		return
+	}
+	if _, errorValue := responseWriter.Write(append(body, '\n')); errorValue != nil {
+		log.Printf("capability.response_write_failed: type=%T error=%v", response, errorValue)
+	}
 }
 
 func (service Service) healthState() *platformHealthState {
