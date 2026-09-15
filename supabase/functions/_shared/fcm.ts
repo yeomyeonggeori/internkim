@@ -1,6 +1,6 @@
 import { pkcs8FromPEM, signedJWT } from './jwt.ts';
 import { sayPushNotDelivered } from './push-diagnostics.ts';
-import type { Notification, PushOutcome } from './push-vocabulary.ts';
+import { senderOf, type Notification, type PushOutcome } from './push-vocabulary.ts';
 
 export type FcmKey = {
 	projectID: string;
@@ -22,11 +22,16 @@ export function outcomeOfFcmAnswer(status: number, errorCode: string): PushOutco
 }
 
 export function fcmMessage(deviceToken: string, notification: Notification): Record<string, unknown> {
+	const sender = senderOf(notification);
 	return {
 		message: {
 			token: deviceToken,
 			notification: { title: notification.title, body: notification.body },
-			data: { openPath: notification.openPath, tag: notification.tag },
+			data: {
+				openPath: notification.openPath,
+				tag: notification.tag,
+				...(sender ? { senderName: sender.name, pictureURL: sender.pictureURL } : {})
+			},
 			android: { notification: { tag: notification.tag } }
 		}
 	};

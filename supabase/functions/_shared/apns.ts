@@ -1,6 +1,6 @@
 import { pkcs8FromPEM, signedJWT } from './jwt.ts';
 import { sayPushNotDelivered } from './push-diagnostics.ts';
-import type { Notification, PushOutcome } from './push-vocabulary.ts';
+import { senderOf, type Notification, type PushOutcome } from './push-vocabulary.ts';
 
 export type ApnsKey = {
 	keyID: string;
@@ -31,14 +31,20 @@ export function apnsPayload(notification: Notification): Record<string, unknown>
 		sound: 'default',
 		'thread-id': notification.tag
 	};
-	const pictureURL = notification.icon?.startsWith('https://') ? notification.icon : '';
-	if (!pictureURL) return { aps, openPath: notification.openPath };
+	const sender = senderOf(notification);
+	if (!sender) return { aps, openPath: notification.openPath };
 	return {
-		aps: { ...aps, 'mutable-content': 1 },
+		aps: { ...aps, alert: alertFromSender(notification, sender.name), 'mutable-content': 1 },
 		openPath: notification.openPath,
-		senderName: notification.title,
-		pictureURL
+		senderName: sender.name,
+		pictureURL: sender.pictureURL
 	};
+}
+
+function alertFromSender(notification: Notification, senderName: string): Record<string, string> {
+	if (senderName === notification.title) return { title: notification.title, body: notification.body };
+	const body = notification.body ? `${notification.title}\n${notification.body}` : notification.title;
+	return { title: senderName, body };
 }
 
 export async function apnsAuthorization(key: ApnsKey, nowInSeconds: number): Promise<string> {
