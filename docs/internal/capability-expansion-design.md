@@ -196,7 +196,7 @@ VLM은 민감 문서 여부에 따라 local-only, Companion local model, remote 
 | portable artifact generator | ICS/DOCX/XLSX/CSV/HTML/PPTX/PDF 기본 산출물 생성 | Google 인증을 기본 전제로 삼지 않는다 |
 | `calendar` skill | Google Calendar optional bridge | portable 일정 기능을 Google-only로 만들지 않는다 |
 | `create-gws-file` skill | Google Docs, Sheets, Gmail optional bridge | portable 문서/시트/이메일 생성을 Google-only로 만들지 않는다 |
-| `simple-slides` skill | Marp 기반 HTML/PPTX/PDF/Google Slides 생성, Korean-first font manifest | HTML/PPTX/PDF 기본 출력과 `DESIGN.md` source of truth를 유지한다 |
+| `simple-slides` skill | HTML/PPTX/PDF/Google Slides 생성, Korean-first font manifest | HTML/PPTX/PDF 기본 출력과 `DESIGN.md` source of truth를 유지한다 |
 | native reply attachments | Mattermost/Slack/Signal 파일 전송 | attachment upload를 별도 tool이나 skill로 중복 구현하지 않는다 |
 | `pdf` skill | PDF 생성과 PDF 읽기/편집 | 문서형 PDF 생성기를 중복 구현하지 않는다 |
 | `agent-browser` skill, `browser.*` capability | 브라우저 자동화 | raw Playwright, Chrome, `agent-browser` 호출을 제품 코드에 흩뿌리지 않는다 |
