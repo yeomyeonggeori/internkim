@@ -4,6 +4,18 @@ export type Notification = {
 	openPath: string;
 	tag: string;
 	icon?: string;
+	senderName?: string;
 };
+
+export type NotificationSender = {
+	name: string;
+	pictureURL: string;
+};
+
+export function senderOf(notification: Notification): NotificationSender | null {
+	const pictureURL = notification.icon?.startsWith('https://') ? notification.icon : '';
+	if (!pictureURL) return null;
+	return { name: notification.senderName?.trim() || notification.title, pictureURL };
+}
 
 export type PushOutcome = 'delivered' | 'gone' | 'refused';

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from './service-client.ts';
 import { centralTaskStatuses } from './central-task-status.ts';
+import { pictureURLOfMember } from './member-directory.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
 import type { PushKeys } from './push-keys.ts';
 
@@ -32,12 +33,17 @@ export async function announceTaskMove(
 	const task = await taskOf(caller, taskID);
 	if (!task) return { told: 0, reached: 0 };
 
-	const mover = await nameOfMember(record, moverID);
+	const [mover, moverPicture] = await Promise.all([
+		nameOfMember(record, moverID),
+		pictureURLOfMember(record, moverID)
+	]);
 	const notification: Notification = {
 		title: `${centralStatusWord(task.status)}: ${task.title}`,
 		body: `${mover}님이 옮겼습니다`,
 		openPath: '/task/',
-		tag: `task-${task.id}`
+		tag: `task-${task.id}`,
+		senderName: mover,
+		icon: moverPicture
 	};
 	return tellEach(record, whoTaskMoveConcerns(task, moverID), notification, pushKeys, nowInSeconds);
 }
