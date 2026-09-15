@@ -47,6 +47,13 @@ func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 	}
 }
 
+func TestDeviceToolPackagesCarryWhatMoliLinks(t *testing.T) {
+	packages := strings.Join(baseDeviceToolPackages(), " ")
+	if !strings.Contains(packages, "libfontconfig1") {
+		t.Fatalf("expected base device tools to include libfontconfig1, the one library moli links beyond libc, got %s", packages)
+	}
+}
+
 func TestSkillDependencySetupOnlyVerifiesRuntimeBaseEnvironment(t *testing.T) {
 	command := installSkillPythonDependenciesCommand()
 	for _, forbiddenText := range []string{"uv venv", "uv pip install", "curl -LsSf", "UV_UNMANAGED_INSTALL"} {
