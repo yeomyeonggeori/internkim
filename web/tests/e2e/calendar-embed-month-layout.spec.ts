@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	calendarEmbedPath,
 	calendarEventRowsTitled,
 	cleanupCalendarEvents,
 	seedCalendarEvents,
@@ -212,7 +213,7 @@ test.describe('embedded calendar month layout for a viewer west of the company',
 async function openMonthView(page: Page, dateKey: string): Promise<void> {
 	await page.clock.setFixedTime(new Date(`${dateKey}T12:00:00`));
 	await signInToCalendar(page);
-	await page.goto(`/calendar/embed?date=${dateKey}`);
+	await page.goto(`${calendarEmbedPath}?date=${dateKey}`);
 	await page.evaluate(() => {
 		window.localStorage.setItem('internkim.calendar.view', 'month');
 	});
