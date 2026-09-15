@@ -815,7 +815,6 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_task', targetKind: 'task' },
   },
   {
@@ -852,7 +851,6 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_task', targetKind: 'task' },
   },
   {
@@ -876,7 +874,6 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.Destructive,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'delete_task', targetKind: 'task' },
   },
@@ -1145,7 +1142,6 @@ const calendarToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_calendar', targetKind: 'calendar' },
   },
   {
@@ -1182,7 +1178,6 @@ const calendarToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_calendar', targetKind: 'calendar' },
   },
   {
@@ -1206,7 +1201,6 @@ const calendarToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.Destructive,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_calendar', targetKind: 'calendar' },
   },
@@ -1608,7 +1602,6 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_leave', targetKind: 'leave' },
   },
   {
@@ -1632,7 +1625,6 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_leave', targetKind: 'leave' },
   },
@@ -1657,7 +1649,6 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.Destructive,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_leave', targetKind: 'leave' },
   },
@@ -1682,7 +1673,6 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
       }],
     },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_leave', targetKind: 'leave' },
   },
@@ -1699,7 +1689,6 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: leaveGrantSetInputIntentSchema,
     result: { schema: leaveGrantSetResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
   },
   {
@@ -1715,7 +1704,6 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: leaveReturnEarlyInputIntentSchema,
     result: { schema: leaveReturnEarlyResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     completionEvidence: { mode: 'success', action: 'write_leave', targetKind: 'leave' },
   },
 ];
@@ -1747,7 +1735,6 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: attendanceAddInputIntentSchema,
     result: { schema: attendanceWriteResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
   },
   {
     name: 'attendance_update',
@@ -1762,7 +1749,6 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: attendanceUpdateInputIntentSchema,
     result: { schema: attendanceWriteResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
   },
   {
@@ -1778,7 +1764,6 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     inputIntentSchema: attendanceDeleteInputIntentSchema,
     result: { schema: attendanceWriteResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Destructive,
-    idempotency: { supported: true, required: false, scope: 'operation' },
     requiresApproval: true,
   },
 ];
