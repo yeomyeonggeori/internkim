@@ -10,14 +10,14 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
+func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 	type commandCall struct {
 		path      string
 		arguments []string
 	}
 	var calls []commandCall
 	service := Service{
-		Configuration: Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserPath: "/usr/local/bin/lightpanda", DeviceBrowserProfilePath: "/profile"},
+		Configuration: Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserCDPURL: "http://127.0.0.1:9222", DeviceBrowserProfilePath: "/profile"},
 		RunCommand: func(_ context.Context, path string, commandArguments []string, _ []byte) ([]byte, error) {
 			calls = append(calls, commandCall{path: path, arguments: append([]string{}, commandArguments...)})
 			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {
@@ -40,7 +40,7 @@ func TestDeviceBrowserToolRunsThroughLightpandaRuntime(t *testing.T) {
 	if calls[0].path != "agent-browser-test" {
 		t.Fatalf("unexpected open command path: %s", calls[0].path)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-device", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-device", "open", "https://example.com"}
+	expectedOpenArguments := []string{"--session", "internkim-device", "--cdp", "http://127.0.0.1:9222", "--session-name", "internkim-device", "open", "https://example.com"}
 	if !slices.Equal(calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected open arguments: %+v", calls[0].arguments)
 	}

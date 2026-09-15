@@ -24,11 +24,11 @@ or insufficient:
 
 - Basic flow: `browser_open`, `browser_snapshot`, interact, then
   `browser_snapshot` again.
-- Use Companion when available; Lightpanda fallback is only for simple public
-  text navigation.
+- Use Companion when available; the device's Moli browser is only for simple
+  public text navigation.
 - Use `browser_handoff` for login, MFA, captcha, sensitive information, and
   account-risky navigation. Do not ask for passwords or MFA codes in chat.
-- Do not use Lightpanda for sensitive inputs, irreversible actions,
+- Do not use the device browser for sensitive inputs, irreversible actions,
   uploads/downloads, screenshots, or visual judgments.
 - If `browser.*` returns `blocked_by_captcha`, try one alternate user-provided
   or already available source if possible. If retrieval still fails, explicitly
