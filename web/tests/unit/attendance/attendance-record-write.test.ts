@@ -51,6 +51,16 @@ describe('adding a work record', () => {
 		expect(fixture.addition.outcome).toBe('saved');
 	});
 
+	test('opens a past day as a whole workday, ready to submit without touching the times', () => {
+		const fixture = createAdditionFixture();
+		fixture.addition.open('2026-07-14', 'member@example.com');
+
+		expect(fixture.addition.startTime).toBe('09:00');
+		expect(fixture.addition.endTime).toBe('18:00');
+		expect(fixture.addition.isEndTimeMissing).toBe(false);
+		expect(fixture.addition.canSubmit).toBe(true);
+	});
+
 	test('reaches the administrators once the chosen day falls outside the three days', () => {
 		const fixture = createAdditionFixture();
 		fixture.addition.open('2026-07-01', 'member@example.com');
