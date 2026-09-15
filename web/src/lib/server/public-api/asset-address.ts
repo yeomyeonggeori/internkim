@@ -1,6 +1,7 @@
 export const assetBucket = 'asset';
 export const attachmentKind = 'attachment';
 export const companyPictureKind = 'company';
+export const memberPictureKind = 'member';
 
 const extensions: Record<string, string> = {
 	'image/png': '.png',

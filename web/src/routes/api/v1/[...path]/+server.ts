@@ -10,8 +10,11 @@ import {
 	refusalOfCompanyPictureSize
 } from '$lib/company/company-picture';
 import { assetBucket, attachmentKind, companyPictureKind } from '$lib/server/public-api/asset-address';
+import { memberPicturePath } from '$lib/profile/member-picture';
+import { keepTheDrawnPicture } from '$lib/server/public-api/member-drawn-picture';
 import {
 	AssetStoreRefused,
+	assetStoreCredentialsOf,
 	contentTypeOffered,
 	dropFileFromTheBucket,
 	filenameOffered,
@@ -50,6 +53,9 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 	}
 	if (path === companyPicturePath && request.method === 'DELETE') {
 		return forgetTheCompanyPicture(member);
+	}
+	if (path === memberPicturePath && request.method === 'POST') {
+		return keepTheDrawnPicture(request, environment, member);
 	}
 	if (request.method === 'GET' && !asksForTheLiveSet(url)) {
 		const answered = discoveryAnswer(path, member);
@@ -183,13 +189,6 @@ async function keepThenMaterialise(
 	return json(answer.body, { status: answer.status });
 }
 
-function assetStoreCredentials(environment: Environment) {
-	return {
-		projectURL: environment.SUPABASE_URL ?? '',
-		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? ''
-	};
-}
-
 async function keptOrRefused(
 	environment: Environment,
 	companyID: string,
@@ -198,7 +197,7 @@ async function keptOrRefused(
 	contentType: string
 ) {
 	try {
-		return await keepFileInTheBucket(assetStoreCredentials(environment), companyID, kind, bytes, contentType);
+		return await keepFileInTheBucket(assetStoreCredentialsOf(environment), companyID, kind, bytes, contentType);
 	} catch (refusal) {
 		if (refusal instanceof AssetStoreRefused) error(502, refusal.message);
 		throw refusal;
@@ -227,7 +226,7 @@ async function keepTheCompanyPicture(
 	try {
 		return json({ profileImageURL: await companyPictureWritten(member, kept.path) }, { status: 200 });
 	} catch (refusal) {
-		await dropFileFromTheBucket(assetStoreCredentials(environment), kept.path).catch(() => undefined);
+		await dropFileFromTheBucket(assetStoreCredentialsOf(environment), kept.path).catch(() => undefined);
 		throw refusal;
 	}
 }
