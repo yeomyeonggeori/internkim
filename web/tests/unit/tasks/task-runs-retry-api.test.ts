@@ -1,8 +1,12 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 const deviceRequests: Request[] = [];
 const companyCalls: { capability: string; body: Record<string, unknown> }[] = [];
 let centralConfigured = false;
+
+const adminAPI = { ...(await import('../../../src/lib/admin-api')) };
+const centralPlane = { ...(await import('../../../src/lib/supabase')) };
+const hostBridge = { ...(await import('../../../src/lib/host-bridge')) };
 
 mock.module('../../../src/lib/admin-api', () => ({
 	adminApiFetch: async (path: string, options?: RequestInit) => {
@@ -19,6 +23,12 @@ mock.module('../../../src/lib/host-bridge', () => ({
 }));
 
 const { retryTaskRun } = await import('../../../src/routes/runs/runs-api');
+
+afterAll(() => {
+	mock.module('../../../src/lib/admin-api', () => adminAPI);
+	mock.module('../../../src/lib/supabase', () => centralPlane);
+	mock.module('../../../src/lib/host-bridge', () => hostBridge);
+});
 
 describe('retryTaskRun', () => {
 	test('posts the source run ID to the device endpoint', async () => {
