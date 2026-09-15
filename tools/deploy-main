@@ -41,7 +41,7 @@ PLAN_STEPS = [
     "git fetch origin",
     "refuse unless the working tree is clean and HEAD equals origin/main",
     "read every fleet target's current revision from its health endpoint",
-    "refuse unless every target's revision is an ancestor of origin/main",
+    "refuse unless every target's revision or its exact Git tree is in origin/main's history",
     "make build",
     "make prepare-blueclaw-payload",
     "make prepare-buzz-relay",
@@ -160,15 +160,34 @@ def is_ancestor(revision, ancestor_of, runner=run):
     return result.returncode == 0
 
 
+def deployment_base_revision(revision, ancestor_of, runner=run):
+    if is_ancestor(revision, ancestor_of, runner):
+        return revision
+    tree = runner(["git", "rev-parse", "--verify", "--end-of-options", f"{revision}^{{tree}}"])
+    if tree.returncode != 0:
+        return None
+    tree_hash = tree.stdout.strip()
+    history = runner(["git", "log", ancestor_of, "--format=%H %T"])
+    if history.returncode != 0:
+        return None
+    for line in history.stdout.splitlines():
+        candidate_revision, candidate_tree = line.split()
+        if candidate_tree == tree_hash:
+            return candidate_revision
+    return None
+
+
 def require_targets_are_shippable(targets):
     for target in targets:
         revision = device_revision_of(target)
         target["revisionBefore"] = revision
-        if not is_ancestor(revision, "origin/main"):
+        base_revision = deployment_base_revision(revision, "origin/main")
+        if base_revision is None:
             raise Refusal(
-                f"{target['id']} already runs {revision}, which origin/main does not contain; "
-                "another session shipped something this tree does not have"
+                f"{target['id']} runs {revision}, whose revision and exact Git tree are absent from origin/main"
             )
+        if base_revision != revision:
+            print(f"{target['id']}: deployed {revision} has the identical Git tree as main ancestor {base_revision}", flush=True)
 
 
 class DeployLock:

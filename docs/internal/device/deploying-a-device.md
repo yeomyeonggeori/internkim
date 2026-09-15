@@ -131,11 +131,11 @@ existing device working. A company on the central plane is deployed by
   steps and `./internkim deploy` into one operation, "ship origin/main to the
   device". It refuses when `git fetch origin` fails, when the working tree is
   dirty or HEAD is not `origin/main`, and when the device's current revision
-  is not an ancestor of `origin/main` — another session shipped something
-  this tree does not contain. It holds a lock under `.artifacts/` so two
+  is not an ancestor of `origin/main`. After a history rewrite, it also accepts
+  an exact Git tree match in that ancestry and prints the matching revisions.
+  It holds a lock under `.artifacts/` so two
   sessions cannot deploy at once, builds `admind`, `capabilityd`,
   `blueclawPayload`, `buzz-relay`, and the board UI in order, deploys every
   component the release engine reports, and polls the device's health
   endpoint until it reports the revision that was just shipped. Run it with
   `--plan` to see every step without touching anything.
-
