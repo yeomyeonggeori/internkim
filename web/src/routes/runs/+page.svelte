@@ -204,7 +204,7 @@
 	<title>{text.pageTitle}</title>
 </svelte:head>
 
-<main class="grid min-h-[calc(100svh-48px)] w-full self-start content-start gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+<main class="grid min-h-full w-full self-start content-start gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 	<section class="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 			<Badge variant="secondary">{totalTaskRunCount.toLocaleString()} {text.taskCount}</Badge>

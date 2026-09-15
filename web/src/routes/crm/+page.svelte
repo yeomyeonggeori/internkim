@@ -338,7 +338,7 @@
 
 <svelte:head><title>{text.pageTitle}</title></svelte:head>
 
-<main data-crm-ready={!controller.isLoading && !controller.errorMessage} class="grid min-h-[calc(100svh-48px)] w-full content-start gap-4 px-4 py-6 md:px-8">
+<main data-crm-ready={!controller.isLoading && !controller.errorMessage} class="grid min-h-full w-full content-start gap-4 px-4 py-6 md:px-8">
 	{#if feedbackMessage}
 		<div role="status" class="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"><CheckCircle2Icon class="size-4 text-primary" /><span>{feedbackMessage}</span><Button type="button" variant="ghost" size="icon-sm" class="ml-auto" aria-label={text.cancel} onclick={() => (feedbackMessage = '')}><XIcon /></Button></div>
 	{/if}
