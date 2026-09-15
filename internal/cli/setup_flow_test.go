@@ -47,6 +47,13 @@ func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
 	}
 }
 
+func TestDeviceToolPackagesCarryWhatMoliLinks(t *testing.T) {
+	packages := strings.Join(baseDeviceToolPackages(), " ")
+	if !strings.Contains(packages, "libfontconfig1") {
+		t.Fatalf("expected base device tools to include libfontconfig1, the one library moli links beyond libc, got %s", packages)
+	}
+}
+
 func TestSkillDependencySetupOnlyVerifiesRuntimeBaseEnvironment(t *testing.T) {
 	command := installSkillPythonDependenciesCommand()
 	for _, forbiddenText := range []string{"uv venv", "uv pip install", "curl -LsSf", "UV_UNMANAGED_INSTALL"} {
@@ -236,12 +243,15 @@ func TestTheVersionInAStampIsTrimmed(t *testing.T) {
 	}
 }
 
-func TestRequiredBinaryAssetsIncludeLightpandaFallback(t *testing.T) {
+func TestRequiredBinaryAssetsIncludeMoliDeviceBrowser(t *testing.T) {
 	state := &setupFlowState{boardBinDir: "/tmp/internkim-board-bin"}
 	assets := state.requiredBinaryAssets()
 
-	if !containsBinaryAsset(assets, "lightpanda", browserruntime.DeviceBrowserExecutablePath) {
-		t.Fatalf("expected setup to install Lightpanda fallback binary, got %+v", assets)
+	if !containsBinaryAsset(assets, "moli", browserruntime.DeviceBrowserExecutablePath) {
+		t.Fatalf("expected setup to install the Moli device browser, got %+v", assets)
+	}
+	if containsBinaryAsset(assets, "lightpanda", "/usr/local/bin/lightpanda") {
+		t.Fatalf("expected setup to stop installing Lightpanda, got %+v", assets)
 	}
 }
 
@@ -251,16 +261,6 @@ func TestRequiredBinaryAssetsIncludePocketBase(t *testing.T) {
 
 	if !containsBinaryAsset(assets, "pocketbase", "/usr/local/bin/pocketbase") {
 		t.Fatalf("expected setup to install PocketBase binary, got %+v", assets)
-	}
-}
-
-func TestDeviceBrowserVersionCommandUsesLightpandaSubcommand(t *testing.T) {
-	command := deviceBrowserVersionShellCommand(browserruntime.DeviceBrowserExecutablePath)
-	if !strings.Contains(command, quoteShellValue(browserruntime.DeviceBrowserExecutablePath)+" version") {
-		t.Fatalf("expected Lightpanda version subcommand, got %s", command)
-	}
-	if strings.Contains(command, "--version") {
-		t.Fatalf("device browser version command must not use --version, got %s", command)
 	}
 }
 

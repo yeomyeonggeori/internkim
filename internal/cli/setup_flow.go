@@ -124,7 +124,7 @@ command -v git >/dev/null 2>&1`)
 }
 
 func baseDeviceToolPackages() []string {
-	return []string{"bc", "ca-certificates", "curl", "git", "iproute2", "iptables", "procps", "unzip"}
+	return []string{"bc", "ca-certificates", "curl", "git", "iproute2", "iptables", "libfontconfig1", "procps", "unzip"}
 }
 
 func usersSyncDependencyInstallScript() string {
@@ -350,11 +350,12 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			expectedSHA256: "87fd2efb67995fc433569f0383260bfee44a785d6d45ca07c77179c45b70de18",
 		},
 		{
-			name:           "lightpanda",
-			localPath:      filepath.Join(state.boardBinDir, "lightpanda"),
+			name:           "moli",
+			localPath:      filepath.Join(state.boardBinDir, "moli"),
 			remotePath:     browserruntime.DeviceBrowserExecutablePath,
-			downloadURL:    "https://github.com/lightpanda-io/browser/releases/download/0.3.5/lightpanda-aarch64-linux",
-			expectedSHA256: "8d7b3a1d7b9024beef94e7fc7ce854030ee4d6def5f802b8e0e8824731c3d93a",
+			downloadURL:    "https://github.com/lexmount/moli/releases/download/v1.1.5/moli-aarch64-unknown-linux-gnu.tar.gz",
+			archiveEntry:   "moli",
+			expectedSHA256: "7546a11f42dd93d7b45865ca572e12e5ce29a62f9be06e962a20d99b1f16f4d6",
 		},
 		{
 			name:       "download",
@@ -2070,22 +2071,21 @@ func (state *setupFlowState) remoteFileMatchesLocal(remotePath, localPath string
 }
 
 func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
-	fmt.Print("  device browser runtime... ")
-	output, errorValue := state.sshClient.runResult(deviceBrowserVersionShellCommand(browserruntime.DeviceBrowserExecutablePath))
+	fmt.Print("  device browser service... ")
+	output, errorValue := state.sshClient.runResult("set -eu\n" + browserruntime.DeviceBrowserServiceInstallShellScript())
 	if errorValue != nil {
 		fmt.Println("failed")
-		diagnostic := strings.TrimSpace(output)
+		diagnostic := strings.TrimSpace(state.sshClient.run("journalctl -u " + browserruntime.DeviceBrowserServiceName + " -n 40 --no-pager 2>/dev/null"))
+		if diagnostic == "" {
+			diagnostic = strings.TrimSpace(output)
+		}
 		if diagnostic == "" {
 			diagnostic = errorValue.Error()
 		}
-		return fmt.Errorf("device browser runtime unavailable: %s", diagnostic)
+		return fmt.Errorf("device browser service unavailable: %s", diagnostic)
 	}
-	fmt.Println("installed")
+	fmt.Println("running")
 	return nil
-}
-
-func deviceBrowserVersionShellCommand(executablePath string) string {
-	return quoteShellValue(executablePath) + " version >/tmp/internkim-device-browser-version.log 2>&1"
 }
 
 func (state *setupFlowState) ensureAgentBrowserRuntimeSSH() error {
@@ -2110,14 +2110,14 @@ sleep 1
 	fmt.Println("unavailable")
 	diagnostic := strings.TrimSpace(state.sshClient.run(`
 {
-  echo "agent-browser doctor log:"
-  tail -80 /tmp/internkim-agent-browser-doctor.log 2>/dev/null || true
   echo "agent-browser close log:"
   tail -80 /tmp/internkim-agent-browser-device-close.log 2>/dev/null || true
-  echo "agent-browser lightpanda open log:"
-  tail -80 /tmp/internkim-agent-browser-lightpanda-open.log 2>/dev/null || true
-  echo "agent-browser lightpanda snapshot log:"
-  tail -80 /tmp/internkim-agent-browser-lightpanda-snapshot.log 2>/dev/null || true
+  echo "device browser version log:"
+  tail -20 /tmp/internkim-device-browser-version.log 2>/dev/null || true
+  echo "agent-browser device open log:"
+  tail -80 /tmp/internkim-agent-browser-device-open.log 2>/dev/null || true
+  echo "agent-browser device snapshot log:"
+  tail -80 /tmp/internkim-agent-browser-device-snapshot.log 2>/dev/null || true
 } | tail -120
 `))
 	if diagnostic == "" {

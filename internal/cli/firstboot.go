@@ -503,11 +503,10 @@ fi
 
 install_device_browser_runtime() {
   if [ ! -x "`+browserruntime.DeviceBrowserExecutablePath+`" ]; then
-    echo "ERROR: Lightpanda device browser missing at `+browserruntime.DeviceBrowserExecutablePath+`" >&2
+    echo "ERROR: Moli device browser missing at `+browserruntime.DeviceBrowserExecutablePath+`" >&2
     exit 1
   fi
-  `+deviceBrowserVersionShellCommand(browserruntime.DeviceBrowserExecutablePath)+`
-}
+`+browserruntime.DeviceBrowserServiceInstallShellScript()+`}
 
 install_device_browser_runtime
 

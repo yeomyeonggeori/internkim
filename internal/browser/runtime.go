@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/big"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -38,6 +39,7 @@ type AgentBrowserRuntime struct {
 	CommandPath          string
 	Engine               string
 	EngineExecutablePath string
+	CDPURL               string
 	ProfilePath          string
 	SessionName          string
 	Headed               bool
@@ -50,6 +52,8 @@ type AgentBrowserRuntime struct {
 }
 
 const browserOpenCommandTimeout = 8 * time.Second
+
+var deviceBrowserHTTPClient = &http.Client{Timeout: 5 * time.Second}
 
 type RuntimeReadiness struct {
 	Status string
@@ -149,9 +153,31 @@ type OSCommandRunner struct{}
 var agentBrowserReferencePattern = regexp.MustCompile(`@?[A-Za-z]+[0-9]+`)
 
 const BrowserEngineChrome = "chrome"
-const BrowserEngineLightpanda = "lightpanda"
+const BrowserEngineMoli = "moli"
 
-const DeviceBrowserExecutablePath = "/usr/local/bin/lightpanda"
+const DeviceBrowserCDPURL = "http://127.0.0.1:9222"
+const DeviceBrowserExecutablePath = "/usr/local/bin/moli"
+const DeviceBrowserServiceName = "moli"
+const DeviceBrowserStateDirectory = "/var/lib/internkim-moli"
+
+func DeviceBrowserServiceUnit() string {
+	endpoint, _ := url.Parse(DeviceBrowserCDPURL)
+	return `[Unit]
+Description=Moli device browser
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=` + DeviceBrowserExecutablePath + ` serve --host ` + endpoint.Hostname() + ` --port ` + endpoint.Port() + ` --layout --resource --profile-dir ` + DeviceBrowserStateDirectory + `/profile --http-cache-dir ` + DeviceBrowserStateDirectory + `/cache
+DynamicUser=yes
+StateDirectory=` + filepath.Base(DeviceBrowserStateDirectory) + `
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+`
+}
 
 func (request *SessionStartRequest) UnmarshalJSON(document []byte) error {
 	value, isString := decodeStringDocument(document)
@@ -460,6 +486,9 @@ func (runtime AgentBrowserRuntime) Check(ctx context.Context) RuntimeReadiness {
 	if readiness := runtime.validateLocalBrowserConfiguration(); readiness.Status != "" {
 		return readiness
 	}
+	if runtime.browserEngine() == BrowserEngineMoli {
+		return runtime.checkDeviceBrowserAnswers(ctx)
+	}
 	if _, errorValue := runtime.run(ctx, "doctor", "--offline", "--quick"); errorValue != nil {
 		return RuntimeReadiness{
 			Status: "unavailable",
@@ -469,40 +498,41 @@ func (runtime AgentBrowserRuntime) Check(ctx context.Context) RuntimeReadiness {
 	return RuntimeReadiness{Status: "ready"}
 }
 
-func (runtime AgentBrowserRuntime) EnsureInstalled(ctx context.Context) RuntimeReadiness {
-	readiness := runtime.Check(ctx)
-	if readiness.Status == "ready" {
-		return readiness
+func (runtime AgentBrowserRuntime) checkDeviceBrowserAnswers(ctx context.Context) RuntimeReadiness {
+	notAnswering := RuntimeReadiness{Status: "unavailable", Error: "device browser is not answering"}
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, runtime.cdpURL()+"/json/version", nil)
+	if errorValue != nil {
+		return notAnswering
 	}
-	if !runtime.canInstallMissingRuntime(readiness) {
-		return readiness
+	response, errorValue := deviceBrowserHTTPClient.Do(request)
+	if errorValue != nil {
+		return notAnswering
 	}
-	if _, errorValue := runtime.run(ctx, "install"); errorValue != nil {
-		return RuntimeReadiness{
-			Status: "unavailable",
-			Error:  "companion browser runtime install failed",
-		}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return notAnswering
 	}
-	return runtime.Check(ctx)
+	return RuntimeReadiness{Status: "ready"}
 }
 
 func (runtime AgentBrowserRuntime) validateLocalBrowserConfiguration() RuntimeReadiness {
-	if runtime.browserEngine() == BrowserEngineChrome {
+	switch runtime.browserEngine() {
+	case BrowserEngineChrome:
 		if !isExecutablePath(runtime.EngineExecutablePath) {
 			return RuntimeReadiness{
 				Status: "not_ready",
 				Error:  "Google Chrome is not installed",
 			}
 		}
+	case BrowserEngineMoli:
+		if parsed, errorValue := url.Parse(runtime.cdpURL()); errorValue != nil || parsed.Host == "" {
+			return RuntimeReadiness{
+				Status: "not_ready",
+				Error:  "device browser endpoint is not a URL",
+			}
+		}
 	}
 	return RuntimeReadiness{}
-}
-
-func (runtime AgentBrowserRuntime) canInstallMissingRuntime(readiness RuntimeReadiness) bool {
-	if readiness.Status == "not_ready" {
-		return false
-	}
-	return runtime.browserEngine() != BrowserEngineChrome
 }
 
 func isExecutablePath(path string) bool {
@@ -514,25 +544,39 @@ func isExecutablePath(path string) bool {
 	return errorValue == nil && !information.IsDir() && information.Mode()&0o111 != 0
 }
 
+func DeviceBrowserServiceInstallShellScript() string {
+	return `cat > /etc/systemd/system/` + DeviceBrowserServiceName + `.service <<'MOLISERVICEEOF'
+` + DeviceBrowserServiceUnit() + `MOLISERVICEEOF
+systemctl daemon-reload
+systemctl enable --now ` + DeviceBrowserServiceName + `
+for attempt in $(seq 1 30); do
+  if curl -fsS "` + DeviceBrowserCDPURL + `/json/version" >/tmp/internkim-device-browser-version.log 2>&1; then
+    break
+  fi
+  sleep 1
+done
+curl -fsS "` + DeviceBrowserCDPURL + `/json/version" >/tmp/internkim-device-browser-version.log 2>&1
+`
+}
+
 func DeviceReadinessShellScript() string {
 	return `set -eu
 command -v agent-browser >/dev/null
-browserExecutablePath="${INTERNKIM_DEVICE_BROWSER_PATH:-` + DeviceBrowserExecutablePath + `}"
-test -x "$browserExecutablePath"
+deviceBrowserURL="${INTERNKIM_DEVICE_BROWSER_CDP:-` + DeviceBrowserCDPURL + `}"
+curl -fsS "$deviceBrowserURL/json/version" >/tmp/internkim-device-browser-version.log 2>&1
 stop_agent_browser_daemons() {
   if command -v pkill >/dev/null 2>&1; then
-    pkill -TERM -x agent-browser >/tmp/internkim-agent-browser-lightpanda-close.log 2>&1 || true
+    pkill -TERM -x agent-browser >/tmp/internkim-agent-browser-device-close.log 2>&1 || true
     sleep 1
-    pkill -KILL -x agent-browser >>/tmp/internkim-agent-browser-lightpanda-close.log 2>&1 || true
+    pkill -KILL -x agent-browser >>/tmp/internkim-agent-browser-device-close.log 2>&1 || true
   fi
-  timeout 5s agent-browser close --all >>/tmp/internkim-agent-browser-lightpanda-close.log 2>&1 || true
+  timeout 5s agent-browser close --all >>/tmp/internkim-agent-browser-device-close.log 2>&1 || true
   rm -f /root/.agent-browser/internkim-device-smoke.pid /root/.agent-browser/internkim-device-smoke.stream /root/.agent-browser/internkim-device-smoke.engine /root/.agent-browser/internkim-device-smoke.version
   sleep 1
 }
 stop_agent_browser_daemons
-timeout 15s agent-browser doctor --offline --quick >/tmp/internkim-agent-browser-doctor.log 2>&1 || true
-timeout 45s agent-browser --session internkim-device-smoke --engine lightpanda --executable-path "$browserExecutablePath" --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-lightpanda-open.log 2>&1
-timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke snapshot -i --compact --json >/tmp/internkim-agent-browser-lightpanda-snapshot.log 2>&1
+timeout 45s agent-browser --session internkim-device-smoke --cdp "$deviceBrowserURL" --session-name internkim-device-smoke open about:blank >/tmp/internkim-agent-browser-device-open.log 2>&1
+timeout 45s agent-browser --session internkim-device-smoke --session-name internkim-device-smoke snapshot -i --compact --json >/tmp/internkim-agent-browser-device-snapshot.log 2>&1
 stop_agent_browser_daemons
 `
 }
@@ -542,28 +586,38 @@ func (runtime AgentBrowserRuntime) sessionStartArguments() []string {
 	if runtime.sessionName() != "" {
 		arguments = append(arguments, "--session", runtime.sessionName())
 	}
-	engine := runtime.browserEngine()
-	if engine != "" {
-		arguments = append(arguments, "--engine", engine)
-	}
-	executablePath := runtime.browserExecutablePath(engine)
-	if executablePath != "" {
-		arguments = append(arguments, "--executable-path", executablePath)
-	}
-	if engine != BrowserEngineLightpanda {
-		if runtime.Headed {
-			arguments = append(arguments, "--headed", "true")
-		} else {
-			arguments = append(arguments, "--headed", "false")
-		}
-	}
-	if engine != BrowserEngineLightpanda && strings.TrimSpace(runtime.ProfilePath) != "" {
-		arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
-	}
+	arguments = append(arguments, runtime.engineArguments()...)
 	if runtime.sessionName() != "" {
 		arguments = append(arguments, "--session-name", runtime.sessionName())
 	}
 	return arguments
+}
+
+func (runtime AgentBrowserRuntime) engineArguments() []string {
+	engine := runtime.browserEngine()
+	if engine == BrowserEngineMoli {
+		return []string{"--cdp", runtime.cdpURL()}
+	}
+	arguments := []string{}
+	if engine != "" {
+		arguments = append(arguments, "--engine", engine)
+	}
+	if executablePath := runtime.browserExecutablePath(engine); executablePath != "" {
+		arguments = append(arguments, "--executable-path", executablePath)
+	}
+	if runtime.Headed {
+		arguments = append(arguments, "--headed", "true")
+	} else {
+		arguments = append(arguments, "--headed", "false")
+	}
+	if strings.TrimSpace(runtime.ProfilePath) != "" {
+		arguments = append(arguments, "--profile", strings.TrimSpace(runtime.ProfilePath))
+	}
+	return arguments
+}
+
+func (runtime AgentBrowserRuntime) cdpURL() string {
+	return strings.TrimRight(firstNonEmpty(strings.TrimSpace(runtime.CDPURL), DeviceBrowserCDPURL), "/")
 }
 
 func (runtime AgentBrowserRuntime) sessionCommandArguments() []string {
@@ -673,7 +727,7 @@ func (runtime AgentBrowserRuntime) commandPath() string {
 }
 
 func (runtime AgentBrowserRuntime) browserRuntimeLabel() string {
-	if runtime.browserEngine() == BrowserEngineLightpanda {
+	if runtime.browserEngine() == BrowserEngineMoli {
 		return "device browser"
 	}
 	return "companion browser"
@@ -696,8 +750,8 @@ func (runtime AgentBrowserRuntime) browserEngine() string {
 	switch engine {
 	case BrowserEngineChrome:
 		return BrowserEngineChrome
-	case BrowserEngineLightpanda:
-		return BrowserEngineLightpanda
+	case BrowserEngineMoli:
+		return BrowserEngineMoli
 	default:
 		return engine
 	}
