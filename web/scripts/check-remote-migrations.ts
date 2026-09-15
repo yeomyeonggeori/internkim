@@ -1,25 +1,12 @@
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { projectReference, remoteQuery as query } from './remote-query';
-
-function localVersions(): string[] {
-	const directory = join(import.meta.dirname, '..', '..', 'supabase', 'migrations');
-	return readdirSync(directory)
-		.filter((name) => name.endsWith('.sql'))
-		.map((name) => name.split('_')[0])
-		.sort();
-}
-
-function localNameOf(version: string): string {
-	const directory = join(import.meta.dirname, '..', '..', 'supabase', 'migrations');
-	return readdirSync(directory).find((name) => name.startsWith(version + '_')) ?? version;
-}
+import { localMigrationFiles } from './production-schema';
 
 const recorded = (await query<{ version: string }>(
 	'select version from supabase_migrations.schema_migrations order by version'
 )).map((row) => row.version);
 
-const local = localVersions();
+const localFiles = localMigrationFiles();
+const local = localFiles.map((name) => name.split('_')[0]);
 const unrecorded = local.filter((version) => !recorded.includes(version));
 const unknownLocally = recorded.filter((version) => !local.includes(version));
 
@@ -30,7 +17,7 @@ console.log(`recorded       ${recorded.length}, newest ${recorded[recorded.lengt
 if (unrecorded.length === 0 && unknownLocally.length === 0) {
 	console.log('\nthe ledger matches the migrations directory');
 } else {
-	for (const version of unrecorded) console.log(`\n! not recorded remotely   ${localNameOf(version)}`);
+	for (const version of unrecorded) console.log(`\n! not recorded remotely   ${localFiles.find((name) => name.startsWith(version + '_')) ?? version}`);
 	for (const version of unknownLocally) console.log(`\n! recorded but no file    ${version}`);
 }
 

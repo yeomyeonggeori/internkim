@@ -4,6 +4,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mainCommitOfLiveBuild, refusalToReplaceProduction, stampOfMainCommit } from './production-guard';
+import { ensureProductionSchemaIsCurrent } from './production-schema';
 import { requiredSetting } from './repository-setting';
 
 const token = requiredSetting('CLOUDFLARE_API_TOKEN');
@@ -63,6 +64,7 @@ if (isProduction) {
 		console.error(`refusing to replace production: ${refusal}`);
 		process.exit(1);
 	}
+	await ensureProductionSchemaIsCurrent();
 }
 
 runWrangler([

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -103,8 +104,17 @@ func recordToolFailure(toolName string, status int, answer json.RawMessage) capa
 		FailureStage:    firstNonEmpty(refusal.FailureStage, recordToolFailureStage(status)),
 		Retryable:       recordToolRetryable(refusal.Retryable, status),
 		SafeRetry:       refusal.SafeRetry,
-		Result:          answer,
+		Result:          recordFailureResult(toolName, status, answer),
 	}
+}
+
+func recordFailureResult(toolName string, status int, answer json.RawMessage) json.RawMessage {
+	if json.Valid(answer) {
+		return answer
+	}
+	log.Printf("capability.record_failure_not_json: tool=%s status=%d bytes=%d", toolName, status, len(answer))
+	encoded, _ := json.Marshal(string(answer))
+	return encoded
 }
 
 func recordToolRetryable(saidByTheRecord *bool, status int) bool {
