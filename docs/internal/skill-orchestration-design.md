@@ -92,7 +92,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 - source files는 `file_write` 또는 bundled skill script로 `tmp/<deck-slug>/DESIGN.md`와 `tmp/<deck-slug>/presentation.md`에 작성한다.
 - build는 `shell`으로 `workingDirectoryPath=tmp/<deck-slug>`에서 `/workspace/skills/simple-slides/scripts/build.sh`를 실행한다.
 - output은 `tmp/<deck-slug>/build/` 아래에 만들고, 최종본만 `file_deliver`로 전달한다.
-- `simple-slides`는 global PATH의 Marp를 선택하지 않는다. Rootfs 선설치 Marp entrypoint를 사용하거나 requester tmp의 skill-local install을 사용하고, runtime temp/cache/home은 task build tmp 아래에 둔다.
+- `simple-slides`는 runtime temp/cache/home을 task build tmp 아래에 둔다.
 - 폰트는 Korean-first로 고른다. 기본 조합은 Paperlogy display + Freesentation body이며, 기술/모빌리티 덱은 A2Z display + Freesentation body를 우선한다. 후보와 import/cache 경로는 `assets/blueclaw-workspace/fonts/korean-fonts.tsv`와 `simple-slides`의 `references/design-system.md`를 따른다.
 - 시각 품질 검증과 출력 파일 연결은 `simple-slides` 규칙을 따른다.
 - Google Slides는 import target이며, 새 Google Slides 전용 skill을 만들지 않는다.

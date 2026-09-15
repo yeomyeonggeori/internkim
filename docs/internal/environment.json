@@ -79,10 +79,6 @@
     "process": "tools/prepare-blueclaw-runtime",
     "description": "the Linux kernel version built for the Blueclaw guest; defaults to 6.1.129"
   },
-  "BLUECLAW_MARP_CLI_VERSION": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the Marp CLI version installed into the Blueclaw guest rootfs; defaults to 4.3.1"
-  },
   "BLUECLAW_ROOTFS_IMAGE_SOURCE": {
     "process": "tools/prepare-blueclaw-runtime",
     "description": "a prebuilt guest rootfs image to use instead of building one"
@@ -94,10 +90,6 @@
   "BLUECLAW_UV_VERSION": {
     "process": "tools/prepare-blueclaw-runtime",
     "description": "the uv (Python package manager) version installed into the Blueclaw guest rootfs; defaults to 0.11.11"
-  },
-  "BUN_INSTALL_CACHE_DIR": {
-    "process": "device",
-    "description": "Bun's install cache directory inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /opt/blueclaw/bun-cache"
   },
   "BUZZ_IMPORT_KEEP": {
     "process": "buzzimport live tests",
@@ -162,10 +154,6 @@
   "CHATD_LISTEN_PORT": {
     "process": "host",
     "description": "the loopback port host/entrypoint.sh starts chatd on; defaults to 18090"
-  },
-  "CHROME_PATH": {
-    "process": "device",
-    "description": "override Chromium path inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /usr/bin/chromium"
   },
   "CLOUD_HYPERVISOR_VERSION": {
     "process": "tools/prepare-blueclaw-runtime",
@@ -758,10 +746,6 @@
   "PROGRAMFILES": {
     "process": "companion",
     "description": "the Windows Program Files directory, read to locate the default Chrome path on Windows"
-  },
-  "PUPPETEER_EXECUTABLE_PATH": {
-    "process": "device",
-    "description": "override Chromium path inside the Blueclaw guest, read by the generated /usr/local/bin/marp wrapper tools/prepare-blueclaw-runtime writes into the rootfs; defaults to /usr/bin/chromium"
   },
   "RELEASE_BUCKET": {
     "process": "release-registry worker",

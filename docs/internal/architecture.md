@@ -130,7 +130,7 @@ flowchart TD
 
 Required artifact task는 `file_deliver` completion evidence가 있어야 completed로 인정됩니다. `tmp/<slug>` 파일 생성, local path 문자열, markdown 링크, `/workspace/...` 경로 노출은 완료 증거가 아닙니다.
 
-`simple-slides`는 `file_write -> shell -> file_deliver` 흐름을 따릅니다. Marp runtime은 전역 PATH의 ambiguous `marp`를 잡지 않고 rootfs 선설치 entrypoint 또는 requester tmp의 skill-local install을 사용합니다. 실행 중 쓰기 경로는 `tmp/<slug>/build/.tmp` 아래로 고정합니다.
+`simple-slides`는 `file_write -> shell -> file_deliver` 흐름을 따릅니다. 실행 중 쓰기 경로는 `tmp/<slug>/build/.tmp` 아래로 고정합니다.
 
 ## 설정 생성
 

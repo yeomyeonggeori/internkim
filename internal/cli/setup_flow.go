@@ -1062,12 +1062,8 @@ if [ ! -x /opt/internkim/managed-bin/bun ]; then
 fi
 install -o root -g root -m 755 /opt/internkim/managed-bin/bun /usr/local/bin/bun
 ln -sfn /usr/local/bin/bun /usr/local/bin/bunx
-cat > /usr/local/bin/marp <<'MARPEOF'
-#!/bin/sh
-exec /usr/local/bin/bun x --bun @marp-team/marp-cli "$@"
-MARPEOF
-chown root:root /usr/local/bin/bun /usr/local/bin/bunx /usr/local/bin/marp
-chmod 755 /usr/local/bin/bun /usr/local/bin/marp
+chown root:root /usr/local/bin/bun /usr/local/bin/bunx
+chmod 755 /usr/local/bin/bun
 if ! command -v uv >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/0.11.11/install.sh -o /tmp/internkim-uv-install.sh
   UV_UNMANAGED_INSTALL=/usr/local/bin sh /tmp/internkim-uv-install.sh
@@ -1084,7 +1080,7 @@ if [ -f "$document_requirements" ]; then
 else
   echo "host-document-requirements-missing"; exit 1
 fi
-for managed_executable in bun bunx marp uv; do
+for managed_executable in bun bunx uv; do
   managed_path="/usr/local/bin/$managed_executable"
   test -x "$managed_path"
   managed_stat_path="$managed_path"
