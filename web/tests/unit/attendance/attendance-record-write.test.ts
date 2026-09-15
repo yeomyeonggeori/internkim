@@ -51,6 +51,29 @@ describe('adding a work record', () => {
 		expect(fixture.addition.outcome).toBe('saved');
 	});
 
+	test('opens a past day as a whole workday, ready to submit without touching the times', () => {
+		const fixture = createAdditionFixture();
+		fixture.addition.open('2026-07-14', 'member@example.com');
+
+		expect(fixture.addition.startTime).toBe('09:00');
+		expect(fixture.addition.endTime).toBe('18:00');
+		expect(fixture.addition.isEndTimeMissing).toBe(false);
+		expect(fixture.addition.canSubmit).toBe(true);
+	});
+
+	test('refuses a time still to come once the day is moved to today', () => {
+		const fixture = createAdditionFixture();
+		fixture.addition.open('2026-07-14', 'member@example.com');
+		fixture.addition.localDate = '2026-07-15';
+
+		expect(fixture.addition.hasTimeStillToCome).toBe(true);
+		expect(fixture.addition.canSubmit).toBe(false);
+
+		fixture.addition.endTime = '10:00';
+		expect(fixture.addition.hasTimeStillToCome).toBe(false);
+		expect(fixture.addition.canSubmit).toBe(true);
+	});
+
 	test('reaches the administrators once the chosen day falls outside the three days', () => {
 		const fixture = createAdditionFixture();
 		fixture.addition.open('2026-07-01', 'member@example.com');
@@ -120,7 +143,7 @@ describe('adding a work record', () => {
 
 	test('writes a span as two events in order, start then end, with one reason', async () => {
 		const fixture = createAdditionFixture();
-		fixture.addition.open('2026-07-15', 'member@example.com');
+		fixture.addition.open('2026-07-14', 'member@example.com');
 		fixture.addition.startTime = '09:00';
 		fixture.addition.endTime = '18:00';
 		fixture.addition.reason = '  구간 전체 누락  ';
@@ -130,7 +153,7 @@ describe('adding a work record', () => {
 			{
 				email: 'member@example.com',
 				kind: 'clock_in',
-				localDate: '2026-07-15',
+				localDate: '2026-07-14',
 				localTime: '09:00',
 				locationID: 'office',
 				reason: '구간 전체 누락'
@@ -138,7 +161,7 @@ describe('adding a work record', () => {
 			{
 				email: 'member@example.com',
 				kind: 'clock_out',
-				localDate: '2026-07-15',
+				localDate: '2026-07-14',
 				localTime: '18:00',
 				locationID: 'office',
 				reason: '구간 전체 누락'
@@ -150,7 +173,7 @@ describe('adding a work record', () => {
 
 	test('writes a single event and no reason when only one side is filled', async () => {
 		const fixture = createAdditionFixture();
-		fixture.addition.open('2026-07-15', 'member@example.com');
+		fixture.addition.open('2026-07-14', 'member@example.com');
 		fixture.addition.startTime = '';
 		fixture.addition.endTime = '18:00';
 		await fixture.addition.submit();
@@ -159,7 +182,7 @@ describe('adding a work record', () => {
 			{
 				email: 'member@example.com',
 				kind: 'clock_out',
-				localDate: '2026-07-15',
+				localDate: '2026-07-14',
 				localTime: '18:00',
 				locationID: 'office',
 				reason: ''
@@ -171,7 +194,7 @@ describe('adding a work record', () => {
 	test('reports asked once either moment of the span asks an administrator', async () => {
 		const fixture = createAdditionFixture();
 		fixture.results = [{ outcome: 'saved' }, { outcome: 'asked' }];
-		fixture.addition.open('2026-07-15', 'member@example.com');
+		fixture.addition.open('2026-07-14', 'member@example.com');
 		fixture.addition.startTime = '09:00';
 		fixture.addition.endTime = '18:00';
 		await fixture.addition.submit();
@@ -195,7 +218,7 @@ describe('adding a work record', () => {
 	test('keeps the start it already wrote and says so when the end is refused', async () => {
 		const fixture = createAdditionFixture();
 		fixture.failureAtIndex = 1;
-		fixture.addition.open('2026-07-15', 'member@example.com');
+		fixture.addition.open('2026-07-14', 'member@example.com');
 		fixture.addition.startTime = '09:00';
 		fixture.addition.endTime = '18:00';
 		await fixture.addition.submit();

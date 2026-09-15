@@ -16,7 +16,8 @@ export type AttendanceRecordAdditionDependencies = Readonly<{
 	partialSpanFailureMessage: string;
 }>;
 
-const defaultLocalTime = '09:00';
+const defaultStartTime = '09:00';
+const defaultEndTime = '18:00';
 
 export function isAttendanceSpanInverted(startTime: string, endTime: string): boolean {
 	return startTime !== '' && endTime !== '' && endTime < startTime;
@@ -65,6 +66,12 @@ export class AttendanceRecordAdditionState {
 		);
 	}
 
+	get hasTimeStillToCome(): boolean {
+		const maximumTime = this.maximumTime;
+		if (maximumTime === undefined) return false;
+		return [this.startTime, this.endTime].some((localTime) => localTime > maximumTime);
+	}
+
 	get canSubmit(): boolean {
 		return (
 			!this.isSaving &&
@@ -73,6 +80,7 @@ export class AttendanceRecordAdditionState {
 			(this.startTime !== '' || this.endTime !== '') &&
 			!this.isSpanInverted &&
 			!this.isEndTimeMissing &&
+			!this.hasTimeStillToCome &&
 			this.outcome !== 'blocked'
 		);
 	}
@@ -91,8 +99,7 @@ export class AttendanceRecordAdditionState {
 		const currentTime = this.dependencies.getCurrentServerTime();
 		this.email = email;
 		this.localDate = localDate;
-		this.startTime = openingLocalTime(summary, localDate, currentTime);
-		this.endTime = '';
+		({ startTime: this.startTime, endTime: this.endTime } = openingSpan(summary, localDate, currentTime));
 		this.locationID = summary.locations[0]?.id ?? '';
 		this.reason = '';
 		this.errorMessage = '';
@@ -169,10 +176,18 @@ export class AttendanceRecordAdditionState {
 	}
 }
 
-function openingLocalTime(summary: AttendanceSummary, localDate: string, currentTime: Date): string {
-	if (!Number.isFinite(currentTime.getTime())) return defaultLocalTime;
-	if (localDate !== todayDateInTimeZone(summary.timeZone, currentTime)) return defaultLocalTime;
-	return timeInTimeZone(summary.timeZone, currentTime);
+function openingSpan(
+	summary: AttendanceSummary,
+	localDate: string,
+	currentTime: Date
+): { startTime: string; endTime: string } {
+	if (
+		!Number.isFinite(currentTime.getTime()) ||
+		localDate !== todayDateInTimeZone(summary.timeZone, currentTime)
+	) {
+		return { startTime: defaultStartTime, endTime: defaultEndTime };
+	}
+	return { startTime: timeInTimeZone(summary.timeZone, currentTime), endTime: '' };
 }
 
 function combinedOutcome(
