@@ -69,7 +69,7 @@ describe('the API document follows the generated tool catalog', () => {
 			).post.requestBody.content['application/json'].schema.properties;
 
 		expect('idempotencyKey' in bodyOf('message_send')).toBe(true);
-		expect('idempotencyKey' in bodyOf('task_list')).toBe(false);
+		expect('idempotencyKey' in bodyOf('task_add')).toBe(false);
 		expect('timeoutSecond' in bodyOf('task_add')).toBe(false);
 	});
 

@@ -11,7 +11,6 @@ import (
 const (
 	admindRequesterPlaceholderHost = "http://internkim"
 	admindRequesterEmailHeader     = "X-INTERNKIM-REQUESTER-EMAIL"
-	admindIdempotencyKeyHeader     = "X-INTERNKIM-IDEMPOTENCY-KEY"
 )
 
 func admindRequesterURL(path string) string {

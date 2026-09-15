@@ -13,12 +13,8 @@ type TaskLabels struct {
 }
 
 func (client *Client) TaskLabels(ctx context.Context, requesterEmail string) (TaskLabels, error) {
-	answer, errorValue := client.InvokeRecordTool(ctx, RecordToolCall{
-		RequesterEmail: requesterEmail,
-		ToolName:       "task_list",
-		Verb:           "invoke",
-		Input:          json.RawMessage(`{"limit":1}`),
-	})
+	answer, errorValue := client.InvokeRecordTool(ctx, requesterEmail, "task_list", "invoke",
+		json.RawMessage(`{"limit":1}`))
 	if errorValue != nil {
 		return TaskLabels{}, errorValue
 	}
