@@ -2,7 +2,7 @@
 // mirrors every later change write the same task, so they read an event here
 // rather than each keeping its own copy of the answer.
 
-export type DeviceCalendarParticipant = { personID?: string; name?: string };
+export type DeviceCalendarParticipant = { personID?: string; name?: string; email?: string };
 
 export type DeviceCalendarEvent = {
 	id: string;
@@ -45,7 +45,7 @@ export type EventAsTask = {
 	calendar: EventCalendar;
 };
 
-export type ParticipantMatch = { email: string; by: 'personID' | 'nameOrHandle' | 'givenName' };
+export type ParticipantMatch = { email: string; by: 'personID' | 'email' | 'nameOrHandle' };
 
 const deviceSource = 'internkim-device';
 
@@ -66,9 +66,6 @@ export function emailByPersonIDOf(people: DevicePerson[]): Map<string, string> {
 	return directory;
 }
 
-// An id decides who a participant is. Rows written before there were ids carry
-// only a name, so a full name or handle is matched outright, and a given name
-// only when one person bears it, because two would be a guess.
 export function matchParticipant(
 	participant: DeviceCalendarParticipant,
 	people: DevicePerson[],
@@ -77,18 +74,18 @@ export function matchParticipant(
 	const personID = (participant.personID ?? '').trim();
 	if (personID) {
 		const email = emailByPersonID.get(personID);
-		return email ? { email, by: 'personID' } : undefined;
+		if (email) return { email, by: 'personID' };
 	}
+
+	const email = participant.email?.trim().toLowerCase() ?? '';
+	if (email) return { email, by: 'email' };
 
 	const name = participant.name?.trim() ?? '';
 	if (name.length < 2) return undefined;
 
-	const named = people.find((person) => person.name === name || person.handle === name);
-	if (named?.email) return { email: named.email.toLowerCase(), by: 'nameOrHandle' };
-
-	const bearing = people.filter((person) => (person.name ?? '').endsWith(name));
-	if (bearing.length !== 1 || !bearing[0].email) return undefined;
-	return { email: bearing[0].email.toLowerCase(), by: 'givenName' };
+	const named = people.filter((person) => person.name === name || person.handle === name);
+	if (named.length !== 1 || !named[0].email) return undefined;
+	return { email: named[0].email.toLowerCase(), by: 'nameOrHandle' };
 }
 
 export function titleOf(event: DeviceCalendarEvent): string {
