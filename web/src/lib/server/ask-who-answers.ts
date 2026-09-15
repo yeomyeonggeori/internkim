@@ -41,7 +41,8 @@ export async function askWhoAnswersFor(
 				category: 'attendance',
 				title: `${wanted[toolName] ?? toolName}: ${nameOf(asker)}`,
 				body: bodyOf(asked),
-				openPath: attendancePath
+				openPath: attendancePath,
+				senderMemberID: askerID
 			})
 		)
 	);

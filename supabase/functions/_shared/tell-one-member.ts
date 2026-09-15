@@ -7,6 +7,7 @@ export type Asked = {
 	body?: unknown;
 	openPath?: unknown;
 	tag?: unknown;
+	senderMemberID?: unknown;
 };
 
 export type Telling = {
@@ -16,25 +17,30 @@ export type Telling = {
 	body: string;
 	openPath: string;
 	tag: string;
+	senderMemberID?: string;
 };
+
+const longestMemberID = 64;
 
 const homePath = '/attendance/';
 const longestLine = 200;
 
 export function tellingAsked(asked: Asked, uniquely: string): Telling | null {
-	const memberID = line(asked.memberID, 64);
+	const memberID = line(asked.memberID, longestMemberID);
 	const category = asked.category;
 	if (!memberID) return null;
 	if (!isACategory(category)) return null;
 	const title = line(asked.title, longestLine);
 	if (!title) return null;
+	const senderMemberID = line(asked.senderMemberID, longestMemberID);
 	return {
 		memberID,
 		category,
 		title,
 		body: line(asked.body, longestLine),
 		openPath: line(asked.openPath, longestLine) || homePath,
-		tag: line(asked.tag, longestLine) || `${category}-${uniquely}`
+		tag: line(asked.tag, longestLine) || `${category}-${uniquely}`,
+		...(senderMemberID ? { senderMemberID } : {})
 	};
 }
 
