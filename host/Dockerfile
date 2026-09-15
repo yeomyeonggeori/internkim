@@ -27,9 +27,26 @@ RUN cd relay && bun install --frozen-lockfile
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 python3-venv \
+	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 python3-venv libfontconfig1 \
 	&& rm -rf /var/lib/apt/lists/*
 RUN curl -fsSL https://bun.sh/install | bash && ln -s /root/.bun/bin/bun /usr/local/bin/bun
+
+ARG MOLI_VERSION=1.1.5
+ARG AGENT_BROWSER_VERSION=0.32.3
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+		amd64) moliTriple=x86_64-unknown-linux-gnu; moliSHA256=7128ca9b9f7e7bb5ab58b1c6cbf0910a2e22008f4662ea87bd6b8ab8493e3181; agentBrowserAsset=agent-browser-linux-x64; agentBrowserSHA256=243f6e01c4b7dea53ad07d9754df99033c614582d5c685c529a1cb81cafc3ab1 ;; \
+		arm64) moliTriple=aarch64-unknown-linux-gnu; moliSHA256=76abe24ad32a42e190dd09d3a475f57b91cda66cd8cbf547f602f3aa28963a7b; agentBrowserAsset=agent-browser-linux-arm64; agentBrowserSHA256=87fd2efb67995fc433569f0383260bfee44a785d6d45ca07c77179c45b70de18 ;; \
+		*) echo "no device browser build for ${TARGETARCH}" >&2; exit 1 ;; \
+	esac \
+	&& curl -fsSL -o /tmp/moli.tar.gz "https://github.com/lexmount/moli/releases/download/v${MOLI_VERSION}/moli-${moliTriple}.tar.gz" \
+	&& echo "${moliSHA256}  /tmp/moli.tar.gz" | sha256sum -c - \
+	&& tar -xzf /tmp/moli.tar.gz -C /tmp "moli-v${MOLI_VERSION}-${moliTriple}/moli" \
+	&& install -m 0755 "/tmp/moli-v${MOLI_VERSION}-${moliTriple}/moli" /usr/local/bin/moli \
+	&& rm -rf /tmp/moli.tar.gz "/tmp/moli-v${MOLI_VERSION}-${moliTriple}" \
+	&& curl -fsSL -o /usr/local/bin/agent-browser "https://github.com/vercel-labs/agent-browser/releases/download/v${AGENT_BROWSER_VERSION}/${agentBrowserAsset}" \
+	&& echo "${agentBrowserSHA256}  /usr/local/bin/agent-browser" | sha256sum -c - \
+	&& chmod 0755 /usr/local/bin/agent-browser
 
 COPY --from=go-build /out/blueclaw /opt/blueclaw/bin/blueclaw
 COPY --from=go-build /out/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-helper
