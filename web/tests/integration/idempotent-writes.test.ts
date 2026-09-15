@@ -128,4 +128,20 @@ describe('a write that carries an idempotency key', () => {
 		expect(refused.status).toBeGreaterThanOrEqual(400);
 		expect((await keysRemembered()).map((remembered) => remembered.key)).not.toContain(`${slug}-refused-key`);
 	});
+
+	test('records clock out once and returns its saved answer on a repeated key', async () => {
+		const clockIn = await invoke('attendance_add', {
+			input: { kind: 'clock_in' }, idempotencyKey: `${slug}-clock-in`
+		});
+		expect(clockIn.status).toBe(200);
+		const clockOutRequest = { input: { kind: 'clock_out' }, idempotencyKey: `${slug}-clock-out` };
+		const clockOut = await invoke('attendance_add', clockOutRequest);
+		const repeatedClockOut = await invoke('attendance_add', clockOutRequest);
+		expect(clockOut.status).toBe(200);
+		expect(repeatedClockOut).toEqual(clockOut);
+		const attendance = await client.from('attendance').select('kind').eq('member_id', memberID);
+		if (attendance.error) throw new Error(attendance.error.message);
+		expect(attendance.data).toHaveLength(2);
+		expect(attendance.data).toEqual(expect.arrayContaining([{ kind: 'clock_in' }, { kind: 'clock_out' }]));
+	});
 });
