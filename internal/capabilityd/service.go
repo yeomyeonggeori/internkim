@@ -63,7 +63,7 @@ type Configuration struct {
 	LocalBackendOrder             []string
 	ProviderAttemptTimeout        time.Duration
 	AgentBrowserPath              string
-	DeviceBrowserPath             string
+	DeviceBrowserCDPURL           string
 	DeviceBrowserProfilePath      string
 	CompanionFileDirectory        string
 	APIURLPath                    string
@@ -157,7 +157,7 @@ func DefaultConfiguration() Configuration {
 		LocalOnly:                     false,
 		ProviderAttemptTimeout:        0,
 		AgentBrowserPath:              "agent-browser",
-		DeviceBrowserPath:             browserruntime.DeviceBrowserExecutablePath,
+		DeviceBrowserCDPURL:           browserruntime.DeviceBrowserCDPURL,
 		DeviceBrowserProfilePath:      "",
 		CompanionFileDirectory:        "/tmp/internkim-companion-files",
 		APIURLPath:                    "/root/.internkim/env/api-url",
@@ -652,8 +652,8 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.AgentBrowserPath == "" {
 		configuration.AgentBrowserPath = defaultConfiguration.AgentBrowserPath
 	}
-	if configuration.DeviceBrowserPath == "" {
-		configuration.DeviceBrowserPath = defaultConfiguration.DeviceBrowserPath
+	if configuration.DeviceBrowserCDPURL == "" {
+		configuration.DeviceBrowserCDPURL = defaultConfiguration.DeviceBrowserCDPURL
 	}
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory

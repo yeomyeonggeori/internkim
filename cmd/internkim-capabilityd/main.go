@@ -43,7 +43,7 @@ func main() {
 	flag.StringVar(&configuration.ChatdPlatform, "chatd-platform", defaultConfiguration.ChatdPlatform, "platform name chatd serves for message delivery")
 	flag.StringVar(&configuration.FileReadPythonPath, "file-read-python", defaultConfiguration.FileReadPythonPath, "Python executable for file_read conversions")
 	flag.StringVar(&configuration.AgentBrowserPath, "agent-browser", defaultConfiguration.AgentBrowserPath, "agent-browser executable path")
-	flag.StringVar(&configuration.DeviceBrowserPath, "device-browser", defaultConfiguration.DeviceBrowserPath, "device Chromium executable path")
+	flag.StringVar(&configuration.DeviceBrowserCDPURL, "device-browser-cdp", defaultConfiguration.DeviceBrowserCDPURL, "URL the device browser (moli serve) answers the Chrome DevTools Protocol on")
 	flag.BoolVar(&configuration.PreferCompanionLLM, "prefer-companion-llm", defaultConfiguration.PreferCompanionLLM, "prefer companion local LLM when available")
 	flag.StringVar(&configuration.LocalInferenceMode, "local-inference-mode", defaultConfiguration.LocalInferenceMode, "local inference mode: device, companion_preferred, companion_only, remote")
 	flag.BoolVar(&configuration.LocalOnly, "local-only", defaultConfiguration.LocalOnly, "disable remote LLM fallback")
@@ -59,8 +59,8 @@ func main() {
 		printModelLadder(*modelLadderEndpoint, *modelLadderKeyPath)
 		return
 	}
-	if environmentDeviceBrowserPath := os.Getenv("INTERNKIM_DEVICE_BROWSER_PATH"); environmentDeviceBrowserPath != "" {
-		configuration.DeviceBrowserPath = environmentDeviceBrowserPath
+	if environmentDeviceBrowserCDPURL := os.Getenv("INTERNKIM_DEVICE_BROWSER_CDP"); environmentDeviceBrowserCDPURL != "" {
+		configuration.DeviceBrowserCDPURL = environmentDeviceBrowserCDPURL
 	}
 
 	if strings.TrimSpace(configuration.ChatdPlatform) == "" {

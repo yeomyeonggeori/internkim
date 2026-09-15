@@ -321,11 +321,11 @@ func TestAgentBrowserRuntimeFailsWhenBrowserDoesNotNavigate(t *testing.T) {
 	}
 }
 
-func TestAgentBrowserRuntimeDoesNotPaceLightpandaCommands(t *testing.T) {
+func TestAgentBrowserRuntimeDoesNotPaceMoliCommands(t *testing.T) {
 	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	sleepWasCalled := false
 	runtime := AgentBrowserRuntime{
-		Engine: BrowserEngineLightpanda,
+		Engine: BrowserEngineMoli,
 		Headed: true,
 		Runner: runner,
 		Sleep: func(ctx context.Context, delay time.Duration) error {
@@ -341,7 +341,7 @@ func TestAgentBrowserRuntimeDoesNotPaceLightpandaCommands(t *testing.T) {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
 	if sleepWasCalled {
-		t.Fatal("expected Lightpanda device browser not to use human pacing")
+		t.Fatal("expected Moli device browser not to use human pacing")
 	}
 }
 
@@ -389,30 +389,45 @@ func TestAgentBrowserRuntimeRealChromeSmoke(t *testing.T) {
 	}
 }
 
-func TestDeviceReadinessShellScriptChecksLightpandaSnapshotReadiness(t *testing.T) {
+func TestDeviceReadinessShellScriptChecksMoliSnapshotReadiness(t *testing.T) {
 	script := DeviceReadinessShellScript()
 
-	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", "agent-browser doctor --offline --quick", "--session internkim-device-smoke --engine lightpanda", "--executable-path \"$browserExecutablePath\"", "snapshot -i --compact --json", DeviceBrowserExecutablePath} {
+	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", `--session internkim-device-smoke --cdp "$deviceBrowserURL"`, "snapshot -i --compact --json", DeviceBrowserCDPURL, "/json/version", "INTERNKIM_DEVICE_BROWSER_CDP"} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected device readiness script to contain %q: %s", fragment, script)
 		}
 	}
-	for _, forbiddenFragment := range []string{"google-chrome", "PUPPETEER_CACHE_DIR", "chrome-for-testing", "chromium-browser", "/snap/bin/chromium", "--engine chrome", "--headed false", "screenshot", "agent-browser install", "apt-get install"} {
+	for _, forbiddenFragment := range []string{"google-chrome", "chromium", "lightpanda", "--engine", "--executable-path", "--headed", "screenshot", "agent-browser install", "apt-get install"} {
 		if strings.Contains(script, forbiddenFragment) {
 			t.Fatalf("device readiness script must not use fallback %q: %s", forbiddenFragment, script)
 		}
 	}
-	if strings.Contains(script, "snapshot --engine") {
-		t.Fatalf("device readiness should pass engine options only while opening the session: %s", script)
+	if strings.Contains(script, "snapshot --cdp") {
+		t.Fatalf("device readiness should pass the endpoint only while opening the session: %s", script)
 	}
 }
 
-func TestAgentBrowserRuntimeLightpandaOmitsChromeOnlyArguments(t *testing.T) {
+func TestDeviceBrowserServiceRunsMoliServeUnderSystemd(t *testing.T) {
+	for _, fragment := range []string{"ExecStart=" + DeviceBrowserExecutablePath + " serve --host 127.0.0.1 --port 9222 --layout --resource", "DynamicUser=yes", "StateDirectory=internkim-moli", "Restart=always"} {
+		if !strings.Contains(DeviceBrowserServiceUnit(), fragment) {
+			t.Fatalf("expected device browser unit to contain %q: %s", fragment, DeviceBrowserServiceUnit())
+		}
+	}
+	script := DeviceBrowserServiceInstallShellScript()
+	for _, fragment := range []string{"/etc/systemd/system/" + DeviceBrowserServiceName + ".service", "systemctl enable --now " + DeviceBrowserServiceName, DeviceBrowserCDPURL + "/json/version"} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("expected device browser install script to contain %q: %s", fragment, script)
+		}
+	}
+}
+
+func TestAgentBrowserRuntimeMoliConnectsOverCDPOnly(t *testing.T) {
 	runner := &fakeCommandRunner{output: []byte("https://example.com\n")}
 	runtime := AgentBrowserRuntime{
 		CommandPath:          "agent-browser-test",
-		Engine:               BrowserEngineLightpanda,
-		EngineExecutablePath: "/usr/local/bin/lightpanda",
+		Engine:               BrowserEngineMoli,
+		EngineExecutablePath: "/usr/local/bin/moli",
+		CDPURL:               "http://127.0.0.1:9222/",
 		ProfilePath:          "/profile",
 		SessionName:          "internkim-test",
 		Headed:               true,
@@ -423,9 +438,41 @@ func TestAgentBrowserRuntimeLightpandaOmitsChromeOnlyArguments(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected navigate success: %v", errorValue)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-test", "--engine", "lightpanda", "--executable-path", "/usr/local/bin/lightpanda", "--session-name", "internkim-test", "open", "https://example.com"}
+	expectedOpenArguments := []string{"--session", "internkim-test", "--cdp", "http://127.0.0.1:9222", "--session-name", "internkim-test", "open", "https://example.com"}
 	if !reflect.DeepEqual(runner.calls[0].arguments, expectedOpenArguments) {
-		t.Fatalf("unexpected lightpanda arguments: %+v", runner.calls[0].arguments)
+		t.Fatalf("unexpected moli arguments: %+v", runner.calls[0].arguments)
+	}
+}
+
+func TestAgentBrowserRuntimeMoliCheckAsksTheDeviceBrowserForItsVersion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/json/version" {
+			responseWriter.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = responseWriter.Write([]byte(`{"Browser":"Chrome/145.0.0.0"}`))
+	}))
+	defer server.Close()
+	runner := &fakeCommandRunner{}
+	runtime := AgentBrowserRuntime{Engine: BrowserEngineMoli, CDPURL: server.URL, Runner: runner}
+
+	readiness := runtime.Check(context.Background())
+	if readiness.Status != "ready" {
+		t.Fatalf("expected ready device browser, got %+v", readiness)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("expected readiness to come from the endpoint, not agent-browser: %+v", runner.calls)
+	}
+
+	server.Close()
+	readiness = runtime.Check(context.Background())
+	if readiness.Status != "unavailable" || readiness.Error != "device browser is not answering" {
+		t.Fatalf("expected unavailable device browser once it stops answering, got %+v", readiness)
+	}
+
+	readiness = AgentBrowserRuntime{Engine: BrowserEngineMoli, CDPURL: "not a url", Runner: runner}.Check(context.Background())
+	if readiness.Status != "not_ready" {
+		t.Fatalf("expected a malformed endpoint to be not_ready, got %+v", readiness)
 	}
 }
 
@@ -611,29 +658,6 @@ func TestAgentBrowserRuntimeMissingCommandUsesSafeError(t *testing.T) {
 	}
 }
 
-func TestAgentBrowserRuntimeEnsureInstalledRunsInstallWhenDoctorFails(t *testing.T) {
-	runner := &sequenceCommandRunner{
-		results: []commandResult{
-			{errorValue: errors.New("doctor failed")},
-			{},
-			{},
-		},
-	}
-	runtime := AgentBrowserRuntime{Runner: runner}
-
-	readiness := runtime.EnsureInstalled(context.Background())
-	if readiness.Status != "ready" {
-		t.Fatalf("expected ready runtime, got %+v", readiness)
-	}
-	if !reflect.DeepEqual(runner.commands, [][]string{
-		{"doctor", "--offline", "--quick"},
-		{"install"},
-		{"doctor", "--offline", "--quick"},
-	}) {
-		t.Fatalf("unexpected commands: %+v", runner.commands)
-	}
-}
-
 func TestAgentBrowserRuntimeChromeMissingExecutableIsNotReady(t *testing.T) {
 	runner := &fakeCommandRunner{}
 	runtime := AgentBrowserRuntime{
@@ -642,27 +666,12 @@ func TestAgentBrowserRuntimeChromeMissingExecutableIsNotReady(t *testing.T) {
 		Runner:               runner,
 	}
 
-	readiness := runtime.EnsureInstalled(context.Background())
+	readiness := runtime.Check(context.Background())
 	if readiness.Status != "not_ready" {
-		t.Fatalf("expected not_ready without installing Chrome for Testing, got %+v", readiness)
+		t.Fatalf("expected not_ready for a missing real Chrome, got %+v", readiness)
 	}
 	if len(runner.calls) != 0 {
-		t.Fatalf("expected no doctor/install command for missing real Chrome, got %+v", runner.calls)
-	}
-}
-
-func TestAgentBrowserRuntimeEnsureInstalledReturnsSanitizedFailure(t *testing.T) {
-	runner := &sequenceCommandRunner{
-		results: []commandResult{
-			{errorValue: errors.New(`exec: "agent-browser": executable file not found in $PATH`)},
-			{errorValue: errors.New(`exec: "agent-browser": executable file not found in $PATH`)},
-		},
-	}
-	runtime := AgentBrowserRuntime{Runner: runner}
-
-	readiness := runtime.EnsureInstalled(context.Background())
-	if readiness.Status != "unavailable" || strings.Contains(readiness.Error, "$PATH") {
-		t.Fatalf("expected sanitized unavailable status, got %+v", readiness)
+		t.Fatalf("expected no doctor command for missing real Chrome, got %+v", runner.calls)
 	}
 }
 
