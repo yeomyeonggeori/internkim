@@ -530,8 +530,10 @@ the device, and the answer carries only that device-local path and a TTL.
 Admind deletes the file when the TTL passes.
 
 Browser capabilities route to the companion first, running headed with a
-persistent Intern Kim profile. The device's Lightpanda fallback is used only for
-plain public page text when no companion is available. `browser_handoff` raises
+persistent Intern Kim profile. The device's own browser is Moli, a headless
+engine that runs as a service and answers agent-browser over the Chrome DevTools
+Protocol; it is used only for plain public page text when no companion is
+available. `browser_handoff` raises
 an overlay window over Chrome with a completion button, verifies a snapshot when
 it is pressed, and continues in the same session; Linux support is X11 only.
 Snapshots carry the URL, title, text and interactive refs, and nothing else.

@@ -391,9 +391,9 @@
     "process": "cli",
     "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
   },
-  "INTERNKIM_DEVICE_BROWSER_PATH": {
+  "INTERNKIM_DEVICE_BROWSER_CDP": {
     "process": "device",
-    "description": "override path to the device-bundled browser binary, read by internkim-capabilityd at startup"
+    "description": "URL the device browser (moli serve) answers the Chrome DevTools Protocol on, read by internkim-capabilityd at startup; default http://127.0.0.1:9222"
   },
   "INTERNKIM_DOMAIN": {
     "process": "cli",
