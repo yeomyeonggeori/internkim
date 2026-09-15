@@ -79,6 +79,30 @@ describe('adding a work record', () => {
 		expect(fixture.addition.canSubmit).toBe(false);
 	});
 
+	test('needs the end on a past day, so no clock-in is left without its clock-out', () => {
+		const fixture = createAdditionFixture();
+		fixture.addition.open('2026-07-14', 'member@example.com');
+		fixture.addition.startTime = '09:00';
+		fixture.addition.endTime = '';
+
+		expect(fixture.addition.isEndTimeMissing).toBe(true);
+		expect(fixture.addition.canSubmit).toBe(false);
+
+		fixture.addition.endTime = '18:00';
+		expect(fixture.addition.isEndTimeMissing).toBe(false);
+		expect(fixture.addition.canSubmit).toBe(true);
+	});
+
+	test('lets today go without an end, since the day may still be under way', () => {
+		const fixture = createAdditionFixture();
+		fixture.addition.open('2026-07-15', 'member@example.com');
+		fixture.addition.startTime = '09:00';
+		fixture.addition.endTime = '';
+
+		expect(fixture.addition.isEndTimeMissing).toBe(false);
+		expect(fixture.addition.canSubmit).toBe(true);
+	});
+
 	test('refuses an end earlier than the start before writing anything', async () => {
 		const fixture = createAdditionFixture();
 		fixture.addition.open('2026-07-15', 'member@example.com');
