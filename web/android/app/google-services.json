@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "319567169939",
+    "project_id": "internkim-4116f",
+    "storage_bucket": "internkim-4116f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:319567169939:android:d2ed8b05fa9f58f4c74066",
+        "android_client_info": {
+          "package_name": "app.intern.kim"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAW259csW2e8iHLtBO5xluzpMzNCD0Bb3s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
