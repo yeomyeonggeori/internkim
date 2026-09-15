@@ -66,6 +66,12 @@ export class AttendanceRecordAdditionState {
 		);
 	}
 
+	get hasTimeStillToCome(): boolean {
+		const maximumTime = this.maximumTime;
+		if (maximumTime === undefined) return false;
+		return [this.startTime, this.endTime].some((localTime) => localTime > maximumTime);
+	}
+
 	get canSubmit(): boolean {
 		return (
 			!this.isSaving &&
@@ -74,6 +80,7 @@ export class AttendanceRecordAdditionState {
 			(this.startTime !== '' || this.endTime !== '') &&
 			!this.isSpanInverted &&
 			!this.isEndTimeMissing &&
+			!this.hasTimeStillToCome &&
 			this.outcome !== 'blocked'
 		);
 	}

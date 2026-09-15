@@ -138,6 +138,10 @@
 				<p class="text-xs text-destructive" data-testid="attendance-record-add-span-error">
 					{text.records.endBeforeStart}
 				</p>
+			{:else if addition.hasTimeStillToCome}
+				<p class="text-xs text-destructive" data-testid="attendance-record-add-future-error">
+					{text.records.timeStillToCome}
+				</p>
 			{:else if addition.isEndTimeMissing}
 				<p class="text-xs text-muted-foreground" data-testid="attendance-record-add-end-required">
 					{text.records.endRequiredOnPastDay}
