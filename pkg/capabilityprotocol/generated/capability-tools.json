@@ -17,7 +17,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -913,7 +913,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1320,7 +1320,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1853,7 +1853,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2113,7 +2113,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2431,7 +2431,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2598,7 +2598,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2772,7 +2772,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2898,7 +2898,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3444,7 +3444,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3737,7 +3737,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4400,7 +4400,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4659,7 +4659,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4920,7 +4920,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5134,7 +5134,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5361,7 +5361,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5540,7 +5540,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6060,7 +6060,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6220,7 +6220,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6395,7 +6395,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -13904,7 +13904,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -14231,7 +14231,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -14565,7 +14565,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -14925,7 +14925,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -15213,7 +15213,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -15507,7 +15507,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -16019,7 +16019,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -16521,7 +16521,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17005,7 +17005,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17438,7 +17438,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17994,7 +17994,7 @@
       "idempotency": {
         "required": false,
         "scope": "operation",
-        "supported": true
+        "supported": false
       },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
