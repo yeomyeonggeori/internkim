@@ -26,7 +26,7 @@ blueclawSecretsDirectory="/run/internkim/secrets"
 blueclawAgentKeyPath="${blueclawSecretsDirectory}/agent-key"
 blueclawModelAPIKeyPath="${blueclawSecretsDirectory}/openrouter-key"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cp install mkdir chown setpriv"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cp install mkdir chown setpriv curl"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
@@ -144,7 +144,7 @@ keepDeviceBrowserRunning() {
 keepDeviceBrowserRunning &
 deviceBrowserPid="$!"
 
-until nc -z 127.0.0.1 "${deviceBrowserPort}" >/dev/null 2>&1; do
+until curl --fail --silent --max-time 2 "http://127.0.0.1:${deviceBrowserPort}/json/version" >/dev/null 2>&1; do
   kill -0 "${deviceBrowserPid}" 2>/dev/null || { wait "${deviceBrowserPid}"; exit 1; }
   sleep 1
 done
