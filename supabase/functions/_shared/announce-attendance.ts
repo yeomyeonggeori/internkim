@@ -1,4 +1,5 @@
 import type { SupabaseClient } from './service-client.ts';
+import { pictureURLOfMember } from './member-directory.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
 import { whoAnswersFor } from './who-answers.ts';
 import type { PushKeys } from './push-keys.ts';
@@ -25,12 +26,17 @@ export async function announceClock(
 	const clocked = await newestClock(caller, memberID);
 	if (!clocked) return { told: 0, reached: 0 };
 
-	const announcer = await memberOf(record, memberID);
+	const [announcer, announcerPicture] = await Promise.all([
+		memberOf(record, memberID),
+		pictureURLOfMember(record, memberID)
+	]);
 	const notification: Notification = {
 		title: `${nameOf(announcer)} ${clocked.kind === 'clock_in' ? '출근' : '퇴근'}`,
 		body: clockBody(clocked, zoneOf(announcer)),
 		openPath: '/attendance/',
-		tag: `attendance-${clocked.id}`
+		tag: `attendance-${clocked.id}`,
+		senderName: nameOf(announcer),
+		icon: announcerPicture
 	};
 	return tellEachExcept(record, announcer.company_id, memberID, 'attendance', notification, pushKeys, nowInSeconds);
 }
@@ -45,12 +51,17 @@ export async function announceLeaveRequest(
 	const asked = await newestLeaveRequest(caller, memberID);
 	if (!asked) return { told: 0, reached: 0 };
 
-	const announcer = await memberOf(record, memberID);
+	const [announcer, announcerPicture] = await Promise.all([
+		memberOf(record, memberID),
+		pictureURLOfMember(record, memberID)
+	]);
 	const notification: Notification = {
 		title: `휴가 신청: ${nameOf(announcer)}`,
 		body: leaveBody(asked, zoneOf(announcer)),
 		openPath: '/attendance/',
-		tag: `leave-${asked.id}`
+		tag: `leave-${asked.id}`,
+		senderName: nameOf(announcer),
+		icon: announcerPicture
 	};
 	return tellWhoAnswers(record, announcer.company_id, memberID, notification, pushKeys, nowInSeconds);
 }
