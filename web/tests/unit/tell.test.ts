@@ -95,6 +95,15 @@ describe('tell', () => {
 		});
 	});
 
+	test('the push names the member who asked, so the project can show their picture', async () => {
+		const sent: Sent[] = [];
+		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
+
+		await tell(environment, { ...telling, senderMemberID: 'member-2' }, record, transportRecording(sent));
+
+		expect(pushesOf(sent)[0]?.body).toMatchObject({ memberID: 'member-1', senderMemberID: 'member-2' });
+	});
+
 	test('a person no device is subscribed for is not a failure, only a person no push reached', async () => {
 		const record = recordWhere({ company_id: 'company-1', email: 'sample@example.test' });
 

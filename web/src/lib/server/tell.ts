@@ -14,6 +14,7 @@ export type Telling = {
 	title: string;
 	body: string;
 	openPath?: string;
+	senderMemberID?: string;
 };
 
 export type Told = {
@@ -66,7 +67,8 @@ async function pushToTheirDevices(
 			category: telling.category,
 			title: telling.title,
 			body: telling.body,
-			openPath: telling.openPath ?? homePath
+			openPath: telling.openPath ?? homePath,
+			...(telling.senderMemberID ? { senderMemberID: telling.senderMemberID } : {})
 		}, undefined, transport);
 		if (answer.status >= 300) return failed(pushChannel, refusalOf(answer));
 		const reached = (answer.body as { reached?: unknown } | null)?.reached;
