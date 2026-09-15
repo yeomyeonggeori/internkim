@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signInToCalendar } from './calendar-central-test-utils';
+import { calendarEmbedPath, signInToCalendar } from './calendar-central-test-utils';
 
 test.describe('embedded calendar month drag cancellation', () => {
 	test.use({ locale: 'ko-KR' });
@@ -7,7 +7,7 @@ test.describe('embedded calendar month drag cancellation', () => {
 	test('cancels a month range-selection drag on pointer cancel without opening a new event', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-10T12:00:00'));
 		await signInToCalendar(page);
-		await page.goto('/calendar/embed?date=2026-06-10');
+		await page.goto(`${calendarEmbedPath}?date=2026-06-10`);
 		await page.evaluate(() => {
 			window.localStorage.setItem('internkim.calendar.view', 'month');
 		});

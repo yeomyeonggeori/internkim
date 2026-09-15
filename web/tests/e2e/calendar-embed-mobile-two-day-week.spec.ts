@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { signInToCalendar } from './calendar-central-test-utils';
+import { calendarEmbedPath, signInToCalendar } from './calendar-central-test-utils';
 
 test.describe('embedded calendar week view at a narrow mobile viewport', () => {
 	test.use({ locale: 'ko-KR' });
@@ -96,7 +96,7 @@ async function routeEventCreateInvoke(page: Page): Promise<WrittenEvent[]> {
 async function openMobileWeekView(page: Page): Promise<void> {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await signInToCalendar(page);
-	await page.goto('/calendar/embed?date=2026-06-08');
+	await page.goto(`${calendarEmbedPath}?date=2026-06-08`);
 	await page.evaluate(() => window.localStorage.setItem('internkim.calendar.view', 'week'));
 	await page.reload();
 	await expect(page.locator('.calendar-stage')).toHaveClass(/calendar-stage-week/);

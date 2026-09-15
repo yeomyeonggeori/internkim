@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+	calendarEmbedPath,
 	cleanupCalendarEvents,
 	seedCalendarEvents,
 	signInToCalendar
@@ -81,7 +82,7 @@ test.describe('calendar grid month sizing', () => {
 		try {
 			await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 			await signInToCalendar(page);
-			await page.goto('/calendar/embed?date=2026-06-08');
+			await page.goto(`${calendarEmbedPath}?date=2026-06-08`);
 			await page.evaluate(() => {
 				window.localStorage.setItem('internkim.calendar.view', 'month');
 				window.localStorage.setItem('internkim.calendar.visibleDate', '2026-06-08T12:00:00.000Z');
