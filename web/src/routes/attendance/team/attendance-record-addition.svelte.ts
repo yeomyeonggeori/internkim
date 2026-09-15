@@ -55,6 +55,16 @@ export class AttendanceRecordAdditionState {
 		return isAttendanceSpanInverted(this.startTime, this.endTime);
 	}
 
+	get isEndTimeMissing(): boolean {
+		const summary = this.dependencies.getSummary();
+		const currentTime = this.dependencies.getCurrentServerTime();
+		if (!summary || !Number.isFinite(currentTime.getTime()) || this.localDate === '') return false;
+		return (
+			this.endTime === '' &&
+			this.localDate !== todayDateInTimeZone(summary.timeZone, currentTime)
+		);
+	}
+
 	get canSubmit(): boolean {
 		return (
 			!this.isSaving &&
@@ -62,6 +72,7 @@ export class AttendanceRecordAdditionState {
 			this.localDate !== '' &&
 			(this.startTime !== '' || this.endTime !== '') &&
 			!this.isSpanInverted &&
+			!this.isEndTimeMissing &&
 			this.outcome !== 'blocked'
 		);
 	}
