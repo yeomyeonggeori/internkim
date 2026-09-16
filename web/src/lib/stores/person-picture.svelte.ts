@@ -68,7 +68,7 @@ class PersonPictureStore {
 		const answers = await Promise.all(stale.map((externalID) => this.askAfter(externalID)));
 		const next = new Map(this.dataURLOfExternal);
 		for (const answer of answers) {
-			if (answer.failed) {
+			if (answer.failed || answer.dataURL === '') {
 				this.asked.delete(answer.externalID);
 				continue;
 			}
@@ -108,6 +108,10 @@ class PersonPictureStore {
 			if (pictures.length === 0) return;
 			const next = new Map(this.dataURLOfExternal);
 			for (const picture of pictures) {
+				if (picture.dataURL === '') {
+					void forgetCachedPicture(picture.externalID);
+					continue;
+				}
 				next.set(picture.externalID, picture.dataURL);
 				this.keptFromAvatarURL.set(picture.externalID, picture.avatarURL);
 			}
