@@ -340,17 +340,17 @@ and delete the duplicates.
 
   | gate | question | cost |
   | --- | --- | --- |
-  | `./internkim dev plane` | which messenger does a message leave on, who does a requester resolve to, what will the public API take | seconds |
+  | `./internkim dev plane` | does Linux startup, requester memory access, messaging and the public API work | minutes |
   | `./internkim dev simulate --scenario <name>` | does the agent loop decide correctly, against a scripted model | seconds |
   | `./internkim dev fleet run --scenario <name>` | does it work on Linux — the cloud-hypervisor guest, POSIX identity, the ext4 workspace, systemd, OTA | ~10 minutes |
 
 - Anything on the company plane — a message tool, the public API, how a daemon is
   started or what it is told — goes through `./internkim dev plane` first. It runs
-  the same bring-up `host/entrypoint.sh` does, through the same
-  `tools/render-company-runtime`, so a plane that is wired wrong fails there
-  rather than on somebody's device. The bug it was built for shipped because
-  `host/entrypoint.sh` started capabilityd without `--chatd-platform` and started
-  no `admind` at all, and nothing anywhere ran that bring-up.
+  the bring-up in a disposable Linux Local Fleet with the real POSIX helper and
+  the same `tools/render-company-runtime` used by `host/entrypoint.sh`, so a plane
+  that is wired wrong fails under its filesystem and process identity rules.
+  The run keeps memory facts in its isolated guest database
+  and workspace, and removes them with the fleet.
 - Anything on the messenger path is verified with
   `./internkim dev fleet run --scenario buzz-attachment`. Buzz is what a
   company's messages travel over. The scenario invites a person, derives their key from the device seed

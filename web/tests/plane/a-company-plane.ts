@@ -100,17 +100,15 @@ async function arrive(admin: SupabaseClient, email: string): Promise<void> {
 	if (!claimed) throw new Error(`${email} has no seat to claim`);
 }
 
-// blueclaw's record lives in the postgres the local stack already runs, so the
-// sandbox needs no container of its own. The run's own database is created on the
-// way in and dropped on the way out; nothing else in there is touched.
+// blueclaw gets a database of its own for each run, created on the way in and
+// dropped on the way out; nothing else in the database is touched.
 function databaseURLFor(databaseName: string): string {
 	const base = new URL(environmentValue('COMPANY_PLANE_DB_URL'));
 	base.pathname = `/${databaseName}`;
 	return base.toString();
 }
 
-// Bun speaks postgres, so this needs no psql on the developer's machine — one
-// fewer thing to install before the gate runs.
+// Bun speaks postgres, so the harness can create and remove its run database.
 async function runPostgres(statement: string): Promise<void> {
 	const client = new SQL(environmentValue('COMPANY_PLANE_DB_URL'));
 	try {
@@ -176,6 +174,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 	const projectURL = environmentValue('SUPABASE_URL');
 	const serviceRoleKey = environmentValue('SUPABASE_SECRET_KEY');
 	const binaryDirectory = environmentValue('COMPANY_PLANE_BIN');
+	const stateRoot = environmentValue('COMPANY_PLANE_STATE_ROOT');
 
 	// A plane that disagrees with itself is refused before anything is created, so
 	// proving it refuses costs no directory to clean up.
@@ -188,9 +187,9 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		connector: messengerPlatform
 	});
 
-	const runDirectory = join(repositoryRoot, '.local', 'company-plane', runIdentifier);
-	// macOS caps a unix socket path at 104 bytes, and a repository path plus a run
-	// identifier gets close, so the sockets live somewhere short.
+	const runDirectory = join(stateRoot, runIdentifier);
+	// Unix systems cap a socket path, and a repository path plus a run identifier
+	// gets close, so the sockets live somewhere short.
 	const socketDirectory = join(tmpdir(), `ikplane-${runIdentifier}`);
 	mkdirSync(join(runDirectory, 'state'), { recursive: true });
 	mkdirSync(join(runDirectory, 'secrets'), { recursive: true });
@@ -293,21 +292,20 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 							'--blueclaw-url': blueclawURL,
 							'--admind-url': admindURL,
 							'--chatd-endpoint': connector.url,
-							'--chatd-platform': capabilitydPlatform
+							'--chatd-platform': capabilitydPlatform,
+							'--device-browser-cdp': 'http://127.0.0.1:9222'
 						},
 						{ '--admind-socket': requesterSocketPath }
 					)
 				],
-				{ ...logsTo(join(runDirectory, 'capabilityd.log')), env: theBoxEnvironment() }
+				{ ...logsTo(join(runDirectory, 'capabilityd.log')), cwd: runDirectory, env: theBoxEnvironment() }
 			)
 		);
 		// A unix socket is not a file Bun.file() can answer for, so this asks the
 		// filesystem the way the entrypoint's `[ ! -S ]` does.
 		await untilReady('capabilityd', async () => existsSync(capabilitySocketPath));
 
-		// blueclaw keeps its own record, so the run gets a database of its own inside
-		// the one the local stack already runs. Sharing a schema between two runs is
-		// how a harness starts needing a reaper.
+		// blueclaw keeps its own record, so each run gets a database of its own.
 		const databaseName = `plane_${runIdentifier}`;
 		await runPostgres(`CREATE DATABASE ${databaseName}`);
 		droppableDatabase = databaseName;
@@ -370,6 +368,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 				],
 				{
 					...logsTo(join(runDirectory, 'blueclaw.log')),
+					cwd: runDirectory,
 					env: {
 						...theBoxEnvironment(),
 						BLUECLAW_BUNDLED_SKILLS_PATH: environmentValue('COMPANY_PLANE_SKILLS')
@@ -422,7 +421,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						}
 					)
 				],
-				{ ...logsTo(join(runDirectory, 'admind.log')), env: theBoxEnvironment() }
+				{ ...logsTo(join(runDirectory, 'admind.log')), cwd: runDirectory, env: theBoxEnvironment() }
 			)
 		);
 		await untilReady('admind', async () => {
@@ -447,6 +446,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		const startRelay = () =>
 			Bun.spawn(['bun', 'run', join(repositoryRoot, 'host', 'relay', 'relay.ts')], {
 				...logsTo(join(runDirectory, 'relay.log')),
+				cwd: runDirectory,
 				env: {
 					...theBoxEnvironment(),
 					SUPABASE_URL: projectURL,

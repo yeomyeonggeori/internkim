@@ -175,17 +175,17 @@
     "process": "connection-gateway worker",
     "description": "the Durable Object namespace binding backing one company's gateway connections"
   },
-  "COMPANY_PLANE_APP_PORT": {
-    "process": "tools/company-plane",
-    "description": "the port tools/company-plane starts the local company web app on; defaults to 5183"
-  },
   "COMPANY_PLANE_BIN": {
     "process": "web plane tests",
-    "description": "the directory tools/company-plane built internkim-capabilityd, internkim-admind and blueclaw into, read by web/tests/plane/a-company-plane.ts"
+    "description": "the shared-workspace directory containing Linux arm64 builds of capabilityd, admind, Blueclaw and the POSIX helper, read by web/tests/plane/a-company-plane.ts"
   },
   "COMPANY_PLANE_DB_URL": {
     "process": "web plane tests",
-    "description": "the local Supabase database URL tools/company-plane forwards, read by web/tests/plane/a-company-plane.ts to reset per-test state"
+    "description": "the disposable PostgreSQL URL for the Local Fleet guest database, read by web/tests/plane/a-company-plane.ts to create and remove per-run state"
+  },
+  "COMPANY_PLANE_STATE_ROOT": {
+    "process": "web plane tests",
+    "description": "the VM-local temporary root where web/tests/plane/a-company-plane.ts keeps each run's state, secrets and logs"
   },
   "COMPANY_PLANE_KEEP": {
     "process": "web plane tests",
@@ -193,7 +193,7 @@
   },
   "COMPANY_PLANE_SKILLS": {
     "process": "web plane tests",
-    "description": "the skills directory tools/company-plane assembles and hands to web/tests/plane for the sandboxed company plane"
+    "description": "the shared-workspace skills directory tools/prepare-company-plane assembles and hands to web/tests/plane for the sandboxed company plane"
   },
   "DATABASE_URL": {
     "process": "host",
@@ -242,14 +242,6 @@
   "GEMMA_GGUF_URL": {
     "process": "tools/fetch-gemma-gguf",
     "description": "the URL to download the Gemma GGUF model from"
-  },
-  "GO_CACHE": {
-    "process": "tools/company-plane",
-    "description": "the Go build cache directory tools/company-plane forwards to `go build` as GOCACHE; defaults to a per-OS/arch /tmp path"
-  },
-  "GO_MOD_CACHE": {
-    "process": "tools/company-plane",
-    "description": "the Go module cache directory tools/company-plane forwards to `go build` as GOMODCACHE; defaults to a per-OS/arch /tmp path"
   },
   "GOCACHE": {
     "process": "tools/prepare-blueclaw-runtime",
