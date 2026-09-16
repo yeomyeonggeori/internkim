@@ -1,8 +1,8 @@
 import { drawnPictureOf } from '$lib/avatar-gradient/drawn-picture';
-import { fetchProfilePicture } from '$lib/messenger/messenger-api';
 import { externalIDFor, fetchMessengerDirectory } from '$lib/messenger/messenger-directory';
 import { memberAccessToken } from '$lib/public-api-call';
-import { isKeptPictureFormat, memberPicturePath } from './member-picture';
+import { personPicture } from '$lib/stores/person-picture.svelte';
+import { acceptedMemberPicture, memberPicturePath } from './member-picture';
 
 const answeredKey = 'internkim.member-picture-answered';
 
@@ -31,18 +31,12 @@ export async function keepMemberPicture(email: string): Promise<void> {
 async function messengerPictureOf(owner: string): Promise<Blob | null> {
 	const externalID = externalIDFor({ email: owner }, await fetchMessengerDirectory());
 	if (!externalID) return null;
-	const picture = await fetchProfilePicture(externalID);
-	return picture ? blobOfDataURL(picture.dataURL) : null;
-}
-
-export function blobOfDataURL(dataURL: string): Blob {
-	const parsed = /^data:([^;,]+);base64,(.+)$/.exec(dataURL);
-	if (!parsed) throw new Error('the messenger answered a picture that is not a base64 data url');
-	if (!isKeptPictureFormat(parsed[1])) {
-		throw new Error(`the messenger picture is ${parsed[1]}, which a member picture cannot be`);
-	}
-	const bytes = Uint8Array.from(atob(parsed[2]), (character) => character.charCodeAt(0));
-	return new Blob([bytes], { type: parsed[1] });
+	await personPicture.rememberExternals([externalID]);
+	const readable = personPicture.pictureOfExternal(externalID);
+	if (!readable) return null;
+	const response = await fetch(readable);
+	if (!response.ok) throw new Error(`the kept messenger picture answered ${response.status}`);
+	return acceptedMemberPicture(await response.blob());
 }
 
 async function fingerprintOf(picture: Blob): Promise<string> {

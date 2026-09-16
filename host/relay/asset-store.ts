@@ -30,6 +30,7 @@ export function sharedAssetPath(companyID: string, kind: string, digest: string,
 }
 
 export const attachmentKind = 'attachment';
+export const personPictureKind = 'person-picture';
 
 function isAlreadyStored(refusal: string): boolean {
 	return refusal.toLowerCase().includes('already exists') || refusal.includes('409');
@@ -67,6 +68,21 @@ export async function attachmentAlreadyKept(
 	const found = listed.data?.find((one) => one.name === name);
 	if (!found) return null;
 	return { path, sizeBytes: found.metadata?.size ?? 0 };
+}
+
+// A picture is named by its bytes alone: the extension it was kept under is
+// whatever type the messenger declared, which the name it is asked for by
+// does not carry.
+export async function sharedAssetKeptAs(
+	lister: AssetLister,
+	companyID: string,
+	kind: string,
+	digest: string
+): Promise<string | null> {
+	const directory = `${companyID}/shared/${kind}`;
+	const listed = await lister.list(directory, { search: digest, limit: 5 });
+	const found = listed.data?.find((one) => one.name === digest || one.name.startsWith(`${digest}.`));
+	return found ? `${directory}/${found.name}` : null;
 }
 
 export async function keepMessageAttachment(
