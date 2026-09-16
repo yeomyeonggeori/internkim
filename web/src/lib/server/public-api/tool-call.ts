@@ -14,7 +14,7 @@ export type ToolCallAnswer = { status: number; body: unknown };
 
 export const apiRequestCapability = 'person.api.request';
 
-export function descriptorTheTokenReaches(name: string, member: CallingMember): ToolDescriptor {
+export function descriptorTheTokenReaches(name: string, member: Pick<CallingMember, 'permission'>): ToolDescriptor {
 	const descriptor = toolReachableBy(name, member.permission);
 	if (!descriptor) {
 		const known = toolReachableBy(name, fullPublicAPIPermission);

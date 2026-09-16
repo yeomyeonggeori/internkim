@@ -90,13 +90,23 @@ record's `attendance` table and its `attendance_add`, `attendance_correct`,
 and `attendance_remove` functions, running as the calling member. Days are
 `yyyy-mm-dd`, times are 24-hour `HH:MM`, and both are read in the company's
 time zone. `attendance_list` covers the last thirty days unless `from` and
-`to` say otherwise. `attendance_add` with no `date` and no `time` clocks the
-moment it is called and needs no reason; naming a past moment is writing by
-hand, and that does. A member writes, corrects, and removes their own records
-from the last three days. Reaching further back, and touching anybody else's,
-is an administrator's: asked by anybody else the call answers `asked`, the
-administrators are told what was wanted, and nothing is written until one of
-them writes it.
+`to` say otherwise. The authenticated web request carries the user's session
+JWT; a personal `ik_` token is converted server-side to that member's JWT, so
+the database call remains member-scoped and never writes with the service key.
+For an ordinary self clock, omit `personHint`, `date`, and `time` from
+`attendance_add`. One request writes the current moment and returns the existing
+`result` fields `status`, `eventID`, and `backdated`, plus `result.event`
+(`id`, `personID`, `kind`, `occurredAt`, and `location`). Historical and
+administrator writes that save an event return the same `result.event`; the
+`asked` response has no event. Use that recorded time and location in the UI;
+there is no need to refresh with `attendance_list`. Notifications for this
+live path start after the save in the background, so its response has no
+`notified` field. Historical and administrator attendance writes retain their
+existing `notified` response. A `reason` is optional and is kept when supplied.
+A member writes, corrects, and removes their own records from the last three
+days. Reaching further back, and touching anybody else's, is an administrator's:
+asked by anybody else the call answers `asked`, the administrators are told what
+was wanted, and nothing is written until one of them writes it.
 A correction keeps what the record held before it, and a removal keeps who
 removed it and why.
 

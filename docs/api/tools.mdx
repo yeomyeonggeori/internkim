@@ -92,9 +92,12 @@ token is the consent: a `delete` token deletes without a question.
 ## The response [#the-response]
 
 A tool that runs on the record — task, calendar, people, leave and attendance —
-answers `{ "tool": ..., "result": ... }`, because the plane ran it itself. An
-attendance write adds a third field, `notified`, saying who was told about it
-or which administrators were asked. `task_add` is one of these:
+answers `{ "tool": ..., "result": ... }`, because the plane ran it itself. A
+historical or administrator attendance write also carries `notified`, saying
+who was told about it or which administrators were asked.
+The live self-clock path has no `notified` field; it saves first, then starts
+notifications in the background. An `asked` response has no event.
+`task_add` is one of these:
 
 ```json
 {
@@ -124,6 +127,15 @@ or which administrators were asked. `task_add` is one of these:
   }
 }
 ```
+
+For `attendance_add`, omit `personHint`, `date`, and `time` to clock the
+authenticated member at the current moment. The web request carries the user's
+JWT, and an `ik_` personal API token is converted server-side to that member's
+JWT before the database call, so attendance is written with member authority
+and never with the service key. The `result` keeps the existing `status`,
+`eventID`, and `backdated` fields and adds the saved `event` with `id`,
+`personID`, `kind`, `occurredAt`, and `location`. Treat the returned time and
+location as authoritative for the UI without refreshing the list.
 
 Every field here is the tool's own `outputSchema`, which the descriptor carries
 and the record answer is held to: nothing else may appear, and the record's

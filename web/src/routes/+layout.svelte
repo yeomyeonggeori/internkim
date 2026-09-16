@@ -39,7 +39,7 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { personPicture } from '$lib/stores/person-picture.svelte';
 	import { keepMemberPicture } from '$lib/profile/keep-member-picture';
 
@@ -48,7 +48,21 @@
 	const text = createPageText(appShellText);
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
+	let attendanceSessionKey = '';
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
+	$effect(() => {
+		const sessionKey = `${data.session?.authenticated ?? false}:${data.session?.email ?? ''}`;
+		const isAttendanceRoute = page.url.pathname.startsWith('/attendance');
+		untrack(() => {
+			const sessionChanged = sessionKey !== attendanceSessionKey;
+			attendanceSessionKey = sessionKey;
+			if (sessionChanged) myAttendanceToday.clear();
+			if (!data.session?.authenticated) {
+				return;
+			}
+			if (!isAttendanceRoute && !myAttendanceToday.summary) void myAttendanceToday.load();
+		});
+	});
 	$effect(() => {
 		if (!data.session?.authenticated) return;
 		askToBeReachedOnce().then(
@@ -61,7 +75,6 @@
 	onMount(() => {
 		initializeLocale();
 		preloadWorkTimeChartPlot();
-		void myAttendanceToday.load();
 		if (data.session?.authenticated) {
 			void personPicture.rememberEveryone();
 			keepMemberPicture(data.session.email).catch((failure: unknown) =>

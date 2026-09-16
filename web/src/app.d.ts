@@ -1,6 +1,7 @@
 declare global {
 	namespace App {
 		interface Platform {
+			context?: Pick<ExecutionContext, 'waitUntil'>;
 			env: {
 				KV: KVNamespace;
 				CLOUDFLARE_API_TOKEN: string;
