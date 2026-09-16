@@ -470,6 +470,8 @@ func TestHiddenToolsStayRegisteredButOutOfTheModelsSight(t *testing.T) {
 		"company_document_list",
 		"company_document_search",
 		"company_document_update",
+		"company_document_upload",
+		"company_document_download",
 		"web_fetch",
 		"mail_connection_status",
 		"mail_connection_start",

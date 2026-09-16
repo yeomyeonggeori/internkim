@@ -58,7 +58,11 @@ export const organizationDirectoryText = {
 		keepEditing: '계속 수정',
 		discardEdits: '닫기',
 		basicInformation: '기본 정보',
-		email: '이메일'
+		email: '이메일',
+		dataRoomClearance: '데이터룸 열람 등급',
+		clearanceMember: '구성원',
+		clearanceManagement: '경영진',
+		clearanceRepresentative: '대표·이사회'
 	},
 	en: {
 		inviteMember: 'Invite someone',
@@ -119,6 +123,10 @@ export const organizationDirectoryText = {
 		keepEditing: 'Keep editing',
 		discardEdits: 'Close',
 		basicInformation: 'Basic information',
-		email: 'Email'
+		email: 'Email',
+		dataRoomClearance: 'Data room clearance',
+		clearanceMember: 'member',
+		clearanceManagement: 'management',
+		clearanceRepresentative: 'representative'
 	}
 } as const;

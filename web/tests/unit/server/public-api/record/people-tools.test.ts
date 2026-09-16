@@ -21,6 +21,7 @@ const everyFieldSet = {
 	personHint: 'm1',
 	name: '이샘플',
 	isAdmin: true,
+	clearance: 2,
 	jobTitle: '편집장',
 	teamHint: '개발팀',
 	supervisorHint: '박예시',
@@ -30,9 +31,9 @@ const everyFieldSet = {
 };
 
 describe('which home each field of a person update is written to', () => {
-	test('sends the account directory the name and whether they administer', () => {
+	test('sends the account directory the name, whether they administer and their clearance', () => {
 		const homes = homesOfPersonUpdate(everyFieldSet, { teamID: 't1', supervisorID: 'm2' });
-		expect(Object.keys(homes.account).sort()).toEqual(['isAdmin', 'name']);
+		expect(Object.keys(homes.account).sort()).toEqual(['clearance', 'isAdmin', 'name']);
 	});
 
 	test('sends the organization profile every human-resources attribute', () => {

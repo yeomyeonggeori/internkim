@@ -92,7 +92,9 @@ const ledgerToolNames = [
 	'company_document_register',
 	'company_document_list',
 	'company_document_search',
-	'company_document_update'
+	'company_document_update',
+	'company_document_upload',
+	'company_document_download'
 ];
 
 describe('the ledger is the record answering', () => {
@@ -372,5 +374,124 @@ describe('the document ledger', () => {
 
 		expect(refused.status).toBe(409);
 		expect((refused.body as { errorCode?: string }).errorCode).toBeDefined();
+	});
+});
+
+describe('the data room', () => {
+	const digest = 'a'.repeat(64);
+	let statementID = '';
+
+	test('refuses a member filing above their own clearance', async () => {
+		const refused = await asSample('company_document_register', {
+			kind: 'internal',
+			documentType: 'financial-statement',
+			title: '2025 financial statement',
+			summary: 'The audited statement for 2025.',
+			domain: '03-finance',
+			clearance: 2
+		});
+
+		expect(refused.status).toBe(403);
+	});
+
+	test('files a document at its domain clearance with the frontmatter the standard names', async () => {
+		const registered = await asAdmin('company_document_register', {
+			kind: 'internal',
+			documentType: 'financial-statement',
+			title: '2025 financial statement',
+			summary: 'The audited statement for 2025.',
+			domain: '03-finance',
+			clearance: 2,
+			date: '2026-03-31',
+			period: '2025',
+			status: 'current',
+			sha256: digest,
+			tags: ['audit', 'annual']
+		});
+
+		expect(registered.status).toBe(200);
+		expect(resultOf(registered).clearance).toBe(2);
+		expect(resultOf(registered).domain).toBe('03-finance');
+		expect(resultOf(registered).tags).toEqual(['audit', 'annual']);
+		expect(resultOf(registered).published).toBeNull();
+		statementID = resultOf(registered).documentID as string;
+	});
+
+	test('does not exist for a member below its clearance', async () => {
+		const forSample = await asSample('company_document_list', { domain: '03-finance' });
+		const forAdmin = await asAdmin('company_document_list', { domain: '03-finance', clearance: 2 });
+
+		expect(resultOf(forSample).count).toBe(0);
+		expect(resultOf(forAdmin).count).toBe(1);
+	});
+
+	test('is superseded by a document in the same domain, never overwritten', async () => {
+		const restated = await asAdmin('company_document_register', {
+			kind: 'internal',
+			documentType: 'financial-statement',
+			title: '2025 financial statement, restated',
+			summary: 'The 2025 statement restated after the audit adjustment.',
+			domain: '03-finance',
+			clearance: 2,
+			supersedesHint: '2025 financial statement'
+		});
+
+		expect(restated.status).toBe(200);
+		expect(resultOf(restated).supersedes).toBe(statementID);
+	});
+
+	test('signs an upload at the requester clearance and refuses one above it', async () => {
+		const allowed = await asSample('company_document_upload', { clearance: 1, sha256: digest });
+		const refused = await asSample('company_document_upload', { clearance: 2, sha256: digest });
+
+		expect(allowed.status).toBe(200);
+		expect(resultOf(allowed).storagePath).toBe(`${companyID}/dataroom/1/${digest}`);
+		expect(String(resultOf(allowed).uploadURL)).toContain('/upload/sign/');
+		expect(refused.status).toBeGreaterThanOrEqual(400);
+	});
+
+	test('hands the stored file back through a signed download named by the document', async () => {
+		const signed = await asSample('company_document_upload', { clearance: 1, sha256: digest, fileName: 'text.md' });
+		const put = await fetch(String(resultOf(signed).uploadURL), {
+			method: 'PUT',
+			headers: { 'content-type': 'text/markdown' },
+			body: '# the derived text'
+		});
+		expect(put.ok).toBe(true);
+
+		const registered = await asSample('company_document_register', {
+			kind: 'internal',
+			documentType: 'product-brief',
+			title: 'internkim product brief',
+			summary: 'What internkim is, for a member who asks.',
+			domain: '08-product',
+			clearance: 1,
+			sha256: digest,
+			storagePath: `${companyID}/dataroom/1/${digest}`
+		});
+		const download = await asSample('company_document_download', {
+			documentHint: resultOf(registered).documentID,
+			fileName: 'text.md'
+		});
+
+		expect(download.status).toBe(200);
+		expect(resultOf(download).storagePath).toBe(`${companyID}/dataroom/1/${digest}/text.md`);
+		const fetched = await fetch(String(resultOf(download).downloadURL));
+		expect(await fetched.text()).toBe('# the derived text');
+	});
+
+	test('says so when the named document keeps no file', async () => {
+		const refused = await asSample('company_document_download', { documentHint: 'Q-2026-001' });
+
+		expect(refused.status).toBe(404);
+	});
+
+	test('reads the domain once an administrator raises the member clearance', async () => {
+		const raised = await asAdmin('person_update', { personHint: '이샘플', clearance: 2 });
+		expect(raised.status).toBe(200);
+		expect(resultOf(raised).clearance).toBe(2);
+
+		const forSample = await asSample('company_document_list', { domain: '03-finance' });
+		expect(resultOf(forSample).count).toBe(2);
 	});
 });

@@ -7,6 +7,7 @@ export type OrgProfileSnapshot = {
 	hireDate: string;
 	phoneNumber: string;
 	supervisorID: string;
+	clearance?: number;
 };
 
 export function normalizeOrgProfileRecord(record: UserRecord): UserRecord {
@@ -27,7 +28,8 @@ export function orgProfileSnapshot(record: UserRecord): OrgProfileSnapshot {
 		groupID: record.groupID ?? '',
 		hireDate: record.hireDate?.trim() ?? '',
 		phoneNumber: record.phoneNumber?.trim() ?? '',
-		supervisorID: record.supervisorID ?? ''
+		supervisorID: record.supervisorID ?? '',
+		clearance: record.clearance
 	};
 }
 

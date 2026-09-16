@@ -1687,6 +1687,11 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "clearance": {
+                  "maximum": 3,
+                  "minimum": 1,
+                  "type": "integer"
+                },
                 "email": {
                   "type": "string"
                 },
@@ -1770,6 +1775,11 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "clearance": {
+                    "maximum": 3,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
                   "email": {
                     "type": "string"
                   },
@@ -1848,7 +1858,7 @@
         "state": "ok"
       },
       "canonicalName": "person_update",
-      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
+      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, the data room clearance they read at, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or a clearance, or marking somebody departed; all are wide changes somebody has to mean.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -1859,6 +1869,12 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "clearance": {
+            "description": "The highest data room clearance the person reads, 1 to 3. Only an administrator sets it, for people below their own, up to their own.",
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer"
+          },
           "employmentStatus": {
             "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
             "enum": [
@@ -1909,6 +1925,12 @@
         "additionalProperties": false,
         "minProperties": 2,
         "properties": {
+          "clearance": {
+            "description": "The highest data room clearance the person reads, 1 to 3. Only an administrator sets it, for people below their own, up to their own.",
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer"
+          },
           "employmentStatus": {
             "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
             "enum": [
@@ -1973,6 +1995,11 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "clearance": {
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer"
+          },
           "email": {
             "type": "string"
           },
@@ -2043,6 +2070,11 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "clearance": {
+              "maximum": 3,
+              "minimum": 1,
+              "type": "integer"
+            },
             "email": {
               "type": "string"
             },
@@ -10645,7 +10677,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_list",
-      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, and summaries. Filter by type, counterpart, or keyword. Use to answer 'what quotes did we send to X'.",
+      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by type, counterpart, domain, clearance, or keyword. Only documents at or below the requester's clearance are listed. Use to answer 'what quotes did we send to X'.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -10656,8 +10688,18 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "clearance": {
+            "description": "Data room clearance to filter by, 0 to 3; only documents filed at exactly that clearance.",
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
           "counterpart": {
             "description": "Counterpart name to filter by, e.g. 'ABC Trading'.",
+            "type": "string"
+          },
+          "domain": {
+            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
             "type": "string"
           },
           "query": {
@@ -10690,7 +10732,22 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "clearance": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
                 "counterpart": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "date": {
                   "anyOf": [
                     {
                       "type": "string"
@@ -10715,6 +10772,16 @@
                 },
                 "documentType": {
                   "type": "string"
+                },
+                "domain": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "filePath": {
                   "anyOf": [
@@ -10742,7 +10809,88 @@
                     }
                   ]
                 },
+                "period": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "published": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "at": {
+                          "type": "string"
+                        },
+                        "by": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "from": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "by",
+                        "from"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "requesterID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "storagePath": {
                   "anyOf": [
                     {
                       "type": "string"
@@ -10762,6 +10910,22 @@
                     }
                   ]
                 },
+                "supersedes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "title": {
                   "type": "string"
                 }
@@ -10777,7 +10941,17 @@
                 "filePath",
                 "summary",
                 "requesterID",
-                "issuedAt"
+                "issuedAt",
+                "clearance",
+                "domain",
+                "date",
+                "period",
+                "status",
+                "supersedes",
+                "sha256",
+                "tags",
+                "storagePath",
+                "published"
               ],
               "type": "object"
             },
@@ -10809,7 +10983,22 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "clearance": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
                   "counterpart": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "date": {
                     "anyOf": [
                       {
                         "type": "string"
@@ -10834,6 +11023,16 @@
                   },
                   "documentType": {
                     "type": "string"
+                  },
+                  "domain": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "filePath": {
                     "anyOf": [
@@ -10861,7 +11060,88 @@
                       }
                     ]
                   },
+                  "period": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "published": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "at": {
+                            "type": "string"
+                          },
+                          "by": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "from": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "by",
+                          "from"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "requesterID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sha256": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "storagePath": {
                     "anyOf": [
                       {
                         "type": "string"
@@ -10881,6 +11161,22 @@
                       }
                     ]
                   },
+                  "supersedes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "title": {
                     "type": "string"
                   }
@@ -10896,7 +11192,17 @@
                   "filePath",
                   "summary",
                   "requesterID",
-                  "issuedAt"
+                  "issuedAt",
+                  "clearance",
+                  "domain",
+                  "date",
+                  "period",
+                  "status",
+                  "supersedes",
+                  "sha256",
+                  "tags",
+                  "storagePath",
+                  "published"
                 ],
                 "type": "object"
               },
@@ -10912,7 +11218,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     {
@@ -10926,7 +11232,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file.",
+      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room also names its domain, clearance, date, hash and the storagePath company_document_upload answered; one that replaces an older document names it with supersedesHint instead of editing it.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -10937,12 +11243,26 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "clearance": {
+            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
           "counterpart": {
             "description": "Counterpart company or person name, e.g. 'ABC Trading'.",
             "type": "string"
           },
+          "date": {
+            "description": "The date the document speaks from, in YYYY-MM-DD format.",
+            "type": "string"
+          },
           "documentType": {
             "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
+            "type": "string"
+          },
+          "domain": {
+            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
             "type": "string"
           },
           "filePath": {
@@ -10957,9 +11277,36 @@
             "description": "Document language, e.g. 'ko' or 'en'.",
             "type": "string"
           },
+          "period": {
+            "description": "The period the document covers when there is one, e.g. '2025' or '2026-Q1'.",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.",
+            "type": "string"
+          },
+          "status": {
+            "description": "'current', 'superseded' or 'draft'.",
+            "type": "string"
+          },
+          "storagePath": {
+            "description": "Where the original sits in the asset bucket, as company_document_upload answered it.",
+            "type": "string"
+          },
           "summary": {
             "description": "2-3 sentence summary of the document's key terms: parties, amounts, dates, obligations. Written so later questions can be answered without opening the file.",
             "type": "string"
+          },
+          "supersedesHint": {
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Short lowercase tags, e.g. ['audit', 'k-ifrs'].",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "title": {
             "description": "Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'.",
@@ -10983,7 +11330,22 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "clearance": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
           "counterpart": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date": {
             "anyOf": [
               {
                 "type": "string"
@@ -11008,6 +11370,16 @@
           },
           "documentType": {
             "type": "string"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "filePath": {
             "anyOf": [
@@ -11035,7 +11407,78 @@
               }
             ]
           },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "published": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "by": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "from": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "at",
+                  "by",
+                  "from"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "requesterID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
             "anyOf": [
               {
                 "type": "string"
@@ -11048,6 +11491,16 @@
           "storageDirectory": {
             "type": "string"
           },
+          "storagePath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "summary": {
             "anyOf": [
               {
@@ -11057,6 +11510,22 @@
                 "type": "null"
               }
             ]
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "title": {
             "type": "string"
@@ -11074,6 +11543,16 @@
           "summary",
           "requesterID",
           "issuedAt",
+          "clearance",
+          "domain",
+          "date",
+          "period",
+          "status",
+          "supersedes",
+          "sha256",
+          "tags",
+          "storagePath",
+          "published",
           "storageDirectory"
         ],
         "type": "object"
@@ -11088,7 +11567,22 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "clearance": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
             "counterpart": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "date": {
               "anyOf": [
                 {
                   "type": "string"
@@ -11113,6 +11607,16 @@
             },
             "documentType": {
               "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "filePath": {
               "anyOf": [
@@ -11140,7 +11644,78 @@
                 }
               ]
             },
+            "period": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "published": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "at": {
+                      "type": "string"
+                    },
+                    "by": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "from": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "by",
+                    "from"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "requesterID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sha256": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
               "anyOf": [
                 {
                   "type": "string"
@@ -11153,6 +11728,16 @@
             "storageDirectory": {
               "type": "string"
             },
+            "storagePath": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "summary": {
               "anyOf": [
                 {
@@ -11162,6 +11747,22 @@
                   "type": "null"
                 }
               ]
+            },
+            "supersedes": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tags": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             },
             "title": {
               "type": "string"
@@ -11179,6 +11780,16 @@
             "summary",
             "requesterID",
             "issuedAt",
+            "clearance",
+            "domain",
+            "date",
+            "period",
+            "status",
+            "supersedes",
+            "sha256",
+            "tags",
+            "storagePath",
+            "published",
             "storageDirectory"
           ],
           "type": "object"
@@ -11186,7 +11797,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "1",
+      "version": "2",
       "worksOffline": false
     },
     {
@@ -11241,7 +11852,22 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "clearance": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
                 "counterpart": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "date": {
                   "anyOf": [
                     {
                       "type": "string"
@@ -11266,6 +11892,16 @@
                 },
                 "documentType": {
                   "type": "string"
+                },
+                "domain": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "filePath": {
                   "anyOf": [
@@ -11293,7 +11929,88 @@
                     }
                   ]
                 },
+                "period": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "published": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "at": {
+                          "type": "string"
+                        },
+                        "by": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "from": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "by",
+                        "from"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "requesterID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "storagePath": {
                   "anyOf": [
                     {
                       "type": "string"
@@ -11313,6 +12030,22 @@
                     }
                   ]
                 },
+                "supersedes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "title": {
                   "type": "string"
                 }
@@ -11328,7 +12061,17 @@
                 "filePath",
                 "summary",
                 "requesterID",
-                "issuedAt"
+                "issuedAt",
+                "clearance",
+                "domain",
+                "date",
+                "period",
+                "status",
+                "supersedes",
+                "sha256",
+                "tags",
+                "storagePath",
+                "published"
               ],
               "type": "object"
             },
@@ -11360,7 +12103,22 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "clearance": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
                   "counterpart": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "date": {
                     "anyOf": [
                       {
                         "type": "string"
@@ -11385,6 +12143,16 @@
                   },
                   "documentType": {
                     "type": "string"
+                  },
+                  "domain": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "filePath": {
                     "anyOf": [
@@ -11412,7 +12180,88 @@
                       }
                     ]
                   },
+                  "period": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "published": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "at": {
+                            "type": "string"
+                          },
+                          "by": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "from": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "by",
+                          "from"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "requesterID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sha256": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "storagePath": {
                     "anyOf": [
                       {
                         "type": "string"
@@ -11432,6 +12281,22 @@
                       }
                     ]
                   },
+                  "supersedes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "title": {
                     "type": "string"
                   }
@@ -11447,7 +12312,17 @@
                   "filePath",
                   "summary",
                   "requesterID",
-                  "issuedAt"
+                  "issuedAt",
+                  "clearance",
+                  "domain",
+                  "date",
+                  "period",
+                  "status",
+                  "supersedes",
+                  "sha256",
+                  "tags",
+                  "storagePath",
+                  "published"
                 ],
                 "type": "object"
               },
@@ -11472,7 +12347,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_update",
-      "description": "Update a registered document's file path, title, counterpart, or summary. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it.",
+      "description": "Update a registered document's file path, title, counterpart, summary, or where it sits in the data room: its domain, clearance, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when a submission is raised into its domain. Raising a clearance is refused above the requester's own.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -11483,21 +12358,62 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "clearance": {
+            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
           "counterpart": {
             "description": "Corrected counterpart. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "date": {
+            "description": "The date the document speaks from, in YYYY-MM-DD format.",
             "type": "string"
           },
           "documentHint": {
             "description": "The document to update: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Never the new title this call is about to set.",
             "type": "string"
           },
+          "domain": {
+            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
+            "type": "string"
+          },
           "filePath": {
             "description": "New workspace path after the file was saved, moved, or renamed.",
+            "type": "string"
+          },
+          "period": {
+            "description": "The period the document covers when there is one, e.g. '2025' or '2026-Q1'.",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.",
+            "type": "string"
+          },
+          "status": {
+            "description": "'current', 'superseded' or 'draft'.",
+            "type": "string"
+          },
+          "storagePath": {
+            "description": "Where the original sits in the asset bucket, as company_document_upload answered it.",
             "type": "string"
           },
           "summary": {
             "description": "Replacement summary. Omit to keep unchanged.",
             "type": "string"
+          },
+          "supersedesHint": {
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Short lowercase tags, e.g. ['audit', 'k-ifrs'].",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "title": {
             "description": "Corrected title. Omit to keep unchanged.",
@@ -11519,7 +12435,22 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "clearance": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
           "counterpart": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date": {
             "anyOf": [
               {
                 "type": "string"
@@ -11544,6 +12475,16 @@
           },
           "documentType": {
             "type": "string"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "filePath": {
             "anyOf": [
@@ -11571,7 +12512,88 @@
               }
             ]
           },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "published": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "at": {
+                    "type": "string"
+                  },
+                  "by": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "from": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "at",
+                  "by",
+                  "from"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "requesterID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "storagePath": {
             "anyOf": [
               {
                 "type": "string"
@@ -11591,6 +12613,22 @@
               }
             ]
           },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "title": {
             "type": "string"
           }
@@ -11606,7 +12644,17 @@
           "filePath",
           "summary",
           "requesterID",
-          "issuedAt"
+          "issuedAt",
+          "clearance",
+          "domain",
+          "date",
+          "period",
+          "status",
+          "supersedes",
+          "sha256",
+          "tags",
+          "storagePath",
+          "published"
         ],
         "type": "object"
       },
@@ -11620,7 +12668,22 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "clearance": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
             "counterpart": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "date": {
               "anyOf": [
                 {
                   "type": "string"
@@ -11645,6 +12708,16 @@
             },
             "documentType": {
               "type": "string"
+            },
+            "domain": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "filePath": {
               "anyOf": [
@@ -11672,7 +12745,88 @@
                 }
               ]
             },
+            "period": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "published": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "at": {
+                      "type": "string"
+                    },
+                    "by": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "from": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "by",
+                    "from"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "requesterID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sha256": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "storagePath": {
               "anyOf": [
                 {
                   "type": "string"
@@ -11692,6 +12846,22 @@
                 }
               ]
             },
+            "supersedes": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tags": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "title": {
               "type": "string"
             }
@@ -11707,13 +12877,197 @@
             "filePath",
             "summary",
             "requesterID",
-            "issuedAt"
+            "issuedAt",
+            "clearance",
+            "domain",
+            "date",
+            "period",
+            "status",
+            "supersedes",
+            "sha256",
+            "tags",
+            "storagePath",
+            "published"
           ],
           "type": "object"
         }
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
+      "version": "2",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_document_upload",
+      "description": "Ask for a place in the data room to put one file. Answers the storagePath the file will sit at, keyed by its clearance and SHA-256, and a signed URL to PUT the bytes to; the record's own policy decides whether the requester may write at that clearance, so a refusal here is the clearance rule. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "clearance": {
+            "description": "Data room clearance the file is stored at: 0 public, 1 every member, 2 management, 3 representative and board. The bucket refuses a clearance above the requester's own.",
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fileName": {
+            "description": "Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clearance",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_document_upload",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_document_upload",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "storagePath": {
+            "type": "string"
+          },
+          "uploadURL": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "storagePath",
+          "uploadURL"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_document_upload",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "storagePath": {
+              "type": "string"
+            },
+            "uploadURL": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "storagePath",
+            "uploadURL"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_document_download",
+      "description": "Fetch a document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; a document above the requester's clearance does not exist for them, so it is refused as not found. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "documentHint": {
+            "description": "The document whose original to fetch: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Give this or storagePath.",
+            "type": "string"
+          },
+          "fileName": {
+            "description": "Name of a derived file stored beside the original, e.g. '01-summary.md'. Omit for the original itself.",
+            "type": "string"
+          },
+          "storagePath": {
+            "description": "The object's path in the asset bucket, as a document result's storagePath shows it. Give this or documentHint.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_document_download",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "company_document_download",
+      "namespace": "company",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "downloadURL": {
+            "type": "string"
+          },
+          "storagePath": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "storagePath",
+          "downloadURL"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_document_download",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "downloadURL": {
+              "type": "string"
+            },
+            "storagePath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "storagePath",
+            "downloadURL"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
       "version": "1",
       "worksOffline": false
     },

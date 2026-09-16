@@ -16,6 +16,7 @@ export type RecordPerson = {
 	name: string;
 	email: string;
 	isAdmin: boolean;
+	clearance: number;
 	employmentStatus: string;
 	jobTitle: string;
 	teamID: string;
@@ -30,6 +31,7 @@ type MemberRow = {
 	name: string | null;
 	email: string | null;
 	is_admin: boolean;
+	clearance: number;
 	status: string;
 	job_title: string | null;
 	team_id: string | null;
@@ -40,7 +42,7 @@ type MemberRow = {
 };
 
 const directoryColumns =
-	'id, name, email, is_admin, status, job_title, team_id, supervisor_id, phone_number, joined_at, timezone';
+	'id, name, email, is_admin, clearance, status, job_title, team_id, supervisor_id, phone_number, joined_at, timezone';
 
 export function displayNameOf(member: { name: string | null; email: string | null }): string {
 	return member.name?.trim() || (member.email ?? '').split('@')[0];
@@ -73,6 +75,7 @@ function recordPersonOf(member: MemberRow): RecordPerson {
 		name: displayNameOf(member),
 		email: member.email ?? '',
 		isAdmin: member.is_admin,
+		clearance: member.clearance,
 		employmentStatus: member.status,
 		jobTitle: member.job_title ?? '',
 		teamID: member.team_id ?? '',

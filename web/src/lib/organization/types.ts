@@ -10,6 +10,7 @@ export type UserRecord = {
 	note?: string;
 	role?: UserRole;
 	circles?: string[];
+	clearance?: number;
 	jobTitle?: string;
 	groupID?: string;
 	phoneNumber?: string;
@@ -36,4 +37,5 @@ export type OrgProfileUpdate = {
 	hireDate?: string;
 	phoneNumber?: string;
 	supervisorID?: string;
+	clearance?: number;
 };

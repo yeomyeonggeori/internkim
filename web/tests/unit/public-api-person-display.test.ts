@@ -8,6 +8,7 @@ function person(personID: string, name: string, supervisorID = ''): RecordPerson
 		name,
 		email: `${personID}@example.com`,
 		isAdmin: false,
+		clearance: 1,
 		employmentStatus: 'active',
 		jobTitle: '',
 		teamID: '',
