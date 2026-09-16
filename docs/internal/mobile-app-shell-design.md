@@ -87,6 +87,16 @@ is restricted in the Google Cloud console to two APIs: FCM Registration and
 Firebase Installations. An Android feature that adds another Firebase SDK
 fails until its API is allowed on that key.
 
+An Android release is signed by a key store that is never committed. It sits in
+`~/.local/internkim-keys/` as `internkim-release.keystore`, and
+`android/app/build.gradle` reads what it needs from `internkim-signing.properties`
+beside it: `storeFile`, `storePassword`, `keyAlias`, `keyPassword`. A machine
+without that file still builds, and `./gradlew assembleRelease` there produces
+an unsigned APK. Losing the store ends updates for everyone who installed the
+app, because Android refuses an update signed by a different key and so does
+the Play Store, so it is backed up wherever the company keeps its other
+credentials.
+
 ## Signing in
 
 The existing gate (`web-auth-gate.svelte`) is the sign-in screen. Email and
