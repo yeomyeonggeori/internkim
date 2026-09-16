@@ -1292,7 +1292,7 @@ select is_empty(
       'id', 'company_id', 'email', 'user_id', 'status', 'is_admin', 'joined_at',
       'locale', 'timezone', 'work_hours', 'minimum_daily_minutes',
       'team_id', 'supervisor_id', 'job_title', 'name', 'profile_image',
-      'phone_number', 'messenger'
+      'phone_number', 'messenger', 'clearance'
     )
   $$,
   'no column of member is readable by a colleague that was not meant to be'
