@@ -16,6 +16,7 @@
 		type Reachability
 	} from '$lib/notifications/subscribe';
 	import { sendTestNotification } from '$lib/notifications/self-test';
+	import { isInsideNativeShell } from '$lib/native-shell/shell';
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import SendIcon from '@lucide/svelte/icons/send';
 	import { onMount } from 'svelte';
@@ -118,7 +119,9 @@
 				</Button>
 			{/if}
 			{#if reach === 'blocked'}
-				<p class="text-sm text-muted-foreground">{text.notifyBlocked}</p>
+				<p class="text-sm text-muted-foreground">
+					{isInsideNativeShell() ? text.notifyBlockedOnDevice : text.notifyBlocked}
+				</p>
 			{/if}
 			<div class="grid gap-3" class:opacity-50={reach !== 'on'}>
 				{#each settings.categories.filter((choice) => choice.isChoosable) as choice (choice.category)}
