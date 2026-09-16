@@ -13,6 +13,7 @@ final class SentNotification {
     final String title;
     final String body;
     final String tag;
+    final String senderID;
     final String senderName;
     final String pictureURL;
     final Map<String, String> data;
@@ -23,6 +24,7 @@ final class SentNotification {
         this.title = valueOf(data, "title");
         this.body = valueOf(data, "body");
         this.tag = valueOf(data, "tag");
+        this.senderID = valueOf(data, "senderID");
         this.senderName = valueOf(data, "senderName");
         this.pictureURL = valueOf(data, "pictureURL");
     }
@@ -38,6 +40,10 @@ final class SentNotification {
 
     String nameShown() {
         return senderName.isEmpty() ? title : senderName;
+    }
+
+    String senderKey() {
+        return senderID.isEmpty() ? "name:" + nameShown() : "member:" + senderID;
     }
 
     String textShown() {

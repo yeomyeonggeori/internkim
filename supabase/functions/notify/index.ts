@@ -42,7 +42,11 @@ Deno.serve(
 			client,
 			recipientMemberIDs,
 			askedCategory(asked.category),
-			{ ...askedNotification(asked), icon: await pictureURLOfSender(client, companyID, asked.senderPicturePath, sender ?? '') },
+			{
+				...askedNotification(asked),
+				senderID: sender ?? '',
+				icon: await pictureURLOfSender(client, companyID, asked.senderPicturePath, sender ?? '')
+			},
 			pushKeys,
 			conversationID
 		);

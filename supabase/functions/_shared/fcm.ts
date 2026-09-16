@@ -31,7 +31,8 @@ export function fcmMessage(deviceToken: string, notification: Notification): Rec
 				body: notification.body,
 				openPath: notification.openPath,
 				tag: notification.tag,
-				...(sender ? { senderName: sender.name, pictureURL: sender.pictureURL } : {})
+				...(sender ? { senderName: sender.name, pictureURL: sender.pictureURL } : {}),
+				...(sender?.id ? { senderID: sender.id } : {})
 			},
 			android: { priority: 'HIGH' }
 		}
