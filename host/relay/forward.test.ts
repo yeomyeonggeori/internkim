@@ -425,14 +425,14 @@ describe('the picture of a person', () => {
 			{
 				...dispatch,
 				keptPersonPicture: async () => {
-					throw new MessengerAnswered(502, 'the messenger names a picture for npub-drawn but handed none');
+					throw new MessengerAnswered(502, 'person.picture answered 502');
 				}
 			},
 			read({ externalID: 'npub-drawn' }),
 			'member-1'
 		);
 		expect(served.status).toBe(502);
-		expect(served.body).toEqual({ picture: null, error: 'the messenger names a picture for npub-drawn but handed none' });
+		expect(served.body).toEqual({ picture: null, error: 'person.picture answered 502' });
 	});
 
 	test('is asked after by account, or not at all', async () => {
