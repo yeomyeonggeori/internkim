@@ -34,6 +34,7 @@ describe('the colleague a notification comes from', () => {
 		const { client, signed } = directoryHolding([recipient, sender]);
 
 		expect(await colleagueWhoSent(client, 'member-2', 'member-1')).toEqual({
+			senderID: 'member-2',
 			senderName: '이샘플',
 			icon: 'https://storage.example.test/signed/company-1/shared/members/member-2.png'
 		});
@@ -63,7 +64,11 @@ describe('the colleague a notification comes from', () => {
 	test('a colleague with no picture kept lends their name and no picture', async () => {
 		const { client, signed } = directoryHolding([recipient, { ...sender, profile_image: null }]);
 
-		expect(await colleagueWhoSent(client, 'member-2', 'member-1')).toEqual({ senderName: '이샘플', icon: '' });
+		expect(await colleagueWhoSent(client, 'member-2', 'member-1')).toEqual({
+			senderID: 'member-2',
+			senderName: '이샘플',
+			icon: ''
+		});
 		expect(signed).toEqual([]);
 	});
 });

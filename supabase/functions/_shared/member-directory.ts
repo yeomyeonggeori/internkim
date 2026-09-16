@@ -34,7 +34,7 @@ export async function pictureURLOfMember(client: SupabaseClient, memberID: strin
 	return signedPictureURL(client, member.data?.profile_image ?? '');
 }
 
-export type NotificationSenderFields = { senderName: string; icon: string };
+export type NotificationSenderFields = { senderID: string; senderName: string; icon: string };
 
 type MemberWhoSends = { id: string; name: string | null; company_id: string | null; profile_image: string | null };
 
@@ -57,6 +57,7 @@ export async function colleagueWhoSent(
 	if (!sender?.company_id || sender.company_id !== recipient?.company_id) return null;
 
 	return {
+		senderID: sender.id,
 		senderName: (sender.name ?? '').trim(),
 		icon: await signedPictureURL(client, sender.profile_image ?? '')
 	};

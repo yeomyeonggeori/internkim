@@ -42,6 +42,7 @@ export async function announceTaskMove(
 		body: `${mover}님이 옮겼습니다`,
 		openPath: '/task/',
 		tag: `task-${task.id}`,
+		senderID: moverID,
 		senderName: mover,
 		icon: moverPicture
 	};
