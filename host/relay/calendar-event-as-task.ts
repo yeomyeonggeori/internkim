@@ -45,7 +45,7 @@ export type EventAsTask = {
 	calendar: EventCalendar;
 };
 
-export type ParticipantMatch = { email: string; by: 'personID' | 'email' | 'nameOrHandle' };
+export type ParticipantMatch = { email: string; by: 'personID' | 'email' | 'nameOrHandle' | 'givenName' };
 
 const deviceSource = 'internkim-device';
 
@@ -84,8 +84,14 @@ export function matchParticipant(
 	if (name.length < 2) return undefined;
 
 	const named = people.filter((person) => person.name === name || person.handle === name);
-	if (named.length !== 1 || !named[0].email) return undefined;
-	return { email: named[0].email.toLowerCase(), by: 'nameOrHandle' };
+	if (named.length > 1) return undefined;
+	if (named.length === 1) {
+		return named[0].email ? { email: named[0].email.toLowerCase(), by: 'nameOrHandle' } : undefined;
+	}
+
+	const candidates = people.filter((person) => (person.name ?? '').endsWith(name));
+	if (candidates.length !== 1 || !candidates[0].email) return undefined;
+	return { email: candidates[0].email.toLowerCase(), by: 'givenName' };
 }
 
 export function titleOf(event: DeviceCalendarEvent): string {
