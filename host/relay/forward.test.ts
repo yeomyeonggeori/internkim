@@ -27,6 +27,7 @@ import {
 	type PublicAPIRequest
 } from './forward';
 import type { ArrivedMessage } from './arrived';
+import { MessengerAnswered } from './person-picture';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -96,6 +97,10 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			}),
 			keptAlready: async () => null,
 			keptFileBytes: async () => new TextEncoder().encode('kept bytes'),
+			keptPersonPicture: async ({ externalID, avatarURL }: { externalID: string; avatarURL: string }) => {
+				asked.push({ capability: 'person.picture', body: { externalID, avatarURL } });
+				return externalID === 'npub-bare' ? '' : keptAddress(`person-picture/${externalID}`);
+			},
 			askAdmindAsRequester: async (call: AdmindCall) => {
 				admindCalls.push(call);
 				return { status: 200, body: { served: call.url } };
@@ -383,6 +388,56 @@ describe('a message carrying a file the messenger will not store', () => {
 
 		expect(served.status).toBe(415);
 		expect(asked.filter((entry) => entry.capability === 'person.message.send')).toHaveLength(1);
+	});
+});
+
+describe('the picture of a person', () => {
+	const read = (body: Record<string, unknown>) => ({ callID: 'c1', capability: 'person.picture', body });
+
+	test('is answered with an address in the company bucket the reader signs for, never with bytes', async () => {
+		const { asked, dispatch } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(
+			dispatch,
+			read({ externalID: 'npub-drawn', avatarURL: 'https://relay.example.com/media/abc.png' }),
+			'member-1'
+		);
+
+		expect(served).toEqual({
+			status: 200,
+			body: { picture: { address: keptAddress('person-picture/npub-drawn') } },
+			replyTo: 'member-1'
+		});
+		expect(asked).toEqual([
+			{ capability: 'person.picture', body: { externalID: 'npub-drawn', avatarURL: 'https://relay.example.com/media/abc.png' } }
+		]);
+	});
+
+	test('someone who set none has none', async () => {
+		const { dispatch } = dispatchThatKnows({});
+		const served = await serveCallForMember(dispatch, read({ externalID: 'npub-bare' }), 'member-1');
+		expect(served.body).toEqual({ picture: null });
+	});
+
+	test('a messenger that could not hand it over is answered as the failure it is', async () => {
+		const { dispatch } = dispatchThatKnows({});
+		const served = await serveCallForMember(
+			{
+				...dispatch,
+				keptPersonPicture: async () => {
+					throw new MessengerAnswered(502, 'the messenger names a picture for npub-drawn but handed none');
+				}
+			},
+			read({ externalID: 'npub-drawn' }),
+			'member-1'
+		);
+		expect(served.status).toBe(502);
+		expect(served.body).toEqual({ picture: null, error: 'the messenger names a picture for npub-drawn but handed none' });
+	});
+
+	test('is asked after by account, or not at all', async () => {
+		const { dispatch } = dispatchThatKnows({});
+		expect((await serveCallForMember(dispatch, read({}), 'member-1')).status).toBe(400);
 	});
 });
 

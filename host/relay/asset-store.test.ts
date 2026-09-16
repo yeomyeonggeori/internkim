@@ -5,6 +5,7 @@ import {
 	digestOf,
 	extensionOf,
 	keepMessageAttachment,
+	sharedAssetKeptAs,
 	sharedAssetPath,
 	type AssetLister,
 	type AssetUploader
@@ -143,6 +144,30 @@ describe('recognising a file the company already keeps', () => {
 		};
 
 		expect(await attachmentAlreadyKept(lister, company, '9f2c', 'application/pdf')).toBeNull();
+	});
+});
+
+describe('recognising a picture the company already keeps', () => {
+	test('finds it under whatever extension its type gave it, by the hash it is asked for by', async () => {
+		const lister: AssetLister & { looked: { path: string; search: string }[] } = {
+			looked: [],
+			list: async (path, options) => {
+				lister.looked.push({ path, search: options.search });
+				return { data: [{ name: '9f2c.jpg', metadata: { size: 1 } }], error: null };
+			}
+		};
+
+		const kept = await sharedAssetKeptAs(lister, company, 'person-picture', '9f2c');
+
+		expect(lister.looked).toEqual([{ path: `${company}/shared/person-picture`, search: '9f2c' }]);
+		expect(kept).toBe(`${company}/shared/person-picture/9f2c.jpg`);
+	});
+
+	test('a longer hash that merely starts the same is not it', async () => {
+		const lister: AssetLister = {
+			list: async () => ({ data: [{ name: '9f2caaa.png', metadata: { size: 1 } }], error: null })
+		};
+		expect(await sharedAssetKeptAs(lister, company, 'person-picture', '9f2c')).toBeNull();
 	});
 });
 
