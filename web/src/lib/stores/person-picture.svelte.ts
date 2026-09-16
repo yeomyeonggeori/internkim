@@ -1,27 +1,26 @@
-import { isSupabaseConfigured } from '$lib/supabase';
-import { fetchPeople, fetchProfilePicture } from '$lib/messenger/messenger-api';
+import { isSupabaseConfigured, projectURL, supabase } from '$lib/supabase';
+import { fetchPeople, keepPersonPictureForReading } from '$lib/messenger/messenger-api';
 import { accountsHeldBy, fetchMessengerDirectory, type MessengerDirectory } from '$lib/messenger/messenger-directory';
-import { forgetCachedPicture, readCachedPictures, writeCachedPicture } from '$lib/person-picture-cache';
+import { assetBucket, readableAddresses } from '$lib/messenger/kept-attachment';
 
 export type PersonIdentity = { memberID?: string; email?: string; externalID?: string };
 
 type HostPicture = { email: string; pictureURL?: string };
 
-// buzz-relay serves a picture from /media/<sha256 of its bytes> (Blossom
-// BUD-02), so an avatar URL never holds different bytes later and a kept copy
-// is current exactly while the URL it was kept from is the one the person
-// still carries.
+type PictureAnswer = { externalID: string; address: string; failed: boolean };
+
+// A person's picture is one object in the company's bucket, named by its
+// bytes. What is held here is the address the reader signed for, asked after
+// once: a failure leaves nothing behind to be believed on the next visit.
 class PersonPictureStore {
-	private dataURLOfExternal = $state<Map<string, string>>(new Map());
+	private readableOfExternal = $state<Map<string, string>>(new Map());
 	private urlOfEmail = $state<Map<string, string>>(new Map());
 	private resolved = $state<MessengerDirectory | null>(null);
-	private keptFromAvatarURL = new Map<string, string>();
 	private avatarURLOfExternal = new Map<string, string>();
+	private asked = new Set<string>();
 	private directory: Promise<MessengerDirectory | null> | null = null;
 	private hostDirectory: Promise<void> | null = null;
-	private keptPictures: Promise<void> | null = null;
 	private avatarURLs: Promise<void> | null = null;
-	private asked = new Set<string>();
 
 	// Somebody who was on one messenger and is now on another holds an account on
 	// each, and only the one the company runs today has a picture to give. Which
@@ -38,7 +37,7 @@ class PersonPictureStore {
 	}
 
 	pictureOfExternal(externalID: string): string {
-		return this.dataURLOfExternal.get(externalID) ?? '';
+		return this.readableOfExternal.get(externalID) ?? '';
 	}
 
 	async remember(people: PersonIdentity[]): Promise<void> {
@@ -55,69 +54,54 @@ class PersonPictureStore {
 	}
 
 	async rememberExternals(externalIDs: string[]): Promise<void> {
+		if (!isSupabaseConfigured()) return this.rememberHostDirectory();
 		const wanted = [...new Set(externalIDs)].filter((externalID) => externalID !== '');
 		if (wanted.length === 0) return;
-		await this.restoreKeptPictures();
 		await this.knownAvatarURLs();
-		this.forgetPicturesTakenDown(wanted);
 
-		const stale = wanted.filter((externalID) => this.needsRedrawing(externalID));
+		const stale = wanted.filter((externalID) => this.needsAsking(externalID));
 		if (stale.length === 0) return;
 		stale.forEach((externalID) => this.asked.add(externalID));
 
 		const answers = await Promise.all(stale.map((externalID) => this.askAfter(externalID)));
-		const next = new Map(this.dataURLOfExternal);
+		const readable = await this.signedFor(answers.map((answer) => answer.address).filter((address) => address !== ''));
+		const next = new Map(this.readableOfExternal);
 		for (const answer of answers) {
-			if (answer.failed || answer.dataURL === '') {
+			if (answer.address === '' && !answer.failed) continue;
+			const signed = readable.get(answer.address);
+			if (!signed) {
 				this.asked.delete(answer.externalID);
 				continue;
 			}
-			const avatarURL = this.avatarURLOfExternal.get(answer.externalID) ?? '';
-			next.set(answer.externalID, answer.dataURL);
-			this.keptFromAvatarURL.set(answer.externalID, avatarURL);
-			void writeCachedPicture({ externalID: answer.externalID, avatarURL, dataURL: answer.dataURL });
+			next.set(answer.externalID, signed);
 		}
-		this.dataURLOfExternal = next;
+		this.readableOfExternal = next;
 	}
 
-	private needsRedrawing(externalID: string): boolean {
-		if (this.asked.has(externalID)) return false;
-		const avatarURL = this.avatarURLOfExternal.get(externalID);
-		if (avatarURL === '') return false;
-		if (avatarURL === undefined) return true;
-		return this.keptFromAvatarURL.get(externalID) !== avatarURL;
+	private avatarURLOf(externalID: string): string {
+		return this.avatarURLOfExternal.get(externalID) ?? '';
 	}
 
-	private forgetPicturesTakenDown(externalIDs: string[]): void {
-		const takenDown = externalIDs.filter(
-			(externalID) =>
-				this.avatarURLOfExternal.get(externalID) === '' && this.dataURLOfExternal.has(externalID)
-		);
-		if (takenDown.length === 0) return;
-		const next = new Map(this.dataURLOfExternal);
-		for (const externalID of takenDown) {
-			next.delete(externalID);
-			this.keptFromAvatarURL.delete(externalID);
-			void forgetCachedPicture(externalID);
+	private needsAsking(externalID: string): boolean {
+		return !this.isListedWithoutPicture(externalID) && !this.asked.has(externalID);
+	}
+
+	private isListedWithoutPicture(externalID: string): boolean {
+		return this.avatarURLOfExternal.get(externalID) === '';
+	}
+
+	private async askAfter(externalID: string): Promise<PictureAnswer> {
+		try {
+			const kept = await keepPersonPictureForReading({ externalID, avatarURL: this.avatarURLOf(externalID) });
+			return { externalID, address: kept?.address ?? '', failed: false };
+		} catch {
+			return { externalID, address: '', failed: true };
 		}
-		this.dataURLOfExternal = next;
 	}
 
-	private restoreKeptPictures(): Promise<void> {
-		this.keptPictures ??= readCachedPictures().then((pictures) => {
-			if (pictures.length === 0) return;
-			const next = new Map(this.dataURLOfExternal);
-			for (const picture of pictures) {
-				if (picture.dataURL === '') {
-					void forgetCachedPicture(picture.externalID);
-					continue;
-				}
-				next.set(picture.externalID, picture.dataURL);
-				this.keptFromAvatarURL.set(picture.externalID, picture.avatarURL);
-			}
-			this.dataURLOfExternal = next;
-		});
-		return this.keptPictures;
+	private signedFor(addresses: string[]): Promise<Map<string, string>> {
+		if (addresses.length === 0) return Promise.resolve(new Map());
+		return readableAddresses(supabase().storage.from(assetBucket), projectURL(), addresses);
 	}
 
 	private knownAvatarURLs(): Promise<void> {
@@ -132,15 +116,6 @@ class PersonPictureStore {
 				this.avatarURLs = null;
 			});
 		return this.avatarURLs;
-	}
-
-	private async askAfter(externalID: string): Promise<{ externalID: string; dataURL: string; failed: boolean }> {
-		try {
-			const picture = await fetchProfilePicture(externalID);
-			return { externalID, dataURL: picture?.dataURL ?? '', failed: false };
-		} catch {
-			return { externalID, dataURL: '', failed: true };
-		}
 	}
 
 	private accountsOf(person: PersonIdentity): string[] {

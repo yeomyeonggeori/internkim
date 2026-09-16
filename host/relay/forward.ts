@@ -1,5 +1,6 @@
 import type { ArrivedMessage } from './arrived';
 import { extensionOf } from './asset-store';
+import { MessengerAnswered } from './person-picture';
 import { tellAboutSentMessage } from './sent-arrival';
 
 export type Call = {
@@ -16,6 +17,7 @@ const personPrefix = 'person.';
 export const directoryChangedCapability = 'directory.changed';
 const sendCapability = 'person.message.send';
 const readCapability = 'person.message.attachment';
+const pictureCapability = 'person.picture';
 const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
@@ -180,6 +182,7 @@ export type Dispatch = {
 	keepAttachment: (contentBase64: string, contentType: string) => Promise<KeptAttachment>;
 	keptAlready: (digest: string, contentType: string) => Promise<KeptAttachment | null>;
 	keptFileBytes: (kept: KeptFileReference) => Promise<Uint8Array<ArrayBuffer>>;
+	keptPersonPicture: (request: { externalID: string; avatarURL: string; actor: ActorCredential }) => Promise<string>;
 	askAdmindAsRequester: (call: AdmindCall) => Promise<{ status: number; body: unknown }>;
 	largestFileBytes: number;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
@@ -262,6 +265,9 @@ async function serveForMember(
 	if (capability === readCapability) {
 		return { ...(await keptForReading(dispatch, body, actor)), replyTo };
 	}
+	if (capability === pictureCapability) {
+		return { ...(await keptPictureForReading(dispatch, body, actor)), replyTo };
+	}
 	return { ...(await dispatch.askChatd(capability, { ...body, actor })), replyTo };
 }
 
@@ -288,6 +294,25 @@ async function keptForReading(
 		status: 200,
 		body: { attachment: { ...kept, filename: read.filename, contentType: read.contentType } }
 	};
+}
+
+// A face is answered the way a file is: an address in the company's bucket
+// the reader signs for, never the bytes.
+async function keptPictureForReading(
+	dispatch: Dispatch,
+	body: Record<string, unknown>,
+	actor: ActorCredential
+): Promise<{ status: number; body: unknown }> {
+	const externalID = typeof body.externalID === 'string' ? body.externalID.trim() : '';
+	if (!externalID) return { status: 400, body: { error: 'externalID is required' } };
+	const avatarURL = typeof body.avatarURL === 'string' ? body.avatarURL.trim() : '';
+	try {
+		const address = await dispatch.keptPersonPicture({ externalID, avatarURL, actor });
+		return { status: 200, body: { picture: address ? { address } : null } };
+	} catch (thrown) {
+		if (!(thrown instanceof MessengerAnswered)) throw thrown;
+		return { status: thrown.status, body: { picture: null, error: thrown.message } };
+	}
 }
 
 function describedFile(body: Record<string, unknown>): { filename: string; contentType: string; digest: string } {
