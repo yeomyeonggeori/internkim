@@ -18,6 +18,7 @@ type RunningTurn = {
 	eventKey: string;
 	/** Set once the agent asks something, which only a started run can do. */
 	blueclawOpenedARun: boolean;
+	finished: Promise<void>;
 };
 
 const firstRetryDelayMilliseconds = 250;
@@ -70,8 +71,19 @@ export class InboundTurns {
 		});
 	}
 
+	/**
+	 * Resolves once nothing is left to happen on its own: the queue has been
+	 * drained and every turn not parked on a question has finished. A parked
+	 * turn is waiting for a message that has to come through this same queue.
+	 */
 	async settled(): Promise<void> {
 		await this.draining;
+		const finishing = [...this.turnInFlight]
+			.filter(([conversationID]) => !this.pendingByConversation.has(conversationID))
+			.map(([, running]) => running.finished);
+		if (finishing.length === 0) return;
+		await Promise.all(finishing);
+		await this.settled();
 	}
 
 	private async drainOnce(): Promise<void> {
@@ -106,9 +118,9 @@ export class InboundTurns {
 	 */
 	private beginTurn(event: QueuedInboundEvent, inbound: InboundMessage): void {
 		const conversationID = inbound.addressing.conversationID;
-		const running: RunningTurn = { eventKey: event.key, blueclawOpenedARun: false };
+		const running: RunningTurn = { eventKey: event.key, blueclawOpenedARun: false, finished: Promise.resolve() };
 		this.turnInFlight.set(conversationID, running);
-		void this.runTurn(event, inbound, running).finally(() => {
+		running.finished = this.runTurn(event, inbound, running).finally(() => {
 			this.turnInFlight.delete(conversationID);
 			this.startDraining();
 		});
