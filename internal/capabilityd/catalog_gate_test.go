@@ -329,11 +329,12 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"attendance_add": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_add","result":{"status":"added","eventID":"a2","backdated":false}}`)},
-			input:   `{"kind":"clock_in","date":"2026-09-01","time":"09:02","reason":"출근 기록을 잊었습니다"}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_add","result":{"status":"added","eventID":"a2","backdated":false,"event":{"id":"a2","personID":"p1","kind":"clock_in","occurredAt":"2026-09-01T00:02:00Z","location":"본사"}}}`)},
+			input:   `{"kind":"clock_in","location":"본사"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"status":"added"`)
+				expectResultHolds(t, answered, `"event":{"id":"a2","personID":"p1","kind":"clock_in","occurredAt":"2026-09-01T00:02:00Z","location":"본사"}`)
 			},
 		},
 		"attendance_update": {

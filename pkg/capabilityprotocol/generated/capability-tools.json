@@ -6148,6 +6148,45 @@
           "backdated": {
             "type": "boolean"
           },
+          "event": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "clock_in",
+                  "clock_out"
+                ],
+                "type": "string"
+              },
+              "location": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string"
+              },
+              "personID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "personID",
+              "kind",
+              "occurredAt",
+              "location"
+            ],
+            "type": "object"
+          },
           "eventID": {
             "anyOf": [
               {
@@ -6182,6 +6221,45 @@
             "backdated": {
               "type": "boolean"
             },
+            "event": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "clock_in",
+                    "clock_out"
+                  ],
+                  "type": "string"
+                },
+                "location": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "personID",
+                "kind",
+                "occurredAt",
+                "location"
+              ],
+              "type": "object"
+            },
             "eventID": {
               "anyOf": [
                 {
@@ -6206,7 +6284,7 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
-      "version": "2",
+      "version": "3",
       "worksOffline": false
     },
     {

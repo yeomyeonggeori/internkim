@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { savedAttendanceEventSchema } from '$lib/attendance/recorded-attendance';
 import { taskSizes } from '$lib/task/task-sizes';
 
 import {
@@ -1120,6 +1121,10 @@ export const attendanceWriteResultSchema = z.strictObject({
   backdated: z.boolean(),
 });
 
+export const attendanceAddResultSchema = attendanceWriteResultSchema.extend({
+  event: savedAttendanceEventSchema.optional(),
+});
+
 const calendarToolDefinitions: CapabilityToolDefinition[] = [
   {
     name: CalendarToolName.Add,
@@ -1729,11 +1734,11 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_add',
     description: "Write a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a workplace this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
-    version: '2',
+    version: '3',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceAddInputSchema,
     inputIntentSchema: attendanceAddInputIntentSchema,
-    result: { schema: attendanceWriteResultSchema, effects: [] },
+    result: { schema: attendanceAddResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {

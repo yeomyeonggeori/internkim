@@ -109,6 +109,10 @@ describe('attendance write result', () => {
 		expect(() => attendanceWriteResultFrom(null)).toThrow();
 		expect(() => attendanceWriteResultFrom({ status: 'invented' })).toThrow();
 	});
+
+	test('refuses a malformed saved event instead of discarding it', () => {
+		expect(() => attendanceWriteResultFrom({ status: 'added', event: { kind: 'clock_in' } })).toThrow();
+	});
 });
 
 describe('attendance write wording', () => {
