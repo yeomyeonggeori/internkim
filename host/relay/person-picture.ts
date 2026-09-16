@@ -53,9 +53,6 @@ export class PersonPictures {
 			throw new MessengerAnswered(answer.status, `${pictureCapability} answered ${answer.status}`);
 		}
 		const picture = pictureOf(answer.body);
-		if (!picture && digest) {
-			throw new MessengerAnswered(502, `the messenger names a picture for ${request.externalID} but handed none`);
-		}
 		if (!picture) return '';
 		return this.sources.keep(picture.bytes, picture.contentType);
 	}
