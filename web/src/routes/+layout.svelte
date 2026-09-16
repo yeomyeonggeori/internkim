@@ -52,11 +52,11 @@
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
 	$effect(() => {
 		const sessionKey = `${data.session?.authenticated ?? false}:${data.session?.email ?? ''}`;
-		const isAttendanceRoute = page.url.pathname.startsWith('/attendance');
+		const isAttendanceRoute = routePathOf(page.url.pathname).startsWith('/attendance');
 		untrack(() => {
-			const sessionChanged = sessionKey !== attendanceSessionKey;
+			const hasSessionChanged = sessionKey !== attendanceSessionKey;
 			attendanceSessionKey = sessionKey;
-			if (sessionChanged) myAttendanceToday.clear();
+			if (hasSessionChanged) myAttendanceToday.clear();
 			if (!data.session?.authenticated) {
 				return;
 			}

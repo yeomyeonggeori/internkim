@@ -103,11 +103,11 @@ class MyAttendanceToday {
 		if (this.isSubmitting) return;
 		this.isSubmitting = true;
 		this.clockFailure = '';
-		this.clockMutationSequence += 1;
 		try {
 			const result = await toggleAttendanceOnServer(kind, locationID, confirmedEarlyReturn);
+			this.clockMutationSequence += 1;
+			this.loadPromise = undefined;
 			if (result?.event && this.applyClockEvent(result.event)) {
-				this.clockMutationSequence += 1;
 				this.clockEventHandler?.(result.event);
 			} else {
 				await this.load();
@@ -155,6 +155,8 @@ class MyAttendanceToday {
 				reason: text.clockOutNobodyRecordedReason
 			});
 			await toggleAttendanceOnServer('clock_in', locationID, false);
+			this.clockMutationSequence += 1;
+			this.loadPromise = undefined;
 			await this.load();
 			toast.success(this.recordedClockMessage('clock_in'));
 		} catch (failure) {
