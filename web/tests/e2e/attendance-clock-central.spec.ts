@@ -2,8 +2,12 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	attendanceRowsOf,
 	removeAttendanceOf,
+	seedAttendanceEvents,
+	seoulDateToday,
+	seoulInstant,
 	signInToAttendance
 } from './attendance-central-test-utils';
+import { signInToTheCentralPlane } from './central-plane-sign-in';
 import { member1ID } from './central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
@@ -24,6 +28,16 @@ function quickActions(page: Page) {
 	return page.getByTestId('personal-tools-panel');
 }
 
+function trackToolInvokes(page: Page): { names: string[]; stop: () => void } {
+	const names: string[] = [];
+	const recordRequest = (request: { url(): string }) => {
+		const match = request.url().match(/\/api\/v1\/tools\/([^/]+)\/invoke$/);
+		if (match) names.push(match[1]);
+	};
+	page.on('request', recordRequest);
+	return { names, stop: () => page.off('request', recordRequest) };
+}
+
 function paletteItem(page: Page, value: string) {
 	return page.locator(`[role="option"][data-value="${value}"]`);
 }
@@ -39,13 +53,16 @@ async function openCommandPalette(page: Page, offersClockOut: boolean): Promise<
 	await expect(clockOut).toHaveAttribute('aria-disabled', 'true', { timeout: 20000 });
 }
 
-async function openClockMenu(page: Page): Promise<void> {
+async function openClockMenu(page: Page, offersClockOut = true): Promise<void> {
 	await page.keyboard.press('Period');
 	const menu = page.locator('[data-app-rail-profile-menu]');
 	await menu.waitFor({ state: 'visible' });
-	await menu
-		.getByRole('menuitem', { name: '퇴근', exact: true })
-		.waitFor({ state: 'visible', timeout: 20000 });
+	const clockOut = menu.getByRole('menuitem', { name: '퇴근', exact: true });
+	if (offersClockOut) {
+		await expect(clockOut).not.toHaveAttribute('aria-disabled', 'true', { timeout: 20000 });
+		return;
+	}
+	await expect(clockOut).toHaveAttribute('aria-disabled', 'true', { timeout: 20000 });
 }
 
 async function recordedClockKinds(): Promise<string[]> {
@@ -56,35 +73,62 @@ async function recordedLocations(): Promise<(string | null)[]> {
 	return (await attendanceRowsOf(member1ID)).map((row) => row.location);
 }
 
+test('the first authenticated navigation shows an existing clock-in', async ({ page }) => {
+	await seedAttendanceEvents([
+		{ memberID: member1ID, kind: 'clock_in', occurredAtISO: seoulInstant(seoulDateToday(), '09:00'), location: home }
+	]);
+	try {
+		const attendanceLoad = page.waitForResponse(
+			(response) => response.url().includes('/api/v1/tools/attendance_list/invoke') && response.ok(),
+			{ timeout: 30000 }
+		);
+		await signInToTheCentralPlane(page, '/example-co/task');
+		await attendanceLoad;
+		await page.waitForLoadState('networkidle');
+		await openClockMenu(page);
+	} finally {
+		await removeAttendanceOf(member1ID);
+	}
+});
+
 test('the command palette clocks in at the location it names', async ({ page }) => {
 	await signInToAttendance(page);
 	await expect(quickActions(page).getByRole('button', { name: '출근', exact: true })).toBeVisible();
 
 	await openCommandPalette(page, false);
+	await page.waitForLoadState('networkidle');
+	const invokes = trackToolInvokes(page);
 	await paletteItem(page, `clock-in-${home}`).click();
 
 	await expect.poll(recordedClockKinds, { timeout: 20000 }).toEqual(['clock_in']);
 	await expect.poll(recordedLocations).toEqual([home]);
 	await expect(quickActions(page).getByText(home)).toBeVisible({ timeout: 20000 });
 	await expect(quickActions(page).getByRole('button', { name: '퇴근', exact: true })).toBeVisible();
+	invokes.stop();
+	expect(invokes.names).toEqual(['attendance_add']);
 });
 
 test('the clock rail clocks out and the record keeps the pair', async ({ page }) => {
 	await signInToAttendance(page);
 
 	await openClockMenu(page);
+	await page.waitForLoadState('networkidle');
+	const invokes = trackToolInvokes(page);
 	await page.getByRole('menuitem', { name: '퇴근', exact: true }).click();
 
 	await expect.poll(recordedClockKinds, { timeout: 20000 }).toEqual(['clock_in', 'clock_out']);
 	await expect(quickActions(page).getByRole('button', { name: '출근', exact: true })).toBeVisible({
 		timeout: 20000
 	});
+	invokes.stop();
+	expect(invokes.names).toEqual(['attendance_add']);
 });
 
 test('the clock rail clocks in at the location the menu offers', async ({ page }) => {
 	await signInToAttendance(page);
 
-	await openClockMenu(page);
+	await openClockMenu(page, false);
+	await page.waitForLoadState('networkidle');
 	await page.getByRole('menuitemradio', { name: office, exact: true }).click();
 
 	await expect.poll(recordedClockKinds, { timeout: 20000 }).toEqual([
@@ -119,7 +163,24 @@ test('the command palette offers no clock-out while nobody is clocked in', async
 	await signInToAttendance(page);
 
 	await openCommandPalette(page, false);
+	await page.waitForLoadState('networkidle');
 
 	await expect(paletteItem(page, 'clock-out')).toHaveAttribute('aria-disabled', 'true');
 	await expect(paletteItem(page, `clock-in-${office}`)).toBeVisible();
+});
+
+test('a failed clock-in leaves the original action available', async ({ page }) => {
+	await removeAttendanceOf(member1ID);
+	await signInToAttendance(page);
+	await page.route('**/api/v1/tools/attendance_add/invoke', async (route) =>
+		route.fulfill({ status: 422, json: { error: 'clock unavailable' } })
+	);
+
+	await openCommandPalette(page, false);
+	await paletteItem(page, `clock-in-${home}`).click();
+
+	await expect(quickActions(page).getByRole('button', { name: '출근', exact: true })).toBeVisible();
+	await expect(page.getByText('기록하지 못했습니다').last()).toBeVisible();
+	await expect.poll(recordedClockKinds).toEqual([]);
+	await page.unroute('**/api/v1/tools/attendance_add/invoke');
 });
