@@ -13,5 +13,215 @@
 		"path": "attendance_leave_policy_set.result.leaveTypes[].usageLimitMilliDays",
 		"reason": "The same field on the write's answer. A device that sets a policy reads back what the record kept, and this is the one property it did not send.",
 		"release": "the release cut after #1630 merges, which carries the field to the fleet before the plane answers with it"
+	},
+	{
+		"path": "person_list.result.people[].clearance",
+		"reason": "A person now carries the highest data room clearance they read. A device reading the directory without it sees the person it saw before; the record enforces the clearance on every read, so nothing is opened that the field would have closed.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "person_update.result.clearance",
+		"reason": "A person now carries the highest data room clearance they read. A device reading the directory without it sees the person it saw before; the record enforces the clearance on every read, so nothing is opened that the field would have closed.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.clearance",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.domain",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.date",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.period",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.status",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.supersedes",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.sha256",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.tags",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.storagePath",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_register.result.published",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.clearance",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.domain",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.date",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.period",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.status",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.supersedes",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.sha256",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.tags",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.storagePath",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_update.result.published",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].clearance",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].domain",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].date",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].period",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].status",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].supersedes",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].sha256",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].tags",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].storagePath",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_list.result.documents[].published",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].clearance",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].domain",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].date",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].period",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].status",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].supersedes",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].sha256",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].tags",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].storagePath",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "company_document_search.result.documents[].published",
+		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
+		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
 	}
 ]
