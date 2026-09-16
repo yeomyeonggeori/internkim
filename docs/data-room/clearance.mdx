@@ -1,0 +1,80 @@
+---
+title: Clearance
+description: Four numbers, who sets whose, and how a document crosses from one to another.
+---
+
+Every member has a clearance and every domain has one. A member opens every
+domain at their clearance or below. The comparison is made by the company
+record, on each row and each stored file, so a document above a reader's
+clearance is absent for them: a search does not list it, a tool does not open
+it, and a script they run finds nothing.
+
+| Clearance | Reader | Domains |
+|---|---|---|
+| 0 | anyone outside the company | `00-public`, mirrored to the public share |
+| 1 | every member | corporate, people, ip, product, marketing, operations, compliance, media |
+| 2 | management | finance, contracts, fundraising |
+| 3 | representative, board | governance, hr-records |
+
+## Who sets whose [#who-sets-whose]
+
+A new member starts at 1. The first administrator of a company holds 3, and
+promoting someone to administrator sets their clearance to the promoter's.
+
+An administrator may change the clearance of a member who is currently below
+them, to any value up to their own. Three requests are refused however they
+are phrased: raising a peer or a superior, a non-administrator setting anyone's
+clearance, and an administrator lowering themself when it would leave the
+company without a member at 3.
+
+Clearance is one number per person. It says nothing about which projects or
+conversations someone is part of; that is a circle, and it lives in the
+messenger and the workspace. A document meant for one circle belongs in that
+circle's workspace folder rather than the data room.
+
+## Adding a document [#adding]
+
+Every member may add. Three rules decide what happens.
+
+1. **Into a domain at or below your clearance, the document is filed
+   directly.** internkim drafts the label, you confirm, and it is in place.
+2. **Into a domain above your clearance, the document is a submission.** It is
+   registered at your own clearance with the intended domain written on it,
+   and waits in `inbox/` until a member cleared for that domain raises it. An
+   accountant at clearance 1 filing an audit report into finance does exactly
+   this, and the finance manager's confirmation is the raise.
+3. **Moving, superseding or handing out a document requires reading it.** The
+   member who moves a document between domains, marks it superseded, or asks
+   for the original must be cleared for it.
+
+A submission older than seven days in `inbox/` is flagged by the data room's
+check, so a raise nobody made is noticed.
+
+## Publishing to `00-public` [#publishing]
+
+A published document is a copy in `00-public`, made by an administrator, with
+`published.from` naming the source and the date and person recorded. The source
+stays where it was, at its own clearance. The public domain is mirrored to the
+company's public share, which is what a visitor or the company site reads.
+
+A copy whose contents equal the source is the source published. A copy whose
+contents differ is a redacted edition: the same document with a section removed
+for the outside, still naming what it came from. A public document without a
+`published` field, or one whose `from` names nothing, fails the data room's
+check.
+
+## Originals [#originals]
+
+Reading a summary is one thing; holding the file is another. An original is
+delivered only to the person who asked, as a message to them or into their own
+`artifacts/` folder. Posting it on from there, to a channel or to someone
+outside, is their own act and is logged as one. No system can stop a cleared
+person from passing on what they read; the ledger, which names each document a
+task touched, is what answers the question afterwards.
+
+## An external data room [#external]
+
+An investor, a law firm or an acquirer doing due diligence receives an export:
+chosen documents copied to a separate share opened for them. The live data
+room stays member-only, and the export is a snapshot that does not change when
+the archive does.

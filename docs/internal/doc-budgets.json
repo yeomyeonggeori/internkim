@@ -4,5 +4,7 @@
   "docs/internal/acp-session-design.md": 1200,
   "docs/internal/README.md": 400,
   "docs/internal/postmortem/README.md": 400,
-  "docs/internal/buzz-identity-seed.md": 1100
+  "docs/internal/buzz-identity-seed.md": 1100,
+  "docs/internal/dataroom-standard.md": 2600,
+  "docs/internal/dataroom-threats.md": 700
 }

@@ -1,0 +1,84 @@
+---
+title: Asking internkim
+description: What to ask for, what it refuses and why, and what the ledger keeps of every request.
+---
+
+internkim is the archive's clerk. It starts every session from the company
+profile and the index, so it knows which domains exist and what each holds
+before you say anything, and it reaches a document by searching the catalogs
+you are cleared for. It never lists the whole tree, and it never reads an
+original when the sidecar can answer.
+
+## Find [#find]
+
+"Where is the lease for the Pangyo office?" "Which NDAs expire this year?"
+"What did the 2025 audit say about revenue?"
+
+It searches the catalogs, narrowed to a domain or a year when the question
+names one, and answers from the summaries. When the summary settles the
+question, that is the answer, with the document named so you can ask for it.
+When it does not, internkim opens the sidecar, then the derived text, then the
+original, and says which it read.
+
+A search runs as you. A document above your clearance is absent from the
+result, and internkim does not say that something was withheld, because from
+where it sits nothing was.
+
+## Add [#add]
+
+"File this," with an attachment, a file in your workspace, or a path in
+`tmp/`.
+
+The file is hashed, its kind detected and its text derived, as you and in your
+own `tmp/`, so an untrusted file is opened with your permissions and nothing
+more. internkim drafts the label, proposes a domain, and shows you the draft.
+On your confirmation the document moves into place, the index and the domain's
+catalog are regenerated, and the document is registered on the record.
+
+If the domain is above your clearance, the document becomes a submission in
+`inbox/`, and internkim tells you who can raise it.
+
+## Publish [#publish]
+
+"Publish the investor deck." "Put the ISO certificate on the public site."
+
+An administrator's request. internkim copies the document into `00-public`,
+records who published it, when and from which `id`, and the mirror to the
+public share follows. For a redacted edition, the administrator supplies the
+edited file and internkim files it as a copy whose `from` still names the
+source.
+
+## Check [#check]
+
+"Check the data room."
+
+A pass over the whole archive that reports what is out of shape: a binary
+without a sidecar, a label missing a required field, two documents sharing an
+`id`, a `domain` that disagrees with the folder, a directory over forty
+entries, a stale index or catalog, a submission waiting in `inbox/` more than
+seven days, a `supersedes` pointing at nothing, a public document without
+`published`, or a published copy whose `from` names nothing. Each item names
+the file. Nothing is fixed silently; the report is the result.
+
+## What it refuses [#refusals]
+
+| Asked for | What happens | Why |
+|---|---|---|
+| a document above your clearance | it is not found | the record hides the row and the file; internkim never held it |
+| editing a filed document in place | refused; a new version with `supersedes` is offered | nothing is overwritten, so a reference from last year still resolves |
+| copying a file into a domain folder by hand | refused; filing through internkim is offered | a file added outside ingest leaves the catalog out of step with the directory |
+| raising your own clearance | refused | only an administrator above you can, and nobody raises a peer |
+| lowering yourself below 3 as the last member at 3 | refused | the company would have nobody who can read governance |
+| publishing, as a non-administrator | refused; the request is passed to an administrator | placing a copy in `00-public` is an administrator's act |
+| delivering an original to someone else | refused; delivered to you instead | an original goes only to the requester; passing it on is your own act, logged as yours |
+| a number from a document | answered from the metric tables, with the document named as evidence | a figure lives in a table and the data room holds what it rests on |
+
+## What the ledger records [#ledger]
+
+Every request through internkim is a task on the record, and the ledger names
+each document that task touched, by `id`, with who asked and when. A filing, a
+raise, a publication and a delivery are all tasks, so each has an entry. The
+ledger is what a company consults when it asks who saw a document and who sent
+it where, and it is the reason an original is handed only to the person who
+asked for it. A member reading through internkim leaves a trail; a member with
+the file in hand is trusted, and the trail says where the trust was placed.

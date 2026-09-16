@@ -13,13 +13,34 @@ const companyMetricCurrencies = [
   'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR',
 ] as const;
 
+const dataRoomClearanceSchema = z.int().min(0).max(3);
+
+const dataRoomDomainSchema = z.string().describe("Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.");
+
+const dataRoomSha256Schema = z.string().describe("Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.");
+
+const dataRoomDocumentFields = {
+  clearance: dataRoomClearanceSchema.describe("Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.").optional(),
+  date: z.string().describe("The date the document speaks from, in YYYY-MM-DD format.").optional(),
+  domain: dataRoomDomainSchema.optional(),
+  period: z.string().describe("The period the document covers when there is one, e.g. '2025' or '2026-Q1'.").optional(),
+  sha256: dataRoomSha256Schema.optional(),
+  status: z.string().describe("'current', 'superseded' or 'draft'.").optional(),
+  storagePath: z.string().describe("Where the original sits in the asset bucket, as company_document_upload answered it.").optional(),
+  supersedesHint: z.string().describe("The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.").optional(),
+  tags: z.array(z.string()).describe("Short lowercase tags, e.g. ['audit', 'k-ifrs'].").optional(),
+};
+
 const companyDocumentListInputSchema = z.strictObject({
+  clearance: dataRoomClearanceSchema.describe("Data room clearance to filter by, 0 to 3; only documents filed at exactly that clearance.").optional(),
   counterpart: z.string().describe("Counterpart name to filter by, e.g. 'ABC Trading'.").optional(),
+  domain: dataRoomDomainSchema.optional(),
   query: z.string().describe("Keyword filter matched against title, summary, and counterpart.").optional(),
   type: z.string().describe("Document type slug to filter by, e.g. 'quote'. Leave empty for all types.").optional(),
 });
 
 const companyDocumentRegisterInputSchema = z.strictObject({
+  ...dataRoomDocumentFields,
   counterpart: z.string().describe("Counterpart company or person name, e.g. 'ABC Trading'.").optional(),
   documentType: z.string().describe("Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'."),
   filePath: z.string().describe("Workspace path of the file if it already exists. For issued documents you can also set it later with company_document_update after saving.").optional(),
@@ -35,11 +56,24 @@ const companyDocumentSearchInputSchema = z.strictObject({
 });
 
 const companyDocumentUpdateInputSchema = z.strictObject({
+  ...dataRoomDocumentFields,
   counterpart: z.string().describe("Corrected counterpart. Omit to keep unchanged.").optional(),
   documentHint: z.string().describe("The document to update: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Never the new title this call is about to set."),
   filePath: z.string().describe("New workspace path after the file was saved, moved, or renamed.").optional(),
   summary: z.string().describe("Replacement summary. Omit to keep unchanged.").optional(),
   title: z.string().describe("Corrected title. Omit to keep unchanged.").optional(),
+});
+
+const companyDocumentUploadInputSchema = z.strictObject({
+  clearance: dataRoomClearanceSchema.describe("Data room clearance the file is stored at: 0 public, 1 every member, 2 management, 3 representative and board. The bucket refuses a clearance above the requester's own."),
+  fileName: z.string().describe("Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.").optional(),
+  sha256: dataRoomSha256Schema,
+});
+
+const companyDocumentDownloadInputSchema = z.strictObject({
+  documentHint: z.string().describe("The document whose original to fetch: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Give this or storagePath.").optional(),
+  fileName: z.string().describe("Name of a derived file stored beside the original, e.g. '01-summary.md'. Omit for the original itself.").optional(),
+  storagePath: z.string().describe("The object's path in the asset bucket, as a document result's storagePath shows it. Give this or documentHint.").optional(),
 });
 
 const companyInfoGetInputSchema = z.strictObject({
@@ -182,6 +216,12 @@ export const companyRecordListResultSchema = z.strictObject({
   records: z.array(companyRecordResultSchema),
 });
 
+export const companyDocumentPublishedSchema = z.strictObject({
+  at: z.string(),
+  by: z.string().nullable(),
+  from: z.string().nullable(),
+});
+
 export const companyDocumentResultSchema = z.strictObject({
   documentID: z.string(),
   documentNumber: z.string().nullable(),
@@ -194,6 +234,26 @@ export const companyDocumentResultSchema = z.strictObject({
   summary: z.string().nullable(),
   requesterID: z.string().nullable(),
   issuedAt: z.string(),
+  clearance: z.number().int(),
+  domain: z.string().nullable(),
+  date: z.string().nullable(),
+  period: z.string().nullable(),
+  status: z.string().nullable(),
+  supersedes: z.string().nullable(),
+  sha256: z.string().nullable(),
+  tags: z.array(z.string()),
+  storagePath: z.string().nullable(),
+  published: companyDocumentPublishedSchema.nullable(),
+});
+
+export const companyDocumentUploadResultSchema = z.strictObject({
+  storagePath: z.string(),
+  uploadURL: z.string(),
+});
+
+export const companyDocumentDownloadResultSchema = z.strictObject({
+  storagePath: z.string(),
+  downloadURL: z.string(),
 });
 
 export const companyDocumentRegisteredResultSchema = z.strictObject({
@@ -213,8 +273,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_list",
-    description: "List registered company documents newest first, with their numbers, counterparts, file paths, and summaries. Filter by type, counterpart, or keyword. Use to answer 'what quotes did we send to X'.",
-    version: "1",
+    description: "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by type, counterpart, domain, clearance, or keyword. Only documents at or below the requester's clearance are listed. Use to answer 'what quotes did we send to X'.",
+    version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentListInputSchema,
@@ -227,8 +287,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_register",
-    description: "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file.",
-    version: "1",
+    description: "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room also names its domain, clearance, date, hash and the storagePath company_document_upload answered; one that replaces an older document names it with supersedesHint instead of editing it.",
+    version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentRegisterInputSchema,
@@ -256,13 +316,41 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_update",
-    description: "Update a registered document's file path, title, counterpart, or summary. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it.",
-    version: "1",
+    description: "Update a registered document's file path, title, counterpart, summary, or where it sits in the data room: its domain, clearance, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when a submission is raised into its domain. Raising a clearance is refused above the requester's own.",
+    version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentUpdateInputSchema,
     result: { schema: companyDocumentResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
+  },
+  {
+    name: "company_document_upload",
+    namespace: "company",
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: "workspace_company",
+    policyResource: "tool:company_document_upload",
+    description: "Ask for a place in the data room to put one file. Answers the storagePath the file will sit at, keyed by its clearance and SHA-256, and a signed URL to PUT the bytes to; the record's own policy decides whether the requester may write at that clearance, so a refusal here is the clearance rule. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: companyDocumentUploadInputSchema,
+    result: { schema: companyDocumentUploadResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+  },
+  {
+    name: "company_document_download",
+    namespace: "company",
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: "workspace_company",
+    policyResource: "tool:company_document_download",
+    description: "Fetch a document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; a document above the requester's clearance does not exist for them, so it is refused as not found. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: companyDocumentDownloadInputSchema,
+    result: { schema: companyDocumentDownloadResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
   },
   {
     name: "company_info_get",
@@ -394,3 +482,6 @@ export type CompanyRecordListResult = z.infer<typeof companyRecordListResultSche
 export type CompanyDocumentResult = z.infer<typeof companyDocumentResultSchema>;
 export type CompanyDocumentRegisteredResult = z.infer<typeof companyDocumentRegisteredResultSchema>;
 export type CompanyDocumentListResult = z.infer<typeof companyDocumentListResultSchema>;
+export type CompanyDocumentPublished = z.infer<typeof companyDocumentPublishedSchema>;
+export type CompanyDocumentUploadResult = z.infer<typeof companyDocumentUploadResultSchema>;
+export type CompanyDocumentDownloadResult = z.infer<typeof companyDocumentDownloadResultSchema>;
