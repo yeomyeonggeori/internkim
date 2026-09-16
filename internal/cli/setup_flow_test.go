@@ -54,6 +54,47 @@ func TestDeviceToolPackagesCarryWhatMoliLinks(t *testing.T) {
 	}
 }
 
+func TestDeviceBrowserRuntimeInstallScriptInstallsDependenciesBeforeStartingService(t *testing.T) {
+	script := deviceBrowserRuntimeInstallScript()
+	dependencyIndex := strings.Index(script, "apt-get install")
+	serviceIndex := strings.Index(script, "systemctl enable --now "+browserruntime.DeviceBrowserServiceName)
+	if dependencyIndex == -1 {
+		t.Fatalf("expected device browser install script to install runtime dependencies, got:\n%s", script)
+	}
+	if serviceIndex == -1 {
+		t.Fatalf("expected device browser install script to start the browser service, got:\n%s", script)
+	}
+	if dependencyIndex > serviceIndex {
+		t.Fatalf("expected runtime dependencies before browser service startup, got:\n%s", script)
+	}
+	if !strings.Contains(script, "libfontconfig1") {
+		t.Fatalf("expected device browser install script to include libfontconfig1, got:\n%s", script)
+	}
+}
+
+func TestDeviceBrowserRuntimeInstallScriptPropagatesDependencyInstallFailure(t *testing.T) {
+	binDirectory := t.TempDir()
+	aptLogPath := filepath.Join(t.TempDir(), "apt.log")
+	aptPath := filepath.Join(binDirectory, "apt-get")
+	aptScript := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$APT_LOG\"\ncase \"$1\" in\n  update) exit 0 ;;\n  install) exit 23 ;;\nesac\n"
+	if errorValue := os.WriteFile(aptPath, []byte(aptScript), 0o755); errorValue != nil {
+		t.Fatalf("write fake apt-get: %v", errorValue)
+	}
+
+	command := exec.Command("bash", "-c", deviceBrowserRuntimeInstallScript())
+	command.Env = append(os.Environ(), "PATH="+binDirectory, "APT_LOG="+aptLogPath)
+	if errorValue := command.Run(); errorValue == nil || command.ProcessState == nil || command.ProcessState.ExitCode() != 23 {
+		t.Fatalf("expected dependency installation failure with exit code 23, got %v", errorValue)
+	}
+	log, errorValue := os.ReadFile(aptLogPath)
+	if errorValue != nil {
+		t.Fatalf("read fake apt-get log: %v", errorValue)
+	}
+	if !strings.Contains(string(log), "install") || !strings.Contains(string(log), "libfontconfig1") {
+		t.Fatalf("expected failed apt-get install to include libfontconfig1, got %s", log)
+	}
+}
+
 func TestSkillDependencySetupOnlyVerifiesRuntimeBaseEnvironment(t *testing.T) {
 	command := installSkillPythonDependenciesCommand()
 	for _, forbiddenText := range []string{"uv venv", "uv pip install", "curl -LsSf", "UV_UNMANAGED_INSTALL"} {
