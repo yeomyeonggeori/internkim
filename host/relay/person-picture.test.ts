@@ -63,17 +63,11 @@ describe('the kept copy of a picture', () => {
 		expect(held.kept).toHaveLength(0);
 	});
 
-	test('a picture the messenger names and then hands none of is a failure, not an absence', async () => {
-		const held = sourcesWith({ askChatd: async () => ({ status: 200, body: { image: null } }) });
+	test('a messenger that could not hand it over is answered with the status it gave', async () => {
+		const held = sourcesWith({ askChatd: async () => ({ status: 502, body: { error: 'buzz answered 401 for the picture' } }) });
 		const read = new PersonPictures(held.sources).keptPathOf({ externalID: 'npub-member', avatarURL: namedPicture, actor });
 		await expect(read).rejects.toBeInstanceOf(MessengerAnswered);
-		await expect(read).rejects.toMatchObject({ status: 502 });
-	});
-
-	test('a messenger that refused is answered with its own status', async () => {
-		const held = sourcesWith({ askChatd: async () => ({ status: 401, body: null }) });
-		const read = new PersonPictures(held.sources).keptPathOf({ externalID: 'npub-member', avatarURL: '', actor });
-		await expect(read).rejects.toMatchObject({ status: 401, message: 'person.picture answered 401' });
+		await expect(read).rejects.toMatchObject({ status: 502, message: 'person.picture answered 502' });
 	});
 });
 
