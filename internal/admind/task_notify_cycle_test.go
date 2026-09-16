@@ -7,6 +7,9 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
 func blueclawServingRuns(t *testing.T, runsByCall ...[]taskNotifyRun) (*httptest.Server, *int) {
@@ -69,8 +72,9 @@ func TestACycleAdoptsOnceAndThenWatchesForChange(t *testing.T) {
 }
 
 func TestARunNobodyAnswersForIsMarkedAndLeftAlone(t *testing.T) {
+	now := time.Now()
 	server, _ := blueclawServingRuns(t, []taskNotifyRun{
-		{TaskRunID: "orphan", Status: "completed", RequesterPersonID: "nobody"},
+		{TaskRunID: "orphan", Status: "completed", RequesterPersonID: "nobody", UpdatedAt: now},
 	})
 	service := newTaskNotifyCycleService(t, server.URL, t.TempDir())
 	ctx := context.Background()
@@ -79,7 +83,7 @@ func TestARunNobodyAnswersForIsMarkedAndLeftAlone(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	service.notifyChangedTaskRuns(ctx, nil, runs, map[string]string{}, runs[0].UpdatedAt)
+	service.notifyChangedTaskRuns(ctx, nil, runs, map[string]string{}, now)
 
 	marks, errorValue := service.readTaskNotifyMarks(ctx)
 	if errorValue != nil {
@@ -114,5 +118,50 @@ func TestTheCycleDoesNothingWithoutACentralPlane(t *testing.T) {
 
 	if *callCount != 0 {
 		t.Fatalf("a device with nowhere to send should not even ask blueclaw, asked %d times", *callCount)
+	}
+}
+
+func TestARunThatChangedLongAgoIsMarkedWithoutNotifying(t *testing.T) {
+	notified := 0
+	plane := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		notified++
+		writer.Write([]byte(`{"told":1,"reached":1}`))
+	}))
+	t.Cleanup(plane.Close)
+	client := centralplane.New(centralplane.Settings{ProjectURL: plane.URL, AgentAPIKey: "agent-key"})
+
+	now := time.Now()
+	server, _ := blueclawServingRuns(t, []taskNotifyRun{
+		{TaskRunID: "stale", Status: "completed", RequesterPersonID: "person-1", UpdatedAt: now.Add(-taskNotifyFreshFor - time.Minute)},
+		{TaskRunID: "fresh", Status: "completed", RequesterPersonID: "person-1", UpdatedAt: now.Add(-time.Minute)},
+	})
+	directory := directoryServing(t, []adminUserMutation{
+		{MemberID: "person-1", Email: "member1@example.com", Status: "active"},
+	})
+	state := t.TempDir()
+	service := NewService(Configuration{
+		DatabasePath:    filepath.Join(state, "internkim.sqlite"),
+		BlueclawBaseURL: server.URL,
+		APIBaseURL:      directory.URL,
+		FleetIDPath:     writeLiveFile(t, state, "fleet-id", "cycle-fleet"),
+		FleetSecretPath: writeLiveFile(t, state, "fleet-secret", "cycle-secret"),
+	})
+	ctx := context.Background()
+
+	runs, errorValue := service.taskRunsToConsider(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	service.notifyChangedTaskRuns(ctx, client, runs, map[string]string{}, now)
+
+	if notified != 1 {
+		t.Fatalf("notified %d times, want only the fresh run", notified)
+	}
+	marks, errorValue := service.readTaskNotifyMarks(ctx)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if marks["stale"] != "completed" || marks["fresh"] != "completed" {
+		t.Fatalf("marks = %+v", marks)
 	}
 }
