@@ -2091,6 +2091,9 @@ func (service *Service) activateSiteVersion(ctx context.Context, site *SiteRecor
 }
 
 func (service *Service) reconcileSitePocketBaseRuntime(ctx context.Context, site *SiteRecord, versionID string) error {
+	if errorValue := service.waitForSiteRuntimeReconcile(ctx); errorValue != nil {
+		return errorValue
+	}
 	if !service.siteVersionHasPocketBaseBackend(site, versionID) {
 		_ = service.stopSitePocketBaseRuntime(ctx, site)
 		return nil
@@ -2122,7 +2125,10 @@ func (service *Service) siteVersionHasPocketBaseBackend(site *SiteRecord, versio
 
 func (service *Service) reconcilePublishedSitePocketBaseRuntimes(ctx context.Context) {
 	disabledCount := 0
-	for _, site := range service.sites {
+	for _, site := range service.siteList() {
+		if ctx.Err() != nil {
+			return
+		}
 		if site.Status != SiteStatusPublished || strings.TrimSpace(site.CurrentVersionID) == "" {
 			continue
 		}

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 022
+
+repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
+binaryDirectory="$repositoryRoot/.local/company-plane/bin"
+skillsDirectory="$repositoryRoot/.local/company-plane/skills"
+environmentPath="$repositoryRoot/.local/company-plane/environment.json"
+cd "$repositoryRoot"
+
+mkdir -p "$binaryDirectory"
+chmod 755 "$(dirname "$binaryDirectory")" "$binaryDirectory"
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-capabilityd" ./cmd/internkim-capabilityd
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-admind" ./cmd/internkim-admind
+(
+  cd "$repositoryRoot/.dependency/blueclaw"
+  CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/blueclaw" ./cmd/blueclaw
+  CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/blueclaw-posix-helper" ./cmd/blueclaw-posix-helper
+)
+
+rm -rf "$skillsDirectory"
+mkdir -p "$skillsDirectory"
+for pluginManifest in "$repositoryRoot"/.dependency/*/plugin.json; do
+  [ -f "$pluginManifest" ] || continue
+  pluginSkills="$(dirname "$pluginManifest")/skills"
+  [ -d "$pluginSkills" ] || continue
+  for skillPath in "$pluginSkills"/*/; do
+    skillPath="${skillPath%/}"
+    [ -d "$skillPath" ] || continue
+    skillName="$(basename "$skillPath")"
+    if [ -e "$skillsDirectory/$skillName" ]; then
+      echo "two plugins carry a skill named $skillName" >&2
+      exit 1
+    fi
+    cp -R "$skillPath" "$skillsDirectory/$skillName"
+  done
+done
+
+if ! supabase status >/dev/null 2>&1; then supabase start >/dev/null; fi
+eval "$(supabase status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
+mkdir -p "$(dirname "$environmentPath")"
+umask 077
+SUPABASE_API_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" SUPABASE_SECRET_KEY="$SECRET_KEY" \
+python3 - "$environmentPath" <<'PY'
+import json
+import os
+import sys
+
+path = sys.argv[1]
+with open(path, "w", encoding="utf-8") as environment_file:
+    json.dump({
+        "SUPABASE_URL": os.environ["SUPABASE_API_URL"],
+        "SUPABASE_PUBLISHABLE_KEY": os.environ["SUPABASE_PUBLISHABLE_KEY"],
+        "SUPABASE_SECRET_KEY": os.environ["SUPABASE_SECRET_KEY"],
+    }, environment_file)
+    environment_file.write("\n")
+os.chmod(path, 0o600)
+PY
+
+(cd "$repositoryRoot/host/relay" && bun install --frozen-lockfile >/dev/null)

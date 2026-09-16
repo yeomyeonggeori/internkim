@@ -337,6 +337,9 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 		return devFleetRunConfiguration{}, errorValue
 	}
 	trimmedScenario := strings.TrimSpace(*scenario)
+	if len(flagSet.Args()) > 0 && trimmedScenario != "company-plane" {
+		return devFleetRunConfiguration{}, errors.New("test arguments require --scenario company-plane")
+	}
 	if *virtualSession && trimmedScenario == "" {
 		return devFleetRunConfiguration{}, errors.New("virtual session mode requires --scenario")
 	}
@@ -354,6 +357,7 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 		RunID:               strings.TrimSpace(*runID),
 		AdminHostPort:       *adminHostPort,
 		ShouldUseRealModels: *useRealModels,
+		ScenarioArguments:   flagSet.Args(),
 	}
 	request := localfleet.JobRequest{
 		KeepArtifacts:  *keepArtifacts,
@@ -400,19 +404,7 @@ func newLocalFleetServiceWithOptions(options localfleet.Options) (localfleet.Ser
 	}
 	options.RepositoryRootPath = repositoryRootPath
 	options.ExecutablePath = executablePath
-	return localfleet.NewService(localfleet.Options{
-		RepositoryRootPath:    options.RepositoryRootPath,
-		ExecutablePath:        options.ExecutablePath,
-		StateRootPath:         options.StateRootPath,
-		VirtualMachineName:    options.VirtualMachineName,
-		RunID:                 options.RunID,
-		AdminHostPort:         options.AdminHostPort,
-		GenerationSeed:        options.GenerationSeed,
-		GenerationTemperature: options.GenerationTemperature,
-		MaximumModelTier:      options.MaximumModelTier,
-		ShouldUseRealModels:   options.ShouldUseRealModels,
-		IsEphemeral:           options.IsEphemeral,
-	})
+	return localfleet.NewService(options)
 }
 
 func printLocalFleetStatus(service localfleet.Service) error {

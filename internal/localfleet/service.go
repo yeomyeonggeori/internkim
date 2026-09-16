@@ -136,7 +136,7 @@ func (service Service) runAction(contextValue context.Context, logger Logger, re
 		}
 		return service.RunRecipe(contextValue, logger, firstNonEmpty(request.Recipe, DefaultRecipe))
 	case ActionRunScenario:
-		if !request.VirtualSession {
+		if !request.VirtualSession && scenarioNeedsRuntimeBase(request.Scenario) {
 			if errorValue := service.validateRuntimeBaseSource(); errorValue != nil {
 				return errorValue
 			}
@@ -155,6 +155,10 @@ func (service Service) runAction(contextValue context.Context, logger Logger, re
 	default:
 		return fmt.Errorf("unsupported local fleet action: %s", request.Action)
 	}
+}
+
+func scenarioNeedsRuntimeBase(scenario string) bool {
+	return scenario != "company-plane" && scenario != "workspace-ownership"
 }
 
 func (service Service) validateRuntimeBaseSource() error {
@@ -215,6 +219,7 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		return func(bool) ([]CommandPlan, error) { return build(), nil }
 	}
 	return map[string]scenarioPlanBuilder{
+		"company-plane":               always(service.companyPlaneScenarioPlans),
 		"model-configuration-upgrade": always(service.modelConfigurationUpgradeScenarioPlans),
 		"buzz-attachment":             always(service.buzzAttachmentScenarioPlans),
 		"buzz-direct-message":         always(service.buzzDirectMessageScenarioPlans),

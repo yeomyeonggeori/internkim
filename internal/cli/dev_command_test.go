@@ -65,6 +65,20 @@ func TestParseDevFleetRunDefaultsToDisposablePredeploy(t *testing.T) {
 	}
 }
 
+func TestParseDevFleetRunCarriesCompanyPlaneTestArguments(t *testing.T) {
+	arguments := []string{"--scenario", "company-plane", "--", "-t", "the agent's directory"}
+	configuration, errorValue := parseDevFleetRunArguments(arguments)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !reflect.DeepEqual(configuration.ServiceOptions.ScenarioArguments, arguments[3:]) {
+		t.Fatalf("test arguments = %q", configuration.ServiceOptions.ScenarioArguments)
+	}
+	if _, errorValue := parseDevFleetRunArguments([]string{"--scenario", "workspace-ownership", "--", "-t", "example"}); errorValue == nil {
+		t.Fatal("another scenario accepted company-plane test arguments")
+	}
+}
+
 func TestParseDevFleetRunBuzzScenarioUsesDisposableFleet(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
 		"--keep",

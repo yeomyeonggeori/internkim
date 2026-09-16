@@ -39,6 +39,9 @@ func (service *Service) siteRuntimeActivityFor(siteID string) *siteRuntimeActivi
 }
 
 func (service *Service) ensureSitePocketBaseRunning(ctx context.Context, site *SiteRecord) error {
+	if errorValue := service.waitForSiteRuntimeReconcile(ctx); errorValue != nil {
+		return errorValue
+	}
 	activity := service.siteRuntimeActivityFor(site.SiteID)
 	activity.startMutex.Lock()
 	defer activity.startMutex.Unlock()
@@ -62,6 +65,27 @@ func (service *Service) ensureSitePocketBaseRunning(ctx context.Context, site *S
 	activity.inflightCount++
 	service.siteRuntimeMutex.Unlock()
 	return nil
+}
+
+func (service *Service) startSiteRuntimeReconcile(ctx context.Context) {
+	completed := make(chan struct{})
+	service.siteRuntimeStartupDone = completed
+	go func() {
+		defer close(completed)
+		service.reconcilePublishedSitePocketBaseRuntimes(ctx)
+	}()
+}
+
+func (service *Service) waitForSiteRuntimeReconcile(ctx context.Context) error {
+	if service.siteRuntimeStartupDone == nil {
+		return nil
+	}
+	select {
+	case <-service.siteRuntimeStartupDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func waitForSitePocketBasePort(ctx context.Context, port int) error {
