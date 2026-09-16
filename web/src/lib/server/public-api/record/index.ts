@@ -35,10 +35,12 @@ import {
 	crmVocabularySet
 } from './crm-tools';
 import {
+	companyDocumentDownload,
 	companyDocumentList,
 	companyDocumentRegister,
 	companyDocumentSearch,
 	companyDocumentUpdate,
+	companyDocumentUpload,
 	companyMetricList,
 	companyMetricRecord,
 	companyRecordAdd,
@@ -140,6 +142,8 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	company_document_list: (context, input) => companyDocumentList(context, input),
 	company_document_search: (context, input) => companyDocumentSearch(context, input),
 	company_document_update: (context, input) => companyDocumentUpdate(context, input),
+	company_document_upload: (context, input) => companyDocumentUpload(context, input),
+	company_document_download: (context, input) => companyDocumentDownload(context, input),
 	notification_settings_get: (context) => notificationSettingsGet(context),
 	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
 	conversation_mute: (context, input) => conversationMute(context, input),

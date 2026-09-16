@@ -1,11 +1,15 @@
+import { assetBucket } from '../asset-address';
 import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
 import type {
+	CompanyDocumentDownloadResult,
 	CompanyDocumentListResult,
+	CompanyDocumentPublished,
 	CompanyDocumentRegisteredResult,
 	CompanyDocumentResult,
+	CompanyDocumentUploadResult,
 	CompanyMetricListResult,
 	CompanyMetricResult,
 	CompanyRecordListResult,
@@ -40,7 +44,19 @@ export type CompanyRecordDeleteInput = { recordHint?: string };
 
 export type CompanyRecordListInput = { category?: string; query?: string };
 
-export type CompanyDocumentRegisterInput = {
+export type DataRoomDocumentInput = {
+	clearance?: number;
+	domain?: string;
+	date?: string;
+	period?: string;
+	status?: string;
+	supersedesHint?: string;
+	sha256?: string;
+	tags?: string[];
+	storagePath?: string;
+};
+
+export type CompanyDocumentRegisterInput = DataRoomDocumentInput & {
 	kind?: string;
 	documentType?: string;
 	title?: string;
@@ -50,7 +66,7 @@ export type CompanyDocumentRegisterInput = {
 	summary?: string;
 };
 
-export type CompanyDocumentUpdateInput = {
+export type CompanyDocumentUpdateInput = DataRoomDocumentInput & {
 	documentHint?: string;
 	title?: string;
 	counterpart?: string;
@@ -58,7 +74,21 @@ export type CompanyDocumentUpdateInput = {
 	summary?: string;
 };
 
-export type CompanyDocumentListInput = { type?: string; counterpart?: string; query?: string };
+export type CompanyDocumentListInput = {
+	type?: string;
+	counterpart?: string;
+	query?: string;
+	domain?: string;
+	clearance?: number;
+};
+
+export type CompanyDocumentUploadInput = { clearance?: number; sha256?: string; fileName?: string };
+
+export type CompanyDocumentDownloadInput = {
+	documentHint?: string;
+	storagePath?: string;
+	fileName?: string;
+};
 
 export type CompanyDocumentSearchInput = { query?: string; limit?: number };
 
@@ -66,12 +96,16 @@ const earliestMetricYear = 1900;
 const documentSearchDefaultLimit = 5;
 const documentSearchLimit = 50;
 const documentNumberAttempts = 5;
+const downloadableForTenMinutes = 10 * 60;
+const lowestClearance = 0;
+const highestClearance = 3;
+const sha256Pattern = /^[0-9a-f]{64}$/;
 
 const metricColumns =
 	'id, metric, year, quarter, month, value, currency_code, value_usd, unit, note, updated_at';
 const recordColumns = 'id, category, record_date, title, detail, attributes, updated_at';
 const documentColumns =
-	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, issued_at';
+	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, issued_at, clearance, domain, document_date, period, status, supersedes, sha256, tags, storage_path, published_from, published_at, published_by';
 
 const documentNumberPrefixes: Record<string, string> = {
 	'quote': 'Q',
@@ -132,6 +166,18 @@ type DocumentRow = {
 	summary: string | null;
 	requester_id: string | null;
 	issued_at: string;
+	clearance: number;
+	domain: string | null;
+	document_date: string | null;
+	period: string | null;
+	status: string | null;
+	supersedes: string | null;
+	sha256: string | null;
+	tags: string[] | null;
+	storage_path: string | null;
+	published_from: string | null;
+	published_at: string | null;
+	published_by: string | null;
 };
 
 function answeredMetric(row: MetricRow): CompanyMetricResult {
@@ -174,8 +220,23 @@ function answeredDocument(row: DocumentRow): CompanyDocumentResult {
 		filePath: row.file_path,
 		summary: row.summary,
 		requesterID: row.requester_id,
-		issuedAt: row.issued_at
+		issuedAt: row.issued_at,
+		clearance: row.clearance,
+		domain: row.domain,
+		date: row.document_date,
+		period: row.period,
+		status: row.status,
+		supersedes: row.supersedes,
+		sha256: row.sha256,
+		tags: row.tags ?? [],
+		storagePath: row.storage_path,
+		published: publishedOf(row)
 	};
+}
+
+function publishedOf(row: DocumentRow): CompanyDocumentPublished | null {
+	if (!row.published_at) return null;
+	return { at: row.published_at, by: row.published_by, from: row.published_from };
 }
 
 function textOf(value: string | undefined, refusal: string): string {
@@ -464,17 +525,20 @@ export async function companyDocumentOfHint(
 ): Promise<DocumentRow> {
 	const asked = hint.trim();
 	if (!asked) throw new Error('this call names the document it is about');
-	const resolution = resolveHint(asked, await documentRows(context), documentMatcher);
+	return documentAmong(await documentRows(context), asked);
+}
+
+function documentAmong(rows: DocumentRow[], asked: string): DocumentRow {
+	const resolution = resolveHint(asked, rows, documentMatcher);
 	if (resolution.outcome === 'resolved') return resolution.match;
-	throw new HintRefused(
-		'document',
-		asked,
-		resolution.outcome,
-		resolution.candidates.map((row) => ({
-			id: row.id,
-			label: row.document_number ? `${row.document_number} ${row.title}` : row.title
-		}))
-	);
+	throw new HintRefused('document', asked, resolution.outcome, resolution.candidates.map(documentCandidateOf));
+}
+
+function documentCandidateOf(row: DocumentRow): { id: string; label: string } {
+	return {
+		id: row.id,
+		label: row.document_number ? `${row.document_number} ${row.title}` : row.title
+	};
 }
 
 function documentNumberPrefix(documentType: string): string {
@@ -522,7 +586,8 @@ export async function companyDocumentRegister(
 		file_path: orNull(input.filePath),
 		summary: orNull(input.summary),
 		requester_id: context.requesterID,
-		issued_at: context.now.toISOString()
+		issued_at: context.now.toISOString(),
+		...(await dataRoomChangeOf(context, input, orNull(input.domain)))
 	};
 
 	for (let attempt = 0; attempt < documentNumberAttempts; attempt += 1) {
@@ -554,7 +619,8 @@ export async function companyDocumentUpdate(
 	input: CompanyDocumentUpdateInput
 ): Promise<CompanyDocumentResult> {
 	const held = await companyDocumentOfHint(context, input.documentHint ?? '');
-	const change: Record<string, unknown> = {};
+	const domain = orNull(input.domain) ?? held.domain;
+	const change: Record<string, unknown> = await dataRoomChangeOf(context, input, domain);
 	if (orNull(input.title)) change.title = input.title?.trim();
 	if (orNull(input.counterpart)) change.counterpart = input.counterpart?.trim();
 	if (orNull(input.filePath)) change.file_path = input.filePath?.trim();
@@ -582,9 +648,13 @@ export async function companyDocumentList(
 	const documentType = orNull(input.type);
 	const counterpart = orNull(input.counterpart)?.toLowerCase();
 	const keyword = orNull(input.query)?.toLowerCase();
+	const domain = orNull(input.domain);
+	const clearance = input.clearance === undefined ? undefined : clearanceOf(input.clearance);
 	const kept = (await documentRows(context))
 		.filter((row) => !documentType || row.document_type === documentType)
 		.filter((row) => !counterpart || (row.counterpart ?? '').toLowerCase().includes(counterpart))
+		.filter((row) => !domain || row.domain === domain)
+		.filter((row) => clearance === undefined || row.clearance === clearance)
 		.filter((row) => !keyword || documentHolds(row, keyword));
 	return { count: kept.length, documents: kept.map(answeredDocument) };
 }
@@ -609,4 +679,117 @@ export async function companyDocumentSearch(
 	if (!Array.isArray(data)) throw new Error('a document search answers a list of documents');
 	const documents = (data as DocumentRow[]).map(answeredDocument);
 	return { count: documents.length, documents };
+}
+
+function clearanceOf(clearance: number): number {
+	if (!Number.isInteger(clearance) || clearance < lowestClearance || clearance > highestClearance) {
+		throw new Error(`a data room clearance is a whole number from ${lowestClearance} to ${highestClearance}`);
+	}
+	return clearance;
+}
+
+function sha256Of(sha256: string | undefined): string {
+	const given = sha256?.trim().toLowerCase() ?? '';
+	if (!sha256Pattern.test(given)) throw new Error('a sha256 is 64 lowercase hex characters');
+	return given;
+}
+
+function derivedFileNameOf(fileName: string | undefined): string | null {
+	const given = orNull(fileName);
+	if (given === null) return null;
+	if (given === '.' || given === '..' || given.includes('/')) {
+		throw new Error('a derived file name is one name beside the original, never a path');
+	}
+	return given;
+}
+
+function tagsOf(tags: string[]): string[] {
+	return tags.map((tag) => tag.trim()).filter(Boolean);
+}
+
+async function dataRoomChangeOf(
+	context: RecordContext,
+	input: DataRoomDocumentInput,
+	domain: string | null
+): Promise<Record<string, unknown>> {
+	const change: Record<string, unknown> = {};
+	if (input.clearance !== undefined) change.clearance = clearanceOf(input.clearance);
+	if (orNull(input.domain)) change.domain = input.domain?.trim();
+	if (orNull(input.date)) change.document_date = input.date?.trim();
+	if (orNull(input.period)) change.period = input.period?.trim();
+	if (orNull(input.status)) change.status = input.status?.trim();
+	if (input.sha256 !== undefined) change.sha256 = sha256Of(input.sha256);
+	if (input.tags !== undefined) change.tags = tagsOf(input.tags);
+	if (orNull(input.storagePath)) change.storage_path = input.storagePath?.trim();
+	if (orNull(input.supersedesHint)) {
+		change.supersedes = (await supersededDocumentOfHint(context, input.supersedesHint ?? '', domain)).id;
+	}
+	return change;
+}
+
+async function supersededDocumentOfHint(
+	context: RecordContext,
+	hint: string,
+	domain: string | null
+): Promise<DocumentRow> {
+	const inTheDomain = (await documentRows(context)).filter((row) => row.domain === domain);
+	return documentAmong(inTheDomain, hint.trim());
+}
+
+function dataRoomObjectPath(companyID: string, clearance: number, sha256: string, fileName: string | null): string {
+	const original = `${companyID}/dataroom/${clearance}/${sha256}`;
+	return fileName === null ? original : `${original}/${fileName}`;
+}
+
+export async function companyDocumentUpload(
+	context: RecordContext,
+	input: CompanyDocumentUploadInput
+): Promise<CompanyDocumentUploadResult> {
+	if (input.clearance === undefined) throw new Error('an upload names the clearance the file is stored at');
+	const storagePath = dataRoomObjectPath(
+		context.companyID,
+		clearanceOf(input.clearance),
+		sha256Of(input.sha256),
+		derivedFileNameOf(input.fileName)
+	);
+
+	const { data, error } = await context.caller.storage
+		.from(assetBucket)
+		.createSignedUploadUrl(storagePath, { upsert: true });
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
+	return { storagePath, uploadURL: data.signedUrl };
+}
+
+export async function companyDocumentDownload(
+	context: RecordContext,
+	input: CompanyDocumentDownloadInput
+): Promise<CompanyDocumentDownloadResult> {
+	const original = await storedOriginalOf(context, input);
+	const fileName = derivedFileNameOf(input.fileName);
+	const storagePath = fileName === null ? original : `${original}/${fileName}`;
+
+	const { data, error } = await context.caller.storage
+		.from(assetBucket)
+		.createSignedUrl(storagePath, downloadableForTenMinutes);
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
+	return { storagePath, downloadURL: data.signedUrl };
+}
+
+async function storedOriginalOf(
+	context: RecordContext,
+	input: CompanyDocumentDownloadInput
+): Promise<string> {
+	const storagePath = orNull(input.storagePath);
+	if (storagePath) return storagePath;
+	if (!orNull(input.documentHint)) throw new Error('a download names the document or its storagePath');
+	const held = await companyDocumentOfHint(context, input.documentHint ?? '');
+	if (!held.storage_path) {
+		throw new RecordRefusedTheWrite('this document keeps no file in the data room', 404, 'company_document_no_file');
+	}
+	return held.storage_path;
+}
+
+function statusOfStorageError(error: { status?: number }): number {
+	if (error.status === 400 || error.status === 403 || error.status === 404) return error.status;
+	return 502;
 }

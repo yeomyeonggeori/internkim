@@ -31,18 +31,34 @@ type CompanyRecord struct {
 	UpdatedAt  string                   `json:"updatedAt"`
 }
 
+type CompanyDocumentPublished struct {
+	At   string `json:"at"`
+	By   string `json:"by"`
+	From string `json:"from"`
+}
+
 type CompanyDocument struct {
-	DocumentID     string `json:"documentID"`
-	DocumentNumber string `json:"documentNumber"`
-	Kind           string `json:"kind"`
-	DocumentType   string `json:"documentType"`
-	Title          string `json:"title"`
-	Counterpart    string `json:"counterpart"`
-	Language       string `json:"language"`
-	FilePath       string `json:"filePath"`
-	Summary        string `json:"summary"`
-	RequesterID    string `json:"requesterID"`
-	IssuedAt       string `json:"issuedAt"`
+	DocumentID     string                    `json:"documentID"`
+	DocumentNumber string                    `json:"documentNumber"`
+	Kind           string                    `json:"kind"`
+	DocumentType   string                    `json:"documentType"`
+	Title          string                    `json:"title"`
+	Counterpart    string                    `json:"counterpart"`
+	Language       string                    `json:"language"`
+	FilePath       string                    `json:"filePath"`
+	Summary        string                    `json:"summary"`
+	RequesterID    string                    `json:"requesterID"`
+	IssuedAt       string                    `json:"issuedAt"`
+	Clearance      int                       `json:"clearance"`
+	Domain         string                    `json:"domain"`
+	Date           string                    `json:"date"`
+	Period         string                    `json:"period"`
+	Status         string                    `json:"status"`
+	Supersedes     string                    `json:"supersedes"`
+	SHA256         string                    `json:"sha256"`
+	Tags           []string                  `json:"tags"`
+	StoragePath    string                    `json:"storagePath"`
+	Published      *CompanyDocumentPublished `json:"published"`
 }
 
 func (client *Client) CompanyMetrics(ctx context.Context, requesterEmail string) ([]CompanyMetric, error) {

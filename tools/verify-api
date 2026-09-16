@@ -37,8 +37,8 @@ PYTHON
 waiting="$(python3 - <<'PYTHON'
 import re, pathlib
 source = pathlib.Path('internal/capabilityd/catalog_gate_test.go').read_text()
-held = re.search(r'toolsWithNoGateCaseYet = \[\]string\{(.*?)\n\}', source, re.S)
-print(len(re.findall(r'"(\w+)"', held.group(1))) if held else 0)
+held = re.search(r'toolsWithNoGateCaseYet = map\[string\]string\{(.*?)\n\}', source, re.S)
+print(len(re.findall(r'\n\t"(\w+)":', held.group(1))) if held else 0)
 PYTHON
 )"
 
