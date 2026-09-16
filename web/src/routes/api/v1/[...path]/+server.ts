@@ -34,6 +34,7 @@ import {
 	toolCalledByMember
 } from '$lib/server/public-api/tool-call';
 import { error, json } from '@sveltejs/kit';
+import { clockAttendance } from '$lib/server/public-api/attendance-clock';
 import type { RequestHandler } from './$types';
 
 const filesPath = '/files';
@@ -42,8 +43,12 @@ const catalogHeader = 'X-INTERNKIM-CATALOG';
 
 export const fallback: RequestHandler = async ({ request, url, params, platform }) => {
 	const environment = environmentOf(platform);
-	const member = await callingMember(request, environment);
 	const path = `/${params.path}`;
+	if (request.method === 'POST' && path === '/tools/attendance_add/invoke') {
+		const clocked = await clockAttendance(request, environment, platform?.context?.waitUntil.bind(platform.context));
+		if (clocked) return clocked;
+	}
+	const member = await callingMember(request, environment);
 
 	if (request.method === 'POST' && path === filesPath) {
 		return keepThenMaterialise(request, url, environment, member);

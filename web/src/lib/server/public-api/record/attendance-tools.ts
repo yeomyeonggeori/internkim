@@ -14,6 +14,8 @@ import {
 	type AttendanceRow
 } from './attendance';
 import type { RecordContext } from './company';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { attendanceAddResultSchema } from '../catalog/tools';
 
 const defaultWindowDays = 30;
 const hintWindowDays = 90;
@@ -159,11 +161,14 @@ export type AttendanceAddInput = {
 };
 
 export async function attendanceAdd(context: RecordContext, input: AttendanceAddInput) {
+	return addAttendanceFor(context.caller, targetMember(context, input.personHint), input);
+}
+
+export async function addAttendanceFor(caller: SupabaseClient, memberID: string | null, input: AttendanceAddInput) {
 	if (input.kind !== 'clock_in' && input.kind !== 'clock_out') {
 		throw new Error('an attendance record is a clock_in or a clock_out');
 	}
-	const memberID = targetMember(context, input.personHint);
-	const { data, error } = await context.caller.rpc('attendance_add', {
+	const { data, error, status } = await caller.rpc('attendance_add', {
 		target_member: memberID,
 		kind: input.kind,
 		local_date: input.date?.trim() || null,
@@ -171,8 +176,8 @@ export async function attendanceAdd(context: RecordContext, input: AttendanceAdd
 		location: input.location?.trim() || null,
 		reason: input.reason?.trim() || null
 	});
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
-	return answeredWrite(data);
+	if (error) throw new RecordRefusedTheWrite(error.message, status === 401 ? 401 : statusOfPostgresCode(error.code));
+	return attendanceAddResultSchema.parse(data);
 }
 
 export type AttendanceCorrection = {
