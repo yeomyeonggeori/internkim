@@ -19,6 +19,7 @@
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Toaster } from '$lib/components/ui/sonner';
+	import { toast } from 'svelte-sonner';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { currentLocale, initializeLocale, localeOptions, setLocale } from '$lib/i18n/locale.svelte';
@@ -32,6 +33,7 @@
 	import { forgetSignedInAccount } from '$lib/signed-in-account-memo';
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
+	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -47,6 +49,15 @@
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
+	$effect(() => {
+		if (!data.session?.authenticated) return;
+		askToBeReachedOnce().then(
+			(answer) => {
+				if (answer === 'refused') toast.info(text.notifyLater);
+			},
+			(failure: unknown) => console.warn('this device was not asked about notifications', failure)
+		);
+	});
 	onMount(() => {
 		initializeLocale();
 		preloadWorkTimeChartPlot();
