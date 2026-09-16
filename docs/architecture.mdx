@@ -126,6 +126,7 @@ all.
 | the connector (`chatd`) | `127.0.0.1:18090` | the messenger adapter: Buzz or Mattermost | `.dependency/blueclaw/chatd/` |
 | the agent (`blueclaw`) | `/run/internkim/blueclaw-acp.sock`; admin API on `127.0.0.1:8080` | the ACP agent: runs, approval, the task ledger, memory | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | holds provider credentials: model calls, embeddings, the mail, site, web and browser tools | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
+| Moli (`moli serve`) | `127.0.0.1:9222` | the device browser for plain public-text navigation when no companion is available | `internal/browser/runtime.go` |
 | `internkim-admind` | `127.0.0.1:18080`, `/run/internkim/admind.sock` | the workspace screens, the roster, and the company tools the plane carries to the host | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | answers mail for whichever account a call carries | `cmd/internkim-maild/` |
 | the agent's store | `DATABASE_URL` | Postgres holding conversations, runs, memory, policy | — |
