@@ -219,9 +219,17 @@ export async function fetchCustomEmojiImage(name: string): Promise<{ dataURL: st
 	return answer.image;
 }
 
-export async function fetchProfilePicture(externalID: string): Promise<{ dataURL: string } | null> {
-	const answer = await ask<{ image: { dataURL: string } | null }>('person.picture', { externalID });
-	return answer.image;
+export type KeptPicture = { address: string };
+
+// A face is answered the way a file is: as an object in the company's bucket
+// the reader signs for. The avatar URL names the bytes, so one the company has
+// kept before is answered without the messenger being read at all.
+export async function keepPersonPictureForReading(person: {
+	externalID: string;
+	avatarURL: string;
+}): Promise<KeptPicture | null> {
+	const answer = await ask<{ picture: KeptPicture | null }>('person.picture', person);
+	return answer.picture;
 }
 
 export function fetchLinkPreview(url: string): Promise<LinkPreview | null> {

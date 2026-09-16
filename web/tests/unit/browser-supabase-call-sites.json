@@ -20,6 +20,9 @@
   "storage": {
    "src/lib/stores/attachment-source.svelte.ts": {
     "from(assetBucket)": 1
+   },
+   "src/lib/stores/person-picture.svelte.ts": {
+    "from(assetBucket)": 1
    }
   }
  }

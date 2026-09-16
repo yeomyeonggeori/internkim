@@ -9,9 +9,11 @@ import {
 	attachmentKind,
 	keepMessageAttachment,
 	keepSharedAsset,
+	personPictureKind,
+	sharedAssetKeptAs,
 	sharedAssetPath
 } from './asset-store';
-import { SenderPictures, senderPictureKind } from './sender-picture';
+import { PersonPictures, type PictureRequest } from './person-picture';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
 import {
@@ -128,6 +130,10 @@ const dispatch = {
 	keepAttachment,
 	keptAlready,
 	keptFileBytes,
+	keptPersonPicture: async (request: PictureRequest) => {
+		const path = await personPictures.keptPathOf(request);
+		return path ? attachmentAddress(projectURL, path) : '';
+	},
 	largestFileBytes,
 	askMaild: async (operation: string, body: Record<string, unknown>) => {
 		const response = await fetch(`${maildBaseURL}/v1/mail/${encodeURIComponent(operation)}`, {
@@ -262,7 +268,7 @@ async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	if (arrived.recipientExternalIDs.length === 0) return 0;
 	const [authorName, senderPicturePath] = await Promise.all([
 		authorNameOf(arrived),
-		senderPictures.pathOf(arrived.authorExternalID)
+		personPictures.pathForNotification(arrived.authorExternalID)
 	]);
 	const spoken = await askTheProject<{ told?: number }>(
 		'notify',
@@ -271,12 +277,13 @@ async function tellThoseAddressed(arrived: ArrivedMessage): Promise<number> {
 	return spoken.told ?? 0;
 }
 
-const senderPictures = new SenderPictures({
-	memberIDOf,
-	credentialOf: (memberID) => credentials.credentialOf(memberID),
+const personPictures = new PersonPictures({
+	keptAlready: (digest) => sharedAssetKeptAs(client.storage.from(assetBucket), companyID, personPictureKind, digest),
 	askChatd: (capability, body) => dispatch.askChatd(capability, body),
 	keep: async (bytes, contentType) =>
-		(await keepSharedAsset(client.storage.from(assetBucket), companyID, senderPictureKind, bytes, contentType)).path,
+		(await keepSharedAsset(client.storage.from(assetBucket), companyID, personPictureKind, bytes, contentType)).path,
+	memberIDOf,
+	credentialOf: (memberID) => credentials.credentialOf(memberID),
 	report: (line) => console.log(line)
 });
 
