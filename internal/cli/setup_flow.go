@@ -113,14 +113,14 @@ fi`,
 }
 
 func deviceBrowserRuntimeDependencyInstallScript() string {
-	return strings.TrimSpace(`apt-get update -qq >/dev/null 2>&1 || true
+	return strings.TrimSpace(`set -eu
 ` + deviceBrowserRuntimePackageSelectionScript() + `
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null 2>&1 || true
-if ! command -v git >/dev/null 2>&1; then
-  apt-get update -qq >/dev/null 2>&1 || true
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages >/dev/null 2>&1 || true
-fi
-command -v git >/dev/null 2>&1`)
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $runtimePackages`)
+}
+
+func deviceBrowserRuntimeInstallScript() string {
+	return deviceBrowserRuntimeDependencyInstallScript() + "\n" + browserruntime.DeviceBrowserServiceInstallShellScript()
 }
 
 func baseDeviceToolPackages() []string {
@@ -2072,13 +2072,10 @@ func (state *setupFlowState) remoteFileMatchesLocal(remotePath, localPath string
 
 func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
 	fmt.Print("  device browser service... ")
-	output, errorValue := state.sshClient.runResult("set -eu\n" + browserruntime.DeviceBrowserServiceInstallShellScript())
+	output, errorValue := state.sshClient.runResult(deviceBrowserRuntimeInstallScript())
 	if errorValue != nil {
 		fmt.Println("failed")
-		diagnostic := strings.TrimSpace(state.sshClient.run("journalctl -u " + browserruntime.DeviceBrowserServiceName + " -n 40 --no-pager 2>/dev/null"))
-		if diagnostic == "" {
-			diagnostic = strings.TrimSpace(output)
-		}
+		diagnostic := strings.TrimSpace(output + "\n" + state.sshClient.run("journalctl -u " + browserruntime.DeviceBrowserServiceName + " -n 40 --no-pager 2>/dev/null"))
 		if diagnostic == "" {
 			diagnostic = errorValue.Error()
 		}
