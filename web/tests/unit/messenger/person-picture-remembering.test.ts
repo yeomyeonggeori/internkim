@@ -26,6 +26,11 @@ const kept: CachedPicture[] = [
 		externalID: 'bared-account',
 		avatarURL: 'https://relay.example.com/media/ccc.png',
 		dataURL: 'data:image/png;base64,old-ccc'
+	},
+	{
+		externalID: 'emptied-account',
+		avatarURL: 'https://relay.example.com/media/ddd.png',
+		dataURL: ''
 	}
 ];
 const written: CachedPicture[] = [];
@@ -62,8 +67,14 @@ beforeAll(async () => {
 	avatarURLOfExternal.set('unchanged-account', 'https://relay.example.com/media/aaa.png');
 	avatarURLOfExternal.set('repictured-account', 'https://relay.example.com/media/zzz.png');
 	avatarURLOfExternal.set('bared-account', undefined);
+	avatarURLOfExternal.set('emptied-account', 'https://relay.example.com/media/ddd.png');
 	({ personPicture } = await import('$lib/stores/person-picture.svelte'));
-	await personPicture.rememberExternals(['unchanged-account', 'repictured-account', 'bared-account']);
+	await personPicture.rememberExternals([
+		'unchanged-account',
+		'repictured-account',
+		'bared-account',
+		'emptied-account'
+	]);
 });
 
 afterAll(() => {
@@ -94,8 +105,13 @@ describe('a kept picture and the avatar URL it was kept from', () => {
 		expect(personPicture.pictureOf({ externalID: 'nobody' })).toBe('');
 	});
 
-	test('an account that no longer carries a picture has the kept copy dropped rather than redrawn', () => {
+	test('an empty kept copy is dropped and the account asked after again', () => {
+		expect(personPicture.pictureOfExternal('emptied-account')).toBe('data:image/png;base64,fresh-emptied-account');
+		expect(askedCounts.get('emptied-account')).toBe(1);
+		expect(forgotten).toContain('emptied-account');
+	});
 
+	test('an account that no longer carries a picture has the kept copy dropped rather than redrawn', () => {
 		expect(personPicture.pictureOfExternal('bared-account')).toBe('');
 		expect(askedCounts.get('bared-account')).toBeUndefined();
 		expect(forgotten).toContain('bared-account');
@@ -114,12 +130,16 @@ describe('an account the people list does not name', () => {
 		expect(askedCounts.get('flaky-account')).toBe(2);
 	});
 
-	test('a messenger that answered with no picture is not asked again', async () => {
+	test('a messenger that answered with no picture is not remembered and is asked again next time', async () => {
 		answers.set('bare-account', () => Promise.resolve(null));
 		await personPicture.rememberExternals(['bare-account']);
-		await personPicture.rememberExternals(['bare-account']);
 		expect(personPicture.pictureOfExternal('bare-account')).toBe('');
-		expect(askedCounts.get('bare-account')).toBe(1);
+		expect(written.map((picture) => picture.externalID)).not.toContain('bare-account');
+
+		answers.set('bare-account', () => Promise.resolve({ dataURL: 'data:image/png;base64,late' }));
+		await personPicture.rememberExternals(['bare-account']);
+		expect(personPicture.pictureOfExternal('bare-account')).toBe('data:image/png;base64,late');
+		expect(askedCounts.get('bare-account')).toBe(2);
 	});
 
 	test('a picture that answered is kept and not asked again', async () => {
