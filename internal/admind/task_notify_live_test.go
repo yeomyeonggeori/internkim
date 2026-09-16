@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/mail"
 )
@@ -90,6 +91,7 @@ func TestALiveApprovalReachesTheRequestersDevices(t *testing.T) {
 		Status:            "waiting_approval",
 		RequesterPersonID: personID,
 		Prompt:            "거래처에 보낼 메일 초안을 써줘",
+		UpdatedAt:         time.Now(),
 	}}
 	running := []taskNotifyRun{{
 		TaskRunID:         "live-run-1",
