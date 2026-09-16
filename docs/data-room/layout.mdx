@@ -1,0 +1,92 @@
+---
+title: Layout
+description: The fourteen domains, the clearance each carries, and how a file is named and placed.
+---
+
+The data room is a fixed set of folders. The list is the request list a
+due-diligence team sends before a financing round or an acquisition, which
+every law firm and audit firm has converged on, so it fits any industry and it
+is where a company's documents end up sorted anyway. It is then cut so that
+each domain holds one clearance, which is why corporate and people each appear
+twice, once for members and once for the board. The numbered prefixes keep the
+folders in the same order everywhere they are listed.
+
+| Domain | Clearance | What goes in it |
+|---|---|---|
+| `00-public` | 0 | published copies: brand assets, press, certifications, the public deck |
+| `01-corporate` | 1 | articles of incorporation, registry extracts, business registration |
+| `02-governance` | 3 | shareholder register, board minutes, cap table, term sheets, litigation |
+| `03-finance` | 2 | statements, audits, budgets, tax, banking |
+| `04-contracts` | 2 | customer, supplier, NDA and lease contracts; one folder per counterparty |
+| `05-people` | 1 | org chart, work rules, policies |
+| `06-hr-records` | 3 | employment contracts, payroll, reviews |
+| `07-ip` | 1 | patents, trademarks, licences |
+| `08-product` | 1 | product documents, roadmap, architecture |
+| `09-marketing` | 1 | brand assets, references |
+| `10-operations` | 1 | processes, supply chain, facilities |
+| `11-compliance` | 1 | certifications, permits, security policy |
+| `12-fundraising` | 2 | investor material, investor correspondence |
+| `13-media` | 1 | photos and video |
+
+Beside the domains sit `inbox/`, where a document waits until it is filed and
+where nothing stays past seven days, and `INDEX.md`, a generated map of one
+line per domain with its clearance, its count and its last change.
+
+A company that needs a domain the list lacks adds one by name and clearance,
+such as `14-clinical` at clearance 3. An administrator asks internkim to add it.
+
+## Which domain [#which-domain]
+
+A document belongs to the domain of its subject, unless its clearance says
+otherwise. An acquisition term sheet is about the company, but it is governance
+because it is board-readable. An NDA is a contract at clearance 2 though nobody
+would mind a member reading it. When a document could go two ways, the higher
+clearance wins; the one mistake this layout allows is a document classified
+higher than it needs, which is the safe direction.
+
+Tax goes with finance. The sales pipeline stays in the CRM tables; the data
+room keeps the signed contracts. A document that only one team should see
+belongs in that team's workspace folder, since the data room answers who is
+cleared, and a circle answers who is in a piece of work.
+
+## Inside a domain [#inside-a-domain]
+
+Every domain holds its own catalog, `catalog.jsonl`, one line per document,
+which is what a search reads. Documents inside are placed so that no directory
+grows past forty entries: a search narrowed to one directory then returns a
+bounded slice however large the archive grows.
+
+- **Finance and media split by year.** `03-finance/2026/`,
+  `13-media/photos/2026/`, `13-media/videos/2026/`.
+- **Contracts split by counterparty.** `04-contracts/acme/` holds every
+  agreement with that company, in date order.
+- **The rest stay flat** until they need a split.
+- **Each domain has an `archive/`** that the index leaves out, for what is
+  superseded or no longer consulted.
+
+```
+03-finance/
+├── catalog.jsonl
+├── 2026/
+│   ├── 2026-03-15-audit-report-fy2025.pdf
+│   └── 2026-03-15-audit-report-fy2025.pdf.md
+├── policies/
+│   └── expense-policy.md
+└── archive/
+
+04-contracts/acme/
+├── 2025-11-01-nda.pdf
+├── 2025-11-01-nda.pdf.md
+├── 2026-01-10-msa.pdf
+└── 2026-01-10-msa.pdf.md
+```
+
+## File names [#file-names]
+
+A file is named `YYYY-MM-DD-slug.ext`, in lowercase ASCII kebab case:
+`2026-03-15-audit-report-fy2025.pdf`. The date is the one the document speaks
+from, the day the audit was signed or the contract took effect. The slug is a
+few English words that say what it is. The document's own title, in any
+language, goes in its label, so a Korean title and an ASCII file name sit side
+by side. internkim names the file when it files a document, so a member sends
+the document and its title and gets the name back.
