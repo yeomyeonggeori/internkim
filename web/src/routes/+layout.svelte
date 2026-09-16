@@ -34,6 +34,7 @@
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
+	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -106,6 +107,9 @@
 		);
 		keepNativeDeviceClaimed().catch((failure: unknown) =>
 			console.warn('this device is not claimed for push', failure)
+		);
+		keepWidgetSupplied().catch((failure: unknown) =>
+			console.warn('the widget holds no key of its own', failure)
 		);
 		return () => {
 			stopFollowingPageTheme();
