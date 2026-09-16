@@ -101,9 +101,15 @@ credentials.
 
 The existing gate (`web-auth-gate.svelte`) is the sign-in screen. Email and
 password always show. The passkey button shows whenever the WebView reports
-`PublicKeyCredential`, and iOS's WebView reports it while refusing the call
-until the zone is an associated domain, so in the shell the button shows and
-fails. The password path stands, and the association is item 3 below.
+`PublicKeyCredential`. Both WebViews refuse the call unless the zone vouches
+for the app: iOS reads `webcredentials` from
+`web/static/.well-known/apple-app-site-association` against the Associated
+Domains entitlement, and Android reads `get_login_creds` from
+`web/static/.well-known/assetlinks.json` against the signing certificate.
+Android's WebView also leaves WebAuthn off until `MainActivity` turns it on
+for the app. `web/_headers` serves the extensionless Apple file as JSON. A new
+signing key, including Play App Signing's, is added to `assetlinks.json`
+before a build signed with it can use a passkey.
 
 Supabase keeps the session in `localStorage`, which both WebViews persist
 across launches. The Buzz secret is claimed from the company's machine after
@@ -132,11 +138,7 @@ either it works, or the button is hidden.
 2. Store listing. Icons, screenshots, privacy labels, TestFlight and the
    Play internal track first. Apple's guideline 4.2 refuses an app that only
    wraps a site, so push lands before the first submission.
-3. Passkey association. `web/static/.well-known/apple-app-site-association`
-   and `assetlinks.json`, plus Associated Domains on the iOS target, for the
-   single zone. The first run on a phone showed the WebView refusing the
-   passkey call without it.
-4. Widget. A WidgetKit and App Widget target reading shared storage the web
+3. Widget. A WidgetKit and App Widget target reading shared storage the web
    writes through a bridge plugin.
 
 ## Verification
