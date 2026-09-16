@@ -7,7 +7,7 @@ export function accessToken(): string {
 	if (fromEnvironment) return fromEnvironment;
 	const stored = execFileSync(
 		'security',
-		['find-generic-password', '-s', 'Supabase CLI', '-a', 'supabase', '-w'],
+		['find-generic-password', '-s', 'Supabase CLI', '-w'],
 		{ encoding: 'utf8' }
 	).trim();
 	const encodedPrefix = 'go-keyring-base64:';
