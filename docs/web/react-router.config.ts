@@ -7,7 +7,13 @@ const publishedContentDirectory = '..';
 // the same list as `docs.files` in app/lib/source.ts, held to it by
 // app/lib/published-sections.test.ts: fumadocs-mdx rejects a non-literal `files`
 // in a macro, and this config cannot import a macro module.
-const publishedSections = ['*.{md,mdx}', 'tools/**/*.{md,mdx}', 'api/**/*.{md,mdx}', 'record/**/*.{md,mdx}'];
+const publishedSections = [
+  '*.{md,mdx}',
+  'tools/**/*.{md,mdx}',
+  'api/**/*.{md,mdx}',
+  'record/**/*.{md,mdx}',
+  'data-room/**/*.{md,mdx}',
+];
 
 function localePrefix(language: string): string {
   return language === i18n.defaultLanguage ? '' : `/${language}`;

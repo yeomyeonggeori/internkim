@@ -1,0 +1,64 @@
+---
+title: The data room
+description: Where the company's documents live, who may open each one, and how to ask internkim for one.
+---
+
+The data room is the company's document archive: the contracts, statements,
+minutes, policies and photos that the numbers in the company's tables came
+from. A figure lives in a table; the document it came from lives here, and each
+names the other. Every member and internkim read from the same archive, so a
+document filed once is findable by anyone cleared for it, and one never filed
+is missing for everyone.
+
+It is organized as fourteen folders, called domains. Each domain has a
+clearance, a number from 0 to 3, and each member has one too. A member opens
+any domain at their own clearance or below. That single comparison is the whole
+access model; [Clearance](/docs/data-room/clearance) walks through it.
+
+## The seven rules
+
+1. **The folder decides who reads.** Where a document lives is who may read it.
+   There is no per-file permission to set.
+2. **You write the label; the catalog writes itself.** The only thing a person
+   fills in is a document's label: title, kind, date, a one-line summary. The
+   index and the domain catalogs are generated from those labels and checked
+   against them.
+3. **A PDF, an image or a recording always has a text twin.** internkim reads
+   text. A binary is filed together with a sidecar that says what is in it, and
+   the original is opened only when the sidecar cannot answer.
+4. **Nothing is overwritten.** A new version is a new document that says which
+   one it replaces. The old one stays, marked superseded.
+5. **Publishing is a copy that names its source.** Something for the outside
+   world is a copy in the public domain, with the document it was made from
+   written on it.
+6. **A member is one number.** Everyone starts at clearance 1. The first
+   administrator holds 3. An administrator adjusts only the people below them,
+   and only up to their own clearance.
+7. **The record enforces it.** A document is a row in the company record and a
+   file in its storage. One policy compares the reader's clearance with the
+   document's, and nothing else decides.
+
+## Using it
+
+Ask internkim, in the messenger or the web app's chat screen, the way you would
+ask the colleague who keeps the archive.
+
+- **"Find the lease for the Pangyo office."** It searches the catalogs you are
+  cleared for and answers with the document's title, date and summary, opening
+  the file only if the summary is not enough.
+- **"File this."** with an attachment. It derives the text, drafts the label,
+  proposes a domain, and asks you to confirm before anything moves.
+- **"Send me the original."** It delivers the file to you, as a message or into
+  your own `artifacts/` folder, and logs the delivery under your name.
+- **"Publish the 2026 deck."** An administrator's request. It copies the deck
+  into the public domain with its source recorded.
+
+A member sees what they are cleared for, and a search does not mention what
+they are not.
+
+<Cards>
+  <Card title="Layout" href="/docs/data-room/layout" description="The fourteen domains, what goes in each, and how files are named" />
+  <Card title="Clearance" href="/docs/data-room/clearance" description="The four clearances, who sets them, and how publishing works" />
+  <Card title="Metadata" href="/docs/data-room/metadata" description="The label a document carries and what internkim fills in for you" />
+  <Card title="Asking internkim" href="/docs/data-room/agent" description="What to ask for, what it refuses, and what the ledger keeps" />
+</Cards>
