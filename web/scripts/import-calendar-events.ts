@@ -86,6 +86,7 @@ let inserted = 0;
 const skippedTitles: string[] = [];
 const unresolvedParticipants = new Set<string>();
 const matchedByNameOrHandle = new Set<string>();
+const matchedByGivenName = new Set<string>();
 const creatorsMatchingNobody = new Set<string>();
 const refusedByTheRecord: string[] = [];
 const heldTwiceByTheDevice: string[] = [];
@@ -108,6 +109,7 @@ for (const event of events) {
 		}
 		attendeeIDs.add(found.memberID);
 		if (found.by === 'nameOrHandle') matchedByNameOrHandle.add(`${participant.name?.trim()} → ${found.email}`);
+		if (found.by === 'givenName') matchedByGivenName.add(`${participant.name?.trim()} → ${found.email}`);
 	}
 
 	const createdByEmail = (event.createdByEmail ?? '').toLowerCase();
@@ -166,6 +168,7 @@ console.log(`${shouldApply ? 'wrote' : 'would write'}: ${updated} updated, ${ins
 if (adopted) console.log(`adopted ${adopted} events that an earlier import left without a mirror`);
 if (skippedTitles.length) console.log(`skipped, nobody in this company asked for them or is on them: ${skippedTitles.join(', ')}`);
 if (matchedByNameOrHandle.size) console.log(`matched by an exact name or handle: ${[...matchedByNameOrHandle].join(', ')}`);
+if (matchedByGivenName.size) console.log(`matched by a unique given name: ${[...matchedByGivenName].join(', ')}`);
 if (unresolvedParticipants.size) console.log(`written on an event but not a member, left off: ${[...unresolvedParticipants].join(', ')}`);
 if (creatorsMatchingNobody.size) console.log(`created by an address no member holds, kept without a requester: ${[...creatorsMatchingNobody].join(', ')}`);
 if (heldTwiceByTheDevice.length) console.log(`the device holds these twice, so only the first came across: ${heldTwiceByTheDevice.join(', ')}`);

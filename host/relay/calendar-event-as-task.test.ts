@@ -67,13 +67,32 @@ describe('the person a participant names', () => {
 		expect(matchParticipant({ name: 'kimyesi' }, people, directory)?.email).toBe('kimyesi@example.com');
 	});
 
-	test('rejects ambiguous or suffix-only names', () => {
+	test('matches a unique given name and rejects ambiguous suffixes', () => {
+		expect(matchParticipant({ name: '견본' }, people, directory)).toEqual({
+			email: 'gyeonbon@example.com',
+			by: 'givenName'
+		});
+		const suffixNames: DevicePerson[] = [
+			{ name: '김예시', email: 'one@example.com' },
+			{ name: '이예시', email: 'two@example.com' }
+		];
+		expect(matchParticipant({ name: '예시' }, suffixNames, emailByPersonIDOf(suffixNames))).toBeUndefined();
+	});
+
+	test('rejects duplicate full names and prefers an exact name over a suffix', () => {
 		const duplicateNames: DevicePerson[] = [
 			{ name: '김예시', email: 'one@example.com' },
 			{ name: '김예시', email: 'two@example.com' }
 		];
 		expect(matchParticipant({ name: '김예시' }, duplicateNames, emailByPersonIDOf(duplicateNames))).toBeUndefined();
-		expect(matchParticipant({ name: '예시' }, people, directory)).toBeUndefined();
+		const exactNameAndSuffix: DevicePerson[] = [
+			{ name: '최견본', email: 'one@example.com' },
+			{ name: '견본', email: 'two@example.com' }
+		];
+		expect(matchParticipant({ name: '견본' }, exactNameAndSuffix, emailByPersonIDOf(exactNameAndSuffix))).toEqual({
+			email: 'two@example.com',
+			by: 'nameOrHandle'
+		});
 	});
 
 	test('is nobody when the box holds something that is not a person', () => {
