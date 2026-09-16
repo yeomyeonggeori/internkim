@@ -58,7 +58,7 @@ begin
 	assert answer ->> 'status' = 'added', 'clocking out is written at once';
 	assert (answer ->> 'backdated')::boolean = false, 'a clock made now is not backdated';
 	assert (
-		select edit_reason is null and occurred_at <= now()
+		select edit_reason is null and occurred_at <= clock_timestamp()
 		from public.attendance where id = (answer ->> 'eventID')::uuid
 	), 'a clock nobody wrote by hand carries no reason';
 end $$;$block$, 'omitting the day and the time clocks the moment it is called');

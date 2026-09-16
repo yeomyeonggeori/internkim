@@ -88,6 +88,7 @@
 	}
 
 	onMount(() => {
+		myAttendanceToday.setClockEventHandler((event) => workStatus.applyAttendanceEvent(event));
 		void attendance.load();
 		void employeeLeave.load();
 		const releaseRefresh = pageActions.setRefresh(async () => {
@@ -97,6 +98,7 @@
 		window.addEventListener('pageshow', refreshServerClock);
 		document.addEventListener('visibilitychange', refreshVisibleServerClock);
 		return () => {
+			myAttendanceToday.setClockEventHandler(undefined);
 			window.removeEventListener('focus', refreshServerClock);
 			window.removeEventListener('pageshow', refreshServerClock);
 			document.removeEventListener('visibilitychange', refreshVisibleServerClock);

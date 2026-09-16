@@ -213,6 +213,6 @@ export function toggleAttendanceOnServer(
 	kind: AttendanceKind,
 	locationID?: string,
 	confirmedEarlyReturn = false
-): Promise<void> {
+): Promise<AttendanceWriteResult | void> {
 	return recordSupabaseAttendance(kind, locationID, confirmedEarlyReturn);
 }

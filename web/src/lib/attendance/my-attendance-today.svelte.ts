@@ -3,6 +3,8 @@ import { isPlainShortcut } from '$lib/keyboard-shortcut';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import { attendanceText } from '../../routes/attendance/text';
 import { addAttendanceEvent, fetchAttendanceSummary, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
+import { attendanceEventFromClock } from './supabase-attendance';
+import type { AttendanceWriteEvent } from './attendance-write';
 import type {
 	AttendanceKind,
 	AttendanceSummary
@@ -23,6 +25,9 @@ class MyAttendanceToday {
 	clockFailure = $state<string>('');
 	isMenuOpen = $state(false);
 	isSubmitting = $state(false);
+	private clockEventHandler: ((event: AttendanceWriteEvent) => void) | undefined;
+	private clockMutationSequence = 0;
+	private loadPromise: Promise<AttendanceSummary | null> | undefined;
 
 	private today = $derived(todayDateInTimeZone(this.summary?.timeZone));
 	private myEvents = $derived(
@@ -55,13 +60,39 @@ class MyAttendanceToday {
 		if (summary) this.summary = summary;
 	};
 
-	load = async (): Promise<AttendanceSummary | null> => {
+	setClockEventHandler = (handler: ((event: AttendanceWriteEvent) => void) | undefined) => {
+		this.clockEventHandler = handler;
+	};
+
+	clear = (): void => {
+		this.clockMutationSequence += 1;
+		this.summary = null;
+		this.loadFailure = '';
+		this.clockFailure = '';
+		this.loadPromise = undefined;
+	};
+
+	load = (): Promise<AttendanceSummary | null> => {
+		if (this.loadPromise) return this.loadPromise;
+		const loadPromise = this.loadFromServer();
+		const trackedLoad = loadPromise.finally(() => {
+			if (this.loadPromise === trackedLoad) this.loadPromise = undefined;
+		});
+		this.loadPromise = trackedLoad;
+		return trackedLoad;
+	};
+
+	private loadFromServer = async (): Promise<AttendanceSummary | null> => {
+		const loadSequence = this.clockMutationSequence;
 		try {
-			this.summary = await fetchAttendanceSummary({
+			const summary = await fetchAttendanceSummary({
 				month: currentMonthInTimeZone(this.summary?.timeZone)
 			});
+			if (loadSequence !== this.clockMutationSequence) return this.summary;
+			this.summary = summary;
 			this.loadFailure = '';
 		} catch (failure) {
+			if (loadSequence !== this.clockMutationSequence) return this.summary;
 			this.summary = null;
 			this.loadFailure = failure instanceof Error ? failure.message : String(failure);
 		}
@@ -73,8 +104,14 @@ class MyAttendanceToday {
 		this.isSubmitting = true;
 		this.clockFailure = '';
 		try {
-			await toggleAttendanceOnServer(kind, locationID, confirmedEarlyReturn);
-			await this.load();
+			const result = await toggleAttendanceOnServer(kind, locationID, confirmedEarlyReturn);
+			this.clockMutationSequence += 1;
+			this.loadPromise = undefined;
+			if (result?.event && this.applyClockEvent(result.event)) {
+				this.clockEventHandler?.(result.event);
+			} else {
+				await this.load();
+			}
 			toast.success(this.recordedClockMessage(kind));
 		} catch (failure) {
 			this.clockFailure = failure instanceof Error ? failure.message : String(failure);
@@ -83,6 +120,20 @@ class MyAttendanceToday {
 		} finally {
 			this.isSubmitting = false;
 		}
+	};
+
+	private applyClockEvent = (event: AttendanceWriteEvent): boolean => {
+		const summary = this.summary;
+		if (!summary || event.personID !== summary.currentMemberID) return false;
+		if (summary.events.some((candidate) => candidate.id === event.id)) return true;
+		const attendanceEvent = attendanceEventFromClock(event, summary.currentUserEmail, summary.timeZone);
+		summary.events = [...summary.events, attendanceEvent].sort((left, right) =>
+			left.occurredAt.localeCompare(right.occurredAt)
+		);
+		if (attendanceEvent.localDate === todayDateInTimeZone(summary.timeZone)) {
+			summary.todayStatus = event.kind === 'clock_in' ? 'working' : 'done';
+		}
+		return true;
 	};
 
 	// Closing the older day and clocking in are one act to the person doing it,
@@ -104,6 +155,8 @@ class MyAttendanceToday {
 				reason: text.clockOutNobodyRecordedReason
 			});
 			await toggleAttendanceOnServer('clock_in', locationID, false);
+			this.clockMutationSequence += 1;
+			this.loadPromise = undefined;
 			await this.load();
 			toast.success(this.recordedClockMessage('clock_in'));
 		} catch (failure) {

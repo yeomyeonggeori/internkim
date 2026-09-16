@@ -1,8 +1,9 @@
 import { announceToTheCompany } from './announce-attendance';
-import { companyDateOf } from '$lib/company-time';
+import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import { shiftedDay } from './supabase-work-status-range';
 import {
 	attendanceWriteResultFrom,
+	type AttendanceWriteEvent,
 	type AttendanceWriteResult
 } from './attendance-write';
 import { invokeTool } from '$lib/public-api-call';
@@ -95,16 +96,38 @@ export async function recordSupabaseAttendance(
 	kind: AttendanceKind,
 	locationID?: string,
 	confirmedEarlyReturn = false
-): Promise<void> {
+): Promise<AttendanceWriteResult | void> {
 	if (confirmedEarlyReturn && kind === 'clock_in') {
 		await returnEarlyFromSupabaseLeave(locationID);
 		void announceToTheCompany('clock');
 		return;
 	}
-	await invokeTool('attendance_add', {
+	return attendanceWriteResultFrom(await invokeTool('attendance_add', {
 		kind,
 		location: kind === 'clock_in' ? locationID || undefined : undefined
-	});
+	}));
+}
+
+export function attendanceEventFromClock(
+	event: AttendanceWriteEvent,
+	email: string,
+	timeZone: string
+): AttendanceEvent {
+	const occurredAt = new Date(event.occurredAt);
+	return {
+		id: event.id,
+		email,
+		displayName: email,
+		kind: event.kind,
+		occurredAt: event.occurredAt,
+		localDate: companyDateOf(occurredAt, timeZone),
+		localTime: companyTimeOf(occurredAt, timeZone),
+		timeZoneAtEvent: timeZone,
+		source: 'web',
+		resultPostID: '',
+		locationID: event.location ?? undefined,
+		locationName: event.location ?? undefined
+	};
 }
 
 export async function correctSupabaseAttendanceEvents(

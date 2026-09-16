@@ -1,3 +1,5 @@
+import { savedAttendanceEventSchema, type SavedAttendanceEvent } from './recorded-attendance';
+
 export type AttendanceWriteOutcome = 'blocked' | 'saved' | 'asked';
 
 export type AttendanceWriteAuthority = {
@@ -11,7 +13,12 @@ export type AttendanceWriteSubject = {
 	anchorTime: Date;
 };
 
-export type AttendanceWriteResult = { outcome: 'saved' | 'asked' };
+export type AttendanceWriteEvent = SavedAttendanceEvent;
+
+export type AttendanceWriteResult = {
+	outcome: 'saved' | 'asked';
+	event?: AttendanceWriteEvent;
+};
 
 const writtenStatuses = ['added', 'corrected', 'removed'];
 
@@ -50,7 +57,8 @@ export function attendanceWriteResultFrom(data: unknown): AttendanceWriteResult 
 	if (!writtenStatuses.includes(status)) {
 		throw new Error(`the attendance write answered an unknown status ${status}`);
 	}
-	return { outcome: 'saved' };
+	if (answered.event === undefined) return { outcome: 'saved' };
+	return { outcome: 'saved', event: savedAttendanceEventSchema.parse(answered.event) };
 }
 
 function isBackdated(

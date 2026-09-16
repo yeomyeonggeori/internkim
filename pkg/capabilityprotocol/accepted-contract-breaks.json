@@ -1,5 +1,10 @@
 [
 	{
+		"path": "attendance_add.result.event",
+		"reason": "A successful attendance write returns the saved record so the browser and agent can use its committed timestamp and location without reading the record again.",
+		"release": "the release for #1737, deployed to catalog consumers before the plane returns the new attendance_add version 3 result"
+	},
+	{
 		"path": "attendance_leave_policy_get.result.leaveTypes[].usageLimitMilliDays",
 		"reason": "A leave type a company invents now carries the most that may be taken of it in a year, and the leave settings screen is where that is written. A device reading the policy without the field sees a type whose ceiling it cannot show; the record still refuses a request over it, so nothing is granted that the policy does not allow.",
 		"release": "the release cut after #1630 merges, which carries the field to the fleet before the plane answers with it"

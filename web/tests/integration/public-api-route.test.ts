@@ -8,6 +8,8 @@ import {
 } from '../../src/lib/server/control-plane';
 import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
 import { createOpenApiDocument } from '../../../docs/web/app/lib/openapi';
+import { savedAttendanceEventSchema } from '../../src/lib/attendance/recorded-attendance';
+import { createMockFetch } from '../unit/test-fetch';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
@@ -93,7 +95,12 @@ async function answerOf(handler: () => Promise<Response>): Promise<RouteAnswer> 
 	}
 }
 
-function reach(path: string, token: string | null, options: RequestInit = {}): Promise<RouteAnswer> {
+function reach(
+	path: string,
+	token: string | null,
+	options: RequestInit = {},
+	backgroundWork?: (work: Promise<unknown>) => void
+): Promise<RouteAnswer> {
 	const request = asking(path, token, options);
 	const url = new URL(request.url);
 	return answerOf(() =>
@@ -102,7 +109,7 @@ function reach(path: string, token: string | null, options: RequestInit = {}): P
 				request,
 				url,
 				params: { path: path.replace(/^\//, '').split('?')[0] },
-				platform: undefined
+				platform: backgroundWork ? { context: { waitUntil: backgroundWork } } : undefined
 			} as unknown as Parameters<typeof reachTheAPI>[0])
 		)
 	);
@@ -163,6 +170,71 @@ describe('a call that names nobody', () => {
 	test('is refused without a bearer, and with one nobody holds', async () => {
 		expect((await reach('/tools', null)).status).toBe(401);
 		expect((await reach('/tools', 'ik_nobody')).status).toBe(401);
+	});
+});
+
+describe('clocking attendance', () => {
+	test('records with one database request and returns before its announcement completes', async () => {
+		const originalFetch = globalThis.fetch;
+		const databaseRequests: string[] = [];
+		const backgroundWork: Promise<unknown>[] = [];
+		let finishAnnouncement: (() => void) | undefined;
+		globalThis.fetch = createMockFetch(async (input, options) => {
+			const url = new URL(input instanceof Request ? input.url : String(input));
+			if (url.pathname.startsWith('/rest/') || url.pathname.startsWith('/auth/')) {
+				databaseRequests.push(url.pathname);
+			}
+			if (url.pathname === '/functions/v1/announce-attendance') {
+				await new Promise<void>((resolve) => { finishAnnouncement = resolve; });
+				return Response.json({ told: 0, reached: 0 });
+			}
+			return originalFetch(input, options);
+		});
+		try {
+			const answered = await reach('/tools/attendance_add/invoke', sessionToken, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ input: { kind: 'clock_in' } })
+			}, (work) => backgroundWork.push(work));
+			expect(answered.status).toBe(200);
+			expect(databaseRequests).toEqual(['/rest/v1/rpc/attendance_add']);
+			expect(backgroundWork).toHaveLength(1);
+			expect(answered.body).not.toHaveProperty('notified');
+			const event = savedAttendanceEventSchema.parse(
+				Reflect.get(Reflect.get(Object(answered.body), 'result'), 'event')
+			);
+			expect(event.personID).toBe(memberID);
+			expect(event.kind).toBe('clock_in');
+			const saved = await client.from('attendance').select('occurred_at, location').eq('id', event.id).single();
+			expect(saved.error).toBeNull();
+			expect(event.occurredAt).toBe(saved.data?.occurred_at);
+			expect(event.location).toBe(saved.data?.location);
+		} finally {
+			finishAnnouncement?.();
+			await Promise.all(backgroundWork);
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	test('keeps user-token permissions and stores the API key holder as the owner', async () => {
+		expect((await invoke('attendance_add', readersToken, { kind: 'clock_out' })).status).toBe(403);
+		expect((await invoke('attendance_add', departedToken, { kind: 'clock_out' })).status).toBe(403);
+		expect((await invoke('attendance_add', 'invalid-session', { kind: 'clock_out' })).status).toBe(401);
+		const answered = await invoke('attendance_add', holdersToken, { kind: 'clock_out' });
+		expect(answered.status).toBe(200);
+		expect(answered.body).toMatchObject({
+			result: { status: 'added', event: { personID: memberID, kind: 'clock_out', location: null } }
+		});
+		expect((await invoke('attendance_add', holdersToken, { kind: 'clock_out' })).status).toBe(422);
+	});
+
+	test('serializes simultaneous clock-ins into one saved record', async () => {
+		const answers = await Promise.all([
+			invoke('attendance_add', sessionToken, { kind: 'clock_in' }),
+			invoke('attendance_add', sessionToken, { kind: 'clock_in' })
+		]);
+		expect(answers.map((answer) => answer.status).sort()).toEqual([200, 422]);
+		expect((await invoke('attendance_add', sessionToken, { kind: 'clock_out' })).status).toBe(200);
 	});
 });
 

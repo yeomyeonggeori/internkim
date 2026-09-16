@@ -47,6 +47,7 @@ export type SupabaseWorkStatusMember = {
 	joined_at: string | null;
 };
 export type SupabaseWorkStatusAttendance = {
+	id?: string;
 	member_id: string;
 	kind: 'clock_in' | 'clock_out';
 	occurred_at: string;
@@ -108,6 +109,7 @@ export async function supabaseWorkStatusInputs(
 		members,
 		me: members.find((member) => member.id === directory.requesterID),
 		attendance: attendance.attendance.map((event) => ({
+			id: event.eventID,
 			member_id: event.personID,
 			kind: event.kind,
 			occurred_at: event.occurredAt,
