@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -53,6 +54,7 @@ type Service struct {
 	sites                      map[string]*SiteRecord
 	siteRuntimeMutex           sync.Mutex
 	siteRuntimeActivities      map[string]*siteRuntimeActivity
+	siteRuntimeStartupDone     <-chan struct{}
 	mailBackend                mail.Backend
 	calendarDeleteIntentWakeUp chan struct{}
 	calendarStoreWriteMutex    sync.Mutex
@@ -96,6 +98,41 @@ func NewService(configuration Configuration) *Service {
 }
 
 func (service *Service) Run(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	service.reconcileSiteSourcesToMemberCircle()
+	service.startSiteRuntimeReconcile(ctx)
+	handler := service.router()
+	server := &http.Server{
+		Addr:    service.Configuration.ListenAddress,
+		Handler: handler,
+	}
+	socketServer := &http.Server{Handler: markRequestsAsAssertedByTheListener(handler)}
+	listener, errorValue := net.Listen("tcp", server.Addr)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer listener.Close()
+	if errorValue := service.startRequesterSocketListener(socketServer); errorValue != nil {
+		return errorValue
+	}
+	log.Printf("internkim admind listening on %s", listener.Addr())
+	go func() {
+		<-ctx.Done()
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownContext)
+		_ = socketServer.Shutdown(shutdownContext)
+	}()
+	service.startBackgroundWork(ctx)
+	errorValue = server.Serve(listener)
+	if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
+		return errorValue
+	}
+	return nil
+}
+
+func (service *Service) startBackgroundWork(ctx context.Context) {
 	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
 	go service.keepUsersSyncInstalled(ctx)
@@ -105,8 +142,6 @@ func (service *Service) Run(ctx context.Context) error {
 	if service.Configuration.MailNotifyEnabled {
 		go service.keepMailAnnounced(ctx)
 	}
-	service.reconcileSiteSourcesToMemberCircle()
-	service.reconcilePublishedSitePocketBaseRuntimes(ctx)
 	service.sweepUpdateLeftovers()
 	service.startPersonaSync(ctx)
 	service.startCompanionFileCleanup(ctx)
@@ -129,43 +164,25 @@ func (service *Service) Run(ctx context.Context) error {
 	service.startCircleRoomMembershipSync(ctx)
 	service.ensureBuzzRelayTerminator()
 	service.warnWhenFontAssetsMissing()
-	handler := service.router()
-	server := &http.Server{
-		Addr:    service.Configuration.ListenAddress,
-		Handler: handler,
-	}
-	socketServer := &http.Server{Handler: markRequestsAsAssertedByTheListener(handler)}
-	service.startRequesterSocketListener(socketServer)
-	go func() {
-		<-ctx.Done()
-		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = server.Shutdown(shutdownContext)
-		_ = socketServer.Shutdown(shutdownContext)
-	}()
-	errorValue := server.ListenAndServe()
-	if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
-		return errorValue
-	}
-	return nil
 }
 
-func (service *Service) startRequesterSocketListener(socketServer *http.Server) {
+func (service *Service) startRequesterSocketListener(socketServer *http.Server) error {
 	socketPath := strings.TrimSpace(service.Configuration.ListenSocketPath)
 	if socketPath == "" {
 		log.Printf("admind has no requester socket path, so callers that assert a requester have no way in")
-		return
+		return nil
 	}
 	listener, errorValue := listenOnRequesterSocket(socketPath)
 	if errorValue != nil {
 		log.Printf("admind could not open its requester socket at %s: %v", socketPath, errorValue)
-		return
+		return errorValue
 	}
 	go func() {
 		if serveError := socketServer.Serve(listener); serveError != nil && !errors.Is(serveError, http.ErrServerClosed) {
 			log.Printf("admind requester socket at %s stopped: %v", socketPath, serveError)
 		}
 	}()
+	return nil
 }
 
 func (service *Service) httpClient() *http.Client {
@@ -233,6 +250,5 @@ func shellQuote(value string) string {
 func Run(configuration Configuration) error {
 	ctx := context.Background()
 	service := NewService(configuration)
-	log.Printf("internkim admind listening on %s", service.Configuration.ListenAddress)
 	return service.Run(ctx)
 }

@@ -30,6 +30,7 @@ type Options struct {
 	MaximumModelTier      string
 	IsEphemeral           bool
 	ShouldUseRealModels   bool
+	ScenarioArguments     []string
 }
 
 type JobRequest struct {
