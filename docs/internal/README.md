@@ -28,6 +28,11 @@ link dangles for whoever clones. Check with a grep before moving one down.
 [`persona-and-recovery.md`](./persona-and-recovery.md) describes persona ownership,
 delivery across workspace boundaries, and evidence carried into a task retry.
 
+[`dataroom-standard.md`](./dataroom-standard.md) fixes the shape of the company
+document archive: layout, metadata, clearance and what the agent generates;
+[`dataroom-threats.md`](./dataroom-threats.md) lists what goes around that
+model and what covers it.
+
 The site that publishes `docs/` is `docs/web/`, a React Router build of
 Fumadocs that reads the directory above it. It publishes a named list of
 sections rather than everything it finds: `docs.files` in
