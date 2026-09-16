@@ -26,13 +26,14 @@ export function fcmMessage(deviceToken: string, notification: Notification): Rec
 	return {
 		message: {
 			token: deviceToken,
-			notification: { title: notification.title, body: notification.body },
 			data: {
+				title: notification.title,
+				body: notification.body,
 				openPath: notification.openPath,
 				tag: notification.tag,
 				...(sender ? { senderName: sender.name, pictureURL: sender.pictureURL } : {})
 			},
-			android: { notification: { tag: notification.tag } }
+			android: { priority: 'HIGH' }
 		}
 	};
 }

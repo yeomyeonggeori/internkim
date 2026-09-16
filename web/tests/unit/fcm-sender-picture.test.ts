@@ -21,6 +21,8 @@ describe('the FCM message for a notification with a sender picture', () => {
 			icon: 'https://example.com/picture.png'
 		});
 		expect(dataOf(message)).toEqual({
+			title: '진행 중: 예시프로젝트 정리',
+			body: '박예시님이 옮겼습니다',
 			openPath: '/task/',
 			tag: 'task-a',
 			senderName: '박예시',
@@ -35,7 +37,12 @@ describe('the FCM message for a notification with a sender picture', () => {
 
 	test('carries no sender when there is no picture', () => {
 		const message = fcmMessage(token, { ...taskMove, senderName: '박예시' });
-		expect(dataOf(message)).toEqual({ openPath: '/task/', tag: 'task-a' });
+		expect(dataOf(message)).toEqual({
+			title: '진행 중: 예시프로젝트 정리',
+			body: '박예시님이 옮겼습니다',
+			openPath: '/task/',
+			tag: 'task-a'
+		});
 	});
 
 	test('ignores a picture address that is not https', () => {
@@ -46,5 +53,10 @@ describe('the FCM message for a notification with a sender picture', () => {
 	test('keeps every data value a string, as FCM requires', () => {
 		const message = fcmMessage(token, { ...taskMove, senderName: '박예시', icon: 'https://example.com/picture.png' });
 		for (const value of Object.values(dataOf(message))) expect(typeof value).toBe('string');
+	});
+
+	test('leaves the drawing to the app by carrying no notification block', () => {
+		const message = fcmMessage(token, { ...taskMove, senderName: '박예시', icon: 'https://example.com/picture.png' });
+		expect(message.message).not.toHaveProperty('notification');
 	});
 });

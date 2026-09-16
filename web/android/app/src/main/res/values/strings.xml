@@ -4,4 +4,5 @@
     <string name="title_activity_main">internkim</string>
     <string name="package_name">app.intern.kim</string>
     <string name="custom_url_scheme">app.intern.kim</string>
+    <string name="notification_channel_name">알림</string>
 </resources>
