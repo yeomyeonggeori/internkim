@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.intern.kim",
+      "sha256_cert_fingerprints": [
+        "DE:FB:85:DC:88:02:69:5A:B8:60:53:3D:48:62:00:BE:D5:22:01:C7:F2:E9:89:DC:FA:53:34:BE:3B:46:CD:5D"
+      ]
+    }
+  }
+]
