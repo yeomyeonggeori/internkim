@@ -2,7 +2,8 @@ import { callingAgent } from '../_shared/agent-caller.ts';
 import { notificationCategories, type NotificationCategory } from '../_shared/categories.ts';
 import { rememberConversationMembers } from '../_shared/conversation-members.ts';
 import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
-import { membersOfCompanyByExternalID } from '../_shared/member-directory.ts';
+import { membersOfCompanyByEmail, membersOfCompanyByExternalID } from '../_shared/member-directory.ts';
+import { addressedIn } from '../_shared/notify-recipients.ts';
 import { pictureURLOfSender } from '../_shared/sender-picture.ts';
 import { notifyMember, type Delivery, type Notification } from '../_shared/notify-member.ts';
 import type { SupabaseClient } from '../_shared/service-client.ts';
@@ -12,6 +13,7 @@ import type { PushKeys } from '../_shared/push-keys.ts';
 type NotifyRequest = {
 	platform?: unknown;
 	externalIDs?: unknown;
+	emails?: unknown;
 	category?: unknown;
 	title?: unknown;
 	body?: unknown;
@@ -30,12 +32,17 @@ Deno.serve(
 		if (!reachesSomeDevice(pushKeys)) refuse(503, 'this deployment cannot send notifications yet');
 
 		const asked = (await askedObject(request)) as NotifyRequest;
-		const recipients = askedExternalIDs(asked.externalIDs);
-		const memberOf = await membersOfCompanyByExternalID(client, companyID, askedPlatform(asked.platform));
+		const addressed = addressedIn(asked);
+		if (!addressed) refuse(400, 'who to tell: emails, or a platform and the externalIDs of its accounts');
+		const recipients = addressed.keys;
+		const memberOf =
+			addressed.by === 'email'
+				? await membersOfCompanyByEmail(client, companyID)
+				: await membersOfCompanyByExternalID(client, companyID, addressed.platform);
 
 		const sender = typeof asked.senderExternalID === 'string' ? memberOf.get(asked.senderExternalID) : undefined;
 		const recipientMemberIDs = recipients
-			.map((externalID) => memberOf.get(externalID))
+			.map((key) => memberOf.get(key))
 			.filter((id): id is string => Boolean(id));
 		const conversationID = typeof asked.conversationID === 'string' ? asked.conversationID : '';
 		const delivered = await tellEach(
@@ -76,20 +83,10 @@ async function tellEach(
 	};
 }
 
-function askedPlatform(offered: unknown): string {
-	if (typeof offered !== 'string' || !offered.trim()) refuse(400, 'which messenger these people are on');
-	return offered.trim();
-}
-
 function askedCategory(offered: unknown): NotificationCategory {
 	const named = notificationCategories.find((category) => category === offered);
 	if (!named) refuse(400, 'that is not a category anything notifies about');
 	return named;
-}
-
-function askedExternalIDs(offered: unknown): string[] {
-	if (!Array.isArray(offered)) refuse(400, 'externalIDs required');
-	return offered.filter((entry): entry is string => typeof entry === 'string' && entry !== '');
 }
 
 function askedNotification(asked: NotifyRequest): Notification {
