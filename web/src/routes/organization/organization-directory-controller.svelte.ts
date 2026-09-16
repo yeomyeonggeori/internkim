@@ -32,6 +32,7 @@ import {
 	removeOrganizationProfileEdit,
 	type OrgProfileSnapshot
 } from './organization-profile-edit-controller';
+import { canEditDataRoomClearance, offeredDataRoomClearances } from './organization-clearance-model';
 import { organizationOrganizationSections, type OrganizationOrganizationSection } from './organization-model';
 import type { OrgGroup, UserRecord, UsersResponse } from '../../lib/organization/types';
 import type { organizationDirectoryText } from './text';
@@ -68,6 +69,9 @@ export class OrganizationDirectoryController {
 	selectedRecordIsEditing = $derived(Boolean(this.selectedRecord && this.editingUserID === this.selectedRecord.memberID && this.selectedEditingRecord));
 	isSavingSelectedProfile = $derived(this.selectedRecord ? this.isSavingProfile(this.selectedRecord.memberID) : false);
 	hasInvalidSelectedSupervisor = $derived(this.selectedEditingRecord ? this.hasInvalidSupervisor(this.selectedEditingRecord) : false);
+	viewerRecord = $derived(this.records.find((record) => this.isOwnRecord(record)));
+	canEditSelectedClearance = $derived(this.canManage && canEditDataRoomClearance(this.viewerRecord, this.selectedRecord));
+	offeredClearances = $derived(offeredDataRoomClearances(this.viewerRecord));
 
 	private adminBaseURL: string;
 	private text: OrganizationDirectoryPageText;
@@ -215,7 +219,7 @@ export class OrganizationDirectoryController {
 		this.savingProfileUserIDs = markOrganizationProfileSaving(this.savingProfileUserIDs, memberID);
 		this.errorMessage = '';
 		try {
-			this.applyUsersResponse(await saveOrganizationProfiles([organizationProfileSavePayload(record)]));
+			this.applyUsersResponse(await saveOrganizationProfiles([organizationProfileSavePayload(record, this.originalProfiles)]));
 			this.removeEditingRecord(memberID);
 			this.editingUserID = '';
 		} catch (error) {

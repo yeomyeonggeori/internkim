@@ -8,6 +8,7 @@ type AnsweredPerson = {
 	email: string;
 	handle?: string;
 	isAdmin?: boolean;
+	clearance?: number;
 	jobTitle?: string;
 	teamID?: string;
 	supervisorID?: string;
@@ -44,6 +45,7 @@ function recordOf(person: AnsweredPerson): UserRecord {
 		handle: handleOf(person),
 		name: person.name,
 		role: memberRoleOf(person.isAdmin === true),
+		clearance: person.clearance,
 		jobTitle: person.jobTitle,
 		phoneNumber: person.phoneNumber,
 		hireDate: person.hireDate,
@@ -72,6 +74,7 @@ export type MemberProfileUpdate = {
 	hireDate: string;
 	phoneNumber: string;
 	supervisorID: string;
+	clearance?: number;
 };
 
 export async function saveSupabaseMemberProfiles(profiles: MemberProfileUpdate[]): Promise<UsersResponse> {
@@ -82,7 +85,8 @@ export async function saveSupabaseMemberProfiles(profiles: MemberProfileUpdate[]
 			teamHint: profile.groupID,
 			supervisorHint: profile.supervisorID,
 			phoneNumber: profile.phoneNumber,
-			hireDate: profile.hireDate
+			hireDate: profile.hireDate,
+			...(profile.clearance === undefined ? {} : { clearance: profile.clearance })
 		});
 	}
 	return supabaseOrganizationDirectory();

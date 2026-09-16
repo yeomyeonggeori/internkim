@@ -62,6 +62,8 @@ export function hasInvalidOrganizationSupervisor(records: UserRecord[], record: 
 	return !isSupervisorCandidateForRecord(records, record);
 }
 
-export function organizationProfileSavePayload(record: UserRecord): OrgProfileUpdate {
-	return orgProfileUpdate(record);
+export function organizationProfileSavePayload(record: UserRecord, originalProfiles: Record<string, OrgProfileSnapshot> = {}): OrgProfileUpdate {
+	const payload = orgProfileUpdate(record);
+	if (record.clearance === undefined || record.clearance === originalProfiles[record.memberID]?.clearance) return payload;
+	return { ...payload, clearance: record.clearance };
 }

@@ -240,6 +240,8 @@
 					userRecords={controller.records}
 					isSaving={controller.isSavingSelectedProfile}
 					hasInvalidSupervisor={controller.hasInvalidSelectedSupervisor}
+					canEditClearance={controller.canEditSelectedClearance}
+					clearanceChoices={controller.offeredClearances}
 					onEdit={() => controller.selectedRecord && controller.editRecord(controller.selectedRecord)}
 					onSave={() => controller.selectedRecord && controller.saveProfile(controller.selectedRecord.memberID)}
 					onCancel={() => controller.selectedRecord && controller.cancelProfileEdit(controller.selectedRecord.memberID)}
