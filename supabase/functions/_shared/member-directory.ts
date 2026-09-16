@@ -21,6 +21,24 @@ export async function membersOfCompanyByExternalID(
 	);
 }
 
+export async function membersOfCompanyByEmail(
+	client: SupabaseClient,
+	companyID: string
+): Promise<Map<string, string>> {
+	const { data, error } = await client
+		.from('member')
+		.select('id, email')
+		.eq('company_id', companyID)
+		.neq('status', 'withdrawn')
+		.returns<{ id: string; email: string | null }[]>();
+	if (error) throw new Error(error.message);
+	return new Map(
+		data
+			.map((member) => [(member.email ?? '').trim().toLowerCase(), member.id] as const)
+			.filter(([email]) => email !== '')
+	);
+}
+
 export async function pictureURLOfMember(client: SupabaseClient, memberID: string): Promise<string> {
 	if (!memberID) return '';
 
