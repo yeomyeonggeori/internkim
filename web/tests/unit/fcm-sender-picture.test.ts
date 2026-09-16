@@ -17,6 +17,7 @@ describe('the FCM message for a notification with a sender picture', () => {
 	test('carries the sender name and picture to the app as data', () => {
 		const message = fcmMessage(token, {
 			...taskMove,
+			senderID: 'member-2',
 			senderName: '박예시',
 			icon: 'https://example.com/picture.png'
 		});
@@ -25,9 +26,15 @@ describe('the FCM message for a notification with a sender picture', () => {
 			body: '박예시님이 옮겼습니다',
 			openPath: '/task/',
 			tag: 'task-a',
+			senderID: 'member-2',
 			senderName: '박예시',
 			pictureURL: 'https://example.com/picture.png'
 		});
+	});
+
+	test('carries no sender id when the notification names none, so the app groups by name', () => {
+		const message = fcmMessage(token, { ...taskMove, senderName: '박예시', icon: 'https://example.com/picture.png' });
+		expect(dataOf(message)).not.toHaveProperty('senderID');
 	});
 
 	test('names the title as the sender when no sender name was given', () => {

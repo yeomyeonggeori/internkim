@@ -29,13 +29,13 @@ final class SenderNotificationPoster {
     void post(SentNotification sent, Bitmap picture) {
         ensureChannel();
         IconCompat icon = IconCompat.createWithBitmap(picture);
-        String senderID = senderIDOf(sent);
-        Person sender = new Person.Builder().setName(sent.nameShown()).setIcon(icon).setKey(senderID).build();
+        String senderKey = sent.senderKey();
+        Person sender = new Person.Builder().setName(sent.nameShown()).setIcon(icon).setKey(senderKey).build();
         String standingTag = sent.tag.isEmpty() ? sent.messageID : sent.tag;
 
         ShortcutManagerCompat.pushDynamicShortcut(
             context,
-            new ShortcutInfoCompat.Builder(context, senderID)
+            new ShortcutInfoCompat.Builder(context, senderKey)
                 .setLongLived(true)
                 .setShortLabel(sent.nameShown())
                 .setIcon(icon)
@@ -55,7 +55,7 @@ final class SenderNotificationPoster {
             .setContentTitle(sent.nameShown())
             .setContentText(sent.textShown())
             .setStyle(style)
-            .setShortcutId(senderID)
+            .setShortcutId(senderKey)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
@@ -64,10 +64,6 @@ final class SenderNotificationPoster {
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             NotificationManagerCompat.from(context).notify(standingTag, 0, builder.build());
         }
-    }
-
-    private static String senderIDOf(SentNotification sent) {
-        return "sender:" + sent.nameShown();
     }
 
     private PendingIntent tapIntent(SentNotification sent, String standingTag) {
