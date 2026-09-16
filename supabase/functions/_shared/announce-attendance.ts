@@ -35,6 +35,7 @@ export async function announceClock(
 		body: clockBody(clocked, zoneOf(announcer)),
 		openPath: '/attendance/',
 		tag: `attendance-${clocked.id}`,
+		senderID: memberID,
 		senderName: nameOf(announcer),
 		icon: announcerPicture
 	};
@@ -60,6 +61,7 @@ export async function announceLeaveRequest(
 		body: leaveBody(asked, zoneOf(announcer)),
 		openPath: '/attendance/',
 		tag: `leave-${asked.id}`,
+		senderID: memberID,
 		senderName: nameOf(announcer),
 		icon: announcerPicture
 	};
