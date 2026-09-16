@@ -15,6 +15,7 @@ const (
 	taskNotifyInterval   = time.Minute
 	taskNotifyBatch      = 200
 	taskNotifyMarkLife   = 30 * 24 * time.Hour
+	taskNotifyFreshFor   = 10 * time.Minute
 	taskNotifyListPath   = "/admin/api/run?viewerIsAdmin=true&limit=200"
 	taskNotifyDetailPath = "/admin/api/run/detail?viewerIsAdmin=true&taskRunID="
 )
@@ -92,7 +93,7 @@ func (service *Service) notifyChangedTaskRuns(
 			continue
 		}
 		category, notifiable := taskNotifyCategory(run.Status)
-		if !notifiable {
+		if !notifiable || run.UpdatedAt.Before(now.Add(-taskNotifyFreshFor)) {
 			service.markTaskRun(ctx, run, now)
 			continue
 		}

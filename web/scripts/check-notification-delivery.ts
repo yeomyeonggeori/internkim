@@ -1,4 +1,4 @@
-//   bun run web/scripts/check-notification-delivery.ts --url http://127.0.0.1:54321 --key <service role>
+//   bun run web/scripts/check-notification-delivery.ts --url http://127.0.0.1:54321 --key <service role> [--push-host host.docker.internal]
 
 import { createClient } from '@supabase/supabase-js';
 import { issueAgentKey, provisionCompany } from '../src/lib/server/control-plane';
@@ -12,6 +12,7 @@ function argument(name: string): string | undefined {
 const projectURL = argument('url') ?? process.env.SUPABASE_URL ?? '';
 const serviceRoleKey = argument('key') ?? process.env.SUPABASE_SECRET_KEY ?? '';
 if (!projectURL || !serviceRoleKey) throw new Error('pass --url and --key');
+const pushServiceHost = argument('push-host') ?? '127.0.0.1';
 
 const admin = createClient(projectURL, serviceRoleKey, {
 	auth: { autoRefreshToken: false, persistSession: false }
@@ -35,7 +36,7 @@ async function aPushServiceThatRecords(status: number): Promise<{
 			return new Response(null, { status });
 		}
 	});
-	return { address: `http://127.0.0.1:${server.port}/push`, arrivals, stop: () => server.stop(true) };
+	return { address: `http://${pushServiceHost}:${server.port}/push`, arrivals, stop: () => server.stop(true) };
 }
 
 async function notify(agentKey: string, body: Record<string, unknown>): Promise<Response> {
@@ -95,6 +96,22 @@ try {
 	findings.push([
 		'the browser that subscribed reads back what was sent',
 		arrival ? (await readAsTheBrowserWould(arrival.body, subscriber)) === JSON.stringify(sent) : false
+	]);
+
+	const byAddress = await notify(agentKey, {
+		platform: '',
+		externalIDs: null,
+		emails: [`First-${stamp}@example.test`],
+		category: 'approval',
+		title: '승인이 필요해요',
+		body: '메일을 보내도 될까요',
+		openPath: '/runs/',
+		tag: `approval:${stamp}`
+	});
+	const byAddressReport = (await byAddress.json()) as { told?: number; reached?: number };
+	findings.push([
+		'a device naming the member by address and no messenger reaches them',
+		byAddress.status === 200 && byAddressReport.told === 1 && pushService.arrivals.length === 2
 	]);
 	pushService.stop();
 
