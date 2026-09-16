@@ -1,0 +1,166 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ answered %lld" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@이(가) %2$lld(으)로 답했습니다"
+          }
+        }
+      }
+    },
+    "Attendance" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "출퇴근"
+          }
+        }
+      }
+    },
+    "Clock in" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "출근"
+          }
+        }
+      }
+    },
+    "Clock in and out from the app" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱에서 출퇴근하기"
+          }
+        }
+      }
+    },
+    "Clock in at %@" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 출근"
+          }
+        }
+      }
+    },
+    "Clock out" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "퇴근"
+          }
+        }
+      }
+    },
+    "Default location · %@" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 장소 · %@"
+          }
+        }
+      }
+    },
+    "h" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시간"
+          }
+        }
+      }
+    },
+    "Location" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "장소"
+          }
+        }
+      }
+    },
+    "m" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분"
+          }
+        }
+      }
+    },
+    "No workplace registered" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "등록된 장소 없음"
+          }
+        }
+      }
+    },
+    "See today's hours, and clock in and out with a tap." : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오늘 일한 시간을 보고, 눌러서 출근하고 퇴근합니다."
+          }
+        }
+      }
+    },
+    "Sign in to the app to turn the widget on" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱에서 로그인하면 위젯이 켜집니다"
+          }
+        }
+      }
+    },
+    "The company address could not be read" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "회사 주소를 읽을 수 없습니다"
+          }
+        }
+      }
+    },
+    "Today" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오늘"
+          }
+        }
+      }
+    },
+    "Working" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "근무 중"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
