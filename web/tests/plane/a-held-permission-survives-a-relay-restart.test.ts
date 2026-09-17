@@ -30,7 +30,6 @@ function finishing(reply: string): string {
 	return JSON.stringify({
 		message: reply,
 		completionSummary: reply,
-		replyParts: [{ type: 'text', text: reply }],
 		goalStatus: 'satisfied',
 		goalSatisfied: true,
 		completionEvidence: []
