@@ -1,4 +1,5 @@
 import type { OAuthAuthorizationDetails } from '@supabase/supabase-js';
+import { hostOf } from '$lib/consent-return';
 import { supabase } from '$lib/supabase';
 
 export type ConsentRequest =
@@ -21,10 +22,6 @@ export async function answerConsent(authorizationID: string, isApproved: boolean
 		: await oauth.denyAuthorization(authorizationID, options);
 	if (error) throw new Error(error.message);
 	return data.redirect_url;
-}
-
-export function hostOf(address: string): string {
-	return URL.canParse(address) ? new URL(address).host : address;
 }
 
 export type ConnectedApp = { clientID: string; name: string; grantedAt: string };
