@@ -53,6 +53,10 @@ describe('a caller that carries its own credential', () => {
 		expect(asks('api.example.test', '/v1/tools/message_send/invoke')).toBe(false);
 	});
 
+	test('answers the tool server\'s resource metadata on the host it describes', () => {
+		expect(asks('api.example.test', '/.well-known/oauth-protected-resource/v1/mcp')).toBe(false);
+	});
+
 	test('still moves a page request on the same host', () => {
 		expect(asks('samplecompany.example.test', '/apiary')).toBe(true);
 	});

@@ -1,3 +1,5 @@
+import { protectedResourceMetadataPath } from './public-api/protected-resource';
+
 export type CompanyHostQuestion = {
 	hostname: string;
 	zone: string;
@@ -18,11 +20,17 @@ function carriesACallerCredential(pathname: string): boolean {
 	return pathname.startsWith('/api/') || pathname.startsWith('/v1/');
 }
 
+// RFC 9728 §3.3: a client rejects metadata whose resource is not the URL it asked about.
+function describesTheHostItWasAskedOn(pathname: string): boolean {
+	return pathname.startsWith(`${protectedResourceMetadataPath}/`);
+}
+
 export function movesToTheOneAddress(question: CompanyHostQuestion): boolean {
 	const hostname = bareHost(question.hostname);
 	const zone = bareHost(question.zone);
 	if (!hostname || !zone) return false;
 	if (carriesACallerCredential(question.pathname)) return false;
+	if (describesTheHostItWasAskedOn(question.pathname)) return false;
 	if (hostname === theOneAddressOf(zone)) return false;
 	return hostname.endsWith(`.${zone}`);
 }
