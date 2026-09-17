@@ -5,6 +5,7 @@ import {
 	handoffFinishCapability,
 	handoffFrameEventKind,
 	handoffInputCapability,
+	handoffTroubleEventKind,
 	handoffWatchCapability,
 	readHandoffRequest,
 	readViewport,
@@ -23,9 +24,11 @@ class FakePage implements DevtoolsConnection {
 	private readonly listeners: ((event: DevtoolsEvent) => void)[] = [];
 	screenshot = 'first-frame';
 	fields: unknown[][] = [];
+	refusing = '';
 
 	async send(method: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
 		this.sent.push({ method, params });
+		if (method === this.refusing) throw new Error(`the device browser refused: ${method}`);
 		if (method === 'Page.captureScreenshot') return { data: this.screenshot };
 		if (method === 'Runtime.evaluate' && String(params.expression).includes('getBoundingClientRect')) {
 			return { result: { value: JSON.stringify(this.fields) } };
@@ -271,6 +274,69 @@ describe('BrowserHandoffs', () => {
 		expect(inputMethods).toEqual(['Input.dispatchMouseEvent', 'Input.insertText']);
 		const afterWatch = page.methods().slice(page.methods().indexOf('Input.insertText'));
 		expect(afterWatch).toContain('Page.captureScreenshot');
+	});
+
+	test('the requester is looked up once, however many inputs follow', async () => {
+		let lookups = 0;
+		const { handoffs } = handoffsWith({
+			emailOfMember: async () => {
+				lookups += 1;
+				return 'sample@example.test';
+			}
+		});
+		handoffs.begin(request);
+		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, 'member-1');
+
+		for (const x of [1, 2, 3]) {
+			await handoffs.serve(handoffInputCapability, { handoffID: 'handoff-1', inputs: [{ type: 'mouse', action: 'move', x, y: 2 }] }, 'member-1');
+		}
+
+		expect(lookups).toBe(1);
+	});
+
+	test('watching and typing at once open the browser page only once', async () => {
+		const { handoffs, openedAt } = handoffsWith();
+		handoffs.begin(request);
+
+		await Promise.all([
+			handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, 'member-1'),
+			handoffs.serve(handoffInputCapability, { handoffID: 'handoff-1', inputs: [{ type: 'reload' }] }, 'member-1')
+		]);
+
+		expect(openedAt).toHaveLength(1);
+	});
+
+	test('an input the browser refuses does not stop the ones after it, and the requester is told why', async () => {
+		const { handoffs, page, delivered } = handoffsWith();
+		page.refusing = 'Input.insertText';
+		handoffs.begin(request);
+		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, 'member-1');
+
+		const answered = await handoffs.serve(
+			handoffInputCapability,
+			{ handoffID: 'handoff-1', inputs: [{ type: 'text', text: '홍길동' }, { type: 'reload' }] },
+			'member-1'
+		);
+		await settle();
+
+		expect(answered.status).toBe(200);
+		expect(page.methods()).toContain('Page.reload');
+		expect(delivered.map((delivery) => delivery.event).filter((event) => event.kind === handoffTroubleEventKind)).toEqual([
+			{ kind: handoffTroubleEventKind, handoffID: 'handoff-1', reason: 'the device browser refused: Input.insertText' }
+		]);
+	});
+
+	test('only the latest of the hovers still waiting reaches the browser', async () => {
+		const { handoffs, page } = handoffsWith();
+		handoffs.begin(request);
+		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, 'member-1');
+		const hover = (x: number) => ({ type: 'mouse', action: 'move', x, y: 2, button: 'none' });
+
+		await handoffs.serve(handoffInputCapability, { handoffID: 'handoff-1', inputs: [hover(1), hover(2), hover(3)] }, 'member-1');
+		await settle();
+
+		const moves = page.sent.filter((command) => command.method === 'Input.dispatchMouseEvent');
+		expect(moves.map((command) => command.params.x)).toEqual([3]);
 	});
 
 	test('inputs the relay does not understand are refused before reaching the browser', async () => {

@@ -7,6 +7,7 @@ export const handoffInputCapability = 'person.browser.handoff.input';
 export const handoffFinishCapability = 'person.browser.handoff.finish';
 export const handoffFrameEventKind = 'browser.handoff.frame';
 export const handoffEndedEventKind = 'browser.handoff.ended';
+export const handoffTroubleEventKind = 'browser.handoff.trouble';
 
 const handoffCapabilities = new Set([handoffWatchCapability, handoffInputCapability, handoffFinishCapability]);
 
@@ -56,6 +57,8 @@ type WaitingHandoff = HandoffRequest & {
 	expiresAt: number;
 	expiry: ReturnType<typeof setTimeout>;
 	stream: HandoffStream | null;
+	requesterMemberID: string | null;
+	opening: Promise<HandoffStream> | null;
 };
 
 const handoffLifetimeMilliseconds = 15 * 60_000;
@@ -66,6 +69,8 @@ const smallestViewportSide = 240;
 const largestViewportSide = 2560;
 const watchLeaseMilliseconds = 45_000;
 const captureDelaysAfterInputMilliseconds = [80, 500];
+const fieldReadingGapMilliseconds = 1_000;
+const troubleReportGapMilliseconds = 5_000;
 const jpegQuality = 60;
 
 export function readHandoffRequest(offered: unknown): HandoffRequest | null {
@@ -116,7 +121,7 @@ export class BrowserHandoffs {
 		const lifetime = this.settings.lifetimeMilliseconds ?? handoffLifetimeMilliseconds;
 		const expiresAt = this.now() + lifetime;
 		const expiry = setTimeout(() => this.expire(handoffID), lifetime);
-		this.waiting.set(handoffID, { ...request, handoffID, expiresAt, expiry, stream: null });
+		this.waiting.set(handoffID, { ...request, handoffID, expiresAt, expiry, stream: null, requesterMemberID: null, opening: null });
 		return {
 			handoffID,
 			openURL: `${this.settings.appURL.replace(/\/+$/, '')}/handoff/${encodeURIComponent(handoffID)}`,
@@ -127,13 +132,20 @@ export class BrowserHandoffs {
 	async serve(capability: string, body: Record<string, unknown>, memberID: string): Promise<Served> {
 		const handoff = this.waiting.get(textOf(body.handoffID));
 		if (!handoff) return { status: 404, body: { error: 'this browser handoff is no longer waiting' } };
-		const requesterEmail = (await this.settings.emailOfMember(memberID))?.toLowerCase();
-		if (requesterEmail !== handoff.requester.email) {
+		if (!(await this.isTheRequester(handoff, memberID))) {
 			return { status: 403, body: { error: 'this browser handoff was handed to someone else' } };
 		}
 		if (capability === handoffWatchCapability) return this.watch(handoff, memberID, body.viewport);
 		if (capability === handoffInputCapability) return this.takeInputs(handoff, memberID, body.inputs);
 		return this.finish(handoff, body.outcome);
+	}
+
+	private async isTheRequester(handoff: WaitingHandoff, memberID: string): Promise<boolean> {
+		if (handoff.requesterMemberID === memberID) return true;
+		const email = (await this.settings.emailOfMember(memberID))?.toLowerCase();
+		if (email !== handoff.requester.email) return false;
+		handoff.requesterMemberID = memberID;
+		return true;
 	}
 
 	close(): void {
@@ -164,7 +176,7 @@ export class BrowserHandoffs {
 		if (!inputs) return { status: 400, body: { error: 'inputs must be a non-empty list of browser inputs' } };
 		const stream = await this.streamFor(handoff, memberID, null);
 		stream.renewLease();
-		await stream.dispatch(inputs.flatMap(devtoolsCommandsFor));
+		stream.take(inputs.flatMap(devtoolsCommandsFor));
 		return { status: 200, body: { accepted: inputs.length } };
 	}
 
@@ -179,6 +191,14 @@ export class BrowserHandoffs {
 			if (viewport) await handoff.stream.resize(viewport);
 			return handoff.stream;
 		}
+		if (handoff.opening) return handoff.opening;
+		handoff.opening = this.openStream(handoff, memberID, viewport).finally(() => {
+			handoff.opening = null;
+		});
+		return handoff.opening;
+	}
+
+	private async openStream(handoff: WaitingHandoff, memberID: string, viewport: Viewport | null): Promise<HandoffStream> {
 		handoff.stream?.stop();
 		const stream = new HandoffStream({
 			handoffID: handoff.handoffID,
@@ -297,6 +317,11 @@ class HandoffStream {
 	private isCapturing = false;
 	private fields: FieldBox[] = [];
 	private isReadingFields = false;
+	private fieldsReadAt = 0;
+	private fieldReading: ReturnType<typeof setTimeout> | null = null;
+	private commandsWaiting: DevtoolsCommand[] = [];
+	private isDispatching = false;
+	private troubleReportedAt = 0;
 
 	constructor(private readonly settings: HandoffStreamSettings) {
 		this.memberID = settings.memberID;
@@ -332,9 +357,29 @@ class HandoffStream {
 		this.leaseRenewedAt = this.settings.now();
 	}
 
-	async dispatch(commands: DevtoolsCommand[]): Promise<void> {
-		for (const command of commands) await this.page.send(command.method, command.params);
+	take(commands: DevtoolsCommand[]): void {
+		this.commandsWaiting = commands.reduce(withWaitingCommand, this.commandsWaiting);
+		void this.dispatchWhatWaits();
+	}
+
+	private async dispatchWhatWaits(): Promise<void> {
+		if (this.isDispatching) return;
+		this.isDispatching = true;
+		while (this.isLive) {
+			const command = this.commandsWaiting.shift();
+			if (!command) break;
+			await this.page.send(command.method, command.params).catch((refusal) => this.tellOfTrouble(command, refusal));
+		}
+		this.isDispatching = false;
 		for (const delay of captureDelaysAfterInputMilliseconds) setTimeout(() => this.captureNow(), delay);
+	}
+
+	private tellOfTrouble(command: DevtoolsCommand, refusal: unknown): void {
+		const reason = refusal instanceof Error ? refusal.message : String(refusal);
+		this.settings.report(`browser handoff ${this.settings.handoffID} could not apply ${command.method}: ${reason}`);
+		if (this.settings.now() - this.troubleReportedAt < troubleReportGapMilliseconds) return;
+		this.troubleReportedAt = this.settings.now();
+		this.settings.deliver({ kind: handoffTroubleEventKind, handoffID: this.settings.handoffID, reason }, this.memberID);
 	}
 
 	captureNow(): void {
@@ -353,6 +398,8 @@ class HandoffStream {
 		if (this.isStopped) return;
 		this.isStopped = true;
 		if (this.leaseCheck) clearInterval(this.leaseCheck);
+		if (this.fieldReading) clearTimeout(this.fieldReading);
+		this.commandsWaiting = [];
 		if (!this.page.isOpen) return;
 		this.page
 			.send('Page.stopScreencast')
@@ -391,7 +438,16 @@ class HandoffStream {
 	}
 
 	private refreshFields(): void {
-		if (this.isReadingFields) return;
+		if (this.isReadingFields || this.fieldReading || !this.isLive) return;
+		const wait = this.fieldsReadAt + fieldReadingGapMilliseconds - this.settings.now();
+		if (wait > 0) {
+			this.fieldReading = setTimeout(() => {
+				this.fieldReading = null;
+				this.refreshFields();
+			}, wait);
+			return;
+		}
+		this.fieldsReadAt = this.settings.now();
 		this.isReadingFields = true;
 		editableFieldsOn(this.page)
 			.then((fields) => {
@@ -404,6 +460,16 @@ class HandoffStream {
 				this.isReadingFields = false;
 			});
 	}
+}
+
+function withWaitingCommand(waiting: DevtoolsCommand[], command: DevtoolsCommand): DevtoolsCommand[] {
+	const last = waiting.at(-1);
+	if (last && isHover(last) && isHover(command)) return [...waiting.slice(0, -1), command];
+	return [...waiting, command];
+}
+
+function isHover(command: DevtoolsCommand): boolean {
+	return command.method === 'Input.dispatchMouseEvent' && command.params.type === 'mouseMoved' && command.params.button === 'none';
 }
 
 export type FieldBox = [x: number, y: number, width: number, height: number];

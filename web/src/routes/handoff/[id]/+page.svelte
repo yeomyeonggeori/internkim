@@ -26,6 +26,7 @@
 	import MonitorOffIcon from '@lucide/svelte/icons/monitor-off';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
 	import ShieldAlertIcon from '@lucide/svelte/icons/shield-alert';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import WifiOffIcon from '@lucide/svelte/icons/wifi-off';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { onMount } from 'svelte';
@@ -45,12 +46,16 @@
 	const text = createPageText(handoffText);
 	const watchRenewalMilliseconds = 15_000;
 	const resizeSettleMilliseconds = 250;
+	const troubleShownMilliseconds = 8_000;
+	const inputFailureToastID = 'browser-handoff-input';
 	const handoffID = page.params.id ?? '';
 	const inputs = new HandoffInputQueue((batch) => sendHandoffInputs(handoffID, batch), reportInputFailure);
 
 	let phase = $state<Phase>({ name: 'connecting' });
 	let frame = $state<ScreenFrame | null>(null);
 	let pageAddress = $state('');
+	let trouble = $state('');
+	let troubleTimer: ReturnType<typeof setTimeout> | undefined;
 	let isFinishing = $state(false);
 	let screen = $state<HandoffScreen>();
 	let wantedViewport: Viewport | null = null;
@@ -66,6 +71,7 @@
 			stopListening();
 			clearInterval(renewal);
 			clearTimeout(resizeTimer);
+			clearTimeout(troubleTimer);
 		};
 	});
 
@@ -102,6 +108,10 @@
 			phase = { name: 'ended', outcome: event.outcome };
 			return;
 		}
+		if (event.kind === 'trouble') {
+			showTrouble(event.reason);
+			return;
+		}
 		frame = { image: `data:image/jpeg;base64,${event.image}`, width: event.width, height: event.height, fields: event.fields };
 		if (event.url) pageAddress = shownAddressOf(event.url);
 	}
@@ -117,9 +127,16 @@
 		inputs.push(input);
 	}
 
+	function showTrouble(reason: string): void {
+		trouble = reason;
+		clearTimeout(troubleTimer);
+		troubleTimer = setTimeout(() => (trouble = ''), troubleShownMilliseconds);
+	}
+
 	function reportInputFailure(failure: unknown): void {
 		console.warn('the browser handoff did not take the input', failure);
-		toast.error(text.inputFailed);
+		const reason = failure instanceof Error ? failure.message : String(failure);
+		toast.error(text.inputFailed, { id: inputFailureToastID, description: reason });
 	}
 
 	async function finish(outcome: FinishingOutcome): Promise<void> {
@@ -176,7 +193,10 @@
 				<p class="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
 					<ClockIcon class="size-3 shrink-0" />
 					<span class="shrink-0">{expiryTimeOf(phase.watch)}</span>
-					{#if pageAddress}
+					{#if trouble}
+						<TriangleAlertIcon class="ml-1.5 size-3 shrink-0 text-destructive" />
+						<span class="truncate text-destructive" title={trouble}>{text.slowBrowser}</span>
+					{:else if pageAddress}
 						<GlobeIcon class="ml-1.5 size-3 shrink-0" />
 						<span class="truncate" title={pageAddress}>{pageAddress}</span>
 					{/if}
