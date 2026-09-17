@@ -50,6 +50,7 @@
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
 	let attendanceSessionKey = '';
+	let widgetSuppliedEmail = '';
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
 	$effect(() => {
 		const sessionKey = `${data.session?.authenticated ?? false}:${data.session?.email ?? ''}`;
@@ -72,6 +73,16 @@
 			},
 			(failure: unknown) => console.warn('this device was not asked about notifications', failure)
 		);
+	});
+	$effect(() => {
+		const signedInEmail = data.session?.authenticated ? data.session.email : '';
+		untrack(() => {
+			if (!signedInEmail || signedInEmail === widgetSuppliedEmail) return;
+			widgetSuppliedEmail = signedInEmail;
+			keepWidgetSupplied().catch((failure: unknown) =>
+				console.warn('the widget holds no key of its own', failure)
+			);
+		});
 	});
 	onMount(() => {
 		initializeLocale();
@@ -107,9 +118,6 @@
 		);
 		keepNativeDeviceClaimed().catch((failure: unknown) =>
 			console.warn('this device is not claimed for push', failure)
-		);
-		keepWidgetSupplied().catch((failure: unknown) =>
-			console.warn('the widget holds no key of its own', failure)
 		);
 		return () => {
 			stopFollowingPageTheme();
