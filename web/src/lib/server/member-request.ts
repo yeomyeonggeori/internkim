@@ -5,10 +5,11 @@ import {
 	asMember,
 	controlPlane,
 	isPersonalAccessToken,
+	planeCredentialsOf,
 	sessionForPersonalAccessToken,
 	TokenOwnerHasLeft,
-	type ControlPlaneCredentials,
 	type PersonalAccessTokenSession,
+	type SigningCredentials,
 } from './control-plane';
 import type { Environment } from './agent-request';
 
@@ -27,26 +28,32 @@ export type MemberCall = {
 	accessToken: string;
 	permission: PublicAPIPermission;
 	tokenName: string;
+	memberID: string | null;
 };
 
 export async function memberAccessTokenOf(
 	request: Request,
-	credentials: ControlPlaneCredentials,
+	credentials: SigningCredentials,
 ): Promise<MemberCall> {
 	const authorization = request.headers.get('authorization') ?? '';
 	const presented = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
 	if (!presented) error(401, 'sign in first');
 	if (!isPersonalAccessToken(presented)) {
-		return { accessToken: presented, permission: fullPublicAPIPermission, tokenName: '' };
+		return { accessToken: presented, permission: fullPublicAPIPermission, tokenName: '', memberID: null };
 	}
 
 	const session = await sessionOfTokenOrRefusal(credentials, presented);
 	if (!session) error(401, 'that key belongs to nobody');
-	return { accessToken: session.accessToken, permission: session.permission, tokenName: session.tokenName };
+	return {
+		accessToken: session.accessToken,
+		permission: session.permission,
+		tokenName: session.tokenName,
+		memberID: session.memberID,
+	};
 }
 
 async function sessionOfTokenOrRefusal(
-	credentials: ControlPlaneCredentials,
+	credentials: SigningCredentials,
 	presented: string,
 ): Promise<PersonalAccessTokenSession | null> {
 	try {
@@ -57,38 +64,47 @@ async function sessionOfTokenOrRefusal(
 	}
 }
 
-export async function callingMember(request: Request, environment: Environment): Promise<CallingMember> {
-	const projectURL = environment.SUPABASE_URL ?? '';
-	const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
-	if (!projectURL || !publishableKey || !serviceRoleKey) {
-		error(500, 'the control plane is not configured');
-	}
+type MemberRow = { id: string; company_id: string; email: string | null };
 
-	const { accessToken, permission, tokenName } = await memberAccessTokenOf(request, {
-		projectURL,
-		serviceRoleKey,
-	});
+async function memberByID(caller: SupabaseClient, memberID: string): Promise<MemberRow | null> {
+	const member = await caller
+		.from('member')
+		.select('id, company_id, email')
+		.eq('id', memberID)
+		.maybeSingle<MemberRow>();
+	if (member.error) error(500, member.error.message);
+	return member.data;
+}
 
-	const caller = asMember({ projectURL, publishableKey }, accessToken);
+async function memberOfSignedInAccount(caller: SupabaseClient): Promise<MemberRow | null> {
 	const { data: account } = await caller.auth.getUser();
 	if (!account.user) error(401, 'sign in first');
-
 	const member = await caller
 		.from('member')
 		.select('id, company_id, email')
 		.eq('user_id', account.user.id)
-		.maybeSingle<{ id: string; company_id: string; email: string | null }>();
+		.maybeSingle<MemberRow>();
 	if (member.error) error(500, member.error.message);
-	if (!member.data) error(403, 'refused');
+	if (!member.data) return null;
+	return { ...member.data, email: member.data.email ?? account.user.email ?? null };
+}
+
+export async function callingMember(request: Request, environment: Environment): Promise<CallingMember> {
+	const plane = planeCredentialsOf(environment);
+	if (!plane) error(500, 'the control plane is not configured');
+
+	const { accessToken, permission, tokenName, memberID } = await memberAccessTokenOf(request, plane);
+	const caller = asMember(plane, accessToken);
+	const member = memberID ? await memberByID(caller, memberID) : await memberOfSignedInAccount(caller);
+	if (!member) error(403, 'refused');
 
 	return {
 		accessToken,
 		caller,
-		record: controlPlane({ projectURL, serviceRoleKey }),
-		memberID: member.data.id,
-		companyID: member.data.company_id,
-		email: member.data.email ?? account.user.email ?? '',
+		record: controlPlane(plane),
+		memberID: member.id,
+		companyID: member.company_id,
+		email: member.email ?? '',
 		permission,
 		tokenName
 	};

@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { asMember } from '../control-plane';
+import { asMember, planeCredentialsOf } from '../control-plane';
 import { memberAccessTokenOf } from '../member-request';
 import { askTheProject } from '../project-function';
 import type { Environment } from '../agent-request';
@@ -25,13 +25,11 @@ export async function clockAttendance(
 	const input = parsed.data;
 	if (input.personHint || input.date || input.time) return null;
 
-	const projectURL = environment.SUPABASE_URL ?? '';
-	const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
-	if (!projectURL || !publishableKey || !serviceRoleKey) error(500, 'the control plane is not configured');
-	const member = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
+	const plane = planeCredentialsOf(environment);
+	if (!plane) error(500, 'the control plane is not configured');
+	const member = await memberAccessTokenOf(request, plane);
 	descriptorTheTokenReaches('attendance_add', member);
-	const caller = asMember({ projectURL, publishableKey }, member.accessToken);
+	const caller = asMember(plane, member.accessToken);
 	try {
 		const result = await addAttendanceFor(caller, null, input);
 		const announcement = announceAttendance(environment, member.accessToken);

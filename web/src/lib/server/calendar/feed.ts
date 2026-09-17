@@ -2,7 +2,8 @@ import {
 	asMember,
 	controlPlane,
 	sessionForMember,
-	type ControlPlaneCredentials
+	type ControlPlaneCredentials,
+	type PlaneCredentials
 } from '$lib/server/control-plane';
 import { localeOf } from '$lib/i18n/locale';
 import { calendarMembers, companyCalendarEntries } from '$lib/server/public-api/record/company-calendar';
@@ -11,8 +12,6 @@ import { companyOfFeedToken } from './feed-token';
 
 const daysBehind = 90;
 const daysAhead = 400;
-
-export type FeedCredentials = ControlPlaneCredentials & { publishableKey: string };
 
 function windowAround(now: Date): { from: Date; to: Date } {
 	const day = 24 * 60 * 60 * 1000;
@@ -37,7 +36,7 @@ async function anAdminOf(credentials: ControlPlaneCredentials, companyID: string
 }
 
 export async function calendarFeedForToken(
-	credentials: FeedCredentials,
+	credentials: PlaneCredentials,
 	token: string,
 	now: Date
 ): Promise<string | null> {

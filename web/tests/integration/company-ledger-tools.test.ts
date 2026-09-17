@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { addMember, asMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
-import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
-	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
+	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
 }));
 
 const { runToolOverTheRecord, previewToolOverTheRecord } = await import('../../src/lib/server/public-api/record');
@@ -25,7 +25,7 @@ let admin: ReturnType<typeof asMember>;
 async function signedInMember(memberID: string, email: string): Promise<ReturnType<typeof asMember>> {
 	const { data: account } = await client.auth.admin.createUser({ email, email_confirm: true });
 	await client.from('member').update({ user_id: account.user!.id, status: 'active' }).eq('id', memberID);
-	const session = await sessionForMember({ projectURL, serviceRoleKey }, memberID);
+	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, memberID);
 	return asMember({ projectURL, publishableKey }, session.accessToken);
 }
 

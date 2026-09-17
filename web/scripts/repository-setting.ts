@@ -3,10 +3,10 @@
 // a value that is plainly there reads as missing, and the failure tells the
 // reader to set something they already set.
 
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const repositorySettingsPath = fileURLToPath(new URL('../../.env', import.meta.url));
+export const repositorySettingsPath = fileURLToPath(new URL('../../.env', import.meta.url));
 
 function settingsAtRepositoryRoot(): Record<string, string> {
 	let written = '';
@@ -36,4 +36,9 @@ export function requiredSetting(name: string): string {
 	const value = setting(name);
 	if (value) return value;
 	throw new Error(`${name} is set neither in this shell nor at ${repositorySettingsPath}`);
+}
+
+export function keepSetting(name: string, value: string): void {
+	if (setting(name)) throw new Error(`${name} is already set; remove it before issuing another`);
+	appendFileSync(repositorySettingsPath, `${name}='${value}'\n`);
 }

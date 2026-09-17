@@ -8,10 +8,10 @@ import {
 } from '../../src/lib/server/control-plane';
 import { calendarFeedForToken } from '../../src/lib/server/calendar/feed';
 import { forgetFeedToken, issueFeedToken } from '../../src/lib/server/calendar/feed-token';
-import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 
 const networkHookTimeout = 60_000;
-const credentials = { projectURL, publishableKey, serviceRoleKey };
+const credentials = { projectURL, publishableKey, serviceRoleKey, signingKey };
 const record = controlPlane({ projectURL, serviceRoleKey });
 const stamp = Date.now();
 const now = new Date();
@@ -27,7 +27,7 @@ let mine: Company;
 let theirs: Company;
 
 async function clientForMember(memberID: string) {
-	const session = await sessionForMember({ projectURL, serviceRoleKey }, memberID);
+	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, memberID);
 	return asMember({ projectURL, publishableKey }, session.accessToken);
 }
 
