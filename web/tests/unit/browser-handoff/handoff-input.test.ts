@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import {
 	beginTouch,
 	containedBox,
+	isOnAField,
 	keyInputOf,
+	keyInputsOfEdit,
 	moveTouch,
 	nextPress,
 	pointOnViewport,
@@ -101,22 +103,61 @@ describe('withQueuedInput', () => {
 
 		expect(withQueuedInput([pressed], move(2))).toEqual([pressed, move(2)]);
 	});
+
+	test('every move while a button is held is kept so the drag follows its path', () => {
+		const dragTo = (x: number): HandoffInput => ({ type: 'mouse', action: 'move', x, y: 0, button: 'left', clickCount: 0, modifiers: noModifiers });
+
+		expect(withQueuedInput([dragTo(1)], dragTo(2))).toEqual([dragTo(1), dragTo(2)]);
+	});
+});
+
+describe('keyInputsOfEdit', () => {
+	test('deleting and breaking a line on a phone keyboard press the matching keys', () => {
+		expect(keyInputsOfEdit('deleteContentBackward')).toMatchObject([
+			{ type: 'key', action: 'down', key: 'Backspace' },
+			{ type: 'key', action: 'up', key: 'Backspace' }
+		]);
+		expect(keyInputsOfEdit('insertParagraph')).toMatchObject([{ key: 'Enter', text: '\r' }, { key: 'Enter', text: '\r' }]);
+	});
+
+	test('typed text is left to the text the field sends', () => {
+		expect(keyInputsOfEdit('insertText')).toEqual([]);
+	});
+});
+
+describe('isOnAField', () => {
+	const fields = [{ x: 20, y: 40, width: 200, height: 30 }];
+
+	test('a point inside a field is on it and a point past its far edge is not', () => {
+		expect(isOnAField({ x: 20, y: 40 }, fields)).toBe(true);
+		expect(isOnAField({ x: 219, y: 69 }, fields)).toBe(true);
+		expect(isOnAField({ x: 220, y: 50 }, fields)).toBe(false);
+		expect(isOnAField({ x: 100, y: 70 }, fields)).toBe(false);
+	});
 });
 
 describe('touch', () => {
 	test('a finger that barely moves is still a tap', () => {
-		const track = beginTouch(100, 100);
+		const track = beginTouch(100, 100, 0);
 
-		expect(moveTouch(track, 104, 103, 2)).toEqual({ track, scroll: null });
+		expect(moveTouch(track, 104, 103, 900, 2)).toEqual({ track, scroll: null, startsDrag: false });
 	});
 
-	test('a dragging finger scrolls the page the other way, in viewport pixels', () => {
-		const moved = moveTouch(beginTouch(100, 100), 100, 60, 2);
-		const movedAgain = moveTouch(moved.track, 100, 50, 2);
+	test('a finger swiped right away scrolls the page the other way, in viewport pixels', () => {
+		const moved = moveTouch(beginTouch(100, 100, 0), 100, 60, 100, 2);
+		const movedAgain = moveTouch(moved.track, 100, 50, 1000, 2);
 
 		expect(moved.scroll).toEqual({ deltaX: 0, deltaY: 80 });
 		expect(movedAgain.scroll).toEqual({ deltaX: 0, deltaY: 20 });
-		expect(movedAgain.track.hasMoved).toBe(true);
+		expect(movedAgain.track.gesture).toBe('scroll');
+	});
+
+	test('a finger held still before moving drags instead of scrolling', () => {
+		const moved = moveTouch(beginTouch(100, 100, 0), 140, 100, 450, 2);
+		const movedAgain = moveTouch(moved.track, 180, 100, 500, 2);
+
+		expect(moved).toMatchObject({ scroll: null, startsDrag: true, track: { gesture: 'drag' } });
+		expect(movedAgain).toMatchObject({ scroll: null, startsDrag: false, track: { gesture: 'drag', lastX: 180 } });
 	});
 });
 

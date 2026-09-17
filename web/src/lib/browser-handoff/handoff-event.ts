@@ -1,3 +1,5 @@
+import type { FieldBox } from './handoff-input';
+
 export type HandoffOutcome = 'completed' | 'abandoned' | 'expired';
 
 export type HandoffFrame = {
@@ -7,6 +9,7 @@ export type HandoffFrame = {
 	width: number;
 	height: number;
 	url: string;
+	fields: FieldBox[];
 };
 
 export type HandoffEnded = {
@@ -34,7 +37,21 @@ function frameOf(handoffID: string, held: Record<string, unknown>): HandoffFrame
 	if (typeof held.image !== 'string' || held.image === '') return null;
 	if (!isPositiveNumber(held.width) || !isPositiveNumber(held.height)) return null;
 	const url = typeof held.url === 'string' ? held.url : '';
-	return { kind: 'frame', handoffID, image: held.image, width: held.width, height: held.height, url };
+	return { kind: 'frame', handoffID, image: held.image, width: held.width, height: held.height, url, fields: fieldsOf(held.fields) };
+}
+
+function fieldsOf(offered: unknown): FieldBox[] {
+	if (!Array.isArray(offered)) return [];
+	return offered.flatMap((box: unknown) => {
+		if (!Array.isArray(box) || box.length !== 4) return [];
+		const [x, y, width, height]: unknown[] = box;
+		if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isPositiveNumber(width) || !isPositiveNumber(height)) return [];
+		return [{ x, y, width, height }];
+	});
+}
+
+function isFiniteNumber(offered: unknown): offered is number {
+	return typeof offered === 'number' && Number.isFinite(offered);
 }
 
 function endedOf(handoffID: string, held: Record<string, unknown>): HandoffEnded | null {
