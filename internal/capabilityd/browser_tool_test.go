@@ -6,9 +6,69 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
+
+func browserSnapshotFrom(requesterEmail string) string {
+	return `{"input":{},"context":{"requesterEmail":"` + requesterEmail + `"}}`
+}
+
+func TestEachRequesterDrivesTheirOwnDeviceBrowser(t *testing.T) {
+	var argumentsByCall [][]string
+	service := Service{
+		Configuration:  Configuration{AgentBrowserPath: "agent-browser-test"},
+		DeviceBrowsers: fakeDeviceBrowsers(4, time.Now()),
+		RunCommand: func(_ context.Context, _ string, commandArguments []string, _ []byte) ([]byte, error) {
+			argumentsByCall = append(argumentsByCall, append([]string{}, commandArguments...))
+			return []byte(`{"success":true,"data":{"snapshot":"","refs":{}}}`), nil
+		},
+	}
+
+	for _, requesterEmail := range []string{"kim@example.test", "lee@example.test"} {
+		response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_snapshot", strings.NewReader(browserSnapshotFrom(requesterEmail)))
+		if errorValue != nil || response.Outcome != capabilities.ToolOutcomeSucceeded {
+			t.Fatalf("snapshot for %s: response=%+v error=%v", requesterEmail, response, errorValue)
+		}
+	}
+
+	if len(argumentsByCall) != 2 {
+		t.Fatalf("expected two snapshots, got %+v", argumentsByCall)
+	}
+	first := strings.Join(argumentsByCall[0], " ")
+	second := strings.Join(argumentsByCall[1], " ")
+	if !strings.Contains(first, "--cdp http://127.0.0.1:9230") || !strings.Contains(second, "--cdp http://127.0.0.1:9231") {
+		t.Fatalf("expected each requester on their own browser, got %q and %q", first, second)
+	}
+	if argumentsByCall[0][1] == argumentsByCall[1][1] {
+		t.Fatalf("expected separate agent-browser sessions, got %q and %q", first, second)
+	}
+}
+
+func TestABusyDeviceTellsTheAgentTheBrowserIsTaken(t *testing.T) {
+	browsers := fakeDeviceBrowsers(1, time.Now())
+	service := Service{
+		Configuration:  Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserCapacity: 1},
+		DeviceBrowsers: browsers,
+		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
+			return []byte(`{"success":true,"data":{"snapshot":"","refs":{}}}`), nil
+		},
+	}
+	if _, errorValue := service.invokeCapabilityTool(context.Background(), "browser_snapshot", strings.NewReader(browserSnapshotFrom("kim@example.test"))); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	browsers.HoldUntil("kim@example.test", time.Now().Add(time.Hour))
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_snapshot", strings.NewReader(browserSnapshotFrom("lee@example.test")))
+
+	if errorValue != nil {
+		t.Fatalf("expected a failed response, got error %v", errorValue)
+	}
+	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "all 1 device browsers are in use") {
+		t.Fatalf("response = %+v", response)
+	}
+}
 
 func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 	type commandCall struct {
@@ -17,7 +77,8 @@ func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 	}
 	var calls []commandCall
 	service := Service{
-		Configuration: Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserCDPURL: "http://127.0.0.1:9222", DeviceBrowserProfilePath: "/profile"},
+		Configuration:  Configuration{AgentBrowserPath: "agent-browser-test"},
+		DeviceBrowsers: fakeDeviceBrowsers(4, time.Now()),
 		RunCommand: func(_ context.Context, path string, commandArguments []string, _ []byte) ([]byte, error) {
 			calls = append(calls, commandCall{path: path, arguments: append([]string{}, commandArguments...)})
 			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {
@@ -40,7 +101,7 @@ func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 	if calls[0].path != "agent-browser-test" {
 		t.Fatalf("unexpected open command path: %s", calls[0].path)
 	}
-	expectedOpenArguments := []string{"--session", "internkim-device", "--cdp", "http://127.0.0.1:9222", "--session-name", "internkim-device", "open", "https://example.com"}
+	expectedOpenArguments := []string{"--session", "internkim-device-unattributed", "--cdp", "http://127.0.0.1:9230", "--session-name", "internkim-device-unattributed", "open", "https://example.com"}
 	if !slices.Equal(calls[0].arguments, expectedOpenArguments) {
 		t.Fatalf("unexpected open arguments: %+v", calls[0].arguments)
 	}

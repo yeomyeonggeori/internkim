@@ -43,7 +43,11 @@ func main() {
 	flag.StringVar(&configuration.ChatdPlatform, "chatd-platform", defaultConfiguration.ChatdPlatform, "platform name chatd serves for message delivery")
 	flag.StringVar(&configuration.FileReadPythonPath, "file-read-python", defaultConfiguration.FileReadPythonPath, "Python executable for file_read conversions")
 	flag.StringVar(&configuration.AgentBrowserPath, "agent-browser", defaultConfiguration.AgentBrowserPath, "agent-browser executable path")
-	flag.StringVar(&configuration.DeviceBrowserCDPURL, "device-browser-cdp", defaultConfiguration.DeviceBrowserCDPURL, "URL the device browser (moli serve) answers the Chrome DevTools Protocol on")
+	flag.StringVar(&configuration.DeviceBrowserExecutablePath, "device-browser", defaultConfiguration.DeviceBrowserExecutablePath, "moli executable each requester's device browser runs")
+	flag.StringVar(&configuration.DeviceBrowserStateDirectory, "device-browser-state-dir", defaultConfiguration.DeviceBrowserStateDirectory, "directory holding each requester's device browser profile")
+	flag.IntVar(&configuration.DeviceBrowserFirstPort, "device-browser-first-port", defaultConfiguration.DeviceBrowserFirstPort, "first loopback port a device browser answers the Chrome DevTools Protocol on")
+	flag.IntVar(&configuration.DeviceBrowserCapacity, "device-browser-capacity", defaultConfiguration.DeviceBrowserCapacity, "most device browsers running at once")
+	flag.StringVar(&configuration.DeviceBrowserUserName, "device-browser-user", defaultConfiguration.DeviceBrowserUserName, "user a device browser runs as when capabilityd runs as root")
 	flag.StringVar(&configuration.RelayBaseURL, "relay-url", defaultConfiguration.RelayBaseURL, "URL the relay takes local calls on, where a browser handoff is handed to the requester")
 	flag.BoolVar(&configuration.PreferCompanionLLM, "prefer-companion-llm", defaultConfiguration.PreferCompanionLLM, "prefer companion local LLM when available")
 	flag.StringVar(&configuration.LocalInferenceMode, "local-inference-mode", defaultConfiguration.LocalInferenceMode, "local inference mode: device, companion_preferred, companion_only, remote")
@@ -60,10 +64,6 @@ func main() {
 		printModelLadder(*modelLadderEndpoint, *modelLadderKeyPath)
 		return
 	}
-	if environmentDeviceBrowserCDPURL := os.Getenv("INTERNKIM_DEVICE_BROWSER_CDP"); environmentDeviceBrowserCDPURL != "" {
-		configuration.DeviceBrowserCDPURL = environmentDeviceBrowserCDPURL
-	}
-
 	if strings.TrimSpace(configuration.ChatdPlatform) == "" {
 		fmt.Fprintln(os.Stderr, "--chatd-platform names the messenger this company runs, and every message tool reaches it through chatd; capabilityd delivers nothing without it")
 		os.Exit(1)

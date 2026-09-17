@@ -16,7 +16,8 @@ chatdPort="${CHATD_LISTEN_PORT:-18090}"
 arrivalsPort="${ARRIVALS_PORT:-18091}"
 maildPort="${MAILD_PORT:-18092}"
 admindPort="${ADMIND_PORT:-18080}"
-deviceBrowserPort="${DEVICE_BROWSER_PORT:-9222}"
+deviceBrowserPort="${DEVICE_BROWSER_PORT:-9230}"
+deviceBrowserCapacity="${DEVICE_BROWSER_CAPACITY:-4}"
 deviceBrowserStateDirectory="${DEVICE_BROWSER_STATE_DIR:-/var/lib/internkim-moli}"
 agentKeyPath="/root/.internkim/secrets/agent-key"
 buzzKeySeedPath="/root/.internkim/secrets/buzz-key-seed"
@@ -32,7 +33,7 @@ blueclawSecretsDirectory="/run/internkim/secrets"
 blueclawAgentKeyPath="${blueclawSecretsDirectory}/agent-key"
 blueclawModelAPIKeyPath="${blueclawSecretsDirectory}/openrouter-key"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cp install mkdir chown setpriv curl"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cp install mkdir chown setpriv"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
@@ -61,7 +62,6 @@ install -d -o blueclaw -g blueclaw -m 0750 "${deviceBrowserStateDirectory}"
 mkdir -p /workspace/.blueclaw
 chown blueclaw:blueclaw /workspace /workspace/.blueclaw
 
-deviceBrowserPid=""
 capabilitydPid=""
 admindPid=""
 blueclawPid=""
@@ -72,10 +72,10 @@ relayPid=""
 shutdown() {
   exitCode="$?"
   trap - INT TERM EXIT
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}" "${deviceBrowserPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && kill "${processID}" 2>/dev/null || true
   done
-  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}" "${deviceBrowserPid}"; do
+  for processID in "${relayPid}" "${chatdPid}" "${maildPid}" "${blueclawPid}" "${admindPid}" "${capabilitydPid}"; do
     [ -n "${processID}" ] && wait "${processID}" 2>/dev/null || true
   done
   exit "${exitCode}"
@@ -89,7 +89,6 @@ keepRelayRunning() {
       MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" ARRIVALS_PORT="${arrivalsPort}" \
       MAILD_BASE_URL="http://127.0.0.1:${maildPort}" \
       BLUECLAW_ACP_SOCKET_PATH="${blueclawACPSocketPath}" RELAY_STATE_DIR="${relayStateDirectory}" \
-      INTERNKIM_DEVICE_BROWSER_CDP="http://127.0.0.1:${deviceBrowserPort}" \
       internkim-relay &
     relayChild="$!"
     trap 'kill "${relayChild}" 2>/dev/null; exit 0' TERM
@@ -136,27 +135,6 @@ fi
 echo "[host] waiting for postgres"
 until pg_isready -d "${DATABASE_URL}" >/dev/null 2>&1; do sleep 1; done
 
-echo "[host] starting the device browser"
-keepDeviceBrowserRunning() {
-  while true; do
-    setpriv --reuid blueclaw --regid blueclaw --init-groups env HOME=/home/blueclaw \
-      moli serve --host 127.0.0.1 --port "${deviceBrowserPort}" --layout --resource \
-        --profile-dir "${deviceBrowserStateDirectory}/profile" --http-cache-dir "${deviceBrowserStateDirectory}/cache" &
-    deviceBrowserChild="$!"
-    trap 'kill "${deviceBrowserChild}" 2>/dev/null; exit 0' TERM
-    wait "${deviceBrowserChild}" || true
-    echo "[host] the device browser stopped — restarting in 5s"
-    sleep 5
-  done
-}
-keepDeviceBrowserRunning &
-deviceBrowserPid="$!"
-
-until curl --fail --silent --max-time 2 "http://127.0.0.1:${deviceBrowserPort}/json/version" >/dev/null 2>&1; do
-  kill -0 "${deviceBrowserPid}" 2>/dev/null || { wait "${deviceBrowserPid}"; exit 1; }
-  sleep 1
-done
-
 # capabilityd chooses the messenger a message leaves on from these two flags and
 # nothing else, and refuses to start without --chatd-platform: a daemon that does
 # not know the company's messenger has nowhere to deliver.
@@ -169,7 +147,11 @@ internkim-capabilityd \
   --admind-url "http://127.0.0.1:${admindPort}" \
   --chatd-endpoint "http://127.0.0.1:${chatdPort}" \
   --chatd-platform "${MESSENGER_PLATFORM}" \
-  --device-browser-cdp "http://127.0.0.1:${deviceBrowserPort}" \
+  --device-browser "$(command -v moli)" \
+  --device-browser-state-dir "${deviceBrowserStateDirectory}" \
+  --device-browser-first-port "${deviceBrowserPort}" \
+  --device-browser-capacity "${deviceBrowserCapacity}" \
+  --device-browser-user blueclaw \
   --relay-url "http://127.0.0.1:${arrivalsPort}" &
 capabilitydPid="$!"
 

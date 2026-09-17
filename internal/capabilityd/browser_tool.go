@@ -29,9 +29,17 @@ type deviceBrowserFileMetadata struct {
 }
 
 func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	browserRuntime := service.deviceBrowserRuntime()
+	if request.ToolName == "browser_screenshot" {
+		return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
+	}
+	browserRuntime, errorValue := service.deviceBrowserRuntime(ctx, request.Context)
+	if errors.Is(errorValue, browserruntime.ErrDeviceBrowsersFull) {
+		return service.deviceBrowsersFullResponse(request.ToolName), nil
+	}
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
+	}
 	var result any
-	var errorValue error
 
 	switch request.ToolName {
 	case "browser_open":
@@ -54,8 +62,6 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 			}
 			result = observation
 		}
-	case "browser_screenshot":
-		return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
 	case "browser_click":
 		var input browserruntime.ClickRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
@@ -102,14 +108,48 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 	})
 }
 
-func (service Service) deviceBrowserRuntime() browserruntime.AgentBrowserRuntime {
-	configuration := service.Configuration.WithDefaults()
+func (service Service) deviceBrowserRuntime(ctx context.Context, requestContext capabilities.ToolInvokeContext) (browserruntime.AgentBrowserRuntime, error) {
+	if service.DeviceBrowsers == nil {
+		return browserruntime.AgentBrowserRuntime{}, errors.New("capabilityd runs no device browsers")
+	}
+	browser, errorValue := service.DeviceBrowsers.BrowserFor(ctx, requestContext.RequesterEmail)
+	if errorValue != nil {
+		return browserruntime.AgentBrowserRuntime{}, errorValue
+	}
 	return browserruntime.AgentBrowserRuntime{
-		CommandPath: configuration.AgentBrowserPath,
+		CommandPath: service.Configuration.WithDefaults().AgentBrowserPath,
 		Engine:      browserruntime.BrowserEngineMoli,
-		CDPURL:      configuration.DeviceBrowserCDPURL,
-		SessionName: "internkim-device",
+		CDPURL:      browser.DevtoolsURL,
+		SessionName: browser.SessionName,
 		Runner:      service.browserCommandRunner(),
+	}, nil
+}
+
+func (configuration Configuration) newDeviceBrowsers() *browserruntime.DeviceBrowsers {
+	return browserruntime.NewDeviceBrowsers(browserruntime.DeviceBrowserSettings{
+		ExecutablePath: configuration.DeviceBrowserExecutablePath,
+		StateDirectory: configuration.DeviceBrowserStateDirectory,
+		FirstPort:      configuration.DeviceBrowserFirstPort,
+		Capacity:       configuration.DeviceBrowserCapacity,
+		UserName:       configuration.DeviceBrowserUserName,
+	})
+}
+
+func (service Service) deviceBrowsersFullResponse(toolName string) capabilities.ToolInvokeResponse {
+	capacity := service.Configuration.WithDefaults().DeviceBrowserCapacity
+	return deviceBrowserFailedResponse(toolName, fmt.Sprintf(
+		"all %d device browsers are in use by other people right now; tell the requester the browser is busy and try again in a few minutes", capacity))
+}
+
+func deviceBrowserFailedResponse(toolName string, message string) capabilities.ToolInvokeResponse {
+	return capabilities.ToolInvokeResponse{
+		Provider:        "device",
+		SelectedBackend: capabilities.LLMBackendDevice,
+		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
+		Status:          "error",
+		Content:         message,
+		IsError:         true,
 	}
 }
 

@@ -531,9 +531,10 @@ Admind deletes the file when the TTL passes.
 
 Browser capabilities route to the companion first, running headed with a
 persistent Intern Kim profile. The device's own browser is Moli, a headless
-engine that runs as a service and answers agent-browser over the Chrome DevTools
-Protocol; it is used only for plain public page text when no companion is
-available. A browser handoff hands the device's browser to the requester on
+engine that answers agent-browser over the Chrome DevTools Protocol; capabilityd
+starts one per requester, each with its own profile, stops it when idle, and runs
+at most four at once. It is used only for plain public page text when no companion
+is available. A browser handoff hands the requester's device browser to them on
 the intern.kim website: the relay streams its screen to that person alone, passes
 their clicks and typing back, and resumes the conversation when they finish, stop,
 or let it expire after 15 minutes.

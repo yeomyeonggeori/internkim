@@ -325,7 +325,6 @@ func TestLocalProviderUsesExplicitOllamaProvider(t *testing.T) {
 			OpenRouterKeyPath:          "missing",
 			OpenRouterBaseURL:          "https://openrouter.test",
 			CompanionBaseURL:           "",
-			DeviceBrowserCDPURL:        "http://127.0.0.1:9222",
 			AgentBrowserPath:           "agent-browser",
 			CompanionFileDirectory:     t.TempDir(),
 			SocketPath:                 filepath.Join(t.TempDir(), "capability.sock"),
