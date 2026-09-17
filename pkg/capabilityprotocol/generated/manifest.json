@@ -1,5 +1,5 @@
 {
-  "aggregateHash": "6b3913ea5a78a2c89c6233673a000d83faef15ce1ce846c4acffb8e661a61246",
+  "aggregateHash": "3d3bbbe464d980ffa985c5d4516d2cee474d91da2972bd60666588be188e76f0",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
     "hash": "c8a91bf258031de383ff4ca4a23c2a680b511d0195a79c6c06baf29d5c201179"
@@ -8,7 +8,7 @@
   "schemas": [
     {
       "fileName": "agent-action.schema.json",
-      "hash": "b94a4b501cc601a9855d23c878e3e35f16b22c6bceb1aaa40490a97f32c3ca01",
+      "hash": "80a920a10ac471d88498ee05b3fd046f17c5e5cd876bfaa62d26fc1da897e64c",
       "name": "agent-action"
     },
     {
