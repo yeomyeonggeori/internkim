@@ -94,6 +94,57 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"target":"@e1"`)
 			},
 		},
+		"image_generate": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				workspaceOnDisk:    holdingFiles(map[string]string{}),
+				openRouterOverHTTP: answering(`{"choices":[{"message":{"content":"","images":[{"image_url":{"url":"data:image/png;base64,iVBORw0KGgo="}}]}}]}`),
+			},
+			input: `{"prompt":"파란 배경 위의 흰 로고","path":"/workspace/shared/logo.png"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"devicePath":"/workspace/shared/logo.png"`)
+				expectResultHolds(t, answered, `"contentBase64":"iVBORw0KGgo="`)
+			},
+		},
+		"browser_fill": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{"ref":"@e1","text":"분기 보고서"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"action":"fill"`)
+				expectResultHolds(t, answered, `"target":"@e1"`)
+			},
+		},
+		"browser_select": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{"selector":"#city","value":"서울"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"action":"select"`)
+				expectResultHolds(t, answered, `"target":"#city"`)
+			},
+		},
+		"browser_press": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{"key":"Enter"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"action":"press"`)
+			},
+		},
+		"browser_wait": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{"milliseconds":500}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"action":"wait"`)
+			},
+		},
 		// The device browser cannot take a picture; the companion's can. Saying so
 		// is the whole of this tool on a device, and a case that expected a
 		// screenshot would be asserting a thing the product does not do.
@@ -863,7 +914,6 @@ const (
 	throughAPairedCompanion  = "drives a browser session the companion holds, and this gate stands in for a command rather than for a paired companion"
 	throughTheModelRouter    = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
 	reachesLivePublicURLs    = "fetches live public URLs"
-	callsAnImageModel        = "calls an image model"
 )
 
 var toolsWithNoGateCaseYet = map[string]string{
@@ -884,17 +934,12 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"mail_message_read":      overIMAPAndSMTP,
 	"mail_message_search":    overIMAPAndSMTP,
 	"mail_message_send":      overIMAPAndSMTP,
-	"browser_fill":           throughAPairedCompanion,
 	"browser_handoff":        throughAPairedCompanion,
-	"browser_press":          throughAPairedCompanion,
-	"browser_select":         throughAPairedCompanion,
-	"browser_wait":           throughAPairedCompanion,
 	"attention_triage":       throughTheModelRouter,
 	"embedding_create":       throughTheModelRouter,
 	"llm_structured":         throughTheModelRouter,
 	"llm_text":               throughTheModelRouter,
 	"web_fetch":              reachesLivePublicURLs,
-	"image_generate":         callsAnImageModel,
 }
 
 func TestNoCatalogToolEscapesTheGateUnnoticed(t *testing.T) {

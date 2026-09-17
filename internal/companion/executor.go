@@ -646,6 +646,7 @@ func (executor Executor) browserActionFailureResponse(ctx context.Context, reque
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	response.Outcome = capabilities.ToolOutcomeFailed
 	response.Status = "error"
 	response.IsError = true
 	response.Content = string(response.Result)

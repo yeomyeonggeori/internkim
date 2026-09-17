@@ -282,8 +282,12 @@ describe('canonical capability tools', () => {
       MessageToolName.Delete,
       SiteToolName.Serve,
       SiteToolName.Unserve,
+      'image_generate',
       BrowserToolName.Open,
       BrowserToolName.Click,
+      'browser_fill',
+      'browser_press',
+      'browser_select',
       'company_document_register',
       'company_document_update',
       'company_document_upload',
@@ -314,6 +318,8 @@ describe('canonical capability tools', () => {
       'conversation_mute',
       'conversation_unmute',
       'mail_connection_start',
+      'mail_message_mark',
+      'mail_message_move',
       'mail_message_send',
     ]);
 
@@ -390,6 +396,8 @@ describe('canonical capability tools', () => {
       'mail_connection_start',
       'mail_connection_status',
       'mail_message_list',
+      'mail_message_mark',
+      'mail_message_move',
       'mail_message_read',
       'mail_message_search',
       'mail_message_send',
@@ -410,8 +418,10 @@ describe('canonical capability tools', () => {
     const sendTool = catalog.tools.find(tool => tool.name === 'mail_message_send');
     expect(sendTool?.resultContract?.effects).toEqual([]);
     expect(sendTool?.completionEvidence).toEqual({ mode: 'success', action: 'send_email', targetKind: 'email' });
-    expect(catalog.tools.find(tool => tool.name === 'mail_message_mark')?.modelVisible).toBe(false);
-    expect(catalog.tools.find(tool => tool.name === 'mail_message_move')?.modelVisible).toBe(false);
+    expect(capabilityToolResultSchema('mail_message_mark')?.safeParse({ marked: true }).success).toBe(true);
+    expect(capabilityToolResultSchema('mail_message_mark')?.safeParse({ marked: false }).success).toBe(false);
+    expect(capabilityToolResultSchema('mail_message_move')?.safeParse({ moved: true }).success).toBe(true);
+    expect(capabilityToolResultSchema('mail_message_move')?.safeParse({ moved: true, uid: 42 }).success).toBe(false);
   });
 
   test('defines exact browser inputs and successful results', () => {
@@ -461,6 +471,20 @@ describe('canonical capability tools', () => {
       action: 'fill',
       capturedAt: '2026-07-19T00:00:00Z',
     }).success).toBe(false);
+  });
+
+  test('holds each browser control action to the answer the browser runtime gives', () => {
+    const capturedAt = '2026-07-19T00:00:00Z';
+
+    expect(capabilityToolResultSchema('browser_fill')?.safeParse({ ok: true, action: 'fill', target: '@e1', capturedAt }).success).toBe(true);
+    expect(capabilityToolResultSchema('browser_fill')?.safeParse({ ok: true, action: 'fill', capturedAt }).success).toBe(false);
+    expect(capabilityToolResultSchema('browser_select')?.safeParse({ ok: true, action: 'select', target: '@e2', capturedAt }).success).toBe(true);
+    expect(capabilityToolResultSchema('browser_select')?.safeParse({ ok: true, action: 'fill', target: '@e2', capturedAt }).success).toBe(false);
+    expect(capabilityToolResultSchema('browser_press')?.safeParse({ ok: true, action: 'press', capturedAt }).success).toBe(true);
+    expect(capabilityToolResultSchema('browser_press')?.safeParse({ ok: true, action: 'press', target: '', capturedAt }).success).toBe(false);
+    expect(capabilityToolResultSchema('browser_wait')?.safeParse({ ok: true, action: 'wait', capturedAt }).success).toBe(true);
+    expect(capabilityToolResultSchema('browser_wait')?.safeParse({ ok: true, action: 'wait', target: '@e3', capturedAt }).success).toBe(true);
+    expect(capabilityToolResultSchema('browser_wait')?.safeParse({ ok: false, action: 'wait', capturedAt }).success).toBe(false);
   });
 
   test('defines exact artifact review evidence and result contracts', () => {
@@ -951,6 +975,24 @@ describe('canonical capability tools', () => {
     expect(imageTool?.resultContract?.schema.required).toEqual(['status', 'path', 'attachments']);
     expect(documentTool?.inputSchema.properties).not.toHaveProperty('materialID');
     expect(imageTool?.inputSchema.properties).not.toHaveProperty('materialID');
+  });
+
+  test('returns a generated image as the attachment the agent delivers', () => {
+    const generatedImage = {
+      status: 'ok',
+      path: '/workspace/shared/logo.png',
+      attachments: [{
+        devicePath: '/workspace/shared/logo.png',
+        filename: 'logo.png',
+        contentType: 'image/png',
+        sizeBytes: 3,
+        contentBase64: 'YWJj',
+      }],
+    };
+
+    expect(capabilityToolResultSchema('image_generate')?.safeParse(generatedImage).success).toBe(true);
+    expect(capabilityToolResultSchema('image_generate')?.safeParse({ ...generatedImage, attachments: [] }).success).toBe(false);
+    expect(capabilityToolResultSchema('image_generate')?.safeParse({ error: 'no key', code: 'missing_openrouter_key', provider: 'openrouter' }).success).toBe(false);
   });
 });
 

@@ -52,29 +52,26 @@ func (service Service) invokeImageGenerateTool(ctx context.Context, request capa
 	if errorValue := os.WriteFile(hostPath, imageBytes, 0644); errorValue != nil {
 		return imageGenerateErrorResponse(request.ToolName, errorValue.Error(), "image_write_failed", true), nil
 	}
-	result := map[string]any{
-		"status": "ok",
-		"path":   agentPath,
-		"attachments": []map[string]any{{
-			"devicePath":    agentPath,
-			"filename":      filepath.Base(agentPath),
-			"contentType":   "image/png",
-			"sizeBytes":     len(imageBytes),
-			"contentBase64": base64.StdEncoding.EncodeToString(imageBytes),
+	result := workspaceImageResult{
+		Status: "ok",
+		Path:   agentPath,
+		Attachments: []workspaceImageAttachment{{
+			DevicePath:    agentPath,
+			Filename:      filepath.Base(agentPath),
+			ContentType:   "image/png",
+			SizeBytes:     int64(len(imageBytes)),
+			ContentBase64: base64.StdEncoding.EncodeToString(imageBytes),
 		}},
 	}
 	resultDocument, errorValue := json.Marshal(result)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	return capabilities.ToolInvokeResponse{
+	return capabilitySuccessResponseFrom(request.ToolName, "ok", resultDocument, capabilityResponseOrigin{
 		Provider:        "openrouter",
 		SelectedBackend: capabilities.LLMBackendRemote,
-		ToolName:        request.ToolName,
-		Status:          "ok",
 		Content:         "image generated",
-		Result:          resultDocument,
-	}, nil
+	})
 }
 
 func decodeImageGenerateInput(document json.RawMessage) (imageGenerateInput, error) {
@@ -227,6 +224,7 @@ func imageGenerateErrorResponse(toolName string, message string, code string, re
 		Provider:        "openrouter",
 		SelectedBackend: capabilities.LLMBackendRemote,
 		ToolName:        toolName,
+		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",
 		Content:         message,
 		IsError:         true,

@@ -10,7 +10,7 @@ import {
   ResourceEffectIdentity,
 } from './protocol';
 
-import { hiddenBrowserToolDefinitions } from './browser';
+import { browserControlToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { crmToolDefinitions } from './crm';
 import { taskLabelVocabularySchema, taskVocabularySetInputIntentSchema, taskVocabularySetInputSchema } from './labels';
@@ -1393,6 +1393,14 @@ const imageGenerateInputSchema = z.strictObject({
   prompt: z.string().describe("Detailed description of the image to generate. Write it like describing a scene to an artist, not a keyword list."),
 });
 
+const imageGenerateInputIntentSchema = imageGenerateInputSchema.partial();
+
+const imageGenerateResultSchema = z.strictObject({
+  status: z.literal('ok'),
+  path: resourceIDSchema.describe('Workspace path the generated PNG was saved to.'),
+  attachments: z.array(imageReadAttachmentSchema).min(1),
+});
+
 const fileToolDefinitions: CapabilityToolDefinition[] = [
   {
     name: DocumentToolName.Read,
@@ -1431,8 +1439,9 @@ const fileToolDefinitions: CapabilityToolDefinition[] = [
     description: "Generate a new image from a text prompt and save it to a workspace path. Provide an absolute /workspace output path ending in .png. Optionally set aspectRatio. Returns the saved image as an attachment. Use image_read instead if you need to read an existing image file.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.High,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: imageGenerateInputSchema,
+    inputIntentSchema: imageGenerateInputIntentSchema,
+    result: { schema: imageGenerateResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.ExternalWrite,
   },
 ];
@@ -1801,7 +1810,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...siteToolDefinitions,
   ...fileToolDefinitions,
   ...browserToolDefinitions,
-  ...hiddenBrowserToolDefinitions,
+  ...browserControlToolDefinitions,
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
   ...crmToolDefinitions,

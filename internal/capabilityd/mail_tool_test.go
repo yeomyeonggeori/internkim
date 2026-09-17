@@ -184,6 +184,8 @@ func TestMailAnswersHoldTheirResultContracts(t *testing.T) {
 		{toolName: "mail_message_search", input: `{"query":"invoice"}`, answer: mail.MessageListResponse{Messages: []mail.MessageResponse{{UID: 42, Mailbox: "INBOX"}}}},
 		{toolName: "mail_message_read", input: `{"mailbox":"INBOX","uid":"42"}`, answer: mail.MessageDetailResponse{UID: 42, Mailbox: "INBOX", Body: "Hello", BodyHTML: "<p>Hello</p>"}},
 		{toolName: "mail_message_send", input: `{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}`, answer: mail.SendResult{Sent: true, AppendedTo: "Sent"}},
+		{toolName: "mail_message_mark", input: `{"mailbox":"INBOX","uid":"42","seen":true}`, answer: map[string]bool{"marked": true}},
+		{toolName: "mail_message_move", input: `{"mailbox":"INBOX","uid":"42","targetMailbox":"Archive"}`, answer: map[string]bool{"moved": true}},
 		{toolName: "mail_connection_start", input: `{}`},
 	}
 	for _, testCase := range cases {

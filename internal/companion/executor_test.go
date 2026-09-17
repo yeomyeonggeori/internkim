@@ -16,6 +16,7 @@ import (
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 type stubLLMChain struct {
@@ -404,7 +405,7 @@ func TestBrowserControlFailureReturnsSnapshotForRecovery(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if !response.IsError || response.Status != "error" || result.Status != "recoverable_error" {
+	if !response.IsError || response.Status != "error" || response.Outcome != capabilities.ToolOutcomeFailed || result.Status != "recoverable_error" {
 		t.Fatalf("expected recoverable error response, response=%+v result=%+v", response, result)
 	}
 	if result.URL != browserRuntime.observeResult.URL || result.InteractiveRefs[0] != "@e27" || !strings.Contains(result.Guidance, "반복하지 마세요") {
@@ -416,6 +417,67 @@ func TestBrowserControlFailureReturnsSnapshotForRecovery(t *testing.T) {
 	if browserRuntime.observeCount != 1 {
 		t.Fatalf("expected one failure snapshot, got %d", browserRuntime.observeCount)
 	}
+}
+
+func TestBrowserControlAnswersHoldTheirResultContracts(t *testing.T) {
+	executor := Executor{BrowserRuntime: browserruntime.AgentBrowserRuntime{
+		CommandPath: "agent-browser",
+		SessionName: "internkim",
+		Runner:      silentCommandRunner{},
+	}}
+	cases := []struct {
+		toolName string
+		input    string
+	}{
+		{toolName: "browser_click", input: `{"ref":"@e1"}`},
+		{toolName: "browser_fill", input: `{"ref":"@e1","text":"hello"}`},
+		{toolName: "browser_select", input: `{"selector":"#city","value":"Seoul"}`},
+		{toolName: "browser_press", input: `{"key":"Enter"}`},
+		{toolName: "browser_wait", input: `{"target":"@e2"}`},
+		{toolName: "browser_wait", input: `{"milliseconds":500}`},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.toolName, func(t *testing.T) {
+			response, errorValue := executor.Execute(context.Background(), capabilities.ToolInvokeRequest{
+				ToolName: testCase.toolName,
+				Input:    json.RawMessage(testCase.input),
+			})
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if response.Outcome != capabilities.ToolOutcomeSucceeded || response.IsError {
+				t.Fatalf("response = %+v result=%s", response, response.Result)
+			}
+			expectResultHoldsCompanionContract(t, testCase.toolName, response.Result)
+		})
+	}
+}
+
+type silentCommandRunner struct{}
+
+func (silentCommandRunner) Run(context.Context, string, []string) ([]byte, error) {
+	return nil, nil
+}
+
+func expectResultHoldsCompanionContract(t *testing.T, toolName string, result json.RawMessage) {
+	t.Helper()
+	for _, descriptor := range capabilities.CompanionToolDescriptors() {
+		if descriptor.Name != toolName {
+			continue
+		}
+		if descriptor.ResultContract == nil {
+			t.Fatalf("%s has no result contract", toolName)
+		}
+		check, errorValue := capabilityschema.ValidateResult(descriptor.ResultContract.Schema, result)
+		if errorValue != nil {
+			t.Fatalf("%s answered outside its contract: %v result=%s", toolName, errorValue, result)
+		}
+		if len(check.UnknownFields) > 0 {
+			t.Fatalf("%s answered fields its contract does not name: %v", toolName, check.UnknownFields)
+		}
+		return
+	}
+	t.Fatalf("%s is not a companion tool", toolName)
 }
 
 func TestBrowserControlFailureReportsSnapshotFailure(t *testing.T) {
