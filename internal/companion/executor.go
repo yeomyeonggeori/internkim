@@ -6,25 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
-
-// browserHandoffPauser is implemented by browser.ExtensionInputRuntime.
-// Pausing stops OS-level input synthesis on the runtime's already-open
-// browser window so a human can take over without a second window being
-// opened; resuming restores normal automation once the handoff completes.
-type browserHandoffPauser interface {
-	Pause(ctx context.Context) error
-	Resume(ctx context.Context) error
-}
 
 type BrowserActionFailureResult struct {
 	Status          string   `json:"status"`
@@ -48,7 +36,6 @@ type Executor struct {
 	LLMChain       llmbackend.Provider
 	EmbeddingChain llmbackend.EmbeddingProvider
 	BrowserRuntime browserruntime.Runtime
-	HandoffStore   *BrowserHandoffStore
 	FileUploader   FileUploader
 }
 
@@ -60,14 +47,12 @@ func NewExecutor(
 	llmChain llmbackend.Provider,
 	embeddingChain llmbackend.EmbeddingProvider,
 	browserRuntime browserruntime.Runtime,
-	handoffStore *BrowserHandoffStore,
 ) Executor {
 	return Executor{
 		DevMockLLM:     devMockLLM,
 		LLMChain:       llmChain,
 		EmbeddingChain: embeddingChain,
 		BrowserRuntime: browserRuntime,
-		HandoffStore:   handoffStore,
 	}
 }
 
@@ -99,7 +84,6 @@ var executorToolHandlers = map[string]executorToolHandler{
 	"browser_open":                       executorRequestHandler(Executor.executeBrowserNavigate),
 	"browser_snapshot":                   executorRequestHandler(Executor.executeBrowserObserve),
 	"browser_screenshot":                 Executor.executeBrowserScreenshot,
-	"browser_handoff":                    Executor.executeBrowserHandoff,
 	"browser_click":                      executorRequestHandler(Executor.executeBrowserClick),
 	"browser_fill":                       executorRequestHandler(Executor.executeBrowserFill),
 	"browser_select":                     executorRequestHandler(Executor.executeBrowserSelect),
@@ -422,134 +406,6 @@ func (executor Executor) executeBrowserScreenshot(ctx context.Context, envelope 
 	})
 }
 
-func (executor Executor) executeBrowserHandoff(ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if executor.BrowserRuntime == nil {
-		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
-	}
-	if isUnsupportedWaylandSession() {
-		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff native overlay is not supported on Linux Wayland")
-	}
-	if executor.HandoffStore == nil {
-		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff bridge is unavailable")
-	}
-	var input BrowserHandoffRequest
-	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if strings.TrimSpace(input.URL) == "" {
-		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff url is required")
-	}
-	handoff, reused, errorValue := executor.HandoffStore.BeginOrReuse(input, firstNonEmpty(input.SessionID, "internkim"))
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if !reused {
-		if errorValue := executor.pauseBrowserRuntimeForHandoff(ctx); errorValue != nil {
-			executor.HandoffStore.End(handoff.HandoffID, HandoffStateDenied)
-			return capabilities.ToolInvokeResponse{}, errorValue
-		}
-	}
-	return executor.waitForBrowserHandoff(ctx, request.ToolName, input, handoff)
-}
-
-func (executor Executor) pauseBrowserRuntimeForHandoff(ctx context.Context) error {
-	pauser, ok := executor.BrowserRuntime.(browserHandoffPauser)
-	if !ok {
-		return errors.New("companion browser runtime does not support a human handoff")
-	}
-	return pauser.Pause(ctx)
-}
-
-func (executor Executor) resumeBrowserRuntimeAfterHandoff(ctx context.Context) {
-	pauser, ok := executor.BrowserRuntime.(browserHandoffPauser)
-	if !ok {
-		return
-	}
-	_ = pauser.Resume(ctx)
-}
-
-func isUnsupportedWaylandSession() bool {
-	if runtime.GOOS != "linux" {
-		return false
-	}
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("XDG_SESSION_TYPE")), "wayland") {
-		return true
-	}
-	return strings.TrimSpace(os.Getenv("WAYLAND_DISPLAY")) != "" && strings.TrimSpace(os.Getenv("DISPLAY")) == ""
-}
-
-func (executor Executor) waitForBrowserHandoff(ctx context.Context, toolName string, input BrowserHandoffRequest, handoff HandoffSnapshot) (capabilities.ToolInvokeResponse, error) {
-	waitContext, cancel := handoffTimeoutContext(ctx, input.TimeoutSeconds)
-	defer cancel()
-	completion, errorValue := executor.HandoffStore.Wait(waitContext, handoff.HandoffID)
-	if errorValue != nil {
-		executor.HandoffStore.End(handoff.HandoffID, HandoffStateTimedOut)
-		executor.resumeBrowserRuntimeAfterHandoff(ctx)
-		return capabilities.ToolInvokeResponse{}, errors.New("browser handoff timed out")
-	}
-	completion = executor.resumeBrowserAutomationAfterHandoff(ctx, completion)
-	return browserHandoffCompletedResponse(toolName, handoff, completion)
-}
-
-// resumeBrowserAutomationAfterHandoff resumes OS input synthesis on the same
-// runtime the human just used, then re-observes the page so the completion
-// result reflects whatever state the human left the browser in.
-func (executor Executor) resumeBrowserAutomationAfterHandoff(ctx context.Context, completion HandoffCompletion) HandoffCompletion {
-	executor.resumeBrowserRuntimeAfterHandoff(ctx)
-	if executor.BrowserRuntime == nil {
-		return completion
-	}
-	observation, errorValue := executor.BrowserRuntime.Observe(ctx, browserruntime.ObserveRequest{})
-	if errorValue != nil {
-		return completion
-	}
-	completion.URL = firstNonEmpty(observation.URL, completion.URL)
-	completion.Title = firstNonEmpty(observation.Title, completion.Title)
-	completion.SnapshotText = firstNonEmpty(observation.SnapshotText, completion.SnapshotText)
-	completion.InteractiveRefs = firstNonEmptyStringSlice(observation.InteractiveRefs, completion.InteractiveRefs)
-	completion.CapturedAt = firstNonEmpty(observation.CapturedAt, completion.CapturedAt)
-	return completion
-}
-
-func browserHandoffCompletedResponse(toolName string, handoff HandoffSnapshot, completion HandoffCompletion) (capabilities.ToolInvokeResponse, error) {
-	response, errorValue := toolResponse(toolName, BrowserHandoffResult{
-		HandoffID:       handoff.HandoffID,
-		SessionID:       firstNonEmpty(completion.SessionID, handoff.SessionID),
-		URL:             completion.URL,
-		Origin:          handoff.Origin,
-		Title:           completion.Title,
-		SnapshotText:    completion.SnapshotText,
-		InteractiveRefs: completion.InteractiveRefs,
-		State:           HandoffStateCompleted,
-		CompletedByUser: true,
-		CapturedAt:      firstNonEmpty(completion.CapturedAt, time.Now().UTC().Format(time.RFC3339)),
-	})
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	response.Status = HandoffStateCompleted
-	response.Content = "브라우저 handoff가 완료되었습니다."
-	return response, nil
-}
-
-func browserHandoffWaitingResponse(toolName string, pageURL string, handoff HandoffSnapshot) (capabilities.ToolInvokeResponse, error) {
-	response, errorValue := toolResponse(toolName, BrowserHandoffResult{
-		HandoffID:       handoff.HandoffID,
-		SessionID:       handoff.SessionID,
-		URL:             pageURL,
-		Origin:          handoff.Origin,
-		State:           HandoffStateWaitingForUser,
-		CompletedByUser: false,
-		CapturedAt:      time.Now().UTC().Format(time.RFC3339),
-	})
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	response.Status = HandoffStateWaitingForUser
-	response.Content = "브라우저에서 필요한 작업을 마친 뒤 완료 버튼을 눌러주세요."
-	return response, nil
-}
-
 func (executor Executor) executeBrowserClick(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	if executor.BrowserRuntime == nil {
 		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
@@ -725,15 +581,6 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func firstNonEmptyStringSlice(values ...[]string) []string {
-	for _, value := range values {
-		if len(value) != 0 {
-			return value
-		}
-	}
-	return nil
 }
 
 func errorString(errorValue error) string {

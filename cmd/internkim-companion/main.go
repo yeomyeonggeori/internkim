@@ -207,7 +207,6 @@ func runDisconnect(arguments []string, httpClient *http.Client, secureStore comp
 	if removeError := os.Remove(*statePath); removeError != nil && !errors.Is(removeError, os.ErrNotExist) {
 		return removeError
 	}
-	_ = os.Remove(defaultHandoffStatePath(*statePath))
 	fmt.Println("disconnected")
 	return nil
 }
@@ -334,18 +333,16 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if readiness.Status != "ready" {
 		state.Capabilities = companionruntime.CapabilitiesWithoutBrowser(state.Capabilities)
 	}
-	handoffStore := companionruntime.NewPersistentBrowserHandoffStore(defaultHandoffStatePath(*statePath))
 	runtimeStatus := &runtimeState{}
 	if localLLMConfiguration.Enabled {
 		runtimeStatus.replaceLocalLLM(localLLMConfiguration)
 	}
-	executor := companionruntime.NewExecutor(*devMockLLM, localLLM, localLLM, browserRuntime, handoffStore)
+	executor := companionruntime.NewExecutor(*devMockLLM, localLLM, localLLM, browserRuntime)
 	if readiness.Status != "ready" {
 		executor.BrowserRuntime = nil
 	}
 	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
-	handoffCompletionHandler := companionruntime.JobRunner{DeviceClient: deviceClient}.CompleteHandoff
-	controlServer, errorValue := startControlServer(*controlListenAddress, handoffStore, executor.BrowserRuntime, handoffCompletionHandler, runtimeStatus, localLLM, httpClient)
+	controlServer, errorValue := startControlServer(*controlListenAddress, runtimeStatus, localLLM, httpClient)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -464,18 +461,6 @@ func defaultStatePath() string {
 		return ".internkim-companion.json"
 	}
 	return filepath.Join(homeDirectory, ".internkim-companion", "state.json")
-}
-
-func defaultHandoffStatePath(statePath string) string {
-	trimmedPath := strings.TrimSpace(statePath)
-	if trimmedPath != "" {
-		return filepath.Join(filepath.Dir(trimmedPath), "browser-handoff.json")
-	}
-	homeDirectory, errorValue := os.UserHomeDir()
-	if errorValue != nil || homeDirectory == "" {
-		return ".internkim-companion-browser-handoff.json"
-	}
-	return filepath.Join(homeDirectory, ".internkim-companion", "browser-handoff.json")
 }
 
 func companionPrivateKeyID(companionID string) string {

@@ -3,7 +3,6 @@ import { z } from 'zod';
 import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
-  CapabilityModelVisibility,
   CapabilitySideEffect,
 } from './protocol';
 
@@ -23,8 +22,17 @@ const browserFillInputSchema = z.strictObject({
 const browserFillInputIntentSchema = browserFillInputSchema.partial();
 
 const browserHandoffInputSchema = z.strictObject({
-  message: z.string().optional(),
-  url: z.string().optional(),
+  message: z.string().describe('What the person should do in the browser, in the language of the conversation.').optional(),
+  url: z.string().describe('An HTTP or HTTPS address to open in the device browser before handing it over.').optional(),
+});
+
+const browserHandoffInputIntentSchema = browserHandoffInputSchema;
+
+const browserHandoffResultSchema = z.strictObject({
+  handoffID: resourceIDSchema,
+  status: z.literal('waiting'),
+  openURL: resourceIDSchema.describe('The intern.kim address where the requester watches and controls the device browser. Share it with them.'),
+  expiresAt: resourceIDSchema,
 });
 
 const browserPressInputSchema = z.strictObject({
@@ -97,18 +105,15 @@ export const browserControlToolDefinitions: CapabilityToolDefinition[] = [
     name: "browser_handoff",
     namespace: "browser",
     answeredBy: CapabilityAnsweredBy.Local,
-    privacyClass: "user_browser",
+    privacyClass: "device_browser",
     policyResource: "tool:browser_handoff",
-    description: "Hand browser control to the user for an interactive step.",
+    description: "Hand the device browser to the requester for a step only a person can do, such as signing in or passing a CAPTCHA. The requester watches and controls it live on intern.kim; share the returned openURL, end your turn, and continue when they finish.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: browserHandoffInputSchema,
+    inputIntentSchema: browserHandoffInputIntentSchema,
+    result: { schema: browserHandoffResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Connect,
-    requiresUserPresence: true,
-    requiresRequesterDevice: true,
-    requiresCompanionBrowser: true,
-    approvalScope: "browser",
   },
   {
     name: "browser_press",

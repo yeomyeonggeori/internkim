@@ -3,8 +3,8 @@
 - Treat `internkim-companion` as the user's local trusted runtime.
 - Keep browser cookies, local files, local model paths, and desktop credentials
   on the user's computer.
-- Route browser handoff, user confirmation, local file picking, and future local
-  model inference through companion capabilities.
+- Route user confirmation, local file picking, and future local model inference
+  through companion capabilities.
 - Store only companion signing key references in local state JSON; use OS secure
   storage for keys, with explicit development fallback only.
 - Approval grants are task-scoped runtime-memory permissions. Keep

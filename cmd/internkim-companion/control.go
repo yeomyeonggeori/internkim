@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
@@ -161,7 +159,7 @@ func (state *runtimeState) snapshot() runtimeStatusDocument {
 	}
 }
 
-func startControlServer(listenAddress string, handoffStore *companionruntime.BrowserHandoffStore, browserRuntime browserruntime.Runtime, handoffCompletionHandler func(context.Context, companionruntime.HandoffCompletion) error, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) (*http.Server, error) {
+func startControlServer(listenAddress string, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) (*http.Server, error) {
 	trimmedAddress := strings.TrimSpace(listenAddress)
 	if trimmedAddress == "" {
 		return nil, nil
@@ -170,7 +168,7 @@ func startControlServer(listenAddress string, handoffStore *companionruntime.Bro
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	server := &http.Server{Handler: controlHandler(handoffStore, browserRuntime, handoffCompletionHandler, runtime, localLLM, httpClient)}
+	server := &http.Server{Handler: controlHandler(runtime, localLLM, httpClient)}
 	go func() {
 		errorValue := server.Serve(listener)
 		if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
@@ -180,15 +178,8 @@ func startControlServer(listenAddress string, handoffStore *companionruntime.Bro
 	return server, nil
 }
 
-func controlHandler(handoffStore *companionruntime.BrowserHandoffStore, browserRuntime browserruntime.Runtime, handoffCompletionHandler func(context.Context, companionruntime.HandoffCompletion) error, runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) http.Handler {
+func controlHandler(runtime *runtimeState, localLLM *dynamicLocalLLM, httpClient *http.Client) http.Handler {
 	multiplexer := http.NewServeMux()
-	handoffBridgeHandler := companionruntime.HandoffBridgeHandler{
-		Store:             handoffStore,
-		BrowserRuntime:    browserRuntime,
-		CompletionHandler: handoffCompletionHandler,
-	}
-	multiplexer.Handle("/v1/browser/handoff", handoffBridgeHandler)
-	multiplexer.Handle("/v1/browser/handoff/complete", handoffBridgeHandler)
 	multiplexer.HandleFunc("GET /v1/runtime/status", func(responseWriter http.ResponseWriter, request *http.Request) {
 		if runtime == nil {
 			writeJSON(responseWriter, runtimeStatusDocument{})

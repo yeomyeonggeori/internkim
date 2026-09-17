@@ -70,33 +70,30 @@ type CompanionStatus struct {
 }
 
 type CompanionJob struct {
-	JobID              string                              `json:"jobID"`
-	ParentJobID        string                              `json:"parentJobID,omitempty"`
-	GrantID            string                              `json:"grantID,omitempty"`
-	Status             string                              `json:"status"`
-	CompanionID        string                              `json:"companionID,omitempty"`
-	RequesterPersonID  string                              `json:"requesterPersonID,omitempty"`
-	RequesterEmail     string                              `json:"requesterEmail,omitempty"`
-	ToolName           string                              `json:"toolName"`
-	PrivacyClass       string                              `json:"privacyClass"`
-	ResourceScope      capabilities.ResourceScope          `json:"resourceScope,omitempty"`
-	Depth              int                                 `json:"depth"`
-	Request            capabilities.ToolInvokeRequest      `json:"request"`
-	Response           *capabilities.ToolInvokeResponse    `json:"response,omitempty"`
-	Denial             *capabilities.DenialResult          `json:"denial,omitempty"`
-	Error              string                              `json:"error,omitempty"`
-	WatchStatus        string                              `json:"watchStatus,omitempty"`
-	NextWatchAt        time.Time                           `json:"nextWatchAt,omitempty"`
-	WatchAttemptCount  int                                 `json:"watchAttemptCount,omitempty"`
-	LastAttentionAt    time.Time                           `json:"lastAttentionAt,omitempty"`
-	AttentionKey       string                              `json:"attentionDeduplicationKey,omitempty"`
-	Attention          *CompanionAttentionState            `json:"attention,omitempty"`
-	HandoffCompletion  *companionruntime.HandoffCompletion `json:"handoffCompletion,omitempty"`
-	HandoffCompletedAt time.Time                           `json:"handoffCompletedAt,omitempty"`
-	HandoffResumedAt   time.Time                           `json:"handoffResumedAt,omitempty"`
-	CreatedAt          time.Time                           `json:"createdAt"`
-	UpdatedAt          time.Time                           `json:"updatedAt"`
-	ExpiresAt          time.Time                           `json:"expiresAt"`
+	JobID             string                           `json:"jobID"`
+	ParentJobID       string                           `json:"parentJobID,omitempty"`
+	GrantID           string                           `json:"grantID,omitempty"`
+	Status            string                           `json:"status"`
+	CompanionID       string                           `json:"companionID,omitempty"`
+	RequesterPersonID string                           `json:"requesterPersonID,omitempty"`
+	RequesterEmail    string                           `json:"requesterEmail,omitempty"`
+	ToolName          string                           `json:"toolName"`
+	PrivacyClass      string                           `json:"privacyClass"`
+	ResourceScope     capabilities.ResourceScope       `json:"resourceScope,omitempty"`
+	Depth             int                              `json:"depth"`
+	Request           capabilities.ToolInvokeRequest   `json:"request"`
+	Response          *capabilities.ToolInvokeResponse `json:"response,omitempty"`
+	Denial            *capabilities.DenialResult       `json:"denial,omitempty"`
+	Error             string                           `json:"error,omitempty"`
+	WatchStatus       string                           `json:"watchStatus,omitempty"`
+	NextWatchAt       time.Time                        `json:"nextWatchAt,omitempty"`
+	WatchAttemptCount int                              `json:"watchAttemptCount,omitempty"`
+	LastAttentionAt   time.Time                        `json:"lastAttentionAt,omitempty"`
+	AttentionKey      string                           `json:"attentionDeduplicationKey,omitempty"`
+	Attention         *CompanionAttentionState         `json:"attention,omitempty"`
+	CreatedAt         time.Time                        `json:"createdAt"`
+	UpdatedAt         time.Time                        `json:"updatedAt"`
+	ExpiresAt         time.Time                        `json:"expiresAt"`
 }
 
 type companionPairRequest struct {
@@ -138,38 +135,6 @@ type companionStatusResponse struct {
 	Companions []CompanionStatus `json:"companions"`
 }
 
-type platformInboundEvent struct {
-	Platform       string               `json:"-"`
-	ConversationID string               `json:"conversationID"`
-	MessageID      string               `json:"messageID"`
-	SenderID       string               `json:"senderID"`
-	ReplyTargetID  string               `json:"replyTargetID"`
-	Prompt         string               `json:"prompt"`
-	Context        platformEventContext `json:"context"`
-}
-
-type platformEventContext struct {
-	Messages         []platformContextMessage `json:"messages"`
-	ReceivedAt       string                   `json:"receivedAt,omitempty"`
-	ConversationType string                   `json:"conversationType,omitempty"`
-	ChannelID        string                   `json:"channelID,omitempty"`
-	ChannelName      string                   `json:"channelName,omitempty"`
-	Sender           platformContextSender    `json:"sender,omitempty"`
-}
-
-type platformContextSender struct {
-	Platform string `json:"platform,omitempty"`
-	SenderID string `json:"senderID,omitempty"`
-	UserID   string `json:"userID,omitempty"`
-	Email    string `json:"email,omitempty"`
-	Name     string `json:"name,omitempty"`
-}
-
-type platformContextMessage struct {
-	Speaker string `json:"speaker"`
-	Text    string `json:"text"`
-}
-
 func (service *Service) handleCompanion(responseWriter http.ResponseWriter, request *http.Request) {
 	path := strings.TrimPrefix(request.URL.Path, "/_internkim/companion")
 	switch {
@@ -197,8 +162,6 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 		service.completeCompanionFileUpload(responseWriter, request, path)
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/complete"):
 		service.completeCompanionJob(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/jobs/"), "/complete"))
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/handoffs/") && strings.HasSuffix(path, "/complete"):
-		service.completeBrowserHandoff(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/handoffs/"), "/complete"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/fail"):
 		service.failCompanionJob(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/jobs/"), "/fail"))
 	case request.Method == http.MethodPost && strings.HasPrefix(path, "/jobs/") && strings.HasSuffix(path, "/deny"):
@@ -456,40 +419,6 @@ func (service *Service) completeCompanionJob(responseWriter http.ResponseWriter,
 	service.writeJSON(responseWriter, map[string]string{"status": "completed"})
 }
 
-func (service *Service) completeBrowserHandoff(responseWriter http.ResponseWriter, request *http.Request, handoffID string) {
-	companion := service.authorizedCompanion(request)
-	if companion == nil {
-		http.Error(responseWriter, "companion auth required", http.StatusForbidden)
-		return
-	}
-	var completion companionruntime.HandoffCompletion
-	if errorValue := json.NewDecoder(request.Body).Decode(&completion); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	completion.HandoffID = firstNonEmpty(strings.TrimSpace(handoffID), strings.TrimSpace(completion.HandoffID))
-	job, shouldResume, errorValue := service.storeBrowserHandoffCompletion(companion.CompanionID, completion)
-	if errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusForbidden)
-		return
-	}
-	if errorValue := service.saveCompanionJobs(); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-		return
-	}
-	if shouldResume {
-		if errorValue := service.resumeBrowserHandoff(request.Context(), job, completion); errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
-			return
-		}
-		if errorValue := service.markBrowserHandoffResumed(job.JobID); errorValue != nil {
-			http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-	service.writeJSON(responseWriter, map[string]string{"status": "completed"})
-}
-
 func (service *Service) failCompanionJob(responseWriter http.ResponseWriter, request *http.Request, jobID string) {
 	companion := service.authorizedCompanion(request)
 	if companion == nil {
@@ -696,126 +625,6 @@ func (service *Service) finishCompanionJob(companionID string, jobID string, res
 		service.processRemoteAttention(context.Background(), *remoteAttentionRequest)
 	}
 	return nil
-}
-
-func (service *Service) storeBrowserHandoffCompletion(companionID string, completion companionruntime.HandoffCompletion) (*CompanionJob, bool, error) {
-	service.mutex.Lock()
-	defer service.mutex.Unlock()
-	job := service.findBrowserHandoffJobLocked(companionID, completion.HandoffID)
-	if job == nil {
-		return nil, false, errors.New("browser handoff job not found")
-	}
-	if !job.HandoffCompletedAt.IsZero() {
-		return copyCompanionJob(job), job.HandoffResumedAt.IsZero(), nil
-	}
-	now := time.Now().UTC()
-	job.HandoffCompletion = &completion
-	job.HandoffCompletedAt = now
-	job.UpdatedAt = now
-	return copyCompanionJob(job), true, nil
-}
-
-func (service *Service) markBrowserHandoffResumed(jobID string) error {
-	service.mutex.Lock()
-	if job := service.companionJobs[jobID]; job != nil {
-		job.HandoffResumedAt = time.Now().UTC()
-		job.UpdatedAt = job.HandoffResumedAt
-	}
-	service.mutex.Unlock()
-	return service.saveCompanionJobs()
-}
-
-func (service *Service) findBrowserHandoffJobLocked(companionID string, handoffID string) *CompanionJob {
-	if strings.TrimSpace(handoffID) == "" {
-		return nil
-	}
-	for _, job := range service.companionJobs {
-		if job.CompanionID != companionID || job.ToolName != "browser_handoff" || job.Response == nil {
-			continue
-		}
-		if browserHandoffIDFromResponse(job.Response) == handoffID {
-			return job
-		}
-	}
-	return nil
-}
-
-func browserHandoffIDFromResponse(response *capabilities.ToolInvokeResponse) string {
-	if response == nil {
-		return ""
-	}
-	var document struct {
-		HandoffID string `json:"handoffID"`
-	}
-	if errorValue := json.Unmarshal(response.Result, &document); errorValue != nil {
-		return ""
-	}
-	return strings.TrimSpace(document.HandoffID)
-}
-
-func (service *Service) resumeBrowserHandoff(ctx context.Context, job *CompanionJob, completion companionruntime.HandoffCompletion) error {
-	event := browserHandoffCompletionEvent(job, completion)
-	if strings.TrimSpace(event.Platform) == "" {
-		return errors.New("browser handoff platform is missing")
-	}
-	path := "/connectors/" + url.PathEscape(event.Platform) + "/events"
-	return service.blueclawJSONRequest(ctx, http.MethodPost, path, map[string]any{"event": event}, nil)
-}
-
-func browserHandoffCompletionEvent(job *CompanionJob, completion companionruntime.HandoffCompletion) platformInboundEvent {
-	context := job.Request.Context
-	prompt := browserHandoffCompletionPrompt(job.Request.Input, completion)
-	now := time.Now().UTC().Format(time.RFC3339)
-	return platformInboundEvent{
-		Platform:       context.Platform,
-		ConversationID: context.ConversationID,
-		MessageID:      "browser-handoff:" + completion.HandoffID,
-		SenderID:       context.RequesterPlatformUserID,
-		ReplyTargetID:  context.ReplyTargetID,
-		Prompt:         prompt,
-		Context: platformEventContext{
-			ReceivedAt:       now,
-			ConversationType: context.ConversationType,
-			ChannelID:        context.ChannelID,
-			ChannelName:      context.ChannelName,
-			Sender: platformContextSender{
-				Platform: context.Platform,
-				SenderID: context.RequesterPlatformUserID,
-				UserID:   context.RequesterPlatformUserID,
-				Email:    context.RequesterEmail,
-				Name:     context.RequesterName,
-			},
-			Messages: []platformContextMessage{{
-				Speaker: "user",
-				Text:    prompt,
-			}},
-		},
-	}
-}
-
-func browserHandoffCompletionPrompt(input json.RawMessage, completion companionruntime.HandoffCompletion) string {
-	var request struct {
-		ResumePrompt string `json:"resumePrompt"`
-		Message      string `json:"message"`
-	}
-	_ = json.Unmarshal(input, &request)
-	parts := []string{
-		firstNonEmpty(strings.TrimSpace(request.ResumePrompt), "브라우저 완료 버튼이 눌렸습니다. 캡처된 페이지를 근거로 다음 단계를 진행하세요."),
-		"URL: " + strings.TrimSpace(completion.URL),
-		"Title: " + strings.TrimSpace(completion.Title),
-	}
-	if strings.TrimSpace(completion.SnapshotText) != "" {
-		parts = append(parts, "Snapshot:\n"+strings.TrimSpace(completion.SnapshotText))
-	}
-	return strings.TrimSpace(strings.Join(parts, "\n\n"))
-}
-
-func copyCompanionJob(job *CompanionJob) *CompanionJob {
-	if job == nil {
-		return nil
-	}
-	copiedJob := *job
-	return &copiedJob
 }
 
 func (service *Service) denyCompanionJobResult(companionID string, jobID string, denial capabilities.DenialResult) error {
@@ -1116,7 +925,7 @@ func companionResourceScope(request capabilities.ToolInvokeRequest) capabilities
 		return request.ResourceScope
 	}
 	switch request.ToolName {
-	case "browser_open", "browser_snapshot", "browser_screenshot", "browser_handoff", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait":
+	case "browser_open", "browser_snapshot", "browser_screenshot", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait":
 		return capabilities.ResourceScope{Kind: "web_origin", Value: browserOriginFromInput(request.Input)}
 	default:
 		return capabilities.ResourceScope{}
