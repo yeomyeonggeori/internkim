@@ -6,6 +6,7 @@ import {
 } from '$lib/public-api-permission';
 import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
 import { personalAccessTokenCredentialKind } from './public-api/catalog/credential';
+import { recordTokenFor } from './record-token';
 
 export type ControlPlaneCredentials = {
 	projectURL: string;
@@ -16,6 +17,25 @@ export type MemberCredentials = {
 	projectURL: string;
 	publishableKey: string;
 };
+
+export type SigningCredentials = ControlPlaneCredentials & { signingKey: string };
+
+export type PlaneCredentials = SigningCredentials & MemberCredentials;
+
+export function planeCredentialsOf(
+	environment: Record<string, string | undefined>,
+): PlaneCredentials | null {
+	const plane = {
+		projectURL: environment.SUPABASE_URL ?? '',
+		publishableKey: environment.SUPABASE_PUBLISHABLE_KEY ?? '',
+		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '',
+		signingKey: environment.SUPABASE_JWT_SIGNING_KEY ?? '',
+	};
+	if (!plane.projectURL || !plane.publishableKey || !plane.serviceRoleKey || !plane.signingKey) {
+		return null;
+	}
+	return plane;
+}
 
 export type CompanyInput = {
 	name: string;
@@ -299,41 +319,40 @@ export type MemberSession = {
 	expiresAt: number;
 };
 
+type MemberAccount = { user_id: string | null; email: string | null; status: string };
+
+async function memberAccountOf(client: SupabaseClient, memberID: string): Promise<MemberAccount> {
+	const { data, error } = await client
+		.from('member')
+		.select('user_id, email, status')
+		.eq('id', memberID)
+		.single<MemberAccount>();
+	if (error) throw new Error(`member ${memberID}: ${error.message}`);
+	return data;
+}
+
+async function openAccountFor(client: SupabaseClient, memberID: string, email: string | null): Promise<string> {
+	if (!email) throw new Error(`member ${memberID} has no address to open an account with`);
+	const { data, error } = await client.auth.admin.createUser({ email, email_confirm: true });
+	if (error) throw new Error(`account for ${email}: ${error.message}`);
+	return data.user.id;
+}
+
 export async function sessionForMember(
-	credentials: ControlPlaneCredentials,
+	credentials: SigningCredentials,
 	memberID: string,
 ): Promise<MemberSession> {
 	const client = controlPlane(credentials);
-	const { data: member, error: memberError } = await client
-		.from('member')
-		.select('email, status')
-		.eq('id', memberID)
-		.single();
-	if (memberError) throw new Error(`member ${memberID}: ${memberError.message}`);
-	if (!member.email) throw new Error(`member ${memberID} has no address to sign in as`);
+	const member = await memberAccountOf(client, memberID);
 	if (hasLeftTheCompany(member.status)) {
 		throw new Error(`member ${memberID} has left and cannot be acted for`);
 	}
-
-	const { data: link, error: linkError } = await client.auth.admin.generateLink({
-		type: 'magiclink',
+	const userID = member.user_id ?? (await openAccountFor(client, memberID, member.email));
+	const token = await recordTokenFor(credentials.signingKey, credentials.projectURL, {
+		userID,
 		email: member.email,
 	});
-	if (linkError) throw new Error(`link for ${member.email}: ${linkError.message}`);
-
-	const redeemer = controlPlane(credentials);
-	const { data: session, error: verifyError } = await redeemer.auth.verifyOtp({
-		token_hash: link.properties.hashed_token,
-		type: 'magiclink',
-	});
-	if (verifyError) throw new Error(`session for ${member.email}: ${verifyError.message}`);
-	if (!session.session) throw new Error(`no session came back for ${member.email}`);
-
-	return {
-		memberID,
-		accessToken: session.session.access_token,
-		expiresAt: session.session.expires_at ?? 0,
-	};
+	return { memberID, ...token };
 }
 
 export type AgentKey = { agentID: string; companyID: string; apiKey: string };
@@ -456,7 +475,7 @@ type PersonalAccessTokenRow = {
 // member's own session and never the company's. The row that names the member
 // names the rung too, so nobody downstream asks for it a second time.
 export async function sessionForPersonalAccessToken(
-	credentials: ControlPlaneCredentials,
+	credentials: SigningCredentials,
 	apiKey: string,
 ): Promise<PersonalAccessTokenSession | null> {
 	const client = controlPlane(credentials);
@@ -553,7 +572,7 @@ async function hashOf(secret: string): Promise<string> {
 }
 
 export async function sessionForPlatformIdentity(
-	credentials: ControlPlaneCredentials,
+	credentials: SigningCredentials,
 	apiKey: string,
 	kind: string,
 	externalID: string,
@@ -582,7 +601,7 @@ export function hostAddressOf(companyID: string): string {
 }
 
 export async function sessionForHost(
-	credentials: ControlPlaneCredentials,
+	credentials: SigningCredentials,
 	apiKey: string,
 ): Promise<HostSession> {
 	const client = controlPlane(credentials);
@@ -590,51 +609,38 @@ export async function sessionForHost(
 	if (!agent) throw new Error('that key belongs to no agent');
 
 	const address = hostAddressOf(agent.companyID);
-	await keepHostAccount(client, address, agent.companyID);
-
-	const { data: link, error: linkError } = await client.auth.admin.generateLink({
-		type: 'magiclink',
+	const userID = await keepHostAccount(client, address, agent.companyID);
+	const token = await recordTokenFor(credentials.signingKey, credentials.projectURL, {
+		userID,
 		email: address,
+		appMetadata: { company_id: agent.companyID },
 	});
-	if (linkError) throw new Error(`link for the host: ${linkError.message}`);
-
-	const redeemer = controlPlane(credentials);
-	const { data: session, error: verifyError } = await redeemer.auth.verifyOtp({
-		token_hash: link.properties.hashed_token,
-		type: 'magiclink',
-	});
-	if (verifyError) throw new Error(`session for the host: ${verifyError.message}`);
-	if (!session.session) throw new Error('no session came back for the host');
-
-	return {
-		companyID: agent.companyID,
-		accessToken: session.session.access_token,
-		expiresAt: session.session.expires_at ?? 0,
-	};
+	return { companyID: agent.companyID, ...token };
 }
 
 async function keepHostAccount(
 	client: SupabaseClient,
 	address: string,
 	companyID: string,
-): Promise<void> {
+): Promise<string> {
 	const { data: accounts, error: listError } = await client.auth.admin.listUsers();
 	if (listError) throw new Error(listError.message);
 	const account = accounts.users.find((user) => user.email === address);
 	const appMetadata = { company_id: companyID };
 
 	if (!account) {
-		const { error } = await client.auth.admin.createUser({
+		const { data, error } = await client.auth.admin.createUser({
 			email: address,
 			email_confirm: true,
 			app_metadata: appMetadata,
 		});
 		if (error) throw new Error(`host account for ${companyID}: ${error.message}`);
-		return;
+		return data.user.id;
 	}
-	if (account.app_metadata?.company_id === companyID) return;
+	if (account.app_metadata?.company_id === companyID) return account.id;
 	const { error } = await client.auth.admin.updateUserById(account.id, {
 		app_metadata: appMetadata,
 	});
 	if (error) throw new Error(`host account for ${companyID}: ${error.message}`);
+	return account.id;
 }

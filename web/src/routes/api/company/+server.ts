@@ -1,6 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { slugShape } from '$lib/company-path';
-import { asMember, claimMemberFor, controlPlane, foundCompany } from '$lib/server/control-plane';
+import { asMember, claimMemberFor, controlPlane, foundCompany, planeCredentialsOf } from '$lib/server/control-plane';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { memberAccessTokenOf } from '$lib/server/member-request';
@@ -23,14 +23,12 @@ export const GET: RequestHandler = async ({ platform, url }) => {
 
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
-	const projectURL = environment.SUPABASE_URL ?? '';
-	const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
-	if (!projectURL || !publishableKey || !serviceRoleKey) error(500, 'the central plane is not configured');
+	const plane = planeCredentialsOf(environment);
+	if (!plane) error(500, 'the central plane is not configured');
 
-	const { accessToken } = await memberAccessTokenOf(request, { projectURL, serviceRoleKey });
+	const { accessToken } = await memberAccessTokenOf(request, plane);
 
-	const { data: account } = await asMember({ projectURL, publishableKey }, accessToken).auth.getUser();
+	const { data: account } = await asMember(plane, accessToken).auth.getUser();
 	const email = account.user?.email?.trim().toLowerCase();
 	if (!account.user || !email) error(401, 'sign in first');
 
@@ -47,7 +45,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!name) error(400, 'a company needs a name');
 	if (!slugShape.test(slug)) error(400, 'that address will not do');
 
-	const client = controlPlane({ projectURL, serviceRoleKey });
+	const client = controlPlane(plane);
 
 	const already = await claimMemberFor(client, account.user.id, email);
 	if (already) error(409, 'this account already belongs to a company');

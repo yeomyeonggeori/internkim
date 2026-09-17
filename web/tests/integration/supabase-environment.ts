@@ -5,11 +5,13 @@ function credential(name: string, alternative?: string): string {
 export const projectURL = credential('SUPABASE_URL');
 export const serviceRoleKey = credential('SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
 export const publishableKey = credential('SUPABASE_PUBLISHABLE_KEY');
+export const signingKey = credential('SUPABASE_JWT_SIGNING_KEY');
 
 const missing = Object.entries({
 	SUPABASE_URL: projectURL,
 	SUPABASE_SECRET_KEY: serviceRoleKey,
-	SUPABASE_PUBLISHABLE_KEY: publishableKey
+	SUPABASE_PUBLISHABLE_KEY: publishableKey,
+	SUPABASE_JWT_SIGNING_KEY: signingKey
 })
 	.filter(([, value]) => !value)
 	.map(([name]) => name);

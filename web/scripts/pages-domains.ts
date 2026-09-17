@@ -1,5 +1,6 @@
-//   bun run web/scripts/pages-domains.ts --project <name> [--attach <hostname>] [--detach <hostname>]
+//   bun run web/scripts/pages-domains.ts --project <name> [--attach <hostname>] [--detach <hostname>] [--unshadow <hostname>]
 
+import { removeRoute, routesShadowing, type WorkersRoute } from './pages-hostnames';
 import { requiredSetting } from './repository-setting';
 
 const token = requiredSetting('CLOUDFLARE_API_TOKEN');
@@ -13,6 +14,7 @@ const accountID = argument('account') ?? requiredSetting('CLOUDFLARE_ACCOUNT_ID'
 const project = argument('project');
 const attaching = argument('attach');
 const detaching = argument('detach');
+const unshadowing = argument('unshadow');
 if (!project) throw new Error('pass --project <name>');
 
 const base = `https://api.cloudflare.com/client/v4/accounts/${accountID}/pages/projects/${project}/domains`;
@@ -89,8 +91,25 @@ if (attaching) {
 	await pointAtProject(attaching);
 }
 
+// A Workers route on the zone answers before the Pages project does, so a
+// hostname can be attached, active and still served by something else.
+if (unshadowing) {
+	for (const route of await routesShadowing(callCloudflare, unshadowing)) {
+		await removeRoute(callCloudflare, unshadowing, route);
+		console.log(`removed Workers route ${route.pattern} → ${route.script} from in front of ${unshadowing}`);
+	}
+}
+
+function shadowNote(routes: WorkersRoute[]): string {
+	if (routes.length === 0) return '';
+	return `  shadowed by ${routes.map((route) => `${route.pattern} → ${route.script}`).join(', ')}`;
+}
+
 const listed = await fetch(base, { headers });
 const body = (await listed.json()) as { success: boolean; errors?: unknown; result?: { name: string; status: string }[] };
 if (!body.success) throw new Error(JSON.stringify(body.errors));
-for (const entry of body.result ?? []) console.log(`  ${entry.name.padEnd(28)} ${entry.status}`);
+for (const entry of body.result ?? []) {
+	const routes = await routesShadowing(callCloudflare, entry.name);
+	console.log(`  ${entry.name.padEnd(28)} ${entry.status}${shadowNote(routes)}`);
+}
 if ((body.result ?? []).length === 0) console.log('  no domains attached');

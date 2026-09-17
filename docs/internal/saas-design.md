@@ -518,7 +518,7 @@ free would have to be built:
 | GoTrue — accounts, sessions, passwords | an authentication service |
 | PostgREST — the browser reading and writing directly | a data API |
 | RLS keyed on `auth.uid()` | JWT issuance and a claim convention |
-| `generateLink` + `verifyOtp` | member session issuance (§6) |
+| JWT signing keys — the plane signs member and host tokens with a key the project trusts | a key registry the data API verifies against (§6) |
 
 The web app talks straight to the database precisely because PostgREST and RLS are
 there; without them the architecture grows an API server in the middle. So the

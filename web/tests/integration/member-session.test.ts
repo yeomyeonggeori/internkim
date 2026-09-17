@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { createClient } from '@supabase/supabase-js';
+import { importJWK, jwtVerify } from 'jose';
 import {
 	addMember,
 	controlPlane,
@@ -10,7 +11,7 @@ import {
 	connectMessengerAccount,
 	membersOfCompanyByExternalID,
 } from '../../src/lib/server/member-credential';
-import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 
 const networkHookTimeout = 60_000;
 
@@ -69,7 +70,7 @@ test('a platform identity resolves to the member who owns it', async () => {
 });
 
 test('the session acts as that member and nobody else', async () => {
-	const session = await sessionForMember({ projectURL, serviceRoleKey }, speakerID);
+	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, speakerID);
 	const asMember = createClient(projectURL, publishableKey, {
 		global: { headers: { Authorization: `Bearer ${session.accessToken}` } },
 		auth: { persistSession: false, autoRefreshToken: false },
@@ -86,8 +87,18 @@ test('the session acts as that member and nobody else', async () => {
 	expect(colleagueError).not.toBeNull();
 });
 
+test('the token is the plane\'s own word about the member and opens no auth session', async () => {
+	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, speakerID);
+	const { payload } = await jwtVerify(session.accessToken, await importJWK(JSON.parse(signingKey), 'HS256'));
+	const { data: member } = await client.from('member').select('user_id').eq('id', speakerID).single();
+
+	expect(payload.sub).toBe(member!.user_id);
+	expect(payload.role).toBe('authenticated');
+	expect(payload.session_id).toBeUndefined();
+});
+
 test('the session is short lived', async () => {
-	const session = await sessionForMember({ projectURL, serviceRoleKey }, speakerID);
+	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, speakerID);
 	const secondsLeft = session.expiresAt - Math.floor(Date.now() / 1000);
 
 	expect(secondsLeft > 0).toBe(true);
@@ -110,5 +121,5 @@ test('somebody who has left cannot be acted for', async () => {
 		.single();
 	expect(after!.status).toBe('departed');
 
-	await expect(sessionForMember({ projectURL, serviceRoleKey }, colleagueID)).rejects.toThrow('has left');
+	await expect(sessionForMember({ projectURL, serviceRoleKey, signingKey }, colleagueID)).rejects.toThrow('has left');
 });
