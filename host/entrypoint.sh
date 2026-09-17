@@ -21,6 +21,12 @@ deviceBrowserStateDirectory="${DEVICE_BROWSER_STATE_DIR:-/var/lib/internkim-moli
 agentKeyPath="/root/.internkim/secrets/agent-key"
 buzzKeySeedPath="/root/.internkim/secrets/buzz-key-seed"
 modelAPIKeyPath="/root/.internkim/secrets/openrouter-key"
+buzzDatabaseURLPath="/root/.internkim/secrets/buzz-database.env"
+buzzRelayKeyPath="/root/.internkim/secrets/buzz-relay.env"
+buzzRelayURL="ws://localhost:3000"
+buzzAccountLinksPath="/var/lib/internkim/buzz-account-links.json"
+buzzAdminCommand=""
+[ -x /usr/local/bin/buzz-admin ] && buzzAdminCommand="/usr/local/bin/buzz-admin"
 
 blueclawSecretsDirectory="/run/internkim/secrets"
 blueclawAgentKeyPath="${blueclawSecretsDirectory}/agent-key"
@@ -50,6 +56,7 @@ install -d -o root -g blueclaw -m 0750 "${blueclawSecretsDirectory}"
 install -o root -g blueclaw -m 0440 "${agentKeyPath}" "${blueclawAgentKeyPath}"
 [ ! -r "${modelAPIKeyPath}" ] || install -o root -g blueclaw -m 0440 "${modelAPIKeyPath}" "${blueclawModelAPIKeyPath}"
 install -d -o blueclaw -g blueclaw -m 0750 /var/log/internkim
+install -d -o root -g root -m 0755 "$(dirname "${buzzAccountLinksPath}")"
 install -d -o blueclaw -g blueclaw -m 0750 "${deviceBrowserStateDirectory}"
 mkdir -p /workspace/.blueclaw
 chown blueclaw:blueclaw /workspace /workspace/.blueclaw
@@ -197,6 +204,11 @@ internkim-admind \
   -blueclaw-url "http://${blueclawAddress}" \
   -blueclaw-policy "${policyPath}" \
   -buzz-key-seed-path "${buzzKeySeedPath}" \
+  -buzz-database-url-path "${buzzDatabaseURLPath}" \
+  -buzz-relay-key-path "${buzzRelayKeyPath}" \
+  -buzz-admin-command "${buzzAdminCommand}" \
+  -buzz-relay-url "${buzzRelayURL}" \
+  -buzz-account-links "${buzzAccountLinksPath}" \
   -site-scaffold "${bundledSkillsPath}/website/assets/scaffold/app" \
   -central-plane-app-url "${INTERNKIM_APP_URL}" \
   -central-plane-agent-key "${agentKeyPath}" \
@@ -217,6 +229,7 @@ echo "[host] starting chatd"
 CHATD_BLUECLAW_BASE_URL="http://${blueclawAddress}" \
 CHATD_LISTEN_PORT="${chatdPort}" \
 CHATD_RELAY_INBOUND_URL="http://127.0.0.1:${arrivalsPort}/inbound" \
+CHATD_BUZZ_ACCOUNT_LINKS_PATH="${buzzAccountLinksPath}" \
   chatd &
 chatdPid="$!"
 

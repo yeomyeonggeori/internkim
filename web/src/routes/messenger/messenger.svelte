@@ -15,6 +15,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
 		ensureDirectMessage,
+		ensureAgentConversation,
 		fetchConversations,
 		fetchPeople,
 		type ChannelSummary,
@@ -129,6 +130,17 @@
 			selectChannel(channelID);
 		} catch {
 			return;
+		}
+	}
+
+	async function startAgentConversation() {
+		isNewDirectMessageOpen = false;
+		try {
+			const channelID = await ensureAgentConversation();
+			await loadConversationList();
+			selectChannel(channelID);
+		} catch {
+			toast.error(text.unavailableTitle);
 		}
 	}
 
@@ -331,6 +343,7 @@
 			<Dialog.Title>{text.newDirectMessage}</Dialog.Title>
 		</Dialog.Header>
 		<div class="-mx-2 max-h-80 overflow-y-auto">
+			<Button variant="ghost" class="w-full justify-start" onclick={startAgentConversation}>{text.openLabel}</Button>
 			{#each people as person (person.id)}
 				<button
 					type="button"

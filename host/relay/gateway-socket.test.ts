@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { deliveryOf, reasonOf, retryDelayMilliseconds, serverSocketURL } from './gateway-socket';
+import {
+	connectToGateway,
+	deliveryOf,
+	hostSocketURL,
+	reasonOf,
+	retryDelayMilliseconds,
+	serverSocketURL
+} from './gateway-socket';
+import type { Dispatch } from './forward';
 
 describe('deliveryOf', () => {
 	test('is the frame the gateway fans out, naming an audience only when there is one', () => {
@@ -41,5 +49,48 @@ describe('serverSocketURL', () => {
 	test('names the company whichever way the gateway url ends', () => {
 		expect(serverSocketURL('wss://gateway.test/', 'company-1')).toBe('wss://gateway.test/company/company-1/server');
 		expect(serverSocketURL('wss://gateway.test', 'company-1')).toBe('wss://gateway.test/company/company-1/server');
+	});
+});
+
+describe('host gateway connections', () => {
+	test('uses a fresh host token after the first socket closes', async () => {
+		const authorizations: string[] = [];
+		let opened = 0;
+		let resolveSecondOpen: (() => void) | undefined;
+		const secondOpen = new Promise<void>((resolve) => {
+			resolveSecondOpen = resolve;
+		});
+		const server = Bun.serve<{ authorization: string | null }>({
+			port: 0,
+			fetch(request, serverInstance) {
+				if (serverInstance.upgrade(request, { data: { authorization: request.headers.get('Authorization') } })) return;
+				return new Response('not found', { status: 404 });
+			},
+			websocket: {
+				open(socket) {
+					authorizations.push(socket.data.authorization ?? '');
+					opened += 1;
+					if (opened === 1) socket.close();
+					if (opened === 2) resolveSecondOpen?.();
+				},
+				message() {}
+			}
+		});
+		let tokenNumber = 0;
+		const connection = connectToGateway({
+			gatewayURL: server.url.toString().replace('http://', 'ws://'),
+			companyID: 'company-1',
+			hostAccessToken: async () => `token-${++tokenNumber}`,
+			dispatch: {} as Dispatch,
+			byteCeiling: 1024,
+			report: () => undefined
+		});
+		await secondOpen;
+		connection.close();
+		await Bun.sleep(600);
+		server.stop();
+		expect(hostSocketURL(server.url.toString(), 'company-1')).toBe(`${server.url}company/company-1/host`);
+		expect(authorizations).toEqual(['Bearer token-1', 'Bearer token-2']);
+		expect(tokenNumber).toBe(2);
 	});
 });

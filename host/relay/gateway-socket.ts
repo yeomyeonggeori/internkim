@@ -25,29 +25,54 @@ export function deliveryOf(
 	return { kind: 'deliver', event, ...(audienceMemberIDs?.length ? { audienceMemberIDs } : {}) };
 }
 
+export function hostSocketURL(gatewayURL: string, companyID: string): string {
+	return `${gatewayURL.replace(/\/+$/, '')}/company/${encodeURIComponent(companyID)}/host`;
+}
+
 // Bun takes headers on the client handshake; the DOM type it is checked against
 // does not describe that argument, and the server key belongs in a header
 // rather than in a url that ends up in logs.
 type SocketTakingHeaders = new (url: string, options: { headers: Record<string, string> }) => WebSocket;
-const HeaderWebSocket = WebSocket as unknown as SocketTakingHeaders;
+
+function openHeaderWebSocket(url: string, headers: Record<string, string>): WebSocket {
+	const HeaderWebSocket = WebSocket as unknown as SocketTakingHeaders;
+	return new HeaderWebSocket(url, { headers });
+}
 
 export function connectToGateway(settings: {
 	gatewayURL: string;
 	companyID: string;
-	serverKey: string;
+	serverKey?: string;
+	hostAccessToken?: () => Promise<string>;
 	dispatch: Dispatch;
 	byteCeiling: number;
 	report?: (line: string) => void;
 }): GatewayConnection {
 	const report = settings.report ?? ((line: string) => console.error(line));
-	const url = serverSocketURL(settings.gatewayURL, settings.companyID);
+	if (!settings.serverKey && !settings.hostAccessToken) {
+		throw new Error('a gateway server key or host access token callback is required');
+	}
+	const url = settings.hostAccessToken
+		? hostSocketURL(settings.gatewayURL, settings.companyID)
+		: serverSocketURL(settings.gatewayURL, settings.companyID);
 	let consecutiveFailures = 0;
 	let socket: WebSocket | null = null;
 	let isClosed = false;
 
-	const dial = () => {
+	const dial = async () => {
 		if (isClosed) return;
-		socket = new HeaderWebSocket(url, { headers: { Authorization: `Bearer ${settings.serverKey}` } });
+		try {
+			const accessToken = settings.hostAccessToken
+				? await settings.hostAccessToken()
+				: settings.serverKey;
+			if (!accessToken) throw new Error('the gateway access token was empty');
+			if (isClosed) return;
+			socket = openHeaderWebSocket(url, { Authorization: `Bearer ${accessToken}` });
+		} catch (error) {
+			report(`gateway authentication for ${settings.companyID} failed: ${error instanceof Error ? error.message : error}`);
+			redial();
+			return;
+		}
 		socket.addEventListener('open', () => {
 			consecutiveFailures = 0;
 			report(`gateway connected for company ${settings.companyID}`);

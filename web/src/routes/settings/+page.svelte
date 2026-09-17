@@ -22,11 +22,13 @@
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import { adminText } from '../admin/text';
 	import { companySettingsText } from './text';
+	import { hostSetupText } from './setup/text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
 	import { onMount } from 'svelte';
 
 	const text = createPageText(companySettingsText);
+	const setupText = createPageText(hostSetupText);
 	const attendanceSettingsText = createPageText(adminText);
 	let isAdmin = $state(false);
 	let isLoading = $state(isSupabaseConfigured());
@@ -87,6 +89,9 @@
 		<h2 class="text-xl font-semibold">{text.company}</h2>
 		<p class="text-sm text-muted-foreground">{text.companyDescription}</p>
 	</header>
+	{#if isSupabaseConfigured()}
+		<a href="/settings/setup" class={buttonVariants({ variant: 'outline', class: 'w-fit' })}>{setupText.title}</a>
+	{/if}
 	<CompanyProfileImage />
 	<CompanyBaseCurrency />
 	<LearningSoulSection />
