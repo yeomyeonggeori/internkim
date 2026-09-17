@@ -9,11 +9,10 @@ describe('readHandoffInputs', () => {
 			{ type: 'key', action: 'down', key: 'a', code: 'KeyA', keyCode: 65, text: 'a' },
 			{ type: 'text', text: '안녕하세요' },
 			{ type: 'history', direction: 'back' },
-			{ type: 'reload' },
-			{ type: 'open', url: 'https://example.com/' }
+			{ type: 'reload' }
 		]);
 
-		expect(inputs).toHaveLength(7);
+		expect(inputs).toHaveLength(6);
 		expect(inputs?.[0]).toEqual({
 			type: 'mouse',
 			action: 'down',
@@ -35,10 +34,8 @@ describe('readHandoffInputs', () => {
 		expect(readHandoffInputs({ type: 'reload' })).toBeNull();
 	});
 
-	test('opens only web addresses', () => {
-		expect(readHandoffInputs([{ type: 'open', url: 'file:///etc/passwd' }])).toBeNull();
-		expect(readHandoffInputs([{ type: 'open', url: 'javascript:alert(1)' }])).toBeNull();
-		expect(readHandoffInputs([{ type: 'open', url: 'http://example.com' }])).not.toBeNull();
+	test('refuses to navigate anywhere the page itself does not lead', () => {
+		expect(readHandoffInputs([{ type: 'open', url: 'https://example.com/' }])).toBeNull();
 	});
 });
 

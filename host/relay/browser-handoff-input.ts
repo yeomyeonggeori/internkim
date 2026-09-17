@@ -16,8 +16,7 @@ export type HandoffInput =
 	| { type: 'key'; action: 'down' | 'up'; key: string; code: string; keyCode: number; text: string; modifiers: Modifiers }
 	| { type: 'text'; text: string }
 	| { type: 'history'; direction: 'back' | 'forward' }
-	| { type: 'reload' }
-	| { type: 'open'; url: string };
+	| { type: 'reload' };
 
 type MouseButton = 'left' | 'middle' | 'right' | 'none';
 
@@ -39,7 +38,6 @@ function readHandoffInput(offered: unknown): HandoffInput | null {
 	if (held.type === 'text') return readTextInput(held);
 	if (held.type === 'history') return readHistoryInput(held);
 	if (held.type === 'reload') return { type: 'reload' };
-	if (held.type === 'open') return readOpenInput(held);
 	return null;
 }
 
@@ -81,23 +79,9 @@ function readHistoryInput(held: Record<string, unknown>): HandoffInput | null {
 	return { type: 'history', direction: held.direction };
 }
 
-function readOpenInput(held: Record<string, unknown>): HandoffInput | null {
-	if (typeof held.url !== 'string' || !isWebAddress(held.url)) return null;
-	return { type: 'open', url: held.url };
-}
-
 function readModifiers(offered: unknown): Modifiers {
 	const held = recordOf(offered);
 	return { alt: held.alt === true, control: held.control === true, meta: held.meta === true, shift: held.shift === true };
-}
-
-export function isWebAddress(offered: string): boolean {
-	try {
-		const url = new URL(offered);
-		return url.protocol === 'http:' || url.protocol === 'https:';
-	} catch {
-		return false;
-	}
 }
 
 export function devtoolsCommandsFor(input: HandoffInput): DevtoolsCommand[] {
@@ -119,8 +103,6 @@ export function devtoolsCommandsFor(input: HandoffInput): DevtoolsCommand[] {
 			return [{ method: 'Runtime.evaluate', params: { expression: `history.${input.direction}()` } }];
 		case 'reload':
 			return [{ method: 'Page.reload', params: {} }];
-		case 'open':
-			return [{ method: 'Page.navigate', params: { url: input.url } }];
 	}
 }
 

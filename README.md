@@ -534,7 +534,9 @@ persistent Intern Kim profile. The device's own browser is Moli, a headless
 engine that runs as a service and answers agent-browser over the Chrome DevTools
 Protocol; it is used only for plain public page text when no companion is
 available. A browser handoff hands the device's browser to the requester on
-the intern.kim website.
+the intern.kim website: the relay streams its screen to that person alone, passes
+their clicks and typing back, and resumes the conversation when they finish, stop,
+or let it expire after 15 minutes.
 Snapshots carry the URL, title, text and interactive refs, and nothing else.
 Screenshots are companion-only. The bundle ships `agent-browser` for the current
 OS and architecture and installs its managed browser on first run; when that

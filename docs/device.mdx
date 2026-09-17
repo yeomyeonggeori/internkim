@@ -72,7 +72,9 @@ only while that person's companion is online. When no companion is available,
 the device's Moli browser handles plain public-text navigation. Login, MFA,
 captcha, sensitive inputs and account-risky actions go through a browser
 handoff, which hands the device's browser to the requester on the intern.kim
-website.
+website. The relay streams its screen to that person alone, passes their clicks
+and typing back, and resumes the conversation when they finish, stop, or let it
+expire after 15 minutes.
 
 ## Deploying to a device
 
