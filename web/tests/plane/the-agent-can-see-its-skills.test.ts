@@ -43,17 +43,9 @@ test('the agent on the plane can see every skill it can run, and no other', asyn
 		);
 
 		expect(
-			names,
-			`internkim-api is in the prompt on a plane with no INTERNKIM_TOKEN, so the agent ` +
-				`will select it and every call will end at "INTERNKIM_TOKEN is not set"`
-		).not.toContain('internkim-api');
-		expect(inventory.unavailableSkills.map((skill) => skill.name).sort()).toEqual([
-			'internkim-api'
-		]);
-		const unavailableByName = new Map(inventory.unavailableSkills.map((skill) => [skill.name, skill]));
-		expect(unavailableByName.get('internkim-api')?.missingEnvironmentVariables).toEqual([
-			'INTERNKIM_TOKEN'
-		]);
+			inventory.unavailableSkills.map((skill) => skill.name),
+			`a plugin skill the plane cannot run is held out of the prompt, and every one it ships runs here`
+		).toEqual([]);
 		expect(
 			[...names, ...inventory.unavailableSkills.map((skill) => skill.name)].sort(),
 			`the host ships every plugin skill to the box and only the prompt is smaller, so a ` +

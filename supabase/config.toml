@@ -178,6 +178,11 @@ enabled = false
 [auth.external.zoom]
 enabled = false
 
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/oauth/consent"
+allow_dynamic_registration = true
+
 [storage]
 enabled = true
 file_size_limit = "50MiB"

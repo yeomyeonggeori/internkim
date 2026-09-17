@@ -77,6 +77,28 @@ Supabase access token을 넣을 수 있습니다. 세션은 그 사람 자신이
 발급 키는 세션을 들고 있으면 안 되는 곳을 위한 것입니다. 스스로 권한 등급을
 정하고, 로그아웃해도 살아남습니다.
 
+## MCP 클라이언트 연결 [#mcp]
+
+`https://api.intern.kim/v1/mcp`는 같은 카탈로그를 Streamable HTTP MCP 서버로
+제공합니다. MCP authorization을 구현한 클라이언트는 이 주소만 있으면 됩니다.
+
+```bash
+claude mcp add --transport http internkim https://api.intern.kim/v1/mcp
+```
+
+토큰 없이 부르면 `401`과 함께
+`WWW-Authenticate: Bearer resource_metadata="https://api.intern.kim/.well-known/oauth-protected-resource/v1/mcp"`를
+답합니다. 그 문서가 플레인의 Supabase Auth를 authorization server로 지목합니다.
+클라이언트는 거기에 자신을 등록하고, 사람이 로그인해 허용하도록
+`intern.kim/oauth/consent`를 열고, 받은 토큰을 스스로 보관합니다. 이 토큰은 그
+앱에 준 그 사람의 세션이므로 로그인한 웹 세션처럼 전체 권한을 가집니다. 허용한
+앱은 설정의 연결된 앱에 나오고, 연결을 끊으면 다음 호출부터 거부됩니다.
+
+[internkim 플러그인](https://github.com/yeomyeonggeori/internkim-plugin)은
+`mcp.json`에 같은 서버를 선언하므로, 플러그인을 설치해도 같은 방식으로
+연결됩니다. MCP authorization이 없는 클라이언트는 `ik_` 토큰을 bearer 헤더로
+보냅니다.
+
 ## 권한 [#permissions]
 
 토큰은 권한 하나를 가지고, 권한은 셋뿐입니다. 각 권한은 아래 것을 모두
@@ -170,4 +192,5 @@ API는 웹 앱의 일부입니다. 앱을 직접 호스팅하는 회사는 API�
 | 와이어 타입 | `pkg/capabilityprotocol/protocol.go` |
 | 도구 카탈로그 | `pkg/capabilityprotocol/generated/capability-tools.json` |
 | 테스트로 적힌 계약 | `web/tests/integration/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
+| MCP authorization: 리소스 메타데이터와 `401` 챌린지, 동의 화면 | `web/src/lib/server/public-api/protected-resource.ts`, `web/src/routes/oauth/consent/`, `supabase/config.toml`의 `[auth.oauth_server]` |
 | OpenAPI 문서와 `/api-docs` 리다이렉트 | `docs/web/app/lib/openapi.ts`, `web/src/lib/server/api-reference-redirect.ts` |

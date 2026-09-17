@@ -5,6 +5,7 @@
 	import SignInPasskeys from './sign-in-passkeys.svelte';
 	import SignInPassword from './sign-in-password.svelte';
 	import PersonalAPIKeys from './personal-access-tokens.svelte';
+	import ConnectedApps from './connected-apps.svelte';
 	import Notifications from './notifications.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
 	import MyAgent from './my-agent.svelte';
@@ -65,6 +66,9 @@
 		<SignInPassword />
 	{/if}
 	<PersonalAPIKeys />
+	{#if isSupabaseConfigured()}
+		<ConnectedApps />
+	{/if}
 	<Notifications />
 	<MyAgent />
 	<Collapsible.Root bind:open={isMessengerAccountOpen} class="grid gap-3">

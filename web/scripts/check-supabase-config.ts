@@ -105,6 +105,21 @@ for (const [hook, settings] of Object.entries(hooks)) {
 	compare(`auth.hook.${hook}.enabled`, settings.enabled, auth[`hook_${hook}_enabled`], comparisons);
 }
 
+const oauthServer = localConfig.auth.oauth_server as Record<string, unknown>;
+compare('auth.oauth_server.enabled', oauthServer.enabled, auth.oauth_server_enabled, comparisons);
+compare(
+	'auth.oauth_server.allow_dynamic_registration',
+	oauthServer.allow_dynamic_registration,
+	auth.oauth_server_allow_dynamic_registration,
+	comparisons
+);
+compare(
+	'auth.oauth_server.authorization_url_path',
+	oauthServer.authorization_url_path,
+	auth.oauth_server_authorization_path,
+	comparisons
+);
+
 function commaSeparatedValues(value: string): string[] {
 	return value.split(',').map((entry) => entry.trim());
 }

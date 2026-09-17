@@ -81,6 +81,30 @@ it, and a script that already holds a session can too. Issued keys exist for
 everything that should not hold a session: they name their own permission rung
 and survive sign-out.
 
+## Connecting an MCP client [#mcp]
+
+`https://api.intern.kim/v1/mcp` serves the same catalog as a Streamable HTTP
+MCP server, and a client that implements MCP authorization needs nothing but
+that address:
+
+```bash
+claude mcp add --transport http internkim https://api.intern.kim/v1/mcp
+```
+
+A call without a token answers `401` with
+`WWW-Authenticate: Bearer resource_metadata="https://api.intern.kim/.well-known/oauth-protected-resource/v1/mcp"`.
+That document names the plane's Supabase Auth as the authorization server. The
+client registers itself there, opens `intern.kim/oauth/consent` for the person
+to sign in and allow it, and keeps the token it is given. The token is that
+person's session for that app, so it carries full permission like a signed-in
+web session. The app is listed under connected apps in settings, and
+disconnecting it refuses its next call.
+
+The [internkim plugin](https://github.com/yeomyeonggeori/internkim-plugin)
+declares the same server in its `mcp.json`, so installing the plugin connects
+it the same way. A client without MCP authorization sends an `ik_` token as
+the bearer header.
+
 ## Permissions [#permissions]
 
 A token holds one permission, and there are three of them. Each reaches
@@ -175,4 +199,5 @@ The API is part of the web app, so a company that hosts the app hosts the API.
 | Wire types | `pkg/capabilityprotocol/protocol.go` |
 | Tool catalog | `pkg/capabilityprotocol/generated/capability-tools.json` |
 | The contract, stated as tests | `web/tests/integration/public-api-route.test.ts`, `internal/admind/public_tool_gateway_test.go` |
+| MCP authorization: the resource metadata and the `401` challenge, then consent | `web/src/lib/server/public-api/protected-resource.ts`, `web/src/routes/oauth/consent/`, `[auth.oauth_server]` in `supabase/config.toml` |
 | OpenAPI document and the `/api-docs` redirect | `docs/web/app/lib/openapi.ts`, `web/src/lib/server/api-reference-redirect.ts` |
