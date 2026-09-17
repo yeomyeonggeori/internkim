@@ -306,6 +306,31 @@ func TestWebFetchAcceptsSchemaJSONOpenRouterContent(t *testing.T) {
 	}
 }
 
+func TestWebFetchFillsMissingFieldsSoTheAnswerHoldsItsContract(t *testing.T) {
+	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
+	content := `{"provider":"openrouter","results":[{"url":"https://example.com","title":"Dawn"}]}`
+	service := Service{
+		Configuration: Configuration{
+			OpenRouterKeyPath:    secretPath,
+			OpenRouterWebBaseURL: "https://openrouter.test/chat",
+			OpenRouterModel:      "openrouter/search-model",
+		}.WithDefaults(),
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			responseDocument, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+			return jsonResponseBody(string(responseDocument)), nil
+		})},
+	}
+
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "web_fetch", strings.NewReader(`{"input":{"urls":["https://example.com"]}}`))
+	if errorValue != nil {
+		t.Fatalf("expected web fetch: %v", errorValue)
+	}
+	expected := `{"compatibility":"openrouter_server_tool_auto","errors":[],"provider":"openrouter","remoteLLMInvolved":true,"results":[{"url":"https://example.com","finalURL":"","title":"Dawn","content":""}]}`
+	if response.IsError || response.Outcome != capabilities.ToolOutcomeSucceeded || string(response.Result) != expected {
+		t.Fatalf("expected filled fetch result, response=%+v result=%s", response, string(response.Result))
+	}
+}
+
 func TestWebFetchWrapsNonSchemaJSONAsRawContent(t *testing.T) {
 	secretPath := writeOpenRouterSecretForWebToolTest(t, "sk-web")
 	content := `{"provider":"openrouter","note":"not fetch schema"}`

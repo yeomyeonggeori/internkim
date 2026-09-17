@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { answerMCP, descriptorMetaKey, toolsOfferedTo } from '$lib/server/public-api/mcp';
-import { toolsReachableBy } from '$lib/server/public-api/catalog';
+import { isSeenByAModel, toolsAModelReachesWith, toolsReachableBy } from '$lib/server/public-api/catalog';
 import type { CallingMember } from '$lib/server/member-request';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
 
@@ -23,10 +23,16 @@ async function anMCPClient(permission: PublicAPIPermission): Promise<Client> {
 	return connected;
 }
 
+function aToolOnlyTheAPIReaches(): string {
+	const hidden = toolsReachableBy('delete').find((descriptor) => !isSeenByAModel(descriptor.name));
+	if (!hidden) throw new Error('the catalog hides no reachable tool from a model, so this case has nothing to hold');
+	return hidden.name;
+}
+
 describe('the tools offered over MCP', () => {
-	test('are the catalog tools the permission reaches, carrying their own descriptor', () => {
+	test('are the catalog tools a model sees that the permission reaches, carrying their own descriptor', () => {
 		const offered = toolsOfferedTo(aMemberWhoMay('delete'));
-		const reachable = toolsReachableBy('delete');
+		const reachable = toolsAModelReachesWith('delete');
 
 		expect(offered.map((tool) => tool.name)).toEqual(reachable.map((descriptor) => descriptor.name));
 		for (const [ordinal, tool] of offered.entries()) {
@@ -41,6 +47,17 @@ describe('the tools offered over MCP', () => {
 		expect(reading).toContain('task_list');
 		expect(reading).not.toContain('task_add');
 	});
+
+	test('leave out a tool the catalog hides from a model, though the API still answers it', () => {
+		const offered = toolsOfferedTo(aMemberWhoMay('delete')).map((tool) => tool.name);
+		expect(offered).not.toContain(aToolOnlyTheAPIReaches());
+	});
+
+	test('include the data room tools a skill reads the record through', () => {
+		const offered = toolsOfferedTo(aMemberWhoMay('delete')).map((tool) => tool.name);
+		expect(offered).toContain('company_document_search');
+		expect(offered).toContain('company_document_list');
+	});
 });
 
 describe('the MCP server on a fetch handler', () => {
@@ -49,8 +66,18 @@ describe('the MCP server on a fetch handler', () => {
 		try {
 			const listed = (await connected.listTools()).tools;
 			expect(listed.map((tool) => tool.name)).toEqual(
-				toolsReachableBy('delete').map((descriptor) => descriptor.name)
+				toolsAModelReachesWith('delete').map((descriptor) => descriptor.name)
 			);
+		} finally {
+			await connected.close();
+		}
+	});
+
+	test('refuses a call to a tool the catalog hides from a model', async () => {
+		const connected = await anMCPClient('delete');
+		try {
+			const answered = await connected.callTool({ name: aToolOnlyTheAPIReaches(), arguments: {} });
+			expect(answered.isError).toBe(true);
 		} finally {
 			await connected.close();
 		}

@@ -3,7 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { capabilityDescriptorMetaKey } from './catalog/protocol';
-import { toolsReachableBy } from '$lib/server/public-api/catalog';
+import { isSeenByAModel, toolsAModelReachesWith } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
 import { toolAnswerOrRefusal } from '$lib/server/public-api/tool-call';
 import type { CallingMember } from '$lib/server/member-request';
@@ -16,7 +16,7 @@ const serverInstructions =
 	'A tool call carries the same input the public API takes and answers the same body.';
 
 export function toolsOfferedTo(member: CallingMember): Tool[] {
-	return toolsReachableBy(member.permission).map(mcpToolOf);
+	return toolsAModelReachesWith(member.permission).map(mcpToolOf);
 }
 
 function mcpToolOf(descriptor: ToolDescriptor): Tool {
@@ -45,6 +45,9 @@ function companyToolServer(environment: Environment, member: CallingMember): Ser
 	server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: toolsOfferedTo(member) }));
 
 	server.setRequestHandler(CallToolRequestSchema, async (request) => {
+		if (!isSeenByAModel(request.params.name)) {
+			return toolResultOf(404, { message: `no tool here goes by ${request.params.name}` });
+		}
 		const answered = await toolAnswerOrRefusal(environment, member, request.params.name, {
 			input: request.params.arguments ?? {}
 		});
