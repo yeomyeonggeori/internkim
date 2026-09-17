@@ -21,6 +21,14 @@ describe('handoffEventOf', () => {
 		expect(frame).toMatchObject({ fields: [{ x: 20, y: 40, width: 200, height: 30 }] });
 	});
 
+	test('reads why the browser did not take an input', () => {
+		expect(handoffEventOf({ kind: 'browser.handoff.trouble', handoffID: 'handoff-1', reason: 'the device browser did not answer in time' })).toEqual({
+			kind: 'trouble',
+			handoffID: 'handoff-1',
+			reason: 'the device browser did not answer in time'
+		});
+	});
+
 	test('reads how a handoff ended', () => {
 		expect(handoffEventOf({ kind: 'browser.handoff.ended', handoffID: 'handoff-1', outcome: 'expired' })).toEqual({
 			kind: 'ended',
