@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import * as Alert from '$lib/components/ui/alert';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { answerConsent, consentRequestOf, hostOf, type ConsentRequest } from '$lib/connected-apps';
+	import { answerConsent, consentRequestOf, type ConsentRequest } from '$lib/connected-apps';
+	import { hostOf, returnsToThisComputer } from '$lib/consent-return';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { consentText } from './consent-text';
 
 	let { data } = $props();
@@ -62,9 +65,18 @@
 			{#if request?.kind === 'asking'}
 				<Card.Content class="space-y-4">
 					<p class="text-sm">{text.grants}</p>
-					<p class="text-sm text-muted-foreground">
-						{text.returnsTo.replace('{host}', hostOf(request.details.redirect_uri))}
-					</p>
+					{#if returnsToThisComputer(request.details.redirect_uri)}
+						<p class="text-sm text-muted-foreground">
+							{text.returnsTo.replace('{host}', hostOf(request.details.redirect_uri))}
+						</p>
+					{:else}
+						<Alert.Root variant="destructive">
+							<TriangleAlertIcon />
+							<Alert.Description>
+								{text.leavesThisComputer.replace('{host}', hostOf(request.details.redirect_uri))}
+							</Alert.Description>
+						</Alert.Root>
+					{/if}
 					{#if failure}
 						<p class="text-sm text-destructive">{failure}</p>
 					{/if}
