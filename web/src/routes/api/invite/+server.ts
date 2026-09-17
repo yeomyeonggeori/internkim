@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { normalizeFleetID } from '$lib/device-auth';
 import { kv } from '$lib/kv';
 import { environmentOfPlatform, fleetDirectory } from '$lib/server/agent-request';
-import { fleetUserRecords } from '$lib/server/fleet-user-directory';
+import { adminEmailsOfTheCompany } from '$lib/server/member-directory';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const env = platform?.env;
@@ -15,9 +15,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!fleetID) throw error(400, 'fleet_id required');
 
 	const directory = await fleetDirectory(environmentOfPlatform(env), fleetID);
-	const admins = (await fleetUserRecords(directory))
-		.filter((record) => record.role === 'admin')
-		.map((record) => record.email);
+	const admins = await adminEmailsOfTheCompany(directory);
 	if (!admins.includes(callerEmail.trim().toLowerCase())) throw error(403, 'Admin only');
 
 	const KV = env.KV;

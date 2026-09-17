@@ -20,14 +20,7 @@ func (service *Service) organizationChartUserRecords(request *http.Request) []ad
 }
 
 func (service *Service) accountDirectoryUserRecords(request *http.Request) []adminUserMutation {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	var records []adminUserMutation
-	if fleetID != "" && fleetSecret != "" {
-		if fetched, errorValue := service.lookupUserRecords(request.Context(), fleetID, fleetSecret); errorValue == nil {
-			records = fetched
-		}
-	}
+	records, _ := service.companyUserRecords(request.Context())
 	return mergeUserRecordsByEmail(records, service.blueclawPolicyUserRecords(request.Context()))
 }
 

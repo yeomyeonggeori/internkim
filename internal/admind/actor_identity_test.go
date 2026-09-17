@@ -40,7 +40,7 @@ func TestUserActorRendersTheCompanyLanguageForACompanyMember(t *testing.T) {
 	}))
 	defer company.Close()
 
-	service := companyDeviceForTest(t, company.URL, "", "the-company-key")
+	service := companyDeviceForTest(t, company.URL, "the-company-key")
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	actor, found, errorValue := service.resolveUserActorFromUserRecords(context.Background(), "member@example.com")
 	if errorValue != nil {

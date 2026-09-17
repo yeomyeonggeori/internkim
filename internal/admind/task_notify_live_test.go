@@ -34,18 +34,6 @@ func liveRequesterOrSkip(t *testing.T) string {
 	return personID
 }
 
-func directoryServing(t *testing.T, records []adminUserMutation) *httptest.Server {
-	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		if errorValue := json.NewEncoder(writer).Encode(pagesUsersResponse{Records: records}); errorValue != nil {
-			t.Error(errorValue)
-		}
-	}))
-	t.Cleanup(server.Close)
-	return server
-}
-
 func blueclawServingRunsAndPolicy(t *testing.T, runsByCall ...[]taskNotifyRun) *httptest.Server {
 	t.Helper()
 	call := 0
@@ -101,15 +89,11 @@ func TestALiveApprovalReachesTheRequestersDevices(t *testing.T) {
 	}}
 
 	blueclaw := blueclawServingRunsAndPolicy(t, running, waiting, waiting)
-	directory := directoryServing(t, []adminUserMutation{
-		{MemberID: personID, Email: "live@example.com", Status: "active"},
-	})
 
 	state := t.TempDir()
 	service := NewService(Configuration{
 		DatabasePath:               filepath.Join(state, "internkim.sqlite"),
 		BlueclawBaseURL:            blueclaw.URL,
-		APIBaseURL:                 directory.URL,
 		FleetIDPath:                writeLiveFile(t, state, "fleet-id", "live-fleet"),
 		FleetSecretPath:            writeLiveFile(t, state, "fleet-secret", "live-secret"),
 		CentralPlaneAppURL:         appURL,
@@ -135,16 +119,12 @@ func TestALiveApprovalReachesTheRequestersDevices(t *testing.T) {
 func TestALiveMailArrivalReachesTheOwnersDevices(t *testing.T) {
 	appURL, projectURL, publishableKey, agentKey := livePlaneOrSkip(t)
 	actorEmail := "live@example.com"
-	directory := directoryServing(t, []adminUserMutation{
-		{MemberID: "live-member", Email: actorEmail, Status: "active"},
-	})
 	blueclaw := blueclawServingRunsAndPolicy(t, nil)
 
 	state := t.TempDir()
 	service := NewService(Configuration{
 		DatabasePath:               filepath.Join(state, "internkim.sqlite"),
 		BlueclawBaseURL:            blueclaw.URL,
-		APIBaseURL:                 directory.URL,
 		FleetIDPath:                writeLiveFile(t, state, "fleet-id", "live-fleet"),
 		FleetSecretPath:            writeLiveFile(t, state, "fleet-secret", "live-secret"),
 		CentralPlaneAppURL:         appURL,

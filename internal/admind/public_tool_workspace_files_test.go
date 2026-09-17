@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
 
 func newPublicToolWorkspaceTestService(t *testing.T, workspaceFiles map[string]string, downloads *[]url.Values) *Service {
@@ -29,9 +30,11 @@ func newPublicToolWorkspaceTestService(t *testing.T, workspaceFiles map[string]s
 		BlueclawBaseURL:       "http://blueclaw.local",
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	directory := companyDirectoryHolding(centralplane.Member{MemberID: "person-member", Email: "member@example.com", Name: "Member", Role: "member", Status: "active"})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" {
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"person-member","email":"member@example.com","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return directory.respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/workspace/download" {
 			*downloads = append(*downloads, request.URL.Query())

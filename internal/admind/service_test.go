@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
 )
 
@@ -378,7 +379,6 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminEmailPath, "setup@example.com")
 
-	var roleWrites []adminUserMutation
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        adminEmailPath,
@@ -389,17 +389,12 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 		CompanionJobPath:      filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:           t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	directory := companyDirectoryHolding(memberForTest("setup@example.com", "이샘플", "admin"))
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"setup@example.com","role":"admin"}]}`, nil), nil
-		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
-			var payload adminUserMutation
-			if errorValue := json.NewDecoder(request.Body).Decode(&payload); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			roleWrites = append(roleWrites, payload)
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case isCompanyDirectoryRequest(request):
+			return directory.respond(t, request)
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 			return nil, nil
@@ -417,8 +412,8 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	if strings.TrimSpace(readTrimmedFile(claimedAdminEmailPath)) != "" {
 		t.Fatalf("claimed admin = %q", readTrimmedFile(claimedAdminEmailPath))
 	}
-	if len(roleWrites) != 0 {
-		t.Fatalf("unexpected role writes: %+v", roleWrites)
+	if len(directory.writes) != 0 {
+		t.Fatalf("unexpected role writes: %+v", directory.writes)
 	}
 }
 
@@ -444,13 +439,13 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 		CompanionJobPath:           filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:                adminUIPath,
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	directory := companyDirectoryHolding()
 	blueclawInvited := false
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
-		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
+		case isCompanyDirectoryRequest(request):
+			return directory.respond(t, request)
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
 		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
@@ -475,6 +470,9 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 	}
 	if !blueclawInvited {
 		t.Fatal("first admin was not invited in Blueclaw policy")
+	}
+	if len(directory.writes) != 1 || directory.writes[0].Email != "member1@example.com" || directory.writes[0].Role != "admin" {
+		t.Fatalf("the claim did not reach the company as an admin role write: %+v", directory.writes)
 	}
 	bootstrapResult := service.readFirstAdminBootstrapResult()
 	if bootstrapResult.PolicyVersion != firstAdminPolicyVersion {
@@ -522,12 +520,12 @@ func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 		CompanionJobPath:      filepath.Join(t.TempDir(), "jobs.json"),
 		AdminUIPath:           t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	directory := companyDirectoryHolding()
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
-		case request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" && request.Method == http.MethodGet:
-			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
-		case request.URL.String() == "https://api.example.test/api/users" && request.Method == http.MethodPost:
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member1@example.com","role":"admin"}]}`, nil), nil
+		case isCompanyDirectoryRequest(request):
+			return directory.respond(t, request)
 		case isBlueclawPolicyGet(request):
 			return jsonResponse(http.StatusBadGateway, `{"error":"the policy is unreadable"}`, nil), nil
 		default:
@@ -548,47 +546,101 @@ func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 	}
 }
 
-func TestAdminUsersProxyUsesDeviceAuth(t *testing.T) {
-	fleetIDPath := writeTestFile(t, "dc719d8e")
-	fleetSecretPath := writeTestFile(t, "secret-value")
+func adminUsersProxyTestService(t *testing.T, directory *companyDirectoryForTest) *Service {
+	t.Helper()
 	service := NewService(Configuration{
-		APIBaseURL:            "https://api.example.test",
-		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
-		ClaimedAdminEmailPath: writeTestFile(t, "admin@example.com"),
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
-		StateDirectory:        t.TempDir(),
-		CompanionJobPath:      filepath.Join(t.TempDir(), "jobs.json"),
-		AdminUIPath:           t.TempDir(),
+		AdminEmailPath:             writeTestFile(t, "admin@example.com"),
+		ClaimedAdminEmailPath:      writeTestFile(t, "admin@example.com"),
+		BlueclawPolicyDeliveryPath: filepath.Join(t.TempDir(), "policy.json"),
+		StateDirectory:             t.TempDir(),
+		CompanionJobPath:           filepath.Join(t.TempDir(), "jobs.json"),
+		AdminUIPath:                t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			t.Fatalf("proxy url = %s", request.URL.String())
+		switch {
+		case isCompanyDirectoryRequest(request):
+			if request.Header.Get("Authorization") != "Bearer agent-key" {
+				t.Fatalf("the company door was asked without the agent key: %q", request.Header.Get("Authorization"))
+			}
+			return directory.respond(t, request)
+		case isBlueclawPolicyGet(request):
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
+		case isBlueclawPolicyReload(request), request.URL.Path == "/admin/api/persona/user":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
+		case isRecordRequestOutsideTheDirectory(request):
+			return jsonResponse(http.StatusBadGateway, `{"message":"the record is down"}`, nil), nil
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			return nil, nil
 		}
-		if request.Header.Get("X-INTERNKIM-FLEET-ID") != "dc719d8e" {
-			t.Fatalf("fleet id header = %q", request.Header.Get("X-INTERNKIM-FLEET-ID"))
-		}
-		if request.Header.Get("X-INTERNKIM-FLEET-SECRET") != "secret-value" {
-			t.Fatalf("fleet secret header = %q", request.Header.Get("X-INTERNKIM-FLEET-SECRET"))
-		}
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(`{"users":["admin@example.com"]}`)),
-			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Request:    request,
-		}, nil
 	})}
-	handler := service.router()
+	return service
+}
 
-	request := httptest.NewRequest(http.MethodGet, "/admin/api/users", nil)
+func TestAdminUsersProxyWritesAPersonThroughTheCompanyDoor(t *testing.T) {
+	directory := companyDirectoryHolding(
+		memberForTest("admin@example.com", "이샘플", "admin"),
+		memberForTest("colleague@example.com", "박예시", "member"),
+	)
+	service := adminUsersProxyTestService(t, directory)
+
+	request := httptest.NewRequest(http.MethodPost, "/admin/api/users", strings.NewReader(`{"email":"colleague@example.com","name":"박예시","role":"admin","note":"HR follow-up"}`))
 	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
+	service.router().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
-		t.Fatalf("users proxy status = %d", response.Code)
+		t.Fatalf("users proxy status = %d body = %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), "admin@example.com") {
-		t.Fatalf("users proxy body = %q", response.Body.String())
+	if len(directory.writes) != 1 {
+		t.Fatalf("the company received %d writes, want one: %+v", len(directory.writes), directory.writes)
+	}
+	written := directory.writes[0]
+	if written.Email != "colleague@example.com" || written.Name != "박예시" || written.Role != "admin" || written.Note != "HR follow-up" {
+		t.Fatalf("the company received %+v", written)
+	}
+	var answered pagesUsersResponse
+	if errorValue := json.NewDecoder(response.Body).Decode(&answered); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(answered.Records) != 2 || answered.Records[1].Email != "colleague@example.com" || answered.Records[1].Role != "admin" {
+		t.Fatalf("the console was answered with something other than the company's directory: %+v", answered.Records)
+	}
+}
+
+func TestAdminUsersProxyWithdrawsAPersonThroughTheCompanyDoor(t *testing.T) {
+	directory := companyDirectoryHolding(
+		memberForTest("admin@example.com", "이샘플", "admin"),
+		memberForTest("colleague@example.com", "박예시", "member"),
+	)
+	service := adminUsersProxyTestService(t, directory)
+
+	request := httptest.NewRequest(http.MethodDelete, "/admin/api/users/colleague%40example.com", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("users proxy status = %d body = %s", response.Code, response.Body.String())
+	}
+	if len(directory.withdrawn) != 1 || directory.withdrawn[0] != "colleague@example.com" {
+		t.Fatalf("the company withdrew %v", directory.withdrawn)
+	}
+	if strings.Contains(response.Body.String(), "colleague@example.com") {
+		t.Fatalf("somebody withdrawn is still listed as working here: %s", response.Body.String())
+	}
+}
+
+func TestAdminUsersProxyRefusesToRemoveTheLastAdmin(t *testing.T) {
+	directory := companyDirectoryHolding(memberForTest("admin@example.com", "이샘플", "admin"))
+	service := adminUsersProxyTestService(t, directory)
+
+	request := httptest.NewRequest(http.MethodDelete, "/admin/api/users/admin%40example.com", nil)
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, request)
+	if response.Code == http.StatusOK || len(directory.withdrawn) != 0 {
+		t.Fatalf("the last admin was withdrawn: status %d, withdrawn %v", response.Code, directory.withdrawn)
 	}
 }
 
@@ -996,9 +1048,19 @@ func newTaskAuthorizationTestService(t *testing.T) *Service {
 		FleetSecretPath:       fleetSecretPath,
 		TaskDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	directory := companyDirectoryHolding(
+		centralplane.Member{MemberID: "user-admin", Email: "admin@example.com", Name: "Admin", Role: "admin", Status: "active"},
+		centralplane.Member{MemberID: "user-member", Email: "member@example.com", Name: "Member", Role: "member", Status: "active"},
+		centralplane.Member{MemberID: "user-other", Email: "other@example.com", Name: "Other", Role: "member", Status: "active"},
+	)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"memberID":"user-admin","email":"admin@example.com","name":"Admin","role":"admin","status":"active"},{"memberID":"user-member","email":"member@example.com","name":"Member","role":"member","status":"active"},{"memberID":"user-other","email":"other@example.com","name":"Other","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return directory.respond(t, request)
+		}
+		if isRecordRequestOutsideTheDirectory(request) {
+			return jsonResponse(http.StatusBadGateway, `{"message":"the record is down"}`, nil), nil
 		}
 		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil

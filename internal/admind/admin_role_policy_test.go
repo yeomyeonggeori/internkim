@@ -24,9 +24,11 @@ func TestAdminSessionReadsTheRoleFromTheDirectory(t *testing.T) {
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	directory := companyDirectoryHolding(memberForTest("colleague@example.com", "박예시", "member"))
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"colleague@example.com","role":"member"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return directory.respond(t, request)
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -54,9 +56,11 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	directory := companyDirectoryHolding()
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(http.StatusOK, `{"records":[]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return directory.respond(t, request)
 		}
 		if isBlueclawPolicyGet(request) {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
@@ -112,9 +116,11 @@ func newAdminConsoleAuthorizationTestService(t *testing.T) *Service {
 		StateDirectory:        filepath.Join(rootPath, "state"),
 		AdminUIPath:           t.TempDir(),
 	})
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	directory := companyDirectoryHolding(memberForTest("colleague@example.com", "박예시", "member"), memberForTest("admin@example.com", "이샘플", "admin"))
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.Method == http.MethodGet && request.URL.String() == "https://api.example.test/api/users?fleet_id=dc719d8e" {
-			return jsonResponse(http.StatusOK, `{"users":["colleague@example.com","admin@example.com"],"records":[{"email":"colleague@example.com","role":"member"},{"email":"admin@example.com","role":"admin"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return directory.respond(t, request)
 		}
 		if strings.Contains(request.URL.Path, "/api/agent/key") {
 			return jsonResponse(http.StatusNotFound, `{}`, nil), nil

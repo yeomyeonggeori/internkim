@@ -277,14 +277,15 @@ and delete the duplicates.
   automatic behavior. A new automatic behavior must state its trigger
   evidence, its blast radius, and how it is turned off.
 - People data has three homes and exactly one owner per concern. Accounts and
-  sign-in (email, handle, Mattermost account, invite status, role) belong to the
-  account directory (Mattermost plus the fleet users index). Organization and HR
+  sign-in (email, name, role, note, messenger accounts, status) belong to central
+  `member`, which the host reads and writes only through `/api/agent/member`.
+  Organization and HR
   attributes (job title, organization, supervisor, phone number, hire date,
   employment status) belong to admind's `organization_profiles`. Blueclaw's
   `person` table is a read-only projection of policy.json, never an editing
-  surface. Never add an HR attribute to the account payload:
-  `TestFleetAccountUpsertPayloadCarriesNoOrganizationFields` fails when the
-  account upsert starts carrying one.
+  surface. Never add an HR attribute to the account write:
+  `TestAccountWriteCarriesNoOrganizationFields` fails when the account write
+  starts carrying one.
 - **One source of truth, always.** Anything two places can disagree about is
   written down once. This covers value lists (emoji names, enum options,
   capability names, component sets), and equally covers rules ("a reason is

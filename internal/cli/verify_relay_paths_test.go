@@ -31,53 +31,49 @@ func relayWorkspacePaths(t *testing.T) []string {
 	return paths
 }
 
-func TestVerifyRelayActorsUsesCanonicalDirectoryModes(t *testing.T) {
-	for _, testCase := range []struct {
-		name            string
-		agentKey        string
-		companyResponse string
-		legacyResponse  string
-		requester       string
-		administrator   string
-	}{
-		{name: "company directory", agentKey: "agent-key", companyResponse: `{"members":[{"email":"member@example.com","role":"member","status":"active"},{"email":"withdrawn@example.com","role":"admin","status":"withdrawn"},{"email":"admin@example.com","role":"admin","status":"active"}]}`, legacyResponse: `{"records":[{"email":"stale@example.com","role":"admin","status":"active"}]}`, requester: "member@example.com", administrator: "admin@example.com"},
-		{name: "legacy directory", legacyResponse: `{"records":[{"email":"member@example.com","role":"member"},{"email":"admin@example.com","role":"admin","status":"active"}]}`, requester: "member@example.com", administrator: "admin@example.com"},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			directory := t.TempDir()
-			agentKeyPath := filepath.Join(directory, "agent-key")
-			appURLPath := filepath.Join(directory, "app-url")
-			if testCase.agentKey != "" {
-				if errorValue := os.WriteFile(agentKeyPath, []byte(testCase.agentKey), 0o600); errorValue != nil {
-					t.Fatal(errorValue)
-				}
-				if errorValue := os.WriteFile(appURLPath, []byte("https://company.example"), 0o600); errorValue != nil {
-					t.Fatal(errorValue)
-				}
-			}
-			companyResponsePath := filepath.Join(directory, "company.json")
-			legacyResponsePath := filepath.Join(directory, "legacy.json")
-			for path, contents := range map[string]string{companyResponsePath: testCase.companyResponse, legacyResponsePath: testCase.legacyResponse} {
-				if errorValue := os.WriteFile(path, []byte(contents), 0o600); errorValue != nil {
-					t.Fatal(errorValue)
-				}
-			}
-			curlPath := filepath.Join(directory, "curl")
-			curlScript := "#!/bin/sh\nset -eu\nrequest_url=\"\"\nfor argument do request_url=\"$argument\"; done\ncase \"$request_url\" in\n  https://company.example/api/agent/member) cat \"$COMPANY_RESPONSE_PATH\" ;;\n  http://127.0.0.1:18080/admin/api/users) cat \"$LEGACY_RESPONSE_PATH\" ;;\n  *) exit 7 ;;\nesac\n"
-			if errorValue := os.WriteFile(curlPath, []byte(curlScript), 0o700); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			probe := "set -euo pipefail\n" + verifyRelayActorsScript(agentKeyPath, appURLPath) + "\nprintf '%s|%s' \"$relay_requester\" \"$relay_admin\"\n"
-			command := exec.Command("bash", "-c", probe)
-			command.Env = append(os.Environ(), "PATH="+directory+":"+os.Getenv("PATH"), "COMPANY_RESPONSE_PATH="+companyResponsePath, "LEGACY_RESPONSE_PATH="+legacyResponsePath)
-			output, errorValue := command.Output()
-			if errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			if string(output) != testCase.requester+"|"+testCase.administrator {
-				t.Fatalf("actors = %q", output)
-			}
-		})
+func relayActorsProbeForTest(t *testing.T, agentKey string, companyResponse string) *exec.Cmd {
+	t.Helper()
+	directory := t.TempDir()
+	agentKeyPath := filepath.Join(directory, "agent-key")
+	appURLPath := filepath.Join(directory, "app-url")
+	if agentKey != "" {
+		if errorValue := os.WriteFile(agentKeyPath, []byte(agentKey), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if errorValue := os.WriteFile(appURLPath, []byte("https://company.example"), 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	companyResponsePath := filepath.Join(directory, "company.json")
+	if errorValue := os.WriteFile(companyResponsePath, []byte(companyResponse), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	curlPath := filepath.Join(directory, "curl")
+	curlScript := "#!/bin/sh\nset -eu\nrequest_url=\"\"\nfor argument do request_url=\"$argument\"; done\ncase \"$request_url\" in\n  https://company.example/api/agent/member) cat \"$COMPANY_RESPONSE_PATH\" ;;\n  *) exit 7 ;;\nesac\n"
+	if errorValue := os.WriteFile(curlPath, []byte(curlScript), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	probe := "set -euo pipefail\n" + verifyRelayActorsScript(agentKeyPath, appURLPath) + "\nprintf '%s|%s' \"$relay_requester\" \"$relay_admin\"\n"
+	command := exec.Command("bash", "-c", probe)
+	command.Env = append(os.Environ(), "PATH="+directory+":"+os.Getenv("PATH"), "COMPANY_RESPONSE_PATH="+companyResponsePath)
+	return command
+}
+
+func TestVerifyRelayActorsReadsTheCompanyDirectory(t *testing.T) {
+	command := relayActorsProbeForTest(t, "agent-key", `{"members":[{"email":"member@example.com","role":"member","status":"active"},{"email":"withdrawn@example.com","role":"admin","status":"withdrawn"},{"email":"admin@example.com","role":"admin","status":"active"}]}`)
+	output, errorValue := command.Output()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(output) != "member@example.com|admin@example.com" {
+		t.Fatalf("actors = %q", output)
+	}
+}
+
+func TestVerifyRelayActorsFailsOnAHostWithNoCompanyKey(t *testing.T) {
+	command := relayActorsProbeForTest(t, "", `{"members":[{"email":"member@example.com","role":"member"},{"email":"admin@example.com","role":"admin","status":"active"}]}`)
+	if _, errorValue := command.Output(); errorValue == nil {
+		t.Fatal("a host with no company key verified relay actors against nothing")
 	}
 }
 
