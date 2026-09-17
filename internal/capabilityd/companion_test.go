@@ -1080,25 +1080,6 @@ func TestBrowserToolUsesCompanionBeforeDeviceFallback(t *testing.T) {
 	}
 }
 
-func TestBrowserHandoffRequiresCompanion(t *testing.T) {
-	commandWasCalled := false
-	service := Service{RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
-		commandWasCalled = true
-		return nil, nil
-	}}
-
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_handoff", strings.NewReader(`{"input":{"url":"https://example.com"}}`))
-	if errorValue != nil {
-		t.Fatalf("expected handoff denial: %v", errorValue)
-	}
-	if !response.IsError || response.Status != "denied" || !strings.Contains(string(response.Result), capabilities.CapabilityNotConnected) {
-		t.Fatalf("expected companion-required handoff denial, got %+v result=%s", response, response.Result)
-	}
-	if commandWasCalled {
-		t.Fatal("expected browser_handoff not to fallback to device browser")
-	}
-}
-
 func TestHumanInputToolFailsCleanlyWithoutCompanion(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "sk-must-not-leak")
 	service := Service{Configuration: DefaultConfiguration()}

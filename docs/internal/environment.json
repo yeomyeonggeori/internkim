@@ -381,7 +381,7 @@
   },
   "INTERNKIM_DEVICE_BROWSER_CDP": {
     "process": "device",
-    "description": "URL the device browser (moli serve) answers the Chrome DevTools Protocol on, read by internkim-capabilityd at startup; default http://127.0.0.1:9222"
+    "description": "URL the device browser (moli serve) answers the Chrome DevTools Protocol on, read by internkim-capabilityd at startup and by the relay to stream a browser handoff; default http://127.0.0.1:9222"
   },
   "INTERNKIM_DOMAIN": {
     "process": "cli",

@@ -193,7 +193,7 @@ func captchaBlockedResponse(toolName string, snapshotText string) (capabilities.
 	message := fmt.Sprintf(
 		"blocked_by_captcha: this URL returned a bot-detection wall (matched: %q). "+
 			"Do NOT pretend you have the information from this page. "+
-			"Tell the user that the page needs the speaker's Companion browser, then stop.",
+			"Call browser_handoff with this URL so the person who asked can pass the check themselves, share its openURL, then stop.",
 		matchedSignature,
 	)
 	return capabilities.ToolInvokeResponse{
