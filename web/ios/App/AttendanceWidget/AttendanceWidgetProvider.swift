@@ -5,6 +5,7 @@ struct AttendanceEntry: TimelineEntry {
     let today: AttendanceToday
     let locations: [WorkLocation]
     let failure: String?
+    var refusal: String?
 
     static func nothingYet(_ date: Date = Date()) -> AttendanceEntry {
         AttendanceEntry(date: date, today: AttendanceToday(), locations: [], failure: nil)
@@ -27,9 +28,23 @@ struct AttendanceProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<AttendanceEntry>) -> Void) {
         Task {
-            let entry = await read()
+            var entry = await read()
             let after = entry.today.isWorking ? Self.whileWorking : Self.whileIdle
-            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(after))))
+            let refreshAt = Date().addingTimeInterval(after)
+
+            guard let refusal = AttendanceRefusal.recent() else {
+                completion(Timeline(entries: [entry], policy: .after(refreshAt)))
+                return
+            }
+            let settled = entry
+            entry.refusal = refusal
+            let cleared = AttendanceEntry(
+                date: Date().addingTimeInterval(AttendanceRefusal.shownFor),
+                today: settled.today,
+                locations: settled.locations,
+                failure: settled.failure
+            )
+            completion(Timeline(entries: [entry, cleared], policy: .after(refreshAt)))
         }
     }
 

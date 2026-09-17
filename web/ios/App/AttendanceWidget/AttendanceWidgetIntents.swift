@@ -18,8 +18,7 @@ struct ClockInIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        _ = try await AttendanceAPI.held().clock(kind: "clock_in", location: location)
-        WidgetCenter.shared.reloadAllTimelines()
+        await clock(kind: "clock_in", location: location)
         return .result()
     }
 }
@@ -32,8 +31,17 @@ struct ClockOutIntent: AppIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
-        _ = try await AttendanceAPI.held().clock(kind: "clock_out", location: nil)
-        WidgetCenter.shared.reloadAllTimelines()
+        await clock(kind: "clock_out", location: nil)
         return .result()
     }
+}
+
+@available(iOS 17.0, *)
+private func clock(kind: String, location: String?) async {
+    do {
+        _ = try await AttendanceAPI.held().clock(kind: kind, location: location)
+    } catch {
+        AttendanceRefusal.keep(error.localizedDescription)
+    }
+    WidgetCenter.shared.reloadAllTimelines()
 }
