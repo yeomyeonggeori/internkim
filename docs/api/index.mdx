@@ -89,6 +89,7 @@ that address:
 
 ```bash
 claude mcp add --transport http internkim https://api.intern.kim/v1/mcp
+claude mcp login internkim
 ```
 
 A call without a token answers `401` with
@@ -99,6 +100,12 @@ to sign in and allow it, and keeps the token it is given. The token is that
 person's session for that app, so it carries full permission like a signed-in
 web session. The app is listed under connected apps in settings, and
 disconnecting it refuses its next call.
+
+Anyone can register a client under any name, so the consent screen also shows
+where the access goes. A client on your own computer returns to `localhost` or
+its own app address. When the address is a website instead, the screen warns
+that the site receives the access; allow it only if you started connecting and
+know that site.
 
 The [internkim plugin](https://github.com/yeomyeonggeori/internkim-plugin)
 declares the same server in its `mcp.json`, so installing the plugin connects
