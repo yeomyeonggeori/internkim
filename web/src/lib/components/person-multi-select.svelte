@@ -8,7 +8,6 @@
 </script>
 
 <script lang="ts">
-	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import XIcon from '@lucide/svelte/icons/x';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
@@ -101,9 +100,6 @@
 									<span class="block truncate">{displayPersonName(person.name)}</span>
 									<span class="block truncate text-xs text-muted-foreground">{person.email}</span>
 								</span>
-								{#if selected.has(person.memberID)}
-									<CheckIcon class="size-4 shrink-0" />
-								{/if}
 							</Command.Item>
 						{/each}
 					</Command.Group>
