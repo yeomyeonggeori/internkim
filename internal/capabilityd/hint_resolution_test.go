@@ -21,11 +21,11 @@ func TestAnIdentifierResolvesAndANearOneDoesNot(t *testing.T) {
 	}
 }
 
-func TestAnExactNameWinsOverALongerNameThatContainsIt(t *testing.T) {
+func TestANameThatBeginsAnotherNameIsAQuestion(t *testing.T) {
 	resolution := resolveHint("박예시", directoryPeopleFixture(), nil)
 
-	if resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-2" {
-		t.Fatalf("a whole name is that person, got %+v", resolution)
+	if resolution.Outcome != hintAmbiguous || len(resolution.Candidates) != 2 {
+		t.Fatalf("a name two people answer to is never picked here, got %+v", resolution)
 	}
 }
 
@@ -53,5 +53,61 @@ func TestANameNothingComesCloseToNamesNothing(t *testing.T) {
 
 	if resolution.Outcome != hintNotFound || len(resolution.Candidates) != 0 {
 		t.Fatalf("nothing close is nothing to offer, got %+v", resolution)
+	}
+}
+
+func TestANameInEitherOrderIsTheSamePerson(t *testing.T) {
+	people := []directoryPerson{
+		{MemberID: "person-lee", Email: "sample@example.com", Name: "샘플 이"},
+		{MemberID: "person-smith", Email: "smith@example.com", Name: "John Michael Smith"},
+	}
+	for hint, memberID := range map[string]string{
+		"이샘플":                "person-lee",
+		"샘플 이":               "person-lee",
+		"샘플이":                "person-lee",
+		"Smith John Michael": "person-smith",
+		"john michael smith": "person-smith",
+		"John Smith":         "person-smith",
+		"Smith John":         "person-smith",
+	} {
+		resolution := resolveHint(hint, people, nil)
+		if resolution.Outcome != hintResolved || resolution.Match.MemberID != memberID {
+			t.Errorf("%q is written in one of the orders a name has, got %+v", hint, resolution)
+		}
+	}
+}
+
+func TestANameWithAndWithoutAMiddleIsAQuestion(t *testing.T) {
+	people := []directoryPerson{
+		{MemberID: "person-plain", Email: "plain@example.com", Name: "John Smith"},
+		{MemberID: "person-middle", Email: "middle@example.com", Name: "John Michael Smith"},
+	}
+	for _, hint := range []string{"Smith John", "John Smith", "Smith"} {
+		if resolution := resolveHint(hint, people, nil); resolution.Outcome != hintAmbiguous || len(resolution.Candidates) != 2 {
+			t.Errorf("%q could be either of them, got %+v", hint, resolution)
+		}
+	}
+	if resolution := resolveHint("Michael", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-middle" {
+		t.Fatalf("a name only one person answers to is that person, got %+v", resolution)
+	}
+}
+
+func TestTwoPeopleWithOneNameAreAQuestion(t *testing.T) {
+	people := []directoryPerson{
+		{MemberID: "person-work", Email: "chanhee@example.com", Name: "이찬희(dawn.kim)"},
+		{MemberID: "person-personal", Email: "chanhee2468@example.com", Name: "찬희 이"},
+		{MemberID: "person-other", Email: "other@example.com", Name: "예시 김"},
+	}
+	for _, hint := range []string{"이찬희", "찬희", "찬희 이"} {
+		resolution := resolveHint(hint, people, nil)
+		if resolution.Outcome != hintAmbiguous || len(resolution.Candidates) != 2 {
+			t.Errorf("%q names two people and nothing here may pick one, got %+v", hint, resolution)
+		}
+	}
+	if resolution := resolveHint("chanhee2468@example.com", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-personal" {
+		t.Fatalf("an address tells two people with one name apart, got %+v", resolution)
+	}
+	if resolution := resolveHint("예시", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-other" {
+		t.Fatalf("a name one person answers to is that person, got %+v", resolution)
 	}
 }
