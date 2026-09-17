@@ -555,6 +555,10 @@
     "process": "cli",
     "description": "when \"1\", internal/cli/setup_flow.go skips the Cloudflare Pages deploy step for a lab/local-fleet run"
   },
+  "INTERNKIM_TEST_MOLI": {
+    "process": "go tests",
+    "description": "the moli executable internal/browser/device_browsers_test.go launches to prove a device browser serves the DevTools Protocol and stops; unset skips that test"
+  },
   "INTERNKIM_TARGET_USERNAME": {
     "process": "web e2e tests",
     "description": "the messenger username the ephemeral-render-check and matrix-evidence specs target"
