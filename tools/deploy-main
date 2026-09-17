@@ -144,11 +144,17 @@ def fetch_health(admin_url):
         return json.load(response)
 
 
-def device_revision_of(target):
-    try:
-        health = fetch_health(target["adminURL"])
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-        raise Refusal(f"could not read {target['id']}'s health endpoint: {error}")
+# The device answers through Cloudflare over a WAN whose round trip spikes
+# past ten seconds now and then; one stalled read is not a device that is gone.
+def device_revision_of(target, attempts=3):
+    for attempt in range(1, attempts + 1):
+        try:
+            health = fetch_health(target["adminURL"])
+            break
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+            if attempt == attempts:
+                raise Refusal(f"could not read {target['id']}'s health endpoint in {attempts} attempts: {error}")
+            print(f"deploy-main: {target['id']}'s health endpoint did not answer ({error}); asking again", flush=True)
     revision = health.get("gitRevision", "")
     if not revision:
         raise Refusal(f"{target['id']}'s health endpoint carries no gitRevision")
