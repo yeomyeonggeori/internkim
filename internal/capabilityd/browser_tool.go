@@ -96,20 +96,10 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
-	if capabilityToolHasResultContract(request.ToolName) {
-		return capabilitySuccessResponseFrom(request.ToolName, "ok", document, capabilityResponseOrigin{
-			Provider:        "device",
-			SelectedBackend: capabilities.LLMBackendDevice,
-		})
-	}
-	return capabilities.ToolInvokeResponse{
+	return capabilitySuccessResponseFrom(request.ToolName, "ok", document, capabilityResponseOrigin{
 		Provider:        "device",
 		SelectedBackend: capabilities.LLMBackendDevice,
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Status:          "ok",
-		Result:          document,
-	}, nil
+	})
 }
 
 func (service Service) deviceBrowserRuntime() browserruntime.AgentBrowserRuntime {

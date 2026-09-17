@@ -75,8 +75,3 @@ func holdResultToContract(descriptor capabilities.Descriptor, result json.RawMes
 	}
 	return nil
 }
-
-func capabilityToolHasResultContract(toolName string) bool {
-	descriptor, isRegistered := capabilityToolDescriptorFor(toolName)
-	return isRegistered && capabilityprotocol.StatesAResultContract(descriptor)
-}

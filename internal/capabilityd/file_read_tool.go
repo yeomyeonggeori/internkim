@@ -75,7 +75,7 @@ type documentReadResult struct {
 	Truncated bool     `json:"truncated"`
 }
 
-type imageReadAttachment struct {
+type workspaceImageAttachment struct {
 	DevicePath    string `json:"devicePath"`
 	Filename      string `json:"filename"`
 	ContentType   string `json:"contentType"`
@@ -83,10 +83,10 @@ type imageReadAttachment struct {
 	ContentBase64 string `json:"contentBase64"`
 }
 
-type imageReadResult struct {
-	Status      string                `json:"status"`
-	Path        string                `json:"path"`
-	Attachments []imageReadAttachment `json:"attachments"`
+type workspaceImageResult struct {
+	Status      string                     `json:"status"`
+	Path        string                     `json:"path"`
+	Attachments []workspaceImageAttachment `json:"attachments"`
 }
 
 type documentConversionAttempt struct {
@@ -163,10 +163,10 @@ func (service Service) invokeImageReadTool(ctx context.Context, request capabili
 	if int64(len(carried.Content)) > maximumInputImagePartBytes {
 		return fileReadErrorResponse(request.ToolName, "image is larger than the model input limit", "image_too_large", "image_read", false), nil
 	}
-	result := imageReadResult{
+	result := workspaceImageResult{
 		Status: "ok",
 		Path:   carried.AgentPath,
-		Attachments: []imageReadAttachment{{
+		Attachments: []workspaceImageAttachment{{
 			DevicePath:    carried.AgentPath,
 			Filename:      filepath.Base(carried.AgentPath),
 			ContentType:   contentType,
