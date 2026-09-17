@@ -51,7 +51,7 @@ func startCompanyHoldingATaskVocabulary(t *testing.T) *httptest.Server {
 			return
 		}
 		responseWriter.Write([]byte(`{"result":{"count":0,"tasks":[],` +
-			`"registeredLabels":{"businesses":["신사업"],"types":["협상"],"sizes":["XS"],"statuses":["planned"]}}}`))
+			`"registeredLabels":{"businesses":[{"name":"신사업","color":"#2563eb"}],"types":[{"name":"협상"}],"sizes":["XS"],"statuses":["planned"]}}}`))
 	}))
 	t.Cleanup(server.Close)
 	return server
