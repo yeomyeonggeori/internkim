@@ -18,10 +18,17 @@ export type HandoffEnded = {
 	outcome: HandoffOutcome;
 };
 
-export type HandoffEvent = HandoffFrame | HandoffEnded;
+export type HandoffTrouble = {
+	kind: 'trouble';
+	handoffID: string;
+	reason: string;
+};
+
+export type HandoffEvent = HandoffFrame | HandoffEnded | HandoffTrouble;
 
 const frameEventKind = 'browser.handoff.frame';
 const endedEventKind = 'browser.handoff.ended';
+const troubleEventKind = 'browser.handoff.trouble';
 const outcomes: HandoffOutcome[] = ['completed', 'abandoned', 'expired'];
 
 export function handoffEventOf(offered: unknown): HandoffEvent | null {
@@ -30,6 +37,7 @@ export function handoffEventOf(offered: unknown): HandoffEvent | null {
 	if (typeof held.handoffID !== 'string' || held.handoffID === '') return null;
 	if (held.kind === frameEventKind) return frameOf(held.handoffID, held);
 	if (held.kind === endedEventKind) return endedOf(held.handoffID, held);
+	if (held.kind === troubleEventKind) return { kind: 'trouble', handoffID: held.handoffID, reason: typeof held.reason === 'string' ? held.reason : '' };
 	return null;
 }
 

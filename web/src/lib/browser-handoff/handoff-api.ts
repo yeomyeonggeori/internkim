@@ -31,7 +31,7 @@ export async function watchHandoff(handoffID: string, viewport: Viewport | null)
 
 export async function sendHandoffInputs(handoffID: string, inputs: HandoffInput[]): Promise<void> {
 	const answer = await callCompanyApp({ capability: 'person.browser.handoff.input', body: { handoffID, inputs } });
-	if (answer.status >= 400) throw new Error(`the browser handoff refused its input with ${answer.status}`);
+	if (answer.status >= 400) throw new Error(refusalReasonOf(answer.status, answer.body));
 }
 
 export async function finishHandoff(handoffID: string, outcome: FinishingOutcome): Promise<void> {
