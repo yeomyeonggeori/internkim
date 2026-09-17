@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -100,24 +101,18 @@ func (service *Service) ensureClaimedFirstAdminAccount(ctx context.Context, emai
 }
 
 func (service *Service) claimFirstAdmin(ctx context.Context, email string) (firstAdminBootstrapResult, error) {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID == "" || fleetSecret == "" {
-		return firstAdminBootstrapResult{}, fmt.Errorf("device auth is not configured")
-	}
-
-	records, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret)
+	records, errorValue := service.companyUserRecords(ctx)
 	if errorValue != nil {
 		return firstAdminBootstrapResult{}, errorValue
 	}
-	if errorValue := service.writeUserRole(ctx, fleetID, fleetSecret, email, "admin"); errorValue != nil {
+	if errorValue := service.writeUserRole(ctx, email, "admin"); errorValue != nil {
 		return firstAdminBootstrapResult{}, errorValue
 	}
 	for _, record := range records {
 		if record.Role != "admin" || strings.EqualFold(record.Email, email) {
 			continue
 		}
-		if errorValue := service.writeUserRole(ctx, fleetID, fleetSecret, record.Email, "member"); errorValue != nil {
+		if errorValue := service.writeUserRole(ctx, record.Email, "member"); errorValue != nil {
 			return firstAdminBootstrapResult{}, errorValue
 		}
 	}
@@ -364,57 +359,21 @@ func (service *Service) consumeFirstAdminPassword(email string) firstAdminPasswo
 	return passwordDocument
 }
 
-func (service *Service) writeUserRole(ctx context.Context, fleetID string, fleetSecret string, email string, role string) error {
-	payload := map[string]string{
-		"fleet_id": fleetID,
-		"email":    strings.ToLower(strings.TrimSpace(email)),
-		"role":     normalizeAdminUserRole(role),
-		"handle":   normalizeMemberHandle(memberHandleBase(email)),
-		"name":     firstNonEmpty(strings.TrimSpace(email), "Admin"),
-	}
-	document, errorValue := json.Marshal(payload)
-	if errorValue != nil {
-		return errorValue
-	}
-	requestURL := strings.TrimRight(service.Configuration.APIBaseURL, "/") + "/api/users"
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, strings.NewReader(string(document)))
-	if errorValue != nil {
-		return errorValue
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-INTERNKIM-FLEET-ID", fleetID)
-	request.Header.Set("X-INTERNKIM-FLEET-SECRET", fleetSecret)
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
-		return nil
-	}
-	responseDocument, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-	return fmt.Errorf("write user role returned %d: %s", response.StatusCode, strings.TrimSpace(string(responseDocument)))
+// A role write names only the role, so the name the company already holds for
+// this person survives it.
+func (service *Service) writeUserRole(ctx context.Context, email string, role string) error {
+	return service.saveCompanyUserRecord(ctx, centralplane.MemberWrite{
+		Email: strings.ToLower(strings.TrimSpace(email)),
+		Role:  normalizeAdminUserRole(role),
+	})
 }
 
 func (service *Service) writeClaimedAdminRole(ctx context.Context, email string) error {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID == "" || fleetSecret == "" {
-		return fmt.Errorf("device auth is not configured")
-	}
-	return service.writeUserRole(ctx, fleetID, fleetSecret, email, "admin")
+	return service.writeUserRole(ctx, email, "admin")
 }
 
 func (service *Service) currentUserRecords(ctx context.Context) ([]adminUserMutation, error) {
-	if service.deviceBelongsToACompany() {
-		return service.companyMemberRecords(ctx)
-	}
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID == "" || fleetSecret == "" {
-		return nil, fmt.Errorf("device auth is not configured")
-	}
-	return service.lookupUserRecords(ctx, fleetID, fleetSecret)
+	return service.companyUserRecords(ctx)
 }
 
 func (service *Service) hasCurrentAdminUsers(ctx context.Context) (bool, error) {

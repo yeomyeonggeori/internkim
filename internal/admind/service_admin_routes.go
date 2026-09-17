@@ -201,8 +201,6 @@ func (service *Service) handleAdminUserRoute(responseWriter http.ResponseWriter,
 	switch {
 	case request.Method == http.MethodGet && path == "/users":
 		service.proxyUsers(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/users/batch":
-		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/circles":

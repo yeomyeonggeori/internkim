@@ -362,14 +362,7 @@ func (service *Service) companyShareMembers(sources []companyShareMemberSource) 
 }
 
 func (service *Service) enrichCompanyShareMemberSources(ctx context.Context, sources []companyShareMemberSource) []companyShareMemberSource {
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	var records []adminUserMutation
-	if fleetID != "" && fleetSecret != "" {
-		if fetched, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
-			records = fetched
-		}
-	}
+	records, _ := service.companyUserRecords(ctx)
 	records = mergeUserRecordsByEmail(records, service.blueclawPolicyUserRecords(ctx))
 	directoryByMemberID := make(map[string]companyShareMemberSource, len(records))
 	for _, record := range records {

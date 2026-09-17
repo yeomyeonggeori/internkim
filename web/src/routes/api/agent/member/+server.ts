@@ -1,7 +1,7 @@
-import { json } from '@sveltejs/kit';
+import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { circleNamesByMemberID } from '$lib/server/fleet-user-directory';
+import { circleNamesByMemberID, memberWriteSchema, saveMember, withdrawMember } from '$lib/server/member-directory';
 
 export const GET: RequestHandler = async ({ request, url, platform }) => {
 	const { client, companyID } = await callingAgent(request, environmentOf(platform));
@@ -39,13 +39,34 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	return json({ member: named.find((member) => member.email === email) ?? null });
 };
 
+export const POST: RequestHandler = async ({ request, platform }) => {
+	const { client, companyID } = await callingAgent(request, environmentOf(platform));
+
+	const asked = memberWriteSchema.safeParse(await request.json().catch(() => ({})));
+	if (!asked.success) error(400, 'a member write names an address and may carry a name, a role, a note and messenger accounts');
+
+	return json({ member: await saveMember({ client, companyID }, asked.data) });
+};
+
+export const DELETE: RequestHandler = async ({ request, url, platform }) => {
+	const { client, companyID } = await callingAgent(request, environmentOf(platform));
+
+	const email = (url.searchParams.get('email') ?? '').trim().toLowerCase();
+	if (!email) error(400, 'email required');
+
+	const withdrawn = await withdrawMember({ client, companyID }, email);
+	if (!withdrawn) error(404, 'nobody here goes by that address');
+	return json({ member: withdrawn });
+};
+
 const memberColumns =
-	'id, email, name, messenger, is_admin, status, job_title, phone_number, joined_at, team_id, supervisor_id';
+	'id, email, name, note, messenger, is_admin, status, job_title, phone_number, joined_at, team_id, supervisor_id';
 
 type MemberRow = {
 	id: string;
 	email: string | null;
 	name: string | null;
+	note: string | null;
 	messenger: Record<string, string> | null;
 	is_admin: boolean;
 	status: string;
@@ -67,6 +88,7 @@ function namedMembers(
 		memberID: row.id,
 		email: (row.email ?? '').toLowerCase(),
 		name: row.name ?? '',
+		note: row.note ?? '',
 		messenger: row.messenger ?? {},
 		role: row.is_admin ? 'admin' : 'member',
 		circles: circlesByMemberID.get(row.id) ?? [],

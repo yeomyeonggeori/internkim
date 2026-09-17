@@ -12,7 +12,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
+
+func memoryDirectoryForTest() *companyDirectoryForTest {
+	return companyDirectoryHolding(centralplane.Member{MemberID: "user:person-1", Email: "member@example.com", Name: "Member", Role: "member", Status: "active"})
+}
 
 func TestMemoryAPIUsesMattermostSessionUserFacts(t *testing.T) {
 	service := NewService(Configuration{
@@ -22,9 +28,10 @@ func TestMemoryAPIUsesMattermostSessionUserFacts(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/memory/facts" && request.Method == http.MethodGet {
 			if request.URL.Query().Get("readerPersonID") != "user:person-1" {
@@ -63,9 +70,10 @@ func TestMemoryAPIResolvesTheSessionUserSchedules(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/schedule" && request.Method == http.MethodGet {
 			if request.URL.Query().Get("creatorPersonID") != "user:person-1" {
@@ -157,9 +165,10 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/schedule/cancel" && request.Method == http.MethodPost {
 			var payload struct {
@@ -201,9 +210,10 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/schedule/delete" && request.Method == http.MethodPost {
 			var payload struct {
@@ -245,9 +255,10 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/schedule/update" && request.Method == http.MethodPost {
 			var payload struct {
@@ -295,9 +306,10 @@ func TestMemoryAPIForgetInjectsResolvedPersonID(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/memory/facts/forget" && request.Method == http.MethodPost {
 			var payload struct {
@@ -393,9 +405,10 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/schedule" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `private backend detail`, nil), nil
@@ -431,9 +444,10 @@ func TestMemoryAPIFactsHidesUpstreamFailureDetails(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, `{"records":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
 		}
 		if request.URL.Path == "/admin/api/memory/facts" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusInternalServerError, `Traceback /workspace/.blueclaw/private.py`, nil), nil
@@ -469,8 +483,9 @@ func TestMemoryAPIFactsHidesIdentityFailureDetails(t *testing.T) {
 		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() == "https://api.example.test/api/users?fleet_id=device-1" && request.Method == http.MethodGet {
+		if isCompanyDirectoryRequest(request) {
 			return jsonResponse(http.StatusInternalServerError, `internal identity path /root/internkim/private.go`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())

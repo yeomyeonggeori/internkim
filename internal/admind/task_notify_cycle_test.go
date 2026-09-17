@@ -3,6 +3,7 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -35,6 +36,24 @@ func blueclawServingRuns(t *testing.T, runsByCall ...[]taskNotifyRun) (*httptest
 	}))
 	t.Cleanup(server.Close)
 	return server, &call
+}
+
+func companyDirectoryServing(t *testing.T, members ...centralplane.Member) *httptest.Server {
+	t.Helper()
+	directory := companyDirectoryHolding(members...)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/agent/member" {
+			http.Error(writer, "the record is down", http.StatusBadGateway)
+			return
+		}
+		response, _ := directory.respond(t, request)
+		defer response.Body.Close()
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(response.StatusCode)
+		_, _ = io.Copy(writer, response.Body)
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
 
 func newTaskNotifyCycleService(t *testing.T, blueclawURL string, stateDirectory string) *Service {
@@ -135,16 +154,15 @@ func TestARunThatChangedLongAgoIsMarkedWithoutNotifying(t *testing.T) {
 		{TaskRunID: "stale", Status: "completed", RequesterPersonID: "person-1", UpdatedAt: now.Add(-taskNotifyFreshFor - time.Minute)},
 		{TaskRunID: "fresh", Status: "completed", RequesterPersonID: "person-1", UpdatedAt: now.Add(-time.Minute)},
 	})
-	directory := directoryServing(t, []adminUserMutation{
-		{MemberID: "person-1", Email: "member1@example.com", Status: "active"},
-	})
+	directory := companyDirectoryServing(t, centralplane.Member{MemberID: "person-1", Email: "member1@example.com", Status: "active"})
 	state := t.TempDir()
 	service := NewService(Configuration{
-		DatabasePath:    filepath.Join(state, "internkim.sqlite"),
-		BlueclawBaseURL: server.URL,
-		APIBaseURL:      directory.URL,
-		FleetIDPath:     writeLiveFile(t, state, "fleet-id", "cycle-fleet"),
-		FleetSecretPath: writeLiveFile(t, state, "fleet-secret", "cycle-secret"),
+		DatabasePath:               filepath.Join(state, "internkim.sqlite"),
+		BlueclawBaseURL:            server.URL,
+		CentralPlaneAppURL:         directory.URL,
+		CentralPlaneProjectURL:     companyProjectURLForTest,
+		CentralPlanePublishableKey: "publishable",
+		CentralPlaneAgentKeyPath:   writeLiveFile(t, state, "agent-key", "agent-key"),
 	})
 	ctx := context.Background()
 
