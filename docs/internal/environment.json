@@ -799,6 +799,10 @@
     "process": "connection-gateway worker",
     "description": "override JWKS URL the connection-gateway worker verifies member tokens against, instead of deriving it from SUPABASE_URL"
   },
+  "SUPABASE_JWT_SIGNING_KEY": {
+    "process": "web, web scripts",
+    "description": "the private JWK the web app signs record tokens with for personal access tokens, agent sessions and the host, registered with the Supabase project by web/scripts/issue-record-signing-key.ts; locally the stack's JWT secret as an oct JWK, which web/scripts/test-integration.sh derives"
+  },
   "SUPABASE_PROJECT_REF": {
     "process": "web scripts",
     "description": "the Supabase project reference web/scripts/remote-query.ts targets"

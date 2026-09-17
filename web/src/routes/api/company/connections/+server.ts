@@ -1,4 +1,4 @@
-import { adminCallerOf, asMember, controlPlane } from '$lib/server/control-plane';
+import { type PlaneCredentials, adminCallerOf, asMember, controlPlane, planeCredentialsOf } from '$lib/server/control-plane';
 import { companyConnectionKinds } from '$lib/company/connections';
 import {
 	companyConnections,
@@ -12,22 +12,13 @@ import { memberAccessTokenOf } from '$lib/server/member-request';
 
 
 
-type Plane = { projectURL: string; publishableKey: string; serviceRoleKey: string };
-
-function planeOf(platform: App.Platform | undefined): Plane {
-	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
-	const plane = {
-		projectURL: environment.SUPABASE_URL ?? '',
-		publishableKey: environment.SUPABASE_PUBLISHABLE_KEY ?? '',
-		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? ''
-	};
-	if (!plane.projectURL || !plane.publishableKey || !plane.serviceRoleKey) {
-		error(500, 'the central plane is not configured');
-	}
+function planeOf(platform: App.Platform | undefined): PlaneCredentials {
+	const plane = planeCredentialsOf({ ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) });
+	if (!plane) error(500, 'the central plane is not configured');
 	return plane;
 }
 
-async function adminOf(request: Request, plane: Plane) {
+async function adminOf(request: Request, plane: PlaneCredentials) {
 	const { accessToken } = await memberAccessTokenOf(request, plane);
 	const caller = await adminCallerOf(asMember(plane, accessToken));
 	if (!caller) error(403, 'only an admin keeps these');
