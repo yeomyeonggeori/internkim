@@ -37,6 +37,7 @@ import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { HeldQuestionStore } from './held-question-store';
+import { activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -134,7 +135,6 @@ async function readMessengerCredential(memberID: string): Promise<{ kind: string
 
 const dispatch = {
 	messageArrived: tellBrowsers,
-	tellThoseAddressed,
 	serveAsset: asset,
 	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestBytes ?? largestPictureBytes),
@@ -438,6 +438,14 @@ Bun.serve({
 	}
 });
 console.log(`arrivals accepted on 127.0.0.1:${arrivalsPort}`);
+
+keepWatchingArrivals({
+	activeMemberIDs: () => activeMemberIDsOf(client, companyID),
+	credentialOf: (memberID) => credentials.credentialOf(memberID),
+	askChatd: (capability, body) => dispatch.askChatd(capability, body),
+	arrivalsURL: `http://127.0.0.1:${arrivalsPort}${arrivalsPath}`,
+	report: (line) => console.log(line)
+});
 
 // Whatever the last relay took and had not delivered is still on disk.
 inboundTurns.startDraining();

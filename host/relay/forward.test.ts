@@ -26,7 +26,6 @@ import {
 	type KeptFileReference,
 	type PublicAPIRequest
 } from './forward';
-import type { ArrivedMessage } from './arrived';
 import { MessengerAnswered } from './person-picture';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,18 +36,12 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const connected: { memberID: string; account: ConnectedAccount }[] = [];
 	const admindCalls: AdmindCall[] = [];
 	const arrivals: { conversationID: string; messageID: string }[] = [];
-	const told: ArrivedMessage[] = [];
 	return {
 		asked,
 		connected,
 		admindCalls,
 		arrivals,
-		told,
 		dispatch: {
-			tellThoseAddressed: async (arrived: ArrivedMessage) => {
-				told.push(arrived);
-				return arrived.recipientExternalIDs.length;
-			},
 			connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 				connected.push({ memberID, account });
 			},
@@ -249,73 +242,23 @@ describe('serveCallForMember', () => {
 });
 
 describe('a message the app sent', () => {
-	function dispatchThatDelivers() {
-		const { asked, arrivals, told, dispatch } = dispatchThatKnows({});
-		return {
-			told,
-			arrivals,
-			dispatch: {
-				...dispatch,
-				askChatd: async (capability: string, body: Record<string, unknown>) => {
-					asked.push({ capability, body });
-					if (capability === 'person.message.send') return { status: 200, body: { id: 'event-1' } };
-					if (capability === 'person.identity') return { status: 200, body: { externalID: 'U-author' } };
-					return {
-						status: 200,
-						body: { conversations: [{ id: 'channel-1', participantExternalIDs: ['U-author', 'U-first'] }] }
-					};
-				}
-			}
-		};
-	}
-
-	test('is told to the others in the conversation once the messenger took it', async () => {
-		const { told, arrivals, dispatch } = dispatchThatDelivers();
-
-		const served = await serveCallForMember(
-			dispatch,
-			{ callID: 'c1', capability: 'person.message.send', body: { conversationID: 'channel-1', body: '지금 갈게요' } },
-			'member-1'
-		);
-		await untilTold(told);
-
-		expect(served.status).toBe(200);
-		expect(arrivals).toEqual([{ conversationID: 'channel-1', messageID: 'event-1' }]);
-		expect(told).toEqual([
-			{
-				conversationID: 'channel-1',
-				messageID: 'event-1',
-				authorExternalID: 'U-author',
-				authorName: '',
-				recipientExternalIDs: ['U-first'],
-				preview: '지금 갈게요'
-			}
-		]);
-	});
-
-	test('a message the messenger refused is told to nobody', async () => {
-		const { told, dispatch } = dispatchThatDelivers();
+	test('is shown to the browsers once the messenger took it', async () => {
+		const { arrivals, dispatch } = dispatchThatKnows({});
 
 		const served = await serveCallForMember(
 			{
 				...dispatch,
-				askChatd: async () => ({ status: 403, body: { error: 'not in this channel' } })
+				askChatd: async (capability: string) =>
+					capability === 'person.message.send' ? { status: 200, body: { id: 'event-1' } } : { status: 200, body: {} }
 			},
 			{ callID: 'c1', capability: 'person.message.send', body: { conversationID: 'channel-1', body: '지금 갈게요' } },
 			'member-1'
 		);
-		await untilTold(told, 0);
 
-		expect(served.status).toBe(403);
-		expect(told).toEqual([]);
+		expect(served.status).toBe(200);
+		expect(arrivals).toEqual([{ conversationID: 'channel-1', messageID: 'event-1' }]);
 	});
 });
-
-async function untilTold(told: ArrivedMessage[], expected = 1): Promise<void> {
-	for (let turn = 0; turn < 20 && told.length < expected; turn += 1) {
-		await new Promise((settle) => setTimeout(settle, 1));
-	}
-}
 
 describe('a message carrying a file the messenger will not store', () => {
 	const send = {
