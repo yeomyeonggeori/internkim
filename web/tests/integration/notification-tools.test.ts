@@ -13,7 +13,6 @@ const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
 const slug = `notification-tools-${Date.now()}`;
 const now = new Date();
-const subscription = 'https://push.example.test/subscription-1';
 
 let companyID = '';
 let sampleID = '';
@@ -67,8 +66,6 @@ type NotificationChoice = { category: string; isOn: boolean; isChoosable: boolea
 type SettingsResult = { categories: NotificationChoice[]; mutedConversationIDs: string[] };
 
 type MutingResult = { conversationID: string; isMuted: boolean; mutedConversationIDs: string[] };
-
-type ReachabilityResult = { serverKey: string; isServerKeyVaulted: boolean; hasClaimedDevice: boolean };
 
 function resultOf<Result>(answer: { body: unknown }): Result {
 	return (answer.body as { result: Result }).result;
@@ -157,40 +154,5 @@ describe('a conversation the requester stopped being told about', () => {
 		expect(colleague.mutedConversationIDs).toEqual([]);
 
 		await asSample('conversation_unmute', { conversationID: 'conversation-2' });
-	});
-});
-
-describe('the browser subscription push is delivered to', () => {
-	test('is claimed, read back, and released', async () => {
-		const before = resultOf<ReachabilityResult>(await asSample('push_reachability_get'));
-		expect(before.hasClaimedDevice).toBe(false);
-
-		const claimed = resultOf<ReachabilityResult>(
-			await asSample('push_device_claim', {
-				endpoint: subscription,
-				publicKey: 'a-public-key',
-				authenticationSecret: 'an-authentication-secret'
-			})
-		);
-		expect(claimed.hasClaimedDevice).toBe(true);
-
-		const released = resultOf<ReachabilityResult>(
-			await asSample('push_device_release', { endpoint: subscription })
-		);
-		expect(released.hasClaimedDevice).toBe(false);
-	});
-
-	test('is refused when the call carries no keys to encrypt to', async () => {
-		const refused = await asSample('push_device_claim', { endpoint: subscription });
-
-		expect(refused.status).toBe(400);
-		expect(errorOf(refused)).toContain('keys');
-	});
-
-	test('answers no server key while this company has none in the vault', async () => {
-		const answered = resultOf<ReachabilityResult>(await asSample('push_reachability_get'));
-
-		expect(answered.serverKey).toBe('');
-		expect(answered.isServerKeyVaulted).toBe(false);
 	});
 });

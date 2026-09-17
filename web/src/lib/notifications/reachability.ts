@@ -1,6 +1,14 @@
 export type Reachability = 'unsupported' | 'unconfigured' | 'blocked' | 'off' | 'on';
 
-export type PushDeviceKind = 'web-push' | 'apns' | 'fcm';
+export const pushDeviceKinds = ['web-push', 'apns', 'fcm'] as const;
+
+export type PushDeviceKind = (typeof pushDeviceKinds)[number];
+
+export type PushReachability = {
+	serverKey: string;
+	isServerKeyVaulted: boolean;
+	hasClaimedDevice: boolean;
+};
 
 export function pushDeviceKindOfPlatform(platform: string): PushDeviceKind {
 	if (platform === 'ios') return 'apns';
