@@ -28,6 +28,7 @@ export const handoffText = {
 		abandon: '그만두기',
 		expiresAt: '{time}까지',
 		inputFailed: '입력을 전달하지 못했어요.',
+		slowBrowser: '브라우저가 입력을 바로 받지 못하고 있어요',
 		finishFailed: '넘겨받기를 끝내지 못했어요. 다시 시도해 주세요.'
 	},
 	en: {
@@ -59,6 +60,7 @@ export const handoffText = {
 		abandon: 'Stop',
 		expiresAt: 'until {time}',
 		inputFailed: 'Could not send your input.',
+		slowBrowser: 'The browser is not taking input right away',
 		finishFailed: 'Could not end the handoff. Try again.'
 	}
 };

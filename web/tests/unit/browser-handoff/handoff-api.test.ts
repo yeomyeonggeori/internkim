@@ -65,6 +65,9 @@ describe('controlling and finishing a browser handoff', () => {
 
 		answer = async () => ({ status: 400, body: {} });
 		await expect(sendHandoffInputs('handoff-1', [{ type: 'reload' }])).rejects.toThrow('400');
+
+		answer = async () => ({ status: 500, body: { error: 'the device browser page is closed' } });
+		await expect(sendHandoffInputs('handoff-1', [{ type: 'reload' }])).rejects.toThrow('the device browser page is closed');
 	});
 
 	test('finishing a handoff that already ended is not an error', async () => {
