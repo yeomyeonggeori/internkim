@@ -23,7 +23,6 @@ import {
 import { mailToolDefinitions } from './mail';
 import { notificationToolDefinitions } from './notifications';
 import { peopleToolDefinitions } from './people';
-import { modelToolDefinitions } from './model';
 import { settingsToolDefinitions } from './settings';
 import {
   WorkspaceTaskInitialStatus,
@@ -1817,7 +1816,6 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...settingsToolDefinitions,
   ...notificationToolDefinitions,
   ...mailToolDefinitions,
-  ...modelToolDefinitions,
 ];
 
 export type TaskAddInput = z.infer<typeof taskAddInputSchema>;
