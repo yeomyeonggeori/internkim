@@ -71,7 +71,7 @@ func TextLLMInputSchema() json.RawMessage {
 		jsonschema.Required("messages", jsonschema.Array(llmMessageSchema())),
 		jsonschema.Field("requireParameters", jsonschema.Boolean()),
 		jsonschema.Field("enableResponseHealing", jsonschema.Boolean()),
-	).RawMessage()
+	).WithDialect(jsonschema.Draft202012).RawMessage()
 }
 
 func StructuredLLMInputSchema() json.RawMessage {
@@ -88,7 +88,7 @@ func StructuredLLMInputSchema() json.RawMessage {
 		)),
 		jsonschema.Field("requireParameters", jsonschema.Boolean()),
 		jsonschema.Field("enableResponseHealing", jsonschema.Boolean()),
-	).RawMessage()
+	).WithDialect(jsonschema.Draft202012).RawMessage()
 }
 
 func EmbeddingInputSchema() json.RawMessage {
@@ -100,8 +100,8 @@ func EmbeddingInputSchema() json.RawMessage {
 		jsonschema.Field("task", jsonschema.String()),
 		jsonschema.Field("inputType", jsonschema.String()),
 		jsonschema.Field("title", jsonschema.String()),
-		jsonschema.Field("outputDimensions", jsonschema.Integer()),
-	).RawMessage()
+		jsonschema.Field("outputDimensions", jsonschema.SafeInteger()),
+	).WithDialect(jsonschema.Draft202012).RawMessage()
 }
 
 func llmMessageSchema() jsonschema.Schema {
@@ -123,14 +123,14 @@ func attentionTriageInputSchema() json.RawMessage {
 		jsonschema.Required("toolName", jsonschema.String()),
 		jsonschema.Required("status", jsonschema.String()),
 		jsonschema.Field("privacyClass", jsonschema.String()),
-		jsonschema.Field("watchAttemptCount", jsonschema.Integer()),
+		jsonschema.Field("watchAttemptCount", jsonschema.SafeInteger()),
 		jsonschema.Field("lastAttentionAt", jsonschema.String()),
 		jsonschema.Field("createdAt", jsonschema.String()),
 		jsonschema.Field("updatedAt", jsonschema.String()),
 		jsonschema.Field("expiresAt", jsonschema.String()),
 		jsonschema.Field("error", jsonschema.String()),
 		jsonschema.Field("denialCode", jsonschema.String()),
-	).RawMessage()
+	).WithDialect(jsonschema.Draft202012).RawMessage()
 }
 
 func ToolInvokeOutputSchema() json.RawMessage {
@@ -161,5 +161,5 @@ func ToolInvokeOutputSchema() json.RawMessage {
 		jsonschema.Field("retryable", jsonschema.Boolean()),
 		jsonschema.Field("safeRetry", jsonschema.Boolean()),
 		jsonschema.Required("result", jsonschema.Raw(json.RawMessage(`{}`))),
-	).RawMessage()
+	).WithDialect(jsonschema.Draft202012).RawMessage()
 }

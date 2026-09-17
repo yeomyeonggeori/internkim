@@ -885,7 +885,6 @@ const (
 	implementedOnThePlaneToo = "implemented twice, once in Go here and once on the plane; step 4 of internkim#1254 deletes the Go handler, and the case written then is as thin as leave's"
 	overIMAPAndSMTP          = "answered over IMAP and SMTP, which no stand-in here speaks yet"
 	throughAPairedCompanion  = "drives a browser session the companion holds, and this gate stands in for a command rather than for a paired companion"
-	throughTheModelRouter    = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
 	reachesLivePublicURLs    = "fetches live public URLs"
 )
 
@@ -908,10 +907,6 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"mail_message_search":    overIMAPAndSMTP,
 	"mail_message_send":      overIMAPAndSMTP,
 	"browser_handoff":        throughAPairedCompanion,
-	"attention_triage":       throughTheModelRouter,
-	"embedding_create":       throughTheModelRouter,
-	"llm_structured":         throughTheModelRouter,
-	"llm_text":               throughTheModelRouter,
 	"web_fetch":              reachesLivePublicURLs,
 }
 
