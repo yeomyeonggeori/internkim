@@ -148,3 +148,27 @@ func TestServiceLogsRejectsUnknownService(t *testing.T) {
 		t.Fatalf("expected error to list valid services, got %q", response.Body.String())
 	}
 }
+
+func TestServiceLogsChatdReadsItsJournal(t *testing.T) {
+	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	capturedName := ""
+	capturedArguments := []string{}
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		capturedName = name
+		capturedArguments = arguments
+		return []byte("relay closed subscription live-3\n"), nil
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/diagnostics/service-logs?service=chatd", nil)
+	request.RemoteAddr = "127.0.0.1:12345"
+	response := httptest.NewRecorder()
+
+	service.handleAdmin(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+	if capturedName != "journalctl" || strings.Join(capturedArguments, " ") != "-u chatd -n 200 --no-pager --output short-iso" {
+		t.Fatalf("chatd's journal is what this door reads, got %s %v", capturedName, capturedArguments)
+	}
+}
