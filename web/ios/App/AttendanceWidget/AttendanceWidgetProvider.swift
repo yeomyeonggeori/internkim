@@ -13,8 +13,6 @@ struct AttendanceEntry: TimelineEntry {
 }
 
 struct AttendanceProvider: TimelineProvider {
-    /// A shift the phone is counting needs no fetch to stay right for a while;
-    /// a day with nothing open changes only when somebody clocks in.
     private static let whileWorking: TimeInterval = 5 * 60
     private static let whileIdle: TimeInterval = 30 * 60
 

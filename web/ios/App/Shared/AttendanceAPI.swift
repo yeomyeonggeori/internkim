@@ -40,8 +40,6 @@ enum AttendanceAPIFailure: LocalizedError {
     }
 }
 
-/// The widget talks to the company the way every other caller does: the public
-/// API, with the key the app put in the shared keychain.
 struct AttendanceAPI {
     let credential: AttendanceWidgetCredential
 

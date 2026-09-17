@@ -1,7 +1,5 @@
 import Foundation
 
-/// A button pressed on the home screen has nowhere to say it failed. The widget
-/// keeps what the record answered for a moment and draws it on the next render.
 enum AttendanceRefusal {
     private static let messageKey = "widget.refusal.message"
     private static let momentKey = "widget.refusal.moment"

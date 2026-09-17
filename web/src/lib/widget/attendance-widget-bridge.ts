@@ -17,8 +17,6 @@ type AttendanceWidgetPlugin = {
 	forget(): Promise<void>;
 };
 
-// A Capacitor plugin answers every property, `then` included, so a promise
-// resolving to the plugin itself never settles. It travels in a box.
 type AttendanceWidgetShell = { widget: AttendanceWidgetPlugin };
 
 export async function attendanceWidgetShell(): Promise<AttendanceWidgetShell | null> {

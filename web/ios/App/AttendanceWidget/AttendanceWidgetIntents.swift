@@ -1,8 +1,6 @@
 import AppIntents
 import WidgetKit
 
-/// Clocking in and out from the widget itself, without opening the app. iOS 17
-/// is where a widget button may do work; below it the widget opens the app.
 @available(iOS 17.0, *)
 struct ClockInIntent: AppIntent {
     static var title: LocalizedStringResource = "Clock in"

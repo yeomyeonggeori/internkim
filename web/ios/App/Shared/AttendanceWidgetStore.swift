@@ -1,8 +1,5 @@
 import Foundation
 
-/// What the app hands the widget: the key it calls the company with, and where
-/// that company answers. The key lives in the keychain group both targets share;
-/// the rest lives in the app group, which holds nothing secret.
 struct AttendanceWidgetCredential {
     let token: String
     let tokenName: String
@@ -17,8 +14,6 @@ enum AttendanceWidgetStore {
     private static let tokenNameKey = "widget.tokenName"
     private static let originKey = "widget.origin"
 
-    /// The keychain group carries the team prefix, which is only known at build
-    /// time. Both targets stamp it into their Info.plist as AppIdentifierPrefix.
     private static var accessGroup: String? {
         guard let prefix = Bundle.main.object(forInfoDictionaryKey: "AppIdentifierPrefix") as? String,
               !prefix.hasPrefix("$(") else { return nil }
@@ -29,8 +24,6 @@ enum AttendanceWidgetStore {
         UserDefaults(suiteName: appGroup)
     }
 
-    /// The install id names this phone's key. Two phones of one person hold two
-    /// keys, so losing one revokes one.
     static func installID() -> String {
         if let held = read(account: installAccount) { return held }
         let made = UUID().uuidString
