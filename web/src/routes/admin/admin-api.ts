@@ -164,16 +164,6 @@ export async function saveUser(adminBaseURL: string, user: UserSaveRequest, fall
 	return readJSON<UsersResponse>(response, fallbackMessage);
 }
 
-export async function saveUsers(adminBaseURL: string, users: UserSaveRequest[], fallbackMessage: string): Promise<UsersResponse> {
-	const response = await fetch(`${adminBaseURL}/users/batch?includePolicy=true`, {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ users })
-	});
-	return readJSON<UsersResponse>(response, fallbackMessage);
-}
-
 export async function removeUser(adminBaseURL: string, email: string, fallbackMessage: string): Promise<UsersResponse> {
 	const response = await fetch(`${adminBaseURL}/users/${encodeURIComponent(email)}?includePolicy=true`, {
 		method: 'DELETE',

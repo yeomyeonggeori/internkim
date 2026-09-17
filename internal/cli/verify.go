@@ -495,17 +495,16 @@ echo "verify api: ok"
 
 func verifyRelayActorsScript(centralPlaneAgentKeyPath string, centralPlaneAppURLPath string) string {
 	return `central_plane_agent_key_path="` + centralPlaneAgentKeyPath + `"
-if [ -s "$central_plane_agent_key_path" ]; then
-  central_plane_app_url="$(cat ` + centralPlaneAppURLPath + `)"
-  central_plane_agent_key="$(cat "$central_plane_agent_key_path")"
-  test -n "$central_plane_app_url"
-  test -n "$central_plane_agent_key"
-  directory_response="$(curl --silent --show-error --fail -H "Authorization: Bearer $central_plane_agent_key" "$central_plane_app_url/api/agent/member")"
-  active_records="$(printf '%s' "$directory_response" | jq -c -e '.members // [] | map(select((.status // "") == "" or (.status | ascii_downcase) == "active"))')"
-else
-  directory_response="$(curl --silent --show-error --fail http://127.0.0.1:18080/admin/api/users)"
-  active_records="$(printf '%s' "$directory_response" | jq -c -e '.records // [] | map(select((.status // "") == "" or (.status | ascii_downcase) == "active"))')"
+if [ ! -s "$central_plane_agent_key_path" ]; then
+  echo "this host holds no company key, so there is no directory to verify relay actors against"
+  exit 1
 fi
+central_plane_app_url="$(cat ` + centralPlaneAppURLPath + `)"
+central_plane_agent_key="$(cat "$central_plane_agent_key_path")"
+test -n "$central_plane_app_url"
+test -n "$central_plane_agent_key"
+directory_response="$(curl --silent --show-error --fail -H "Authorization: Bearer $central_plane_agent_key" "$central_plane_app_url/api/agent/member")"
+active_records="$(printf '%s' "$directory_response" | jq -c -e '.members // [] | map(select((.status // "") == "" or (.status | ascii_downcase) == "active"))')"
 relay_requester="$(printf '%s' "$active_records" | jq -r '[.[] | select((.role // "" | ascii_downcase) != "admin") | .email | select(length > 0)] | first // empty')"
 relay_admin="$(printf '%s' "$active_records" | jq -r '[.[] | select((.role // "" | ascii_downcase) == "admin") | .email | select(length > 0)] | first // empty')"
 if [ -z "$relay_requester" ]; then

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { circleNamesByMemberID } from '../../../src/lib/server/fleet-user-directory';
+import { circleNamesByMemberID } from '../../../src/lib/server/member-directory';
 
 describe('the circles a company keeps', () => {
 	test('gives each member the circles that name them', () => {

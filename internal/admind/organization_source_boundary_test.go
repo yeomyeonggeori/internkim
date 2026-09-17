@@ -1,54 +1,72 @@
 package admind
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
 
-func TestFleetAccountUpsertPayloadCarriesNoOrganizationFields(t *testing.T) {
-	payload := fleetAccountUpsertPayload(adminUserMutation{
-		MemberID:    "user-member",
-		Email:       "member@example.com",
-		HireDate:    "2026-01-02",
-		JobTitle:    "Product Manager",
-		GroupID:     "product",
-		PhoneNumber: "+821012345678",
-	}, "fleet-1")
+	"gitlab.com/eastriver/internkim/internal/centralplane"
+)
 
-	for _, organizationField := range []string{"hireDate", "jobTitle", "groupID", "phoneNumber", "supervisorID", "positionLevel", "teamRole", "employmentStatus"} {
-		if _, found := payload[organizationField]; found {
-			t.Fatalf("account payload carries organization field %q; organization_profiles owns it", organizationField)
+var organizationFieldsForTest = []string{"hireDate", "jobTitle", "groupID", "teamID", "phoneNumber", "supervisorID", "supervisorEmail", "positionLevel", "teamRole", "employmentStatus"}
+
+func TestAccountWriteCarriesNoOrganizationFields(t *testing.T) {
+	document, errorValue := json.Marshal(centralplane.MemberWrite{
+		Email:     "member@example.com",
+		Name:      "이샘플",
+		Role:      "member",
+		Note:      "HR compensation follow-up",
+		Messenger: map[string]string{"buzz": "a-buzz-key"},
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var written map[string]any
+	if errorValue := json.Unmarshal(document, &written); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, organizationField := range organizationFieldsForTest {
+		if _, found := written[organizationField]; found {
+			t.Fatalf("the account write carries organization field %q; organization_profiles owns it", organizationField)
 		}
 	}
-	if payload["email"] != "member@example.com" {
-		t.Fatalf("account payload = %#v; want the account identity fields", payload)
+	if written["email"] != "member@example.com" || written["role"] != "member" {
+		t.Fatalf("account write = %#v; want the account identity fields", written)
 	}
 }
 
-func TestFleetAccountUpsertPayloadCarriesOnlyTheAccountIdentity(t *testing.T) {
-	payload := fleetAccountUpsertPayload(adminUserMutation{
-		MemberID: "user-member",
-		Handle:   "member",
-		Name:     "이샘플",
-		Email:    "member@example.com",
-		Role:     "member",
-		Status:   "active",
-	}, "fleet-1")
+func TestAccountRecordOfCompanyMemberKeepsOrganizationFieldsOut(t *testing.T) {
+	record := accountRecordOfCompanyMember(centralplane.Member{
+		MemberID:        "user-member",
+		Email:           "Member@Example.com",
+		Name:            "이샘플",
+		Note:            "HR compensation follow-up",
+		Role:            "admin",
+		Circles:         []string{"admin"},
+		Status:          "active",
+		JobTitle:        "Product Manager",
+		PhoneNumber:     "+821012345678",
+		HireDate:        "2026-01-02",
+		TeamID:          "product",
+		TeamName:        "Product",
+		SupervisorEmail: "lead@example.com",
+	})
 
-	accountFields := map[string]bool{
-		"handle":   true,
-		"name":     true,
-		"note":     true,
-		"fleet_id": true,
-		"email":    true,
-		"role":     true,
-		"status":   true,
+	document, errorValue := json.Marshal(record)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	for field := range payload {
-		if !accountFields[field] {
-			t.Fatalf("account payload carries %q; the account directory holds sign-in, and member.messenger holds who somebody is on a messenger", field)
+	var written map[string]any
+	if errorValue := json.Unmarshal(document, &written); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, organizationField := range organizationFieldsForTest {
+		if _, found := written[organizationField]; found {
+			t.Fatalf("the account record carries organization field %q; the organization reader merges it in", organizationField)
 		}
 	}
-	for field := range accountFields {
-		if _, found := payload[field]; !found {
-			t.Fatalf("account payload = %#v; want the account identity field %q", payload, field)
-		}
+	if record.MemberID != "user-member" || record.Email != "member@example.com" || record.Handle != "member" ||
+		record.Name != "이샘플" || record.Note != "HR compensation follow-up" || record.Role != "admin" ||
+		record.Status != "active" || len(record.Circles) != 1 {
+		t.Fatalf("account record = %+v; want the account identity fields", record)
 	}
 }

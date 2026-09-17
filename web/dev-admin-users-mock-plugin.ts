@@ -86,9 +86,6 @@ function createDevAdminUsersMockResponse(
 	if (request.method === 'POST' && request.pathname === '/admin/api/users') {
 		return saveUserResponse(state, request.body);
 	}
-	if (request.method === 'POST' && request.pathname === '/admin/api/users/batch') {
-		return { status: 200, body: usersResponse(state) };
-	}
 	if (request.method === 'POST' && request.pathname === '/admin/api/circles') {
 		return createCircleResponse(state, request.body);
 	}
@@ -108,7 +105,6 @@ function shouldHandleDevAdminUsersMockRequest(method: string, pathname: string):
 	if (method === 'GET' && pathname === '/admin/api/updates/status') return true;
 	if (method === 'GET' && pathname === '/admin/api/updates/releases') return true;
 	if (method === 'POST' && pathname === '/admin/api/users') return true;
-	if (method === 'POST' && pathname === '/admin/api/users/batch') return true;
 	if (method === 'POST' && pathname === '/admin/api/circles') return true;
 	if (method === 'DELETE' && pathname.startsWith('/admin/api/circles/')) return true;
 	if (method === 'POST' && pathname.startsWith('/admin/api/users/') && pathname.endsWith('/password-reset')) return true;

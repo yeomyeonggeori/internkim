@@ -540,17 +540,10 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 }
 
 // Everyone the device holds a record of, from the policy it serves and the
-// fleet directory it belongs to. The record carries the name as well as the
-// address, so one read answers both who is seated and what they are called.
+// company it belongs to. The record carries the name as well as the address, so
+// one read answers both who is seated and what they are called.
 func (service *Service) directoryRecords(ctx context.Context) []adminUserMutation {
 	records := service.blueclawPolicyUserRecords(ctx)
-	fleetID := strings.ToLower(strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	if fleetID != "" && fleetSecret != "" {
-		if found, errorValue := service.lookupUserRecords(ctx, fleetID, fleetSecret); errorValue == nil {
-			records = append(records, found...)
-		}
-	}
 	if found, errorValue := service.currentUserRecords(ctx); errorValue == nil {
 		records = append(records, found...)
 	}

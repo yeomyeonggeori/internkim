@@ -31,19 +31,6 @@ export interface Fleet {
 
 export type UserRole = MemberRole;
 
-export interface FleetUserRecord {
-	memberID?: string;
-	handle: string;
-	name?: string;
-	email: string;
-	hireDate?: string;
-	note?: string;
-	role: UserRole;
-	circles?: string[];
-	status?: MemberStatus;
-	isIncomplete?: boolean;
-}
-
 export interface Invite {
 	fleet_id: string;
 	expires_at: number;

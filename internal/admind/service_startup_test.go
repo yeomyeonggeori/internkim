@@ -27,8 +27,8 @@ func TestRunServesRequesterMemoryWhileSiteCleanupWaits(t *testing.T) {
 	service.Configuration.DatabasePath = ":memory:"
 	service.Configuration.CentralPlaneAppURL = "https://app.example.test"
 	service.Configuration.CentralPlaneAppURLPath = writeTestFile(t, "https://app.example.test")
-	service.Configuration.CentralPlaneProjectURL = ""
-	service.Configuration.CentralPlanePublishableKey = ""
+	service.Configuration.CentralPlaneProjectURL = companyProjectURLForTest
+	service.Configuration.CentralPlanePublishableKey = "publishable"
 	service.Configuration.BlueclawBaseURL = "http://blueclaw.local"
 	service.Configuration.FleetIDPath = writeTestFile(t, "device-1")
 	service.Configuration.FleetSecretPath = writeTestFile(t, "secret-1")

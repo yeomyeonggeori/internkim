@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { handleFromEmail } from '$lib/server/fleet-user-directory';
+import { handleFromEmail } from '$lib/server/member-directory';
 import { personName } from '$lib/person-name';
 import { emailNearness, typoNearness } from './hint-nearness';
 import {
