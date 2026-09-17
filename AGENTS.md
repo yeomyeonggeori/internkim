@@ -361,7 +361,7 @@ and delete the duplicates.
   person capabilities, and reads the task ledger. A message going the other way —
   the agent writing to a person — is
   `./internkim dev fleet run --scenario buzz-direct-message`: it asks through the
-  public API the way the `internkim-api` skill does, then reads the recipient's
+  public API the way an outside client does, then reads the recipient's
   own Buzz inbox for it.
 - The fleet VM is the Linux gate for both paths, and how to drive it is
   [docs/internal/device/the-local-fleet.md](docs/internal/device/the-local-fleet.md):
