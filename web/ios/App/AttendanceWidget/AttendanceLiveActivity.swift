@@ -22,7 +22,7 @@ struct AttendanceLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.state.startedMoment, style: .timer)
+                    WorkedSince(start: context.state.startedMoment, isCompact: false)
                         .font(.title3.monospacedDigit().weight(.medium))
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 110)
@@ -33,7 +33,7 @@ struct AttendanceLiveActivity: Widget {
             } compactLeading: {
                 Image(systemName: "bolt.fill").foregroundStyle(.purple)
             } compactTrailing: {
-                Text(context.state.startedMoment, style: .timer)
+                WorkedSince(start: context.state.startedMoment, isCompact: true)
                     .monospacedDigit()
                     .frame(maxWidth: 56)
             } minimal: {
@@ -63,7 +63,7 @@ private struct AttendanceLockScreenView: View {
             }
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(state.startedMoment, style: .timer)
+                    WorkedSince(start: state.startedMoment, isCompact: false)
                         .font(.system(size: 28, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white)
                     Text(clockedInLine(state))
@@ -74,6 +74,23 @@ private struct AttendanceLockScreenView: View {
                 ClockOutButton()
                     .frame(width: 110)
             }
+        }
+    }
+}
+
+private struct WorkedSince: View {
+    let start: Date
+    let isCompact: Bool
+
+    var body: some View {
+        if #available(iOS 18.0, *) {
+            if isCompact {
+                Text(.currentDate, format: .timer(countingUpIn: start..<Date.distantFuture, maxPrecision: .seconds(60)))
+            } else {
+                Text(.currentDate, format: .offset(to: start, allowedFields: [.hour, .minute], maxFieldCount: 2, sign: .never))
+            }
+        } else {
+            Text(start, style: .relative)
         }
     }
 }
