@@ -124,6 +124,7 @@ export enum ArtifactToolName {
 
 export enum WebToolName {
   Search = 'web_search',
+  Fetch = 'web_fetch',
 }
 
 export enum ArtifactKind {
@@ -1530,6 +1531,22 @@ const webFetchInputSchema = z.strictObject({
   urls: z.array(z.string()).describe("List of fully-qualified public URLs to fetch, e.g. [\"https://example.com/article\"]. Maximum 10 URLs per call. Localhost and private IPs are blocked."),
 });
 
+export const webFetchResultSchema = z.strictObject({
+  provider: z.string(),
+  remoteLLMInvolved: z.boolean(),
+  compatibility: z.string(),
+  results: z.array(z.strictObject({
+    url: z.string().describe('URL that was asked for. Empty when the provider answered several URLs as one combined text.'),
+    finalURL: z.string(),
+    title: z.string(),
+    content: z.string(),
+  })),
+  errors: z.array(z.strictObject({
+    url: z.string(),
+    error: z.string(),
+  })),
+});
+
 const webToolDefinitions: CapabilityToolDefinition[] = [
   {
     name: WebToolName.Search,
@@ -1545,7 +1562,7 @@ const webToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.Read,
   },
   {
-    name: "web_fetch",
+    name: WebToolName.Fetch,
     namespace: "web",
     answeredBy: CapabilityAnsweredBy.Company,
     privacyClass: "public_web",
@@ -1553,8 +1570,8 @@ const webToolDefinitions: CapabilityToolDefinition[] = [
     description: "Fetch and return the text content of one or more public URLs. Use after web_search when you need the full page content, not just a snippet. Do not fetch localhost or private network addresses — those are blocked.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: webFetchInputSchema,
+    result: { schema: webFetchResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
   },
 ];

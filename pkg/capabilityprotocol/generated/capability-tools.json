@@ -7981,105 +7981,77 @@
       },
       "inputSchemaStrict": true,
       "modelName": "web_fetch",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "web_fetch",
       "namespace": "web",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "compatibility": {
             "type": "string"
           },
-          "effects": {
+          "errors": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
+                "error": {
                   "type": "string"
                 },
                 "url": {
                   "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "url",
+                "error"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
           "provider": {
             "type": "string"
           },
-          "result": {},
-          "retryable": {
+          "remoteLLMInvolved": {
             "type": "boolean"
           },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
+          "results": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "finalURL": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "description": "URL that was asked for. Empty when the provider answered several URLs as one combined text.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "finalURL",
+                "title",
+                "content"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "required": [
           "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "remoteLLMInvolved",
+          "compatibility",
+          "results",
+          "errors"
         ],
         "type": "object"
       },
@@ -8087,6 +8059,79 @@
       "policyResource": "tool:web_fetch",
       "privacyClass": "public_web",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "compatibility": {
+              "type": "string"
+            },
+            "errors": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "error": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url",
+                  "error"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "remoteLLMInvolved": {
+              "type": "boolean"
+            },
+            "results": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "content": {
+                    "type": "string"
+                  },
+                  "finalURL": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "description": "URL that was asked for. Empty when the provider answered several URLs as one combined text.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url",
+                  "finalURL",
+                  "title",
+                  "content"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "provider",
+            "remoteLLMInvolved",
+            "compatibility",
+            "results",
+            "errors"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
@@ -10715,8 +10760,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_document_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_document_list",
       "namespace": "company",
       "outputSchema": {
@@ -11239,6 +11284,82 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "clearance": {
+            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "counterpart": {
+            "description": "Counterpart company or person name, e.g. 'ABC Trading'.",
+            "type": "string"
+          },
+          "date": {
+            "description": "The date the document speaks from, in YYYY-MM-DD format.",
+            "type": "string"
+          },
+          "documentType": {
+            "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
+            "type": "string"
+          },
+          "domain": {
+            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
+            "type": "string"
+          },
+          "filePath": {
+            "description": "Workspace path of the file if it already exists. For issued documents you can also set it later with company_document_update after saving.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "'issued' for documents the company creates (default, gets a document number), 'received' for documents from counterparts, 'internal' for internal-only files.",
+            "type": "string"
+          },
+          "language": {
+            "description": "Document language, e.g. 'ko' or 'en'.",
+            "type": "string"
+          },
+          "period": {
+            "description": "The period the document covers when there is one, e.g. '2025' or '2026-Q1'.",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.",
+            "type": "string"
+          },
+          "status": {
+            "description": "'current', 'superseded' or 'draft'.",
+            "type": "string"
+          },
+          "storagePath": {
+            "description": "Where the original sits in the asset bucket, as company_document_upload answered it.",
+            "type": "string"
+          },
+          "summary": {
+            "description": "2-3 sentence summary of the document's key terms: parties, amounts, dates, obligations. Written so later questions can be answered without opening the file.",
+            "type": "string"
+          },
+          "supersedesHint": {
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Short lowercase tags, e.g. ['audit', 'k-ifrs'].",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "description": "Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11322,8 +11443,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_document_register",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_document_register",
       "namespace": "company",
       "outputSchema": {
@@ -11835,8 +11956,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_document_search",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_document_search",
       "namespace": "company",
       "outputSchema": {
@@ -12354,6 +12475,70 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "clearance": {
+            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "counterpart": {
+            "description": "Corrected counterpart. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "date": {
+            "description": "The date the document speaks from, in YYYY-MM-DD format.",
+            "type": "string"
+          },
+          "domain": {
+            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
+            "type": "string"
+          },
+          "filePath": {
+            "description": "New workspace path after the file was saved, moved, or renamed.",
+            "type": "string"
+          },
+          "period": {
+            "description": "The period the document covers when there is one, e.g. '2025' or '2026-Q1'.",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.",
+            "type": "string"
+          },
+          "status": {
+            "description": "'current', 'superseded' or 'draft'.",
+            "type": "string"
+          },
+          "storagePath": {
+            "description": "Where the original sits in the asset bucket, as company_document_upload answered it.",
+            "type": "string"
+          },
+          "summary": {
+            "description": "Replacement summary. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "supersedesHint": {
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.",
+            "type": "string"
+          },
+          "tags": {
+            "description": "Short lowercase tags, e.g. ['audit', 'k-ifrs'].",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "description": "Corrected title. Omit to keep unchanged.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -12427,8 +12612,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_document_update",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_document_update",
       "namespace": "company",
       "outputSchema": {
@@ -12910,6 +13095,27 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "clearance": {
+            "description": "Data room clearance the file is stored at: 0 public, 1 every member, 2 management, 3 representative and board. The bucket refuses a clearance above the requester's own.",
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fileName": {
+            "description": "Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -12937,8 +13143,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_document_upload",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_document_upload",
       "namespace": "company",
       "outputSchema": {
@@ -13021,8 +13227,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_document_download",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_document_download",
       "namespace": "company",
       "outputSchema": {
@@ -13097,8 +13303,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_info_get",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_info_get",
       "namespace": "company",
       "outputSchema": {
@@ -13367,6 +13573,95 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "description": "Registered head-office address.",
+            "type": "string"
+          },
+          "bankAccount": {
+            "description": "One-line bank account: bank, account number, holder. Use the 'en' slot for international wire details (SWIFT/IBAN).",
+            "type": "string"
+          },
+          "brandName": {
+            "description": "Service or brand name when it differs from the legal name.",
+            "type": "string"
+          },
+          "capital": {
+            "description": "Paid-in capital, written the way the company states it, e.g. '500,000,000 KRW'.",
+            "type": "string"
+          },
+          "description": {
+            "description": "One-line company description for proposals and IR material.",
+            "type": "string"
+          },
+          "email": {
+            "description": "Main company email address.",
+            "type": "string"
+          },
+          "employeeCount": {
+            "description": "Official employee headcount. Independent of platform member count.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fax": {
+            "description": "Fax number.",
+            "type": "string"
+          },
+          "fiscalYearEnd": {
+            "description": "Fiscal year end month, e.g. 'December'.",
+            "type": "string"
+          },
+          "foundedDate": {
+            "description": "Founding date in YYYY-MM-DD format.",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "description": "Jurisdiction of incorporation for contract preambles, e.g. 'the Republic of Korea' or 'the State of Delaware'.",
+            "type": "string"
+          },
+          "language": {
+            "description": "Language slot the localized values belong to, e.g. 'ko' or 'en'.",
+            "type": "string"
+          },
+          "legalAttributes": {
+            "description": "JSON object string of country-specific label-to-value pairs, e.g. {\"Business Registration Number\": \"123-45-67890\", \"Business Type\": \"Services\"}. Write each label in the language the country prints it in, because labels print on documents as-is.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Legal company name as it is registered, including the form of incorporation.",
+            "type": "string"
+          },
+          "officeAddress": {
+            "description": "Working office address when it differs from the registered address.",
+            "type": "string"
+          },
+          "phone": {
+            "description": "Main company phone number.",
+            "type": "string"
+          },
+          "representative": {
+            "description": "Representative's name; use the romanized name for the 'en' slot.",
+            "type": "string"
+          },
+          "representativeTitle": {
+            "description": "Representative's title. Defaults to the one customary in the language asked for.",
+            "type": "string"
+          },
+          "slogan": {
+            "description": "Company slogan for letterheads and introductions.",
+            "type": "string"
+          },
+          "website": {
+            "description": "Company website URL.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -13461,8 +13756,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_info_set",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_info_set",
       "namespace": "company",
       "outputSchema": {
@@ -13751,8 +14046,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_metric_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_metric_list",
       "namespace": "company",
       "outputSchema": {
@@ -13995,6 +14290,69 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "description": "ISO currency of a monetary value. Use currency instead of unit for money.",
+            "enum": [
+              "USD",
+              "KRW",
+              "EUR",
+              "JPY",
+              "GBP",
+              "CNY",
+              "HKD",
+              "SGD",
+              "AUD",
+              "CAD",
+              "CHF",
+              "INR"
+            ],
+            "type": "string"
+          },
+          "metric": {
+            "description": "Metric key in lowerCamelCase, e.g. 'annualRevenue', 'operatingProfit', 'mau', 'employees'. Reuse the same key across periods.",
+            "type": "string"
+          },
+          "month": {
+            "description": "Month 1-12 for a monthly value. Leave out for annual or quarterly values; never combine with quarter.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "note": {
+            "description": "Source or context note, e.g. 'from the audited financial statements'.",
+            "type": "string"
+          },
+          "quarter": {
+            "description": "Quarter 1-4 for a quarterly value. Leave out for annual or monthly values; never combine with month.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "unit": {
+            "description": "Unit for a non-monetary value, e.g. 'people', 'orders', 'sites'. Do not combine with currency.",
+            "type": "string"
+          },
+          "value": {
+            "description": "Numeric value, e.g. 1200000000 for 1.2 billion. Use the raw number, not a formatted string.",
+            "type": "number"
+          },
+          "valueUSD": {
+            "description": "Stable USD equivalent for a non-USD monetary value. Required when currency is not USD; omitted for non-monetary values.",
+            "type": "number"
+          },
+          "year": {
+            "description": "Four-digit year the value belongs to, e.g. 2025.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14065,8 +14423,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_metric_record",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_metric_record",
       "namespace": "company",
       "outputSchema": {
@@ -14273,6 +14631,33 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "description": "JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"2,000,000 USD\", \"investors\": \"ABC Ventures\"}.",
+            "type": "string"
+          },
+          "category": {
+            "description": "Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label.",
+            "type": "string"
+          },
+          "date": {
+            "description": "Date of the event in YYYY-MM-DD or YYYY-MM format. Used to sort the company timeline.",
+            "type": "string"
+          },
+          "detail": {
+            "description": "One-to-three sentence description.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Short title, e.g. 'Seed round closed' or 'Product launched'.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14306,8 +14691,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_record_add",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_record_add",
       "namespace": "company",
       "outputSchema": {
@@ -14469,6 +14854,12 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14485,8 +14876,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_record_delete",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_record_delete",
       "namespace": "company",
       "outputSchema": {
@@ -14666,8 +15057,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_record_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_record_list",
       "namespace": "company",
       "outputSchema": {
@@ -14865,6 +15256,33 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attributes": {
+            "description": "JSON object string replacing the stored attributes. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "category": {
+            "description": "New category. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "date": {
+            "description": "New date. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "detail": {
+            "description": "New detail text. Omit to keep unchanged.",
+            "type": "string"
+          },
+          "title": {
+            "description": "New title. Omit to keep unchanged.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14901,8 +15319,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_record_update",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_record_update",
       "namespace": "company",
       "outputSchema": {
@@ -23758,6 +24176,12 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -23766,105 +24190,31 @@
       },
       "inputSchemaStrict": true,
       "modelName": "mail_connection_start",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "mail_connection_start",
       "namespace": "mail",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
           "provider": {
+            "const": "manual",
             "type": "string"
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
+          "setupURL": {
+            "description": "Page where the requester enters their mail account. Share it with the requester.",
             "type": "string"
           },
           "status": {
-            "type": "string"
-          },
-          "toolName": {
+            "const": "configuration_required",
             "type": "string"
           }
         },
         "required": [
+          "status",
           "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "setupURL"
         ],
         "type": "object"
       },
@@ -23873,6 +24223,33 @@
       "privacyClass": "workspace_mail",
       "requiresApproval": true,
       "requiresUserPresence": true,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "provider": {
+              "const": "manual",
+              "type": "string"
+            },
+            "setupURL": {
+              "description": "Page where the requester enters their mail account. Share it with the requester.",
+              "type": "string"
+            },
+            "status": {
+              "const": "configuration_required",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "provider",
+            "setupURL"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "connect",
       "sideEffectClass": "connect",
       "version": "1",
@@ -23899,105 +24276,85 @@
       },
       "inputSchemaStrict": true,
       "modelName": "mail_connection_status",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "mail_connection_status",
       "namespace": "mail",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "defaultMailbox": {
             "type": "string"
           },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
+          "displayName": {
             "type": "string"
           },
-          "failureStage": {
+          "email": {
             "type": "string"
           },
-          "isError": {
+          "fromAddress": {
+            "type": "string"
+          },
+          "hasIMAPPassword": {
             "type": "boolean"
           },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
+          "hasSMTPPassword": {
             "type": "boolean"
           },
-          "safeRetry": {
+          "imapHost": {
+            "type": "string"
+          },
+          "imapPort": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "imapSecurity": {
+            "type": "string"
+          },
+          "imapUsername": {
+            "type": "string"
+          },
+          "isConfigured": {
+            "description": "True when the account can read and send mail. When false, offer mail_connection_start.",
             "type": "boolean"
           },
-          "selectedBackend": {
+          "sentMailbox": {
             "type": "string"
           },
-          "status": {
+          "smtpHost": {
             "type": "string"
           },
-          "toolName": {
+          "smtpPort": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "smtpSecurity": {
+            "type": "string"
+          },
+          "smtpUsername": {
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "email",
+          "fromAddress",
+          "displayName",
+          "imapHost",
+          "imapPort",
+          "imapSecurity",
+          "imapUsername",
+          "smtpHost",
+          "smtpPort",
+          "smtpSecurity",
+          "smtpUsername",
+          "defaultMailbox",
+          "sentMailbox",
+          "isConfigured",
+          "hasIMAPPassword",
+          "hasSMTPPassword"
         ],
         "type": "object"
       },
@@ -24005,6 +24362,87 @@
       "policyResource": "tool:mail_connection_status",
       "privacyClass": "workspace_mail",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "defaultMailbox": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "fromAddress": {
+              "type": "string"
+            },
+            "hasIMAPPassword": {
+              "type": "boolean"
+            },
+            "hasSMTPPassword": {
+              "type": "boolean"
+            },
+            "imapHost": {
+              "type": "string"
+            },
+            "imapPort": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "imapSecurity": {
+              "type": "string"
+            },
+            "imapUsername": {
+              "type": "string"
+            },
+            "isConfigured": {
+              "description": "True when the account can read and send mail. When false, offer mail_connection_start.",
+              "type": "boolean"
+            },
+            "sentMailbox": {
+              "type": "string"
+            },
+            "smtpHost": {
+              "type": "string"
+            },
+            "smtpPort": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "smtpSecurity": {
+              "type": "string"
+            },
+            "smtpUsername": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "email",
+            "fromAddress",
+            "displayName",
+            "imapHost",
+            "imapPort",
+            "imapSecurity",
+            "imapUsername",
+            "smtpHost",
+            "smtpPort",
+            "smtpSecurity",
+            "smtpUsername",
+            "defaultMailbox",
+            "sentMailbox",
+            "isConfigured",
+            "hasIMAPPassword",
+            "hasSMTPPassword"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
@@ -24046,105 +24484,74 @@
       },
       "inputSchemaStrict": true,
       "modelName": "mail_message_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "mail_message_list",
       "namespace": "mail",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
+          "messages": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "date": {
                   "type": "string"
                 },
-                "durability": {
+                "from": {
                   "type": "string"
                 },
-                "effect": {
+                "isRead": {
+                  "type": "boolean"
+                },
+                "mailbox": {
                   "type": "string"
                 },
-                "filename": {
+                "preview": {
                   "type": "string"
                 },
-                "id": {
+                "subject": {
                   "type": "string"
                 },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
+                "uid": {
+                  "description": "IMAP UID of the message. Pass it as a string, with its mailbox, to mail_message_read.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "uid",
+                "mailbox",
+                "subject",
+                "from",
+                "date",
+                "preview",
+                "isRead"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
+          "nextCursor": {
+            "description": "Cursor for the next page. Empty when there are no more messages.",
             "type": "string"
           },
-          "failureStage": {
-            "type": "string"
+          "uidNext": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
+          "uidValidity": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "messages",
+          "nextCursor"
         ],
         "type": "object"
       },
@@ -24152,6 +24559,76 @@
       "policyResource": "tool:mail_message_list",
       "privacyClass": "workspace_mail",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "messages": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "isRead": {
+                    "type": "boolean"
+                  },
+                  "mailbox": {
+                    "type": "string"
+                  },
+                  "preview": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "uid": {
+                    "description": "IMAP UID of the message. Pass it as a string, with its mailbox, to mail_message_read.",
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "uid",
+                  "mailbox",
+                  "subject",
+                  "from",
+                  "date",
+                  "preview",
+                  "isRead"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "nextCursor": {
+              "description": "Cursor for the next page. Empty when there are no more messages.",
+              "type": "string"
+            },
+            "uidNext": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "uidValidity": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "messages",
+            "nextCursor"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
@@ -24494,105 +24971,60 @@
       },
       "inputSchemaStrict": true,
       "modelName": "mail_message_read",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "mail_message_read",
       "namespace": "mail",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "body": {
+            "description": "Plain-text body.",
             "type": "string"
           },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
+          "bodyHTML": {
+            "description": "HTML body, present only when the message has one.",
             "type": "string"
           },
-          "failureStage": {
+          "cc": {
             "type": "string"
           },
-          "isError": {
+          "date": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "isRead": {
             "type": "boolean"
           },
-          "message": {
+          "mailbox": {
             "type": "string"
           },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
+          "subject": {
             "type": "string"
           },
-          "provider": {
+          "to": {
             "type": "string"
           },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
+          "uid": {
+            "description": "IMAP UID of the message. Pass it as a string, with its mailbox, to mail_message_read.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "uid",
+          "mailbox",
+          "subject",
+          "from",
+          "to",
+          "cc",
+          "date",
+          "body",
+          "isRead"
         ],
         "type": "object"
       },
@@ -24600,6 +25032,62 @@
       "policyResource": "tool:mail_message_read",
       "privacyClass": "workspace_mail",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "body": {
+              "description": "Plain-text body.",
+              "type": "string"
+            },
+            "bodyHTML": {
+              "description": "HTML body, present only when the message has one.",
+              "type": "string"
+            },
+            "cc": {
+              "type": "string"
+            },
+            "date": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "isRead": {
+              "type": "boolean"
+            },
+            "mailbox": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "uid": {
+              "description": "IMAP UID of the message. Pass it as a string, with its mailbox, to mail_message_read.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "uid",
+            "mailbox",
+            "subject",
+            "from",
+            "to",
+            "cc",
+            "date",
+            "body",
+            "isRead"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
@@ -24648,105 +25136,74 @@
       },
       "inputSchemaStrict": true,
       "modelName": "mail_message_search",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "mail_message_search",
       "namespace": "mail",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
+          "messages": {
             "items": {
               "additionalProperties": false,
               "properties": {
-                "contentType": {
+                "date": {
                   "type": "string"
                 },
-                "durability": {
+                "from": {
                   "type": "string"
                 },
-                "effect": {
+                "isRead": {
+                  "type": "boolean"
+                },
+                "mailbox": {
                   "type": "string"
                 },
-                "filename": {
+                "preview": {
                   "type": "string"
                 },
-                "id": {
+                "subject": {
                   "type": "string"
                 },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
+                "uid": {
+                  "description": "IMAP UID of the message. Pass it as a string, with its mailbox, to mail_message_read.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "uid",
+                "mailbox",
+                "subject",
+                "from",
+                "date",
+                "preview",
+                "isRead"
               ],
               "type": "object"
             },
             "type": "array"
           },
-          "errorCode": {
+          "nextCursor": {
+            "description": "Cursor for the next page. Empty when there are no more messages.",
             "type": "string"
           },
-          "failureStage": {
-            "type": "string"
+          "uidNext": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
+          "uidValidity": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "messages",
+          "nextCursor"
         ],
         "type": "object"
       },
@@ -24754,6 +25211,76 @@
       "policyResource": "tool:mail_message_search",
       "privacyClass": "workspace_mail",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "messages": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "isRead": {
+                    "type": "boolean"
+                  },
+                  "mailbox": {
+                    "type": "string"
+                  },
+                  "preview": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "uid": {
+                    "description": "IMAP UID of the message. Pass it as a string, with its mailbox, to mail_message_read.",
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "uid",
+                  "mailbox",
+                  "subject",
+                  "from",
+                  "date",
+                  "preview",
+                  "isRead"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "nextCursor": {
+              "description": "Cursor for the next page. Empty when there are no more messages.",
+              "type": "string"
+            },
+            "uidNext": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "uidValidity": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "messages",
+            "nextCursor"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
@@ -24776,6 +25303,42 @@
         "required": false,
         "scope": "operation",
         "supported": true
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "bcc": {
+            "description": "BCC recipient email addresses. Recipients cannot see each other.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "body": {
+            "description": "Email body text. Plain text or HTML.",
+            "type": "string"
+          },
+          "cc": {
+            "description": "CC recipient email addresses.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "description": "Email subject line.",
+            "type": "string"
+          },
+          "to": {
+            "description": "Primary recipient email addresses, e.g. [\"alice@example.com\"]. At least one required.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
       },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -24820,105 +25383,29 @@
       },
       "inputSchemaStrict": true,
       "modelName": "mail_message_send",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "mail_message_send",
       "namespace": "mail",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "appendWarning": {
+            "description": "Why the sent copy could not be saved. The message itself was still sent.",
             "type": "string"
           },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
+          "appendedTo": {
+            "description": "Mailbox the sent copy was saved to.",
             "type": "string"
           },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
+          "sent": {
+            "const": true,
             "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "sent"
         ],
         "type": "object"
       },
@@ -24927,6 +25414,31 @@
       "privacyClass": "workspace_mail",
       "requiresApproval": true,
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "appendWarning": {
+              "description": "Why the sent copy could not be saved. The message itself was still sent.",
+              "type": "string"
+            },
+            "appendedTo": {
+              "description": "Mailbox the sent copy was saved to.",
+              "type": "string"
+            },
+            "sent": {
+              "const": true,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "sent"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "external_send",
       "sideEffectClass": "external_send",
       "version": "1",

@@ -11,6 +11,8 @@ import type { CapabilityToolDefinition } from './definition';
 
 const mailConnectionStartInputSchema = z.strictObject({});
 
+const mailConnectionStartInputIntentSchema = z.strictObject({});
+
 const mailConnectionStatusInputSchema = z.strictObject({});
 
 const mailMessageListInputSchema = z.strictObject({
@@ -52,6 +54,71 @@ const mailMessageSendInputSchema = z.strictObject({
   to: z.array(z.string()).describe("Primary recipient email addresses, e.g. [\"alice@example.com\"]. At least one required."),
 });
 
+const mailMessageSendInputIntentSchema = mailMessageSendInputSchema.partial();
+
+const mailConnectionStartResultSchema = z.strictObject({
+  status: z.literal("configuration_required"),
+  provider: z.literal("manual"),
+  setupURL: z.string().describe("Page where the requester enters their mail account. Share it with the requester."),
+});
+
+const mailConnectionStatusResultSchema = z.strictObject({
+  email: z.string(),
+  fromAddress: z.string(),
+  displayName: z.string(),
+  imapHost: z.string(),
+  imapPort: z.int(),
+  imapSecurity: z.string(),
+  imapUsername: z.string(),
+  smtpHost: z.string(),
+  smtpPort: z.int(),
+  smtpSecurity: z.string(),
+  smtpUsername: z.string(),
+  defaultMailbox: z.string(),
+  sentMailbox: z.string(),
+  isConfigured: z.boolean().describe("True when the account can read and send mail. When false, offer mail_connection_start."),
+  hasIMAPPassword: z.boolean(),
+  hasSMTPPassword: z.boolean(),
+});
+
+const mailMessageUIDSchema = z.int().describe("IMAP UID of the message. Pass it as a string, with its mailbox, to mail_message_read.");
+
+const mailMessageSummarySchema = z.strictObject({
+  uid: mailMessageUIDSchema,
+  mailbox: z.string(),
+  subject: z.string(),
+  from: z.string(),
+  date: z.string(),
+  preview: z.string(),
+  isRead: z.boolean(),
+});
+
+const mailMessageListResultSchema = z.strictObject({
+  messages: z.array(mailMessageSummarySchema),
+  nextCursor: z.string().describe("Cursor for the next page. Empty when there are no more messages."),
+  uidNext: z.int().optional(),
+  uidValidity: z.int().optional(),
+});
+
+const mailMessageReadResultSchema = z.strictObject({
+  uid: mailMessageUIDSchema,
+  mailbox: z.string(),
+  subject: z.string(),
+  from: z.string(),
+  to: z.string(),
+  cc: z.string(),
+  date: z.string(),
+  body: z.string().describe("Plain-text body."),
+  bodyHTML: z.string().describe("HTML body, present only when the message has one.").optional(),
+  isRead: z.boolean(),
+});
+
+const mailMessageSendResultSchema = z.strictObject({
+  sent: z.literal(true),
+  appendedTo: z.string().describe("Mailbox the sent copy was saved to.").optional(),
+  appendWarning: z.string().describe("Why the sent copy could not be saved. The message itself was still sent.").optional(),
+});
+
 export const mailToolDefinitions: CapabilityToolDefinition[] = [
   {
     name: "mail_connection_start",
@@ -62,8 +129,9 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     description: "Start the email account connection flow and return setup instructions for the requester. Requires the user to be present (RequiresUserPresence=true). Only call this when mail_connection_status reports mail is not connected.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: mailConnectionStartInputSchema,
+    inputIntentSchema: mailConnectionStartInputIntentSchema,
+    result: { schema: mailConnectionStartResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Connect,
     requiresUserPresence: true,
     requiresApproval: true,
@@ -77,8 +145,8 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     description: "Check whether the requester's email account is connected. Call this before any mail read or write operation when you are unsure if mail is set up.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: mailConnectionStatusInputSchema,
+    result: { schema: mailConnectionStatusResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
   },
   {
@@ -90,8 +158,8 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     description: "List emails in a mailbox folder with optional pagination. Use this to browse recent messages; use mail_message_search when you need to find by keyword or subject.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: mailMessageListInputSchema,
+    result: { schema: mailMessageListResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
   },
   {
@@ -129,8 +197,8 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     description: "Fetch the full content of a single email by its mailbox name and UID. The UID must come from a prior mail_message_list or mail_message_search result — never invent a UID.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: mailMessageReadInputSchema,
+    result: { schema: mailMessageReadResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
   },
   {
@@ -142,8 +210,8 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     description: "Search emails by keyword, sender, or subject. Returns matching messages with their UIDs for use with mail.message.read. Do not put pagination cursors in the query field.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: mailMessageSearchInputSchema,
+    result: { schema: mailMessageListResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
   },
   {
@@ -155,8 +223,9 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     description: "Send an email from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: mailMessageSendInputSchema,
+    inputIntentSchema: mailMessageSendInputIntentSchema,
+    result: { schema: mailMessageSendResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.ExternalSend,
     requiresApproval: true,
     completionEvidence: { mode: "success", action: "send_email", targetKind: "email" },

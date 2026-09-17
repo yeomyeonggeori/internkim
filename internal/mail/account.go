@@ -40,7 +40,7 @@ type AccountResponse struct {
 	SMTPUsername    string `json:"smtpUsername"`
 	DefaultMailbox  string `json:"defaultMailbox"`
 	SentMailbox     string `json:"sentMailbox"`
-	IsConfigured    bool   `json:"IsConfigured"`
+	IsConfigured    bool   `json:"isConfigured"`
 	HasIMAPPassword bool   `json:"hasIMAPPassword"`
 	HasSMTPPassword bool   `json:"hasSMTPPassword"`
 }

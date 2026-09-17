@@ -42,20 +42,10 @@ func (service Service) invokeWebTool(ctx context.Context, request capabilities.T
 	if errorValue != nil {
 		return webToolErrorResponse(request.ToolName, errorValue.Error(), "openrouter_web_tool_failed", true), nil
 	}
-	if capabilityToolHasResultContract(request.ToolName) {
-		return capabilitySuccessResponseFrom(request.ToolName, "ok", result, capabilityResponseOrigin{
-			Provider:        "openrouter",
-			SelectedBackend: capabilities.LLMBackendRemote,
-		})
-	}
-	return capabilities.ToolInvokeResponse{
+	return capabilitySuccessResponseFrom(request.ToolName, "ok", result, capabilityResponseOrigin{
 		Provider:        "openrouter",
 		SelectedBackend: capabilities.LLMBackendRemote,
-		ToolName:        request.ToolName,
-		Outcome:         capabilities.ToolOutcomeSucceeded,
-		Status:          "ok",
-		Result:          result,
-	}, nil
+	})
 }
 
 func (service Service) invokeOpenRouterWebTool(ctx context.Context, request capabilities.ToolInvokeRequest, apiKey string) (json.RawMessage, error) {
@@ -455,15 +445,33 @@ func marshalOpenRouterSearchTextResult(input webSearchInput, content string) (js
 func normalizeOpenRouterFetchJSON(content string, input webFetchInput) (json.RawMessage, error) {
 	var document struct {
 		Provider          string                          `json:"provider"`
-		RemoteLLMInvolved bool                            `json:"remoteLLMInvolved"`
+		RemoteLLMInvolved *bool                           `json:"remoteLLMInvolved"`
 		Compatibility     string                          `json:"compatibility"`
 		Results           []openRouterFetchDocumentResult `json:"results"`
 		Errors            []openRouterFetchDocumentError  `json:"errors"`
 	}
-	if errorValue := json.Unmarshal([]byte(content), &document); errorValue == nil && openRouterFetchJSONLooksValid(document.Provider, document.Results, document.Errors) {
-		return json.RawMessage(content), nil
+	if errorValue := json.Unmarshal([]byte(content), &document); errorValue != nil || !openRouterFetchJSONLooksValid(document.Provider, document.Results, document.Errors) {
+		return marshalOpenRouterFetchTextResult(input, content)
 	}
-	return marshalOpenRouterFetchTextResult(input, content)
+	results := document.Results
+	if results == nil {
+		results = []openRouterFetchDocumentResult{}
+	}
+	fetchErrors := document.Errors
+	if fetchErrors == nil {
+		fetchErrors = []openRouterFetchDocumentError{}
+	}
+	remoteLLMInvolved := true
+	if document.RemoteLLMInvolved != nil {
+		remoteLLMInvolved = *document.RemoteLLMInvolved
+	}
+	return json.Marshal(map[string]any{
+		"provider":          document.Provider,
+		"remoteLLMInvolved": remoteLLMInvolved,
+		"compatibility":     nonEmptyStringOr(document.Compatibility, "openrouter_server_tool_auto"),
+		"results":           results,
+		"errors":            fetchErrors,
+	})
 }
 
 func openRouterFetchJSONLooksValid(provider string, results []openRouterFetchDocumentResult, errors []openRouterFetchDocumentError) bool {
