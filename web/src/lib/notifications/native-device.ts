@@ -1,7 +1,7 @@
-import { invokeTool } from '$lib/public-api-call';
 import { isInsideNativeShell, shellPlatform } from '$lib/native-shell/shell';
 import { pushDeviceKindOfPlatform, type PushDeviceKind, type Reachability } from './reachability';
 import { safeOpenPath } from './opened-notification';
+import { claimPushDevice, releasePushDevice } from './push-device';
 
 const heldTokenKey = 'internkim.push.deviceToken';
 
@@ -91,7 +91,7 @@ async function registeredToken(push: PushPlugin): Promise<string> {
 }
 
 async function claim(token: string): Promise<void> {
-	await invokeTool('push_device_claim', { endpoint: token, kind: nativeDeviceKind() });
+	await claimPushDevice({ endpoint: token, kind: nativeDeviceKind() });
 	rememberToken(token);
 }
 
@@ -112,7 +112,7 @@ export async function stopBeingNativelyReached(): Promise<Reachability> {
 	const { push } = await pushPlugin();
 	const token = heldToken();
 	if (token) {
-		await invokeTool('push_device_release', { endpoint: token, kind: nativeDeviceKind() });
+		await releasePushDevice({ endpoint: token, kind: nativeDeviceKind() });
 		forgetToken();
 	}
 	await push.unregister();

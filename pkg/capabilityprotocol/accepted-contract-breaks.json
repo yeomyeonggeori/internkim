@@ -223,5 +223,20 @@
 		"path": "company_document_search.result.documents[].published",
 		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
 		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "push_reachability_get",
+		"reason": "The app registered a browser subscription or a phone's device token through this tool, and nothing else ever called it: it was hidden from every model, so no fleet agent was offered it, and the plane answered it only for the app through the public API. A push device belongs to the browser or phone the app runs on, not to an agent, so it is registered at /api/member/push-device now and the catalog publishes only tools an agent can call. The app and the plane deploy together, the iOS shell loading intern.kim remotely, so no device holds a caller of the tool.",
+		"release": "the web deploy that carries /api/member/push-device, which the app and the plane take at once; no OTA release carries a caller"
+	},
+	{
+		"path": "push_device_claim",
+		"reason": "The app registered a browser subscription or a phone's device token through this tool, and nothing else ever called it: it was hidden from every model, so no fleet agent was offered it, and the plane answered it only for the app through the public API. A push device belongs to the browser or phone the app runs on, not to an agent, so it is registered at /api/member/push-device now and the catalog publishes only tools an agent can call. The app and the plane deploy together, the iOS shell loading intern.kim remotely, so no device holds a caller of the tool.",
+		"release": "the web deploy that carries /api/member/push-device, which the app and the plane take at once; no OTA release carries a caller"
+	},
+	{
+		"path": "push_device_release",
+		"reason": "The app registered a browser subscription or a phone's device token through this tool, and nothing else ever called it: it was hidden from every model, so no fleet agent was offered it, and the plane answered it only for the app through the public API. A push device belongs to the browser or phone the app runs on, not to an agent, so it is registered at /api/member/push-device now and the catalog publishes only tools an agent can call. The app and the plane deploy together, the iOS shell loading intern.kim remotely, so no device holds a caller of the tool.",
+		"release": "the web deploy that carries /api/member/push-device, which the app and the plane take at once; no OTA release carries a caller"
 	}
 ]
