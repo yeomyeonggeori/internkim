@@ -1,0 +1,103 @@
+{
+  "cases": [
+    {
+      "name": "a shift that crossed midnight counts only the part that fell today",
+      "today": "2026-09-17",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-17T03:00:00Z",
+      "currentTime": "12:00",
+      "rows": [
+        { "kind": "clock_in", "date": "2026-09-16", "time": "18:00", "occurredAt": "2026-09-16T09:00:00Z", "location": "사무실" },
+        { "kind": "clock_out", "date": "2026-09-17", "time": "04:00", "occurredAt": "2026-09-16T19:00:00Z", "location": null }
+      ],
+      "expected": {
+        "workedMinutes": 240,
+        "elapsedMinutes": 240,
+        "isWorking": false,
+        "location": null,
+        "clockInTime": "18:00",
+        "clockOutTime": "04:00",
+        "bars": [{ "location": "사무실", "widthPercent": 16.6667 }]
+      }
+    },
+    {
+      "name": "clocking in somewhere else closes the earlier segment and keeps its time",
+      "today": "2026-09-17",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-17T06:30:00Z",
+      "currentTime": "15:30",
+      "rows": [
+        { "kind": "clock_in", "date": "2026-09-17", "time": "09:00", "occurredAt": "2026-09-17T00:00:00Z", "location": "재택" },
+        { "kind": "clock_in", "date": "2026-09-17", "time": "13:00", "occurredAt": "2026-09-17T04:00:00Z", "location": "사무실" }
+      ],
+      "expected": {
+        "workedMinutes": 240,
+        "elapsedMinutes": 390,
+        "isWorking": true,
+        "location": "사무실",
+        "clockInTime": "13:00",
+        "clockOutTime": null,
+        "bars": [
+          { "location": "재택", "widthPercent": 16.6667 },
+          { "location": "사무실", "widthPercent": 10.4167 }
+        ]
+      }
+    },
+    {
+      "name": "a finished day adds its one segment",
+      "today": "2026-09-17",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-17T12:00:00Z",
+      "currentTime": "21:00",
+      "rows": [
+        { "kind": "clock_in", "date": "2026-09-17", "time": "09:02", "occurredAt": "2026-09-17T00:02:00Z", "location": "사무실" },
+        { "kind": "clock_out", "date": "2026-09-17", "time": "18:30", "occurredAt": "2026-09-17T09:30:00Z", "location": null }
+      ],
+      "expected": {
+        "workedMinutes": 568,
+        "elapsedMinutes": 568,
+        "isWorking": false,
+        "location": null,
+        "clockInTime": "09:02",
+        "clockOutTime": "18:30",
+        "bars": [{ "location": "사무실", "widthPercent": 39.4444 }]
+      }
+    },
+    {
+      "name": "a clock-in nobody closed for more than a day leaves nothing",
+      "today": "2026-09-17",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-17T01:00:00Z",
+      "currentTime": "10:00",
+      "rows": [
+        { "kind": "clock_in", "date": "2026-09-15", "time": "09:00", "occurredAt": "2026-09-15T00:00:00Z", "location": "사무실" }
+      ],
+      "expected": {
+        "workedMinutes": 0,
+        "elapsedMinutes": 0,
+        "isWorking": false,
+        "location": null,
+        "clockInTime": null,
+        "clockOutTime": null,
+        "bars": []
+      }
+    },
+    {
+      "name": "a day with no records is empty",
+      "today": "2026-09-17",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-17T01:00:00Z",
+      "currentTime": "10:00",
+      "rows": [],
+      "expected": {
+        "workedMinutes": 0,
+        "elapsedMinutes": 0,
+        "isWorking": false,
+        "location": null,
+        "clockInTime": null,
+        "clockOutTime": null,
+        "bars": []
+      }
+    }
+  ]
+}

@@ -25,7 +25,12 @@ struct WorkLocation: Decodable {
 }
 
 struct CompanySettings: Decodable {
+    let timeZone: String
     let workLocations: [WorkLocation]
+
+    var companyTimeZone: TimeZone {
+        TimeZone(identifier: timeZone) ?? .current
+    }
 }
 
 enum AttendanceAPIFailure: LocalizedError {
@@ -48,18 +53,16 @@ struct AttendanceAPI {
         return AttendanceAPI(credential: credential)
     }
 
-    func today() async throws -> AttendanceList {
-        let day = DateFormatter()
-        day.calendar = Calendar(identifier: .iso8601)
-        day.timeZone = .current
-        day.dateFormat = "yyyy-MM-dd"
-        let named = day.string(from: Date())
-        return try await invoke("attendance_list", input: ["from": named, "to": named])
+    func since(yesterdayOf now: Date, in timeZone: TimeZone) async throws -> AttendanceList {
+        let yesterday = now.addingTimeInterval(-24 * 60 * 60)
+        return try await invoke("attendance_list", input: [
+            "from": CompanyClock.day(of: yesterday, in: timeZone),
+            "to": CompanyClock.day(of: now, in: timeZone)
+        ])
     }
 
-    func locations() async throws -> [WorkLocation] {
-        let settings: CompanySettings = try await invoke("company_settings_get", input: [:])
-        return settings.workLocations
+    func settings() async throws -> CompanySettings {
+        try await invoke("company_settings_get", input: [:])
     }
 
     func clock(kind: String, location: String?) async throws -> AttendanceWrite {
