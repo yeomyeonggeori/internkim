@@ -6,6 +6,7 @@ import { forgetLastSeenDirectory } from '../routes/organization/organization-las
 import { signedOutSession, type WebAuthSession } from '$lib/web-auth-session';
 import { stopBeingReached } from '$lib/notifications/subscribe';
 import { forgetSignedInAccount, signedInMember } from '$lib/signed-in-account-memo';
+import { forgetWidgetSupply } from '$lib/widget/attendance-widget-supply';
 
 export { isSupabaseConfigured };
 
@@ -67,6 +68,7 @@ export async function supabaseMemberRole(): Promise<MemberRole> {
 
 export async function signOutOfSupabase(): Promise<void> {
 	await stopBeingReached().catch(() => undefined);
+	await forgetWidgetSupply().catch(() => undefined);
 	forgetLastSeenTask();
 	forgetLastSeenDirectory();
 	forgetSignedInAccount();
