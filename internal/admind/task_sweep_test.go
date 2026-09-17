@@ -72,7 +72,11 @@ func startCompanyForTaskCarry(t *testing.T, alreadyCarried map[string]string) *c
 }
 
 func (company *companyHoldingTasks) answerForVocabulary() string {
-	businesses, _ := json.Marshal(company.businesses)
+	labels := make([]map[string]string, 0, len(company.businesses))
+	for _, name := range company.businesses {
+		labels = append(labels, map[string]string{"name": name})
+	}
+	businesses, _ := json.Marshal(labels)
 	return `{"businesses":` + string(businesses) + `,"types":[],"sizes":[],"statuses":[]}`
 }
 
