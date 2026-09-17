@@ -17,6 +17,13 @@ internal/capabilities/legacy.go, so a retired name in non-test agent source
 fails unless the file also names its replacement, which is what a normalizer
 translating old ledgers looks like.
 
+A name the catalog knows is still unreachable when the catalog hides it from
+the model: bluecollar registers a hidden tool as internal and never exposes it.
+#1332 hid the company, mail and web_fetch tools while moving the catalog, and
+the dataroom, company-data, paperwork, mail and web-search skills went quiet on
+every host for two weeks. So a skill or a standing duty may only name a tool the
+model can see.
+
 This cannot catch a tool name deleted with no successor, or one that never
 existed. Telling a tool-name literal from any other snake_case string would take
 a heuristic that fires on every event name and failure code in the tree.
@@ -60,6 +67,22 @@ def catalog_tool_names() -> set[str]:
     names |= names_in(BLUECLAW_LOCAL_TOOLS, r'Name:\s+"([a-z0-9_]+)"')
     names |= names_in(KERNEL_TOOLS, r'ToolName\s+= "([a-z0-9_.]+)"')
     return names
+
+
+def model_hidden_tool_names() -> set[str]:
+    return {
+        tool["name"]
+        for tool in json.loads(GENERATED_CATALOG.read_text())["tools"]
+        if tool.get("modelVisibility") == "hidden"
+    }
+
+
+def unreachable_reason(tool_name: str, catalog: set[str], hidden: set[str]) -> str | None:
+    if tool_name not in catalog:
+        return "names no tool in the catalog"
+    if tool_name in hidden:
+        return "is hidden from the model"
+    return None
 
 
 def standing_duty_tool_names() -> list[tuple[str, str]]:
@@ -119,14 +142,16 @@ def main() -> int:
         )
         return 1
 
+    hidden = model_hidden_tool_names()
     unknown: list[str] = []
     checked = 0
     for skill_root in skill_root_paths(REPOSITORY_ROOT):
         for skill_document in sorted(skill_root.glob("*/SKILL.md")):
             checked += 1
             for reference in declared_references(skill_document):
-                if reference not in catalog:
-                    unknown.append(f"skill {skill_document.parent.name} declares {reference}")
+                reason = unreachable_reason(reference, catalog, hidden)
+                if reason:
+                    unknown.append(f"skill {skill_document.parent.name} declares {reference}, which {reason}")
     if checked == 0:
         print("no skill was checked, so this check is reading the wrong place", file=sys.stderr)
         return 1
@@ -136,8 +161,9 @@ def main() -> int:
         print("no standing duty was checked, so this check is reading the wrong place", file=sys.stderr)
         return 1
     for duty_name, tool_name in duties:
-        if tool_name not in catalog:
-            unknown.append(f"standing duty {duty_name} names {tool_name}")
+        reason = unreachable_reason(tool_name, catalog, hidden)
+        if reason:
+            unknown.append(f"standing duty {duty_name} names {tool_name}, which {reason}")
 
     retired_names = retired_tool_names()
     if len(retired_names) < MINIMUM_RETIRED_NAMES:
@@ -158,7 +184,7 @@ def main() -> int:
     unknown.extend(retired_names_left_in(source_paths, retired_names))
 
     if unknown:
-        print("a hand-written tool name names no tool in the catalog:", file=sys.stderr)
+        print("a hand-written tool name names a tool the agent cannot call:", file=sys.stderr)
         for entry in unknown:
             print(f"  {entry}", file=sys.stderr)
         return 1

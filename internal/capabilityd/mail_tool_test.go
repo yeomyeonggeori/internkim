@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"gitlab.com/eastriver/internkim/internal/mail"
 )
 
 func TestMailMessageSendRequiresDescriptorApproval(t *testing.T) {
@@ -163,6 +164,51 @@ func TestMailConnectionStartReturnsSetupURL(t *testing.T) {
 	}
 	if !strings.Contains(string(result), `"setupURL":"http://admind.local/mail/"`) {
 		t.Fatalf("result = %s", string(result))
+	}
+}
+
+func TestMailAnswersHoldTheirResultContracts(t *testing.T) {
+	cases := []struct {
+		toolName string
+		input    string
+		answer   any
+	}{
+		{toolName: "mail_connection_status", input: `{}`, answer: mail.AccountToResponse(mail.DefaultAccount("member@example.com"))},
+		{toolName: "mail_message_list", input: `{"mailbox":"INBOX"}`, answer: mail.MessageListResponse{Messages: []mail.MessageResponse{}}},
+		{toolName: "mail_message_list", input: `{"mailbox":"INBOX"}`, answer: mail.MessageListResponse{
+			Messages:    []mail.MessageResponse{{UID: 42, Mailbox: "INBOX", Subject: "Invoice", From: "Alice <alice@example.com>", Date: "2026-09-17T09:00:00Z", Preview: "Attached", IsRead: true}},
+			NextCursor:  "cursor-2",
+			UIDNext:     43,
+			UIDValidity: 7,
+		}},
+		{toolName: "mail_message_search", input: `{"query":"invoice"}`, answer: mail.MessageListResponse{Messages: []mail.MessageResponse{{UID: 42, Mailbox: "INBOX"}}}},
+		{toolName: "mail_message_read", input: `{"mailbox":"INBOX","uid":"42"}`, answer: mail.MessageDetailResponse{UID: 42, Mailbox: "INBOX", Body: "Hello", BodyHTML: "<p>Hello</p>"}},
+		{toolName: "mail_message_send", input: `{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}`, answer: mail.SendResult{Sent: true, AppendedTo: "Sent"}},
+		{toolName: "mail_connection_start", input: `{}`},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.toolName, func(t *testing.T) {
+			answer, errorValue := json.Marshal(testCase.answer)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			service := Service{
+				Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
+				HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					return mailToolJSONResponse(string(answer)), nil
+				})},
+			}
+			response, errorValue := service.invokeMailTool(context.Background(), capabilities.ToolInvokeRequest{
+				ToolName: testCase.toolName,
+				Input:    []byte(testCase.input),
+			})
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if response.Outcome != capabilities.ToolOutcomeSucceeded {
+				t.Fatalf("response = %+v", response)
+			}
+		})
 	}
 }
 

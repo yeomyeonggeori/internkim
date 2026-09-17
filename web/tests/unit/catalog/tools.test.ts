@@ -31,6 +31,7 @@ import {
   browserSnapshotResultSchema,
   buildCapabilityToolCatalog,
   calendarAddInputSchema,
+  capabilityToolResultSchema,
   calendarDeleteInputSchema,
   calendarDeleteInputIntentSchema,
   calendarListInputSchema,
@@ -65,6 +66,7 @@ import {
   taskListInputSchema,
   taskUpdateInputSchema,
   taskUpdateInputIntentSchema,
+  webFetchResultSchema,
   webSearchInputSchema,
   webSearchResultSchema,
 } from '../../../src/lib/server/public-api/catalog/tools';
@@ -281,6 +283,14 @@ describe('canonical capability tools', () => {
       SiteToolName.Unserve,
       BrowserToolName.Open,
       BrowserToolName.Click,
+      'company_document_register',
+      'company_document_update',
+      'company_document_upload',
+      'company_info_set',
+      'company_metric_record',
+      'company_record_add',
+      'company_record_delete',
+      'company_record_update',
       'crm_organization_add',
       'crm_contact_add',
       'crm_opportunity_add',
@@ -292,6 +302,8 @@ describe('canonical capability tools', () => {
       'notification_settings_set',
       'conversation_mute',
       'conversation_unmute',
+      'mail_connection_start',
+      'mail_message_send',
     ]);
 
     for (const tool of stateChangingTools) {
@@ -337,6 +349,58 @@ describe('canonical capability tools', () => {
     expect(descriptor?.resultContract?.effects).toEqual([]);
     expect(descriptor?.requiresApproval).toBeUndefined();
     expect(descriptor?.sideEffectClass).toBe(CapabilitySideEffect.Read);
+  });
+
+  test('defines the normalized web fetch result', () => {
+    const result = {
+      provider: 'openrouter',
+      remoteLLMInvolved: true,
+      compatibility: 'openrouter_server_tool_auto',
+      results: [{ url: 'https://example.com', finalURL: 'https://example.com', title: 'Example', content: 'Page text' }],
+      errors: [{ url: 'https://blocked.example', error: 'blocked' }],
+    };
+    expect(webFetchResultSchema.safeParse(result).success).toBe(true);
+    expect(webFetchResultSchema.safeParse({ ...result, errors: undefined }).success).toBe(false);
+    expect(webFetchResultSchema.safeParse({ ...result, results: [{ url: 'https://example.com', title: 'Example' }] }).success).toBe(false);
+
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const descriptor = catalog.tools.find(tool => tool.name === WebToolName.Fetch);
+    expect(descriptor?.modelVisible).toBe(true);
+    expect(descriptor?.resultContract?.effects).toEqual([]);
+    expect(descriptor?.sideEffectClass).toBe(CapabilitySideEffect.Read);
+  });
+
+  test('shows the model the mail tools the mail skill calls, with the answers admind gives', () => {
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const visibleMailToolNames = catalog.tools
+      .filter(tool => tool.namespace === 'mail' && tool.modelVisible)
+      .map(tool => tool.name);
+    expect(visibleMailToolNames).toEqual([
+      'mail_connection_start',
+      'mail_connection_status',
+      'mail_message_list',
+      'mail_message_read',
+      'mail_message_search',
+      'mail_message_send',
+    ]);
+
+    const message = { uid: 42, mailbox: 'INBOX', subject: 'Invoice', from: 'alice@example.com', date: '2026-09-17T09:00:00Z', preview: 'Attached', isRead: false };
+    expect(capabilityToolResultSchema('mail_message_list')?.safeParse({ messages: [message], nextCursor: '' }).success).toBe(true);
+    expect(capabilityToolResultSchema('mail_message_search')?.safeParse({ messages: null, nextCursor: '' }).success).toBe(false);
+    expect(capabilityToolResultSchema('mail_message_read')?.safeParse({
+      uid: 42, mailbox: 'INBOX', subject: 'Invoice', from: 'alice@example.com', to: 'me@example.com', cc: '', date: '2026-09-17T09:00:00Z', body: 'Hello', isRead: true,
+    }).success).toBe(true);
+    expect(capabilityToolResultSchema('mail_message_send')?.safeParse({ sent: true, appendedTo: 'Sent' }).success).toBe(true);
+    expect(capabilityToolResultSchema('mail_message_send')?.safeParse({ sent: false }).success).toBe(false);
+    expect(capabilityToolResultSchema('mail_connection_start')?.safeParse({
+      status: 'configuration_required', provider: 'manual', setupURL: 'http://admind.local/mail/',
+    }).success).toBe(true);
+
+    const sendTool = catalog.tools.find(tool => tool.name === 'mail_message_send');
+    expect(sendTool?.resultContract?.effects).toEqual([]);
+    expect(sendTool?.completionEvidence).toEqual({ mode: 'success', action: 'send_email', targetKind: 'email' });
+    expect(catalog.tools.find(tool => tool.name === 'mail_message_mark')?.modelVisible).toBe(false);
+    expect(catalog.tools.find(tool => tool.name === 'mail_message_move')?.modelVisible).toBe(false);
   });
 
   test('defines exact browser inputs and successful results', () => {

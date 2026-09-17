@@ -3,7 +3,6 @@ import { z } from 'zod';
 import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
-  CapabilityModelVisibility,
   CapabilitySideEffect,
 } from './protocol';
 
@@ -50,6 +49,8 @@ const companyDocumentRegisterInputSchema = z.strictObject({
   title: z.string().describe("Document title including the counterpart, e.g. 'ABC Trading onboarding consulting quote'."),
 });
 
+const companyDocumentRegisterInputIntentSchema = companyDocumentRegisterInputSchema.partial();
+
 const companyDocumentSearchInputSchema = z.strictObject({
   limit: z.int().describe("Maximum documents to return. Defaults to 5.").optional(),
   query: z.string().describe("Natural-language question or topic, e.g. 'payment terms of the service agreement with ABC Trading'."),
@@ -64,11 +65,15 @@ const companyDocumentUpdateInputSchema = z.strictObject({
   title: z.string().describe("Corrected title. Omit to keep unchanged.").optional(),
 });
 
+const companyDocumentUpdateInputIntentSchema = companyDocumentUpdateInputSchema.omit({ documentHint: true }).partial();
+
 const companyDocumentUploadInputSchema = z.strictObject({
   clearance: dataRoomClearanceSchema.describe("Data room clearance the file is stored at: 0 public, 1 every member, 2 management, 3 representative and board. The bucket refuses a clearance above the requester's own."),
   fileName: z.string().describe("Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.").optional(),
   sha256: dataRoomSha256Schema,
 });
+
+const companyDocumentUploadInputIntentSchema = companyDocumentUploadInputSchema.partial();
 
 const companyDocumentDownloadInputSchema = z.strictObject({
   documentHint: z.string().describe("The document whose original to fetch: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Give this or storagePath.").optional(),
@@ -103,6 +108,8 @@ const companyInfoSetInputSchema = z.strictObject({
   website: z.string().describe("Company website URL.").optional(),
 });
 
+const companyInfoSetInputIntentSchema = companyInfoSetInputSchema.partial();
+
 const companyMetricListInputSchema = z.strictObject({
   fromYear: z.int().describe("Earliest year to include.").optional(),
   metric: z.string().describe("Metric key to filter by, e.g. 'annualRevenue'. Leave empty for all metrics.").optional(),
@@ -121,6 +128,8 @@ const companyMetricRecordInputSchema = z.strictObject({
   year: z.int().describe("Four-digit year the value belongs to, e.g. 2025."),
 });
 
+const companyMetricRecordInputIntentSchema = companyMetricRecordInputSchema.partial();
+
 const companyRecordAddInputSchema = z.strictObject({
   attributes: z.string().describe("JSON object string of structured details, e.g. {\"round\": \"Seed\", \"amount\": \"2,000,000 USD\", \"investors\": \"ABC Ventures\"}.").optional(),
   category: z.string().describe("Record category: 'history', 'funding', 'product', 'certification', 'ip', 'award', 'reference', 'grant', or another short kebab-case label."),
@@ -129,9 +138,13 @@ const companyRecordAddInputSchema = z.strictObject({
   title: z.string().describe("Short title, e.g. 'Seed round closed' or 'Product launched'."),
 });
 
+const companyRecordAddInputIntentSchema = companyRecordAddInputSchema.partial();
+
 const companyRecordDeleteInputSchema = z.strictObject({
   recordHint: z.string().describe("The record to delete: its id from a prior company_record_list result, or its exact CURRENT title. Never invent an id."),
 });
+
+const companyRecordDeleteInputIntentSchema = z.strictObject({});
 
 const companyRecordListInputSchema = z.strictObject({
   category: z.string().describe("Category to filter by, e.g. 'funding' or 'history'. Leave empty for all.").optional(),
@@ -146,6 +159,8 @@ const companyRecordUpdateInputSchema = z.strictObject({
   recordHint: z.string().describe("The record to update: its id from a prior company_record_list result, or its exact CURRENT title. Never the new title this call is about to set."),
   title: z.string().describe("New title. Omit to keep unchanged.").optional(),
 });
+
+const companyRecordUpdateInputIntentSchema = companyRecordUpdateInputSchema.omit({ recordHint: true }).partial();
 
 export const companyProfileLegalAttributeSchema = z.strictObject({
   label: z.string(),
@@ -276,7 +291,6 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by type, counterpart, domain, clearance, or keyword. Only documents at or below the requester's clearance are listed. Use to answer 'what quotes did we send to X'.",
     version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentListInputSchema,
     result: { schema: companyDocumentListResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
@@ -290,8 +304,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room also names its domain, clearance, date, hash and the storagePath company_document_upload answered; one that replaces an older document names it with supersedesHint instead of editing it.",
     version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentRegisterInputSchema,
+    inputIntentSchema: companyDocumentRegisterInputIntentSchema,
     result: { schema: companyDocumentRegisteredResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
@@ -305,7 +319,6 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Search registered company documents by a natural-language question ('the terms of the agreement with ABC'). Matches the question against each document's title, counterpart, summary and type, best match first. Answer from the summary first and open the file only when detail is needed.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentSearchInputSchema,
     result: { schema: companyDocumentListResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
@@ -319,8 +332,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Update a registered document's file path, title, counterpart, summary, or where it sits in the data room: its domain, clearance, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when a submission is raised into its domain. Raising a clearance is refused above the requester's own.",
     version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentUpdateInputSchema,
+    inputIntentSchema: companyDocumentUpdateInputIntentSchema,
     result: { schema: companyDocumentResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
@@ -333,8 +346,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Ask for a place in the data room to put one file. Answers the storagePath the file will sit at, keyed by its clearance and SHA-256, and a signed URL to PUT the bytes to; the record's own policy decides whether the requester may write at that clearance, so a refusal here is the clearance rule. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentUploadInputSchema,
+    inputIntentSchema: companyDocumentUploadInputIntentSchema,
     result: { schema: companyDocumentUploadResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
@@ -347,7 +360,6 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Fetch a document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; a document above the requester's clearance does not exist for them, so it is refused as not found. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyDocumentDownloadInputSchema,
     result: { schema: companyDocumentDownloadResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
@@ -361,7 +373,6 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyInfoGetInputSchema,
     result: { schema: companyProfileResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
@@ -375,8 +386,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyInfoSetInputSchema,
+    inputIntentSchema: companyInfoSetInputIntentSchema,
     result: { schema: companyProfileResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
@@ -390,7 +401,6 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "List recorded company metrics sorted by period. Filter by metric key and year range. Use for IR decks, business plans, and grant applications that need revenue/headcount/usage time series.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyMetricListInputSchema,
     result: { schema: companyMetricListResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
@@ -404,8 +414,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Record or correct one company metric value for a period — annual revenue, operating profit, MAU, employee count, GMV and similar time-series numbers. Monetary values use an allowed currency plus a stable USD equivalent; non-monetary values use unit. Add quarter (1-4) OR month (1-12) for sub-annual periods, never both. Same call overwrites the same period.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyMetricRecordInputSchema,
+    inputIntentSchema: companyMetricRecordInputIntentSchema,
     result: { schema: companyMetricResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
@@ -419,8 +429,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Add one company history/asset record: milestones, funding rounds, products, patents, certifications, awards, client references, government grants. Set category, date, title; put structured details (amount, investors, round …) into attributes as a label-to-value JSON object string.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyRecordAddInputSchema,
+    inputIntentSchema: companyRecordAddInputIntentSchema,
     result: { schema: companyRecordResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
@@ -434,8 +444,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Delete a company record named by recordHint from a prior company_record_list result. Use only when the user asks to remove a wrong entry.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyRecordDeleteInputSchema,
+    inputIntentSchema: companyRecordDeleteInputIntentSchema,
     result: { schema: companyRecordResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
@@ -449,7 +459,6 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "List company history/asset records, newest first. Filter by category (history, funding, product, certification, ip, award, reference, grant …) or keyword query. Use to build company timelines, funding tables, and product overviews.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyRecordListInputSchema,
     result: { schema: companyRecordListResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
@@ -463,8 +472,8 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     description: "Update fields on an existing company record named by recordHint from a prior company_record_list result. Only provided fields change.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companyRecordUpdateInputSchema,
+    inputIntentSchema: companyRecordUpdateInputIntentSchema,
     result: { schema: companyRecordResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
