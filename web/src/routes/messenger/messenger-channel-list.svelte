@@ -1,6 +1,8 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import CompassIcon from '@lucide/svelte/icons/compass';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import LockIcon from '@lucide/svelte/icons/lock';
@@ -19,6 +21,8 @@
 		muted,
 		switchMuted,
 		openNewDirectMessage,
+		openNewChannel,
+		openBrowseChannels,
 		openOnPlatform,
 		reorderChannels,
 		selectChannel,
@@ -31,6 +35,8 @@
 		muted: Set<string>;
 		switchMuted: (conversationID: string) => void;
 		openNewDirectMessage: () => void;
+		openNewChannel?: () => void;
+		openBrowseChannels?: () => void;
 		openOnPlatform: { url: string; label: string } | null;
 		reorderChannels: (draggedChannelID: string, targetChannelID: string) => void;
 		selectChannel: (channelID: string) => void;
@@ -54,6 +60,27 @@
 		<Sidebar.Content class="pt-2">
 			<Sidebar.Group>
 				<Sidebar.GroupLabel>{text.channelListTitle}</Sidebar.GroupLabel>
+				{#if openNewChannel && openBrowseChannels}
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger>
+							{#snippet child({ props })}
+								<Sidebar.GroupAction {...props} aria-label={text.channelActions}>
+									<PlusIcon />
+								</Sidebar.GroupAction>
+							{/snippet}
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content align="end">
+							<DropdownMenu.Item onclick={openNewChannel}>
+								<PlusIcon />
+								{text.newChannel}
+							</DropdownMenu.Item>
+							<DropdownMenu.Item onclick={openBrowseChannels}>
+								<CompassIcon />
+								{text.browseChannels}
+							</DropdownMenu.Item>
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
+				{/if}
 				<Sidebar.GroupContent>
 					<Sidebar.Menu>
 						{#each groupChannels as channel (channel.id)}
