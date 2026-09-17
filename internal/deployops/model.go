@@ -76,7 +76,7 @@ func (server *Server) performLLMModelRequest(contextValue context.Context, targe
 		return runtimeRemoteModelResponse{}, errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
-	attachCloudflareAccessCookie(request)
+	AttachCloudflareAccess(request)
 	httpResponse, errorValue := server.client.Do(request)
 	if errorValue != nil {
 		return runtimeRemoteModelResponse{}, errorValue
