@@ -1,5 +1,4 @@
 <script lang="ts">
-	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonChip from '$lib/components/person-chip.svelte';
@@ -93,9 +92,6 @@
 									<span class="block truncate">{displayPersonName(member.name)}</span>
 									<span class="block truncate text-xs text-muted-foreground">{member.email}</span>
 								</span>
-								{#if selectedParticipantIDs.has(member.id)}
-									<CheckIcon class="size-4 shrink-0" />
-								{/if}
 							</Command.Item>
 						{/each}
 					</Command.Group>
