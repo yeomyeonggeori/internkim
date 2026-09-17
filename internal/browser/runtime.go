@@ -562,7 +562,7 @@ curl -fsS "` + DeviceBrowserCDPURL + `/json/version" >/tmp/internkim-device-brow
 func DeviceReadinessShellScript() string {
 	return `set -eu
 command -v agent-browser >/dev/null
-deviceBrowserURL="${INTERNKIM_DEVICE_BROWSER_CDP:-` + DeviceBrowserCDPURL + `}"
+deviceBrowserURL="` + DeviceBrowserCDPURL + `"
 curl -fsS "$deviceBrowserURL/json/version" >/tmp/internkim-device-browser-version.log 2>&1
 stop_agent_browser_daemons() {
   if command -v pkill >/dev/null 2>&1; then
@@ -623,6 +623,9 @@ func (runtime AgentBrowserRuntime) cdpURL() string {
 func (runtime AgentBrowserRuntime) sessionCommandArguments() []string {
 	if runtime.sessionName() == "" {
 		return []string{}
+	}
+	if runtime.browserEngine() == BrowserEngineMoli {
+		return runtime.sessionStartArguments()
 	}
 	return []string{"--session", runtime.sessionName(), "--session-name", runtime.sessionName()}
 }

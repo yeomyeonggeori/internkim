@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
@@ -856,6 +857,7 @@ func TestSimpleBrowserToolFallsBackWhenCompanionBrowserNotReady(t *testing.T) {
 				Result:   denialResult,
 			}), nil
 		})},
+		DeviceBrowsers: fakeDeviceBrowsers(1, time.Now()),
 		RunCommand: func(_ context.Context, _ string, commandArguments []string, _ []byte) ([]byte, error) {
 			commandWasCalled = true
 			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {
@@ -881,6 +883,7 @@ func TestSimpleBrowserToolFallsBackToDeviceWhenCompanionUnavailable(t *testing.T
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return nil, io.ErrUnexpectedEOF
 		})},
+		DeviceBrowsers: fakeDeviceBrowsers(1, time.Now()),
 		RunCommand: func(_ context.Context, _ string, commandArguments []string, _ []byte) ([]byte, error) {
 			commandWasCalled = true
 			if slices.Contains(commandArguments, "get") && slices.Contains(commandArguments, "url") {
@@ -1065,6 +1068,7 @@ func TestBrowserToolUsesCompanionBeforeDeviceFallback(t *testing.T) {
 				Result:   json.RawMessage(`{"url":"https://example.com"}`),
 			}), nil
 		})},
+		DeviceBrowsers: fakeDeviceBrowsers(1, time.Now()),
 		RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
 			deviceCommandCalled = true
 			return nil, errors.New("device browser not configured in test")

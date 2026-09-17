@@ -54,7 +54,8 @@ class FakePage implements DevtoolsConnection {
 const request: HandoffRequest = {
 	message: 'Sign in to the tax office',
 	requester: { email: 'sample@example.test', name: '이샘플' },
-	addressing: { platform: 'buzz', conversationID: 'conversation-1', conversationType: 'direct', responseLanguage: 'ko' }
+	addressing: { platform: 'buzz', conversationID: 'conversation-1', conversationType: 'direct', responseLanguage: 'ko' },
+	devtoolsURL: 'http://127.0.0.1:9231'
 };
 
 const openHandoffs: BrowserHandoffs[] = [];
@@ -67,9 +68,13 @@ function handoffsWith(overrides: Partial<BrowserHandoffSettings> = {}) {
 	const page = new FakePage();
 	const delivered: { event: Record<string, unknown>; memberID: string }[] = [];
 	const resumed: Record<string, unknown>[] = [];
+	const openedAt: string[] = [];
 	const handoffs = new BrowserHandoffs({
 		appURL: 'https://intern.kim/',
-		openPage: async () => page,
+		openPage: async (devtoolsURL) => {
+			openedAt.push(devtoolsURL);
+			return page;
+		},
 		deliver: (event, memberID) => delivered.push({ event, memberID }),
 		resumeConversation: async (inbound) => {
 			resumed.push(inbound);
@@ -80,7 +85,7 @@ function handoffsWith(overrides: Partial<BrowserHandoffSettings> = {}) {
 		...overrides
 	});
 	openHandoffs.push(handoffs);
-	return { handoffs, page, delivered, resumed };
+	return { handoffs, page, delivered, resumed, openedAt };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
@@ -93,13 +98,25 @@ describe('readHandoffRequest', () => {
 			readHandoffRequest({
 				message: ' Sign in ',
 				requester: { email: 'A@B.test' },
-				addressing: { platform: 'buzz', conversationID: 'c', isThread: true }
+				addressing: { platform: 'buzz', conversationID: 'c', isThread: true },
+				devtoolsURL: 'http://127.0.0.1:9230/'
 			})
 		).toEqual({
 			message: 'Sign in',
 			requester: { email: 'a@b.test' },
-			addressing: { platform: 'buzz', conversationID: 'c', isThread: true }
+			addressing: { platform: 'buzz', conversationID: 'c', isThread: true },
+			devtoolsURL: 'http://127.0.0.1:9230'
 		});
+	});
+
+	test('only drives a browser this device serves on its own loopback', () => {
+		const offered = { requester: { email: 'a@b.test' }, addressing: { platform: 'buzz', conversationID: 'c' } };
+
+		expect(readHandoffRequest(offered)).toBeNull();
+		expect(readHandoffRequest({ ...offered, devtoolsURL: 'http://10.0.0.5:9230' })).toBeNull();
+		expect(readHandoffRequest({ ...offered, devtoolsURL: 'ws://127.0.0.1:9230' })).toBeNull();
+		expect(readHandoffRequest({ ...offered, devtoolsURL: 'not an address' })).toBeNull();
+		expect(readHandoffRequest({ ...offered, devtoolsURL: 'http://localhost:9230' })?.devtoolsURL).toBe('http://localhost:9230');
 	});
 });
 
@@ -142,12 +159,13 @@ describe('BrowserHandoffs', () => {
 	});
 
 	test('watching starts the screencast and sends the current screen to the requester', async () => {
-		const { handoffs, page, delivered } = handoffsWith();
+		const { handoffs, page, delivered, openedAt } = handoffsWith();
 		handoffs.begin(request);
 
 		const watched = await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, 'member-1');
 		await settle();
 
+		expect(openedAt).toEqual(['http://127.0.0.1:9231']);
 		expect(watched).toEqual({
 			status: 200,
 			body: {
