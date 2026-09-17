@@ -34,6 +34,10 @@
 		7A11C0DE0000000000000131 /* AttendanceWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010B /* AttendanceWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7A11C0DE0000000000000128 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010C /* Localizable.xcstrings */; };
 		7A11C0DE0000000000000129 /* AttendanceRefusal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010D /* AttendanceRefusal.swift */; };
+		7A11C0DE0000000000000115 /* AttendanceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */; };
+		7A11C0DE000000000000012A /* AttendanceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */; };
+		7A11C0DE000000000000012B /* AttendanceLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */; };
+		7A11C0DE0000000000000116 /* AttendanceActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +105,9 @@
 		7A11C0DE000000000000010B /* AttendanceWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AttendanceWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A11C0DE000000000000010C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		7A11C0DE000000000000010D /* AttendanceRefusal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceRefusal.swift; sourceTree = "<group>"; };
+		7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceActivityAttributes.swift; sourceTree = "<group>"; };
+		7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLiveActivity.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceActivityPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +179,7 @@
 				7A11C0DE0000000000000003 /* PageThemePlugin.swift */,
 				7A11C0DE0000000000000006 /* ForegroundNotificationsPlugin.swift */,
 				7A11C0DE0000000000000104 /* AttendanceWidgetPlugin.swift */,
+				7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -206,6 +214,7 @@
 				7A11C0DE0000000000000101 /* AttendanceWidgetStore.swift */,
 				7A11C0DE0000000000000102 /* AttendanceAPI.swift */,
 				7A11C0DE0000000000000103 /* AttendanceToday.swift */,
+				7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -218,6 +227,7 @@
 				7A11C0DE0000000000000107 /* AttendanceWidgetView.swift */,
 				7A11C0DE0000000000000108 /* AttendanceWidgetIntents.swift */,
 				7A11C0DE000000000000010D /* AttendanceRefusal.swift */,
+				7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */,
 				7A11C0DE000000000000010C /* Localizable.xcstrings */,
 				7A11C0DE000000000000010A /* AttendanceWidget.entitlements */,
 				7A11C0DE0000000000000109 /* Info.plist */,
@@ -376,6 +386,8 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				7A11C0DE0000000000000111 /* AttendanceWidgetStore.swift in Sources */,
 				7A11C0DE0000000000000114 /* AttendanceWidgetPlugin.swift in Sources */,
+				7A11C0DE0000000000000115 /* AttendanceActivityAttributes.swift in Sources */,
+				7A11C0DE0000000000000116 /* AttendanceActivityPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -391,6 +403,8 @@
 				7A11C0DE0000000000000126 /* AttendanceWidgetView.swift in Sources */,
 				7A11C0DE0000000000000127 /* AttendanceWidgetIntents.swift in Sources */,
 				7A11C0DE0000000000000129 /* AttendanceRefusal.swift in Sources */,
+				7A11C0DE000000000000012A /* AttendanceActivityAttributes.swift in Sources */,
+				7A11C0DE000000000000012B /* AttendanceLiveActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

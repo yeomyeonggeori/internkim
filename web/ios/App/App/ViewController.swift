@@ -6,5 +6,6 @@ class ViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(PageThemePlugin())
         bridge?.registerPluginInstance(ForegroundNotificationsPlugin())
         bridge?.registerPluginInstance(AttendanceWidgetPlugin())
+        bridge?.registerPluginInstance(AttendanceActivityPlugin())
     }
 }

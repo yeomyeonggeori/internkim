@@ -35,6 +35,7 @@
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
 	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
+	import { keepActivityTokensClaimed } from '$lib/widget/attendance-activity-tokens';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -81,6 +82,9 @@
 			widgetSuppliedEmail = signedInEmail;
 			keepWidgetSupplied().catch((failure: unknown) =>
 				console.warn('the widget holds no key of its own', failure)
+			);
+			keepActivityTokensClaimed().catch((failure: unknown) =>
+				console.warn('the lock screen is not following attendance', failure)
 			);
 		});
 	});

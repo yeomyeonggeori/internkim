@@ -5,6 +5,9 @@ import WidgetKit
 struct AttendanceWidgetBundle: WidgetBundle {
     var body: some Widget {
         AttendanceWidget()
+        if #available(iOS 16.2, *) {
+            AttendanceLiveActivity()
+        }
     }
 }
 
