@@ -61,6 +61,16 @@
         }
       }
     },
+    "Clocked in at %@" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 출근"
+          }
+        }
+      }
+    },
     "Default location · %@" : {
       "localizations" : {
         "ko" : {
