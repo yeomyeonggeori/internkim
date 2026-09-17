@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 )
 
 // capabilityd reaches everything it does not do itself through one field of its
@@ -101,6 +104,7 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 	t.Helper()
 	configuration := Configuration{AdmindBaseURL: refusingAddress(t, "admind over TCP")}
 	var runsACommand *standingIn
+	var deviceBrowsers *browserruntime.DeviceBrowsers
 
 	for backend, standIn := range reaches {
 		switch backend {
@@ -122,6 +126,7 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 		case browserAsACommand:
 			configuration.AgentBrowserPath = "/usr/local/bin/agent-browser"
 			runsACommand = standIn
+			deviceBrowsers = fakeDeviceBrowsers(1, time.Now())
 		case converterAsACommand:
 			runsACommand = standIn
 		case workspaceOnDisk:
@@ -130,7 +135,7 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 			t.Fatalf("no stand-in knows how to be %s", backend)
 		}
 	}
-	service := Service{Configuration: configuration}
+	service := Service{Configuration: configuration, DeviceBrowsers: deviceBrowsers}
 	if runsACommand != nil {
 		service.RunCommand = func(_ context.Context, executablePath string, arguments []string, _ []byte) ([]byte, error) {
 			runsACommand.mutex.Lock()

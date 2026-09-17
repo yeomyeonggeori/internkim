@@ -69,10 +69,14 @@ A file the user picks is uploaded through the signed broker, so the agent sees
 a device-local path with a TTL and never the path on their own machine.
 Browser capabilities prefer the headed companion and capabilityd routes to it
 only while that person's companion is online. When no companion is available,
-the device's Moli browser handles plain public-text navigation. Login, MFA,
-captcha, sensitive inputs and account-risky actions go through a browser
-handoff, which hands the device's browser to the requester on the intern.kim
-website. The relay streams its screen to that person alone, passes their clicks
+the device's Moli browser handles plain public-text navigation. Each requester
+gets a Moli of their own with its own profile, so one person's sign-ins never
+reach another's; capabilityd starts it on first use and stops it after ten idle
+minutes. At most four run at once (`--device-browser-capacity`): the least
+recently used is stopped to make room, and when every one is held by a handoff
+the agent tells the requester the browser is busy. Login, MFA, captcha,
+sensitive inputs and account-risky actions go through a browser handoff, which
+hands the requester's device browser to them on the intern.kim website. The relay streams its screen to that person alone, passes their clicks
 and typing back, and resumes the conversation when they finish, stop, or let it
 expire after 15 minutes.
 

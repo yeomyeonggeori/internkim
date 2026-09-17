@@ -51,7 +51,6 @@ const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
 const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const admindSocketPath = process.env.ADMIND_SOCKET_PATH ?? defaultAdmindSocketPath;
 const blueclawACPSocketPath = process.env.BLUECLAW_ACP_SOCKET_PATH ?? defaultBlueclawACPSocketPath;
-const deviceBrowserDevtoolsURL = process.env.INTERNKIM_DEVICE_BROWSER_CDP ?? 'http://127.0.0.1:9222';
 const workspaceRootPath = process.env.WORKSPACE_ROOT_PATH ?? '/workspace';
 const relayStateDirectory = process.env.RELAY_STATE_DIR ?? '/var/lib/internkim/relay';
 const appURL = required('INTERNKIM_APP_URL');
@@ -414,7 +413,7 @@ const inboundTurns: InboundTurns = new InboundTurns({
 
 const browserHandoffs = new BrowserHandoffs({
 	appURL,
-	openPage: () => DevtoolsPage.open(deviceBrowserDevtoolsURL),
+	openPage: (devtoolsURL) => DevtoolsPage.open(devtoolsURL),
 	deliver: (event, memberID) => gateway?.deliver(event, [memberID]),
 	resumeConversation: async (inbound) => {
 		const kept = await keepInboundMessage(inbound);

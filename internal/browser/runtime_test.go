@@ -392,7 +392,7 @@ func TestAgentBrowserRuntimeRealChromeSmoke(t *testing.T) {
 func TestDeviceReadinessShellScriptChecksMoliSnapshotReadiness(t *testing.T) {
 	script := DeviceReadinessShellScript()
 
-	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", `--session internkim-device-smoke --cdp "$deviceBrowserURL"`, "snapshot -i --compact --json", DeviceBrowserCDPURL, "/json/version", "INTERNKIM_DEVICE_BROWSER_CDP"} {
+	for _, fragment := range []string{"agent-browser close --all", "pkill -TERM -x agent-browser", "pkill -KILL -x agent-browser", `--session internkim-device-smoke --cdp "$deviceBrowserURL"`, "snapshot -i --compact --json", DeviceBrowserCDPURL, "/json/version"} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("expected device readiness script to contain %q: %s", fragment, script)
 		}
