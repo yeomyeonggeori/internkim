@@ -39,6 +39,17 @@ describe('watching a browser handoff', () => {
 		expect(await watchHandoff('handoff-1', null)).toEqual({ state: 'refused' });
 	});
 
+	test('a device that could not open the browser says why', async () => {
+		answer = async () => ({ status: 500, body: { error: 'the device browser at http://127.0.0.1:9230 has no open page' } });
+		expect(await watchHandoff('handoff-1', null)).toEqual({
+			state: 'failed',
+			reason: 'the device browser at http://127.0.0.1:9230 has no open page'
+		});
+
+		answer = async () => ({ status: 502, body: 'bad gateway' });
+		expect(await watchHandoff('handoff-1', null)).toEqual({ state: 'failed', reason: 'the device answered 502' });
+	});
+
 	test('an answer that is not a handoff is an error', async () => {
 		answer = async () => ({ status: 200, body: { handoffID: 'handoff-1' } });
 
