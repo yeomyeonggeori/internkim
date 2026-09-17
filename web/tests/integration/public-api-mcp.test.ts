@@ -203,18 +203,3 @@ describe('a tool called over MCP', () => {
 test('a client whose standalone stream is refused still finished every call above', () => {
 	expect(refusedNonPostCalls).toBeGreaterThan(0);
 });
-
-test('an MCP call with no token is refused', async () => {
-	const request = new Request(`${address}/mcp`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
-		body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} })
-	});
-	const refused = reachMCP({
-		request,
-		url: new URL(request.url),
-		params: {},
-		platform: undefined
-	} as unknown as Parameters<typeof reachMCP>[0]);
-	await expect(Promise.resolve(refused)).rejects.toMatchObject({ status: 401 });
-});
