@@ -211,10 +211,6 @@
     "process": "host",
     "description": "where the device browser keeps its profile and HTTP cache across restarts; defaults to /var/lib/internkim-moli"
   },
-  "DISPLAY": {
-    "process": "companion",
-    "description": "the X11 display name; the companion's browser runtime checks it is unset under Wayland before choosing a Wayland-native launch path"
-  },
   "E2E_NONCE": {
     "process": "tools/e2e-crud-remote.sh",
     "description": "the per-run nonce (forwarded from INTERNKIM_E2E_NONCE) this remote script suffixes its test person, channel and entity names with"
@@ -891,10 +887,6 @@
     "process": "web scripts",
     "description": "fallback name for the Supabase publishable key, read by web/scripts/send-magic-link.ts when SUPABASE_PUBLISHABLE_KEY is unset"
   },
-  "WAYLAND_DISPLAY": {
-    "process": "companion",
-    "description": "the Wayland display socket name; the companion's browser runtime checks it is set (with DISPLAY unset) before choosing a Wayland-native launch path"
-  },
   "WORKSPACE_ROOT_PATH": {
     "process": "tools/render-company-runtime, relay",
     "description": "the workspace root rendered into the company plane's runtime document, and the cwd the relay opens an ACP session with; defaults to /workspace"
@@ -902,10 +894,6 @@
   "XDG_CACHE_HOME": {
     "process": "tools/prepare-container-kernel",
     "description": "the XDG cache directory, read on Linux to locate the default container-kernel cache path"
-  },
-  "XDG_SESSION_TYPE": {
-    "process": "companion",
-    "description": "the desktop session type (\"wayland\" or otherwise); the companion's browser runtime reads it to detect a Wayland session"
   },
   "INTERNKIM_LIVE_ARTIFACT_DIR": {
     "process": "llmbackend live tests",

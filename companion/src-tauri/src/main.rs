@@ -1,4 +1,3 @@
-mod handoff_overlay;
 mod settings;
 mod startup;
 
@@ -53,7 +52,6 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             show_main_window,
-            handoff_overlay::sync_handoff_overlay,
             open_admin_url,
             ensure_launch_at_login,
             settings::get_settings,

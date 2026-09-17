@@ -215,7 +215,7 @@ reading one.
 | **local model** | Generation and embedding both on a resident `llama-server`: gemma-4-E2B QAT with MTP drafting (`--chat-template gemma`) for generation, BGE-M3 Q8 on CPU (`-ngl 0`) for embedding. `internkim-local-llm-runner` (LiteRT) is a legacy fallback. |
 | **blueclaw** | The agent runtime. On a device it runs as a Cloud Hypervisor guest under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json`. |
 | **chatd** | Per-person messenger operations, with Mattermost and Buzz adapters behind one gateway. |
-| **internkim-companion** | A trusted runtime on the user's own computer for browser handoff, confirmation, input and file picking, and later for local-only inference. |
+| **internkim-companion** | A trusted runtime on the user's own computer for confirmation, input and file picking, and later for local-only inference. |
 | **Mattermost** | The self-hostable messenger used as the collaboration channel and the entry point for work. |
 | **SvelteKit web app** (`web/`) | The company app on Cloudflare Pages, and the operating surfaces served same-origin from a device: `/admin`, `/flow`, `/memory`, `/calendar`, `/mail`, `/attendance`, `/files`, `/ops`. |
 | **workspace assets** (`assets/blueclaw-workspace/`) | AGENTS.md, skills and helpers, installed to the host workspace and mounted into the guest. |
@@ -533,9 +533,8 @@ Browser capabilities route to the companion first, running headed with a
 persistent Intern Kim profile. The device's own browser is Moli, a headless
 engine that runs as a service and answers agent-browser over the Chrome DevTools
 Protocol; it is used only for plain public page text when no companion is
-available. `browser_handoff` raises
-an overlay window over Chrome with a completion button, verifies a snapshot when
-it is pressed, and continues in the same session; Linux support is X11 only.
+available. A browser handoff hands the device's browser to the requester on
+the intern.kim website.
 Snapshots carry the URL, title, text and interactive refs, and nothing else.
 Screenshots are companion-only. The bundle ships `agent-browser` for the current
 OS and architecture and installs its managed browser on first run; when that

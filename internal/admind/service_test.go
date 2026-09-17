@@ -1586,13 +1586,13 @@ func TestCompanionJobRequiresRequesterIdentityForUserLocalTool(t *testing.T) {
 		CompanionID: "companion-1",
 		OwnerEmail:  "admin@example.com",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "browser_handoff"},
+			{Name: "browser_open"},
 		},
 		LastSeenAt: time.Now().UTC(),
 	}
 
 	response, errorValue := service.invokeCompanionJob(context.Background(), capabilities.ToolInvokeRequest{
-		ToolName:      "browser_handoff",
+		ToolName:      "browser_open",
 		Input:         json.RawMessage(`{"url":"https://example.com"}`),
 		TimeoutSecond: 1,
 	})
@@ -1680,7 +1680,7 @@ func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
 		CompanionID: "alice-companion",
 		OwnerEmail:  "alice@example.com",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "browser_handoff"},
+			{Name: "browser_open"},
 		},
 		LastSeenAt: now,
 	}
@@ -1688,7 +1688,7 @@ func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
 		CompanionID: "bob-companion",
 		OwnerEmail:  "bob@example.com",
 		Capabilities: []capabilities.Descriptor{
-			{Name: "browser_handoff"},
+			{Name: "browser_open"},
 		},
 		LastSeenAt: now,
 	}
@@ -1698,8 +1698,8 @@ func TestCompanionJobClaimRequiresMatchingOwner(t *testing.T) {
 		JobID:          "job-1",
 		Status:         "pending",
 		RequesterEmail: "alice@example.com",
-		ToolName:       "browser_handoff",
-		Request:        capabilities.ToolInvokeRequest{ToolName: "browser_handoff"},
+		ToolName:       "browser_open",
+		Request:        capabilities.ToolInvokeRequest{ToolName: "browser_open"},
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		ExpiresAt:      now.Add(time.Minute),
@@ -1940,12 +1940,12 @@ func TestCompanionWatchRoutesOnlyToOwningCompanion(t *testing.T) {
 		Status:         "running",
 		CompanionID:    aliceCompanion.CompanionID,
 		RequesterEmail: "alice@example.com",
-		ToolName:       "browser_handoff",
+		ToolName:       "browser_open",
 		PrivacyClass:   "user_browser",
 		WatchStatus:    companionWatchStatusOpen,
 		NextWatchAt:    now.Add(-time.Second),
 		Request: capabilities.ToolInvokeRequest{
-			ToolName: "browser_handoff",
+			ToolName: "browser_open",
 			Context:  capabilities.ToolInvokeContext{RequesterEmail: "alice@example.com"},
 		},
 		CreatedAt: now.Add(-6 * time.Minute),

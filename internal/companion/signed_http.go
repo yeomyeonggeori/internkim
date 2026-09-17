@@ -57,10 +57,6 @@ func (client DeviceClient) PostSignedJSON(endpoint string, requestBody any, resp
 	return client.SignedJSONRequest(http.MethodPost, endpoint, requestBody, responseBody)
 }
 
-func (client DeviceClient) PostSignedJSONWithContext(ctx context.Context, endpoint string, requestBody any, responseBody any) error {
-	return client.SignedJSONRequestWithContext(ctx, http.MethodPost, endpoint, requestBody, responseBody)
-}
-
 func (client DeviceClient) PutSignedBytes(ctx context.Context, endpoint string, requestBody []byte) error {
 	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(requestBody))
 	if errorValue != nil {
