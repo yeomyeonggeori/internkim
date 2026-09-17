@@ -584,7 +584,7 @@ describe('the CRM this company keeps', () => {
 		expect(messageOf(departed)).toBe('token owner is not active member');
 	});
 
-	test('records an activity through tools the model is not offered', async () => {
+	test('records an activity and lists it back against the deal', async () => {
 		const recorded = await invoke('crm_activity_save', holdersToken, {
 			organizationHint: 'ABC상사',
 			opportunityHint: 'ABC상사 도입',
@@ -600,11 +600,6 @@ describe('the CRM this company keeps', () => {
 		const kept = resultOf(listed).activities as { title: string; kind: string }[];
 		expect(kept.map((activity) => activity.title)).toContain('킥오프 미팅');
 		expect(kept.map((activity) => activity.kind)).toContain('stage_change');
-
-		const save = await reach('/tools/crm_activity_save', holdersToken);
-		expect(save.status).toBe(200);
-		expect(descriptorOf(save).modelVisible).toBe(false);
-		expect(descriptorOf(await reach('/tools/crm_opportunity_add', holdersToken)).modelVisible).toBe(true);
 	});
 
 	test('says what an archive would take away, then takes it away', async () => {
