@@ -39,6 +39,7 @@
 		| { name: 'missing' }
 		| { name: 'refused' }
 		| { name: 'unreachable' }
+		| { name: 'failed'; reason: string }
 		| { name: 'ended'; outcome: HandoffOutcome };
 
 	const text = createPageText(handoffText);
@@ -72,7 +73,12 @@
 		try {
 			const answer = await watchHandoff(handoffID, wantedViewport);
 			if (phase.name === 'ended') return;
-			phase = answer.state === 'watching' ? { name: 'watching', watch: answer.watch } : { name: answer.state };
+			if (answer.state !== 'failed') {
+				phase = answer.state === 'watching' ? { name: 'watching', watch: answer.watch } : { name: answer.state };
+				return;
+			}
+			console.warn('the device could not show the browser handoff', answer.reason);
+			if (phase.name !== 'watching') phase = { name: 'failed', reason: answer.reason };
 		} catch (failure) {
 			console.warn('the browser handoff could not be watched', failure);
 			if (phase.name !== 'watching') phase = { name: 'unreachable' };
@@ -228,6 +234,10 @@
 				{:else if phase.name === 'unreachable'}
 					<Empty.Title>{text.unreachableTitle}</Empty.Title>
 					<Empty.Description>{text.unreachableDescription}</Empty.Description>
+				{:else if phase.name === 'failed'}
+					<Empty.Title>{text.failedTitle}</Empty.Title>
+					<Empty.Description>{text.failedDescription}</Empty.Description>
+					<p class="font-mono text-xs break-words text-muted-foreground">{phase.reason}</p>
 				{:else}
 					<Empty.Title>{text.missingTitle}</Empty.Title>
 					<Empty.Description>{text.missingDescription}</Empty.Description>
@@ -239,7 +249,7 @@
 						<ArrowLeftIcon data-icon="inline-start" />
 						{text.leave}
 					</Button>
-					{#if phase.name === 'unreachable'}
+					{#if phase.name === 'unreachable' || phase.name === 'failed'}
 						<Button size="sm" onclick={reconnect}>
 							<RotateCwIcon data-icon="inline-start" />
 							{text.retry}
