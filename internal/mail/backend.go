@@ -68,7 +68,7 @@ func (backend StandardBackend) ListMessages(ctx context.Context, account Account
 	}
 	visibleUIDs, hasMoreMessages := VisibleMessageUIDs(pageUIDs, input.Limit)
 	if len(visibleUIDs) == 0 {
-		return MessageListResponse{}, nil
+		return MessageListResponse{Messages: []MessageResponse{}}, nil
 	}
 	fetchOptions := &imap.FetchOptions{
 		UID:          true,

@@ -17,6 +17,7 @@ mock.module('$env/dynamic/private', () => ({
 const { fallback: reachTheAPI } = await import('../../src/routes/api/v1/[...path]/+server');
 const { POST: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
 const { descriptorMetaKey } = await import('../../src/lib/server/public-api/mcp');
+const { isSeenByAModel } = await import('../../src/lib/server/public-api/catalog');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -128,7 +129,7 @@ function descriptorCarriedBy(tool: Tool): ListedTool {
 }
 
 describe('the tools this token reaches', () => {
-	test('are the same over MCP as over the discovery endpoint, with the same schemas', async () => {
+	test('are over MCP the ones on the discovery endpoint a model sees, with the same schemas', async () => {
 		const connected = await anMCPClient(holdersToken);
 		try {
 			const overMCP = (await connected.listTools()).tools;
@@ -136,7 +137,7 @@ describe('the tools this token reaches', () => {
 
 			expect(overMCP.length).toBeGreaterThan(30);
 			expect(overMCP.map((tool) => tool.name).sort()).toEqual(
-				overHTTP.map((tool) => tool.name).sort()
+				overHTTP.map((tool) => tool.name).filter(isSeenByAModel).sort()
 			);
 
 			const listedByName = new Map(overHTTP.map((tool) => [tool.name, tool]));
@@ -155,7 +156,7 @@ describe('the tools this token reaches', () => {
 		const connected = await anMCPClient(readersToken);
 		try {
 			const overMCP = (await connected.listTools()).tools.map((tool) => tool.name).sort();
-			const overHTTP = (await toolsOverHTTP(readersToken)).map((tool) => tool.name).sort();
+			const overHTTP = (await toolsOverHTTP(readersToken)).map((tool) => tool.name).filter(isSeenByAModel).sort();
 			expect(overMCP).toEqual(overHTTP);
 			expect(overMCP).not.toContain('task_add');
 		} finally {

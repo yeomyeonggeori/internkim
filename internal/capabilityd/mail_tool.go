@@ -52,6 +52,9 @@ func (service Service) invokeMailTool(ctx context.Context, request capabilities.
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	if capabilityToolHasResultContract(request.ToolName) {
+		return capabilitySuccessResponse(request.ToolName, "ok", result)
+	}
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "device",

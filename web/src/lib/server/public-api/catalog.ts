@@ -11,7 +11,7 @@ export type ToolDescriptor = {
 	outputSchema: Record<string, unknown>;
 };
 
-type CatalogEntry = ToolDescriptor & { answeredBy: string; resultContract?: unknown };
+type CatalogEntry = ToolDescriptor & { answeredBy: string; modelVisibility: string; resultContract?: unknown };
 
 type ToolCatalog = { protocolVersion: string; tools: CatalogEntry[] };
 
@@ -62,6 +62,18 @@ export function toolsReachableBy(permission: PublicAPIPermission): ToolDescripto
 	return reachableTools.filter(
 		(descriptor) => permissionRanks[permissionForTool(descriptor)] <= permissionRanks[permission]
 	);
+}
+
+const toolNamesAModelSees = new Set(
+	catalog.tools.filter((tool) => tool.modelVisibility === 'visible').map((tool) => tool.name)
+);
+
+export function isSeenByAModel(name: string): boolean {
+	return toolNamesAModelSees.has(name);
+}
+
+export function toolsAModelReachesWith(permission: PublicAPIPermission): ToolDescriptor[] {
+	return toolsReachableBy(permission).filter((descriptor) => isSeenByAModel(descriptor.name));
 }
 
 export function toolReachableBy(name: string, permission: PublicAPIPermission): ToolDescriptor | undefined {

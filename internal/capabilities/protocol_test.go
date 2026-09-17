@@ -164,7 +164,7 @@ func TestRegisteredDescriptorsRequireTypedContractsWhenModelVisible(t *testing.T
 	}
 }
 
-func TestWebDescriptorsUseCanonicalSearchAndHideFetch(t *testing.T) {
+func TestWebDescriptorsUseCanonicalSearchAndFetch(t *testing.T) {
 	searchDescriptor := descriptorForTool(t, WebDescriptors(), "web_search")
 	if searchDescriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !searchDescriptor.ModelVisible {
 		t.Fatalf("web_search must remain model-visible: %+v", searchDescriptor)
@@ -180,8 +180,19 @@ func TestWebDescriptorsUseCanonicalSearchAndHideFetch(t *testing.T) {
 	assertSchemaRequires(t, searchResultSchema, "provider", "remoteLLMInvolved", "compatibility", "query", "answer", "results")
 
 	fetchDescriptor := descriptorForTool(t, WebDescriptors(), "web_fetch")
-	if fetchDescriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || fetchDescriptor.ModelVisible {
-		t.Fatalf("web_fetch must remain registered but hidden: %+v", fetchDescriptor)
+	if fetchDescriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !fetchDescriptor.ModelVisible || fetchDescriptor.ResultContract == nil {
+		t.Fatalf("web_fetch must be model-visible with a result contract: %+v", fetchDescriptor)
+	}
+	fetchResultSchema := decodeSchema(t, "web_fetch result", fetchDescriptor.ResultContract.Schema)
+	assertSchemaRequires(t, fetchResultSchema, "provider", "remoteLLMInvolved", "compatibility", "results", "errors")
+}
+
+func TestMailDescriptorsShowTheToolsTheMailSkillCalls(t *testing.T) {
+	for _, toolName := range []string{"mail_connection_status", "mail_connection_start", "mail_message_list", "mail_message_search", "mail_message_read", "mail_message_send"} {
+		descriptor := descriptorForTool(t, MailDescriptors(), toolName)
+		if !descriptor.ModelVisible || descriptor.ResultContract == nil {
+			t.Fatalf("%s must be model-visible with a result contract: %+v", toolName, descriptor)
+		}
 	}
 }
 
@@ -458,27 +469,6 @@ func TestHiddenToolsStayRegisteredButOutOfTheModelsSight(t *testing.T) {
 		"browser_press",
 		"browser_wait",
 		"image_generate",
-		"company_info_get",
-		"company_info_set",
-		"company_metric_record",
-		"company_metric_list",
-		"company_record_add",
-		"company_record_list",
-		"company_record_update",
-		"company_record_delete",
-		"company_document_register",
-		"company_document_list",
-		"company_document_search",
-		"company_document_update",
-		"company_document_upload",
-		"company_document_download",
-		"web_fetch",
-		"mail_connection_status",
-		"mail_connection_start",
-		"mail_message_list",
-		"mail_message_search",
-		"mail_message_read",
-		"mail_message_send",
 		"mail_message_move",
 		"mail_message_mark",
 	}
@@ -509,6 +499,20 @@ func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 		"message_send",
 		"message_update",
 		"message_delete",
+		"company_info_get",
+		"company_info_set",
+		"company_metric_record",
+		"company_metric_list",
+		"company_record_add",
+		"company_record_list",
+		"company_record_update",
+		"company_record_delete",
+		"company_document_register",
+		"company_document_list",
+		"company_document_search",
+		"company_document_update",
+		"company_document_upload",
+		"company_document_download",
 	} {
 		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
 		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || descriptor.ResultContract == nil {
