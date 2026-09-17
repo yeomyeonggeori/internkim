@@ -3,7 +3,6 @@ import { z } from 'zod';
 import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
-  CapabilityModelVisibility,
   CapabilitySideEffect,
 } from './protocol';
 
@@ -67,6 +66,8 @@ export const companySettingsUpdateInputSchema = z.strictObject({
   leaveDays: z.number().describe("The annual leave a person is granted, in days. It is the leave policy's annual grant, so this writes that, and attendance_leave_policy_set is where the rest of the policy is written.").optional(),
   teamViewVisibleToAll: z.boolean().describe("Whether everybody sees the whole company's attendance, or only the administrators do.").optional(),
 });
+
+export const companySettingsUpdateInputIntentSchema = companySettingsUpdateInputSchema.partial();
 
 export const companySettingsResultSchema = z.strictObject({
   name: z.string(),
@@ -151,6 +152,8 @@ export const attendanceWorkPolicyGetInputSchema = z.strictObject({});
 
 export const attendanceWorkPolicySetInputSchema = z.strictObject(workPolicyFields);
 
+export const attendanceWorkPolicySetInputIntentSchema = attendanceWorkPolicySetInputSchema.partial();
+
 export const attendanceWorkPolicyRevisionResultSchema = z.strictObject({
   effectiveDate: z.string(),
   workMode: z.string(),
@@ -221,6 +224,8 @@ export const attendanceLeavePolicyGetInputSchema = z.strictObject({});
 
 export const attendanceLeavePolicySetInputSchema = z.strictObject(leavePolicyFields);
 
+export const attendanceLeavePolicySetInputIntentSchema = attendanceLeavePolicySetInputSchema.partial();
+
 export const attendanceLeavePolicyResultSchema = z.strictObject({
   version: z.number().int(),
   balanceTrackingMode: z.string(),
@@ -271,8 +276,8 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Change what the company is set to. Only the fields the call names change. This is an administrator\'s, and it is company-wide: the time zone and the language decide what every colleague sees, so put it to the requester before calling.',
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: companySettingsUpdateInputSchema,
+    inputIntentSchema: companySettingsUpdateInputIntentSchema,
     result: { schema: companySettingsResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
@@ -358,8 +363,8 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     description: "Set the hours this company works from today on. The earlier policies stay, each with the day it took effect, so nothing already worked is re-judged. The whole policy is written at once, so read attendance_work_policy_get first and send it back with the fields that change. This is an administrator's and it is company-wide.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: attendanceWorkPolicySetInputSchema,
+    inputIntentSchema: attendanceWorkPolicySetInputIntentSchema,
     result: { schema: attendanceWorkPolicySetResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
@@ -387,8 +392,8 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     description: "Set the leave this company offers. The whole policy is written at once, so read attendance_leave_policy_get first and send it back with the types that change. A type left out that somebody has already taken leave under is kept, deactivated, because the leave rows point at it. This is an administrator's and it is company-wide.",
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: attendanceLeavePolicySetInputSchema,
+    inputIntentSchema: attendanceLeavePolicySetInputIntentSchema,
     result: { schema: attendanceLeavePolicyResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,

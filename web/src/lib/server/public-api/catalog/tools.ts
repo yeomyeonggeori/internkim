@@ -13,7 +13,7 @@ import {
 import { hiddenBrowserToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { crmToolDefinitions } from './crm';
-import { taskLabelVocabularySchema, taskVocabularySetInputSchema } from './labels';
+import { taskLabelVocabularySchema, taskVocabularySetInputIntentSchema, taskVocabularySetInputSchema } from './labels';
 import {
   buildCapabilityCatalog,
   ResourceMutationEffect,
@@ -888,8 +888,8 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Set the business and task type labels this company files work under. Each list is written at once, so read registeredLabels from a task_list result first and send it back with what changes. A label a task still carries cannot be dropped. This is an administrator’s.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: taskVocabularySetInputSchema,
+    inputIntentSchema: taskVocabularySetInputIntentSchema,
     result: { schema: taskLabelVocabularySchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_task', targetKind: 'task_vocabulary' },
