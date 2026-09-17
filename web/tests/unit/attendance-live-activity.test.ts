@@ -22,13 +22,16 @@ describe('the Live Activity a clock leaves on its own phones', () => {
 		]);
 	});
 
-	test('a clock-in while one is running updates it rather than starting a second', () => {
+	test('a clock-in while one is known to run ends it before starting a fresh one, since the person may have cleared it', () => {
 		const changes = activityChangesFor(
 			{ kind: 'clock_in', location: '재택', occurred_at: '2026-09-17T04:00:00Z' },
 			[starter, running],
 			alert
 		);
-		expect(changes.map(({ device, change }) => [device.address, change.event])).toEqual([['activity-token', 'update']]);
+		expect(changes.map(({ device, change }) => [device.address, change.event])).toEqual([
+			['activity-token', 'end'],
+			['start-token', 'start']
+		]);
 	});
 
 	test('a clock-out ends the running one and never starts anything', () => {

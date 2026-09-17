@@ -8,7 +8,6 @@ export type AttendanceActivityState = { startedAt: number; location: string };
 
 export type AttendanceActivityChange =
 	| { event: 'start'; state: AttendanceActivityState; alert: { title: string; body: string } }
-	| { event: 'update'; state: AttendanceActivityState }
 	| { event: 'end'; state: AttendanceActivityState };
 
 export function liveActivityTopicOf(key: ApnsKey): string {
