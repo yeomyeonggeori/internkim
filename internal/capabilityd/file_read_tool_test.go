@@ -359,7 +359,7 @@ func TestImageReadReturnsImageAttachment(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected image_read: %v", errorValue)
 	}
-	var result imageReadResult
+	var result workspaceImageResult
 	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
 		t.Fatal(errorValue)
 	}
