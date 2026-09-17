@@ -359,6 +359,32 @@ func (runtime AgentBrowserRuntime) currentURL(ctx context.Context) (string, erro
 	return currentURL, nil
 }
 
+func (runtime AgentBrowserRuntime) VisibleText(ctx context.Context) (string, error) {
+	output, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "get", "text", "body", "--json")...)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	var answer struct {
+		Data struct {
+			Text string `json:"text"`
+		} `json:"data"`
+	}
+	if errorValue := json.Unmarshal(lastJSONLineOf(output), &answer); errorValue != nil {
+		return "", errors.New("agent-browser answered get text with something other than json")
+	}
+	return answer.Data.Text, nil
+}
+
+func lastJSONLineOf(output []byte) []byte {
+	lines := bytes.Split(bytes.TrimSpace(output), []byte("\n"))
+	for index := len(lines) - 1; index >= 0; index-- {
+		if line := bytes.TrimSpace(lines[index]); bytes.HasPrefix(line, []byte("{")) {
+			return line
+		}
+	}
+	return nil
+}
+
 func isSuccessfulNavigationURL(actualURL string) bool {
 	actual, actualError := url.Parse(strings.TrimSpace(actualURL))
 	if actualError != nil {
