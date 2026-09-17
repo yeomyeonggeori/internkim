@@ -58,7 +58,11 @@ type WaitingHandoff = HandoffRequest & {
 };
 
 const handoffLifetimeMilliseconds = 15 * 60_000;
-export const viewport = { width: 1280, height: 800 };
+export type Viewport = { width: number; height: number };
+
+export const defaultViewport: Viewport = { width: 1280, height: 800 };
+const smallestViewportSide = 240;
+const largestViewportSide = 2560;
 const watchLeaseMilliseconds = 45_000;
 const captureDelaysAfterInputMilliseconds = [80, 500];
 const jpegQuality = 60;
@@ -115,7 +119,7 @@ export class BrowserHandoffs {
 		if (requesterEmail !== handoff.requester.email) {
 			return { status: 403, body: { error: 'this browser handoff was handed to someone else' } };
 		}
-		if (capability === handoffWatchCapability) return this.watch(handoff, memberID);
+		if (capability === handoffWatchCapability) return this.watch(handoff, memberID, body.viewport);
 		if (capability === handoffInputCapability) return this.takeInputs(handoff, memberID, body.inputs);
 		return this.finish(handoff, body.outcome);
 	}
@@ -128,8 +132,8 @@ export class BrowserHandoffs {
 		this.waiting.clear();
 	}
 
-	private async watch(handoff: WaitingHandoff, memberID: string): Promise<Served> {
-		const stream = await this.streamFor(handoff, memberID);
+	private async watch(handoff: WaitingHandoff, memberID: string, offeredViewport: unknown): Promise<Served> {
+		const stream = await this.streamFor(handoff, memberID, readViewport(offeredViewport));
 		stream.renewLease();
 		stream.captureNow();
 		return {
@@ -138,7 +142,7 @@ export class BrowserHandoffs {
 				handoffID: handoff.handoffID,
 				message: handoff.message,
 				expiresAt: new Date(handoff.expiresAt).toISOString(),
-				viewport
+				viewport: stream.viewport
 			}
 		};
 	}
@@ -146,7 +150,7 @@ export class BrowserHandoffs {
 	private async takeInputs(handoff: WaitingHandoff, memberID: string, offered: unknown): Promise<Served> {
 		const inputs = readHandoffInputs(offered);
 		if (!inputs) return { status: 400, body: { error: 'inputs must be a non-empty list of browser inputs' } };
-		const stream = await this.streamFor(handoff, memberID);
+		const stream = await this.streamFor(handoff, memberID, null);
 		stream.renewLease();
 		await stream.dispatch(inputs.flatMap(devtoolsCommandsFor));
 		return { status: 200, body: { accepted: inputs.length } };
@@ -158,8 +162,11 @@ export class BrowserHandoffs {
 		return { status: 200, body: { outcome } };
 	}
 
-	private async streamFor(handoff: WaitingHandoff, memberID: string): Promise<HandoffStream> {
-		if (handoff.stream?.isLive && handoff.stream.memberID === memberID) return handoff.stream;
+	private async streamFor(handoff: WaitingHandoff, memberID: string, viewport: Viewport | null): Promise<HandoffStream> {
+		if (handoff.stream?.isLive && handoff.stream.memberID === memberID) {
+			if (viewport) await handoff.stream.resize(viewport);
+			return handoff.stream;
+		}
 		handoff.stream?.stop();
 		const stream = new HandoffStream({
 			handoffID: handoff.handoffID,
@@ -170,7 +177,7 @@ export class BrowserHandoffs {
 			report: this.report
 		});
 		handoff.stream = stream;
-		await stream.start();
+		await stream.start(viewport ?? defaultViewport);
 		return stream;
 	}
 
@@ -197,12 +204,9 @@ export class BrowserHandoffs {
 	private async whereTheBrowserIs(handoff: WaitingHandoff): Promise<PageWhereabouts> {
 		try {
 			const page = handoff.stream?.isLive ? handoff.stream.page : await this.settings.openPage();
-			const evaluated = await page.send('Runtime.evaluate', {
-				expression: 'JSON.stringify({ url: location.href, title: document.title })',
-				returnByValue: true
-			});
+			const where = await whereThePageIs(page);
 			if (!handoff.stream?.isLive) page.close();
-			return whereaboutsOf(evaluated);
+			return where;
 		} catch (refusal) {
 			this.report(`browser handoff ${handoff.handoffID} could not read the page: ${String(refusal)}`);
 			return { url: '', title: '' };
@@ -211,6 +215,14 @@ export class BrowserHandoffs {
 }
 
 type PageWhereabouts = { url: string; title: string };
+
+async function whereThePageIs(page: DevtoolsConnection): Promise<PageWhereabouts> {
+	const evaluated = await page.send('Runtime.evaluate', {
+		expression: 'JSON.stringify({ url: location.href, title: document.title })',
+		returnByValue: true
+	});
+	return whereaboutsOf(evaluated);
+}
 
 function whereaboutsOf(evaluated: Record<string, unknown>): PageWhereabouts {
 	const value = recordOf(evaluated.result).value;
@@ -264,6 +276,7 @@ type HandoffStreamSettings = {
 class HandoffStream {
 	readonly memberID: string;
 	readonly page: DevtoolsConnection;
+	viewport: Viewport = defaultViewport;
 	private leaseRenewedAt = 0;
 	private leaseCheck: ReturnType<typeof setInterval> | null = null;
 	private lastImage = '';
@@ -280,13 +293,25 @@ class HandoffStream {
 		return !this.isStopped && this.page.isOpen;
 	}
 
-	async start(): Promise<void> {
+	async start(viewport: Viewport): Promise<void> {
 		this.page.onEvent((event) => this.onPageEvent(event));
 		this.page.whenClosed(() => this.stop());
 		await this.page.send('Page.enable');
+		this.url = (await whereThePageIs(this.page)).url;
+		await this.showAt(viewport);
+		this.leaseCheck = setInterval(() => this.stopWhenNobodyWatches(), watchLeaseMilliseconds / 3);
+	}
+
+	async resize(viewport: Viewport): Promise<void> {
+		if (viewport.width === this.viewport.width && viewport.height === this.viewport.height) return;
+		await this.page.send('Page.stopScreencast');
+		await this.showAt(viewport);
+	}
+
+	private async showAt(viewport: Viewport): Promise<void> {
+		this.viewport = viewport;
 		await this.page.send('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false });
 		await this.page.send('Page.startScreencast', { format: 'jpeg', quality: jpegQuality, maxWidth: viewport.width, maxHeight: viewport.height });
-		this.leaseCheck = setInterval(() => this.stopWhenNobodyWatches(), watchLeaseMilliseconds / 3);
 	}
 
 	renewLease(): void {
@@ -341,10 +366,21 @@ class HandoffStream {
 		if (!image || image === this.lastImage || !this.isLive) return;
 		this.lastImage = image;
 		this.settings.deliver(
-			{ kind: handoffFrameEventKind, handoffID: this.settings.handoffID, image, ...viewport, url: this.url },
+			{ kind: handoffFrameEventKind, handoffID: this.settings.handoffID, image, ...this.viewport, url: this.url },
 			this.memberID
 		);
 	}
+}
+
+export function readViewport(offered: unknown): Viewport | null {
+	const held = recordOf(offered);
+	if (typeof held.width !== 'number' || typeof held.height !== 'number') return null;
+	if (!Number.isFinite(held.width) || !Number.isFinite(held.height)) return null;
+	return { width: viewportSideOf(held.width), height: viewportSideOf(held.height) };
+}
+
+function viewportSideOf(offered: number): number {
+	return Math.min(Math.max(Math.round(offered), smallestViewportSide), largestViewportSide);
 }
 
 function optionalText<Key extends string>(key: Key, offered: unknown): Partial<Record<Key, string>> {

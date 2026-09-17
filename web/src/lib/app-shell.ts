@@ -16,6 +16,8 @@ const appShellSections = [
 	'/assistant/'
 ];
 
+const fullScreenSections = ['/handoff/'];
+
 const embeddedCalendar = '/calendar/embed';
 
 function isWithin(sections: string[], routePath: string): boolean {
@@ -28,7 +30,11 @@ export function usesAppShell(pathname: string): boolean {
 }
 
 export function usesWebAuthGate(pathname: string): boolean {
-	return isWithin(appShellSections, routePathOf(pathname));
+	return isWithin([...appShellSections, ...fullScreenSections], routePathOf(pathname));
+}
+
+export function isFullScreenApp(pathname: string): boolean {
+	return isWithin(fullScreenSections, routePathOf(pathname));
 }
 
 // reroute strips the company, so the address keeps it and the route does not.

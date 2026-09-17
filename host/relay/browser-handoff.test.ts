@@ -7,6 +7,7 @@ import {
 	handoffInputCapability,
 	handoffWatchCapability,
 	readHandoffRequest,
+	readViewport,
 	type BrowserHandoffSettings,
 	type DevtoolsConnection,
 	type HandoffRequest
@@ -102,6 +103,15 @@ describe('readHandoffRequest', () => {
 	});
 });
 
+describe('readViewport', () => {
+	test('keeps a watcher screen size within what the device browser can show', () => {
+		expect(readViewport({ width: 390.4, height: 700.6 })).toEqual({ width: 390, height: 701 });
+		expect(readViewport({ width: 10, height: 99_999 })).toEqual({ width: 240, height: 2560 });
+		expect(readViewport({ width: '390', height: 700 })).toBeNull();
+		expect(readViewport(undefined)).toBeNull();
+	});
+});
+
 describe('BrowserHandoffs', () => {
 	test('a begun handoff is opened on the website by its own address', () => {
 		const { handoffs } = handoffsWith({ now: () => Date.parse('2026-09-17T00:00:00Z') });
@@ -149,16 +159,34 @@ describe('BrowserHandoffs', () => {
 		});
 		expect(page.methods()).toEqual([
 			'Page.enable',
+			'Runtime.evaluate',
 			'Emulation.setDeviceMetricsOverride',
 			'Page.startScreencast',
 			'Page.captureScreenshot'
 		]);
 		expect(delivered).toEqual([
 			{
-				event: { kind: handoffFrameEventKind, handoffID: 'handoff-1', image: 'first-frame', width: 1280, height: 800, url: '' },
+				event: { kind: handoffFrameEventKind, handoffID: 'handoff-1', image: 'first-frame', width: 1280, height: 800, url: 'https://example.com/signed-in' },
 				memberID: 'member-1'
 			}
 		]);
+	});
+
+	test('the browser is shown at the size of the screen watching it', async () => {
+		const { handoffs, page, delivered } = handoffsWith();
+		handoffs.begin(request);
+
+		const watched = await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1', viewport: { width: 390, height: 700 } }, 'member-1');
+		await settle();
+		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1', viewport: { width: 390, height: 700 } }, 'member-1');
+		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1', viewport: { width: 1200, height: 700 } }, 'member-1');
+
+		expect(watched.body).toMatchObject({ viewport: { width: 390, height: 700 } });
+		expect(delivered[0].event).toMatchObject({ width: 390, height: 700 });
+		const resizes = page.sent.filter((command) => command.method === 'Emulation.setDeviceMetricsOverride');
+		expect(resizes.map((command) => command.params.width)).toEqual([390, 1200]);
+		expect(page.methods()).toContain('Page.stopScreencast');
+		expect(page.isOpen).toBe(true);
 	});
 
 	test('a screencast frame is acknowledged and an unchanged frame is not sent twice', async () => {
@@ -199,7 +227,7 @@ describe('BrowserHandoffs', () => {
 		await new Promise((resolve) => setTimeout(resolve, 120));
 
 		expect(answered).toEqual({ status: 200, body: { accepted: 2 } });
-		const afterWatch = page.methods().slice(4);
+		const afterWatch = page.methods().slice(5);
 		expect(afterWatch.slice(0, 2)).toEqual(['Input.dispatchMouseEvent', 'Input.insertText']);
 		expect(afterWatch).toContain('Page.captureScreenshot');
 	});
