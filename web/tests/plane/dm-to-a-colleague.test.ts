@@ -3,7 +3,7 @@ import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
 import { directMessagesDelivered, platformOf, postsDelivered } from './a-messenger-nobody-runs';
 
 // 이샘플 asks the agent to write to 박예시. This is the shape a member's request
-// takes through the internkim-api skill, and the shape that answered "sent" while
+// takes through the public API, and the shape that answered "sent" while
 // the message left on a messenger nobody at the company reads.
 
 let plane: ACompanyPlane;

@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { RecordCatalogs, ticketOf, type MemberSession } from './record-catalog';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { recordCatalogName, RecordCatalogs, ticketOf, type MemberSession } from './record-catalog';
+
+type PluginServerDeclaration = { mcpServers: Record<string, { type: string; url: string } | undefined> };
 
 const anHourFromNow = () => Math.floor(Date.now() / 1000) + 3600;
 
@@ -122,5 +126,16 @@ describe('a call against that address', () => {
 		const answered = await catalogs.serve(aCall(url), ticketOf(new URL(url).pathname));
 
 		expect(answered.status).toBe(502);
+	});
+});
+
+describe('the tool server the plugin declares', () => {
+	test('is the one this relay hands the agent, under the same name and at the same route', () => {
+		const declarationPath = join(import.meta.dir, '..', '..', '.dependency', 'internkim-plugin', 'mcp.json');
+		const declaration: PluginServerDeclaration = JSON.parse(readFileSync(declarationPath, 'utf8'));
+		const server = declaration.mcpServers[recordCatalogName];
+
+		expect(server?.type).toBe('streamable-http');
+		expect(new URL(server?.url ?? 'https://unnamed.invalid').pathname).toBe('/v1/mcp');
 	});
 });
