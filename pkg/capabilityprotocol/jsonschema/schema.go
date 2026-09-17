@@ -2,6 +2,10 @@ package jsonschema
 
 import "encoding/json"
 
+const Draft202012 = "https://json-schema.org/draft/2020-12/schema"
+
+const largestSafeInteger = 9007199254740991
+
 type Schema struct {
 	document map[string]any
 }
@@ -54,6 +58,14 @@ func Integer() Schema {
 	return typedSchema("integer")
 }
 
+func SafeInteger() Schema {
+	return Schema{document: map[string]any{
+		"type":    "integer",
+		"minimum": -largestSafeInteger,
+		"maximum": largestSafeInteger,
+	}}
+}
+
 func Number() Schema {
 	return typedSchema("number")
 }
@@ -92,6 +104,12 @@ func (schema Schema) WithDescription(description string) Schema {
 	}
 	document := cloneDocument(schema.document)
 	document["description"] = description
+	return Schema{document: document}
+}
+
+func (schema Schema) WithDialect(dialect string) Schema {
+	document := cloneDocument(schema.document)
+	document["$schema"] = dialect
 	return Schema{document: document}
 }
 

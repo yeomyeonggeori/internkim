@@ -238,5 +238,25 @@
 		"path": "push_device_release",
 		"reason": "The app registered a browser subscription or a phone's device token through this tool, and nothing else ever called it: it was hidden from every model, so no fleet agent was offered it, and the plane answered it only for the app through the public API. A push device belongs to the browser or phone the app runs on, not to an agent, so it is registered at /api/member/push-device now and the catalog publishes only tools an agent can call. The app and the plane deploy together, the iOS shell loading intern.kim remotely, so no device holds a caller of the tool.",
 		"release": "the web deploy that carries /api/member/push-device, which the app and the plane take at once; no OTA release carries a caller"
+	},
+	{
+		"path": "attention_triage",
+		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
+		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
+	},
+	{
+		"path": "embedding_create",
+		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
+		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
+	},
+	{
+		"path": "llm_structured",
+		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
+		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
+	},
+	{
+		"path": "llm_text",
+		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
+		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
 	}
 ]
