@@ -24,7 +24,7 @@ function isWithin(sections: string[], routePath: string): boolean {
 
 export function usesAppShell(pathname: string): boolean {
 	if (isEmbeddedCalendar(pathname)) return false;
-	return isWithin([...appShellSections, '/auth/claim/'], routePathOf(pathname));
+	return isWithin(appShellSections, routePathOf(pathname));
 }
 
 export function usesWebAuthGate(pathname: string): boolean {

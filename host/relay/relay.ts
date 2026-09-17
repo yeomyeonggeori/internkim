@@ -97,9 +97,20 @@ setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
 function openGatewayConnection(): GatewayConnection | null {
 	const gatewayURL = process.env.GATEWAY_URL?.trim();
 	const serverKey = process.env.GATEWAY_SERVER_KEY?.trim();
-	if (!gatewayURL || !serverKey) return null;
+	if (!gatewayURL) return null;
 
-	return connectToGateway({ gatewayURL, companyID, serverKey, dispatch, byteCeiling: answerByteCeiling });
+	return connectToGateway({
+		gatewayURL,
+		companyID,
+		...(serverKey ? { serverKey } : { hostAccessToken: freshHostAccessToken }),
+		dispatch,
+		byteCeiling: answerByteCeiling
+	});
+}
+
+async function freshHostAccessToken(): Promise<string> {
+	await keepSessionFresh();
+	return hostSession.accessToken;
 }
 
 let gateway: GatewayConnection | null = null;

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, jest, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, jest, test } from 'bun:test';
 import worker, { CompanyCalls, CompanyConnectionObject, type WorkerEnvironment } from './index';
 import { oneShotCallBoundMilliseconds, waitingCallsPerCompany, type OneShotAnswer } from './routing';
 
@@ -41,6 +41,28 @@ Object.assign(globalThis, { WebSocketPair: TestWebSocketPair });
 const serverKey = 'company-server-key';
 const companyID = 'c1';
 const callBody = { method: 'POST', path: '/tools/message_send/invoke', requester: 'someone@example.com' };
+const issuer = 'https://issuer.test/auth/v1';
+const hostCompanyID = 'host-company';
+let signingKey: CryptoKey;
+let keyServer: ReturnType<typeof Bun.serve>;
+
+function base64URL(bytes: Uint8Array): string {
+	return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function encodeSegment(document: unknown): string {
+	return base64URL(new TextEncoder().encode(JSON.stringify(document)));
+}
+
+async function signedHostToken(claims: Record<string, unknown>): Promise<string> {
+	const signed = `${encodeSegment({ alg: 'ES256', kid: 'host-test-key' })}.${encodeSegment(claims)}`;
+	const signature = await crypto.subtle.sign(
+		{ name: 'ECDSA', hash: 'SHA-256' },
+		signingKey,
+		new TextEncoder().encode(signed)
+	);
+	return `${signed}.${base64URL(new Uint8Array(signature))}`;
+}
 
 function newState(): DurableObjectState {
 	const values = new Map<string, unknown>();
@@ -60,6 +82,15 @@ function environmentReaching(object: CompanyConnectionObject): WorkerEnvironment
 		get: () => ({ fetch: (request: Request) => object.fetch(request) })
 	};
 	return { COMPANY_CONNECTIONS: namespace } as unknown as WorkerEnvironment;
+}
+
+function hostEnvironment(object: CompanyConnectionObject): WorkerEnvironment {
+	return {
+		...environmentReaching(object),
+		SUPABASE_URL: 'https://issuer.test',
+		SUPABASE_PUBLISHABLE_KEY: 'publishable',
+		SUPABASE_JWKS_URL: `${keyServer.url}jwks`
+	};
 }
 
 async function companyWithAServerKey(): Promise<{ calls: CompanyCalls; object: CompanyConnectionObject }> {
@@ -92,11 +123,92 @@ function answerFor(requestID: string, status: number, body: unknown): string {
 	return JSON.stringify({ kind: 'result', requestID, status, body });
 }
 
+beforeAll(async () => {
+	const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+	signingKey = pair.privateKey;
+	const publicKey = await crypto.subtle.exportKey('jwk', pair.publicKey);
+	const publicKeyDocument = JSON.stringify({ keys: [{ ...publicKey, kid: 'host-test-key' }] });
+	keyServer = Bun.serve({
+		port: 0,
+		fetch(request) {
+			const isJWKS = new URL(request.url).pathname === '/jwks';
+			return new Response(isJWKS ? publicKeyDocument : 'not found', { status: isJWKS ? 200 : 404 });
+		}
+	});
+});
+
+afterAll(() => keyServer.stop());
+
 afterEach(() => {
 	jest.useRealTimers();
 });
 
 describe('the public fetch handler', () => {
+	test('requires a bearer token for the host route', async () => {
+		const object = new CompanyConnectionObject(newState());
+		const response = await worker.fetch(
+			new Request(`https://gateway/company/${hostCompanyID}/host`, { headers: { Upgrade: 'websocket' } }),
+			hostEnvironment(object)
+		);
+		expect(response.status).toBe(401);
+	});
+
+	test('refuses malformed, expired, wrong issuer, spoofed, and wrong-company tokens', async () => {
+		const cases = [
+			{ token: 'not-a-jwt', status: 401 },
+			{
+				token: await signedHostToken({ sub: 'account-1', iss: issuer, exp: 1, app_metadata: { company_id: hostCompanyID } }),
+				status: 401
+			},
+			{
+				token: await signedHostToken({ sub: 'account-1', iss: 'https://other.test/auth/v1', exp: 4102444800, app_metadata: { company_id: hostCompanyID } }),
+				status: 401
+			},
+			{
+				token: await signedHostToken({ sub: 'account-1', iss: issuer, exp: 4102444800, user_metadata: { company_id: hostCompanyID } }),
+				status: 403
+			},
+			{
+				token: await signedHostToken({ sub: 'account-1', iss: issuer, exp: 4102444800, app_metadata: { company_id: 'another-company' } }),
+				status: 403
+			}
+		];
+		for (const entry of cases) {
+			const object = new CompanyConnectionObject(newState());
+			const response = await worker.fetch(
+				new Request(`https://gateway/company/${hostCompanyID}/host`, {
+					headers: { Upgrade: 'websocket', Authorization: `Bearer ${entry.token}` }
+				}),
+				hostEnvironment(object)
+			);
+			expect(response.status).toBe(entry.status);
+		}
+	});
+
+	test('accepts a signed host token and keeps the internal path private', async () => {
+		const object = new CompanyConnectionObject(newState());
+		const token = await signedHostToken({
+			sub: 'account-1',
+			iss: issuer,
+			exp: 4102444800,
+			app_metadata: { company_id: hostCompanyID }
+		});
+		const accepted = await worker.fetch(
+			new Request(`https://gateway/company/${hostCompanyID}/host`, {
+				headers: { Upgrade: 'websocket', Authorization: `Bearer ${token}` }
+			}),
+			hostEnvironment(object)
+		);
+		expect(accepted.status).toBe(101);
+		const privatePath = await worker.fetch(
+			new Request(`https://gateway/company/${hostCompanyID}/host-session`, {
+				headers: { Upgrade: 'websocket', Authorization: 'Bearer anything' }
+			}),
+			hostEnvironment(object)
+		);
+		expect(privatePath.status).toBe(404);
+	});
+
 	test('refuses a one-shot call that does not hold the gateway token', async () => {
 		const environment = { GATEWAY_ADMIN_TOKEN: 'the-token' } as WorkerEnvironment;
 		const address = `https://gateway/company/${companyID}/call`;

@@ -17,7 +17,7 @@
 	import { onMount } from 'svelte';
 
 	const fieldID = $props.id();
-	const addressZone = $derived(page.url.hostname.split('.').slice(-2).join('.'));
+	const addressZone = $derived(page.data.addressZone);
 
 	let name = $state('');
 	let slug = $state('');
@@ -63,6 +63,7 @@
 		}
 		try {
 			const answer = await checkCompanyAddress(asked);
+			if (asked !== slug.trim().toLowerCase()) return;
 			isAddressUsable = answer.usable;
 			addressNotice = answer.usable
 				? `${asked}.${addressZone} 를 쓸 수 있습니다.`
@@ -70,9 +71,15 @@
 					? '이미 쓰이는 주소입니다.'
 					: '영문 소문자, 숫자, 하이픈으로 3자 이상이어야 합니다.';
 		} catch (error) {
+			if (asked !== slug.trim().toLowerCase()) return;
 			addressNotice = error instanceof Error ? error.message : '주소를 확인하지 못했습니다.';
 			isAddressUsable = false;
 		}
+	}
+
+	function clearAddressCheck() {
+		isAddressUsable = false;
+		addressNotice = '';
 	}
 
 	async function create(event: SubmitEvent) {
@@ -96,13 +103,13 @@
 
 <svelte:head><title>회사 만들기</title></svelte:head>
 
-<main class="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-6">
+<main class="flex min-h-svh items-center justify-center overflow-y-auto p-6">
 	{#if founded}
 		<Card.Root class="w-full max-w-lg">
 			<Card.Header>
 				<Card.Title>{name} 준비됐습니다</Card.Title>
 				<Card.Description>
-					로그인 주소는 {addressZone} 하나입니다.
+					회사 컴퓨터를 연결하면 김인턴과 메신저를 사용할 수 있습니다.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content class="grid gap-3">
@@ -119,7 +126,7 @@
 				{/if}
 			</Card.Content>
 			<Card.Footer>
-				<Button onclick={() => goto(homePath)}>시작하기</Button>
+				<Button onclick={() => goto('/settings/setup')}>회사 컴퓨터 연결하기</Button>
 			</Card.Footer>
 		</Card.Root>
 	{:else}
@@ -139,7 +146,7 @@
 					<div class="grid gap-1.5">
 						<Label for="company-slug-{fieldID}">주소</Label>
 						<div class="flex items-center gap-2">
-							<Input id="company-slug-{fieldID}" bind:value={slug} onblur={checkAddress} disabled={isFounding} />
+							<Input id="company-slug-{fieldID}" bind:value={slug} oninput={clearAddressCheck} onblur={checkAddress} disabled={isFounding} />
 							<span class="text-sm whitespace-nowrap text-muted-foreground">.{addressZone}</span>
 						</div>
 						{#if addressNotice}

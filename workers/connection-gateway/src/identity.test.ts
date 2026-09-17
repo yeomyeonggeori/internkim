@@ -42,6 +42,22 @@ describe('verifyToken', () => {
 		expect(claims.sub).toBe('account-1');
 	});
 
+	test('exposes a host company only from signed app metadata', async () => {
+		const { token, jwks } = await signedToken({
+			...validClaims,
+			app_metadata: { company_id: 'company-1' },
+			user_metadata: { company_id: 'company-attacker' }
+		});
+		const claims = await verifyToken(token, keyCacheServing(jwks), issuer, 1786000000);
+		expect(claims.hostCompanyID).toBe('company-1');
+	});
+
+	test('keeps ordinary tokens free of a host identity', async () => {
+		const { token, jwks } = await signedToken({ ...validClaims, user_metadata: { company_id: 'company-1' } });
+		const claims = await verifyToken(token, keyCacheServing(jwks), issuer, 1786000000);
+		expect(claims).toEqual(validClaims);
+	});
+
 	test('refuses a token whose payload was edited after signing', async () => {
 		const { token, jwks } = await signedToken(validClaims);
 		const [header, , signature] = token.split('.');

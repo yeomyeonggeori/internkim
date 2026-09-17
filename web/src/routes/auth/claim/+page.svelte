@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
@@ -9,7 +10,7 @@
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
-	import { askToClaim, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
+	import { askToClaim, askToStartCompany, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
 	import { claimCodeLength } from './claim-code';
 	import { hasThePasswordStepExpired } from './password-step';
@@ -29,14 +30,15 @@
 	let errorMessage = $state('');
 	let passwordStepOpenedAt = 0;
 	let hasChosenAnAddress = false;
+	const isStartingCompany = $derived(page.url.searchParams.get('new-company') === '1');
 
 	const describedStep: Record<typeof step, string> = $derived({
-		address: text.claimAddressDescription,
-		signedIn: text.claimSignedInDescription,
-		sent: text.claimSentDescription.replace('{email}', email),
+		address: isStartingCompany ? text.startCompanyAddressDescription : text.claimAddressDescription,
+		signedIn: isStartingCompany ? text.startCompanySignedInDescription : text.claimSignedInDescription,
+		sent: (isStartingCompany ? text.startCompanySentDescription : text.claimSentDescription).replace('{email}', email),
 		issued: text.claimIssuedDescription,
-		password: text.claimPasswordDescription,
-		passkey: text.claimPasskeyDescription
+		password: isStartingCompany ? text.startCompanyPasswordDescription : text.claimPasswordDescription,
+		passkey: isStartingCompany ? text.startCompanyPasskeyDescription : text.claimPasskeyDescription
 	});
 	const description = $derived(describedStep[step]);
 
@@ -73,6 +75,13 @@
 				return;
 			}
 			errorMessage = refusalText[outcome.kind] ?? text.claimFailed;
+		});
+
+	const askToStartTheCompany = () =>
+		run(async () => {
+			hasChosenAnAddress = true;
+			await askToStartCompany(email);
+			step = 'sent';
 		});
 
 	const goInWithTheIssuedPassword = () =>
@@ -139,34 +148,36 @@
 	});
 </script>
 
-<svelte:head><title>{text.claimTitle}</title></svelte:head>
+<svelte:head><title>{isStartingCompany ? text.startCompanyTitle : text.claimTitle}</title></svelte:head>
 
-<main class="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-6">
+<main class="flex min-h-svh items-center justify-center overflow-y-auto p-6">
 	<Card.Root class="mx-auto w-full max-w-sm">
 		<Card.Header>
-			<Card.Title class="text-2xl">{text.claimTitle}</Card.Title>
+			<Card.Title class="text-2xl">{isStartingCompany ? text.startCompanyTitle : text.claimTitle}</Card.Title>
 			<Card.Description>{description}</Card.Description>
 		</Card.Header>
 		<Card.Content>
 			{#if !servesCompanies}
 				<p class="text-sm text-destructive">{text.claimFailed}</p>
 			{:else if step === 'address'}
-				<form onsubmit={(event) => { event.preventDefault(); askToClaimTheAddress(); }}>
+				<form onsubmit={(event) => { event.preventDefault(); isStartingCompany ? askToStartTheCompany() : askToClaimTheAddress(); }}>
 					<FieldGroup>
 						<Field>
 							<FieldLabel for="claim-email-{fieldID}">{text.emailLabel}</FieldLabel>
 							<Input id="claim-email-{fieldID}" type="email" autocomplete="username" bind:value={email} disabled={busy} />
-							<FieldDescription>{text.claimAddressHint}</FieldDescription>
+							<FieldDescription>{isStartingCompany ? text.startCompanyEmailHint : text.claimAddressHint}</FieldDescription>
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-						<Button type="submit" class="w-full" disabled={busy || !email.includes('@')}>{text.claimSendLink}</Button>
+						<Button type="submit" class="w-full" disabled={busy || !email.includes('@')}>{isStartingCompany ? text.startCompanySendLink : text.claimSendLink}</Button>
 					</FieldGroup>
 				</form>
 			{:else if step === 'signedIn'}
 				<FieldGroup>
 					<FieldDescription>{text.claimSignedInHint}</FieldDescription>
 					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-					<Button type="button" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimSendCode}</Button>
+					<Button type="button" class="w-full" onclick={isStartingCompany ? askToStartTheCompany : askToClaimTheAddress} disabled={busy}>
+						{isStartingCompany ? text.startCompanySendCode : text.claimSendCode}
+					</Button>
 					<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
 				</FieldGroup>
 			{:else if step === 'sent'}
@@ -175,7 +186,7 @@
 						<Field>
 							<FieldLabel for="claim-code-{fieldID}">{text.claimCodeLabel}</FieldLabel>
 							<InputOTP.Root
-								id="claim-code-{fieldID}"
+								inputId="claim-code-{fieldID}"
 								maxlength={claimCodeLength}
 								bind:value={code}
 								disabled={busy}
@@ -199,7 +210,7 @@
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
 						<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
-						<Button variant="ghost" class="w-full" onclick={askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
+						<Button variant="ghost" class="w-full" onclick={isStartingCompany ? askToStartTheCompany : askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
 						<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
 					</FieldGroup>
 				</form>
