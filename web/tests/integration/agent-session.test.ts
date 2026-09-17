@@ -9,11 +9,11 @@ import {
 	sessionForPlatformIdentity,
 } from '../../src/lib/server/control-plane';
 import { connectMessengerAccount } from '../../src/lib/server/member-credential';
-import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 
 const networkHookTimeout = 60_000;
 
-const credentials = { projectURL, serviceRoleKey };
+const credentials = { projectURL, serviceRoleKey, signingKey };
 
 const client = controlPlane(credentials);
 const stamp = Date.now();

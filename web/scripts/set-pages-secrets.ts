@@ -6,6 +6,7 @@ const token = requiredSetting('CLOUDFLARE_API_TOKEN');
 const projectURL = requiredSetting('SUPABASE_URL');
 const publishableKey = requiredSetting('SUPABASE_PUBLISHABLE_KEY');
 const secretKey = setting('SUPABASE_SECRET_KEY') || requiredSetting('SUPABASE_SERVICE_ROLE_KEY');
+const signingKey = requiredSetting('SUPABASE_JWT_SIGNING_KEY');
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -19,6 +20,7 @@ const variables = {
 	SUPABASE_URL: { type: 'secret_text', value: projectURL },
 	SUPABASE_PUBLISHABLE_KEY: { type: 'secret_text', value: publishableKey },
 	SUPABASE_SECRET_KEY: { type: 'secret_text', value: secretKey },
+	SUPABASE_JWT_SIGNING_KEY: { type: 'secret_text', value: signingKey },
 	CF_PAGES_PROJECT: { type: 'plain_text', value: project },
 };
 

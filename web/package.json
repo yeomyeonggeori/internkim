@@ -74,6 +74,7 @@
 		"clsx": "^2.1.1",
 		"dompurify": "^3.3.3",
 		"force-graph": "^1.51.4",
+		"jose": "^6.2.11",
 		"marked": "^17.0.5",
 		"nostr-tools": "^2.24.1",
 		"runed": "^0.37.1",

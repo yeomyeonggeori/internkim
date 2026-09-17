@@ -6,7 +6,11 @@ import {
 } from '../../../src/lib/public-api-permission';
 import { memberAccessTokenOf } from '../../../src/lib/server/member-request';
 
-const credentials = { projectURL: 'https://example.supabase.co', serviceRoleKey: 'service-role' };
+const credentials = {
+	projectURL: 'https://example.supabase.co',
+	serviceRoleKey: 'service-role',
+	signingKey: '{"kty":"oct","k":"c2VjcmV0"}'
+};
 
 function asking(authorization?: string): Request {
 	return new Request('https://example.test/api/member/me', {
@@ -39,7 +43,8 @@ describe('what a call may present as the member it acts for', () => {
 		expect(await memberAccessTokenOf(asking('Bearer eyJhbGciOi.body.sig'), credentials)).toEqual({
 			accessToken: 'eyJhbGciOi.body.sig',
 			permission: 'delete',
-			tokenName: ''
+			tokenName: '',
+			memberID: null
 		});
 	});
 

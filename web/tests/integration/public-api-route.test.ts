@@ -6,13 +6,13 @@ import {
 	provisionCompany,
 	sessionForMember,
 } from '../../src/lib/server/control-plane';
-import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { createOpenApiDocument } from '../../../docs/web/app/lib/openapi';
 import { savedAttendanceEventSchema } from '../../src/lib/attendance/recorded-attendance';
 import { createMockFetch } from '../unit/test-fetch';
 
 mock.module('$env/dynamic/private', () => ({
-	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
+	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
 }));
 
 const { GET: listTokens } = await import('../../src/routes/api/v1/tokens/+server');
@@ -65,7 +65,7 @@ beforeAll(async () => {
 	departedToken = await issuePersonalAccessToken(client, departedID, 'departed', 'delete');
 	await client.from('member').update({ status: 'departed' }).eq('id', departedID);
 
-	sessionToken = (await sessionForMember({ projectURL, serviceRoleKey }, memberID)).accessToken;
+	sessionToken = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, memberID)).accessToken;
 }, networkHookTimeout);
 
 afterAll(async () => {

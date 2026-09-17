@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { addMember, controlPlane, provisionCompany, sessionForMember } from '../../src/lib/server/control-plane';
 import { asMember } from '../../src/lib/server/control-plane';
-import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import { dayIn } from '../../src/lib/server/public-api/record/days';
 import { toolInputRecovered } from '../../src/lib/server/public-api/tool-input';
@@ -11,7 +11,7 @@ import { buildTaskChildProgress } from '../../src/routes/task/task-relationships
 import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
-	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
+	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
 }));
 
 const {
@@ -59,7 +59,7 @@ beforeAll(async () => {
 	});
 	await client.from('member').update({ user_id: account.user!.id }).eq('id', sampleID);
 
-	const session = await sessionForMember({ projectURL, serviceRoleKey }, sampleID);
+	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, sampleID);
 	caller = asMember({ projectURL, publishableKey }, session.accessToken);
 }, networkHookTimeout);
 

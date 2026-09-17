@@ -1,8 +1,10 @@
 //   bun run web/scripts/deploy-pages.ts --project internkim --output web/.svelte-kit/cloudflare
 //   bun run web/scripts/deploy-pages.ts --whoami
 
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { domainsOf, hostnamesNotAnswering, hostnamesToAnswerFor } from './pages-hostnames';
 import { mainCommitOfLiveBuild, refusalToReplaceProduction, stampOfMainCommit } from './production-guard';
 import { ensureProductionSchemaIsCurrent } from './production-schema';
 import { requiredSetting } from './repository-setting';
@@ -46,7 +48,7 @@ const project = argument('project');
 const outputArgument = argument('output');
 
 if (process.argv.includes('--whoami')) {
-	runWrangler(['wrangler', 'whoami']);
+	process.exit(runWrangler(['wrangler', 'whoami']));
 }
 
 if (!project || !outputArgument) throw new Error('pass --project <name> --output <path>');
@@ -67,11 +69,12 @@ if (isProduction) {
 	await ensureProductionSchemaIsCurrent();
 }
 
-runWrangler([
+const output = resolve(process.cwd(), outputArgument);
+const deployExitCode = runWrangler([
 	'wrangler',
 	'pages',
 	'deploy',
-	resolve(process.cwd(), outputArgument),
+	output,
 	'--project-name',
 	project,
 	'--branch',
@@ -82,8 +85,10 @@ runWrangler([
 	stampOfMainCommit(runGit('rev-parse', 'origin/main').output),
 	'--commit-dirty=true'
 ]);
+if (deployExitCode !== 0) process.exit(deployExitCode);
+if (isProduction) await waitUntilEveryHostnameAnswersThisBuild();
 
-function runWrangler(wranglerArguments: string[]): never {
+function runWrangler(wranglerArguments: string[]): number {
 	const run = Bun.spawnSync(['bunx', ...wranglerArguments], {
 		cwd: fileURLToPath(new URL('..', import.meta.url)),
 		env: { ...process.env, CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: accountID },
@@ -93,5 +98,41 @@ function runWrangler(wranglerArguments: string[]): never {
 	console.log(new TextDecoder().decode(run.stdout));
 	const errorOutput = new TextDecoder().decode(run.stderr);
 	if (errorOutput.trim()) console.log(errorOutput);
-	process.exit(run.exitCode ?? 0);
+	return run.exitCode ?? 0;
+}
+
+function builtVersion(): string {
+	const written = JSON.parse(readFileSync(resolve(output, '_app/version.json'), 'utf8')) as { version?: unknown };
+	if (typeof written.version !== 'string') throw new Error(`${output} carries no build version`);
+	return written.version;
+}
+
+async function callCloudflare(path: string): Promise<unknown> {
+	const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	const body = (await response.json()) as { success: boolean; result?: unknown; errors?: unknown };
+	if (!body.success) throw new Error(JSON.stringify(body.errors));
+	return body.result;
+}
+
+async function waitUntilEveryHostnameAnswersThisBuild(): Promise<void> {
+	if (!project) return;
+	const version = builtVersion();
+	const hostnames = hostnamesToAnswerFor(project, await domainsOf(callCloudflare, accountID, project));
+	const attempts = 12;
+	for (let attempt = 1; attempt <= attempts; attempt += 1) {
+		const behind = await hostnamesNotAnswering(hostnames, version);
+		if (behind.length === 0) {
+			console.log(`every hostname answers build ${version}: ${hostnames.join(', ')}`);
+			return;
+		}
+		if (attempt < attempts) await Bun.sleep(5000);
+		else {
+			console.error(
+				`${behind.join(', ')} still answer another build than ${version}; something else, such as a Workers route, stands in front of this project there. See web/scripts/pages-domains.ts --project ${project}`
+			);
+			process.exit(1);
+		}
+	}
 }

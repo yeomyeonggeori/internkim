@@ -9,13 +9,17 @@ supabase db reset
 API_URL=
 PUBLISHABLE_KEY=
 SECRET_KEY=
+JWT_SECRET=
+
+. "$repository/web/scripts/local-plane-signing-key.sh"
 
 read_central_plane_settings() {
   API_URL=
   PUBLISHABLE_KEY=
   SECRET_KEY=
-  eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
-  [ -n "$API_URL" ] && [ -n "$PUBLISHABLE_KEY" ] && [ -n "$SECRET_KEY" ]
+  JWT_SECRET=
+  eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY|JWT_SECRET)=')"
+  [ -n "$API_URL" ] && [ -n "$PUBLISHABLE_KEY" ] && [ -n "$SECRET_KEY" ] && [ -n "$JWT_SECRET" ]
 }
 
 wait_until_settings_are_named() {
@@ -122,6 +126,7 @@ cd web
 SUPABASE_URL="$API_URL" \
 SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
 SUPABASE_SECRET_KEY="$SECRET_KEY" \
+SUPABASE_JWT_SIGNING_KEY="$(signing_key_of_secret "$JWT_SECRET")" \
 PLAYWRIGHT_CENTRAL_PLANE=1 \
 PLAYWRIGHT_START_WEB_SERVER=1 \
 PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5196}" \

@@ -1,11 +1,11 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.json';
 
 mock.module('$env/dynamic/private', () => ({
-	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
+	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
 }));
 
 const { toolsTheRecordRuns } = await import('../../src/lib/server/public-api/record');

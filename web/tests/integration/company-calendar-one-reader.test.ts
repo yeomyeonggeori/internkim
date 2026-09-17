@@ -7,11 +7,11 @@ import {
 	sessionForMember
 } from '../../src/lib/server/control-plane';
 import { dayOffColor } from '../../src/lib/calendar/day-off-color';
-import { projectURL, publishableKey, serviceRoleKey } from './supabase-environment';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { heldToTheContract } from './tool-answers';
 
 mock.module('$env/dynamic/private', () => ({
-	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey }
+	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
 }));
 
 let sessionToken = '';
@@ -28,7 +28,7 @@ const { companyCalendarEntries } = await import('../../src/lib/calendar/company-
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
-const credentials = { projectURL, publishableKey, serviceRoleKey };
+const credentials = { projectURL, publishableKey, serviceRoleKey, signingKey };
 const slug = `one-calendar-reader-${Date.now()}`;
 const now = new Date();
 const seoulOffset = 9 * 60 * 60 * 1000;
@@ -161,7 +161,7 @@ beforeAll(async () => {
 	});
 	if (leaveRefused) throw new Error(leaveRefused.message);
 
-	const session = await sessionForMember({ projectURL, serviceRoleKey }, adminID);
+	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, adminID);
 	sessionToken = session.accessToken;
 	caller = asMember({ projectURL, publishableKey }, session.accessToken);
 	feedToken = await issueFeedToken(caller);
