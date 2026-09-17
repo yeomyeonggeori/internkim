@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { liveActivityPayload } from '../../../supabase/functions/_shared/apns-live-activity.ts';
 import { activityChangesFor } from '../../../supabase/functions/_shared/attendance-live-activity.ts';
+import { widgetRefreshPayload } from '../../../supabase/functions/_shared/attendance-widget-refresh.ts';
 
 const alert = { title: '출근', body: '사무실 · 09:02' };
 const starter = { kind: 'apns-activity-start', address: 'start-token' };
@@ -66,5 +67,11 @@ describe('the Live Activity payload', () => {
 		expect(liveActivityPayload({ event: 'end', state }, 1789603330)).toEqual({
 			aps: { timestamp: 1789603330, event: 'end', 'content-state': state, 'dismissal-date': 1789603330 }
 		});
+	});
+});
+
+describe("the push that refreshes a member's own widgets", () => {
+	test('wakes the app without showing anything and names the widget it is for', () => {
+		expect(widgetRefreshPayload).toEqual({ aps: { 'content-available': 1 }, widget: 'attendance' });
 	});
 });
