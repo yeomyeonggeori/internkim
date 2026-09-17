@@ -6,12 +6,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
-	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
@@ -66,25 +63,10 @@ type fakeBrowserRuntime struct {
 	startCount      int
 	navigateCount   int
 	closeCount      int
-	pauseCount      int
-	resumeCount     int
-	pauseError      error
 	screenshot      browserruntime.ScreenshotResult
 	errorValue      error
 	actionError     error
 	observeError    error
-}
-
-func (runtime *fakeBrowserRuntime) Pause(ctx context.Context) error {
-	_ = ctx
-	runtime.pauseCount++
-	return runtime.pauseError
-}
-
-func (runtime *fakeBrowserRuntime) Resume(ctx context.Context) error {
-	_ = ctx
-	runtime.resumeCount++
-	return nil
 }
 
 type fakeFileUploader struct {
@@ -221,35 +203,6 @@ func (uploader *fakeFileUploader) UploadFile(ctx context.Context, request FileUp
 		DevicePath:  "/tmp/internkim-companion-files/" + request.Filename,
 		ExpiresAt:   "2026-04-27T00:00:00Z",
 	}, nil
-}
-
-func waitForHandoffActive(t *testing.T, handoffStore *BrowserHandoffStore) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if handoffStore.Snapshot().Active {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatal("timed out waiting for active handoff")
-}
-
-func completeActiveBrowserHandoffForExecutorTest(t *testing.T, store *BrowserHandoffStore, completion HandoffCompletion) {
-	t.Helper()
-	store.mutex.Lock()
-	handoff, errorValue := store.validateCompletionLocked(completion)
-	if errorValue != nil {
-		store.mutex.Unlock()
-		t.Fatalf("validate handoff completion: %v", errorValue)
-	}
-	if handoff == nil {
-		store.mutex.Unlock()
-		return
-	}
-	waiter := handoff.waiter
-	store.mutex.Unlock()
-	waiter <- completion
 }
 
 func TestBrowserNavigateOpensValidatedURL(t *testing.T) {
@@ -501,249 +454,6 @@ func TestBrowserControlFailureReportsSnapshotFailure(t *testing.T) {
 	}
 	if !response.IsError || result.SnapshotError != "snapshot unavailable" {
 		t.Fatalf("expected snapshot failure in recoverable result, response=%+v result=%+v", response, result)
-	}
-}
-
-func TestBrowserHandoffPausesRuntimeAndResumesAfterUserCompletion(t *testing.T) {
-	handoffStore := NewBrowserHandoffStore()
-	browserRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
-		URL:             "https://example.com/app",
-		Title:           "Example",
-		SnapshotText:    "- button \"Continue\" [ref=e1]",
-		InteractiveRefs: []string{"@e1"},
-		CapturedAt:      "2026-05-07T00:00:01Z",
-	}}
-	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://example.com/app")
-
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser_handoff",
-		Input:    json.RawMessage(`{"url":"https://example.com/login","message":"로그인 후 완료를 눌러주세요.","successCriteria":{"textIncludesAny":["Continue"]}}`),
-	})
-	if completionError := <-completionErrors; completionError != nil {
-		t.Fatalf("expected handoff completion: %v", completionError)
-	}
-	if errorValue != nil {
-		t.Fatalf("expected completed handoff response: %v", errorValue)
-	}
-
-	var result BrowserHandoffResult
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != HandoffStateCompleted || result.State != HandoffStateCompleted || !result.CompletedByUser {
-		t.Fatalf("unexpected handoff result: response=%+v result=%+v", response, result)
-	}
-	if result.HandoffID == "" || result.URL != "https://example.com/app" || handoffStore.Snapshot().Active {
-		t.Fatalf("expected completed handoff, got %+v snapshot=%+v", result, handoffStore.Snapshot())
-	}
-	if result.SnapshotText == "" || len(result.InteractiveRefs) != 1 {
-		t.Fatalf("expected resumed automation snapshot in handoff result, got %+v", result)
-	}
-	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 1 {
-		t.Fatalf("expected exactly one pause and one resume, got pause=%d resume=%d", browserRuntime.pauseCount, browserRuntime.resumeCount)
-	}
-	if browserRuntime.startCount != 0 {
-		t.Fatalf("expected no second browser window to open, got %d", browserRuntime.startCount)
-	}
-}
-
-func TestBrowserHandoffTimeoutResumesRuntime(t *testing.T) {
-	handoffStore := NewBrowserHandoffStore()
-	browserRuntime := &fakeBrowserRuntime{}
-	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, errorValue := executor.ExecuteJob(ctx, JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser_handoff",
-		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
-	})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "timed out") {
-		t.Fatalf("expected browser handoff timeout error, got %v", errorValue)
-	}
-	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 1 {
-		t.Fatalf("expected pause then resume even on timeout, pause=%d resume=%d", browserRuntime.pauseCount, browserRuntime.resumeCount)
-	}
-	if handoffStore.Snapshot().Active {
-		t.Fatal("expected handoff store to clear the active handoff after timeout")
-	}
-}
-
-func TestBrowserHandoffSurfacesPauseFailureWithoutStrandingTheHandoff(t *testing.T) {
-	handoffStore := NewBrowserHandoffStore()
-	browserRuntime := &fakeBrowserRuntime{pauseError: errors.New("runtime does not support a human handoff")}
-	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-
-	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser_handoff",
-		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
-	})
-	if errorValue == nil {
-		t.Fatal("expected the handoff to fail when the runtime cannot pause")
-	}
-	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 0 {
-		t.Fatalf("expected exactly one failed pause attempt and no resume, pause=%d resume=%d", browserRuntime.pauseCount, browserRuntime.resumeCount)
-	}
-	if handoffStore.Snapshot().Active {
-		t.Fatal("expected the handoff store to clear the handoff rather than leaving it stranded as active")
-	}
-}
-
-func TestBrowserHandoffRejectsLinuxWayland(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("Linux Wayland detection only applies on Linux")
-	}
-	t.Setenv("XDG_SESSION_TYPE", "wayland")
-	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
-	t.Setenv("DISPLAY", "")
-	executor := Executor{BrowserRuntime: &fakeBrowserRuntime{}, HandoffStore: NewBrowserHandoffStore()}
-
-	_, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser_handoff",
-		Input:    json.RawMessage(`{"url":"https://example.com/login"}`),
-	})
-
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "Linux Wayland") {
-		t.Fatalf("expected Linux Wayland unsupported error, got %v", errorValue)
-	}
-}
-
-func TestBrowserHandoffTakesHumanPathForGoogleHost(t *testing.T) {
-	handoffStore := NewBrowserHandoffStore()
-	browserRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
-		URL:             "https://console.cloud.google.com/project",
-		Title:           "Google Cloud",
-		SnapshotText:    "- button \"Create\" [ref=e1]",
-		InteractiveRefs: []string{"@e1"},
-		CapturedAt:      "2026-05-07T00:00:01Z",
-	}}
-	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-	completionErrors := completeActiveHandoffWhenReady(handoffStore, "https://console.cloud.google.com/project")
-
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-1", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser_handoff",
-		Input:    json.RawMessage(`{"url":"https://console.cloud.google.com/project","message":"로그인 후 계속을 눌러주세요."}`),
-	})
-	if completionError := <-completionErrors; completionError != nil {
-		t.Fatalf("expected handoff completion: %v", completionError)
-	}
-	if errorValue != nil {
-		t.Fatalf("expected completed handoff response: %v", errorValue)
-	}
-
-	var result BrowserHandoffResult
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !result.CompletedByUser || result.SnapshotText == "" {
-		t.Fatalf("expected user-completed handoff with resumed snapshot, got %+v", result)
-	}
-	if browserRuntime.pauseCount != 1 || browserRuntime.resumeCount != 1 || browserRuntime.navigateCount != 0 || browserRuntime.startCount != 0 {
-		t.Fatalf("expected the Google host to pause for a human like any other host, pause=%d resume=%d navigate=%d start=%d", browserRuntime.pauseCount, browserRuntime.resumeCount, browserRuntime.navigateCount, browserRuntime.startCount)
-	}
-}
-
-func TestBrowserHandoffReusesActiveHandoffWithoutReopeningBrowser(t *testing.T) {
-	handoffStore := NewBrowserHandoffStore()
-	activeHandoff, errorValue := handoffStore.Begin(BrowserHandoffRequest{URL: "https://example.com/login"}, "internkim")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	browserRuntime := &fakeBrowserRuntime{}
-	executor := Executor{BrowserRuntime: browserRuntime, HandoffStore: handoffStore}
-	completeActiveBrowserHandoffForExecutorTest(t, handoffStore, HandoffCompletion{
-		HandoffID:  activeHandoff.HandoffID,
-		SessionID:  activeHandoff.SessionID,
-		URL:        "https://example.com/app",
-		CapturedAt: time.Now().UTC().Format(time.RFC3339),
-	})
-
-	response, errorValue := executor.ExecuteJob(context.Background(), JobEnvelope{JobID: "job-2", ToolName: "browser_handoff"}, capabilities.ToolInvokeRequest{
-		ToolName: "browser_handoff",
-		Input:    json.RawMessage(`{"url":"https://example.com/projectselector2/kimyesi-admin/serviceaccounts?supportedpurview=project","message":"로그인 후 완료를 눌러주세요."}`),
-	})
-	if errorValue != nil {
-		t.Fatalf("expected active handoff reuse: %v", errorValue)
-	}
-	handoffStore.End(activeHandoff.HandoffID, HandoffStateCompleted)
-
-	var result BrowserHandoffResult
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Status != HandoffStateCompleted || result.HandoffID != activeHandoff.HandoffID {
-		t.Fatalf("expected completed response for active handoff, response=%+v result=%+v", response, result)
-	}
-	if browserRuntime.startCount != 0 {
-		t.Fatalf("expected active handoff reuse not to reopen browser, got %d opens", browserRuntime.startCount)
-	}
-}
-
-func completeActiveHandoffWhenReady(handoffStore *BrowserHandoffStore, pageURL string) <-chan error {
-	completionErrors := make(chan error, 1)
-	go func() {
-		deadline := time.Now().Add(time.Second)
-		for time.Now().Before(deadline) {
-			snapshot := handoffStore.Snapshot()
-			if snapshot.Active {
-				completionErrors <- handoffStore.Complete(HandoffCompletion{
-					HandoffID:  snapshot.HandoffID,
-					SessionID:  snapshot.SessionID,
-					URL:        pageURL,
-					CapturedAt: time.Now().UTC().Format(time.RFC3339),
-				})
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		completionErrors <- errors.New("timed out waiting for active handoff")
-	}()
-	return completionErrors
-}
-
-func TestHandoffBridgeCompletionCapturesSnapshot(t *testing.T) {
-	handoffStore := NewBrowserHandoffStore()
-	handoff, errorValue := handoffStore.Begin(BrowserHandoffRequest{URL: "https://example.com/login"}, "internkim")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	browserRuntime := &fakeBrowserRuntime{observeResult: browserruntime.ObserveResult{
-		URL:             "https://example.com/app",
-		Title:           "Example",
-		SnapshotText:    "- button \"Continue\" [ref=e1]",
-		InteractiveRefs: []string{"@e1"},
-		CapturedAt:      "2026-04-27T00:00:00Z",
-	}}
-	var capturedCompletion HandoffCompletion
-	handler := HandoffBridgeHandler{
-		Store:          handoffStore,
-		BrowserRuntime: browserRuntime,
-		CompletionHandler: func(ctx context.Context, completion HandoffCompletion) error {
-			_ = ctx
-			capturedCompletion = completion
-			return nil
-		},
-	}
-	request := httptest.NewRequest(http.MethodPost, "/v1/browser/handoff/complete", strings.NewReader(`{"handoffID":"`+handoff.HandoffID+`","sessionID":"`+handoff.SessionID+`","url":"https://example.com/login"}`))
-	response := httptest.NewRecorder()
-
-	handler.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("expected handoff completion success, got %d %s", response.Code, response.Body.String())
-	}
-	if capturedCompletion.URL != "https://example.com/app" || capturedCompletion.SnapshotText == "" || len(capturedCompletion.InteractiveRefs) != 1 {
-		t.Fatalf("expected captured completion snapshot, got %+v", capturedCompletion)
-	}
-	if handoffStore.Snapshot().Active {
-		t.Fatal("expected overlay to close after completion")
-	}
-	duplicateRequest := httptest.NewRequest(http.MethodPost, "/v1/browser/handoff/complete", strings.NewReader(`{"handoffID":"`+handoff.HandoffID+`","sessionID":"`+handoff.SessionID+`","url":"https://example.com/app"}`))
-	duplicateResponse := httptest.NewRecorder()
-	handler.ServeHTTP(duplicateResponse, duplicateRequest)
-	if duplicateResponse.Code != http.StatusOK {
-		t.Fatalf("expected duplicate completion success, got %d %s", duplicateResponse.Code, duplicateResponse.Body.String())
 	}
 }
 

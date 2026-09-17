@@ -636,9 +636,6 @@ func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
 	if errorValue := saveState(statePath, state); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if errorValue := os.WriteFile(defaultHandoffStatePath(statePath), []byte("{}"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	var requestedPath string
 	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		requestedPath = request.URL.Path
@@ -658,9 +655,6 @@ func TestDisconnectRevokesRemoteAndClearsLocalPairing(t *testing.T) {
 	}
 	if _, errorValue := os.Stat(statePath); !errors.Is(errorValue, os.ErrNotExist) {
 		t.Fatalf("expected state file to be removed, got %v", errorValue)
-	}
-	if _, errorValue := os.Stat(defaultHandoffStatePath(statePath)); !errors.Is(errorValue, os.ErrNotExist) {
-		t.Fatalf("expected handoff state to be removed, got %v", errorValue)
 	}
 	if _, errorValue := secureStore.Get(nilContext(), state.PrivateKeyID); errorValue == nil {
 		t.Fatal("expected private key to be removed")

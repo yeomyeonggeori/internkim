@@ -416,8 +416,8 @@ What matters about this daemon:
   / their messenger; the host agent serves them via host-side + SaaS + remote
   capabilities).
 - **Installing the companion is a progressive enhancement** — it unlocks that
-  employee's **local-device capabilities**: local file pick, browser handoff,
-  local model inference, desktop confirm/input, OS secure credential storage.
+  employee's **local-device capabilities**: local file pick, local model
+  inference, desktop confirm/input, OS secure credential storage.
   Available **only while that employee's app is on**.
 - The app is intermittent (on/off) by nature.
 
@@ -425,7 +425,7 @@ What matters about this daemon:
 - Both host and guests connect **outbound to the central plane**; host→guest
   capability requests are **routed over Supabase Realtime** (no direct connection,
   no LAN discovery, no tunnel). The party model is **host agent ↔ a specific guest
-  employee**, so the companion's capability broker/handoff pattern is **kept**
+  employee**, so the companion's capability broker pattern is **kept**
   (transport = the central plane), not removed.
 - Deliberately **not** the messenger. Capability RPC over messenger events would
   make the messenger mandatory infrastructure and re-create the mirror we are

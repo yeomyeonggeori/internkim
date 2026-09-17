@@ -251,7 +251,7 @@ func TestAgentBrowserRuntimeChromeEngineUsesHeadedProfile(t *testing.T) {
 	}
 }
 
-func TestAgentBrowserRuntimeHandoffSessionOmitsExtensionArguments(t *testing.T) {
+func TestAgentBrowserRuntimeSessionWithoutExtensionOmitsExtensionArguments(t *testing.T) {
 	runner := &fakeCommandRunner{output: []byte(`{"data":{"origin":"https://example.com/login","snapshot":"Login"}}`)}
 	runtime := AgentBrowserRuntime{
 		CommandPath:        "agent-browser-test",
@@ -272,7 +272,7 @@ func TestAgentBrowserRuntimeHandoffSessionOmitsExtensionArguments(t *testing.T) 
 	}
 	for _, call := range runner.calls {
 		if containsString(call.arguments, "--extension") || containsString(call.arguments, "eval") {
-			t.Fatalf("handoff session must not use extension or eval commands: %+v", runner.calls)
+			t.Fatalf("session without an extension must not use extension or eval commands: %+v", runner.calls)
 		}
 	}
 }
