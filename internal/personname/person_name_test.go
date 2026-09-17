@@ -65,3 +65,40 @@ func TestDefaultCallMeReadsTheSharedCasesSay(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchesReadsANameInAnyOrderAndWithoutTheMiddle(t *testing.T) {
+	smith := "John Michael Smith"
+	for hint, expected := range map[string]bool{
+		"John Michael Smith": true,
+		"smith john michael": true,
+		"johnmichaelsmith":   true,
+		"John Smith":         true,
+		"Smith John":         true,
+		"Smith":              true,
+		"smi":                true,
+		"John Smyth":         false,
+		"Jane":               false,
+		"  ":                 false,
+	} {
+		if isMatch := Matches(hint, smith); isMatch != expected {
+			t.Errorf("Matches(%q, %q) = %v, want %v", hint, smith, isMatch, expected)
+		}
+	}
+}
+
+func TestMatchesReadsAKoreanNameInEitherOrder(t *testing.T) {
+	lee := "샘플 이"
+	for hint, expected := range map[string]bool{
+		"이샘플":  true,
+		"샘플이":  true,
+		"샘플 이": true,
+		"이 샘플": true,
+		"샘플":   true,
+		"이":    true,
+		"박샘플":  false,
+	} {
+		if isMatch := Matches(hint, lee); isMatch != expected {
+			t.Errorf("Matches(%q, %q) = %v, want %v", hint, lee, isMatch, expected)
+		}
+	}
+}

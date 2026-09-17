@@ -73,14 +73,6 @@ func (service Service) directoryPeople(ctx context.Context) ([]directoryPerson, 
 	return document.People, nil
 }
 
-func directoryPersonNames(people []directoryPerson, responseLanguage string) []string {
-	names := make([]string, 0, len(people))
-	for _, person := range people {
-		names = append(names, firstNonEmpty(personname.Render(person.Name, responseLanguage), person.Email))
-	}
-	return names
-}
-
 func platformDMRecipientsFromDirectoryPeople(people []directoryPerson, responseLanguage string) []platformDMRecipient {
 	recipients := make([]platformDMRecipient, 0, len(people))
 	for _, person := range people {
@@ -104,9 +96,10 @@ func (service Service) namedDirectoryPerson(ctx context.Context, personHint stri
 	case hintResolved:
 		return resolution.Match, platformDMFailure{}, false
 	case hintAmbiguous, hintApproximate:
-		message := fmt.Sprintf("recipient %q is ambiguous: %s", personHint, strings.Join(directoryPersonNames(resolution.Candidates, responseLanguage), ", "))
+		candidates := platformDMRecipientsFromDirectoryPeople(resolution.Candidates, responseLanguage)
+		message := fmt.Sprintf("recipient %q is ambiguous: %s", personHint, platformDMRecipientList(candidates))
 		failure := platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message)
-		failure.Candidates = platformDMRecipientsFromDirectoryPeople(resolution.Candidates, responseLanguage)
+		failure.Candidates = candidates
 		return directoryPerson{}, failure, true
 	default:
 		return directoryPerson{}, platformDMRecipientNotFoundFailure(personHint), true

@@ -23,8 +23,62 @@ func Render(recorded string, language string) string {
 	if !isKorean(language) || len(parts) < 2 || !isHangul(trimmed) {
 		return trimmed
 	}
+	return strings.Join(familyFirst(parts), "")
+}
+
+// Words match in any order and a middle name may be left out, the way a
+// directory search reads a name. A name written without spaces is compared
+// whole, in recorded order and with the family name first, which is how
+// Korean is written.
+func Matches(hint string, recorded string) bool {
+	hintWords := strings.Fields(strings.ToLower(hint))
+	nameWords := strings.Fields(strings.ToLower(recorded))
+	if len(hintWords) == 0 || len(nameWords) == 0 {
+		return false
+	}
+	return everyWordAmong(hintWords, nameWords) || anyContainsAny(joinedForms(nameWords), joinedForms(hintWords))
+}
+
+func joinedForms(words []string) []string {
+	recordedOrder := strings.Join(words, "")
+	if len(words) < 2 {
+		return []string{recordedOrder}
+	}
+	return []string{recordedOrder, strings.Join(familyFirst(words), "")}
+}
+
+func everyWordAmong(words []string, among []string) bool {
+	for _, word := range words {
+		if !anyEquals(among, word) {
+			return false
+		}
+	}
+	return true
+}
+
+func anyEquals(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func anyContainsAny(values []string, wanted []string) bool {
+	for _, value := range values {
+		for _, part := range wanted {
+			if strings.Contains(value, part) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func familyFirst(parts []string) []string {
 	family := parts[len(parts)-1]
-	return family + strings.Join(parts[:len(parts)-1], "")
+	return append([]string{family}, parts[:len(parts)-1]...)
 }
 
 func FirstName(recorded string) string {

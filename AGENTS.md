@@ -220,9 +220,11 @@ and delete the duplicates.
      a name, a path it saw), and the runtime climbs one ladder, in
      `internal/capabilityd/hint_resolution.go`:
 
-     1. an exact identifier or an exact name resolves, always;
-     2. a name only one candidate contains resolves;
-     3. a name several contain is ambiguous — ask the user which;
+     1. an exact identifier resolves, always;
+     2. a name only one candidate answers to resolves, in any word order
+        (`personname.Matches`);
+     3. a name several answer to is ambiguous — ask the user which, with
+        each one's address;
      4. nothing matching is approximated — ask the user whether they meant
         one of the nearest, offering "none of these" as a choice.
 
