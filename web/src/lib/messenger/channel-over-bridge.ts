@@ -174,6 +174,10 @@ export async function bridgeDirectMessage(personID: string): Promise<string> {
 	return channel.id;
 }
 
+export async function bridgeAgentConversation(): Promise<string> {
+	return (await openDirectChannel([])).id;
+}
+
 export async function bridgeConversation(channelID?: string, before?: string): Promise<Conversation> {
 	const people = await fetchMessengerDirectory();
 	const viewer = await whoIsReading(people);

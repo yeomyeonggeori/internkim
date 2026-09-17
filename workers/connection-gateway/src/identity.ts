@@ -9,6 +9,7 @@ export type TokenClaims = {
 	sub: string;
 	iss: string;
 	exp: number;
+	hostCompanyID?: string;
 };
 
 export class TokenRefused extends Error {
@@ -25,16 +26,32 @@ function decodeBase64URL(segment: string): Uint8Array<ArrayBuffer> {
 }
 
 function decodeSegment(segment: string): unknown {
-	return JSON.parse(new TextDecoder().decode(decodeBase64URL(segment)));
+	try {
+		return JSON.parse(new TextDecoder().decode(decodeBase64URL(segment)));
+	} catch {
+		throw new TokenRefused('the token is malformed');
+	}
+}
+
+function isClaimRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
 }
 
 function claimsOf(payload: unknown, expectedIssuer: string, nowSeconds: number): TokenClaims {
-	if (typeof payload !== 'object' || payload === null) throw new TokenRefused('the token carries no claims');
-	const { sub, iss, exp } = payload as Record<string, unknown>;
+	if (!isClaimRecord(payload)) throw new TokenRefused('the token carries no claims');
+	const claims = payload;
+	const { sub, iss, exp } = claims;
 	if (typeof sub !== 'string' || sub.trim() === '') throw new TokenRefused('the token names no account');
 	if (iss !== expectedIssuer) throw new TokenRefused(`the token was issued by ${String(iss)}`);
 	if (typeof exp !== 'number') throw new TokenRefused('the token carries no expiry');
 	if (exp <= nowSeconds) throw new TokenRefused('the token has expired');
+	const appMetadata = claims.app_metadata;
+	if (isClaimRecord(appMetadata)) {
+		const companyID = appMetadata.company_id;
+		if (typeof companyID === 'string' && companyID.trim() !== '') {
+			return { sub, iss, exp, hostCompanyID: companyID };
+		}
+	}
 	return { sub, iss, exp };
 }
 

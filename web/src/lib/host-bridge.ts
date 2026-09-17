@@ -1,6 +1,9 @@
 import { gatewayURL, supabase } from '$lib/supabase';
 import { supabaseMember } from '$lib/supabase-session';
 import { companyEventOf, type CompanyEvent } from '$lib/company-event';
+import { HostUnreachableError, readyWithPresence, type Frame } from '$lib/host-presence';
+
+export { HostUnreachableError };
 
 export type HostCall = {
 	capability: string;
@@ -12,19 +15,13 @@ export type HostAnswer = {
 	body: unknown;
 };
 
-export class HostUnreachableError extends Error {
-	constructor() {
-		super('the company app is not running');
-		this.name = 'HostUnreachableError';
-	}
-}
-
 const answerTimeoutMilliseconds = 20_000;
 const tokenProtocol = 'internkim.bearer.';
 const firstRedialMilliseconds = 1_000;
 const longestRedialMilliseconds = 30_000;
 
 let joined: Promise<WebSocket> | undefined;
+let activeSocket: WebSocket | undefined;
 let isServerConnected = false;
 let redialsInARow = 0;
 const waiting = new Map<string, (answer: HostAnswer) => void>();
@@ -44,9 +41,15 @@ function forgetWire(attempt: Promise<WebSocket>): void {
 }
 
 function dropTheWire(): void {
+	activeSocket = undefined;
 	joined = undefined;
 	isServerConnected = false;
 	if (listeners.size > 0) redialLater();
+}
+
+function dropSocket(socket: WebSocket): void {
+	if (activeSocket !== socket) return;
+	dropTheWire();
 }
 
 function redialLater(): void {
@@ -72,25 +75,13 @@ async function openWire(): Promise<WebSocket> {
 
 	const url = `${address.replace(/\/+$/, '')}/company/${encodeURIComponent(companyID)}/client`;
 	const socket = new WebSocket(url, [tokenProtocol + token]);
-	socket.addEventListener('message', (message) => receive(message.data));
-	socket.addEventListener('close', dropTheWire);
-
-	await new Promise<void>((resolve, reject) => {
-		socket.addEventListener('open', () => resolve(), { once: true });
-		socket.addEventListener('error', () => reject(new HostUnreachableError()), { once: true });
-	});
+	activeSocket = socket;
+	await readyWithPresence(socket, receive, () => dropSocket(socket));
 	redialsInARow = 0;
 	return socket;
 }
 
-function receive(data: unknown): void {
-	if (typeof data !== 'string') return;
-	let payload: Record<string, unknown>;
-	try {
-		payload = JSON.parse(data) as Record<string, unknown>;
-	} catch {
-		return;
-	}
+function receive(payload: Frame): void {
 	if (payload.kind === 'presence') {
 		isServerConnected = payload.isServerConnected === true;
 		return;

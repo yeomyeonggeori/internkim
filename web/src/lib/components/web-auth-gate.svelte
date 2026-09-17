@@ -137,6 +137,8 @@
 								<FieldDescription class="text-center">
 									{text.firstTimePrompt}
 									<a class="underline" href="/auth/claim">{text.claimAccount}</a>
+									<span class="px-1">·</span>
+									<a class="underline" href="/auth/claim?new-company=1">{text.startCompany}</a>
 								</FieldDescription>
 							{:else}
 								<FieldDescription class="text-center">
