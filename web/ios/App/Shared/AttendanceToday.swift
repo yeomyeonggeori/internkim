@@ -1,8 +1,5 @@
 import Foundation
 
-/// What the widget draws: today's worked minutes, whether a shift is still open,
-/// and the times either end of it. Pairing a clock-in with the clock-out that
-/// follows it is the same rule the screens use.
 struct AttendanceToday {
     var workedMinutes: Int = 0
     var isWorking: Bool = false

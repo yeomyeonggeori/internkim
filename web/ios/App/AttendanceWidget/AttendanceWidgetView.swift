@@ -154,8 +154,6 @@ struct AttendanceWidgetView: View {
     }
 }
 
-/// An open shift keeps counting on the phone between refreshes, which only the
-/// system's own timer text can do; a closed day is drawn as the screens draw it.
 private struct WorkedTime: View {
     let entry: AttendanceEntry
     let size: CGFloat
