@@ -6,6 +6,7 @@ import { sendsHomeToTheApp } from '$lib/server/home-redirect';
 import { movesToTheOneAddress, theOneAddressOf } from '$lib/server/company-host-redirect';
 import { apiReferenceHomeFor } from '$lib/server/api-reference-redirect';
 import { defaultZone } from '$lib/server/fleet-domain';
+import { asksForConsent, unframeableHeaders } from '$lib/server/consent-framing';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (event.request.method === 'OPTIONS') {
@@ -48,6 +49,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	if (event.url.pathname.startsWith('/api/')) {
 		response.headers.set('Access-Control-Allow-Origin', '*');
+	}
+
+	if (asksForConsent(event.url.pathname)) {
+		for (const [name, value] of Object.entries(unframeableHeaders)) response.headers.set(name, value);
 	}
 
 	return response;
