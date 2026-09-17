@@ -861,7 +861,6 @@ const (
 	implementedOnThePlaneToo = "implemented twice, once in Go here and once on the plane; step 4 of internkim#1254 deletes the Go handler, and the case written then is as thin as leave's"
 	overIMAPAndSMTP          = "answered over IMAP and SMTP, which no stand-in here speaks yet"
 	throughAPairedCompanion  = "drives a browser session the companion holds, and this gate stands in for a command rather than for a paired companion"
-	throughTheModelRouter    = "answered by capabilityd's own model routing rather than by a tool handler this gate can call"
 	reachesLivePublicURLs    = "fetches live public URLs"
 	callsAnImageModel        = "calls an image model"
 )
@@ -889,10 +888,6 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"browser_press":          throughAPairedCompanion,
 	"browser_select":         throughAPairedCompanion,
 	"browser_wait":           throughAPairedCompanion,
-	"attention_triage":       throughTheModelRouter,
-	"embedding_create":       throughTheModelRouter,
-	"llm_structured":         throughTheModelRouter,
-	"llm_text":               throughTheModelRouter,
 	"web_fetch":              reachesLivePublicURLs,
 	"image_generate":         callsAnImageModel,
 }

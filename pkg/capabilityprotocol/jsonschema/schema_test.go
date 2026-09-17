@@ -101,3 +101,30 @@ func TestValidateInputEnforcesCompleteDescriptorSchema(t *testing.T) {
 		t.Fatalf("expected valid input: %v", errorValue)
 	}
 }
+
+func TestSafeIntegerRefusesAValueNoJavaScriptNumberHoldsExactly(t *testing.T) {
+	document := Object(Required("count", SafeInteger())).RawMessage()
+
+	if errorValue := ValidateInput(document, json.RawMessage(`{"count":9007199254740993}`)); errorValue == nil {
+		t.Fatal("expected a count past the largest safe integer to fail validation")
+	}
+	if errorValue := ValidateInput(document, json.RawMessage(`{"count":9007199254740991}`)); errorValue != nil {
+		t.Fatalf("expected the largest safe integer: %v", errorValue)
+	}
+}
+
+func TestWithDialectNamesTheDraftOnTheDocumentItself(t *testing.T) {
+	document := Object(Required("title", String())).WithDialect(Draft202012).RawMessage()
+
+	var parsed map[string]any
+	if errorValue := json.Unmarshal(document, &parsed); errorValue != nil {
+		t.Fatalf("expected schema JSON: %v", errorValue)
+	}
+	if parsed["$schema"] != Draft202012 {
+		t.Fatalf("expected the 2020-12 dialect, got %+v", parsed)
+	}
+	properties := parsed["properties"].(map[string]any)
+	if _, isFound := properties["title"].(map[string]any)["$schema"]; isFound {
+		t.Fatalf("expected only the root to name the dialect, got %+v", properties)
+	}
+}

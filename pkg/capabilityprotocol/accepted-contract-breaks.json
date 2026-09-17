@@ -223,5 +223,25 @@
 		"path": "company_document_search.result.documents[].published",
 		"reason": "A document now says where it sits in the data room: its clearance, domain, date, period, status, the document it supersedes, its hash, tags, its object in the asset bucket, and when it was published. A device reading the ledger without them sees the document it saw before; the record still hides a document above the reader's clearance, so nothing is shown that the policy does not allow.",
 		"release": "the release cut after the data room lands, which carries the fields to the fleet before the plane answers with them"
+	},
+	{
+		"path": "attention_triage",
+		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
+		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
+	},
+	{
+		"path": "embedding_create",
+		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
+		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
+	},
+	{
+		"path": "llm_structured",
+		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
+		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
+	},
+	{
+		"path": "llm_text",
+		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
+		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
 	}
 ]
