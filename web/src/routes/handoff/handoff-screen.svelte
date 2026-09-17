@@ -2,7 +2,9 @@
 	import {
 		beginTouch,
 		containedBox,
+		isOnAField,
 		keyInputOf,
+		keyInputsOfEdit,
 		modifiersOf,
 		mouseButtonOf,
 		moveTouch,
@@ -43,9 +45,13 @@
 	}
 
 	function pointOf(event: MouseEvent, screen: HTMLElement): Point | null {
+		return pointAt(event.clientX, event.clientY, screen);
+	}
+
+	function pointAt(clientX: number, clientY: number, screen: HTMLElement): Point | null {
 		if (!frame) return null;
 		const box = containedBox(screen.getBoundingClientRect(), frame);
-		return pointOnViewport(event.clientX, event.clientY, box, frame);
+		return pointOnViewport(clientX, clientY, box, frame);
 	}
 
 	function press(point: Point, button: MouseButton, at: number, modifiers: MouseEvent): void {
@@ -60,7 +66,7 @@
 	function onPointerDown(event: PointerEvent & { currentTarget: HTMLDivElement }): void {
 		event.preventDefault();
 		if (event.pointerType === 'touch') {
-			touch = beginTouch(event.clientX, event.clientY);
+			touch = beginTouch(event.clientX, event.clientY, event.timeStamp);
 			return;
 		}
 		focusKeyboard();
@@ -79,9 +85,16 @@
 			return;
 		}
 		if (!touch || !imageBox) return;
-		const moved = moveTouch(touch, event.clientX, event.clientY, frame.width / imageBox.width);
+		const moved = moveTouch(touch, event.clientX, event.clientY, event.timeStamp, frame.width / imageBox.width);
 		touch = moved.track;
 		if (moved.scroll) onInput({ type: 'wheel', ...point, ...moved.scroll });
+		if (moved.startsDrag) startTouchDrag(moved.track, event);
+		if (moved.track.gesture === 'drag') onInput({ type: 'mouse', action: 'move', ...point, button: 'left', clickCount: 0, modifiers: modifiersOf(event) });
+	}
+
+	function startTouchDrag(track: TouchTrack, event: PointerEvent & { currentTarget: HTMLDivElement }): void {
+		const start = pointAt(track.startX, track.startY, event.currentTarget);
+		if (start) press(start, 'left', event.timeStamp, event);
 	}
 
 	function onPointerUp(event: PointerEvent & { currentTarget: HTMLDivElement }): void {
@@ -92,11 +105,25 @@
 			pressedButton = 'none';
 			return;
 		}
-		const wasATap = touch !== null && !touch.hasMoved;
+		const gesture = touch?.gesture;
 		touch = null;
-		if (!wasATap) return;
+		if (gesture === 'drag') release(point, 'left', event);
+		if (gesture !== 'tap') return;
+		followTappedField(point);
 		press(point, 'left', event.timeStamp, event);
 		release(point, 'left', event);
+	}
+
+	function followTappedField(point: Point): void {
+		if (frame && isOnAField(point, frame.fields)) focusKeyboard();
+		else keyboard?.blur();
+	}
+
+	function onEdit(event: InputEvent): void {
+		const inputs = keyInputsOfEdit(event.inputType);
+		if (inputs.length === 0) return;
+		event.preventDefault();
+		for (const input of inputs) onInput(input);
 	}
 
 	function onKey(event: KeyboardEvent, action: 'down' | 'up'): void {
@@ -174,6 +201,7 @@
 		class="pointer-events-none absolute top-0 left-0 size-px resize-none text-base opacity-0"
 		onkeydown={(event) => onKey(event, 'down')}
 		onkeyup={(event) => onKey(event, 'up')}
+		onbeforeinput={onEdit}
 		oninput={onTyped}
 		oncompositionend={sendTypedText}
 	></textarea>

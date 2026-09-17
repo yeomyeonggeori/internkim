@@ -22,10 +22,14 @@ class FakePage implements DevtoolsConnection {
 	readonly sent: SentCommand[] = [];
 	private readonly listeners: ((event: DevtoolsEvent) => void)[] = [];
 	screenshot = 'first-frame';
+	fields: unknown[][] = [];
 
 	async send(method: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
 		this.sent.push({ method, params });
 		if (method === 'Page.captureScreenshot') return { data: this.screenshot };
+		if (method === 'Runtime.evaluate' && String(params.expression).includes('getBoundingClientRect')) {
+			return { result: { value: JSON.stringify(this.fields) } };
+		}
 		if (method === 'Runtime.evaluate' && params.returnByValue) {
 			return { result: { value: JSON.stringify({ url: 'https://example.com/signed-in', title: 'Signed in' }) } };
 		}
@@ -180,11 +184,12 @@ describe('BrowserHandoffs', () => {
 			'Runtime.evaluate',
 			'Emulation.setDeviceMetricsOverride',
 			'Page.startScreencast',
-			'Page.captureScreenshot'
+			'Page.captureScreenshot',
+			'Runtime.evaluate'
 		]);
 		expect(delivered).toEqual([
 			{
-				event: { kind: handoffFrameEventKind, handoffID: 'handoff-1', image: 'first-frame', width: 1280, height: 800, url: 'https://example.com/signed-in' },
+				event: { kind: handoffFrameEventKind, handoffID: 'handoff-1', image: 'first-frame', width: 1280, height: 800, url: 'https://example.com/signed-in', fields: [] },
 				memberID: 'member-1'
 			}
 		]);
@@ -226,6 +231,23 @@ describe('BrowserHandoffs', () => {
 		expect(delivered[1].event.url).toBe('https://example.com/login');
 	});
 
+	test('the places the requester can type are sent again whenever they change', async () => {
+		const { handoffs, page, delivered } = handoffsWith();
+		page.fields = [[20, 40, 200, 30], ['wrong', 1, 2, 3], [20, 90, 200]];
+		handoffs.begin(request);
+		await handoffs.serve(handoffWatchCapability, { handoffID: 'handoff-1' }, 'member-1');
+		await settle();
+
+		page.emit({ method: 'Page.screencastFrame', params: { sessionId: 7, data: 'second-frame' } });
+		await settle();
+
+		expect(delivered.map((delivery) => [delivery.event.image, delivery.event.fields])).toEqual([
+			['first-frame', []],
+			['first-frame', [[20, 40, 200, 30]]],
+			['second-frame', [[20, 40, 200, 30]]]
+		]);
+	});
+
 	test('inputs reach the browser in order and the screen is captured again', async () => {
 		const { handoffs, page } = handoffsWith();
 		handoffs.begin(request);
@@ -245,8 +267,9 @@ describe('BrowserHandoffs', () => {
 		await new Promise((resolve) => setTimeout(resolve, 120));
 
 		expect(answered).toEqual({ status: 200, body: { accepted: 2 } });
-		const afterWatch = page.methods().slice(5);
-		expect(afterWatch.slice(0, 2)).toEqual(['Input.dispatchMouseEvent', 'Input.insertText']);
+		const inputMethods = page.methods().filter((method) => method.startsWith('Input.'));
+		expect(inputMethods).toEqual(['Input.dispatchMouseEvent', 'Input.insertText']);
+		const afterWatch = page.methods().slice(page.methods().indexOf('Input.insertText'));
 		expect(afterWatch).toContain('Page.captureScreenshot');
 	});
 

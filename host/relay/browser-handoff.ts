@@ -295,6 +295,8 @@ class HandoffStream {
 	private url = '';
 	private isStopped = false;
 	private isCapturing = false;
+	private fields: FieldBox[] = [];
+	private isReadingFields = false;
 
 	constructor(private readonly settings: HandoffStreamSettings) {
 		this.memberID = settings.memberID;
@@ -377,11 +379,67 @@ class HandoffStream {
 	private publish(image: string): void {
 		if (!image || image === this.lastImage || !this.isLive) return;
 		this.lastImage = image;
+		this.deliverFrame();
+		this.refreshFields();
+	}
+
+	private deliverFrame(): void {
 		this.settings.deliver(
-			{ kind: handoffFrameEventKind, handoffID: this.settings.handoffID, image, ...this.viewport, url: this.url },
+			{ kind: handoffFrameEventKind, handoffID: this.settings.handoffID, image: this.lastImage, ...this.viewport, url: this.url, fields: this.fields },
 			this.memberID
 		);
 	}
+
+	private refreshFields(): void {
+		if (this.isReadingFields) return;
+		this.isReadingFields = true;
+		editableFieldsOn(this.page)
+			.then((fields) => {
+				if (haveSameFields(fields, this.fields) || !this.isLive) return;
+				this.fields = fields;
+				this.deliverFrame();
+			})
+			.catch((refusal) => this.settings.report(`browser handoff ${this.settings.handoffID} could not find the fields: ${String(refusal)}`))
+			.finally(() => {
+				this.isReadingFields = false;
+			});
+	}
+}
+
+export type FieldBox = [x: number, y: number, width: number, height: number];
+
+const typableInputTypes = ['text', 'search', 'email', 'url', 'tel', 'password', 'number'];
+const largestFieldCount = 50;
+const editableFieldsExpression = `JSON.stringify(
+	[...document.querySelectorAll('input, textarea, [contenteditable]:not([contenteditable="false"])')]
+		.filter((element) => !element.disabled && !element.readOnly)
+		.filter((element) => element.tagName !== 'INPUT' || ${JSON.stringify(typableInputTypes)}.includes(element.type))
+		.filter((element) => !element.checkVisibility || element.checkVisibility({ visibilityProperty: true }))
+		.map((element) => element.getBoundingClientRect())
+		.filter((box) => box.width > 0 && box.height > 0 && box.bottom > 0 && box.right > 0 && box.top < innerHeight && box.left < innerWidth)
+		.slice(0, ${largestFieldCount})
+		.map((box) => [box.left, box.top, box.width, box.height].map(Math.round))
+)`;
+
+async function editableFieldsOn(page: DevtoolsConnection): Promise<FieldBox[]> {
+	const evaluated = await page.send('Runtime.evaluate', { expression: editableFieldsExpression, returnByValue: true });
+	const value = recordOf(evaluated.result).value;
+	if (typeof value !== 'string') return [];
+	return fieldBoxesOf(JSON.parse(value));
+}
+
+function fieldBoxesOf(offered: unknown): FieldBox[] {
+	if (!Array.isArray(offered)) return [];
+	return offered.flatMap((box: unknown): FieldBox[] => {
+		if (!Array.isArray(box) || box.length !== 4) return [];
+		const [x, y, width, height]: unknown[] = box;
+		if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number' || typeof height !== 'number') return [];
+		return [[x, y, width, height]];
+	});
+}
+
+function haveSameFields(first: FieldBox[], second: FieldBox[]): boolean {
+	return JSON.stringify(first) === JSON.stringify(second);
 }
 
 export function readViewport(offered: unknown): Viewport | null {
