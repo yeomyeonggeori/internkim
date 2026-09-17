@@ -18,7 +18,7 @@ struct AttendanceToday {
         var openedLocation: String?
 
         for row in ordered {
-            guard let moment = momentOf(row.occurredAt) else { continue }
+            guard let moment = momentOf(row.occurredAt), moment <= now else { continue }
             if row.kind == "clock_in" {
                 openedAt = moment
                 openedLocation = row.location

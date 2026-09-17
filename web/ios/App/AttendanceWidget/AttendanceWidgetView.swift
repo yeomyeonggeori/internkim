@@ -35,7 +35,7 @@ struct AttendanceWidgetView: View {
             header
             WorkedTime(entry: entry, size: 19)
             AttendanceBar(today: entry.today, locations: entry.locations)
-            marks
+            statusLine
             Spacer(minLength: 0)
             actionButtons(showingLocations: false)
         }
@@ -48,7 +48,7 @@ struct AttendanceWidgetView: View {
                 WorkedTime(entry: entry, size: 21)
                 whereabouts
                 AttendanceBar(today: entry.today, locations: entry.locations)
-                marks
+                statusLine
                 Spacer(minLength: 0)
             }
             VStack(spacing: 5) {
@@ -74,6 +74,18 @@ struct AttendanceWidgetView: View {
         .font(.caption)
         .foregroundStyle(.secondary)
         .lineLimit(1)
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
+        if let refusal = entry.refusal {
+            Label(refusal, systemImage: "exclamationmark.circle")
+                .font(.caption2)
+                .foregroundStyle(.red)
+                .lineLimit(2)
+        } else {
+            marks
+        }
     }
 
     private var marks: some View {
