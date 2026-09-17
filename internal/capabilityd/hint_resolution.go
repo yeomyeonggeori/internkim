@@ -3,6 +3,8 @@ package capabilityd
 import (
 	"sort"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/personname"
 )
 
 const approximateHintCandidateLimit = 8
@@ -30,11 +32,11 @@ type hintResolution[Item hintMatchable] struct {
 	Candidates []Item
 }
 
-// An exact identifier or title is taken as given and a title only one item
-// contains is taken as meant. Below that nothing is decided here: several
-// matches or a near miss become choices for the person who asked, and an
-// identifier is never approximated, because an identifier that is one character
-// off was invented rather than mistyped.
+// An exact identifier is taken as given and a title only one item answers to
+// is taken as meant; what a title answers to is personname's to say. Below
+// that nothing is decided here: several matches or a near miss become choices
+// for the person who asked, and an identifier is never approximated, because
+// an identifier that is one character off was invented rather than mistyped.
 func resolveHint[Item hintMatchable](hint string, items []Item, isPreferred func(Item) bool) hintResolution[Item] {
 	trimmedHint := strings.TrimSpace(hint)
 	if trimmedHint == "" {
@@ -43,19 +45,12 @@ func resolveHint[Item hintMatchable](hint string, items []Item, isPreferred func
 	if item, isFound := itemWithHintIdentifier(trimmedHint, items); isFound {
 		return hintResolution[Item]{Outcome: hintResolved, Match: item}
 	}
-	exactMatches := itemsWithTitleEqualTo(trimmedHint, items)
-	if item, isFound := onlyOrPreferredItem(exactMatches, isPreferred); isFound {
+	titleMatches := itemsWithTitleMatching(trimmedHint, items)
+	if item, isFound := onlyOrPreferredItem(titleMatches, isPreferred); isFound {
 		return hintResolution[Item]{Outcome: hintResolved, Match: item}
 	}
-	if len(exactMatches) > 0 {
-		return hintResolution[Item]{Outcome: hintAmbiguous, Candidates: exactMatches}
-	}
-	containingMatches := itemsWithTitleContaining(trimmedHint, items)
-	if item, isFound := onlyOrPreferredItem(containingMatches, isPreferred); isFound {
-		return hintResolution[Item]{Outcome: hintResolved, Match: item}
-	}
-	if len(containingMatches) > 0 {
-		return hintResolution[Item]{Outcome: hintAmbiguous, Candidates: containingMatches}
+	if len(titleMatches) > 0 {
+		return hintResolution[Item]{Outcome: hintAmbiguous, Candidates: titleMatches}
 	}
 	if nearMatches := nearestItems(trimmedHint, items); len(nearMatches) > 0 {
 		return hintResolution[Item]{Outcome: hintApproximate, Candidates: nearMatches}
@@ -133,33 +128,14 @@ func normalizedHintValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-func itemsWithTitleEqualTo[Item hintMatchable](title string, items []Item) []Item {
-	normalizedTitle := normalizedHintValue(title)
-	matches := make([]Item, 0, 1)
+func itemsWithTitleMatching[Item hintMatchable](title string, items []Item) []Item {
+	found := make([]Item, 0, 1)
 	for _, item := range items {
-		if normalizedHintValue(item.hintTitle()) == normalizedTitle {
-			matches = append(matches, item)
+		if personname.Matches(title, item.hintTitle()) {
+			found = append(found, item)
 		}
 	}
-	return matches
-}
-
-func itemsWithTitleContaining[Item hintMatchable](title string, items []Item) []Item {
-	collapsedTitle := collapseWhitespace(normalizedHintValue(title))
-	matches := make([]Item, 0, 1)
-	if collapsedTitle == "" {
-		return matches
-	}
-	for _, item := range items {
-		if strings.Contains(collapseWhitespace(normalizedHintValue(item.hintTitle())), collapsedTitle) {
-			matches = append(matches, item)
-		}
-	}
-	return matches
-}
-
-func collapseWhitespace(text string) string {
-	return strings.Join(strings.Fields(text), " ")
+	return found
 }
 
 func unresolvedHintMessage(subject string, hintField string, listTool string, outcome hintOutcome) string {
