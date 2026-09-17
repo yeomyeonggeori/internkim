@@ -573,6 +573,13 @@ The API is the web app: `web/src/routes/api/v1/` answers it, so a company that
 hosts the app hosts the API. `api.<zone>/v1` and `<company host>/api/v1` are the
 same routes. The bearer is either a signed-in session or an issued token.
 
+An MCP client connects to `https://api.intern.kim/v1/mcp` with no token at all.
+The route answers `401` with RFC 9728 metadata that names the plane's Supabase
+Auth OAuth 2.1 server; the client registers there, the person allows it at
+`/oauth/consent`, and the grant shows up under connected apps in settings. The
+[plugin](https://github.com/yeomyeonggeori/internkim-plugin) declares this
+server in `mcp.json`.
+
 ```bash
 curl https://<host>/api/v1/tools --header "Authorization: Bearer $INTERNKIM_TOKEN"
 
