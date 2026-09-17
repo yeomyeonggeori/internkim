@@ -9040,6 +9040,34 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "aspectRatio": {
+            "description": "Output aspect ratio. Defaults to 1:1 if omitted.",
+            "enum": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "description": "Absolute workspace path to save the generated PNG, e.g. /workspace/shared/logo.png. Must be under /workspace and end in .png.",
+            "type": "string"
+          },
+          "prompt": {
+            "description": "Detailed description of the image to generate. Write it like describing a scene to an artist, not a keyword list.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -9074,105 +9102,70 @@
       },
       "inputSchemaStrict": true,
       "modelName": "image_generate",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "image_generate",
       "namespace": "image",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
+          "attachments": {
             "items": {
               "additionalProperties": false,
               "properties": {
+                "contentBase64": {
+                  "minLength": 1,
+                  "type": "string"
+                },
                 "contentType": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
                   "type": "string"
                 },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
+                "devicePath": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
                   "type": "string"
                 },
                 "filename": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
                   "type": "string"
                 },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
+                "sizeBytes": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
                 }
               },
               "required": [
-                "effect",
-                "objectType"
+                "devicePath",
+                "filename",
+                "contentType",
+                "sizeBytes",
+                "contentBase64"
               ],
               "type": "object"
             },
+            "minItems": 1,
             "type": "array"
           },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
+          "path": {
+            "description": "Workspace path the generated PNG was saved to.",
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           },
           "status": {
-            "type": "string"
-          },
-          "toolName": {
+            "const": "ok",
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "status",
+          "path",
+          "attachments"
         ],
         "type": "object"
       },
@@ -9180,6 +9173,72 @@
       "policyResource": "tool:image_generate",
       "privacyClass": "workspace_document",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attachments": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "contentBase64": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "contentType": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "devicePath": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "filename": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "sizeBytes": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "devicePath",
+                  "filename",
+                  "contentType",
+                  "sizeBytes",
+                  "contentBase64"
+                ],
+                "type": "object"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "path": {
+              "description": "Workspace path the generated PNG was saved to.",
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "status": {
+              "const": "ok",
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "path",
+            "attachments"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "external_write",
       "sideEffectClass": "external_write",
       "version": "1",
@@ -9750,6 +9809,25 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -9774,105 +9852,38 @@
       },
       "inputSchemaStrict": true,
       "modelName": "browser_fill",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "browser_fill",
       "namespace": "browser",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "action": {
+            "const": "fill",
             "type": "string"
           },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
+          "capturedAt": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
+          "ok": {
+            "const": true,
             "type": "boolean"
           },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "target": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "ok",
+          "action",
+          "target",
+          "capturedAt"
         ],
         "type": "object"
       },
@@ -9881,6 +9892,40 @@
       "privacyClass": "user_browser",
       "requiresRequesterDevice": true,
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "fill",
+              "type": "string"
+            },
+            "capturedAt": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "ok": {
+              "const": true,
+              "type": "boolean"
+            },
+            "target": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ok",
+            "action",
+            "target",
+            "capturedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "external_write",
       "sideEffectClass": "external_write",
       "version": "1",
@@ -10042,6 +10087,16 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10057,105 +10112,32 @@
       },
       "inputSchemaStrict": true,
       "modelName": "browser_press",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "browser_press",
       "namespace": "browser",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "action": {
+            "const": "press",
             "type": "string"
           },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
+          "capturedAt": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
+          "ok": {
+            "const": true,
             "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "ok",
+          "action",
+          "capturedAt"
         ],
         "type": "object"
       },
@@ -10164,6 +10146,34 @@
       "privacyClass": "user_browser",
       "requiresRequesterDevice": true,
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "press",
+              "type": "string"
+            },
+            "capturedAt": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "ok": {
+              "const": true,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ok",
+            "action",
+            "capturedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "external_write",
       "sideEffectClass": "external_write",
       "version": "1",
@@ -10182,6 +10192,25 @@
         "required": false,
         "scope": "operation",
         "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "type": "object"
       },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -10207,105 +10236,38 @@
       },
       "inputSchemaStrict": true,
       "modelName": "browser_select",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "browser_select",
       "namespace": "browser",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "action": {
+            "const": "select",
             "type": "string"
           },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
+          "capturedAt": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
+          "ok": {
+            "const": true,
             "type": "boolean"
           },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "target": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "ok",
+          "action",
+          "target",
+          "capturedAt"
         ],
         "type": "object"
       },
@@ -10314,6 +10276,40 @@
       "privacyClass": "user_browser",
       "requiresRequesterDevice": true,
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "select",
+              "type": "string"
+            },
+            "capturedAt": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "ok": {
+              "const": true,
+              "type": "boolean"
+            },
+            "target": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ok",
+            "action",
+            "target",
+            "capturedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "external_write",
       "sideEffectClass": "external_write",
       "version": "1",
@@ -10356,105 +10352,38 @@
       },
       "inputSchemaStrict": true,
       "modelName": "browser_wait",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "browser_wait",
       "namespace": "browser",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "action": {
+            "const": "wait",
             "type": "string"
           },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
+          "capturedAt": {
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
+          "ok": {
+            "const": true,
             "type": "boolean"
           },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
+          "target": {
+            "description": "The target that was waited for. Absent when the wait was a bounded interval.",
+            "minLength": 1,
+            "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "ok",
+          "action",
+          "capturedAt"
         ],
         "type": "object"
       },
@@ -10463,6 +10392,40 @@
       "privacyClass": "user_browser",
       "requiresRequesterDevice": true,
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "wait",
+              "type": "string"
+            },
+            "capturedAt": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            },
+            "ok": {
+              "const": true,
+              "type": "boolean"
+            },
+            "target": {
+              "description": "The target that was waited for. Absent when the wait was a bounded interval.",
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "ok",
+            "action",
+            "capturedAt"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "1",
@@ -25201,6 +25164,29 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "flagged": {
+            "description": "Set to true to star/flag the message, false to remove the flag. Omit to leave the flagged state unchanged.",
+            "type": "boolean"
+          },
+          "mailbox": {
+            "description": "IMAP mailbox folder of the message, e.g. 'INBOX'. Must come from a prior list or search result.",
+            "type": "string"
+          },
+          "seen": {
+            "description": "Set to true to mark as read, false to mark as unread. Omit to leave the read state unchanged.",
+            "type": "boolean"
+          },
+          "uid": {
+            "description": "IMAP UID of the message to mark. Must come from a prior list or search result — never invent a UID.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25230,105 +25216,21 @@
       },
       "inputSchemaStrict": true,
       "modelName": "mail_message_mark",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "mail_message_mark",
       "namespace": "mail",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
+          "marked": {
+            "const": true,
             "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "marked"
         ],
         "type": "object"
       },
@@ -25336,6 +25238,23 @@
       "policyResource": "tool:mail_message_mark",
       "privacyClass": "workspace_mail",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "marked": {
+              "const": true,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "marked"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "1",
@@ -25353,6 +25272,25 @@
         "required": false,
         "scope": "operation",
         "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "mailbox": {
+            "description": "Current IMAP mailbox folder of the message, e.g. 'INBOX'. Must come from a prior list or search result.",
+            "type": "string"
+          },
+          "targetMailbox": {
+            "description": "Destination IMAP folder, e.g. 'Archive', 'Trash', 'Work/Projects'. The folder must already exist.",
+            "type": "string"
+          },
+          "uid": {
+            "description": "IMAP UID of the message to move. Must come from a prior list or search result — never invent a UID.",
+            "type": "string"
+          }
+        },
+        "type": "object"
       },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -25380,105 +25318,21 @@
       },
       "inputSchemaStrict": true,
       "modelName": "mail_message_move",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "mail_message_move",
       "namespace": "mail",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
-          },
-          "effects": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "contentType": {
-                  "type": "string"
-                },
-                "durability": {
-                  "type": "string"
-                },
-                "effect": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "objectType": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "visibility": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "effect",
-                "objectType"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "failureStage": {
-            "type": "string"
-          },
-          "isError": {
+          "moved": {
+            "const": true,
             "type": "boolean"
-          },
-          "message": {
-            "type": "string"
-          },
-          "outcome": {
-            "enum": [
-              "succeeded",
-              "failed",
-              "denied"
-            ],
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "result": {},
-          "retryable": {
-            "type": "boolean"
-          },
-          "safeRetry": {
-            "type": "boolean"
-          },
-          "selectedBackend": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "toolName": {
-            "type": "string"
           }
         },
         "required": [
-          "provider",
-          "result",
-          "selectedBackend",
-          "toolName"
+          "moved"
         ],
         "type": "object"
       },
@@ -25486,6 +25340,23 @@
       "policyResource": "tool:mail_message_move",
       "privacyClass": "workspace_mail",
       "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "moved": {
+              "const": true,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "moved"
+          ],
+          "type": "object"
+        }
+      },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
       "version": "1",

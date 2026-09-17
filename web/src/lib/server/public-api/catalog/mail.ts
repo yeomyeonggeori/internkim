@@ -3,7 +3,6 @@ import { z } from 'zod';
 import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
-  CapabilityModelVisibility,
   CapabilitySideEffect,
 } from './protocol';
 
@@ -28,11 +27,15 @@ const mailMessageMarkInputSchema = z.strictObject({
   uid: z.string().describe("IMAP UID of the message to mark. Must come from a prior list or search result — never invent a UID."),
 });
 
+const mailMessageMarkInputIntentSchema = mailMessageMarkInputSchema.partial();
+
 const mailMessageMoveInputSchema = z.strictObject({
   mailbox: z.string().describe("Current IMAP mailbox folder of the message, e.g. 'INBOX'. Must come from a prior list or search result."),
   targetMailbox: z.string().describe("Destination IMAP folder, e.g. 'Archive', 'Trash', 'Work/Projects'. The folder must already exist."),
   uid: z.string().describe("IMAP UID of the message to move. Must come from a prior list or search result — never invent a UID."),
 });
+
+const mailMessageMoveInputIntentSchema = mailMessageMoveInputSchema.partial();
 
 const mailMessageReadInputSchema = z.strictObject({
   mailbox: z.string().describe("IMAP mailbox folder the message is in, e.g. 'INBOX'. Must come from a prior list or search result."),
@@ -113,6 +116,14 @@ const mailMessageReadResultSchema = z.strictObject({
   isRead: z.boolean(),
 });
 
+const mailMessageMarkResultSchema = z.strictObject({
+  marked: z.literal(true),
+});
+
+const mailMessageMoveResultSchema = z.strictObject({
+  moved: z.literal(true),
+});
+
 const mailMessageSendResultSchema = z.strictObject({
   sent: z.literal(true),
   appendedTo: z.string().describe("Mailbox the sent copy was saved to.").optional(),
@@ -171,8 +182,9 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     description: "Set the read (seen) or starred (flagged) status of an email. The UID and mailbox must come from a prior list or search result. Omit a flag field to leave it unchanged.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: mailMessageMarkInputSchema,
+    inputIntentSchema: mailMessageMarkInputIntentSchema,
+    result: { schema: mailMessageMarkResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
@@ -184,8 +196,9 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     description: "Move an email to a different mailbox folder (e.g. Archive, Trash). The UID and mailbox must come from a prior list or search result. Use this to archive or sort messages.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: mailMessageMoveInputSchema,
+    inputIntentSchema: mailMessageMoveInputIntentSchema,
+    result: { schema: mailMessageMoveResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
