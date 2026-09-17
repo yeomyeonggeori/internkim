@@ -1428,6 +1428,71 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "businesses": {
+            "description": "The business labels this company runs, replacing the whole list. Read registeredLabels from a task_list result first and send it back with what changes.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "CSS colour the board paints this label in. Omit to let one be derived from the name.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The label as people read it on a task.",
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "etcBusinessColor": {
+            "description": "Colour for work carrying no business label.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "etcTypeColor": {
+            "description": "Colour for work carrying no type label.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "types": {
+            "description": "The task type labels this company runs, replacing the whole list.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "CSS colour the board paints this label in. Omit to let one be derived from the name.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The label as people read it on a task.",
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -1495,8 +1560,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "task_vocabulary_set",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "task_vocabulary_set",
       "namespace": "task",
       "outputSchema": {
@@ -16197,8 +16262,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_organization_update",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_organization_update",
       "namespace": "crm",
       "outputSchema": {
@@ -16441,8 +16506,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_organization_archive",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_organization_archive",
       "namespace": "crm",
       "outputSchema": {
@@ -17159,8 +17224,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_contact_update",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_contact_update",
       "namespace": "crm",
       "outputSchema": {
@@ -17383,8 +17448,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_contact_archive",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_contact_archive",
       "namespace": "crm",
       "outputSchema": {
@@ -19314,8 +19379,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_opportunity_archive",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_opportunity_archive",
       "namespace": "crm",
       "outputSchema": {
@@ -19416,8 +19481,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_activity_list",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_activity_list",
       "namespace": "crm",
       "outputSchema": {
@@ -19846,6 +19911,109 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "business": {
+            "description": "Business label, from registeredLabels.businesses.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "contactHint": {
+            "description": "The person the work was with.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "endsAt": {
+            "description": "When the calendar entry ends. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "type": "string"
+          },
+          "isEvent": {
+            "description": "Set true for work that goes in the calendar, which then needs startsAt and endsAt.",
+            "type": "boolean"
+          },
+          "isWholeDay": {
+            "description": "Whether the calendar entry takes the whole day.",
+            "type": "boolean"
+          },
+          "kind": {
+            "description": "The kind of work it was: a note, a call, a meeting, an email, a task.",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "location": {
+            "description": "Where it happens.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "note": {
+            "description": "What was said or decided.",
+            "maxLength": 8192,
+            "type": "string"
+          },
+          "notifyMinutesBefore": {
+            "description": "Minutes before the start to remind the people in it.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "occurredAt": {
+            "description": "When it happened. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "type": "string"
+          },
+          "opportunityHint": {
+            "description": "The deal the work belongs to.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "The organization the work is with. A new activity names one.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownerPersonHint": {
+            "description": "Deprecated alias for a single entry in participantPersonHints.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "participantPersonHints": {
+            "description": "Names, @handles or emails of the colleagues taking part. A task has participants, not one assignee.",
+            "items": {
+              "maxLength": 256,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "startsAt": {
+            "description": "When the calendar entry starts. ISO 8601 with a time zone for a moment, or yyyy-mm-dd for a whole day.",
+            "type": "string"
+          },
+          "status": {
+            "description": "The status the task stands at.",
+            "enum": [
+              "requested",
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "stopped"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "description": "What happened, in a line.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -19957,8 +20125,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_activity_save",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_activity_save",
       "namespace": "crm",
       "outputSchema": {
@@ -20220,8 +20388,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_vocabulary_get",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_vocabulary_get",
       "namespace": "crm",
       "outputSchema": {
@@ -20410,6 +20578,80 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "organizationTypes": {
+            "description": "Every organization type this company names, replacing the whole list. A type still carried by an organization cannot be dropped.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "The colour the CRM screens draw it in, as a CSS colour.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "id": {
+                  "description": "The stable key the records carry.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "What people call it.",
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pipelines": {
+            "description": "Every pipeline this company runs deals through, replacing the whole list. A pipeline still carried by a deal cannot be dropped.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "The colour the CRM screens draw it in, as a CSS colour.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "direction": {
+                  "description": "Which way the pipeline runs, e.g. inbound or outbound.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "id": {
+                  "description": "The stable key the records carry.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "What people call it.",
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -20490,8 +20732,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "crm_vocabulary_set",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "crm_vocabulary_set",
       "namespace": "crm",
       "outputSchema": {
@@ -20881,6 +21123,69 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "currencyCode": {
+            "description": "The currency amounts are held in, as an ISO 4217 code, e.g. 'KRW'.",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "leaveDays": {
+            "description": "The annual leave a person is granted, in days. It is the leave policy's annual grant, so this writes that, and attendance_leave_policy_set is where the rest of the policy is written.",
+            "type": "number"
+          },
+          "locale": {
+            "description": "The language the company works in, as a BCP 47 tag, e.g. 'ko' or 'en-US'.",
+            "maxLength": 16,
+            "minLength": 2,
+            "type": "string"
+          },
+          "name": {
+            "description": "The company's name as the app shows it. Not the legal name a document prints, which is company_info_set's.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "teamViewVisibleToAll": {
+            "description": "Whether everybody sees the whole company's attendance, or only the administrators do.",
+            "type": "boolean"
+          },
+          "timeZone": {
+            "description": "The company's time zone as an IANA name, e.g. 'Asia/Seoul'. Every date and time the record answers is read in it.",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workLocations": {
+            "description": "The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "The colour the attendance screens draw it in, as a CSS colour. Omit to leave it uncoloured.",
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The workplace's name as people say it, e.g. 'the office' or 'home'.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -20946,8 +21251,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "company_settings_update",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "company_settings_update",
       "namespace": "company",
       "outputSchema": {
@@ -22259,6 +22564,97 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "breakPeriods": {
+            "description": "The breaks the day holds, which do not count toward the target. They may not overlap.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "endTime": {
+                  "description": "When the break ends. A time of day as 24-hour HH:MM.",
+                  "type": "string"
+                },
+                "startTime": {
+                  "description": "When the break starts. A time of day as 24-hour HH:MM.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "startTime",
+                "endTime"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "coreEndTime": {
+            "description": "When the core hours end. A time of day as 24-hour HH:MM. An empty string when there are none.",
+            "type": "string"
+          },
+          "coreStartTime": {
+            "description": "When the core hours start. A time of day as 24-hour HH:MM. An empty string when there are none.",
+            "type": "string"
+          },
+          "coreTimeEnabled": {
+            "description": "Whether flexible work has hours everybody has to be present for. False under fixed and autonomous work.",
+            "type": "boolean"
+          },
+          "dailyTargetMinutes": {
+            "description": "The minutes a working day is expected to hold, breaks excluded. Zero only under autonomous work.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fixedEndTime": {
+            "description": "When the day ends under fixed work. A time of day as 24-hour HH:MM. An empty string under any other work mode.",
+            "type": "string"
+          },
+          "fixedStartTime": {
+            "description": "When the day starts under fixed work. A time of day as 24-hour HH:MM. An empty string under any other work mode.",
+            "type": "string"
+          },
+          "nightEndTime": {
+            "description": "When night work ends. A time of day as 24-hour HH:MM.",
+            "type": "string"
+          },
+          "nightStartTime": {
+            "description": "When night work starts. A time of day as 24-hour HH:MM.",
+            "type": "string"
+          },
+          "referenceStartTime": {
+            "description": "The hour a day is measured from when nobody is held to fixed hours. A time of day as 24-hour HH:MM.",
+            "type": "string"
+          },
+          "weeklyTargetMinutes": {
+            "description": "The minutes a working week is expected to hold: dailyTargetMinutes times the working weekdays, and zero under autonomous work.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "workMode": {
+            "description": "fixed for set hours everybody keeps, flexible for hours a person chooses around a core, autonomous for no hours at all.",
+            "enum": [
+              "autonomous",
+              "flexible",
+              "fixed"
+            ],
+            "type": "string"
+          },
+          "workingWeekdays": {
+            "description": "The weekdays that are working days, Monday as 1 through Sunday as 7.",
+            "items": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -22367,8 +22763,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "attendance_work_policy_set",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "attendance_work_policy_set",
       "namespace": "attendance",
       "outputSchema": {
@@ -22939,6 +23335,164 @@
         "scope": "operation",
         "supported": false
       },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "balanceTrackingMode": {
+            "description": "managed when the company grants a fixed annual entitlement, unlimited when it grants none.",
+            "enum": [
+              "managed",
+              "unlimited"
+            ],
+            "type": "string"
+          },
+          "fiscalYearStartDay": {
+            "description": "The day of that month the leave year starts on. It has to be a real date, so the 29th of February is refused.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fiscalYearStartMonth": {
+            "description": "The month the leave year starts in, 1 through 12.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "leaveTypes": {
+            "description": "Every leave type this company offers, replacing the whole list. A type left out that somebody has already taken leave under is kept, deactivated.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "allowedUnits": {
+                  "description": "The portions of a day this type may be taken in. At least one, each named once.",
+                  "items": {
+                    "enum": [
+                      "fullDay",
+                      "halfDay",
+                      "quarterDay"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "balanceMode": {
+                  "description": "annual for the type that owns the annual balance and the types that draw on it, separate for a type counting its own, none for a type counting nothing.",
+                  "enum": [
+                    "annual",
+                    "separate",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                "carryoverEnabled": {
+                  "description": "Whether an unused balance carries into the next year.",
+                  "type": "boolean"
+                },
+                "carryoverLimitMilliDays": {
+                  "description": "The most that carries over, in thousandths of a day. Omit for no limit.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "expiryMode": {
+                  "description": "When an unused balance lapses.",
+                  "enum": [
+                    "fiscalYearEnd",
+                    "monthsAfterGrant",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                "expiryMonths": {
+                  "description": "How many months after the grant it lapses. Only under monthsAfterGrant.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "grantAmountMilliDays": {
+                  "description": "How much is granted each time, in thousandths of a day. Zero for a type that grants nothing.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "grantCadence": {
+                  "description": "How often a balance is granted. none for a type that grants nothing.",
+                  "enum": [
+                    "annual",
+                    "monthly",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                "id": {
+                  "description": "The leave type's stable id. An empty string on a type being added, which the record then names.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "includeInSummary": {
+                  "description": "Whether the type appears in the leave summary a person sees.",
+                  "type": "boolean"
+                },
+                "isActive": {
+                  "description": "Whether the type may still be chosen. An inactive type keeps the leave already taken under it.",
+                  "type": "boolean"
+                },
+                "isSystem": {
+                  "description": "Whether the type is one the product ships. Only a type whose id names a built-in kind may say true.",
+                  "type": "boolean"
+                },
+                "name": {
+                  "description": "What the type is called, e.g. 'annual leave'.",
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "paid": {
+                  "description": "Whether leave of this type is paid.",
+                  "type": "boolean"
+                },
+                "sortOrder": {
+                  "description": "Where the type sits in the list, counting from 0.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "systemKind": {
+                  "description": "The kind a built-in type is, e.g. annual or sick. An empty string on a type this company invented.",
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "usageLimitMilliDays": {
+                  "description": "The most a person may take of this type in a year, in thousandths of a day. Omit for no ceiling.",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "systemKind",
+                "name",
+                "paid",
+                "balanceMode",
+                "grantCadence",
+                "grantAmountMilliDays",
+                "expiryMode",
+                "carryoverEnabled",
+                "allowedUnits",
+                "includeInSummary",
+                "isActive",
+                "isSystem",
+                "sortOrder"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -23105,8 +23659,8 @@
       },
       "inputSchemaStrict": true,
       "modelName": "attendance_leave_policy_set",
-      "modelVisibility": "hidden",
-      "modelVisible": false,
+      "modelVisibility": "visible",
+      "modelVisible": true,
       "name": "attendance_leave_policy_set",
       "namespace": "attendance",
       "outputSchema": {
