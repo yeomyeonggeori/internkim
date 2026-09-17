@@ -25,7 +25,7 @@ distinct errors — learn to read them:
 
 | Signal | Meaning |
 |---|---|
-| SSH `banner exchange timeout`, admin HTTPS answers `200` | your machine never opened a stream: no Access token for the SSH hostname. See "Check your own machine first" |
+| SSH `banner exchange timeout`, admin HTTPS answers `200` | your machine never opened a stream: the SSH hop has no Access service token. See "Check your own machine first" |
 | SSH `banner exchange timeout`, admin HTTPS also dead or flapping | tunnel connected but `sshd` did not answer — either CPU starvation OR an unstable tunnel |
 | Cloudflare `530` / `error code: 1033` | tunnel connector (`cloudflared`) is **not connected** to the Cloudflare edge |
 | Cloudflare `502` (fast) | tunnel is up, but the **origin** (`admind`) is down / not answering |
@@ -37,37 +37,43 @@ dropping and reconnecting. That is usually a **network** problem, not CPU.
 ### Check your own machine first
 
 A banner timeout is reported by your SSH client, so it also appears when the
-request never left your laptop. `cloudflared access ssh` needs an Access token
-for the SSH hostname; without one it waits on a browser login that may never
+request never left your laptop. The hop through Cloudflare Access has to present
+a credential; without one `cloudflared` waits on a browser login that may never
 have finished, and the stream never opens.
 
-The tell is the asymmetry in the first table row. HTTP and SSH use **separate**
-tokens, so admin HTTPS keeps answering `200` on the HTTP token while SSH dies.
-A device problem takes both down together.
+The tell is the asymmetry in the first table row. A device problem takes admin
+HTTPS and SSH down together; a missing credential on your side takes only the
+one you are using.
+
+The credential is the Access **service token**, one file that lasts a year and
+needs no browser. Everything that reaches a device from this machine reads it
+from there: `tools/cloudflared-access-ssh` (the `ProxyCommand` in
+`~/.ssh/config`, see the README), `internkim deploy`, `internkim status`, and
+any script that calls Admin HTTPS with the `CF-Access-Client-Id` /
+`CF-Access-Client-Secret` headers.
 
 ```bash
-ls ~/.cloudflared/ | grep "$FLEET"
+ls -l .local/secrets/cloudflare-access-service-token.json   # from the repository root
+grep -A1 'Host device-\*' ~/.ssh/config                       # ProxyCommand names the wrapper
 ```
 
-A hostname carrying a `-token.lock` with no matching `-token` is a login that
-was started and never completed. Finish it:
+No file, or a `ProxyCommand` that still runs bare `cloudflared access ssh`:
 
 ```bash
-cloudflared access login https://0.ssh.<fleet>.intern.kim
+tools/provision-cloudflare-ssh-service-token          # creates the token, attaches the policy
 ```
 
-It often prints a token and exits without opening a browser window, because the
-org token is still valid and only the per-hostname token was missing. Silence is
-success here; re-run the failed command.
+Then re-run the failed command. Do not reach for `cloudflared access login`;
+its token lasts a day, so it is the thing that keeps expiring and the reason
+these incidents recur.
 
 Nothing in the product will tell you this. `internkim` deliberately knows no
-transport (`nothing-reaches-in.md`): it runs `ssh <host>`, and the diagnostic
-that used to name `cloudflared access login` went out with the hard-coded
-`ProxyCommand`. This runbook is where that knowledge lives now.
+transport (`nothing-reaches-in.md`): it runs `ssh <host>` and reports what ssh
+said. This runbook is where that knowledge lives.
 
 Two incidents (2026-08-04, 2026-08-14) were this. Both times the device, `sshd`,
 WiFi, DNS, and the tunnel were healthy, and reading the timeout as CPU
-starvation cost hours before anyone listed `~/.cloudflared`.
+starvation cost hours before anyone checked the credential on the laptop.
 
 ## Diagnose without SSH (HTTP recovery actions)
 

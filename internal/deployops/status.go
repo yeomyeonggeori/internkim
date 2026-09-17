@@ -80,7 +80,7 @@ func (server *Server) checkReleaseEndpoint(contextValue context.Context, endpoin
 	if errorValue != nil {
 		return releaseEndpointStatus{Endpoint: EndpointStatus{State: "failed", Message: errorValue.Error()}}
 	}
-	attachCloudflareAccessCookie(request)
+	AttachCloudflareAccess(request)
 	response, errorValue := server.client.Do(request)
 	if errorValue != nil {
 		return releaseEndpointStatus{Endpoint: EndpointStatus{State: "failed", Message: errorValue.Error()}}
@@ -324,7 +324,7 @@ const cloudflareAccessServiceTokenPath = ".local/secrets/cloudflare-access-servi
 // token, provisioned by tools/provision-cloudflare-ssh-service-token into one
 // 0600 file, authenticates without one and lasts a year; the day-lived
 // cloudflared login token serves only an operator who holds no service token.
-func attachCloudflareAccessCookie(request *http.Request) {
+func AttachCloudflareAccess(request *http.Request) {
 	if clientID, clientSecret := cloudflareAccessServiceToken(cloudflareAccessServiceTokenPath); clientID != "" && clientSecret != "" {
 		request.Header.Set("CF-Access-Client-Id", clientID)
 		request.Header.Set("CF-Access-Client-Secret", clientSecret)
