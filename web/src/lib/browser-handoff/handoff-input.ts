@@ -17,7 +17,9 @@ export type HandoffInput =
 
 export type Viewport = { width: number; height: number };
 
-export type ScreenFrame = Viewport & { image: string };
+export type FieldBox = { x: number; y: number; width: number; height: number };
+
+export type ScreenFrame = Viewport & { image: string; fields: FieldBox[] };
 
 export type Point = { x: number; y: number };
 
@@ -79,6 +81,24 @@ export function keyInputOf(press: KeyPress, action: 'down' | 'up'): HandoffInput
 	};
 }
 
+const keysByEdit: Record<string, { key: string; code: string; keyCode: number; text: string }> = {
+	deleteContentBackward: { key: 'Backspace', code: 'Backspace', keyCode: 8, text: '' },
+	deleteContentForward: { key: 'Delete', code: 'Delete', keyCode: 46, text: '' },
+	insertLineBreak: { key: 'Enter', code: 'Enter', keyCode: 13, text: '\r' },
+	insertParagraph: { key: 'Enter', code: 'Enter', keyCode: 13, text: '\r' }
+};
+
+const noModifiers: Modifiers = { alt: false, control: false, meta: false, shift: false };
+
+export function keyInputsOfEdit(inputType: string): HandoffInput[] {
+	const pressed = keysByEdit[inputType];
+	if (!pressed) return [];
+	return [
+		{ type: 'key', action: 'down', ...pressed, modifiers: noModifiers },
+		{ type: 'key', action: 'up', ...pressed, modifiers: noModifiers }
+	];
+}
+
 function isOwnedByTheInputMethod(press: KeyPress): boolean {
 	return press.isComposing || press.keyCode === inputMethodKeyCode || keysAnInputMethodOwns.has(press.key);
 }
@@ -94,39 +114,59 @@ function textTypedBy(press: KeyPress): string {
 
 export function withQueuedInput(queued: HandoffInput[], input: HandoffInput): HandoffInput[] {
 	const last = queued.at(-1);
-	if (last?.type === 'mouse' && last.action === 'move' && input.type === 'mouse' && input.action === 'move') {
-		return [...queued.slice(0, -1), input];
-	}
+	if (isHover(last) && isHover(input)) return [...queued.slice(0, -1), input];
 	if (last?.type === 'wheel' && input.type === 'wheel') {
 		return [...queued.slice(0, -1), { ...input, deltaX: last.deltaX + input.deltaX, deltaY: last.deltaY + input.deltaY }];
 	}
 	return [...queued, input];
 }
 
+function isHover(input: HandoffInput | undefined): boolean {
+	return input?.type === 'mouse' && input.action === 'move' && input.button === 'none';
+}
+
 function clamp(value: number, smallest: number, largest: number): number {
 	return Math.min(Math.max(value, smallest), largest);
 }
 
-export type TouchTrack = { startX: number; startY: number; lastX: number; lastY: number; hasMoved: boolean };
-
-export type TouchMove = { track: TouchTrack; scroll: { deltaX: number; deltaY: number } | null };
-
-const tapDistance = 10;
-
-export function beginTouch(clientX: number, clientY: number): TouchTrack {
-	return { startX: clientX, startY: clientY, lastX: clientX, lastY: clientY, hasMoved: false };
+export function isOnAField(point: Point, fields: FieldBox[]): boolean {
+	return fields.some(
+		(field) => point.x >= field.x && point.x < field.x + field.width && point.y >= field.y && point.y < field.y + field.height
+	);
 }
 
-export function moveTouch(track: TouchTrack, clientX: number, clientY: number, viewportPerScreenPixel: number): TouchMove {
-	const isStillATap = !track.hasMoved && Math.hypot(clientX - track.startX, clientY - track.startY) < tapDistance;
-	if (isStillATap) return { track, scroll: null };
+export type TouchGesture = 'tap' | 'scroll' | 'drag';
+
+export type TouchTrack = { startX: number; startY: number; lastX: number; lastY: number; startedAt: number; gesture: TouchGesture };
+
+export type TouchMove = { track: TouchTrack; scroll: { deltaX: number; deltaY: number } | null; startsDrag: boolean };
+
+const tapDistance = 10;
+const holdBeforeDragMilliseconds = 400;
+
+export function beginTouch(clientX: number, clientY: number, at: number): TouchTrack {
+	return { startX: clientX, startY: clientY, lastX: clientX, lastY: clientY, startedAt: at, gesture: 'tap' };
+}
+
+export function moveTouch(track: TouchTrack, clientX: number, clientY: number, at: number, viewportPerScreenPixel: number): TouchMove {
+	if (track.gesture === 'tap' && Math.hypot(clientX - track.startX, clientY - track.startY) < tapDistance) {
+		return { track, scroll: null, startsDrag: false };
+	}
+	const gesture = track.gesture === 'tap' ? gestureAfterHolding(at - track.startedAt) : track.gesture;
+	const moved: TouchTrack = { ...track, lastX: clientX, lastY: clientY, gesture };
+	if (gesture === 'drag') return { track: moved, scroll: null, startsDrag: track.gesture === 'tap' };
 	return {
-		track: { ...track, lastX: clientX, lastY: clientY, hasMoved: true },
+		track: moved,
 		scroll: {
 			deltaX: Math.round((track.lastX - clientX) * viewportPerScreenPixel),
 			deltaY: Math.round((track.lastY - clientY) * viewportPerScreenPixel)
-		}
+		},
+		startsDrag: false
 	};
+}
+
+function gestureAfterHolding(heldMilliseconds: number): TouchGesture {
+	return heldMilliseconds >= holdBeforeDragMilliseconds ? 'drag' : 'scroll';
 }
 
 const pixelsPerWheelLine = 16;

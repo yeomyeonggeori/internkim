@@ -5,7 +5,20 @@ describe('handoffEventOf', () => {
 	test('reads a frame of the handed-over browser', () => {
 		expect(
 			handoffEventOf({ kind: 'browser.handoff.frame', handoffID: 'handoff-1', image: 'jpeg', width: 1280, height: 800, url: 'https://example.com/' })
-		).toEqual({ kind: 'frame', handoffID: 'handoff-1', image: 'jpeg', width: 1280, height: 800, url: 'https://example.com/' });
+		).toEqual({ kind: 'frame', handoffID: 'handoff-1', image: 'jpeg', width: 1280, height: 800, url: 'https://example.com/', fields: [] });
+	});
+
+	test('reads the places on the frame the requester can type into', () => {
+		const frame = handoffEventOf({
+			kind: 'browser.handoff.frame',
+			handoffID: 'handoff-1',
+			image: 'jpeg',
+			width: 1280,
+			height: 800,
+			fields: [[20, 40, 200, 30], [20, 90, 0, 30], ['20', 90, 200, 30], [20, 90]]
+		});
+
+		expect(frame).toMatchObject({ fields: [{ x: 20, y: 40, width: 200, height: 30 }] });
 	});
 
 	test('reads how a handoff ended', () => {

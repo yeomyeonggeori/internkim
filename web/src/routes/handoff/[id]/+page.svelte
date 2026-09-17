@@ -96,7 +96,7 @@
 			phase = { name: 'ended', outcome: event.outcome };
 			return;
 		}
-		frame = { image: `data:image/jpeg;base64,${event.image}`, width: event.width, height: event.height };
+		frame = { image: `data:image/jpeg;base64,${event.image}`, width: event.width, height: event.height, fields: event.fields };
 		if (event.url) pageAddress = shownAddressOf(event.url);
 	}
 
