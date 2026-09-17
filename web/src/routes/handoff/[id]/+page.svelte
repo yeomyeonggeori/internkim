@@ -21,6 +21,7 @@
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CircleXIcon from '@lucide/svelte/icons/circle-x';
 	import ClockIcon from '@lucide/svelte/icons/clock';
+	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import KeyboardIcon from '@lucide/svelte/icons/keyboard';
 	import MonitorOffIcon from '@lucide/svelte/icons/monitor-off';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
@@ -48,6 +49,7 @@
 
 	let phase = $state<Phase>({ name: 'connecting' });
 	let frame = $state<ScreenFrame | null>(null);
+	let pageAddress = $state('');
 	let isFinishing = $state(false);
 	let screen = $state<HandoffScreen>();
 	let wantedViewport: Viewport | null = null;
@@ -95,6 +97,13 @@
 			return;
 		}
 		frame = { image: `data:image/jpeg;base64,${event.image}`, width: event.width, height: event.height };
+		if (event.url) pageAddress = shownAddressOf(event.url);
+	}
+
+	function shownAddressOf(url: string): string {
+		if (!URL.canParse(url)) return url;
+		const address = new URL(url);
+		return `${address.host}${address.pathname === '/' ? '' : address.pathname}`;
 	}
 
 	function send(input: HandoffInput): void {
@@ -158,9 +167,13 @@
 			</Button>
 			<div class="flex min-w-0 flex-1 flex-col px-1">
 				<p class="truncate text-sm">{phase.watch.message || text.description}</p>
-				<p class="flex items-center gap-1 text-xs text-muted-foreground">
-					<ClockIcon class="size-3" />
-					{expiryTimeOf(phase.watch)}
+				<p class="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+					<ClockIcon class="size-3 shrink-0" />
+					<span class="shrink-0">{expiryTimeOf(phase.watch)}</span>
+					{#if pageAddress}
+						<GlobeIcon class="ml-1.5 size-3 shrink-0" />
+						<span class="truncate" title={pageAddress}>{pageAddress}</span>
+					{/if}
 				</p>
 			</div>
 			<Button variant="ghost" size="icon-sm" aria-label={text.keyboard} onclick={() => screen?.focusKeyboard()}>
