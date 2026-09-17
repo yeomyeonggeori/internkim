@@ -64,6 +64,7 @@ export type LinkPreview = {
 type PersonalConversation = {
 	id: string;
 	name: string;
+	description?: string;
 	kind: 'dm' | 'group';
 	isPrivate?: boolean;
 	avatarURL?: string;
@@ -163,6 +164,34 @@ export async function openDirectChannel(externalIDs: string[]): Promise<Messenge
 		counterpartExternalIDs: externalIDs
 	});
 	return asChannel(conversation, 0);
+}
+
+export type NewChannel = {
+	name: string;
+	description?: string;
+	visibility: 'open' | 'private';
+	memberExternalIDs: string[];
+};
+
+export type CreatedChannel = { channel: MessengerChannel; uninvitedExternalIDs: string[] };
+
+export async function createChannel(channel: NewChannel): Promise<CreatedChannel> {
+	const created = await ask<PersonalConversation & { uninvitedExternalIDs?: string[] }>(
+		'person.channel.create',
+		channel
+	);
+	return { channel: asChannel(created, 0), uninvitedExternalIDs: created.uninvitedExternalIDs ?? [] };
+}
+
+export type OpenChannel = { id: string; name: string; description?: string };
+
+export async function fetchOpenChannels(): Promise<OpenChannel[]> {
+	const answer = await ask<{ channels: PersonalConversation[] }>('person.channels.open.list');
+	return answer.channels.map(({ id, name, description }) => ({ id, name, description }));
+}
+
+export async function joinChannel(channelID: string): Promise<void> {
+	await ask('person.channel.join', { conversationID: channelID });
 }
 
 export async function fetchPosts(channelID: string, before?: string): Promise<MessengerPost[]> {

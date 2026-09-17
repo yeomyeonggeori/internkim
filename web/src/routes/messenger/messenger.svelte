@@ -1,6 +1,8 @@
 <script lang="ts">
 	import Channel from '$lib/components/channel/channel.svelte';
 	import MessengerChannelList from './messenger-channel-list.svelte';
+	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
+	import MessengerNewChannelDialog from './messenger-new-channel-dialog.svelte';
 	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
 	import { toast } from 'svelte-sonner';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
@@ -53,6 +55,9 @@
 	let conversations = $state<ChannelSummary[]>([]);
 	let activeID = $state<string | undefined>(undefined);
 	let isNewDirectMessageOpen = $state(false);
+	let isNewChannelOpen = $state(false);
+	let isBrowseChannelsOpen = $state(false);
+	const canManageChannels = isSupabaseConfigured();
 	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
 	let muted = $state<Set<string>>(new Set());
@@ -74,6 +79,25 @@
 	function openNewDirectMessageFromSheet() {
 		isChannelSheetOpen = false;
 		openNewDirectMessage();
+	}
+
+	function openNewChannel() {
+		isChannelSheetOpen = false;
+		isNewChannelOpen = true;
+	}
+
+	function openBrowseChannels() {
+		isChannelSheetOpen = false;
+		isBrowseChannelsOpen = true;
+	}
+
+	async function showChannel(channelID: string) {
+		try {
+			await loadConversationList();
+		} catch (failure) {
+			console.warn('the channel list did not refresh', failure);
+		}
+		selectChannel(channelID);
 	}
 
 	const conversationsCacheKey = 'messenger-conversations';
@@ -278,6 +302,8 @@
 			{muted}
 			{switchMuted}
 			openNewDirectMessage={openNewDirectMessageFromSheet}
+			openNewChannel={canManageChannels ? openNewChannel : undefined}
+			openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
 			{openOnPlatform}
 			{reorderChannels}
 			selectChannel={selectChannelFromSheet}
@@ -295,6 +321,8 @@
 				{muted}
 				{switchMuted}
 				{openNewDirectMessage}
+				openNewChannel={canManageChannels ? openNewChannel : undefined}
+				openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
 				{openOnPlatform}
 				{reorderChannels}
 				{selectChannel}
@@ -336,6 +364,9 @@
 		</div>
 	</div>
 </Sheet.Root>
+
+<MessengerNewChannelDialog bind:open={isNewChannelOpen} onCreated={showChannel} />
+<MessengerBrowseChannelsDialog bind:open={isBrowseChannelsOpen} onJoined={showChannel} />
 
 <Dialog.Root bind:open={isNewDirectMessageOpen}>
 	<Dialog.Content class="sm:max-w-sm">
