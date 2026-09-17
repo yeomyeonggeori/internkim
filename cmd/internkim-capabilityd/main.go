@@ -44,6 +44,7 @@ func main() {
 	flag.StringVar(&configuration.FileReadPythonPath, "file-read-python", defaultConfiguration.FileReadPythonPath, "Python executable for file_read conversions")
 	flag.StringVar(&configuration.AgentBrowserPath, "agent-browser", defaultConfiguration.AgentBrowserPath, "agent-browser executable path")
 	flag.StringVar(&configuration.DeviceBrowserCDPURL, "device-browser-cdp", defaultConfiguration.DeviceBrowserCDPURL, "URL the device browser (moli serve) answers the Chrome DevTools Protocol on")
+	flag.StringVar(&configuration.RelayBaseURL, "relay-url", defaultConfiguration.RelayBaseURL, "URL the relay takes local calls on, where a browser handoff is handed to the requester")
 	flag.BoolVar(&configuration.PreferCompanionLLM, "prefer-companion-llm", defaultConfiguration.PreferCompanionLLM, "prefer companion local LLM when available")
 	flag.StringVar(&configuration.LocalInferenceMode, "local-inference-mode", defaultConfiguration.LocalInferenceMode, "local inference mode: device, companion_preferred, companion_only, remote")
 	flag.BoolVar(&configuration.LocalOnly, "local-only", defaultConfiguration.LocalOnly, "disable remote LLM fallback")

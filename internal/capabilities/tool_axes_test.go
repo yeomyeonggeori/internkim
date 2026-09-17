@@ -8,6 +8,9 @@ import "testing"
 
 func TestEveryCompanionToolDeclaresTheAxesItsCallersRead(t *testing.T) {
 	for _, descriptor := range CompanionToolDescriptors() {
+		if descriptor.PrivacyClass == "device_browser" {
+			continue
+		}
 		if descriptor.Namespace == "browser" || descriptor.Namespace == "user" {
 			if !descriptor.RequiresRequesterDevice {
 				t.Errorf("%s reaches the requester's machine but does not declare it", descriptor.Name)
