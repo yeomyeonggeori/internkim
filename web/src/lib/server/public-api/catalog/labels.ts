@@ -29,3 +29,5 @@ export const taskVocabularySetInputSchema = z.strictObject({
   etcBusinessColor: z.string().max(64).describe('Colour for work carrying no business label.').optional(),
   etcTypeColor: z.string().max(64).describe('Colour for work carrying no type label.').optional(),
 });
+
+export const taskVocabularySetInputIntentSchema = taskVocabularySetInputSchema.partial();

@@ -5,7 +5,6 @@ import { crmStageKeys } from '$lib/crm/crm-stage';
 import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
-  CapabilityModelVisibility,
   CapabilitySideEffect,
 } from './protocol';
 
@@ -204,6 +203,8 @@ export const crmVocabularySetInputSchema = z.strictObject({
   pipelines: z.array(crmPipelineDefinitionSchema).describe('Every pipeline this company runs deals through, replacing the whole list. A pipeline still carried by a deal cannot be dropped.'),
 });
 
+export const crmVocabularySetInputIntentSchema = crmVocabularySetInputSchema.partial();
+
 const activityHintSchema = z.string().min(1).max(256).describe(
   'The activity: its exact task ID, or its exact CURRENT title as crm_activity_list shows it.',
 );
@@ -241,6 +242,8 @@ export const crmActivitySaveInputSchema = z.strictObject({
   location: z.string().max(256).describe('Where it happens.').optional(),
   notifyMinutesBefore: z.number().int().min(0).describe('Minutes before the start to remind the people in it.').optional(),
 });
+
+export const crmActivitySaveInputIntentSchema = crmActivitySaveInputSchema.omit({ activityHint: true });
 
 export const crmActivityResultSchema = z.strictObject({
   activityID: resourceIDSchema,
@@ -412,7 +415,6 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Change what this company holds about an organization; only the fields the call names change.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmOrganizationUpdateInputSchema,
     inputIntentSchema: crmOrganizationUpdateInputIntentSchema,
     result: { schema: crmOrganizationResultSchema, effects: [] },
@@ -428,7 +430,6 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Put an organization away, so it leaves the CRM screens while its people, its deals and everything recorded against it stay.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmOrganizationArchiveInputSchema,
     inputIntentSchema: crmOrganizationArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
@@ -473,7 +474,6 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Change what this company holds about a person, including moving them to another organization; only the fields the call names change.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmContactUpdateInputSchema,
     inputIntentSchema: crmContactUpdateInputIntentSchema,
     result: { schema: crmContactResultSchema, effects: [] },
@@ -489,7 +489,6 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Put a person away, so they leave the CRM screens while everything recorded against them stays, as when somebody leaves the organization.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmContactArchiveInputSchema,
     inputIntentSchema: crmContactArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
@@ -565,7 +564,6 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Put a deal away, so it leaves the pipeline while everything recorded against it stays. A deal that was lost is moved to lost instead.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmOpportunityArchiveInputSchema,
     inputIntentSchema: crmOpportunityArchiveInputIntentSchema,
     result: { schema: crmArchivedResultSchema, effects: [] },
@@ -582,7 +580,6 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'The work recorded against the organizations and deals this company holds, newest first, with the labels and colours the CRM screens draw it in. The same rows task_list answers, shaped for the CRM.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmActivityListInputSchema,
     result: { schema: crmActivityListResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
@@ -596,8 +593,8 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Record work against an organization or a deal, or change work already recorded. An activity is a task, so this writes what task_add and task_update write, plus the calendar entry when the work goes in the calendar.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmActivitySaveInputSchema,
+    inputIntentSchema: crmActivitySaveInputIntentSchema,
     result: { schema: crmActivityResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_activity' },
@@ -611,7 +608,6 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'The words this company runs its CRM in: the organization types it sorts relationships by, the pipelines it runs deals through, and the stages a deal can stand at with what each one means.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmVocabularyGetInputSchema,
     result: { schema: crmVocabularyResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
@@ -625,8 +621,8 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     description: 'Set the organization types and pipelines this company runs its CRM in. Both lists are written at once, so read crm_vocabulary_get first and send it back with what changes. The stages are the product’s and are not set here. This is an administrator’s.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
-    modelVisibility: CapabilityModelVisibility.Hidden,
     inputSchema: crmVocabularySetInputSchema,
+    inputIntentSchema: crmVocabularySetInputIntentSchema,
     result: { schema: crmVocabularyResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_vocabulary' },
