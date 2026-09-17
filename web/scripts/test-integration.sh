@@ -9,9 +9,7 @@ fi
 
 names="SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_PUBLISHABLE_KEY and SUPABASE_JWT_SIGNING_KEY"
 
-signingKeyOfSecret() {
-  printf '{"kty":"oct","k":"%s"}' "$(printf '%s' "$1" | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
-}
+. "$repository/web/scripts/local-plane-signing-key.sh"
 
 allSet() {
   [ -n "${SUPABASE_URL:-}" ] && [ -n "${SUPABASE_SECRET_KEY:-}" ] && [ -n "${SUPABASE_PUBLISHABLE_KEY:-}" ] && [ -n "${SUPABASE_JWT_SIGNING_KEY:-}" ]
@@ -24,7 +22,7 @@ if ! allSet; then
     export SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-${SECRET_KEY:-}}"
     export SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY:-${PUBLISHABLE_KEY:-}}"
     if [ -z "${SUPABASE_JWT_SIGNING_KEY:-}" ] && [ -n "${JWT_SECRET:-}" ]; then
-      export SUPABASE_JWT_SIGNING_KEY="$(signingKeyOfSecret "$JWT_SECRET")"
+      export SUPABASE_JWT_SIGNING_KEY="$(signing_key_of_secret "$JWT_SECRET")"
     fi
   fi
 fi
