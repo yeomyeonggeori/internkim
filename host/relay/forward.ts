@@ -1,4 +1,5 @@
 import { extensionOf } from './asset-store';
+import { isBrowserHandoffCapability } from './browser-handoff';
 import { MessengerAnswered } from './person-picture';
 
 export type Call = {
@@ -186,6 +187,11 @@ export type Dispatch = {
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
 	messengerCredentialOf: (memberID: string) => Promise<ActorCredential | null>;
+	serveBrowserHandoff: (
+		capability: string,
+		body: Record<string, unknown>,
+		memberID: string
+	) => Promise<{ status: number; body: unknown }>;
 };
 
 export type ConnectedAccount = { kind: string; externalID: string; name: string; secret: string };
@@ -228,6 +234,10 @@ async function serveForMember(
 ): Promise<Served> {
 	if (capability === directoryChangedCapability) {
 		return { ...(await dispatch.tellAdmindTheDirectoryChanged()), replyTo };
+	}
+
+	if (isBrowserHandoffCapability(capability)) {
+		return { ...(await dispatch.serveBrowserHandoff(capability, body, replyTo)), replyTo };
 	}
 
 	if (!isPersonCapability(capability)) {

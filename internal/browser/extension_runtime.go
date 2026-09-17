@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -30,11 +29,7 @@ type ExtensionInputRuntime struct {
 	InputSynthesizer     OSInputSynthesizer
 	Now                  func() time.Time
 	ReadyTimeout         time.Duration
-
-	paused atomic.Bool
 }
-
-const extensionRuntimePausedError = "browser automation is paused for a human handoff"
 
 func (runtime *ExtensionInputRuntime) StartSession(ctx context.Context, request SessionStartRequest) (SessionStartResult, error) {
 	targetURL := firstNonEmpty(request.URL, request.StartURL)
@@ -123,9 +118,7 @@ func (runtime *ExtensionInputRuntime) Click(ctx context.Context, request ClickRe
 	if errorValue != nil {
 		return ActionResult{}, errorValue
 	}
-	if errorValue := runtime.synthesizeInput(func(synthesizer OSInputSynthesizer) error {
-		return synthesizer.Click(ctx, point.X, point.Y, MouseButtonLeft)
-	}); errorValue != nil {
+	if errorValue := runtime.inputSynthesizer().Click(ctx, point.X, point.Y, MouseButtonLeft); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("click", target), nil
@@ -143,12 +136,11 @@ func (runtime *ExtensionInputRuntime) Fill(ctx context.Context, request FillRequ
 	if errorValue != nil {
 		return ActionResult{}, errorValue
 	}
-	if errorValue := runtime.synthesizeInput(func(synthesizer OSInputSynthesizer) error {
-		if errorValue := synthesizer.Click(ctx, point.X, point.Y, MouseButtonLeft); errorValue != nil {
-			return errorValue
-		}
-		return synthesizer.TypeText(ctx, request.Text)
-	}); errorValue != nil {
+	synthesizer := runtime.inputSynthesizer()
+	if errorValue := synthesizer.Click(ctx, point.X, point.Y, MouseButtonLeft); errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	if errorValue := synthesizer.TypeText(ctx, request.Text); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("fill", target), nil
@@ -166,15 +158,14 @@ func (runtime *ExtensionInputRuntime) Select(ctx context.Context, request Select
 	if errorValue != nil {
 		return ActionResult{}, errorValue
 	}
-	if errorValue := runtime.synthesizeInput(func(synthesizer OSInputSynthesizer) error {
-		if errorValue := synthesizer.Click(ctx, point.X, point.Y, MouseButtonLeft); errorValue != nil {
-			return errorValue
-		}
-		if errorValue := synthesizer.TypeText(ctx, request.Value); errorValue != nil {
-			return errorValue
-		}
-		return synthesizer.PressKey(ctx, "Enter")
-	}); errorValue != nil {
+	synthesizer := runtime.inputSynthesizer()
+	if errorValue := synthesizer.Click(ctx, point.X, point.Y, MouseButtonLeft); errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	if errorValue := synthesizer.TypeText(ctx, request.Value); errorValue != nil {
+		return ActionResult{}, errorValue
+	}
+	if errorValue := synthesizer.PressKey(ctx, "Enter"); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("select", target), nil
@@ -184,9 +175,7 @@ func (runtime *ExtensionInputRuntime) Press(ctx context.Context, request PressRe
 	if strings.TrimSpace(request.Key) == "" {
 		return ActionResult{}, errors.New("browser press key is required")
 	}
-	if errorValue := runtime.synthesizeInput(func(synthesizer OSInputSynthesizer) error {
-		return synthesizer.PressKey(ctx, strings.TrimSpace(request.Key))
-	}); errorValue != nil {
+	if errorValue := runtime.inputSynthesizer().PressKey(ctx, strings.TrimSpace(request.Key)); errorValue != nil {
 		return ActionResult{}, errorValue
 	}
 	return runtime.actionResult("press", ""), nil
@@ -209,35 +198,8 @@ func (runtime *ExtensionInputRuntime) Wait(ctx context.Context, request WaitRequ
 	return runtime.actionResult("wait", target), nil
 }
 
-// Pause stops ExtensionInputRuntime from sending OS-level input, so a human
-// can take over the still-open Chrome window during a handoff (captcha,
-// 2FA) without a second automation window being opened. Resume restores
-// normal operation once the handoff is validated complete.
-func (runtime *ExtensionInputRuntime) Pause(ctx context.Context) error {
-	_ = ctx
-	runtime.paused.Store(true)
-	return nil
-}
-
-func (runtime *ExtensionInputRuntime) Resume(ctx context.Context) error {
-	_ = ctx
-	runtime.paused.Store(false)
-	return nil
-}
-
-func (runtime *ExtensionInputRuntime) IsPaused() bool {
-	return runtime.paused.Load()
-}
-
 func (runtime *ExtensionInputRuntime) CloseSession(ctx context.Context) error {
 	return runtime.bridge().Stop(ctx)
-}
-
-func (runtime *ExtensionInputRuntime) synthesizeInput(action func(OSInputSynthesizer) error) error {
-	if runtime.paused.Load() {
-		return errors.New(extensionRuntimePausedError)
-	}
-	return action(runtime.inputSynthesizer())
 }
 
 func (runtime *ExtensionInputRuntime) resolveScreenPoint(ctx context.Context, ref string) (ScreenPoint, error) {

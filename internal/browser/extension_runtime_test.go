@@ -267,57 +267,6 @@ func TestExtensionInputRuntimeWaitResolvesTargetRef(t *testing.T) {
 	}
 }
 
-func TestExtensionInputRuntimePauseBlocksSynthesizedInput(t *testing.T) {
-	bridge := &fakeExtensionBridge{resolved: map[string]ExtensionResolvedRef{"@e1": testResolvedRef(0, 0)}}
-	synthesizer := &fakeInputSynthesizer{}
-	runtime := &ExtensionInputRuntime{Bridge: bridge, InputSynthesizer: synthesizer}
-
-	if errorValue := runtime.Pause(context.Background()); errorValue != nil {
-		t.Fatalf("expected pause success: %v", errorValue)
-	}
-	if !runtime.IsPaused() {
-		t.Fatal("expected runtime to report paused")
-	}
-
-	_, errorValue := runtime.Click(context.Background(), ClickRequest{Ref: "@e1"})
-	if errorValue == nil {
-		t.Fatal("expected click to fail while paused")
-	}
-	if len(synthesizer.calls) != 0 {
-		t.Fatalf("expected no synthesizer calls while paused, got %+v", synthesizer.calls)
-	}
-
-	if errorValue := runtime.Resume(context.Background()); errorValue != nil {
-		t.Fatalf("expected resume success: %v", errorValue)
-	}
-	if runtime.IsPaused() {
-		t.Fatal("expected runtime to report resumed")
-	}
-	if _, errorValue := runtime.Click(context.Background(), ClickRequest{Ref: "@e1"}); errorValue != nil {
-		t.Fatalf("expected click success after resume: %v", errorValue)
-	}
-	if len(synthesizer.calls) != 1 {
-		t.Fatalf("expected one synthesizer call after resume, got %+v", synthesizer.calls)
-	}
-}
-
-func TestExtensionInputRuntimeFillBlockedWhilePaused(t *testing.T) {
-	bridge := &fakeExtensionBridge{resolved: map[string]ExtensionResolvedRef{"@field": testResolvedRef(0, 0)}}
-	synthesizer := &fakeInputSynthesizer{}
-	runtime := &ExtensionInputRuntime{Bridge: bridge, InputSynthesizer: synthesizer}
-
-	if errorValue := runtime.Pause(context.Background()); errorValue != nil {
-		t.Fatalf("expected pause success: %v", errorValue)
-	}
-	_, errorValue := runtime.Fill(context.Background(), FillRequest{Ref: "@field", Text: "hello"})
-	if errorValue == nil {
-		t.Fatal("expected fill to fail while paused")
-	}
-	if len(synthesizer.calls) != 0 {
-		t.Fatalf("expected no click or type calls while paused, got %+v", synthesizer.calls)
-	}
-}
-
 func TestExtensionInputRuntimeScreenshotIsNotYetImplemented(t *testing.T) {
 	runtime := &ExtensionInputRuntime{Bridge: &fakeExtensionBridge{}}
 

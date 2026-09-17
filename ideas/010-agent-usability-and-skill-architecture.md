@@ -150,7 +150,7 @@ After that slice lands, add task-shape planning, memory ranking, and MCP schema 
 - Do not turn skills into a chaotic plugin marketplace.
 - Do not inject every skill into every prompt.
 - Do not let MCP bypass Blueclaw policy, task audit, or guest/workspace boundaries.
-- Do not make the main computer the primary execution environment. It remains for browser handoff, approval, login, and local credential transfer.
+- Do not make the main computer the primary execution environment. It remains for approval, login, and local credential transfer.
 
 ## Assumptions
 

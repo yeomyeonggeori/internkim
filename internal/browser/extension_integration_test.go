@@ -61,7 +61,7 @@ func extensionClientResponseFor(request ExtensionBridgeMessage, snapshot Extensi
 }
 
 // TestExtensionInputRuntimeEndToEndOverRealBridge drives a full
-// StartSession -> Observe -> Click -> Pause -> Resume -> Click sequence
+// StartSession -> Observe -> Click sequence
 // through the real ExtensionWebSocketBridge (actual TCP + RFC 6455 frames,
 // not a mocked ExtensionBridge) against a fake client that plays the
 // extension's part, with a fake OSInputSynthesizer standing in for the
@@ -146,26 +146,6 @@ func TestExtensionInputRuntimeEndToEndOverRealBridge(t *testing.T) {
 	}
 	if len(synthesizer.calls) != 1 || synthesizer.calls[0].screenX != 110 || synthesizer.calls[0].screenY != 65 {
 		t.Fatalf("expected a synthesized click at the resolved screen point, got %+v", synthesizer.calls)
-	}
-
-	if pauseError := runtime.Pause(context.Background()); pauseError != nil {
-		t.Fatalf("expected pause to succeed: %v", pauseError)
-	}
-	if _, clickError := runtime.Click(context.Background(), ClickRequest{Ref: "@e1"}); clickError == nil {
-		t.Fatal("expected click to fail while the runtime is paused")
-	}
-	if len(synthesizer.calls) != 1 {
-		t.Fatalf("expected no additional synthesizer calls while paused, got %+v", synthesizer.calls)
-	}
-
-	if resumeError := runtime.Resume(context.Background()); resumeError != nil {
-		t.Fatalf("expected resume to succeed: %v", resumeError)
-	}
-	if _, clickError := runtime.Click(context.Background(), ClickRequest{Ref: "@e1"}); clickError != nil {
-		t.Fatalf("expected click to succeed after resume: %v", clickError)
-	}
-	if len(synthesizer.calls) != 2 {
-		t.Fatalf("expected a second synthesizer call after resume, got %+v", synthesizer.calls)
 	}
 }
 

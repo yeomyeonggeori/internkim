@@ -1,6 +1,7 @@
 import { gatewayURL, supabase } from '$lib/supabase';
 import { supabaseMember } from '$lib/supabase-session';
 import { companyEventOf, type CompanyEvent } from '$lib/company-event';
+import { handoffEventOf, type HandoffEvent } from '$lib/browser-handoff/handoff-event';
 import { HostUnreachableError, readyWithPresence, type Frame } from '$lib/host-presence';
 
 export { HostUnreachableError };
@@ -26,6 +27,11 @@ let isServerConnected = false;
 let redialsInARow = 0;
 const waiting = new Map<string, (answer: HostAnswer) => void>();
 const listeners = new Set<(event: CompanyEvent) => void>();
+const handoffListeners = new Set<(event: HandoffEvent) => void>();
+
+function isAnyoneListening(): boolean {
+	return listeners.size > 0 || handoffListeners.size > 0;
+}
 
 async function companyWire(): Promise<WebSocket> {
 	if (joined) return joined;
@@ -44,7 +50,7 @@ function dropTheWire(): void {
 	activeSocket = undefined;
 	joined = undefined;
 	isServerConnected = false;
-	if (listeners.size > 0) redialLater();
+	if (isAnyoneListening()) redialLater();
 }
 
 function dropSocket(socket: WebSocket): void {
@@ -56,7 +62,7 @@ function redialLater(): void {
 	redialsInARow += 1;
 	const delay = Math.min(firstRedialMilliseconds * 2 ** (redialsInARow - 1), longestRedialMilliseconds);
 	setTimeout(() => {
-		if (joined || listeners.size === 0) return;
+		if (joined || !isAnyoneListening()) return;
 		void companyWire().catch(() => undefined);
 	}, delay);
 }
@@ -87,6 +93,11 @@ function receive(payload: Frame): void {
 		return;
 	}
 	if (payload.kind === 'deliver') {
+		const handoffEvent = handoffEventOf(payload.event);
+		if (handoffEvent) {
+			for (const listener of handoffListeners) listener(handoffEvent);
+			return;
+		}
 		const event = companyEventOf(payload.event);
 		if (event) for (const listener of listeners) listener(event);
 		return;
@@ -104,6 +115,14 @@ export function onCompanyEvent(listener: (event: CompanyEvent) => void): () => v
 	void companyWire().catch(() => undefined);
 	return () => {
 		listeners.delete(listener);
+	};
+}
+
+export function onHandoffEvent(listener: (event: HandoffEvent) => void): () => void {
+	handoffListeners.add(listener);
+	void companyWire().catch(() => undefined);
+	return () => {
+		handoffListeners.delete(listener);
 	};
 }
 

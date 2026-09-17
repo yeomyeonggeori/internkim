@@ -230,7 +230,7 @@ describe('canonical capability tools', () => {
   // to hold and a grant's to gate, whichever browser answers it.
   test('gives every browser tool the requester and a grant', () => {
     const catalog = buildCapabilityToolCatalog(protocolVersion);
-    const browserTools = catalog.tools.filter(tool => tool.namespace === 'browser');
+    const browserTools = catalog.tools.filter(tool => tool.namespace === 'browser' && tool.privacyClass !== 'device_browser');
 
     expect(browserTools.length).toBeGreaterThan(0);
     for (const tool of browserTools) {
@@ -279,6 +279,7 @@ describe('canonical capability tools', () => {
       BrowserToolName.Open,
       BrowserToolName.Click,
       'browser_fill',
+      'browser_handoff',
       'browser_press',
       'browser_select',
       'company_document_register',

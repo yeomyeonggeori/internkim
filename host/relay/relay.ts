@@ -38,6 +38,8 @@ import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { HeldQuestionStore } from './held-question-store';
 import { activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
+import { BrowserHandoffs, readHandoffRequest } from './browser-handoff';
+import { DevtoolsPage } from './devtools-page';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -49,6 +51,7 @@ const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
 const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const admindSocketPath = process.env.ADMIND_SOCKET_PATH ?? defaultAdmindSocketPath;
 const blueclawACPSocketPath = process.env.BLUECLAW_ACP_SOCKET_PATH ?? defaultBlueclawACPSocketPath;
+const deviceBrowserDevtoolsURL = process.env.INTERNKIM_DEVICE_BROWSER_CDP ?? 'http://127.0.0.1:9222';
 const workspaceRootPath = process.env.WORKSPACE_ROOT_PATH ?? '/workspace';
 const relayStateDirectory = process.env.RELAY_STATE_DIR ?? '/var/lib/internkim/relay';
 const appURL = required('INTERNKIM_APP_URL');
@@ -181,7 +184,9 @@ const dispatch = {
 			...account
 		});
 		credentials.forget(memberID);
-	}
+	},
+	serveBrowserHandoff: (capability: string, body: Record<string, unknown>, memberID: string) =>
+		browserHandoffs.serve(capability, body, memberID)
 };
 
 gateway = openGatewayConnection();
@@ -407,6 +412,33 @@ const inboundTurns: InboundTurns = new InboundTurns({
 	report: (line) => console.log(`acp: ${line}`)
 });
 
+const browserHandoffs = new BrowserHandoffs({
+	appURL,
+	openPage: () => DevtoolsPage.open(deviceBrowserDevtoolsURL),
+	deliver: (event, memberID) => gateway?.deliver(event, [memberID]),
+	resumeConversation: async (inbound) => {
+		const kept = await keepInboundMessage(inbound);
+		if (!kept.ok) throw new Error(`the handoff resume was refused: ${await kept.text()}`);
+	},
+	emailOfMember: (memberID) => dispatch.emailOfMember(memberID),
+	report: (line) => console.log(`handoff: ${line}`)
+});
+
+async function keepInboundMessage(offered: unknown): Promise<Response> {
+	const localizedOffered = await inboundBodyWithDisplayName(offered);
+	const inbound = readInboundMessage(localizedOffered);
+	if (!inbound) return new Response('that is not a message the agent can answer', { status: 400 });
+	const isNew = await inboundTurns.keep(inbound.key, localizedOffered);
+	tellBrowsers(inbound.addressing.conversationID, inbound.messageID);
+	return Response.json({ queued: isNew, key: inbound.key }, { status: 202 });
+}
+
+function beginBrowserHandoff(offered: unknown): Response {
+	const request = readHandoffRequest(offered);
+	if (!request) return new Response('a browser handoff names its requester and conversation', { status: 400 });
+	return Response.json(browserHandoffs.begin(request), { status: 201 });
+}
+
 // Whatever a stopped relay had asked and not yet delivered is on disk; put it
 // back in play before /inbound answers anything.
 await inboundTurns.restoreHeldQuestions();
@@ -420,14 +452,8 @@ Bun.serve({
 		const catalogTicket = ticketOf(pathname);
 		if (catalogTicket) return recordCatalogs.serve(request, catalogTicket);
 		const offered = await request.json().catch(() => null);
-		if (pathname === '/inbound') {
-			const localizedOffered = await inboundBodyWithDisplayName(offered);
-			const inbound = readInboundMessage(localizedOffered);
-			if (!inbound) return new Response('that is not a message the agent can answer', { status: 400 });
-			const isNew = await inboundTurns.keep(inbound.key, localizedOffered);
-			tellBrowsers(inbound.addressing.conversationID, inbound.messageID);
-			return Response.json({ queued: isNew, key: inbound.key }, { status: 202 });
-		}
+		if (pathname === '/inbound') return keepInboundMessage(offered);
+		if (pathname === '/browser-handoffs') return beginBrowserHandoff(offered);
 		const arrived = readArrivedMessage(offered);
 		if (!arrived) return new Response('that is not a message', { status: 400 });
 		const told = await tellThoseAddressed(arrived).catch((error) => {

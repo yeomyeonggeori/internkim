@@ -79,11 +79,6 @@ func (runner JobRunner) RunHeartbeatLoop(ctx context.Context) {
 	}
 }
 
-func (runner JobRunner) CompleteHandoff(ctx context.Context, completion HandoffCompletion) error {
-	endpoint := runner.DeviceClient.State.DeviceURL + "/_internkim/companion/handoffs/" + url.PathEscape(completion.HandoffID) + "/complete"
-	return runner.DeviceClient.PostSignedJSONWithContext(ctx, endpoint, completion, &map[string]any{})
-}
-
 func (runner JobRunner) sendHeartbeat() error {
 	payload := runner.heartbeatPayload()
 	endpoint := runner.DeviceClient.State.DeviceURL + "/_internkim/companion/heartbeat"

@@ -461,19 +461,13 @@ func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 	}
 }
 
-func TestBrowserHandoffStaysRegisteredButOutOfTheModelsSight(t *testing.T) {
-	descriptor := descriptorForTool(t, DefaultToolDescriptors(), "browser_handoff")
-	if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityHidden || descriptor.ModelVisible {
-		t.Fatalf("browser_handoff must remain registered but hidden: %+v", descriptor)
-	}
-}
-
 func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 	defaultDescriptors := DefaultToolDescriptors()
 	for _, toolName := range []string{
 		"browser_open",
 		"browser_snapshot",
 		"browser_screenshot",
+		"browser_handoff",
 		"browser_click",
 		"browser_fill",
 		"browser_select",

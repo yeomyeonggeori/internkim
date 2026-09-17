@@ -27,7 +27,8 @@ or insufficient:
 - Use Companion when available; the device's Moli browser is only for simple
   public text navigation.
 - Use `browser_handoff` for login, MFA, captcha, sensitive information, and
-  account-risky navigation. Do not ask for passwords or MFA codes in chat.
+  account-risky navigation; it hands the device's browser to the requester on
+  the intern.kim website. Do not ask for passwords or MFA codes in chat.
 - Do not use the device browser for sensitive inputs, irreversible actions,
   uploads/downloads, screenshots, or visual judgments.
 - If `browser.*` returns `blocked_by_captcha`, try one alternate user-provided

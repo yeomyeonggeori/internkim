@@ -64,6 +64,7 @@ type Configuration struct {
 	ProviderAttemptTimeout        time.Duration
 	AgentBrowserPath              string
 	DeviceBrowserCDPURL           string
+	RelayBaseURL                  string
 	DeviceBrowserProfilePath      string
 	CompanionFileDirectory        string
 	APIURLPath                    string
@@ -158,6 +159,7 @@ func DefaultConfiguration() Configuration {
 		ProviderAttemptTimeout:        0,
 		AgentBrowserPath:              "agent-browser",
 		DeviceBrowserCDPURL:           browserruntime.DeviceBrowserCDPURL,
+		RelayBaseURL:                  "http://127.0.0.1:18091",
 		DeviceBrowserProfilePath:      "",
 		CompanionFileDirectory:        "/tmp/internkim-companion-files",
 		APIURLPath:                    "/root/.internkim/env/api-url",
@@ -654,6 +656,9 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.DeviceBrowserCDPURL == "" {
 		configuration.DeviceBrowserCDPURL = defaultConfiguration.DeviceBrowserCDPURL
+	}
+	if configuration.RelayBaseURL == "" {
+		configuration.RelayBaseURL = defaultConfiguration.RelayBaseURL
 	}
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory

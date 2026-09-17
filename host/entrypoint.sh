@@ -89,6 +89,7 @@ keepRelayRunning() {
       MESSENGER_PLATFORM="${MESSENGER_PLATFORM}" ARRIVALS_PORT="${arrivalsPort}" \
       MAILD_BASE_URL="http://127.0.0.1:${maildPort}" \
       BLUECLAW_ACP_SOCKET_PATH="${blueclawACPSocketPath}" RELAY_STATE_DIR="${relayStateDirectory}" \
+      INTERNKIM_DEVICE_BROWSER_CDP="http://127.0.0.1:${deviceBrowserPort}" \
       internkim-relay &
     relayChild="$!"
     trap 'kill "${relayChild}" 2>/dev/null; exit 0' TERM
@@ -168,7 +169,8 @@ internkim-capabilityd \
   --admind-url "http://127.0.0.1:${admindPort}" \
   --chatd-endpoint "http://127.0.0.1:${chatdPort}" \
   --chatd-platform "${MESSENGER_PLATFORM}" \
-  --device-browser-cdp "http://127.0.0.1:${deviceBrowserPort}" &
+  --device-browser-cdp "http://127.0.0.1:${deviceBrowserPort}" \
+  --relay-url "http://127.0.0.1:${arrivalsPort}" &
 capabilitydPid="$!"
 
 while [ ! -S "${capabilitySocketPath}" ]; do
