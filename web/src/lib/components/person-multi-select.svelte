@@ -29,6 +29,7 @@
 		disabled?: boolean;
 		id?: string;
 		contentClass?: string;
+		side?: 'top' | 'bottom';
 	};
 
 	let {
@@ -42,7 +43,8 @@
 		canRemove,
 		disabled = false,
 		id,
-		contentClass
+		contentClass,
+		side = 'bottom'
 	}: Props = $props();
 
 	let isPickerOpen = $state(false);
@@ -76,7 +78,7 @@
 				</Button>
 			{/snippet}
 		</Popover.Trigger>
-		<Popover.Content class={contentClass ?? 'w-[var(--bits-popover-anchor-width)] p-0'} align="start">
+		<Popover.Content class={contentClass ?? 'w-[var(--bits-popover-anchor-width)] p-0'} align="start" {side}>
 			<Command.Root>
 				<Command.Input {placeholder} />
 				<Command.List>
