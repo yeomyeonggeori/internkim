@@ -24,8 +24,8 @@ func (client *Client) TaskLabels(ctx context.Context, requesterEmail string) (Ta
 	var envelope struct {
 		Result struct {
 			RegisteredLabels struct {
-				Businesses []string `json:"businesses"`
-				Types      []string `json:"types"`
+				Businesses []registeredLabel `json:"businesses"`
+				Types      []registeredLabel `json:"types"`
 			} `json:"registeredLabels"`
 		} `json:"result"`
 	}
@@ -33,7 +33,19 @@ func (client *Client) TaskLabels(ctx context.Context, requesterEmail string) (Ta
 		return TaskLabels{}, fmt.Errorf("the record's task_list answer could not be read: %w", errorValue)
 	}
 	return TaskLabels{
-		Businesses: envelope.Result.RegisteredLabels.Businesses,
-		Types:      envelope.Result.RegisteredLabels.Types,
+		Businesses: labelNames(envelope.Result.RegisteredLabels.Businesses),
+		Types:      labelNames(envelope.Result.RegisteredLabels.Types),
 	}, nil
+}
+
+type registeredLabel struct {
+	Name string `json:"name"`
+}
+
+func labelNames(labels []registeredLabel) []string {
+	names := make([]string, 0, len(labels))
+	for _, label := range labels {
+		names = append(names, label.Name)
+	}
+	return names
 }
