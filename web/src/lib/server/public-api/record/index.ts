@@ -61,10 +61,7 @@ import {
 	conversationMute,
 	conversationUnmute,
 	notificationSettingsGet,
-	notificationSettingsSet,
-	pushDeviceClaim,
-	pushDeviceRelease,
-	pushReachabilityGet
+	notificationSettingsSet
 } from './notification-tools';
 import { LabelUnresolved } from './labels';
 import { WhoseRecordsContradicted } from './whose';
@@ -148,9 +145,6 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
 	conversation_mute: (context, input) => conversationMute(context, input),
 	conversation_unmute: (context, input) => conversationUnmute(context, input),
-	push_reachability_get: (context) => pushReachabilityGet(context),
-	push_device_claim: (context, input) => pushDeviceClaim(context, input),
-	push_device_release: (context, input) => pushDeviceRelease(context, input),
 	crm_organization_list: (context, input) => crmOrganizationList(context, input),
 	crm_organization_add: (context, input) => crmOrganizationAdd(context, input),
 	crm_organization_update: (context, input) => crmOrganizationUpdate(context, input),
