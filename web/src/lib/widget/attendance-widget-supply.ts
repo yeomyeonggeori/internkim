@@ -21,20 +21,32 @@ export function widgetNeedsToken(held: WidgetInstall, tokens: { name: string }[]
 	return !tokens.some((token) => token.name === held.tokenName);
 }
 
-export async function keepWidgetSupplied(): Promise<void> {
+let supplying: Promise<void> | null = null;
+
+// Signing in and the session revalidating on focus both ask at once; two
+// issuances under one name would leave the phone holding the key the second
+// one replaced.
+export function keepWidgetSupplied(): Promise<void> {
+	supplying ??= supplyWidget().finally(() => {
+		supplying = null;
+	});
+	return supplying;
+}
+
+async function supplyWidget(): Promise<void> {
 	const shell = await attendanceWidgetShell();
 	if (!shell) return;
 
-	const held = await shell.install();
+	const held = await shell.widget.install();
 	if (!widgetNeedsToken(held, await personalAccessTokens())) return;
 
 	const tokenName = widgetTokenNameFor(held.installID);
 	const token = await issuePersonalAccessToken(tokenName, widgetTokenPermission);
-	await shell.supply({ token, tokenName, origin: window.location.origin });
+	await shell.widget.supply({ token, tokenName, origin: window.location.origin });
 }
 
 export async function forgetWidgetSupply(): Promise<void> {
 	const shell = await attendanceWidgetShell();
 	if (!shell) return;
-	await shell.forget();
+	await shell.widget.forget();
 }

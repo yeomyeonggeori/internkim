@@ -17,8 +17,12 @@ type AttendanceWidgetPlugin = {
 	forget(): Promise<void>;
 };
 
-export async function attendanceWidgetShell(): Promise<AttendanceWidgetPlugin | null> {
+// A Capacitor plugin answers every property, `then` included, so a promise
+// resolving to the plugin itself never settles. It travels in a box.
+type AttendanceWidgetShell = { widget: AttendanceWidgetPlugin };
+
+export async function attendanceWidgetShell(): Promise<AttendanceWidgetShell | null> {
 	if (!isInsideNativeShell() || shellPlatform() !== 'ios') return null;
 	const { registerPlugin } = await import('@capacitor/core');
-	return registerPlugin<AttendanceWidgetPlugin>('AttendanceWidget');
+	return { widget: registerPlugin<AttendanceWidgetPlugin>('AttendanceWidget') };
 }
