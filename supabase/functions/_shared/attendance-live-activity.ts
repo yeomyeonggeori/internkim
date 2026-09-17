@@ -25,14 +25,13 @@ export function activityChangesFor(
 		location: (clocked.location ?? '').trim()
 	};
 
-	if (clocked.kind === 'clock_out') {
-		return running.map((device) => ({ device, change: { event: 'end', state } }));
-	}
+	const ends = running.map((device) => ({ device, change: { event: 'end', state } as AttendanceActivityChange }));
+	if (clocked.kind === 'clock_out') return ends;
 	if (clocked.kind !== 'clock_in') return [];
-	if (running.length > 0) {
-		return running.map((device) => ({ device, change: { event: 'update', state } }));
-	}
-	return starters.map((device) => ({ device, change: { event: 'start', state, alert } }));
+	return [
+		...ends,
+		...starters.map((device) => ({ device, change: { event: 'start', state, alert } as AttendanceActivityChange }))
+	];
 }
 
 export async function showClockOnOwnPhones(
