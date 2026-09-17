@@ -11,7 +11,8 @@ export type HandoffWatch = {
 export type WatchAnswer =
 	| { state: 'watching'; watch: HandoffWatch }
 	| { state: 'missing' }
-	| { state: 'refused' };
+	| { state: 'refused' }
+	| { state: 'failed'; reason: string };
 
 export type FinishingOutcome = 'completed' | 'abandoned';
 
@@ -22,7 +23,8 @@ export async function watchHandoff(handoffID: string, viewport: Viewport | null)
 	});
 	if (answer.status === 404) return { state: 'missing' };
 	if (answer.status === 403) return { state: 'refused' };
-	const watch = answer.status === 200 ? readHandoffWatch(answer.body) : null;
+	if (answer.status !== 200) return { state: 'failed', reason: refusalReasonOf(answer.status, answer.body) };
+	const watch = readHandoffWatch(answer.body);
 	if (!watch) throw new Error(`watching the browser handoff returned ${answer.status}`);
 	return { state: 'watching', watch };
 }
@@ -48,6 +50,11 @@ export function readHandoffWatch(offered: unknown): HandoffWatch | null {
 		expiresAt: held.expiresAt,
 		viewport: { width: viewport.width, height: viewport.height }
 	};
+}
+
+function refusalReasonOf(status: number, body: unknown): string {
+	const error = recordOf(body).error;
+	return typeof error === 'string' && error !== '' ? error : `the device answered ${status}`;
 }
 
 function recordOf(offered: unknown): Record<string, unknown> {
