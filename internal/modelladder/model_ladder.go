@@ -32,7 +32,7 @@ func PreferredProviders() []string {
 // OpenRouter's effort levels: none, minimal, low, medium, high, xhigh, max.
 // https://openrouter.ai/docs/use-cases/reasoning-tokens
 var reasoningEffortByTier = map[string]string{
-	"xlow":   "none",
+	"xlow":   "minimal",
 	"low":    "low",
 	"medium": "medium",
 	"high":   "high",

@@ -74,14 +74,17 @@ func TestEveryRungAsksForTheSameServingAndTheTiersOwnEffort(t *testing.T) {
 	}
 }
 
-func TestEveryTierNamesAReasoningEffortAndTheLowestThinksNot(t *testing.T) {
+func TestEveryTierNamesAReasoningEffortAndNoneTurnsThinkingOff(t *testing.T) {
 	for _, tier := range Tiers {
 		if ReasoningEffort(tier) == "" {
 			t.Fatalf("the %s tier names no reasoning effort", tier)
 		}
+		if ReasoningEffort(tier) == "none" {
+			t.Fatalf("the %s tier turns thinking off, which %s refuses", tier, PrimaryModel)
+		}
 	}
-	if ReasoningEffort("xlow") != "none" {
-		t.Fatalf("xlow answers without thinking, got %q", ReasoningEffort("xlow"))
+	if ReasoningEffort("xlow") != "minimal" {
+		t.Fatalf("xlow thinks the least, got %q", ReasoningEffort("xlow"))
 	}
 	if ReasoningEffort("unknown") != "" {
 		t.Fatal("a tier nobody defined must not be given an effort")
