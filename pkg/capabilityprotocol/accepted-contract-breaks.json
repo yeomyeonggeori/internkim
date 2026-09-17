@@ -1,5 +1,10 @@
 [
 	{
+		"path": "browser_handoff.result.page",
+		"reason": "A handoff now says what the device browser shows, so the agent stops describing a page it never saw. browser_handoff is answered only by the device's own capabilityd, which ships in the same release as this catalog, and the plane never answers it; no reader holds the old closed shape against a newer answer.",
+		"release": "the release cut after this change merges, which carries the catalog and the capabilityd that answers with page together"
+	},
+	{
 		"path": "attendance_add.result.event",
 		"reason": "A successful attendance write returns the saved record so the browser and agent can use its committed timestamp and location without reading the record again.",
 		"release": "the release for #1737, deployed to catalog consumers before the plane returns the new attendance_add version 3 result"
