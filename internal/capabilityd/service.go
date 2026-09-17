@@ -63,9 +63,12 @@ type Configuration struct {
 	LocalBackendOrder             []string
 	ProviderAttemptTimeout        time.Duration
 	AgentBrowserPath              string
-	DeviceBrowserCDPURL           string
+	DeviceBrowserExecutablePath   string
+	DeviceBrowserStateDirectory   string
+	DeviceBrowserFirstPort        int
+	DeviceBrowserCapacity         int
+	DeviceBrowserUserName         string
 	RelayBaseURL                  string
-	DeviceBrowserProfilePath      string
 	CompanionFileDirectory        string
 	APIURLPath                    string
 	FleetIDPath                   string
@@ -82,6 +85,7 @@ type Service struct {
 	LookupExecutable func(string) (string, error)
 	ProgressManager  *platformProgressManager
 	HealthState      *platformHealthState
+	DeviceBrowsers   *browserruntime.DeviceBrowsers
 }
 
 type interactionResolveRequest struct {
@@ -158,9 +162,12 @@ func DefaultConfiguration() Configuration {
 		LocalOnly:                     false,
 		ProviderAttemptTimeout:        0,
 		AgentBrowserPath:              "agent-browser",
-		DeviceBrowserCDPURL:           browserruntime.DeviceBrowserCDPURL,
+		DeviceBrowserExecutablePath:   browserruntime.DeviceBrowserExecutablePath,
+		DeviceBrowserStateDirectory:   browserruntime.DeviceBrowsersStateDirectory,
+		DeviceBrowserFirstPort:        browserruntime.DeviceBrowsersFirstPort,
+		DeviceBrowserCapacity:         browserruntime.DeviceBrowsersCapacity,
+		DeviceBrowserUserName:         browserruntime.DeviceBrowsersUserName,
 		RelayBaseURL:                  "http://127.0.0.1:18091",
-		DeviceBrowserProfilePath:      "",
 		CompanionFileDirectory:        "/tmp/internkim-companion-files",
 		APIURLPath:                    "/root/.internkim/env/api-url",
 		FleetIDPath:                   "/root/.internkim/env/fleet-id",
@@ -173,6 +180,10 @@ func (service Service) Run(ctx context.Context) error {
 	if service.HealthState == nil {
 		service.HealthState = &platformHealthState{}
 	}
+	if service.DeviceBrowsers == nil {
+		service.DeviceBrowsers = service.Configuration.WithDefaults().newDeviceBrowsers()
+	}
+	go service.DeviceBrowsers.KeepTidy(ctx)
 	service.applyLocalInferenceMode(ctx)
 	listener, errorValue := service.listen()
 	if errorValue != nil {
@@ -654,8 +665,20 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.AgentBrowserPath == "" {
 		configuration.AgentBrowserPath = defaultConfiguration.AgentBrowserPath
 	}
-	if configuration.DeviceBrowserCDPURL == "" {
-		configuration.DeviceBrowserCDPURL = defaultConfiguration.DeviceBrowserCDPURL
+	if configuration.DeviceBrowserExecutablePath == "" {
+		configuration.DeviceBrowserExecutablePath = defaultConfiguration.DeviceBrowserExecutablePath
+	}
+	if configuration.DeviceBrowserStateDirectory == "" {
+		configuration.DeviceBrowserStateDirectory = defaultConfiguration.DeviceBrowserStateDirectory
+	}
+	if configuration.DeviceBrowserFirstPort <= 0 {
+		configuration.DeviceBrowserFirstPort = defaultConfiguration.DeviceBrowserFirstPort
+	}
+	if configuration.DeviceBrowserCapacity <= 0 {
+		configuration.DeviceBrowserCapacity = defaultConfiguration.DeviceBrowserCapacity
+	}
+	if configuration.DeviceBrowserUserName == "" {
+		configuration.DeviceBrowserUserName = defaultConfiguration.DeviceBrowserUserName
 	}
 	if configuration.RelayBaseURL == "" {
 		configuration.RelayBaseURL = defaultConfiguration.RelayBaseURL

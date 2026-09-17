@@ -26,6 +26,7 @@ export type HandoffRequest = {
 	message: string;
 	requester: Requester;
 	addressing: Addressing;
+	devtoolsURL: string;
 };
 
 export type BegunHandoff = {
@@ -38,7 +39,7 @@ export type HandoffOutcome = 'completed' | 'abandoned' | 'expired';
 
 export type BrowserHandoffSettings = {
 	appURL: string;
-	openPage: () => Promise<DevtoolsConnection>;
+	openPage: (devtoolsURL: string) => Promise<DevtoolsConnection>;
 	deliver: (event: Record<string, unknown>, memberID: string) => void;
 	resumeConversation: (inbound: Record<string, unknown>) => Promise<void>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
@@ -74,7 +75,8 @@ export function readHandoffRequest(offered: unknown): HandoffRequest | null {
 	const email = textOf(requester.email).toLowerCase();
 	const platform = textOf(addressing.platform);
 	const conversationID = textOf(addressing.conversationID);
-	if (!email || !platform || !conversationID) return null;
+	const devtoolsURL = loopbackDevtoolsURLOf(held.devtoolsURL);
+	if (!email || !platform || !conversationID || !devtoolsURL) return null;
 	return {
 		message: textOf(held.message),
 		requester: { email, ...optionalText('name', requester.name) },
@@ -85,8 +87,18 @@ export function readHandoffRequest(offered: unknown): HandoffRequest | null {
 			...optionalText('replyTargetID', addressing.replyTargetID),
 			...optionalText('responseLanguage', addressing.responseLanguage),
 			...(addressing.isThread === true ? { isThread: true } : {})
-		}
+		},
+		devtoolsURL
 	};
+}
+
+function loopbackDevtoolsURLOf(offered: unknown): string {
+	const text = textOf(offered);
+	if (!URL.canParse(text)) return '';
+	const address = new URL(text);
+	const isLoopback = address.hostname === '127.0.0.1' || address.hostname === 'localhost';
+	if (address.protocol !== 'http:' || !isLoopback || !address.port) return '';
+	return address.origin;
 }
 
 export class BrowserHandoffs {
@@ -171,7 +183,7 @@ export class BrowserHandoffs {
 		const stream = new HandoffStream({
 			handoffID: handoff.handoffID,
 			memberID,
-			page: await this.settings.openPage(),
+			page: await this.settings.openPage(handoff.devtoolsURL),
 			deliver: this.settings.deliver,
 			now: this.now,
 			report: this.report
@@ -203,7 +215,7 @@ export class BrowserHandoffs {
 
 	private async whereTheBrowserIs(handoff: WaitingHandoff): Promise<PageWhereabouts> {
 		try {
-			const page = handoff.stream?.isLive ? handoff.stream.page : await this.settings.openPage();
+			const page = handoff.stream?.isLive ? handoff.stream.page : await this.settings.openPage(handoff.devtoolsURL);
 			const where = await whereThePageIs(page);
 			if (!handoff.stream?.isLive) page.close();
 			return where;

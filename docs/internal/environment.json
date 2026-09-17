@@ -203,13 +203,17 @@
     "process": "docs site",
     "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"
   },
+  "DEVICE_BROWSER_CAPACITY": {
+    "process": "host",
+    "description": "the most device browsers capabilityd runs at once, one per requester; when every one is held by a handoff the next requester is told the browser is busy; defaults to 4"
+  },
   "DEVICE_BROWSER_PORT": {
     "process": "host",
-    "description": "the loopback port the bundle starts moli serve on and tells capabilityd to reach the device browser at; defaults to 9222"
+    "description": "the first loopback port capabilityd starts a requester's moli serve on, each further browser taking the next free port; defaults to 9230"
   },
   "DEVICE_BROWSER_STATE_DIR": {
     "process": "host",
-    "description": "where the device browser keeps its profile and HTTP cache across restarts; defaults to /var/lib/internkim-moli"
+    "description": "where each requester's device browser keeps its profile and HTTP cache across restarts, under members/<key>; defaults to /var/lib/internkim-moli"
   },
   "E2E_NONCE": {
     "process": "tools/e2e-crud-remote.sh",
@@ -374,10 +378,6 @@
   "INTERNKIM_API_URL": {
     "process": "cli",
     "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
-  },
-  "INTERNKIM_DEVICE_BROWSER_CDP": {
-    "process": "device",
-    "description": "URL the device browser (moli serve) answers the Chrome DevTools Protocol on, read by internkim-capabilityd at startup and by the relay to stream a browser handoff; default http://127.0.0.1:9222"
   },
   "INTERNKIM_DOMAIN": {
     "process": "cli",

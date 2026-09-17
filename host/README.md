@@ -114,8 +114,9 @@ read, whether required or optional, in one table:
 | `CHATD_BOT_USER_NAME` | host | the messenger bot's display name, required by host/entrypoint.sh |
 | `CHATD_LISTEN_PORT` | host | the loopback port host/entrypoint.sh starts chatd on; defaults to 18090 |
 | `DATABASE_URL` | host | the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime) |
-| `DEVICE_BROWSER_PORT` | host | the loopback port the bundle starts moli serve on and tells capabilityd to reach the device browser at; defaults to 9222 |
-| `DEVICE_BROWSER_STATE_DIR` | host | where the device browser keeps its profile and HTTP cache across restarts; defaults to /var/lib/internkim-moli |
+| `DEVICE_BROWSER_CAPACITY` | host | the most device browsers capabilityd runs at once, one per requester; when every one is held by a handoff the next requester is told the browser is busy; defaults to 4 |
+| `DEVICE_BROWSER_PORT` | host | the first loopback port capabilityd starts a requester's moli serve on, each further browser taking the next free port; defaults to 9230 |
+| `DEVICE_BROWSER_STATE_DIR` | host | where each requester's device browser keeps its profile and HTTP cache across restarts, under members/<key>; defaults to /var/lib/internkim-moli |
 | `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |
 | `GATEWAY_URL` | relay | the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway |
 | `INTERNKIM_APP_URL` | relay + host | where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh |

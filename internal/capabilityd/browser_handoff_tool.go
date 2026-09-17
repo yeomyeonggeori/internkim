@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
-
-const browserHandoffToolName = "browser_handoff"
 
 type browserHandoffInput struct {
 	Message string `json:"message"`
@@ -21,9 +22,10 @@ type browserHandoffInput struct {
 }
 
 type relayHandoffRequest struct {
-	Message    string                 `json:"message"`
-	Requester  relayHandoffRequester  `json:"requester"`
-	Addressing relayHandoffAddressing `json:"addressing"`
+	Message     string                 `json:"message"`
+	Requester   relayHandoffRequester  `json:"requester"`
+	Addressing  relayHandoffAddressing `json:"addressing"`
+	DevtoolsURL string                 `json:"devtoolsURL"`
 }
 
 type relayHandoffRequester struct {
@@ -53,17 +55,26 @@ func (service Service) invokeBrowserHandoffTool(ctx context.Context, request cap
 	}
 	handoffRequest, hasConversation := relayHandoffRequestOf(request.Context, input.Message)
 	if !hasConversation {
-		return browserHandoffFailedResponse("a browser handoff is handed to the person who asked in a conversation, and this call came from none; ask them in a conversation instead"), nil
+		return deviceBrowserFailedResponse(request.ToolName, "a browser handoff is handed to the person who asked in a conversation, and this call came from none; ask them in a conversation instead"), nil
+	}
+	browserRuntime, errorValue := service.deviceBrowserRuntime(ctx, request.Context)
+	if errors.Is(errorValue, browserruntime.ErrDeviceBrowsersFull) {
+		return service.deviceBrowsersFullResponse(request.ToolName), nil
+	}
+	if errorValue != nil {
+		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	if strings.TrimSpace(input.URL) != "" {
-		if _, errorValue := service.deviceBrowserRuntime().Navigate(ctx, browserruntime.NavigateRequest{URL: strings.TrimSpace(input.URL)}); errorValue != nil {
+		if _, errorValue := browserRuntime.Navigate(ctx, browserruntime.NavigateRequest{URL: strings.TrimSpace(input.URL)}); errorValue != nil {
 			return capabilities.ToolInvokeResponse{}, errorValue
 		}
 	}
+	handoffRequest.DevtoolsURL = browserRuntime.CDPURL
 	result, errorValue := service.beginRelayHandoff(ctx, handoffRequest)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
+	service.holdBrowserUntilTheHandoffExpires(request.Context.RequesterEmail, result.ExpiresAt)
 	document, errorValue := json.Marshal(result)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -125,14 +136,11 @@ func (service Service) beginRelayHandoff(ctx context.Context, handoffRequest rel
 	return result, nil
 }
 
-func browserHandoffFailedResponse(message string) capabilities.ToolInvokeResponse {
-	return capabilities.ToolInvokeResponse{
-		Provider:        "device",
-		SelectedBackend: capabilities.LLMBackendDevice,
-		ToolName:        browserHandoffToolName,
-		Outcome:         capabilities.ToolOutcomeFailed,
-		Status:          "error",
-		Content:         message,
-		IsError:         true,
+func (service Service) holdBrowserUntilTheHandoffExpires(requesterEmail string, expiresAt string) {
+	expiry, errorValue := time.Parse(time.RFC3339Nano, expiresAt)
+	if errorValue != nil {
+		log.Printf("the relay's browser handoff expiry %q is not a time, so the requester's browser is not held: %v", expiresAt, errorValue)
+		return
 	}
+	service.DeviceBrowsers.HoldUntil(requesterEmail, expiry)
 }

@@ -9,7 +9,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
@@ -39,7 +41,9 @@ func TestBrowserHandoffIsBegunOnTheRelayForTheRequester(t *testing.T) {
 		_, _ = writer.Write([]byte(`{"handoffID":"handoff-1","openURL":"https://intern.kim/handoff/handoff-1","expiresAt":"2026-09-17T00:15:00.000Z"}`))
 	}))
 	defer relay.Close()
-	service := Service{Configuration: Configuration{RelayBaseURL: relay.URL}}
+	now := time.Date(2026, 9, 17, 0, 0, 0, 0, time.UTC)
+	browsers := fakeDeviceBrowsers(1, now)
+	service := Service{Configuration: Configuration{RelayBaseURL: relay.URL}, DeviceBrowsers: browsers}
 
 	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_handoff", strings.NewReader(browserHandoffFromAConversation))
 
@@ -65,9 +69,13 @@ func TestBrowserHandoffIsBegunOnTheRelayForTheRequester(t *testing.T) {
 			ConversationType: "direct",
 			ResponseLanguage: "ko",
 		},
+		DevtoolsURL: "http://127.0.0.1:9230",
 	}
 	if relayed != expected {
 		t.Fatalf("relayed = %+v", relayed)
+	}
+	if _, errorValue := browsers.BrowserFor(context.Background(), "someone-else@example.test"); !errors.Is(errorValue, browserruntime.ErrDeviceBrowsersFull) {
+		t.Fatalf("expected the requester's browser to be held for the handoff, got %v", errorValue)
 	}
 }
 
@@ -100,7 +108,8 @@ func TestBrowserHandoffOpensTheAddressBeforeHandingOver(t *testing.T) {
 	defer relay.Close()
 	var browserArguments []string
 	service := Service{
-		Configuration: Configuration{RelayBaseURL: relay.URL},
+		Configuration:  Configuration{RelayBaseURL: relay.URL},
+		DeviceBrowsers: fakeDeviceBrowsers(1, time.Now()),
 		RunCommand: func(_ context.Context, _ string, arguments []string, _ []byte) ([]byte, error) {
 			browserArguments = append(browserArguments, arguments...)
 			return nil, errors.New("the device browser is down")
@@ -127,7 +136,7 @@ func TestBrowserHandoffReportsARelayThatRefuses(t *testing.T) {
 		_, _ = writer.Write([]byte("a browser handoff names its requester and conversation"))
 	}))
 	defer relay.Close()
-	service := Service{Configuration: Configuration{RelayBaseURL: relay.URL}}
+	service := Service{Configuration: Configuration{RelayBaseURL: relay.URL}, DeviceBrowsers: fakeDeviceBrowsers(1, time.Now())}
 
 	_, errorValue := service.invokeCapabilityTool(context.Background(), "browser_handoff", strings.NewReader(browserHandoffFromAConversation))
 
