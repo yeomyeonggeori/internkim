@@ -324,6 +324,23 @@ describe('the tokens a member holds', () => {
 });
 
 describe('a tool whose rows live in the record', () => {
+	test('answers every call one token makes at once, the way a home screen widget reads what it shows', async () => {
+		const email = `${slug}-widget@example.test`;
+		const widgetMemberID = await addMember(client, companyID, email);
+		const { data: account } = await client.auth.admin.createUser({ email, email_confirm: true });
+		await client.from('member').update({ user_id: account.user!.id, status: 'active' }).eq('id', widgetMemberID);
+		const widgetToken = await issuePersonalAccessToken(client, widgetMemberID, 'ios-widget', 'write');
+
+		const answered = await Promise.all([
+			invoke('attendance_list', widgetToken, {}),
+			invoke('company_settings_get', widgetToken, {})
+		]);
+		expect(answered.map((answer) => [answer.status, messageOf(answer)])).toEqual([
+			[200, ''],
+			[200, '']
+		]);
+	});
+
 	test('is answered here, without a gateway to any company machine', async () => {
 		const answered = await reach('/tools/person_list/invoke', holdersToken, {
 			method: 'POST',

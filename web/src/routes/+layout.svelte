@@ -34,6 +34,7 @@
 	import { keepShellStatusBarOnPageTheme } from '$lib/native-shell/page-theme';
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
+	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -49,6 +50,7 @@
 	let isCommandPaletteOpen = $state(false);
 	let isAppSidebarOpen = $state(false);
 	let attendanceSessionKey = '';
+	let widgetSuppliedEmail = '';
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
 	$effect(() => {
 		const sessionKey = `${data.session?.authenticated ?? false}:${data.session?.email ?? ''}`;
@@ -71,6 +73,16 @@
 			},
 			(failure: unknown) => console.warn('this device was not asked about notifications', failure)
 		);
+	});
+	$effect(() => {
+		const signedInEmail = data.session?.authenticated ? data.session.email : '';
+		untrack(() => {
+			if (!signedInEmail || signedInEmail === widgetSuppliedEmail) return;
+			widgetSuppliedEmail = signedInEmail;
+			keepWidgetSupplied().catch((failure: unknown) =>
+				console.warn('the widget holds no key of its own', failure)
+			);
+		});
 	});
 	onMount(() => {
 		initializeLocale();
