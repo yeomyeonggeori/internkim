@@ -144,6 +144,10 @@ func BlueclawRuntimeConfigOptionsFromEnvironment() (RuntimeConfigOptions, error)
 	return options, nil
 }
 
+func StampLadderOwnedModels(capability map[string]any) {
+	capability["decisionModel"] = modelladder.DecisionModel
+}
+
 func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (string, error) {
 	languageModelExecutionMode := "auto"
 	terminalMode := "virtualMachineGuest"
@@ -165,7 +169,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	for tier, modelName := range modelladder.TierModelNames() {
 		capabilityLanguageModel[tier+"Model"] = modelName
 	}
-	capabilityLanguageModel["decisionModel"] = modelladder.DecisionModel
+	StampLadderOwnedModels(capabilityLanguageModel)
 	if strings.TrimSpace(options.ModelName) != "" {
 		modelName := strings.TrimSpace(options.ModelName)
 		capabilityLanguageModel["model"] = modelName
