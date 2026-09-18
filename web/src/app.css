@@ -260,6 +260,7 @@
     @apply border-border;
   }
   html {
+    height: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -267,6 +268,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    height: 100%;
   }
 }
 

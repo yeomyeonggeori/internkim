@@ -187,7 +187,7 @@
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
-		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-svh w-full bg-background text-foreground">
+		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(100svh,100%)] min-h-0 w-full bg-background text-foreground">
 			{#if !isEmbeddedFrame()}
 				<AppRail session={data.session} />
 			{/if}
