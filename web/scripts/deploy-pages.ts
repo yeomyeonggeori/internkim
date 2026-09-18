@@ -1,7 +1,7 @@
 //   bun run web/scripts/deploy-pages.ts --project internkim --output web/.svelte-kit/cloudflare
 //   bun run web/scripts/deploy-pages.ts --whoami
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { domainsOf, hostnamesNotAnswering, hostnamesToAnswerFor } from './pages-hostnames';
@@ -101,8 +101,10 @@ function runWrangler(wranglerArguments: string[]): number {
 	return run.exitCode ?? 0;
 }
 
-function builtVersion(): string {
-	const written = JSON.parse(readFileSync(resolve(output, '_app/version.json'), 'utf8')) as { version?: unknown };
+function builtVersion(): string | undefined {
+	const versionPath = resolve(output, '_app/version.json');
+	if (!existsSync(versionPath)) return undefined;
+	const written = JSON.parse(readFileSync(versionPath, 'utf8')) as { version?: unknown };
 	if (typeof written.version !== 'string') throw new Error(`${output} carries no build version`);
 	return written.version;
 }
@@ -119,6 +121,10 @@ async function callCloudflare(path: string): Promise<unknown> {
 async function waitUntilEveryHostnameAnswersThisBuild(): Promise<void> {
 	if (!project) return;
 	const version = builtVersion();
+	if (version === undefined) {
+		console.log(`${output} carries no _app/version.json, so the hostnames of ${project} cannot be checked against this build`);
+		return;
+	}
 	const hostnames = hostnamesToAnswerFor(project, await domainsOf(callCloudflare, accountID, project));
 	const attempts = 12;
 	for (let attempt = 1; attempt <= attempts; attempt += 1) {
