@@ -1,4 +1,6 @@
 import type { SupabaseClient } from './service-client.ts';
+import { showClockOnOwnPhones } from './attendance-live-activity.ts';
+import { refreshOwnWidgets } from './attendance-widget-refresh.ts';
 import { pictureURLOfMember } from './member-directory.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
 import { whoAnswersFor } from './who-answers.ts';
@@ -39,6 +41,9 @@ export async function announceClock(
 		senderName: nameOf(announcer),
 		icon: announcerPicture
 	};
+	const ownAlert = { title: clocked.kind === 'clock_in' ? '출근' : '퇴근', body: notification.body };
+	await showClockOnOwnPhones(record, memberID, clocked, ownAlert, pushKeys, nowInSeconds);
+	await refreshOwnWidgets(record, memberID, clocked.kind, pushKeys, nowInSeconds);
 	return tellEachExcept(record, announcer.company_id, memberID, 'attendance', notification, pushKeys, nowInSeconds);
 }
 

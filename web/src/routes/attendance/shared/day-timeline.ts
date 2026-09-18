@@ -6,6 +6,13 @@ export function dayWidthPercent(startTime: string, endTime: string): number {
 	return Math.min(100, Math.max(1, ((endMinutes - startMinutes) / minutesPerDay) * 100));
 }
 
+export function segmentWidthPercent(
+	segment: { startTime: string; endTime?: string; isOpen: boolean },
+	currentTime: string
+): number {
+	return dayWidthPercent(segment.startTime, segment.isOpen ? currentTime : segment.endTime ?? segment.startTime);
+}
+
 export function localTimeMinutes(localTime: string): number {
 	const [hours = 0, minutes = 0] = localTime.split(':').map(Number);
 	return hours * 60 + minutes;

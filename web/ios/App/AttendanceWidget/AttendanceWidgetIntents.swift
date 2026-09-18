@@ -36,10 +36,13 @@ struct ClockOutIntent: AppIntent {
 
 @available(iOS 17.0, *)
 private func clock(kind: String, location: String?) async {
+    var closeCards = false
     do {
         _ = try await AttendanceAPI.held().clock(kind: kind, location: location)
+        closeCards = kind == "clock_out"
     } catch {
         AttendanceRefusal.keep(error.localizedDescription)
     }
     WidgetCenter.shared.reloadAllTimelines()
+    if closeCards { await AttendanceLockScreenCards.close() }
 }
