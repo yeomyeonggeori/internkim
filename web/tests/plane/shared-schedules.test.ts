@@ -57,6 +57,24 @@ async function seedSchedule(
 	`;
 }
 
+// What the poller writes when a schedule starts a run: the creator, the
+// schedule's own conversation namespace, and the schedule's instruction.
+async function seedTaskRun(
+	taskRunID: string,
+	requesterPersonID: string,
+	originConversationID: string
+): Promise<void> {
+	await database`
+		INSERT INTO task_run (
+			task_run_id, requester_person_id, origin_conversation_id, origin_is_thread,
+			current_agent_profile_name, status, prompt, created_at, updated_at
+		) VALUES (
+			${taskRunID}, ${requesterPersonID}, ${originConversationID}, false,
+			'', 'running', 'Post the delivery plan for the week to the project channel.', now(), now()
+		)
+	`;
+}
+
 async function listSchedules(requesterEmail: string): Promise<ScheduleListAnswer> {
 	const answer = await fetch('http://plane/v1/tools/schedule_list/invoke', {
 		unix: plane.capabilitySocketPath,
@@ -132,6 +150,7 @@ type ScheduleCall = {
 	input: Record<string, unknown>;
 	requesterEmail: string;
 	requesterPersonID?: string;
+	taskRunID?: string;
 	approved?: boolean;
 	outcome?: string;
 };
@@ -146,6 +165,7 @@ async function invokeScheduleTool(call: ScheduleCall): Promise<Response> {
 			context: {
 				requesterEmail: call.requesterEmail,
 				requesterPersonID: call.requesterPersonID ?? '',
+				taskRunID: call.taskRunID ?? '',
 				platform: plane.messengerPlatform,
 				conversationID: 'plane-schedule-conversation',
 				conversationType: 'channel',
@@ -234,4 +254,87 @@ test('a schedule is created, changed and cancelled through the shared catalog', 
 	expect(
 		listedAfterCancel.result.schedules.map((schedule) => schedule.scheduleID)
 	).not.toContain(created.result.scheduleID);
+});
+
+const scheduleRefusalSchema = z.object({
+	outcome: z.string(),
+	errorCode: z.string(),
+	retryable: z.boolean().optional(),
+	message: z.string()
+});
+
+test('a schedule that a schedule started writes no schedule', async () => {
+	const [requester] = plane.people;
+	await seedSchedule(
+		'plane-amplifying-schedule',
+		requester.memberID,
+		'Amplifying follow-up',
+		'Post the delivery plan for the week to the project channel.'
+	);
+	await seedTaskRun(
+		'plane-scheduled-run',
+		requester.memberID,
+		'schedule:plane-amplifying-schedule'
+	);
+	await seedTaskRun('plane-conversation-run', requester.memberID, 'plane-schedule-conversation');
+
+	const refusedCreate = scheduleRefusalSchema.parse(
+		await answerOf({
+			toolName: 'schedule_create',
+			requesterEmail: requester.email,
+			taskRunID: 'plane-scheduled-run',
+			outcome: 'failed',
+			input: {
+				taskInstruction: 'Post the delivery plan again, every hour.',
+				description: 'Amplified plan',
+				kind: 'interval',
+				intervalSecond: 3600,
+				timeZone: 'Asia/Seoul',
+				repeatPolicy: 'unbounded'
+			}
+		})
+	);
+	expect(refusedCreate.errorCode).toBe('not_allowed');
+	expect(refusedCreate.retryable ?? false).toBe(false);
+
+	const refusedUpdate = scheduleRefusalSchema.parse(
+		await answerOf({
+			toolName: 'schedule_update',
+			requesterEmail: requester.email,
+			taskRunID: 'plane-scheduled-run',
+			outcome: 'failed',
+			input: {
+				scheduleHint: 'Amplifying follow-up',
+				intervalSecond: 60,
+				repeatPolicy: 'unbounded'
+			}
+		})
+	);
+	expect(refusedUpdate.errorCode).toBe('not_allowed');
+
+	const listedAfterRefusal = await listSchedules(requester.email);
+	expect(listedAfterRefusal.result.schedules.map((schedule) => schedule.description)).not.toContain(
+		'Amplified plan'
+	);
+	expect(
+		listedAfterRefusal.result.schedules.find(
+			(schedule) => schedule.scheduleID === 'plane-amplifying-schedule'
+		)?.cadence
+	).toBe('cron');
+
+	const changed = scheduleWriteAnswerSchema.parse(
+		await answerOf({
+			toolName: 'schedule_update',
+			requesterEmail: requester.email,
+			taskRunID: 'plane-conversation-run',
+			input: {
+				scheduleHint: 'Amplifying follow-up',
+				kind: 'interval',
+				intervalSecond: 7200,
+				repeatPolicy: 'unbounded'
+			}
+		})
+	);
+	expect(changed.result.scheduleID).toBe('plane-amplifying-schedule');
+	expect(changed.result.intervalSecond).toBe(7200);
 });
