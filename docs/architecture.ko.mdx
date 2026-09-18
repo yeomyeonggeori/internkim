@@ -53,6 +53,131 @@ flowchart TB
 
 호스트를 떠나는 화살표는 전부 바깥을 향합니다. 안으로 향하는 것은 없습니다.
 
+## 여러 하네스가 쓰는 하나의 플러그인 [#one-plugin-across-harnesses]
+
+이 절은 공통 플러그인의 설계 계약을 정의합니다. 릴리스의 호환성은 아래
+검증·공개 기준으로 확정하며, 위 다이어그램은 배포 구조를 설명합니다.
+
+`internkim-plugin`은 Bluecollar, Claude Code, Codex, Pi가 함께 사용하는
+클라이언트 패키지입니다. 김인턴 내부 에이전트도 외부 하네스에 설치하는 것과
+같은 버전의 스킬·스크립트·에셋·서비스 계약을 사용합니다. 외부 하네스는
+Bluecollar가 꺼져 있어도 서비스 기능을 사용할 수 있어야 합니다.
+
+```mermaid
+flowchart TB
+    bluecollar["Blueclaw 안의 Bluecollar"] --> plugin
+    claude["Claude Code"] --> plugin
+    codex["Codex"] --> plugin
+    pi["Pi"] --> plugin
+    plugin["internkim-plugin<br/>공통 스킬·스크립트·얇은 어댑터"] --> service
+    service["김인턴 도구 서비스<br/>인증된 멤버와 회사"] --> record["업무 기록"]
+    service --> relay["기존 회사 릴레이 연결"]
+    relay --> execution["회사·컴패니언 기능"]
+```
+
+### 책임의 경계 [#ownership]
+
+| 계층 | 책임 |
+| --- | --- |
+| 김인턴 서비스 | 도구 스키마 원본, 업무 동작, 권한, 영속 승인, 실행 상태와 변경 증거 |
+| 플러그인 | 공통 스킬·스크립트·에셋, 연결 정보와 공통 클라이언트 |
+| 하네스 어댑터 | 설치, 스킬 경로 연결, 자격증명 저장소 연동, 도구·결과 표현 |
+| 하네스 | 모델 호출, 추론, 도구 선택, 문맥과 실행 루프의 판단 |
+| Blueclaw 호스트 | 관리되는 호스트 안에서 실행하는 작업의 신원과 격리 |
+
+업무 도구 계약은 서비스에서 한 번 정의합니다. 어댑터는 연결과 표현 차이를
+변환하며 업무 로직이나 스킬 본문을 복제하지 않습니다. 하네스의 기본 MCP
+연결과 확장 기능을 통한 클라이언트가 같은 계약을 사용합니다. MCP는 업무
+도구 호출을 담당하고, ACP는 에이전트가 메신저에 참여할 때 쓰는 별도 세션
+경계입니다. 플러그인만 사용하는 데 ACP 세션은 필요하지 않습니다.
+
+같은 멤버·회사·플러그인 버전·실행 자원이라면 같은 업무 기능과 권한 동작을
+제공해야 합니다. 모델 품질과 로컬 환경은 다를 수 있습니다. 플러그인 설치로
+외부 에이전트에 Blueclaw의 비공개 워크스페이스나 터미널 권한이 생기지
+않습니다. 독립적인 산출물 스킬은 외부 하네스의 로컬 환경에서 실행하고,
+관리되는 호스트에서는 요청자의 POSIX 신원을 유지합니다. 필요한 의존성이나
+컴패니언 기능이 없으면 그 상태를 명시합니다.
+
+### 연결과 실행 [#connection-and-execution]
+
+아래는 제안된 계약을 설명하는 의사코드입니다. 출시된 엔드포인트 정의나 모든
+하네스가 턴 도중 도구 등록을 지원한다는 뜻이 아닙니다. 각 어댑터에는 검증한
+버전과 호환성 기록을 남깁니다.
+
+```text
+function attachPlugin(adapter, package, account):
+    package.verifyRelease()
+    session = connect(package.server, account.credentialReference)
+    requireSupportedContract(session, package.supportedVersions)
+    adapter.installSkills(package.skillRoot)
+    adapter.exposeDiscovery(session.catalogSummaries())
+
+function invoke(session, toolID, arguments, operationKey):
+    descriptor = session.describeExact(toolID)
+    validatedArguments = descriptor.inputSchema.validate(arguments)
+    return session.call(descriptor.id, validatedArguments, operationKey)
+```
+
+모델이 간결한 카탈로그에서 관련 기능을 선택하고, 상세 스키마는 필요할 때
+가져옵니다. 동적 등록이 없는 어댑터는 지원하는 갱신 시점이나 공통 클라이언트의
+검증된 호출 경로를 사용합니다. 탐색 비용·스키마 크기·호출 오류도 이 선택의
+측정 비용에 포함합니다.
+
+서비스는 인증 정보로 실행자를 해석하고 현재 회사 소속을 확인합니다.
+자격증명은 클라이언트의 자격증명 저장소에 둡니다. 모델이 만든 인자로 더 높은
+권한의 실행 신원을 선택할 수 없습니다.
+
+```text
+function submit(connection, request):
+    actor = authenticateAndResolveMember(connection)
+    descriptor = catalog.resolveExact(request.toolID)
+    arguments = descriptor.inputSchema.validate(request.arguments)
+    authorize(actor, descriptor, arguments)
+    operation = claimDurably(actor, request.operationKey, descriptor, arguments)
+    if operation.alreadyExists:
+        return operation.currentResult()
+    if requiresApproval(actor, descriptor, arguments):
+        return holdForAuthenticatedApproval(operation)
+    return dispatchDurably(operation)
+```
+
+전송 재시도는 같은 실행 키를 사용하고, 다른 인자로 키를 재사용하면
+거절합니다. 승인은 실행자·회사·실행·인자·만료 시점에 결합합니다. 재접속하면
+기록된 실행을 이어가며 권한을 다시 확인합니다. 외부 변경 뒤 타임아웃이
+발생하면 대상 서비스의 멱등성이나 실제 결과 대조를 통해 재실행 여부를
+확정합니다. 취소 응답에는 이미 반영된 변경을 알립니다. 예약된 업무는
+하네스 연결이 끊겨도 유지합니다.
+
+결과에는 구조화된 기록·이미지·권한이 적용된 산출물 참조를 보존합니다.
+서비스가 무엇이 변경됐는지 기록하고, 하네스가 그 증거를 사용자에게
+설명합니다. 이미지나 산출물을 성공 문장 하나로 바꾸어 버리면 기능 동등성
+검증을 통과할 수 없습니다.
+
+### Bluecollar의 정체성과 Pi의 범용 구현 [#bluecollars-identity-and-pis-mechanics]
+
+Bluecollar의 업무 이해, 후속 지시를 잇는 연속성, 결과 판단과 복구 동작은
+보존합니다. 범용 도구 이름·인자 형태·파일 편집·셸 세션·실행 연결부는 Pi를
+그대로 따라도 됩니다. 적절한 곳에서 Pi 구현을 재사용하거나 수정하며,
+라이선스와 출처 표기를 유지합니다.
+
+Pi의 특정 리비전을 기준으로 각 범용 구성 요소의 재사용·수정·유지 결정을
+기록합니다. 다르게 만들 때는 제품 동작, 실행 경계, 호환성 또는 측정된 성능상
+이유가 있어야 합니다. 기존 도구 이름, 액션 봉투, 프롬프트 상용구는 이미
+Bluecollar에 있다는 이유만으로 제품의 정체성이 되지 않습니다.
+
+### 검증과 공개 [#verification-and-publication]
+
+플러그인 릴리스 하나로 Bluecollar·Claude Code·Codex·Pi에서 같은 업무
+시나리오를 수행합니다. 설치·인증·승인·재접속·취소·회사 간 격리·산출물 전달을
+포함하고, Bluecollar가 꺼진 상태의 외부 사용도 입증합니다. 지원되는 경우 같은
+모델 설정으로 비교하고, 나머지 조합은 제품 간 비교라고 구분합니다.
+
+채택하려면 기능을 보존하고 성공률·성공 업무당 비용·문맥 크기·완료 지연을
+측정해야 합니다. 릴리스와 함께 지원 버전 표와 검증 증거를 공개합니다.
+클라이언트 업데이트 전에 서비스 호환성을 배포하고, 명시된 호환 기간을
+유지하며 실행 중인 버전을 확인합니다. 영어·한국어 문서 모두 출시된 동작과
+아직 남은 설계를 구분해 갱신합니다.
+
 ## 중앙 쪽 [#the-central-side]
 
 우리가 배포하는 다섯 가지입니다.
