@@ -48,7 +48,10 @@ browser cannot, including pages that need the requester's sign-in.
   it did not, and `page` shows where the task ended. Never say the goal was
   done when it was not.
 - The tool is denied with `not_connected` when the requester's Companion is not
-  running or has no computer control: say so and stop.
+  running or has no computer control. Then call `computer_connect` and hand the
+  requester its three commands in order (`installCommand` only when the
+  Companion is not installed yet, `pairCommand`, `serviceCommand`), in a direct
+  message: the code is theirs alone. Stop there; the requester runs them.
 
 ## Terminal And File Permissions
 

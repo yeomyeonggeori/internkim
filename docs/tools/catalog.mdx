@@ -199,7 +199,11 @@ Login, MFA, and captcha steps are handed to the human.
 
 <ToolCatalog namespace="computer" />
 
-Implemented in `internal/companion/computer`. The companion opens its own
+`computer_connect` is answered on the device
+(`internal/capabilityd/computer_connect_tool.go`): it asks admind for a
+ten-minute pairing code addressed to the requester and hands back the install,
+pair and service commands to relay. The rest is implemented in
+`internal/companion/computer`. The companion opens its own
 persistent browser profile through [Cua Driver](https://cua.ai/driver), and
 for each step asks the device to put the page and a bounded list of candidate
 actions to a decision model (`internal/capabilityd/llm_decide.go`, reached
