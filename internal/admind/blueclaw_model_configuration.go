@@ -7,6 +7,18 @@ import (
 	"gitlab.com/eastriver/internkim/internal/modelladder"
 )
 
+func stampBlueclawDecisionModel(runtimeDocument map[string]any) {
+	languageModel, exists := runtimeDocument["languageModel"].(map[string]any)
+	if !exists {
+		return
+	}
+	capability, exists := languageModel["capability"].(map[string]any)
+	if !exists {
+		return
+	}
+	capability["decisionModel"] = modelladder.DecisionModel
+}
+
 func migrateBlueclawCapabilityModelConfiguration(runtimeDocument map[string]any) {
 	languageModel, exists := runtimeDocument["languageModel"].(map[string]any)
 	if !exists || languageModel["tiers"] != nil {
