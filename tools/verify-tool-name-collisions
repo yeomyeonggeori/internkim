@@ -23,6 +23,9 @@ import tool_name_sources as sources
 
 TOOLS_BEING_MOVED = {
     "schedule_list": "moving to the InternKim service catalog (internkim#1789)",
+    "schedule_create": "moving to the InternKim service catalog (internkim#1789)",
+    "schedule_update": "moving to the InternKim service catalog (internkim#1789)",
+    "schedule_cancel": "moving to the InternKim service catalog (internkim#1789)",
 }
 
 MINIMUM_MODEL_VISIBLE_TOOLS = 60
