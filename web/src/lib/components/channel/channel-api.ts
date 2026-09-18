@@ -117,6 +117,8 @@ export function applyCustomEmoji(
 	});
 }
 
+export type ChannelMember = { memberID?: string; externalID?: string; name: string };
+
 export type ChannelSummary = {
 	id: string;
 	name: string;
@@ -124,6 +126,8 @@ export type ChannelSummary = {
 	isPrivate?: boolean;
 	avatarURL?: string;
 	counterpart?: { memberID?: string; externalID?: string };
+	members?: ChannelMember[];
+	description?: string;
 	platform?: string;
 	webURL?: string;
 };
