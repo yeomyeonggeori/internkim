@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { appSectionPathOf, isEmbeddedCalendar, isFullScreenApp, taskListPathOf, usesAppShell, usesWebAuthGate } from '../../src/lib/app-shell';
+import { appSectionPathOf, isEmbeddedCalendar, taskListPathOf, usesAppShell, usesWebAuthGate } from '../../src/lib/app-shell';
 
 describe('the app shell on a company address', () => {
 	test('a company-prefixed app path still wears the shell', () => {
@@ -62,14 +62,5 @@ describe('a question asked of the route, not the address', () => {
 	test('sends a task back to its own list, company and all', () => {
 		expect(taskListPathOf('/runs/abc')).toBe('/runs');
 		expect(taskListPathOf('/samplecompany/runs/abc')).toBe('/samplecompany/runs');
-	});
-});
-
-describe('a browser handoff', () => {
-	test('fills the screen on its own, signed in but without the shell', () => {
-		expect(isFullScreenApp('/samplecompany/handoff/handoff-1')).toBe(true);
-		expect(usesAppShell('/samplecompany/handoff/handoff-1')).toBe(false);
-		expect(usesWebAuthGate('/samplecompany/handoff/handoff-1')).toBe(true);
-		expect(isFullScreenApp('/samplecompany/calendar')).toBe(false);
 	});
 });
