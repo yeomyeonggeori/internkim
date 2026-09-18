@@ -3,7 +3,7 @@
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { cn } from '$lib/utils';
 
-	type StackPerson = { name: string; seed?: string; email?: string; image?: string };
+	type StackPerson = { name: string; seed?: string; email?: string; image?: string; memberID?: string; externalID?: string };
 
 	let {
 		people,
@@ -30,6 +30,8 @@
 			email={person.email ?? ''}
 			seed={person.seed ?? person.name}
 			image={person.image ?? ''}
+			memberID={person.memberID ?? ''}
+			externalID={person.externalID ?? ''}
 			class={avatarClass}
 		/>
 	{/each}
