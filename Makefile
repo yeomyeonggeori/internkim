@@ -1,13 +1,9 @@
 GO_HOST ?= $(shell go env GOOS 2>/dev/null)-$(shell go env GOARCH 2>/dev/null)
 GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
-COMPANION_TARGET_TRIPLE ?= $(shell rustc -vV 2>/dev/null | sed -n 's/host: //p')
 RELAY_TARGET ?=
-AGENT_BROWSER_VERSION ?= 0.26.0
-COMPANION_BETA_DIST ?= dist/companion
-COMPANION_BETA_MACOS_ARTIFACT ?= internkim-companion-beta-macos-aarch64.dmg
 
-.PHONY: build build-maild build-relay build-companion build-companion-shell package-companion-beta verify-generated-protocol check test doctor deps-sim deps-browser deps-companion deps-companion-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
+.PHONY: build build-maild build-relay build-companion verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -21,21 +17,6 @@ build-relay:
 
 build-companion:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-companion ./cmd/internkim-companion
-	mkdir -p companion/src-tauri/binaries
-	cp internkim-companion companion/src-tauri/binaries/internkim-companion
-	if [ -n "$(COMPANION_TARGET_TRIPLE)" ]; then cp internkim-companion companion/src-tauri/binaries/internkim-companion-$(COMPANION_TARGET_TRIPLE); fi
-	tools/prepare-companion-agent-browser companion/src-tauri/binaries "$(COMPANION_TARGET_TRIPLE)" "$(AGENT_BROWSER_VERSION)"
-
-build-companion-shell: build-companion
-	cd companion && bun run build:tauri
-
-package-companion-beta: build-companion
-	cd companion && bun run build:tauri:beta
-	mkdir -p $(COMPANION_BETA_DIST)
-	tools/verify-companion-beta-bundle companion/src-tauri/target/release/bundle/macos/internkim.app
-	hdiutil create -volname "internkim" -srcfolder companion/src-tauri/target/release/bundle/macos/internkim.app -ov -format UDZO "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"
-	@if [ -n "$$APPLE_SIGNING_IDENTITY" ]; then codesign --force --sign "$$APPLE_SIGNING_IDENTITY" "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; else echo "unsigned beta artifact: $(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)"; fi
-	@if [ -n "$$APPLE_ID" ] && [ -n "$$APPLE_TEAM_ID" ] && [ -n "$$APPLE_APP_SPECIFIC_PASSWORD" ]; then xcrun notarytool submit "$(COMPANION_BETA_DIST)/$(COMPANION_BETA_MACOS_ARTIFACT)" --apple-id "$$APPLE_ID" --team-id "$$APPLE_TEAM_ID" --password "$$APPLE_APP_SPECIFIC_PASSWORD" --wait; fi
 
 generate-protocol:
 	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
@@ -63,14 +44,6 @@ deps-sim:
 deps-browser:
 	cd web && bun install
 	cd web && bunx playwright install chromium
-
-deps-companion:
-	cd companion && bun install
-
-deps-companion-browser:
-	tools/prepare-companion-agent-browser companion/src-tauri/binaries "$(COMPANION_TARGET_TRIPLE)" "$(AGENT_BROWSER_VERSION)"
-	companion/src-tauri/binaries/agent-browser --version
-	companion/src-tauri/binaries/agent-browser install
 
 prepare-blueclaw-runtime-builder: build
 	./internkim lab runtime-builder-prepare

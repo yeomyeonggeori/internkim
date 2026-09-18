@@ -23,14 +23,6 @@
     "process": "relay",
     "description": "the path to the file holding the company agent key, so the key never lands in the process environment (ps eww)"
   },
-  "AGENT_BROWSER_BINARY": {
-    "process": "tools/prepare-companion-agent-browser",
-    "description": "path to a prebuilt agent-browser binary to bundle, instead of downloading or building one"
-  },
-  "AGENT_BROWSER_EXECUTABLE_PATH": {
-    "process": "companion",
-    "description": "override path to the agent-browser binary the companion's browser runtime launches"
-  },
   "ANSWER_BYTE_CEILING": {
     "process": "relay",
     "description": "maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit"
@@ -264,8 +256,8 @@
     "description": "the admin sign-in password the CRUD/delete/matrix Playwright specs use"
   },
   "INTERNKIM_AGENT_BROWSER_PATH": {
-    "process": "companion",
-    "description": "override path to the agent-browser binary; also read by internal/browser's real-Chrome test"
+    "process": "internal/browser test",
+    "description": "path to an agent-browser binary for internal/browser's real-Chrome test; the test is skipped when unset"
   },
   "INTERNKIM_APP_URL": {
     "process": "relay, host",
@@ -317,7 +309,7 @@
   },
   "INTERNKIM_BROWSER_EXTENSION_PATH": {
     "process": "companion",
-    "description": "override path to a browser extension the companion's browser runtime loads"
+    "description": "override path to a browser extension directory the companion loads instead of unpacking the embedded one next to its browser profile"
   },
   "INTERNKIM_BUZZ_KEY_SEED": {
     "process": "cli, tools/mirror-local",
@@ -362,6 +354,10 @@
   "INTERNKIM_CRUD_SCREENSHOT": {
     "process": "web e2e tests",
     "description": "the file path the CRUD/delete Playwright specs save their channel screenshot to"
+  },
+  "INTERNKIM_CUA_DRIVER_PATH": {
+    "process": "companion",
+    "description": "path to the Cua Driver executable computer_task drives; when unset the companion looks on PATH and in ~/.local/bin"
   },
   "INTERNKIM_DELETE_AFTER_SHOT": {
     "process": "web e2e tests",

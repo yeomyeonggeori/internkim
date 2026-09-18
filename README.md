@@ -215,7 +215,7 @@ reading one.
 | **local model** | Generation and embedding both on a resident `llama-server`: gemma-4-E2B QAT with MTP drafting (`--chat-template gemma`) for generation, BGE-M3 Q8 on CPU (`-ngl 0`) for embedding. `internkim-local-llm-runner` (LiteRT) is a legacy fallback. |
 | **blueclaw** | The agent runtime. On a device it runs as a Cloud Hypervisor guest under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json`. |
 | **chatd** | Per-person messenger operations, with Mattermost and Buzz adapters behind one gateway. |
-| **internkim-companion** | A trusted runtime on the user's own computer for confirmation, input and file picking, and later for local-only inference. |
+| **internkim-companion** | One binary on the user's own computer: their signed-in browser, their desktop through the Cua Driver, and later local-only inference. |
 | **Mattermost** | The self-hostable messenger used as the collaboration channel and the entry point for work. |
 | **SvelteKit web app** (`web/`) | The company app on Cloudflare Pages, and the operating surfaces served same-origin from a device: `/admin`, `/flow`, `/memory`, `/calendar`, `/mail`, `/attendance`, `/files`, `/ops`. |
 | **workspace assets** (`assets/blueclaw-workspace/`) | AGENTS.md, skills and helpers, installed to the host workspace and mounted into the guest. |
@@ -493,74 +493,68 @@ Mattermost users, teams and channels survive.
 
 ## Companion
 
-`internkim-companion` runs on the user's own computer and provides the
-capabilities that need a person: signing in during a browser task, MFA, picking
-a file, approving an action. The same contract later carries stronger local
-models, embedding and desktop actions, which is the path to running entirely
-inside a company network.
+`internkim-companion` is one binary that runs on the user's own computer and
+provides what the device cannot: a headed browser signed in as that person,
+control of their desktop, and later stronger local models. There is no desktop
+app around it; an agent can install it on a person's computer without anyone
+clicking through a wizard, and a desktop wrapper can come later.
 
 ```bash
 make build-companion
-make build-companion-shell
 ./internkim-companion pair --device-url https://<deviceID>.<zone> --code ABCD-1234
-./internkim-companion run
+./internkim-companion service install
 ./internkim-companion status
 ```
 
-Pairing starts from `/connect`, runnable anywhere in Mattermost. A user with no
-admin rights gets a ten-minute one-time code bound to their own Mattermost
-identity, as an ephemeral reply. Where the slash command is not provisioned yet,
-`connect` in a DM to the bot does the same. A paired companion opens no inbound
-port and long-polls the device broker.
+Pairing starts from `/connect` in the messenger. A user with no admin rights
+gets a ten-minute one-time code bound to their own identity, together with the
+`pair` command carrying it and an `internkim://pair?…` deep link that `pair`
+also accepts as its only argument. A paired companion opens no inbound port
+and long-polls the device broker.
 
-```bash
-./internkim-companion pair 'internkim://pair?device_url=https%3A%2F%2Fexample&code=ABCD-1234'
-```
+`service install` registers a launchd agent on macOS and a systemd user unit
+on Linux, so the companion starts at login and restarts when it dies. Run
+flags after `--` are recorded in the service definition
+(`service install -- --cua-driver /path/to/cua-driver`); `service restart`,
+`service status` and `service uninstall` do what they say. `run` from a
+terminal is the same process without the supervisor. `./internkim companion
+upgrade` rebuilds the binary from the checkout into `~/.local/bin` and
+restarts the service when one is installed.
 
-The executor handles approval grants, the `browser_*` family, and mock
-`llm_text` and `llm_structured` for development. A companion LLM job carrying a requester identity can be claimed
-only by that same owner's companion. The Tauri shell raises the confirmation,
-input, approval and file-picker windows, and lists what a task is currently
-allowed to do so it can be revoked. `--allow-stdin-prompts` is a CLI fallback
-for debugging without the shell.
+The executor handles the `browser_*` family, `computer_task`, and mock
+`llm_text` and `llm_structured` for development. A companion job carrying a
+requester identity can be claimed only by that same owner's companion.
 
-A file the user picks never leaves their machine as a path. The companion
-uploads it through the signed broker to `/tmp/internkim-companion-files/` on
-the device, and the answer carries only that device-local path and a TTL.
-Admind deletes the file when the TTL passes.
-
-Browser capabilities route to the companion first, running headed with a
-persistent Intern Kim profile. The device's own browser is Moli, a headless
-engine that answers agent-browser over the Chrome DevTools Protocol; capabilityd
-starts one per requester, each with its own profile, stops it when idle, and runs
-at most four at once. It is used only for plain public page text when no companion
-is available. Login, MFA, captcha and other steps only a person can do are not
-done through the device browser; the agent says so and stops.
+Browser capabilities route to the companion first. The companion drives the
+user's Google Chrome with a persistent Intern Kim profile and an extension
+embedded in the binary, unpacked next to that profile on first use; nothing
+else needs installing. The device's own browser is Moli, a headless engine
+that answers agent-browser over the Chrome DevTools Protocol; capabilityd
+starts one per requester, each with its own profile, stops it when idle, and
+runs at most four at once. It is used only for plain public page text when no
+companion is available. Login, MFA, captcha and other steps only a person can
+do are not done through the device browser; the agent says so and stops.
 Snapshots carry the URL, title, text and interactive refs, and nothing else.
-Screenshots are companion-only. The bundle ships `agent-browser` for the current
-OS and architecture and installs its managed browser on first run; when that
-fails the user, file and mock LLM capabilities keep working and only the browser
-capabilities report unavailable.
+Screenshots are companion-only.
+
+`computer_task` runs a goal on the user's computer through the Cua Driver
+(`cua-driver`, found on `PATH` or in `~/.local/bin`, or named with
+`--cua-driver`). Each step the companion observes the page, lists what it
+could do, and asks the device to decide; the device asks the decision model
+through capabilityd, so the companion never holds an inference key. `status`
+reports `computerControlStatus` as `ready` or `driver_not_found`.
 
 The pairing signing key stays out of the state file, which holds a reference to
 it; macOS keeps the key in the Keychain. `INTERNKIM_COMPANION_DEV_FILE_STORE=1`
 allows a file-based fallback in development.
 
 Broker jobs live in `/root/.internkim/state/companion-jobs.json`. When admind
-restarts, pending jobs stay claimable and running jobs return to pending. The
-Tauri shell bridge accepts loopback HTTP carrying the per-run token the shell
-minted.
-
-`make package-companion-beta` builds
-`dist/companion/internkim-companion-beta-macos-aarch64.dmg`, the artifact the
-admin download links to. It codesigns when `APPLE_SIGNING_IDENTITY` is set and
-submits to notarytool when `APPLE_ID`, `APPLE_TEAM_ID` and
-`APPLE_APP_SPECIFIC_PASSWORD` are all present.
+restarts, pending jobs stay claimable and running jobs return to pending.
 
 capabilityd never calls a companion URL. It creates a job on the local admind
-broker, and routes `browser.*`, `user.*` and companion LLM capabilities only
-while that companion is online and advertising them. Blueclaw
-sees no provider implementation, browser binary, model path or user cookie.
+broker, and routes `browser.*`, `computer_task` and companion LLM capabilities
+only while that companion is online and advertising them. Blueclaw sees no
+provider implementation, browser binary, model path or user cookie.
 
 ## The API
 
@@ -629,7 +623,6 @@ behind them; `ls cmd internal` answers what exists today. The rest:
 | `supabase/` | `migrations/` is the schema of record, `seed.dev.sql` the only local fixtures, `tests/` the pgTAP suite |
 | `host/` | `entrypoint.sh` is the boot order for the company computer's bundle, `relay/` its link to the plane |
 | `assets/blueclaw-workspace/` | the agent's own AGENTS.md, skills and helpers |
-| `companion/` | the Tauri desktop shell |
 | `workers/` | the Cloudflare workers |
 | `docs/` | the pages the docs site publishes; `docs/internal/` is what a contributor reads |
 | `lab/` | VM lab configuration and scripts |

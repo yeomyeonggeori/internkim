@@ -58,7 +58,7 @@ internkim-specific capability catalogs are authored in the web app beside the ro
 
 Companion is a trusted user-local capability provider. Its reusable core can advertise and execute browser and local model capabilities.
 
-The internkim companion app remains a product shell around that core. It may include internkim branding, pairing links, release packaging, tray behavior, and device runtime controls. Product controls should use product-owned device endpoints, not companion broker endpoints.
+The internkim companion binary is the product around that core: pairing links, the background service, release packaging. Product controls should use product-owned device endpoints, not companion broker endpoints.
 
 ## Runtime Settings Boundary
 
