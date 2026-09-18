@@ -1,27 +1,31 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonMultiSelect from '$lib/components/person-multi-select.svelte';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
 	import * as Command from '$lib/components/ui/command';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import type { ChannelMember } from '$lib/components/channel/channel-api';
+	import type { ChannelMember, ChannelRole } from '$lib/components/channel/channel-api';
 	import { fetchChannelCandidates, type ChannelCandidate } from '$lib/messenger/channel-candidates';
-	import { addChannelMembers } from '$lib/messenger/messenger-api';
+	import { MessengerRefusal, addChannelMembers, removeChannelMember } from '$lib/messenger/messenger-api';
 	import { displayPersonName } from '$lib/person-name.svelte';
+	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
 	import { toast } from 'svelte-sonner';
 
 	let {
 		open = $bindable(false),
 		channelID,
 		members,
+		viewerRole,
 		onMembersChanged
 	}: {
 		open?: boolean;
 		channelID: string;
 		members: ChannelMember[];
+		viewerRole?: ChannelRole;
 		onMembersChanged: () => void;
 	} = $props();
 
@@ -30,6 +34,8 @@
 	let candidates = $state<ChannelCandidate[]>([]);
 	let chosenIDs = $state<string[]>([]);
 	let isAdding = $state(false);
+	let removing = $state<ChannelMember | null>(null);
+	let isRemoving = $state(false);
 
 	const memberExternalIDs = $derived(new Set(members.map((member) => member.externalID)));
 	const addable = $derived(candidates.filter((candidate) => !memberExternalIDs.has(candidate.externalID)));
@@ -67,6 +73,34 @@
 		} finally {
 			isAdding = false;
 		}
+	}
+
+	function askAboutRemoval(member: ChannelMember) {
+		removing = member;
+	}
+
+	async function removeThem() {
+		if (!removing) return;
+		const member = removing;
+		isRemoving = true;
+		try {
+			await removeChannelMember(channelID, member.externalID ?? '');
+			removing = null;
+			onMembersChanged();
+		} catch (failure) {
+			removing = null;
+			toast.error(removalRefusalText(failure));
+		} finally {
+			isRemoving = false;
+		}
+	}
+
+	function removalRefusalText(failure: unknown): string {
+		if (failure instanceof MessengerRefusal && failure.reason === 'not-owner') return text.notChannelOwner;
+		if (failure instanceof MessengerRefusal && failure.reason === 'target-is-owner') {
+			return text.channelOwnerCannotBeRemoved;
+		}
+		return failure instanceof Error ? failure.message : text.removeChannelMemberFailed;
 	}
 </script>
 
@@ -110,6 +144,21 @@
 								class="size-8"
 							/>
 							<span class="truncate">{displayPersonName(member.name) || text.unnamedMember}</span>
+							{#if viewerRole === 'owner' && member.role === 'member'}
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									class="ml-auto shrink-0"
+									aria-label={text.removeChannelMember}
+									onclick={(event) => {
+										event.stopPropagation();
+										askAboutRemoval(member);
+									}}
+								>
+									<UserMinusIcon />
+								</Button>
+							{/if}
 						</Command.Item>
 					{/each}
 				</Command.Group>
@@ -117,3 +166,23 @@
 		</Command.Root>
 	</Dialog.Content>
 </Dialog.Root>
+
+<AlertDialog.Root open={removing !== null} onOpenChange={(next) => !next && (removing = null)}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>
+				{text.removeChannelMemberTitle.replace(
+					'{name}',
+					removing ? displayPersonName(removing.name) || text.unnamedMember : ''
+				)}
+			</AlertDialog.Title>
+			<AlertDialog.Description>{text.removeChannelMemberDescription}</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel disabled={isRemoving}>{text.cancel}</AlertDialog.Cancel>
+			<AlertDialog.Action variant="destructive" disabled={isRemoving} onclick={removeThem}>
+				{text.removeChannelMember}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
