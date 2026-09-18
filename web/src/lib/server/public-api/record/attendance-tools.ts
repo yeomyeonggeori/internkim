@@ -15,7 +15,7 @@ import {
 } from './attendance';
 import type { RecordContext } from './company';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { attendanceAddResultSchema } from '../catalog/tools';
+import { attendanceAddResultSchema, WorkspaceAttendanceKind } from '../catalog/tools';
 
 const defaultWindowDays = 30;
 const hintWindowDays = 90;
@@ -153,7 +153,7 @@ export async function attendanceList(context: RecordContext, input: AttendanceLi
 
 export type AttendanceAddInput = {
 	personHint?: string;
-	kind?: string;
+	kind?: WorkspaceAttendanceKind;
 	date?: string;
 	time?: string;
 	location?: string;
@@ -165,9 +165,6 @@ export async function attendanceAdd(context: RecordContext, input: AttendanceAdd
 }
 
 export async function addAttendanceFor(caller: SupabaseClient, memberID: string | null, input: AttendanceAddInput) {
-	if (input.kind !== 'clock_in' && input.kind !== 'clock_out') {
-		throw new Error('an attendance record is a clock_in or a clock_out');
-	}
 	const { data, error, status } = await caller.rpc('attendance_add', {
 		target_member: memberID,
 		kind: input.kind,
@@ -190,13 +187,9 @@ export type AttendanceCorrection = {
 export type AttendanceUpdateInput = { corrections?: AttendanceCorrection[]; reason?: string };
 
 export async function attendanceUpdate(context: RecordContext, input: AttendanceUpdateInput) {
-	const asked = input.corrections ?? [];
-	if (asked.length === 0) throw new Error('a correction names the attendance records it corrects');
-
 	const corrections = [];
-	for (const correction of asked) {
-		if (!correction.eventHint) throw new Error('a correction names the attendance record it corrects');
-		const row = await attendanceOfHint(context, correction.eventHint);
+	for (const correction of input.corrections ?? []) {
+		const row = await attendanceOfHint(context, correction.eventHint ?? '');
 		const held = answeredAttendance(context, row);
 		corrections.push({
 			event_id: row.id,
@@ -217,9 +210,7 @@ export async function attendanceUpdate(context: RecordContext, input: Attendance
 export type AttendanceDeleteInput = { eventHint?: string; reason?: string };
 
 export async function attendanceDelete(context: RecordContext, input: AttendanceDeleteInput) {
-	if (!input.eventHint) throw new Error('a removal names the attendance record it removes');
-
-	const row = await attendanceOfHint(context, input.eventHint);
+	const row = await attendanceOfHint(context, input.eventHint ?? '');
 
 	const { data, error } = await context.caller.rpc('attendance_remove', {
 		event_id: row.id,

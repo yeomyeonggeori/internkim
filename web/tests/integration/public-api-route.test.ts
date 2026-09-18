@@ -228,6 +228,15 @@ describe('clocking attendance', () => {
 		expect((await invoke('attendance_add', holdersToken, { kind: 'clock_out' })).status).toBe(422);
 	});
 
+	test('is refused for the token it does not carry before its body is read', async () => {
+		const answered = await reach('/tools/attendance_add/invoke', null, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ input: { kind: 'clocking_in' } })
+		});
+		expect(answered.status).toBe(401);
+	});
+
 	test('serializes simultaneous clock-ins into one saved record', async () => {
 		const answers = await Promise.all([
 			invoke('attendance_add', sessionToken, { kind: 'clock_in' }),
@@ -414,6 +423,12 @@ describe('looking at what a destructive call would touch', () => {
 		const answered = await preview('task_list', holdersToken, {});
 		expect(answered.status).toBe(200);
 		expect(answered.body).toEqual({ tool: 'task_list', target: null });
+	});
+
+	test('answers no target for a tool the company machine answers', async () => {
+		const answered = await preview('message_delete', holdersToken, { messageIDs: ['a-message'] });
+		expect(answered.status).toBe(200);
+		expect(answered.body).toEqual({ tool: 'message_delete', target: null });
 	});
 
 	test('is refused by rung before it resolves anything', async () => {

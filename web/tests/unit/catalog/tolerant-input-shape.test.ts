@@ -20,12 +20,18 @@ function fieldsTheToolLetsBeLeftOut(name: string): string[] {
 	return Object.keys(shape).filter((field) => shape[field].safeParse(undefined).success);
 }
 
+// The gate recovers a call before it holds it to the contract, so what a caller
+// is told is what the two answer together.
+function refusalOfTheCallAsRead(name: string, input: unknown): string | null {
+	return refusalOfToolInput(name, toolInputRecovered(name, input));
+}
+
 // A tool with required fields refuses an empty call for missing them, and that
 // says nothing about the field under test. What matters is what writing the
 // field adds, so the complaints an empty call already makes are the baseline.
 function complaintsAdded(name: string, field: string, value: unknown): string[] {
-	const already = new Set((refusalOfToolInput(name, {}) ?? '').split('; ').filter(Boolean));
-	const now = (refusalOfToolInput(name, { [field]: value }) ?? '').split('; ').filter(Boolean);
+	const already = new Set((refusalOfTheCallAsRead(name, {}) ?? '').split('; ').filter(Boolean));
+	const now = (refusalOfTheCallAsRead(name, { [field]: value }) ?? '').split('; ').filter(Boolean);
 	return now.filter((complaint) => !already.has(complaint));
 }
 
@@ -54,19 +60,19 @@ describe('a whole call written the way a model writes one', () => {
 			const written = Object.fromEntries(
 				fieldsTheToolLetsBeLeftOut('task_add').map((field) => [field, value])
 			);
-			expect(refusalOfToolInput('task_add', { ...written, title: '모델이 쓴 그대로' })).toBeNull();
+			expect(refusalOfTheCallAsRead('task_add', { ...written, title: '모델이 쓴 그대로' })).toBeNull();
 		});
 	}
 
 	test('a field the tool does not take is still named back', () => {
-		expect(refusalOfToolInput('task_add', { title: '있는 업무', mood: 'cheerful' })).toContain('input.mood');
+		expect(refusalOfTheCallAsRead('task_add', { title: '있는 업무', mood: 'cheerful' })).toContain('input.mood');
 	});
 
 	// Recovering a blank here would turn "you sent nothing" into "you forgot
 	// this", and the caller needs to be told the first.
 	test('a field that must be given is refused by name when it is sent empty', () => {
-		expect(refusalOfToolInput('task_add', { title: null })).toContain('input.title');
-		expect(refusalOfToolInput('task_add', { title: '' })).toBeNull();
+		expect(refusalOfTheCallAsRead('task_add', { title: null })).toContain('input.title');
+		expect(refusalOfTheCallAsRead('task_add', { title: '' })).toBeNull();
 	});
 });
 
@@ -76,7 +82,7 @@ describe('a blank the field itself takes', () => {
 			taskHint: 'a-task',
 			parentTaskHint: ''
 		});
-		expect(refusalOfToolInput('task_update', { taskHint: 'a-task', parentTaskHint: '' })).toBeNull();
+		expect(refusalOfTheCallAsRead('task_update', { taskHint: 'a-task', parentTaskHint: '' })).toBeNull();
 	});
 
 	test('is kept for a date, which is what takes the date off', () => {

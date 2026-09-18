@@ -57,9 +57,37 @@ func New(settings Settings) *Client {
 	}
 	return &Client{
 		settings:   settings,
-		httpClient: httpClient,
+		httpClient: askingForJSON(httpClient),
 		sessions:   map[string]memberSession{},
 	}
+}
+
+// SvelteKit negotiates an error's shape on the Accept header and serves an HTML
+// page to a caller that asks for nothing (handle_fatal_error).
+func askingForJSON(httpClient *http.Client) *http.Client {
+	asking := *httpClient
+	asking.Transport = jsonAcceptedByDefault{carrying: transportOf(httpClient)}
+	return &asking
+}
+
+func transportOf(httpClient *http.Client) http.RoundTripper {
+	if httpClient.Transport != nil {
+		return httpClient.Transport
+	}
+	return http.DefaultTransport
+}
+
+type jsonAcceptedByDefault struct {
+	carrying http.RoundTripper
+}
+
+func (transport jsonAcceptedByDefault) RoundTrip(request *http.Request) (*http.Response, error) {
+	if request.Header.Get("Accept") != "" {
+		return transport.carrying.RoundTrip(request)
+	}
+	asking := request.Clone(request.Context())
+	asking.Header.Set("Accept", "application/json")
+	return transport.carrying.RoundTrip(asking)
 }
 
 func (client *Client) sessionFor(ctx context.Context, platform string, externalID string) (memberSession, error) {

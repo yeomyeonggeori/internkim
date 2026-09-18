@@ -63,3 +63,11 @@ func TestTheRouteTableNamesNoToolTheRecordAnswers(t *testing.T) {
 		}
 	}
 }
+
+func TestTheTargetRouteTableNamesNoToolTheRecordAnswers(t *testing.T) {
+	for _, route := range capabilityToolTargetRoutes {
+		if theRecordAnswers(route.ToolName) {
+			t.Errorf("%s is answered by the record and the target route table names it too", route.ToolName)
+		}
+	}
+}
