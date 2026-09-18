@@ -105,7 +105,8 @@ dependencies or companion capabilities are reported explicitly.
 
 These examples are pseudocode for the proposed contract. They do not define
 released endpoints or promise that every harness can register tools during
-a turn. Each adapter will have a tested version and compatibility record.
+a turn. What is released, and on which harness versions, is in "Released
+behavior" below.
 
 ```text
 function attachPlugin(adapter, package, account):
@@ -184,6 +185,34 @@ version matrix and evidence with the release. Deploy service compatibility
 before updating clients, retain a documented compatibility window, and
 verify the running versions. Keep this English page and its Korean
 counterpart aligned with the released behavior and remaining design work.
+
+### Released behavior
+
+The sections above are the target. This is what has shipped as of internkim
+`b3b1406e3` (device release `20260918T165525Z-b3b1406e3656`, plugin
+`c1e156b`, Blueclaw `f41ae448`).
+
+- The plugin is a plain Agent Plugins 1.0.0 checkout: `plugin.json`,
+  `mcp.json` naming `https://api.intern.kim/v1/mcp`, and `skills/`. There is
+  no harness adapter; each client loads that layout its own way, and the
+  recipes are in the plugin's README.
+- The schedule tools (`schedule_list`, `schedule_create`, `schedule_update`,
+  `schedule_cancel`) are defined once in the catalog and answered on the
+  company machine; Bluecollar carries no native copies. The public server
+  serves the catalog of the web deployment it runs, so a client sees these
+  four once that deployment carries `b3b1406e3`.
+- Registering tools during a turn, the durable approval envelope and the
+  service receipts of "Connection and execution" are contract text, not
+  released endpoints.
+- The measurement program and the adoption decision it gates are open
+  (internkim#1832).
+
+| Harness | Version tested | Loads the plugin through | Status |
+| --- | --- | --- | --- |
+| Bluecollar (inside Blueclaw) | `f41ae448` | capabilityd, the same catalog | verified on Local Fleet and on the device (internkim#1819) |
+| Claude Code | 2.1.276 | the marketplace entry in the internkim repository | verified end to end (internkim#1823) |
+| Codex | 0.154.0 | reads the root layout natively | recipe published; not exercised against the service |
+| Pi | 0.83.0 | `pi-agent-plugins` and `pi-mcp-adapter` | recipe published; not exercised against the service |
 
 ## The central side
 
