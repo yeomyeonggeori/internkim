@@ -7,6 +7,7 @@
 	import PersonalAPIKeys from './personal-access-tokens.svelte';
 	import ConnectedApps from './connected-apps.svelte';
 	import Notifications from './notifications.svelte';
+	import MyComputer from './my-computer.svelte';
 	import MyMessengerAccount from './my-messenger-account.svelte';
 	import MyAgent from './my-agent.svelte';
 	import LearningSoulSection from '../admin/learning-soul-section.svelte';
@@ -70,6 +71,7 @@
 		<ConnectedApps />
 	{/if}
 	<Notifications />
+	<MyComputer />
 	<MyAgent />
 	<Collapsible.Root bind:open={isMessengerAccountOpen} class="grid gap-3">
 		<Collapsible.Trigger class={buttonVariants({ variant: 'ghost', size: 'sm', class: 'w-fit' })}>

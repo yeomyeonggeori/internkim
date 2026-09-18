@@ -35,14 +35,15 @@ additionally needs the [Cua Driver](https://cua.ai/driver) as `cua-driver` on
 
 ## Pair
 
-Ask Intern Kim to connect your computer. It answers you alone, with a
-ten-minute code already inside the command to run:
+Open Settings → My computer in the web app and press Connect. The page shows
+the install command, a `pair` command with a ten-minute code already inside
+it, and the service command, for you to run on your own computer:
 
 ```bash
 internkim-companion pair --device-url https://<your company computer> --code ABCD-1234
 ```
 
-The reply also carries an `internkim://pair?…` link; `pair` accepts that link
+The page also offers an `internkim://pair?…` link; `pair` accepts that link
 as its only argument. Pairing creates a signing key that never leaves your
 computer (on macOS it lives in the Keychain), and the company computer keeps
 only its public half. `internkim-companion status` shows what is paired and
