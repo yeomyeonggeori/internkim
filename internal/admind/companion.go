@@ -126,9 +126,10 @@ type companionHeartbeatRequest struct {
 }
 
 type companionPairingCodeResponse struct {
-	Code      string    `json:"code"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	DeepLink  string    `json:"deepLink"`
+	Code        string    `json:"code"`
+	ExpiresAt   time.Time `json:"expiresAt"`
+	DeepLink    string    `json:"deepLink"`
+	PairCommand string    `json:"pairCommand"`
 }
 
 type companionStatusResponse struct {
@@ -244,10 +245,12 @@ func (service *Service) createCompanionPairingCodeForOwner(request *http.Request
 	service.pairingCodes[code] = pairingCode
 	service.mutex.Unlock()
 
+	pairingDeviceURL := companionPairingDeviceURL(request, owner.DeviceURL)
 	return companionPairingCodeResponse{
-		Code:      code,
-		ExpiresAt: pairingCode.ExpiresAt,
-		DeepLink:  companionDeepLinkForDeviceURL(request, code, owner.DeviceURL),
+		Code:        code,
+		ExpiresAt:   pairingCode.ExpiresAt,
+		DeepLink:    companionDeepLink(pairingDeviceURL, code),
+		PairCommand: companionPairCommand(pairingDeviceURL, code),
 	}
 }
 
@@ -1160,21 +1163,24 @@ func (service *Service) localCompanionCapabilities() capabilities.RegistryRespon
 	}
 }
 
-func companionDeepLink(request *http.Request, code string) string {
-	return companionDeepLinkForDeviceURL(request, code, "")
-}
-
-func companionDeepLinkForDeviceURL(request *http.Request, code string, deviceURL string) string {
+func companionPairingDeviceURL(request *http.Request, deviceURL string) string {
 	trimmedDeviceURL := strings.TrimRight(strings.TrimSpace(deviceURL), "/")
 	if trimmedDeviceURL != "" {
-		return "internkim://pair?device_url=" + url.QueryEscape(trimmedDeviceURL) + "&code=" + url.QueryEscape(code)
+		return trimmedDeviceURL
 	}
 	scheme := "https"
 	if request.TLS == nil && strings.HasPrefix(request.Host, "127.") {
 		scheme = "http"
 	}
-	inferredDeviceURL := scheme + "://" + request.Host
-	return "internkim://pair?device_url=" + url.QueryEscape(inferredDeviceURL) + "&code=" + url.QueryEscape(code)
+	return scheme + "://" + request.Host
+}
+
+func companionDeepLink(deviceURL string, code string) string {
+	return "internkim://pair?device_url=" + url.QueryEscape(deviceURL) + "&code=" + url.QueryEscape(code)
+}
+
+func companionPairCommand(deviceURL string, code string) string {
+	return "internkim-companion pair --device-url " + deviceURL + " --code " + code
 }
 
 func companionTokenHash(token string) string {

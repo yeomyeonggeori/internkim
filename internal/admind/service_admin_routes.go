@@ -5,21 +5,7 @@ import (
 
 	"strings"
 	"time"
-
-	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
-
-type companionRelease struct {
-	Platform     string `json:"platform"`
-	Label        string `json:"label"`
-	Architecture string `json:"architecture"`
-	Status       string `json:"status"`
-	URL          string `json:"url"`
-}
-
-type companionReleaseResponse struct {
-	Platforms []companionRelease `json:"platforms"`
-}
 
 type adminSessionResponse struct {
 	Email                  string `json:"email"`
@@ -221,8 +207,6 @@ func (service *Service) handleAdminCompanionRoute(responseWriter http.ResponseWr
 		service.createCompanionPairingCode(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/companion/status":
 		service.writeCompanionStatus(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/companion/releases":
-		service.writeCompanionReleases(responseWriter)
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
 		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
 	default:
@@ -331,10 +315,6 @@ func (service *Service) handleAdminBackupRoute(responseWriter http.ResponseWrite
 	return true
 }
 
-func (service *Service) writeCompanionReleases(responseWriter http.ResponseWriter) {
-	service.writeJSON(responseWriter, companionReleaseResponse{Platforms: companionReleases()})
-}
-
 func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, request *http.Request) {
 	callerEmail := service.authenticatedCallerEmail(request)
 	bootstrapResult := service.ensureFirstAdminClaim(request.Context(), callerEmail)
@@ -374,28 +354,4 @@ func (service *Service) writeAdminHealth(responseWriter http.ResponseWriter) {
 		"startedAt":         startedAt,
 		"recoveryAvailable": true,
 	})
-}
-
-func companionReleases() []companionRelease {
-	return []companionRelease{
-		{
-			Platform:     "macos",
-			Label:        "macOS",
-			Architecture: "Apple Silicon beta",
-			Status:       "available",
-			URL:          capabilities.CompanionMacOSBetaDownloadURL(),
-		},
-		{
-			Platform:     "windows",
-			Label:        "Windows",
-			Architecture: "x64",
-			Status:       "coming_soon",
-		},
-		{
-			Platform:     "linux",
-			Label:        "Linux",
-			Architecture: "x64 AppImage",
-			Status:       "coming_soon",
-		},
-	}
 }
