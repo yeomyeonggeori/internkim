@@ -47,7 +47,7 @@ func TestEachRequesterDrivesTheirOwnDeviceBrowser(t *testing.T) {
 }
 
 func TestABusyDeviceTellsTheAgentTheBrowserIsTaken(t *testing.T) {
-	browsers := fakeDeviceBrowsers(1, time.Now())
+	browsers, launchStarted, finishLaunch := deviceBrowsersWhoseLaunchWaits(1)
 	service := Service{
 		Configuration:  Configuration{AgentBrowserPath: "agent-browser-test", DeviceBrowserCapacity: 1},
 		DeviceBrowsers: browsers,
@@ -55,18 +55,24 @@ func TestABusyDeviceTellsTheAgentTheBrowserIsTaken(t *testing.T) {
 			return []byte(`{"success":true,"data":{"snapshot":"","refs":{}}}`), nil
 		},
 	}
-	if _, errorValue := service.invokeCapabilityTool(context.Background(), "browser_snapshot", strings.NewReader(browserSnapshotFrom("kim@example.test"))); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	browsers.HoldUntil("kim@example.test", time.Now().Add(time.Hour))
+	firstDone := make(chan error, 1)
+	go func() {
+		_, errorValue := service.invokeCapabilityTool(context.Background(), "browser_snapshot", strings.NewReader(browserSnapshotFrom("kim@example.test")))
+		firstDone <- errorValue
+	}()
+	<-launchStarted
 
 	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_snapshot", strings.NewReader(browserSnapshotFrom("lee@example.test")))
+	finishLaunch()
 
 	if errorValue != nil {
 		t.Fatalf("expected a failed response, got error %v", errorValue)
 	}
 	if response.Outcome != capabilities.ToolOutcomeFailed || !strings.Contains(response.Content, "all 1 device browsers are in use") {
 		t.Fatalf("response = %+v", response)
+	}
+	if errorValue := <-firstDone; errorValue != nil {
+		t.Fatal(errorValue)
 	}
 }
 

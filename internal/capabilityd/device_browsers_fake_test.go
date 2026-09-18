@@ -32,3 +32,20 @@ func fakeDeviceBrowsers(capacity int, now time.Time) *browserruntime.DeviceBrows
 		},
 	})
 }
+
+func deviceBrowsersWhoseLaunchWaits(capacity int) (*browserruntime.DeviceBrowsers, <-chan struct{}, func()) {
+	launchStarted := make(chan struct{}, capacity)
+	launchGate := make(chan struct{})
+	browsers := browserruntime.NewDeviceBrowsers(browserruntime.DeviceBrowserSettings{
+		StateDirectory: "/var/lib/internkim/device-browsers",
+		FirstPort:      browserruntime.DeviceBrowsersFirstPort,
+		Capacity:       capacity,
+		Now:            time.Now,
+		Launch: func(context.Context, browserruntime.DeviceBrowserLaunch) (browserruntime.RunningDeviceBrowser, error) {
+			launchStarted <- struct{}{}
+			<-launchGate
+			return &fakeRunningBrowser{exited: make(chan struct{})}, nil
+		},
+	})
+	return browsers, launchStarted, func() { close(launchGate) }
+}
