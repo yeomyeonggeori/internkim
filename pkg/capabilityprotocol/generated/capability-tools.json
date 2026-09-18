@@ -2,6 +2,183 @@
   "protocolVersion": "0.4.0",
   "tools": [
     {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "schedule_list",
+      "description": "List scheduled tasks created by the current requester. Filter by active, failed, or expired status and cap the result with limit. Use it to answer what reminders or recurring tasks are scheduled.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "failed",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "schedule_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "schedule_list",
+      "namespace": "schedule",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "schedules": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "cadence": {
+                  "type": "string"
+                },
+                "cronExpression": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "lastRunAt": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "nextRunAt": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "runAt": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "scheduleID": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "active",
+                    "failed",
+                    "expired"
+                  ],
+                  "type": "string"
+                },
+                "taskInstruction": {
+                  "minLength": 1,
+                  "pattern": "\\S",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "scheduleID",
+                "taskInstruction",
+                "cadence",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "schedules"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:schedule_list",
+      "privacyClass": "workspace_schedule",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "schedules": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "cadence": {
+                    "type": "string"
+                  },
+                  "cronExpression": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "lastRunAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "nextRunAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "runAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "scheduleID": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "active",
+                      "failed",
+                      "expired"
+                    ],
+                    "type": "string"
+                  },
+                  "taskInstruction": {
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "scheduleID",
+                  "taskInstruction",
+                  "cadence",
+                  "status"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "schedules"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
       "answeredBy": "record",
       "availability": {
         "state": "ok"

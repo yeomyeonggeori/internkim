@@ -173,6 +173,7 @@ describe('canonical capability tools', () => {
       'person_invite',
       'person_list',
       'person_update',
+      'schedule_list',
       'site_list',
       'site_serve',
       'site_unserve',

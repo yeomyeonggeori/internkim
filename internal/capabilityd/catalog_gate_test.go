@@ -43,6 +43,18 @@ type catalogGateCase struct {
 
 func gateCases() map[string]catalogGateCase {
 	return map[string]catalogGateCase{
+		"schedule_list": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"schedules":[{"scheduleID":"schedule-1","taskInstruction":"prepare the daily report","cadence":"cron","status":"failed"}]}`),
+			},
+			input: `{"status":"failed","limit":1}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"scheduleID":"schedule-1"`)
+				expectResultHolds(t, answered, `"status":"failed"`)
+			},
+		},
 		"message_context": {
 			kind:    provesBehaviour,
 			reaches: reachingTheMessenger(answering(`{"pubkeyHex":"bot-1","name":"internkim"}`)),
