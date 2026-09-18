@@ -22,6 +22,7 @@
 		open = $bindable(false),
 		channel,
 		openMembers,
+		openOwnerAdd,
 		openOwnerHandover,
 		onLeft,
 		onDeleted
@@ -29,6 +30,7 @@
 		open?: boolean;
 		channel: ChannelSummary;
 		openMembers: () => void;
+		openOwnerAdd: () => void;
 		openOwnerHandover: () => void;
 		onLeft: (channelID: string) => void;
 		onDeleted: (channelID: string) => void;
@@ -122,10 +124,21 @@
 					{#if amOwner}
 						<Item.Root>
 							{#snippet child({ props })}
-								<button {...props} type="button" onclick={openOwnerHandover}>
+								<button {...props} type="button" onclick={openOwnerAdd}>
 									<Item.Content class="text-left">
 										<Item.Title>{text.channelOwner}</Item.Title>
 										<Item.Description>{ownerNames}</Item.Description>
+									</Item.Content>
+									<Item.Actions><CrownIcon class="text-muted-foreground size-4" /></Item.Actions>
+								</button>
+							{/snippet}
+						</Item.Root>
+						<Separator />
+						<Item.Root>
+							{#snippet child({ props })}
+								<button {...props} type="button" onclick={openOwnerHandover}>
+									<Item.Content class="text-left">
+										<Item.Title>{text.handOverChannel}</Item.Title>
 									</Item.Content>
 									<Item.Actions><CrownIcon class="text-muted-foreground size-4" /></Item.Actions>
 								</button>
