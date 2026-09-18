@@ -230,6 +230,7 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		"learning-settings":           always(service.learningSettingsScenarioPlans),
 		"morning-briefing":            always(service.morningBriefingScenarioPlans),
 		"memory-store":                always(service.memoryStoreScenarioPlans),
+		"firing-schedules-nothing":    always(service.firingSchedulesNothingScenarioPlans),
 		"personal-settings":           always(service.personalSettingsScenarioPlans),
 		"task-history-retry":          always(service.taskHistoryRetryScenarioPlans),
 		"web-backed-ui":               always(service.webBackedScenarioPlans),
