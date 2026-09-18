@@ -63,8 +63,6 @@ func liveDecisionsQuestions() map[string]DecisionQuestion {
 	}
 }
 
-// The decisions route is OpenRouter's alpha path: this is the test that fails
-// when it moves. github.com/OpenRouterTeam/go-sdk decisions.go
 func TestOpenRouterLiveAlphaDecisionsRouteAnswersTypedQuestions(t *testing.T) {
 	backend, _ := liveOpenRouterBackendFromEnv(t)
 	backend.HTTPClient = httpClientWithTimeout(30 * time.Second)
