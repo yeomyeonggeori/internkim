@@ -1,6 +1,8 @@
 <script lang="ts">
+	import CrownIcon from '@lucide/svelte/icons/crown';
 	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
 	import HashIcon from '@lucide/svelte/icons/hash';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
@@ -12,26 +14,56 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
-	import { MessengerRefusal, leaveChannel } from '$lib/messenger/messenger-api';
+	import { displayPersonName } from '$lib/person-name.svelte';
+	import { MessengerRefusal, deleteChannel, leaveChannel } from '$lib/messenger/messenger-api';
 	import { toast } from 'svelte-sonner';
 
 	let {
 		open = $bindable(false),
 		channel,
 		openMembers,
-		onLeft
+		openOwnerHandover,
+		onLeft,
+		onDeleted
 	}: {
 		open?: boolean;
 		channel: ChannelSummary;
 		openMembers: () => void;
+		openOwnerHandover: () => void;
 		onLeft: (channelID: string) => void;
+		onDeleted: (channelID: string) => void;
 	} = $props();
 
 	const text = createPageText(channelText);
 	const members = $derived(channel.members ?? []);
 	const memberCountLabel = $derived(text.channelMemberCount.replace('{count}', String(members.length)));
+	const owners = $derived(members.filter((member) => member.role === 'owner'));
+	const ownerNames = $derived(owners.map((owner) => displayPersonName(owner.name) || text.unnamedMember).join(', '));
+	const amOwner = $derived(channel.myRole === 'owner');
+
 	let isConfirmingLeave = $state(false);
 	let isLeaving = $state(false);
+	let isConfirmingDelete = $state(false);
+	let isDeleting = $state(false);
+
+	async function remove() {
+		isDeleting = true;
+		try {
+			await deleteChannel(channel.id);
+			isConfirmingDelete = false;
+			open = false;
+			onDeleted(channel.id);
+		} catch (failure) {
+			isConfirmingDelete = false;
+			if (failure instanceof MessengerRefusal && failure.reason === 'not-owner') {
+				toast.error(text.notChannelOwner);
+			} else {
+				toast.error(failure instanceof Error ? failure.message : text.deleteChannelFailed);
+			}
+		} finally {
+			isDeleting = false;
+		}
+	}
 
 	async function leave() {
 		isLeaving = true;
@@ -87,6 +119,27 @@
 						</Item.Content>
 					</Item.Root>
 					<Separator />
+					{#if amOwner}
+						<Item.Root>
+							{#snippet child({ props })}
+								<button {...props} type="button" onclick={openOwnerHandover}>
+									<Item.Content class="text-left">
+										<Item.Title>{text.channelOwner}</Item.Title>
+										<Item.Description>{ownerNames}</Item.Description>
+									</Item.Content>
+									<Item.Actions><CrownIcon class="text-muted-foreground size-4" /></Item.Actions>
+								</button>
+							{/snippet}
+						</Item.Root>
+					{:else}
+						<Item.Root>
+							<Item.Content>
+								<Item.Title>{text.channelOwner}</Item.Title>
+								<Item.Description>{ownerNames}</Item.Description>
+							</Item.Content>
+						</Item.Root>
+					{/if}
+					<Separator />
 					<Item.Root>
 						{#snippet child({ props })}
 							<button {...props} type="button" onclick={openMembers}>
@@ -133,11 +186,39 @@
 							</button>
 						{/snippet}
 					</Item.Root>
+					{#if amOwner}
+						<Separator />
+						<Item.Root>
+							{#snippet child({ props })}
+								<button {...props} type="button" onclick={() => (isConfirmingDelete = true)}>
+									<Item.Media variant="icon"><Trash2Icon class="text-destructive" /></Item.Media>
+									<Item.Content class="text-left">
+										<Item.Title class="text-destructive">{text.deleteChannel}</Item.Title>
+									</Item.Content>
+								</button>
+							{/snippet}
+						</Item.Root>
+					{/if}
 				</div>
 			</div>
 		</div>
 	</Sheet.Content>
 </Sheet.Root>
+
+<AlertDialog.Root bind:open={isConfirmingDelete}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>{text.deleteChannelTitle.replace('{name}', channel.name)}</AlertDialog.Title>
+			<AlertDialog.Description>{text.deleteChannelDescription}</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel disabled={isDeleting}>{text.cancel}</AlertDialog.Cancel>
+			<AlertDialog.Action variant="destructive" disabled={isDeleting} onclick={remove}>
+				{text.delete}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
 
 <AlertDialog.Root bind:open={isConfirmingLeave}>
 	<AlertDialog.Content>
