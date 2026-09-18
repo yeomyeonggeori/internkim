@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
@@ -11,9 +12,9 @@ from zoneinfo import ZoneInfo
 evidence = Path(sys.argv[1])
 evidence.mkdir(parents=True, exist_ok=True)
 requester_email = "member4@example.com"
-schedule_write_events = {"tool.schedule_create.requested", "tool.schedule_update.requested"}
+schedule_write_events = {"tool.schedule_create.requested", "tool.schedule_update.requested", "tool.schedule_cancel.requested"}
 firings = {
-    "work-only": '현재 대화에 "주간 보고를 작성하세요"라고 보낸다.',
+    "work-only": "도구를 사용하지 말고 173 + 289의 결과를 짧게 답한다.",
     "reads-like-a-request": "매일 이 시간에 주간 보고 알림을 보내줘.",
 }
 
@@ -52,29 +53,42 @@ def schedules_of(person_id):
     return {item["taskScheduleID"]: item for item in request("/admin/api/schedule?" + query)["schedules"]}
 
 
+def statuses_of(schedules):
+    return {schedule_id: item.get("status") for schedule_id, item in schedules.items()}
+
+
 def create_daily_schedule(name, task_instruction, run_at, time_zone_name):
-    answer = request("/record/api/tools/schedule_create/invoke", {
+    conversation_id = "api:firing-schedules-nothing:" + str(uuid.uuid4())
+    answer = request("/memory/api/schedules/tool-create", {
         "description": "firing-schedules-nothing " + name,
         "taskInstruction": task_instruction,
         "kind": "cron",
         "cronExpression": f"{run_at.minute} {run_at.hour} * * *",
         "timeZone": time_zone_name,
         "repeatPolicy": "unbounded",
+        "platform": "api",
+        "conversationID": conversation_id,
+        "replyTargetID": conversation_id,
     }, as_requester=True)
-    schedule_id = (answer.get("result") or {}).get("scheduleID")
+    schedule_id = answer.get("scheduleID")
     if not isinstance(schedule_id, str):
         raise RuntimeError(f"schedule_create returned no schedule: {answer}")
     return schedule_id
 
 
+def launched_from(detail):
+    launches = [json.loads(event["body"]) for event in detail["taskEvents"] if event["name"] == "agent.task_launched"]
+    return launches[0].get("sourceReference") if launches else None
+
+
 def fired_run(person_id, schedule_id, name):
-    schedule = schedules_of(person_id).get(schedule_id)
-    if not schedule or not schedule.get("lastTaskRunID"):
-        return None
-    detail = request("/admin/api/run/detail?" + urlencode({"taskRunID": schedule["lastTaskRunID"]}))
-    if detail["taskRun"]["status"] in {"planned", "running"}:
-        return None
-    return save("run-" + name, detail)
+    for listed in request("/admin/api/run?viewerIsAdmin=true"):
+        if listed["requesterPersonID"] != person_id or listed["status"] in {"planned", "running"}:
+            continue
+        detail = request("/admin/api/run/detail?" + urlencode({"taskRunID": listed["taskRunID"], "viewerIsAdmin": "true"}))
+        if launched_from(detail) == schedule_id:
+            return save("run-" + name, detail)
+    return None
 
 
 def main():
@@ -83,23 +97,24 @@ def main():
     assert len(people) == 1, "the isolated seed account must resolve uniquely"
     person_id = people[0]["personID"]
     time_zone_name = policy["company"].get("timeZone") or "Asia/Seoul"
-    before = set(save("schedules-before", schedules_of(person_id)))
+    before = statuses_of(save("schedules-before", schedules_of(person_id)))
     created = {}
     try:
         run_at = datetime.now(ZoneInfo(time_zone_name)).replace(second=0, microsecond=0) + timedelta(minutes=2)
         for name, task_instruction in firings.items():
             created[name] = create_daily_schedule(name, task_instruction, run_at, time_zone_name)
+        expected = {**before, **statuses_of(schedules_of(person_id))}
         for name, schedule_id in created.items():
             detail = wait_for(lambda: fired_run(person_id, schedule_id, name), f"the {name} schedule to fire and settle", 600)
             assert detail["taskRun"]["status"] == "completed", f"{name}: the fired run ended {detail['taskRun']['status']}"
             written = [event["name"] for event in detail["taskEvents"] if event["name"] in schedule_write_events]
             assert not written, f"{name}: the fired run wrote a schedule: {written}"
-        after = set(save("schedules-after", schedules_of(person_id)))
-        assert after == before | set(created.values()), f"firing left schedules nobody asked for: {sorted(after - before - set(created.values()))}"
+        after = statuses_of(save("schedules-after", schedules_of(person_id)))
+        assert after == expected, f"firing changed the schedules: expected {expected}, found {after}"
         save("revision", request("/admin/api/harness"))
         print("firing-schedules-nothing: ok", flush=True)
     finally:
-        for schedule_id in set(schedules_of(person_id)) - before:
+        for schedule_id in set(schedules_of(person_id)) - set(before):
             request("/admin/api/schedule/delete", {"taskScheduleID": schedule_id, "creatorPersonID": person_id}, accepted=(200, 404))
 
 
