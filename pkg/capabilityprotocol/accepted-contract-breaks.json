@@ -1,8 +1,8 @@
 [
 	{
-		"path": "browser_handoff.result.page",
-		"reason": "A handoff now says what the device browser shows, so the agent stops describing a page it never saw. browser_handoff is answered only by the device's own capabilityd, which ships in the same release as this catalog, and the plane never answers it; no reader holds the old closed shape against a newer answer.",
-		"release": "the release cut after this change merges, which carries the catalog and the capabilityd that answers with page together"
+		"path": "browser_handoff",
+		"reason": "The browser handoff is removed: the device browser is no longer handed to the requester on the website, and login, MFA, captcha and sensitive steps are not done in the device browser at all. browser_handoff was answered only by the device's own capabilityd, which ships in the same release as this catalog, and the plane never answered it. A device on an older release keeps the descriptor its own build embeds and its own capabilityd still answers it until it takes this release, when both go together.",
+		"release": "the release cut after this change merges, which drops the descriptor and the capabilityd handler together"
 	},
 	{
 		"path": "attendance_add.result.event",

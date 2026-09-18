@@ -884,7 +884,6 @@ func gateCases() map[string]catalogGateCase {
 const (
 	implementedOnThePlaneToo = "implemented twice, once in Go here and once on the plane; step 4 of internkim#1254 deletes the Go handler, and the case written then is as thin as leave's"
 	overIMAPAndSMTP          = "answered over IMAP and SMTP, which no stand-in here speaks yet"
-	throughTheRelay          = "hands the device browser over through the relay, which this gate does not run"
 	reachesLivePublicURLs    = "fetches live public URLs"
 )
 
@@ -906,7 +905,6 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"mail_message_read":      overIMAPAndSMTP,
 	"mail_message_search":    overIMAPAndSMTP,
 	"mail_message_send":      overIMAPAndSMTP,
-	"browser_handoff":        throughTheRelay,
 	"web_fetch":              reachesLivePublicURLs,
 }
 

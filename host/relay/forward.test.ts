@@ -98,10 +98,6 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 				admindCalls.push(call);
 				return { status: 200, body: { served: call.url } };
 			},
-			serveBrowserHandoff: async (capability: string, body: Record<string, unknown>, memberID: string) => {
-				asked.push({ capability, body: { ...body, memberID } });
-				return { status: 200, body: { handedTo: memberID } };
-			},
 			largestFileBytes: 200_000_000
 		}
 	};
@@ -196,25 +192,6 @@ describe('serveCallForMember', () => {
 			body: { served: 'asset.link' },
 			replyTo: 'member-1'
 		});
-	});
-
-	test('a browser handoff call is served by the handoffs without a messenger account', async () => {
-		const { asked, dispatch } = dispatchThatKnows({});
-
-		const served = await serveCallForMember(dispatch, {
-			callID: 'c1',
-			capability: 'person.browser.handoff.watch',
-			body: { handoffID: 'handoff-1' }
-		}, 'member-without-messenger');
-
-		expect(served).toEqual({
-			status: 200,
-			body: { handedTo: 'member-without-messenger' },
-			replyTo: 'member-without-messenger'
-		});
-		expect(asked).toEqual([
-			{ capability: 'person.browser.handoff.watch', body: { handoffID: 'handoff-1', memberID: 'member-without-messenger' } }
-		]);
 	});
 
 	test('a workspace call is asked of the workspace as the person who asked', async () => {
