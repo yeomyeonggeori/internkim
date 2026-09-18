@@ -16,15 +16,16 @@ person's identity is never handed to it.
 
 ## Install
 
-Build it from the repository and put it on your `PATH`:
+One line downloads the build for your macOS or Linux computer, checks it
+against the published checksum, and puts it in `~/.local/bin`:
 
 ```bash
-make build-companion
-mkdir -p ~/.local/bin && mv internkim-companion ~/.local/bin/
+curl -fsSL https://intern.kim/companion/install.sh | sh
 ```
 
-From a checkout, `./internkim companion upgrade` does the same in one step
-and restarts the background service when one is installed.
+Run it again to update; a running background service is restarted. From a
+checkout, `make build-companion` builds the same binary and
+`./internkim companion upgrade` installs it.
 
 The browser tools need Google Chrome on the computer; the companion drives it
 with its own Intern Kim profile and an extension embedded in the binary, so
@@ -34,8 +35,8 @@ additionally needs the [Cua Driver](https://cua.ai/driver) as `cua-driver` on
 
 ## Pair
 
-Type `/connect` in the messenger. The reply is yours alone and holds a
-ten-minute code, already inside the command to run:
+Ask Intern Kim to connect your computer. It answers you alone, with a
+ten-minute code already inside the command to run:
 
 ```bash
 internkim-companion pair --device-url https://<your company computer> --code ABCD-1234

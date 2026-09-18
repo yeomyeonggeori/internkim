@@ -168,6 +168,14 @@ func CompanionInstallURL() string {
 	return "https://docs.intern.kim/docs/companion"
 }
 
+func CompanionInstallCommand() string {
+	return "curl -fsSL https://intern.kim/companion/install.sh | sh"
+}
+
+func CompanionServiceCommand() string {
+	return "internkim-companion service install"
+}
+
 func CompanionConnectRecovery() *RecoveryAction {
 	return &RecoveryAction{
 		Kind:           "companion_connect",

@@ -40,7 +40,33 @@ const computerTaskResultSchema = z.strictObject({
   }).describe('The page as it was when the task ended, so the caller can judge the result itself.'),
 });
 
+const computerConnectInputSchema = z.strictObject({});
+
+const computerConnectResultSchema = z.strictObject({
+  code: z.string().describe('A pairing code that works for ten minutes and belongs to the requester alone.'),
+  expiresAt: z.string().describe('When the code stops working, as an RFC 3339 timestamp.'),
+  installCommand: z.string().describe('Installs or updates the companion binary. Skip it when the requester already has the companion installed.'),
+  pairCommand: z.string().describe("Pairs the companion on the requester's computer with this company computer, code included."),
+  serviceCommand: z.string().describe('Keeps the companion running in the background after pairing.'),
+  documentationURL: z.string().describe('The companion page in the documentation.'),
+});
+
 export const computerToolDefinitions: CapabilityToolDefinition[] = [
+  {
+    name: "computer_connect",
+    namespace: "computer",
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: "user_browser",
+    policyResource: "tool:computer_connect",
+    description: "Issue a pairing code so the requester can connect the companion on their own computer. Call it when computer_task or a browser tool was denied with not_connected, or when the requester asks to connect their computer. Give the requester the commands to run in order: installCommand (skip it when the companion is already installed), pairCommand, then serviceCommand. The code is the requester's alone: send it in a direct message, never in a channel.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: computerConnectInputSchema,
+    inputIntentSchema: computerConnectInputSchema,
+    result: { schema: computerConnectResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Connect,
+    requiresUserPresence: true,
+  },
   {
     name: "computer_task",
     namespace: "computer",
