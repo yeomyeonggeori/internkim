@@ -3,6 +3,7 @@ import importlib.util
 import pathlib
 import sys
 import unittest
+import unittest.mock
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -49,12 +50,17 @@ class CollisionsBetweenTest(unittest.TestCase):
         self.assertIn("TOOLS_BEING_MOVED", collisions[0])
 
     def test_a_tool_being_moved_is_allowed_to_exist_on_both_sides(self):
-        for tool_name in verify_tool_name_collisions.TOOLS_BEING_MOVED:
+        with unittest.mock.patch.dict(
+            verify_tool_name_collisions.TOOLS_BEING_MOVED, {"task_add": "moving for this test"}
+        ):
             collisions = verify_tool_name_collisions.collisions_between(
-                {tool_name}, {tool_name}, {tool_name}
+                {"task_add"}, {"task_add"}, {"task_add"}
             )
 
-            self.assertEqual(collisions, [])
+        self.assertEqual(collisions, [])
+
+    def test_nothing_is_being_moved(self):
+        self.assertEqual(verify_tool_name_collisions.TOOLS_BEING_MOVED, {})
 
     def test_a_name_neither_native_side_serves_is_not_a_collision(self):
         collisions = verify_tool_name_collisions.collisions_between(
