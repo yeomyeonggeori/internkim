@@ -172,19 +172,6 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
 			},
 		},
-		// Connecting is answered here, not by the companion: the device issues
-		// a code addressed to whoever asked and hands back the commands to run.
-		"computer_connect": {
-			kind:    provesBehaviour,
-			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"code":"ABCD-1234","expiresAt":"2026-09-18T09:10:00Z","deepLink":"internkim://pair?device_url=https%3A%2F%2Fdevice.example.test&code=ABCD-1234","pairCommand":"internkim-companion pair --device-url https://device.example.test --code ABCD-1234"}`)},
-			input:   `{}`,
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"code":"ABCD-1234"`)
-				expectResultHolds(t, answered, `"pairCommand":"internkim-companion pair --device-url https://device.example.test --code ABCD-1234"`)
-				expectResultHolds(t, answered, `"installCommand":"curl -fsSL https://intern.kim/companion/install.sh | sh"`)
-			},
-		},
 		"site_serve": {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"siteID":"s1","slug":"q3-report","status":"published","publishedURL":"https://example.test/q3-report","previewURL":"https://example.test/preview/q3-report"}`)},

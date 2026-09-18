@@ -199,10 +199,10 @@ Login, MFA, and captcha steps are handed to the human.
 
 <ToolCatalog namespace="computer" />
 
-`computer_connect` is answered on the device
-(`internal/capabilityd/computer_connect_tool.go`): it asks admind for a
-ten-minute pairing code addressed to the requester and hands back the install,
-pair and service commands to relay. The rest is implemented in
+Pairing starts in Settings → My computer of the web app: admind issues a
+ten-minute code addressed to the signed-in member
+(`internal/admind/companion_member_routes.go`) and the page shows the install,
+pair and service commands to run. The tool itself is implemented in
 `internal/companion/computer`. The companion opens its own
 persistent browser profile through [Cua Driver](https://cua.ai/driver), and
 for each step asks the device to put the page and a bounded list of candidate

@@ -263,5 +263,10 @@
 		"path": "llm_text",
 		"reason": "llm_text, llm_structured, embedding_create and attention_triage are the jobs capabilityd and admind hand the companion, not tools, and nothing ever called them as tools. blueclaw is stamped with DefaultToolDescriptors, which never held them, and capabilityd answers a tool call only for a descriptor in that set; the plane's API offers no tool that is answered locally or states no result contract, and these were both. The job names and their input and output schemas are unchanged: CompanionLLMDescriptors now authors them in Go beside the executor that answers them, and a device on an older release reads them from the catalog its own build embeds.",
 		"release": "none: the Go descriptors ship in the same build that drops them from the catalog, and neither the plane nor a device looks these names up in a catalog it did not ship with"
+	},
+	{
+		"path": "computer_connect",
+		"reason": "Connecting a computer moves from the agent to Settings → My computer in the web app: admind issues the pairing code to the signed-in member and the page shows the commands, so the tool that relayed them in a direct message goes. computer_connect was answered only by the device's own capabilityd, which ships in the same release as this catalog, and the plane never answered it. A device on an older release keeps the descriptor its own build embeds and its own capabilityd still answers it until it takes this release, when both go together.",
+		"release": "the release cut after this change merges, which drops the descriptor and the capabilityd handler together"
 	}
 ]
