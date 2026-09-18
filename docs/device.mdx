@@ -73,12 +73,10 @@ the device's Moli browser handles plain public-text navigation. Each requester
 gets a Moli of their own with its own profile, so one person's sign-ins never
 reach another's; capabilityd starts it on first use and stops it after ten idle
 minutes. At most four run at once (`--device-browser-capacity`): the least
-recently used is stopped to make room, and when every one is held by a handoff
+recently used is stopped to make room, and while every one is still starting
 the agent tells the requester the browser is busy. Login, MFA, captcha,
-sensitive inputs and account-risky actions go through a browser handoff, which
-hands the requester's device browser to them on the intern.kim website. The relay streams its screen to that person alone, passes their clicks
-and typing back, and resumes the conversation when they finish, stop, or let it
-expire after 15 minutes.
+sensitive inputs and account-risky actions are not done in the device browser;
+the agent says what blocks it and stops.
 
 ## Deploying to a device
 

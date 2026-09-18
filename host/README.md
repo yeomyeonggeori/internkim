@@ -114,7 +114,7 @@ read, whether required or optional, in one table:
 | `CHATD_BOT_USER_NAME` | host | the messenger bot's display name, required by host/entrypoint.sh |
 | `CHATD_LISTEN_PORT` | host | the loopback port host/entrypoint.sh starts chatd on; defaults to 18090 |
 | `DATABASE_URL` | host | the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime) |
-| `DEVICE_BROWSER_CAPACITY` | host | the most device browsers capabilityd runs at once, one per requester; when every one is held by a handoff the next requester is told the browser is busy; defaults to 4 |
+| `DEVICE_BROWSER_CAPACITY` | host | the most device browsers capabilityd runs at once, one per requester; the least recently used is stopped to make room, and while every one is still starting the next requester is told the browser is busy; defaults to 4 |
 | `DEVICE_BROWSER_PORT` | host | the first loopback port capabilityd starts a requester's moli serve on, each further browser taking the next free port; defaults to 9230 |
 | `DEVICE_BROWSER_STATE_DIR` | host | where each requester's device browser keeps its profile and HTTP cache across restarts, under members/<key>; defaults to /var/lib/internkim-moli |
 | `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |

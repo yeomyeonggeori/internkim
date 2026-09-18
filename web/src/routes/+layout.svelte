@@ -7,7 +7,7 @@
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
-	import { appSectionPathOf, isFullScreenApp, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
+	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
 	import { routePathOf } from '$lib/company-path';
 	import BuzzIdentityGate from '$lib/components/buzz/buzz-identity-gate.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
@@ -283,12 +283,6 @@
 		</Sidebar.Provider>
 		<AppCommandPalette bind:open={isCommandPaletteOpen} />
 	</Tooltip.Provider>
-{:else if isFullScreenApp(page.url.pathname)}
-	<div class="flex h-svh w-full bg-background text-foreground">
-		<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
-			{@render children()}
-		</WebAuthGate>
-	</div>
 {:else}
 	{@render children()}
 {/if}

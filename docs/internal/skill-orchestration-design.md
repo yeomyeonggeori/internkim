@@ -119,7 +119,7 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 사용자 컴퓨터에서만 가능한 일을 Companion으로 보낸다.
 
 - 브라우저는 발화자 Companion browser를 우선 사용하고, Companion이 없을 때만 장비의 Moli 브라우저로 단순 텍스트 탐색을 처리한다.
-- 로그인, MFA, captcha, 민감 입력은 `browser_handoff`로 처리한다. 브라우저 핸드오프는 장비의 브라우저를 intern.kim 웹사이트에서 요청자에게 넘겨준다.
+- 로그인, MFA, captcha, 민감 입력은 장비 브라우저로 하지 않는다. 무엇에 막혔는지 말하고 멈춘다.
 - 일반 사용자 입력 대기는 `user_input`, irreversible action 확인은 `user_confirm`으로 처리한다.
 - 파일/디렉토리 정리는 dry-run 결과를 먼저 보여주고 승인 후 실행한다.
 - 터미널은 dev/admin profile 전용으로 유지한다.

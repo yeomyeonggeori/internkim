@@ -151,8 +151,7 @@ internkim-capabilityd \
   --device-browser-state-dir "${deviceBrowserStateDirectory}" \
   --device-browser-first-port "${deviceBrowserPort}" \
   --device-browser-capacity "${deviceBrowserCapacity}" \
-  --device-browser-user blueclaw \
-  --relay-url "http://127.0.0.1:${arrivalsPort}" &
+  --device-browser-user blueclaw &
 capabilitydPid="$!"
 
 while [ ! -S "${capabilitySocketPath}" ]; do

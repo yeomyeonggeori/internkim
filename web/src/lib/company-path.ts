@@ -9,7 +9,6 @@ export const reservedFirstSegments = [
 	'crm',
 	'files',
 	'flow',
-	'handoff',
 	'task',
 	'mail',
 	'manifest-apple.webmanifest',
