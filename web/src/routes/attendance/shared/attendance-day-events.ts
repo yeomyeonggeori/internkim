@@ -45,6 +45,12 @@ export function computeDayEvents(date: string, events: AttendanceEvent[], option
 	return { date, events: sorted, segments, activeSegment, clockIn, clockOut, workedMinutes, inProgress };
 }
 
+export function elapsedWorkedMinutes(day: DayEvents, now: Date): number {
+	if (!day.activeSegment) return day.workedMinutes;
+	const elapsed = (now.getTime() - new Date(day.activeSegment.clockIn.occurredAt).getTime()) / 60000;
+	return day.workedMinutes + Math.max(0, Math.round(elapsed));
+}
+
 export function minutesBetween(start: string, end: string): number {
 	const startMs = new Date(start).getTime();
 	const endMs = new Date(end).getTime();

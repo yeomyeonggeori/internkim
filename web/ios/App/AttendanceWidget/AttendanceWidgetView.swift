@@ -34,7 +34,7 @@ struct AttendanceWidgetView: View {
         VStack(alignment: .leading, spacing: 7) {
             header
             WorkedTime(entry: entry, size: 19)
-            AttendanceBar(today: entry.today, locations: entry.locations)
+            DayBar(entry: entry)
             statusLine
             Spacer(minLength: 0)
             actionButtons(showingLocations: false)
@@ -47,7 +47,7 @@ struct AttendanceWidgetView: View {
                 header
                 WorkedTime(entry: entry, size: 21)
                 whereabouts
-                AttendanceBar(today: entry.today, locations: entry.locations)
+                DayBar(entry: entry)
                 statusLine
                 Spacer(minLength: 0)
             }
@@ -159,18 +159,7 @@ private struct WorkedTime: View {
     let size: CGFloat
 
     var body: some View {
-        if entry.today.isWorking {
-            Text(countingFrom, style: .timer)
-                .font(.system(size: size, weight: .medium, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        } else {
-            DurationText(minutes: entry.today.workedMinutes, size: size, dimmed: entry.today.workedMinutes == 0)
-        }
-    }
-
-    private var countingFrom: Date {
-        entry.date.addingTimeInterval(-Double(entry.today.workedMinutes) * 60)
+        DurationText(minutes: entry.workedMinutes, size: size, dimmed: !entry.today.isWorking && entry.workedMinutes == 0)
     }
 }
 
@@ -200,18 +189,13 @@ private struct DurationText: View {
     }
 }
 
-private struct AttendanceBar: View {
-    let today: AttendanceToday
-    let locations: [WorkLocation]
+private struct DayBar: View {
+    let entry: AttendanceEntry
 
-    private var filled: Double {
-        min(1, Double(today.workedMinutes) / (60 * 24))
-    }
-
-    private var tint: Color {
-        guard let name = today.location,
-              let location = locations.first(where: { $0.name == name }),
-              let color = Color(hex: location.color) else { return .accentColor }
+    private func tint(of bar: AttendanceBar) -> Color {
+        guard let name = bar.location,
+              let location = entry.locations.first(where: { $0.name == name }),
+              let color = Color(hex: location.color) else { return .secondary }
         return color
     }
 
@@ -219,7 +203,14 @@ private struct AttendanceBar: View {
         GeometryReader { area in
             ZStack(alignment: .leading) {
                 Capsule().fill(.quaternary)
-                Capsule().fill(tint).frame(width: area.size.width * filled)
+                HStack(spacing: 0) {
+                    ForEach(Array(entry.today.bars(currentTime: entry.currentTime).enumerated()), id: \.offset) { _, bar in
+                        Rectangle()
+                            .fill(tint(of: bar))
+                            .frame(width: area.size.width * min(1, bar.widthPercent / 100))
+                    }
+                }
+                .clipShape(Capsule())
             }
         }
         .frame(height: 6)
