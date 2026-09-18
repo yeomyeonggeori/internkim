@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import catalogDocument from '../../../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import {
 	baseCatalogAnswer,
+	parseToolCatalog,
 	permissionForTool,
 	toolReachableBy,
 	toolsReachableBy
@@ -43,5 +45,84 @@ describe('the base catalog answer', () => {
 		expect(answered.catalog.live).toBe('/api/v1/tools?live=true');
 		expect(answered.catalog.protocolVersion).toMatch(/^\d+\.\d+\.\d+$/);
 		expect(answered.tools).toEqual(toolsReachableBy('read'));
+	});
+});
+
+describe('the canonical tool descriptor boundary', () => {
+	test('round-trips the complete generated catalog without pruning or rewriting metadata', () => {
+		const generatedDocument: unknown = catalogDocument;
+		const parsedDocument: unknown = parseToolCatalog(generatedDocument);
+		expect(parsedDocument).toEqual(generatedDocument);
+	});
+
+	test('preserves approval, idempotency, and effect metadata', () => {
+		const descriptor = toolReachableBy('message_send', 'delete');
+		expect(descriptor).toBeDefined();
+		if (!descriptor) return;
+
+		const parsed = parseToolCatalog({ protocolVersion: 'test', tools: [descriptor] });
+		expect(parsed.tools[0]).toEqual(descriptor);
+		expect(parsed.tools[0]?.requiresApproval).toBe(true);
+		expect(parsed.tools[0]?.idempotency).toEqual(descriptor.idempotency);
+		expect(parsed.tools[0]?.resultContract).toEqual(descriptor.resultContract);
+	});
+
+	test('refuses missing required metadata instead of filling it', () => {
+		const descriptor = toolReachableBy('message_send', 'delete');
+		expect(descriptor).toBeDefined();
+		if (!descriptor) return;
+
+		const { idempotency: _missingIdempotency, ...incompleteDescriptor } = descriptor;
+		expect(() =>
+			parseToolCatalog({ protocolVersion: 'test', tools: [incompleteDescriptor] })
+		).toThrow();
+	});
+
+	test('refuses malformed approval metadata', () => {
+		const descriptor = toolReachableBy('message_send', 'delete');
+		expect(descriptor).toBeDefined();
+		if (!descriptor) return;
+
+		expect(() =>
+			parseToolCatalog({
+				protocolVersion: 'test',
+				tools: [{ ...descriptor, requiresApproval: 'yes' }]
+			})
+		).toThrow();
+	});
+
+	test('refuses incomplete effect metadata', () => {
+		const descriptor = toolReachableBy('message_send', 'delete');
+		expect(descriptor).toBeDefined();
+		expect(descriptor?.resultContract).toBeDefined();
+		if (!descriptor || !descriptor.resultContract) return;
+
+		expect(() =>
+			parseToolCatalog({
+				protocolVersion: 'test',
+				tools: [
+					{
+						...descriptor,
+						resultContract: {
+							...descriptor.resultContract,
+							effects: [{ objectType: 'message', effect: 'sent' }]
+						}
+					}
+				]
+			})
+		).toThrow();
+	});
+
+	test('refuses descriptor fields outside the canonical schema', () => {
+		const descriptor = toolReachableBy('message_send', 'delete');
+		expect(descriptor).toBeDefined();
+		if (!descriptor) return;
+
+		expect(() =>
+			parseToolCatalog({
+				protocolVersion: 'test',
+				tools: [{ ...descriptor, inventedApprovalPolicy: 'always' }]
+			})
+		).toThrow();
 	});
 });
