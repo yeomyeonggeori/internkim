@@ -5,27 +5,29 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/modelladder"
+	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-func stampBlueclawDecisionModel(runtimeDocument map[string]any) {
-	languageModel, exists := runtimeDocument["languageModel"].(map[string]any)
+func blueclawLanguageModelSections(runtimeDocument map[string]any) (languageModel map[string]any, capability map[string]any, exists bool) {
+	languageModel, exists = runtimeDocument["languageModel"].(map[string]any)
+	if !exists {
+		return nil, nil, false
+	}
+	capability, exists = languageModel["capability"].(map[string]any)
+	return languageModel, capability, exists
+}
+
+func stampBlueclawLadderOwnedModels(runtimeDocument map[string]any) {
+	_, capability, exists := blueclawLanguageModelSections(runtimeDocument)
 	if !exists {
 		return
 	}
-	capability, exists := languageModel["capability"].(map[string]any)
-	if !exists {
-		return
-	}
-	capability["decisionModel"] = modelladder.DecisionModel
+	blueclawruntime.StampLadderOwnedModels(capability)
 }
 
 func migrateBlueclawCapabilityModelConfiguration(runtimeDocument map[string]any) {
-	languageModel, exists := runtimeDocument["languageModel"].(map[string]any)
+	languageModel, capability, exists := blueclawLanguageModelSections(runtimeDocument)
 	if !exists || languageModel["tiers"] != nil {
-		return
-	}
-	capability, exists := languageModel["capability"].(map[string]any)
-	if !exists {
 		return
 	}
 	provider, isLegacy := languageModel["defaultProvider"].(string)
