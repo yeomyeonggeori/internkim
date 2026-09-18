@@ -35,6 +35,7 @@ export type ACompanyPlane = {
 	agentAPIKey: string;
 	admindURL: string;
 	blueclawURL: string;
+	blueclawDatabaseURL: string;
 	requesterSocketPath: string;
 	capabilitySocketPath: string;
 	blueclawACPSocketPath: string;
@@ -59,6 +60,110 @@ type PlaneRequest = {
 	inbound?: 'connectors' | 'acp';
 	keepRunDirectory?: boolean;
 };
+
+type CapabilitydPlaneArguments = {
+	socketPath: string;
+	openRouterKeyPath: string;
+	blueclawURL: string;
+	admindURL: string;
+	chatdEndpoint: string;
+	chatdPlatform: string;
+	deviceBrowserPath: string;
+	deviceBrowserStateDirectory: string;
+	relayURL: string;
+	admindSocketPath: string;
+};
+
+type BlueclawPlaneArguments = {
+	runtimeConfigurationPath: string;
+	policyPath: string;
+	acpSocketPath: string;
+	inbound: string;
+};
+
+type AdmindPlaneArguments = {
+	listenAddress: string;
+	capabilitySocketPath: string;
+	chatdEndpoint: string;
+	chatdPlatform: string;
+	blueclawURL: string;
+	blueclawPolicyPath: string;
+	buzzKeySeedPath: string;
+	buzzDatabaseURLPath: string;
+	buzzRelayKeyPath: string;
+	buzzAdminCommandPath: string;
+	buzzRelayURL: string;
+	buzzAccountLinksPath: string;
+	siteScaffoldPath: string;
+	centralPlaneAppURL: string;
+	centralPlaneAgentKeyPath: string;
+	centralPlaneProjectURL: string;
+	centralPlanePublishableKey: string;
+	listenSocketPath: string;
+	stateDirectory: string;
+	databasePath: string;
+};
+
+export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlaneArguments): string[] {
+	return theArgumentsThatStart(
+		'internkim-capabilityd',
+		{
+			'--socket': argumentsForPlane.socketPath,
+			'--openrouter-key': argumentsForPlane.openRouterKeyPath,
+			'--local-inference-mode': 'remote',
+			'--blueclaw-url': argumentsForPlane.blueclawURL,
+			'--admind-url': argumentsForPlane.admindURL,
+			'--chatd-endpoint': argumentsForPlane.chatdEndpoint,
+			'--chatd-platform': argumentsForPlane.chatdPlatform,
+			'--device-browser': argumentsForPlane.deviceBrowserPath,
+			'--device-browser-state-dir': argumentsForPlane.deviceBrowserStateDirectory,
+			'--device-browser-first-port': '9230',
+			'--device-browser-capacity': '1',
+			'--device-browser-user': 'blueclaw',
+			'--relay-url': argumentsForPlane.relayURL
+		},
+		{ '--admind-socket': argumentsForPlane.admindSocketPath }
+	);
+}
+
+export function blueclawArgumentsForPlane(argumentsForPlane: BlueclawPlaneArguments): string[] {
+	return theArgumentsThatStart('blueclaw', {
+		'-runtime': argumentsForPlane.runtimeConfigurationPath,
+		'-policy': argumentsForPlane.policyPath,
+		'-acp-socket': argumentsForPlane.acpSocketPath,
+		'-inbound': argumentsForPlane.inbound
+	});
+}
+
+export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments): string[] {
+	return theArgumentsThatStart(
+		'internkim-admind',
+		{
+			'-listen': argumentsForPlane.listenAddress,
+			'-capability-socket': argumentsForPlane.capabilitySocketPath,
+			'-chatd-endpoint': argumentsForPlane.chatdEndpoint,
+			'-chatd-platform': argumentsForPlane.chatdPlatform,
+			'-blueclaw-url': argumentsForPlane.blueclawURL,
+			'-blueclaw-policy': argumentsForPlane.blueclawPolicyPath,
+			'-buzz-key-seed-path': argumentsForPlane.buzzKeySeedPath,
+			'-buzz-database-url-path': argumentsForPlane.buzzDatabaseURLPath,
+			'-buzz-relay-key-path': argumentsForPlane.buzzRelayKeyPath,
+			'-buzz-admin-command': argumentsForPlane.buzzAdminCommandPath,
+			'-buzz-relay-url': argumentsForPlane.buzzRelayURL,
+			'-buzz-account-links': argumentsForPlane.buzzAccountLinksPath,
+			'-site-scaffold': argumentsForPlane.siteScaffoldPath,
+			'-central-plane-app-url': argumentsForPlane.centralPlaneAppURL,
+			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
+			'-central-plane-project-url': argumentsForPlane.centralPlaneProjectURL,
+			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey
+		},
+		{
+			'-listen-socket': argumentsForPlane.listenSocketPath,
+			'-state-dir': argumentsForPlane.stateDirectory,
+			'-database': argumentsForPlane.databasePath
+		}
+	);
+}
 
 function environmentValue(name: string): string {
 	const value = process.env[name];
@@ -283,20 +388,18 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'internkim-capabilityd'),
-					...theArgumentsThatStart(
-						'internkim-capabilityd',
-						{
-							'--socket': capabilitySocketPath,
-							'--openrouter-key': openRouterKeyPath,
-							'--local-inference-mode': 'remote',
-							'--blueclaw-url': blueclawURL,
-							'--admind-url': admindURL,
-							'--chatd-endpoint': connector.url,
-							'--chatd-platform': capabilitydPlatform,
-							'--device-browser-cdp': 'http://127.0.0.1:9222'
-						},
-						{ '--admind-socket': requesterSocketPath }
-					)
+					...capabilitydArgumentsForPlane({
+						socketPath: capabilitySocketPath,
+						openRouterKeyPath,
+						blueclawURL,
+						admindURL,
+						chatdEndpoint: connector.url,
+						chatdPlatform: capabilitydPlatform,
+						deviceBrowserPath: join(binaryDirectory, 'moli'),
+						deviceBrowserStateDirectory: join(runDirectory, 'state', 'device-browsers'),
+						relayURL: `http://127.0.0.1:${arrivalsPort}`,
+						admindSocketPath: requesterSocketPath
+					})
 				],
 				{ ...logsTo(join(runDirectory, 'capabilityd.log')), cwd: runDirectory, env: theBoxEnvironment() }
 			)
@@ -309,6 +412,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		const databaseName = `plane_${runIdentifier}`;
 		await runPostgres(`CREATE DATABASE ${databaseName}`);
 		droppableDatabase = databaseName;
+		const blueclawDatabaseURL = databaseURLFor(databaseName);
 
 		// The same renderer the container calls. A sandbox that writes its own
 		// runtime document proves nothing about the one a company runs on.
@@ -337,7 +441,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			{
 				env: {
 					...theBoxEnvironment(),
-					DATABASE_URL: databaseURLFor(databaseName),
+					DATABASE_URL: blueclawDatabaseURL,
 					MESSENGER_PLATFORM: messengerPlatform,
 					BLUECLAW_BASE_URL: blueclawURL,
 					CAPABILITY_SOCKET_PATH: capabilitySocketPath,
@@ -359,11 +463,11 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'blueclaw'),
-					...theArgumentsThatStart('blueclaw', {
-						'-runtime': runtimeConfigurationPath,
-						'-policy': policyPath,
-						'-acp-socket': blueclawACPSocketPath,
-						'-inbound': request.inbound ?? 'acp'
+					...blueclawArgumentsForPlane({
+						runtimeConfigurationPath,
+						policyPath,
+						acpSocketPath: blueclawACPSocketPath,
+						inbound: request.inbound ?? 'acp'
 					})
 				],
 				{
@@ -398,28 +502,28 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			Bun.spawn(
 				[
 					join(binaryDirectory, 'internkim-admind'),
-					...theArgumentsThatStart(
-						'internkim-admind',
-						{
-							'-listen': `127.0.0.1:${admindPort}`,
-							'-capability-socket': capabilitySocketPath,
-							'-chatd-endpoint': connector.url,
-							'-chatd-platform': admindPlatform,
-							'-blueclaw-url': blueclawURL,
-							'-blueclaw-policy': policyPath,
-							'-buzz-key-seed-path': join(runDirectory, 'secrets', 'buzz-key-seed'),
-							'-site-scaffold': join(environmentValue('COMPANY_PLANE_SKILLS'), 'website', 'assets', 'scaffold', 'app'),
-							'-central-plane-app-url': environmentValue('INTERNKIM_APP_URL'),
-							'-central-plane-agent-key': agentKeyPath,
-							'-central-plane-project-url': projectURL,
-							'-central-plane-publishable-key': environmentValue('SUPABASE_PUBLISHABLE_KEY')
-						},
-						{
-							'-listen-socket': requesterSocketPath,
-							'-state-dir': join(runDirectory, 'state'),
-							'-database': join(runDirectory, 'state', 'internkim.sqlite')
-						}
-					)
+					...admindArgumentsForPlane({
+						listenAddress: `127.0.0.1:${admindPort}`,
+						capabilitySocketPath,
+						chatdEndpoint: connector.url,
+						chatdPlatform: admindPlatform,
+						blueclawURL,
+						blueclawPolicyPath: policyPath,
+						buzzKeySeedPath: join(runDirectory, 'secrets', 'buzz-key-seed'),
+						buzzDatabaseURLPath: join(runDirectory, 'secrets', 'buzz-database-url'),
+						buzzRelayKeyPath: join(runDirectory, 'secrets', 'buzz-relay-key'),
+						buzzAdminCommandPath: join(binaryDirectory, 'buzz-admin'),
+						buzzRelayURL: 'ws://127.0.0.1:1',
+						buzzAccountLinksPath: join(runDirectory, 'state', 'buzz-account-links.json'),
+						siteScaffoldPath: join(environmentValue('COMPANY_PLANE_SKILLS'), 'website', 'assets', 'scaffold', 'app'),
+						centralPlaneAppURL: environmentValue('INTERNKIM_APP_URL'),
+						centralPlaneAgentKeyPath: agentKeyPath,
+						centralPlaneProjectURL: projectURL,
+						centralPlanePublishableKey: environmentValue('SUPABASE_PUBLISHABLE_KEY'),
+						listenSocketPath: requesterSocketPath,
+						stateDirectory: join(runDirectory, 'state'),
+						databasePath: join(runDirectory, 'state', 'internkim.sqlite')
+					})
 				],
 				{ ...logsTo(join(runDirectory, 'admind.log')), cwd: runDirectory, env: theBoxEnvironment() }
 			)
@@ -504,6 +608,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			agentAPIKey: agent.apiKey,
 			admindURL,
 			blueclawURL,
+			blueclawDatabaseURL,
 			requesterSocketPath,
 			capabilitySocketPath,
 			blueclawACPSocketPath,

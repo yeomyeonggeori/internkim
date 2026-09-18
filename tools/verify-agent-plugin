@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Check that the vendored plugin is a plain Agent Plugins 1.0.0 plugin.
+
+The spec (https://agent-plugins.org/specification) fixes the root layout:
+plugin.json, skills/ and mcp.json, with anything client-specific under a
+reverse-domain directory. A client manifest or adapter at the root is what
+this fails on.
+"""
+
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
+PLUGIN_NAME = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
+PERMITTED_MANIFEST_FIELDS = {
+    "$schema", "name", "version", "description", "author", "homepage", "repository", "license", "keywords", "extensions",
+}
+MCP_TRANSPORTS = {"stdio": "command", "streamable-http": "url", "sse": "url"}
+PORTABLE_ROOT_ENTRIES = {"plugin.json", "mcp.json", "skills", "README.md", "LICENSE", ".gitignore", ".git"}
+REVERSE_DOMAIN_DIRECTORY = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$")
+
+
+def read_json_object(path: Path, findings: list[str]) -> dict | None:
+    try:
+        document = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        findings.append(f"{path.name}: cannot be read as JSON: {error}")
+        return None
+    if not isinstance(document, dict):
+        findings.append(f"{path.name}: must be a JSON object")
+        return None
+    return document
+
+
+def check_plugin_manifest(plugin_root: Path, findings: list[str]) -> None:
+    manifest = read_json_object(plugin_root / "plugin.json", findings)
+    if manifest is None:
+        return
+    if manifest.get("$schema") != PLUGIN_SCHEMA:
+        findings.append(f"plugin.json: $schema must be {PLUGIN_SCHEMA}")
+    name = manifest.get("name")
+    if not isinstance(name, str) or not 1 <= len(name) <= 64 or not PLUGIN_NAME.match(name):
+        findings.append("plugin.json: name must be 1-64 lowercase characters, digits, hyphens or periods")
+    for field in sorted(set(manifest) - PERMITTED_MANIFEST_FIELDS):
+        findings.append(f"plugin.json: {field} is not a permitted top-level field")
+    if "extensions" in manifest and not isinstance(manifest["extensions"], dict):
+        findings.append("plugin.json: extensions must be an object keyed by reverse-domain namespace")
+
+
+def check_mcp_manifest(plugin_root: Path, findings: list[str]) -> None:
+    manifest = read_json_object(plugin_root / "mcp.json", findings)
+    if manifest is None:
+        return
+    if manifest.get("$schema") != MCP_SCHEMA:
+        findings.append(f"mcp.json: $schema must be {MCP_SCHEMA}")
+    servers = manifest.get("mcpServers")
+    if not isinstance(servers, dict) or not servers:
+        findings.append("mcp.json: mcpServers must be a non-empty object")
+        return
+    for server_name, server in servers.items():
+        check_mcp_server(server_name, server, findings)
+
+
+def check_mcp_server(server_name: str, server: object, findings: list[str]) -> None:
+    if not isinstance(server, dict):
+        findings.append(f"mcp.json: server {server_name} must be an object")
+        return
+    transport = server.get("type")
+    required_field = MCP_TRANSPORTS.get(transport)
+    if required_field is None:
+        findings.append(f"mcp.json: server {server_name} has transport {transport!r}; the spec knows {sorted(MCP_TRANSPORTS)}")
+        return
+    if not isinstance(server.get(required_field), str) or not server[required_field].strip():
+        findings.append(f"mcp.json: server {server_name} ({transport}) needs a {required_field}")
+
+
+def check_skills(plugin_root: Path, findings: list[str]) -> None:
+    skills_root = plugin_root / "skills"
+    if not skills_root.is_dir():
+        findings.append("skills/: missing")
+        return
+    for skill_directory in sorted(path for path in skills_root.iterdir() if path.is_dir()):
+        if not (skill_directory / "SKILL.md").is_file():
+            findings.append(f"skills/{skill_directory.name}: has no SKILL.md")
+
+
+def root_entries(plugin_root: Path) -> list[Path]:
+    try:
+        listing = subprocess.run(
+            ["git", "-C", str(plugin_root), "ls-files", "-z"], capture_output=True, check=True, text=True
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return sorted(plugin_root.iterdir())
+    top_level_names = {tracked_path.split("/", 1)[0] for tracked_path in listing.split("\0") if tracked_path}
+    return sorted(plugin_root / name for name in top_level_names)
+
+
+def check_root_entries(plugin_root: Path, findings: list[str]) -> None:
+    for entry in root_entries(plugin_root):
+        if entry.name in PORTABLE_ROOT_ENTRIES:
+            continue
+        if entry.is_dir() and REVERSE_DOMAIN_DIRECTORY.match(entry.name):
+            continue
+        findings.append(f"{entry.name}: not part of the portable plugin; a client-specific file belongs under a reverse-domain directory")
+
+
+def findings_for(plugin_root: Path) -> list[str]:
+    findings: list[str] = []
+    check_plugin_manifest(plugin_root, findings)
+    check_mcp_manifest(plugin_root, findings)
+    check_skills(plugin_root, findings)
+    check_root_entries(plugin_root, findings)
+    return findings
+
+
+def main(arguments: list[str]) -> int:
+    plugin_root = Path(arguments[0]) if arguments else Path(__file__).resolve().parent.parent / ".dependency" / "internkim-plugin"
+    findings = findings_for(plugin_root)
+    for finding in findings:
+        print(finding)
+    if findings:
+        return 1
+    print(f"ok {plugin_root} is an Agent Plugins 1.0.0 plugin")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

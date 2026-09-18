@@ -296,6 +296,16 @@ func (service Service) morningBriefingScenarioPlans() []CommandPlan {
 	return append(plans, service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
 }
 
+func (service Service) firingSchedulesNothingScenarioPlans() []CommandPlan {
+	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-firing-schedules-nothing.py", service.virtualSessionArtifactDirectoryPath("firing-schedules-nothing")}
+	return append(service.upPlans(true), service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
+}
+
+func (service Service) scheduleThroughTheCatalogScenarioPlans() []CommandPlan {
+	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-schedule-through-the-catalog.py", service.virtualSessionArtifactDirectoryPath("schedule-through-the-catalog")}
+	return append(service.upPlans(true), service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
+}
+
 func (service Service) memoryStoreScenarioPlans() []CommandPlan {
 	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-memory-store.py", service.virtualSessionArtifactDirectoryPath("memory-store")}
 	plans := []CommandPlan{

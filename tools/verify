@@ -71,10 +71,37 @@ GROUPS = [
         [["tools/verify-blueclaw-pointer"]],
     ),
     Group(
+        "internkim-plugin",
+        [".dependency/internkim-plugin*", "tools/verify-agent-plugin", "tools/tests/test_verify_agent_plugin.py"],
+        [
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_agent_plugin.py"],
+            ["tools/verify-agent-plugin"],
+        ],
+    ),
+    Group(
         "skill-tool-references",
-        [".dependency/*", ".dependency/blueclaw*", "internal/capabilities/*", "pkg/capabilityprotocol/*"],
+        [
+            ".dependency/*",
+            ".dependency/blueclaw*",
+            "internal/capabilities/*",
+            "pkg/capabilityprotocol/*",
+            "tools/tool_name_sources.py",
+            "tools/verify-tool-name-collisions",
+            "tools/tests/test_verify_tool_name_collisions.py",
+        ],
         [
             ["tools/verify-skill-tool-references"],
+            ["tools/verify-tool-name-collisions"],
+            [
+                "python3",
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                "tools/tests",
+                "-p",
+                "test_verify_tool_name_collisions.py",
+            ],
             ["tools/verify-skill-field-references"],
             ["tools/verify-skill-conformance"],
         ],

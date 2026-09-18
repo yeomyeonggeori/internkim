@@ -36,6 +36,21 @@ class VerificationPlanTests(unittest.TestCase):
         selected = {group.name for group in groups if group.is_touched_by(["host/relay/arrived.ts"])}
         self.assertIn("web", selected)
 
+    def test_internkim_plugin_changes_select_the_plugin_group(self):
+        groups = verification_module().GROUPS
+        plugin_group = next(group for group in groups if group.name == "internkim-plugin")
+        for changed_path in [".dependency/internkim-plugin", ".dependency/internkim-plugin/mcp.json", "tools/verify-agent-plugin"]:
+            selected = {group.name for group in groups if group.is_touched_by([changed_path])}
+            self.assertIn("internkim-plugin", selected)
+        self.assertEqual(plugin_group.working_directory, ".")
+        self.assertEqual(
+            plugin_group.commands,
+            [
+                ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_agent_plugin.py"],
+                ["tools/verify-agent-plugin"],
+            ],
+        )
+
     def test_plan_prints_groups_and_commands_without_running(self):
         module = verification_module()
         output = io.StringIO()
