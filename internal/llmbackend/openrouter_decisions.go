@@ -20,7 +20,6 @@ const openRouterDecisionsPath = "/api/alpha/decisions"
 const (
 	ChoiceQuestionType = "choice"
 	NoulQuestionType   = "noul"
-	ScoreQuestionType  = "score"
 )
 
 type DecisionQuestion struct {
@@ -37,11 +36,7 @@ func NoulQuestion(instructions string, criteriaByOutcome map[string]string) Deci
 	return DecisionQuestion{Type: NoulQuestionType, Instructions: instructions, Criteria: criteriaDocument(criteriaByOutcome)}
 }
 
-func ScoreQuestion(instructions string, orderedLevels []string) DecisionQuestion {
-	return DecisionQuestion{Type: ScoreQuestionType, Instructions: instructions, Criteria: criteriaDocument(orderedLevels)}
-}
-
-func criteriaDocument[Criteria map[string]string | []string](criteria Criteria) json.RawMessage {
+func criteriaDocument(criteria map[string]string) json.RawMessage {
 	if len(criteria) == 0 {
 		return nil
 	}
@@ -73,10 +68,8 @@ type DecisionAnswer struct {
 	Type          string             `json:"type"`
 	Choice        string             `json:"choice,omitempty"`
 	Noul          *float64           `json:"noul,omitempty"`
-	Score         *float64           `json:"score,omitempty"`
 	Probabilities map[string]float64 `json:"probabilities,omitempty"`
 	Confidence    *float64           `json:"confidence,omitempty"`
-	Legend        json.RawMessage    `json:"legend,omitempty"`
 }
 
 type ChoiceAnswer struct {
@@ -87,13 +80,6 @@ type ChoiceAnswer struct {
 
 type NoulAnswer struct {
 	Noul float64
-}
-
-type ScoreAnswer struct {
-	Score         float64
-	Probabilities map[string]float64
-	Confidence    float64
-	Legend        json.RawMessage
 }
 
 func (answer DecisionAnswer) AsChoice() (ChoiceAnswer, bool) {
@@ -112,18 +98,6 @@ func (answer DecisionAnswer) AsNoul() (NoulAnswer, bool) {
 		return NoulAnswer{}, false
 	}
 	return NoulAnswer{Noul: *answer.Noul}, true
-}
-
-func (answer DecisionAnswer) AsScore() (ScoreAnswer, bool) {
-	if answer.Type != ScoreQuestionType || answer.Score == nil {
-		return ScoreAnswer{}, false
-	}
-	return ScoreAnswer{
-		Score:         *answer.Score,
-		Probabilities: answer.Probabilities,
-		Confidence:    decisionValue(answer.Confidence),
-		Legend:        answer.Legend,
-	}, true
 }
 
 func decisionValue(value *float64) float64 {
