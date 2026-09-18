@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"net/http"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
@@ -31,18 +30,6 @@ type DecideLLMResponse struct {
 	ProviderName        string                               `json:"providerName"`
 	UpstreamProvider    string                               `json:"upstreamProvider,omitempty"`
 	LatencyMilliseconds int64                                `json:"latencyMs"`
-}
-
-func (service Service) handleDecideLLM(responseWriter http.ResponseWriter, request *http.Request) {
-	var decideRequest DecideLLMRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&decideRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	capturedClient, capture := llmbackend.NewFailureCapture(service.providerHTTPClient())
-	service.HTTPClient = capturedClient
-	response, errorValue := service.decide(request.Context(), decideRequest)
-	service.writeLLMResponse(responseWriter, response, errorValue, decideRequest, capture)
 }
 
 func (service Service) decide(ctx context.Context, request DecideLLMRequest) (DecideLLMResponse, error) {
