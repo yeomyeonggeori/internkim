@@ -319,9 +319,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if errorValue != nil {
 		return errorValue
 	}
-	if *devMockLLM {
-		state.Capabilities = companionruntime.DefaultCapabilities(state.LocalOnly, true)
-	}
+	state.Capabilities = companionruntime.DefaultCapabilities(state.LocalOnly, *devMockLLM)
 	resolvedBrowserExtensionPath := resolveBrowserExtensionPath(*browserExtensionPath)
 	inputSynthesizer, errorValue := browserruntime.NewPlatformInputSynthesizer()
 	if errorValue != nil {
