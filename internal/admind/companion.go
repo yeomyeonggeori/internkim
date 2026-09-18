@@ -126,10 +126,12 @@ type companionHeartbeatRequest struct {
 }
 
 type companionPairingCodeResponse struct {
-	Code        string    `json:"code"`
-	ExpiresAt   time.Time `json:"expiresAt"`
-	DeepLink    string    `json:"deepLink"`
-	PairCommand string    `json:"pairCommand"`
+	Code           string    `json:"code"`
+	ExpiresAt      time.Time `json:"expiresAt"`
+	DeepLink       string    `json:"deepLink"`
+	InstallCommand string    `json:"installCommand"`
+	PairCommand    string    `json:"pairCommand"`
+	ServiceCommand string    `json:"serviceCommand"`
 }
 
 type companionStatusResponse struct {
@@ -247,10 +249,12 @@ func (service *Service) createCompanionPairingCodeForOwner(request *http.Request
 
 	pairingDeviceURL := companionPairingDeviceURL(request, firstNonEmpty(owner.DeviceURL, service.configuredDeviceURL()))
 	return companionPairingCodeResponse{
-		Code:        code,
-		ExpiresAt:   pairingCode.ExpiresAt,
-		DeepLink:    companionDeepLink(pairingDeviceURL, code),
-		PairCommand: companionPairCommand(pairingDeviceURL, code),
+		Code:           code,
+		ExpiresAt:      pairingCode.ExpiresAt,
+		DeepLink:       companionDeepLink(pairingDeviceURL, code),
+		InstallCommand: capabilities.CompanionInstallCommand(),
+		PairCommand:    companionPairCommand(pairingDeviceURL, code),
+		ServiceCommand: capabilities.CompanionServiceCommand(),
 	}
 }
 

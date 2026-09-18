@@ -48,7 +48,6 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "browser_press", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: "browser_wait", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: capabilityprotocol.ComputerTaskToolName, Handler: Service.answerCompanionOnlyTool},
-	{ToolName: computerConnectToolName, Handler: Service.invokeComputerConnectTool},
 	{ToolName: "web_search", Handler: Service.invokeWebTool},
 	{ToolName: "web_fetch", Handler: Service.invokeWebTool},
 	{ToolName: "document_read", Handler: Service.invokeDocumentReadTool},
