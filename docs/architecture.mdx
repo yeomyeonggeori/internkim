@@ -53,6 +53,138 @@ flowchart TB
 
 Every arrow leaving the host points outward. None points in.
 
+## One plugin across harnesses
+
+This section defines the shared-plugin design contract. Release compatibility
+is established by the verification and publication gates below; the diagram
+above describes the deployed topology.
+
+`internkim-plugin` is the shared client package for Bluecollar, Claude Code,
+Codex, and Pi. InternKim's own agent consumes the same versioned skills,
+scripts, assets, and service contracts that an external harness installs.
+An external harness can use the service while Bluecollar is stopped.
+
+```mermaid
+flowchart TB
+    bluecollar["Bluecollar inside Blueclaw"] --> plugin
+    claude["Claude Code"] --> plugin
+    codex["Codex"] --> plugin
+    pi["Pi"] --> plugin
+    plugin["internkim-plugin<br/>shared skills, scripts and thin adapters"] --> service
+    service["InternKim tool service<br/>authenticated member and company"] --> record["Business records"]
+    service --> relay["Existing company relay connection"]
+    relay --> execution["Company and companion capabilities"]
+```
+
+### Ownership
+
+| Layer | Responsibility |
+| --- | --- |
+| InternKim service | Canonical tool schemas, business behavior, authorization, durable approvals, operation state and effect receipts |
+| Plugin | Shared skills, scripts, assets, connection metadata and a common client |
+| Harness adapter | Installation, skill path binding, credential-store integration and tool/result presentation |
+| Harness | Model calls, reasoning, tool selection, context and execution-loop decisions |
+| Blueclaw host | Execution identity and isolation for work inside the managed host |
+
+The service authors each business-tool contract once. Adapters translate
+connection and presentation details without copying business logic or skill
+bodies. Native MCP connections and extension-backed clients use the same
+contract. MCP carries business-tool calls; ACP is the separate session
+boundary for an agent joining the messenger. Using the plugin alone requires
+no ACP session.
+
+The same member, company, plugin version and available execution resources
+must provide the same business capabilities and authorization behavior.
+Model quality and local environments may differ. Installing the plugin does
+not expose Blueclaw's private workspace or raw terminal to an external agent.
+Standalone artifact skills use the external harness's local environment;
+managed host execution keeps the requester's POSIX identity. Missing local
+dependencies or companion capabilities are reported explicitly.
+
+### Connection and execution
+
+These examples are pseudocode for the proposed contract. They do not define
+released endpoints or promise that every harness can register tools during
+a turn. Each adapter will have a tested version and compatibility record.
+
+```text
+function attachPlugin(adapter, package, account):
+    package.verifyRelease()
+    session = connect(package.server, account.credentialReference)
+    requireSupportedContract(session, package.supportedVersions)
+    adapter.installSkills(package.skillRoot)
+    adapter.exposeDiscovery(session.catalogSummaries())
+
+function invoke(session, toolID, arguments, operationKey):
+    descriptor = session.describeExact(toolID)
+    validatedArguments = descriptor.inputSchema.validate(arguments)
+    return session.call(descriptor.id, validatedArguments, operationKey)
+```
+
+The model selects relevant capabilities from a compact catalog. Detailed
+schemas are loaded when needed. An adapter without dynamic registration uses
+its supported refresh boundary or the shared client's validated invocation
+path. Discovery, schema size and invocation errors count toward the measured
+cost of that choice.
+
+The service derives the actor from authentication and checks current company
+membership. Credentials stay in the client's credential store. A model's
+arguments cannot select a more privileged execution identity.
+
+```text
+function submit(connection, request):
+    actor = authenticateAndResolveMember(connection)
+    descriptor = catalog.resolveExact(request.toolID)
+    arguments = descriptor.inputSchema.validate(request.arguments)
+    authorize(actor, descriptor, arguments)
+    operation = claimDurably(actor, request.operationKey, descriptor, arguments)
+    if operation.alreadyExists:
+        return operation.currentResult()
+    if requiresApproval(actor, descriptor, arguments):
+        return holdForAuthenticatedApproval(operation)
+    return dispatchDurably(operation)
+```
+
+An operation key stays stable across transport retries; reuse with different
+arguments is rejected. Approval binds to the actor, company, operation,
+arguments and expiry. Reconnection resumes the recorded operation and checks
+authorization again. A timeout after an external effect requires downstream
+idempotency or reconciliation before retrying. Cancellation reports effects
+already committed. Scheduled business work survives a harness disconnect.
+
+Results retain structured records, images and authorized artifact references.
+The service records what changed, and the harness explains those receipts to
+the user. Flattening an image or artifact into a success sentence loses a
+capability and fails parity.
+
+### Bluecollar's identity and Pi's mechanics
+
+Preserve Bluecollar's understanding of work, continuity across follow-ups,
+outcome judgment and recovery behavior. Generic tool names, argument shapes,
+file editing, shell sessions and execution plumbing can follow Pi directly.
+Reuse or adapt Pi where appropriate, retaining its license and attribution.
+
+Start from a pinned Pi revision and record a reuse, adaptation or retention
+decision for each generic component. A divergence needs a product, execution
+boundary, compatibility or measured performance reason. Existing tool
+spellings, action envelopes and prompt boilerplate are not product identity
+simply because Bluecollar already has them.
+
+### Verification and publication
+
+Run the same business scenarios through Bluecollar, Claude Code, Codex and
+Pi using one plugin release. Include installation, authentication, approvals,
+reconnects, cancellation, tenant isolation and artifact delivery. Prove
+external use with Bluecollar stopped. Compare matched model configurations
+where supported and label other combinations as product comparisons.
+
+Adoption requires preserved capabilities and measured success rate, cost per
+successful task, context size and completion latency. Publish the supported
+version matrix and evidence with the release. Deploy service compatibility
+before updating clients, retain a documented compatibility window, and
+verify the running versions. Keep this English page and its Korean
+counterpart aligned with the released behavior and remaining design work.
+
 ## The central side
 
 Five things, deployed by us.
