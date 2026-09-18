@@ -900,7 +900,7 @@ func refreshBlueclawCapabilityContract(document string, contract blueclawruntime
 		}
 	}
 	migrateBlueclawCapabilityModelConfiguration(runtimeDocument)
-	stampBlueclawDecisionModel(runtimeDocument)
+	stampBlueclawLadderOwnedModels(runtimeDocument)
 	retireBlueclawGuestLLMDConfiguration(runtimeDocument)
 	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")
 	if errorValue != nil {
