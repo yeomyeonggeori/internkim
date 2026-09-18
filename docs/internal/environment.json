@@ -315,6 +315,14 @@
     "process": "cli, tools/mirror-local",
     "description": "the Buzz identity seed value; internal/cli reads it as a setup-time override, tools/mirror-local writes it to the local bridge's seed file"
   },
+  "INTERNKIM_COMPANION_BIN_DIR": {
+    "process": "companion installer",
+    "description": "the directory web/static/companion/install.sh puts the companion binary in; defaults to ~/.local/bin"
+  },
+  "INTERNKIM_COMPANION_RELEASE_URL": {
+    "process": "companion installer",
+    "description": "the release registry prefix web/static/companion/install.sh downloads the companion from; defaults to https://updates.intern.kim/companion/latest"
+  },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli",
     "description": "the console password used for a Jetson's physical login during setup/flashing"

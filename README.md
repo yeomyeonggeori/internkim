@@ -513,10 +513,11 @@ registry, and verifies it against the published `SHA256SUMS`.
 `./internkim release companion` cross-compiles the four builds and publishes
 them there; `make build-companion` builds the host's own.
 
-Pairing starts from the agent: `computer_connect` issues a ten-minute one-time
-code bound to the requester's own identity and returns the install, `pair` and
-`service install` commands to relay to them in a direct message. The `pair`
-command carries the code; an `internkim://pair?…` deep link is accepted as its
+Pairing starts in Settings → My computer of the web app: admind issues a
+ten-minute one-time code bound to the signed-in member (`/companion/api` in
+`internal/admind/companion_member_routes.go`) and the page shows the install,
+`pair` and `service install` commands to run. The `pair` command carries the
+code; an `internkim://pair?…` deep link is accepted as its
 only argument too. A paired companion opens no inbound port and long-polls the
 device broker.
 
