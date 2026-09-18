@@ -83,6 +83,25 @@
       }
     },
     {
+      "name": "a shift that began yesterday and is still open counts from its clock-in and draws from midnight",
+      "today": "2026-09-17",
+      "timeZone": "Asia/Seoul",
+      "now": "2026-09-16T18:00:00Z",
+      "currentTime": "03:00",
+      "rows": [
+        { "kind": "clock_in", "date": "2026-09-16", "time": "22:00", "occurredAt": "2026-09-16T13:00:00Z", "location": "재택" }
+      ],
+      "expected": {
+        "workedMinutes": 0,
+        "elapsedMinutes": 300,
+        "isWorking": true,
+        "location": "재택",
+        "clockInTime": "22:00",
+        "clockOutTime": null,
+        "bars": [{ "location": "재택", "widthPercent": 12.5 }]
+      }
+    },
+    {
       "name": "a day with no records is empty",
       "today": "2026-09-17",
       "timeZone": "Asia/Seoul",
