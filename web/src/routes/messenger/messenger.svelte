@@ -5,6 +5,7 @@
 	import MessengerChannelDetails from './messenger-channel-details.svelte';
 	import MessengerChannelHeaderActions from './messenger-channel-header-actions.svelte';
 	import MessengerChannelMembersDialog from './messenger-channel-members-dialog.svelte';
+	import MessengerChannelOwnerDialog from './messenger-channel-owner-dialog.svelte';
 	import MessengerNewChannelDialog from './messenger-new-channel-dialog.svelte';
 	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
 	import { toast } from 'svelte-sonner';
@@ -62,6 +63,7 @@
 	let isBrowseChannelsOpen = $state(false);
 	let isChannelDetailsOpen = $state(false);
 	let isChannelMembersOpen = $state(false);
+	let isChannelOwnerOpen = $state(false);
 	const canManageChannels = isSupabaseConfigured();
 	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
@@ -403,13 +405,21 @@
 		bind:open={isChannelDetailsOpen}
 		channel={activeConversation}
 		openMembers={() => ((isChannelDetailsOpen = false), openChannelMembers())}
+		openOwnerHandover={() => ((isChannelDetailsOpen = false), (isChannelOwnerOpen = true))}
 		onLeft={leftChannel}
+		onDeleted={leftChannel}
 	/>
 	<MessengerChannelMembersDialog
 		bind:open={isChannelMembersOpen}
 		channelID={activeConversation.id}
 		members={activeConversation.members ?? []}
 		onMembersChanged={() => refreshConversations('the channel list did not refresh after adding members')}
+	/>
+	<MessengerChannelOwnerDialog
+		bind:open={isChannelOwnerOpen}
+		channelID={activeConversation.id}
+		members={activeConversation.members ?? []}
+		onHandedOver={() => refreshConversations('the channel list did not refresh after handing the channel over')}
 	/>
 {/if}
 <MessengerNewChannelDialog bind:open={isNewChannelOpen} onCreated={showChannel} />
