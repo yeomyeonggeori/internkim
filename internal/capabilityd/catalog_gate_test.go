@@ -159,6 +159,19 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
 			},
 		},
+		// Only the requester's companion has a computer to control; the device
+		// says so instead of pretending.
+		"computer_task": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{},
+			input:   `{"goal":"the inbox shows no unread mail"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				if answered.Outcome == capabilities.ToolOutcomeSucceeded {
+					t.Fatalf("the device answered a computer task: %s", answered.Result)
+				}
+				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
+			},
+		},
 		"site_serve": {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"siteID":"s1","slug":"q3-report","status":"published","publishedURL":"https://example.test/q3-report","previewURL":"https://example.test/preview/q3-report"}`)},
