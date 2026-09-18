@@ -63,11 +63,11 @@ def send_direct_message(secret, text):
     return sent_at, request("/v1/platform/buzz/dm.send", {"userSecretHex": secret, "message": text}, origin=chatd_origin)
 
 
-def settled_run_after(person_id, channel_id, sent_at, name):
+def settled_run_after(person_id, conversation_id, sent_at, name):
     for listed in request("/admin/api/run?viewerIsAdmin=true"):
         if listed["requesterPersonID"] != person_id or listed["status"] in {"planned", "running"}:
             continue
-        if listed.get("originConversationID") != channel_id or datetime.fromisoformat(listed["createdAt"]) < sent_at:
+        if listed.get("originConversationID") != conversation_id or datetime.fromisoformat(listed["createdAt"]) < sent_at:
             continue
         detail = request("/admin/api/run/detail?" + urlencode({"taskRunID": listed["taskRunID"], "viewerIsAdmin": "true"}))
         return save("run-" + name, detail)
@@ -85,25 +85,25 @@ def main():
     person_id = people[0]["personID"]
     before = set(save("schedules-before", schedules_of(person_id)))
     secret = requester_secret()
-    channel_id = save("direct-message", send_direct_message(secret, "/stop")[1])["channelID"]
+    conversation_id = "buzz:" + save("direct-message", send_direct_message(secret, "/stop")[1])["channelID"]
     try:
         sent_at, _ = send_direct_message(secret, create_request)
-        created_run = wait_for(lambda: settled_run_after(person_id, channel_id, sent_at, "create"), "the create request to settle", 600)
+        created_run = wait_for(lambda: settled_run_after(person_id, conversation_id, sent_at, "create"), "the create request to settle", 600)
         assert created_run["taskRun"]["status"] == "completed", f"create: the run ended {created_run['taskRun']['status']}"
         assert "tool.schedule_create.requested" in requested_tools(created_run), f"create: no schedule_create call among {requested_tools(created_run)}"
         created = {schedule_id: item for schedule_id, item in schedules_of(person_id).items() if schedule_id not in before}
         save("schedules-created", created)
         assert len(created) == 1, f"create: expected one new schedule, found {len(created)}"
         schedule = next(iter(created.values()))
-        assert schedule["platform"] == "buzz" and schedule["conversationID"] == channel_id, f"create: the schedule is not bound to the direct message: {schedule}"
+        assert schedule["deliveryChannelID"] == conversation_id, f"create: the schedule is not bound to the direct message: {schedule}"
         assert schedule["replyTargetID"], "create: the schedule has no reply target"
 
         sent_at, _ = send_direct_message(secret, cancel_request)
-        cancelled_run = wait_for(lambda: settled_run_after(person_id, channel_id, sent_at, "cancel"), "the cancel request to settle", 600)
+        cancelled_run = wait_for(lambda: settled_run_after(person_id, conversation_id, sent_at, "cancel"), "the cancel request to settle", 600)
         assert cancelled_run["taskRun"]["status"] == "completed", f"cancel: the run ended {cancelled_run['taskRun']['status']}"
         assert "tool.schedule_cancel.requested" in requested_tools(cancelled_run), f"cancel: no schedule_cancel call among {requested_tools(cancelled_run)}"
         after = save("schedules-after", schedules_of(person_id))
-        assert after[schedule["taskScheduleID"]]["nextRunAt"] is None, f"cancel: the schedule still has a next run: {after[schedule['taskScheduleID']]}"
+        assert after[schedule["taskScheduleID"]].get("nextRunAt") is None, f"cancel: the schedule still has a next run: {after[schedule['taskScheduleID']]}"
         save("revision", request("/admin/api/harness"))
         print("schedule-through-the-catalog: ok", flush=True)
     finally:
