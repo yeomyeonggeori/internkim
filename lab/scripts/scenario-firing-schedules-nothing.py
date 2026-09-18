@@ -1,8 +1,9 @@
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
-import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
@@ -11,6 +12,8 @@ from zoneinfo import ZoneInfo
 
 evidence = Path(sys.argv[1])
 evidence.mkdir(parents=True, exist_ok=True)
+workspace = Path("/mnt/shared/workspace")
+chatd_origin = "http://172.31.0.1:18090"
 requester_email = "member4@example.com"
 schedule_write_events = {"tool.schedule_create.requested", "tool.schedule_update.requested", "tool.schedule_cancel.requested"}
 firings = {
@@ -19,13 +22,13 @@ firings = {
 }
 
 
-def request(path, body=None, as_requester=False, accepted=(200,), timeout=15):
+def request(path, body=None, as_requester=False, accepted=(200,), timeout=15, origin=None):
     command = ["curl", "--silent", "--show-error", "--max-time", str(timeout), "--write-out", "\n%{http_code}"]
     if as_requester:
         command += ["--unix-socket", "/run/internkim/admind.sock", "-H", f"X-INTERNKIM-REQUESTER-EMAIL: {requester_email}"]
     if body is not None:
         command += ["-H", "Content-Type: application/json", "-d", "@-"]
-    origin = "http://localhost" if as_requester else "http://127.0.0.1:8080"
+    origin = origin or ("http://localhost" if as_requester else "http://127.0.0.1:8080")
     response = subprocess.run(command + [origin + path], input=json.dumps(body) if body is not None else None, capture_output=True, text=True, check=True)
     payload, status = response.stdout.rsplit("\n", 1)
     if int(status) not in accepted:
@@ -57,8 +60,16 @@ def statuses_of(schedules):
     return {schedule_id: item.get("status") for schedule_id, item in schedules.items()}
 
 
-def create_daily_schedule(name, task_instruction, run_at, time_zone_name):
-    conversation_id = "api:firing-schedules-nothing:" + str(uuid.uuid4())
+def open_requester_direct_message():
+    with tempfile.TemporaryDirectory(prefix="firing-member-") as directory:
+        Path(directory, "key-seed").symlink_to("/root/.internkim/secrets/buzz-key-seed")
+        subprocess.run([str(workspace / "host/buzz/my-buzz-key"), requester_email], env={**os.environ, "BUZZ_STATE_DIRECTORY": directory}, check=True, capture_output=True)
+        written = list(Path(directory).glob("buzz-key-*.txt"))
+        assert len(written) == 1, "my-buzz-key must write exactly one key"
+        return request("/v1/platform/buzz/dm.send", {"userSecretHex": written[0].read_text().strip(), "message": "/stop"}, origin=chatd_origin)
+
+
+def create_daily_schedule(name, task_instruction, run_at, time_zone_name, direct_message):
     answer = request("/memory/api/schedules/tool-create", {
         "description": "firing-schedules-nothing " + name,
         "taskInstruction": task_instruction,
@@ -66,9 +77,9 @@ def create_daily_schedule(name, task_instruction, run_at, time_zone_name):
         "cronExpression": f"{run_at.minute} {run_at.hour} * * *",
         "timeZone": time_zone_name,
         "repeatPolicy": "unbounded",
-        "platform": "api",
-        "conversationID": conversation_id,
-        "replyTargetID": conversation_id,
+        "platform": "buzz",
+        "conversationID": direct_message["channelID"],
+        "replyTargetID": direct_message["replyTargetID"],
     }, as_requester=True)
     schedule_id = answer.get("scheduleID")
     if not isinstance(schedule_id, str):
@@ -98,11 +109,12 @@ def main():
     person_id = people[0]["personID"]
     time_zone_name = policy["company"].get("timeZone") or "Asia/Seoul"
     before = statuses_of(save("schedules-before", schedules_of(person_id)))
+    direct_message = save("direct-message", open_requester_direct_message())
     created = {}
     try:
         run_at = datetime.now(ZoneInfo(time_zone_name)).replace(second=0, microsecond=0) + timedelta(minutes=2)
         for name, task_instruction in firings.items():
-            created[name] = create_daily_schedule(name, task_instruction, run_at, time_zone_name)
+            created[name] = create_daily_schedule(name, task_instruction, run_at, time_zone_name, direct_message)
         expected = {**before, **statuses_of(schedules_of(person_id))}
         for name, schedule_id in created.items():
             detail = wait_for(lambda: fired_run(person_id, schedule_id, name), f"the {name} schedule to fire and settle", 600)
