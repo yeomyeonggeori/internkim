@@ -97,10 +97,11 @@ export async function supabaseWorkStatusInputs(
 	const firstDay = coveredDays[0];
 	const lastDay = coveredDays[coveredDays.length - 1];
 
-	const [directory, attendance, leave] = await Promise.all([
+	const [directory, attendance, leave, policiesByMember] = await Promise.all([
 		companyDirectory(),
 		attendanceBetween(shiftedDay(firstDay, -1), lastDay),
-		approvedLeaveBetween(firstDay, lastDay)
+		approvedLeaveBetween(firstDay, lastDay),
+		supabaseWorkPolicies()
 	]);
 	const members = directory.people.map(workStatusMemberOf);
 
@@ -122,7 +123,7 @@ export async function supabaseWorkStatusInputs(
 			ends_at: taken.endsAt,
 			status: taken.status
 		})),
-		policiesByMember: await supabaseWorkPolicies(),
+		policiesByMember,
 		holidays: await workStatusHolidays(coveredDays),
 		coveredDays,
 		now: requestNow
