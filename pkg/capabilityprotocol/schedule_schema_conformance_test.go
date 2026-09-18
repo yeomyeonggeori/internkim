@@ -21,9 +21,10 @@ var signedScheduleContracts = map[string]signedScheduleContract{
 	"schedule_cancel": {"scheduleToolCancelInputSchema", "scheduleToolCancelOutputSchema"},
 }
 
-// The conversation a schedule answers in is a fact the runtime holds, so
-// capabilityd fills these on the way through and the model never sees them.
-var scheduleDeliveryBindingFields = []string{"platform", "conversationID", "replyTargetID"}
+// The conversation a schedule answers in and the run it was asked from are
+// facts the runtime holds, so capabilityd fills these on the way through and
+// the model never sees them.
+var scheduleFieldsCapabilitydFills = []string{"platform", "conversationID", "replyTargetID", "taskRunID"}
 
 // The catalog descriptor and the signed schedule contract are written in two
 // repositories, and a field only one of them knows is the failure this catches:
@@ -37,7 +38,7 @@ func TestScheduleWriteDescriptorsAgreeWithTheSignedScheduleContract(t *testing.T
 	for toolName, contract := range signedScheduleContracts {
 		descriptor := MustGeneratedToolDescriptors(toolName)[0]
 		contracted := scheduleContractSchema(t, source, contract.inputSchemaName)
-		assertScheduleSchemasAgree(t, toolName+" input", decodeSchemaObject(t, descriptor.InputSchema), withoutScheduleFields(contracted, scheduleDeliveryBindingFields))
+		assertScheduleSchemasAgree(t, toolName+" input", decodeSchemaObject(t, descriptor.InputSchema), withoutScheduleFields(contracted, scheduleFieldsCapabilitydFills))
 		assertScheduleSchemasAgree(t, toolName+" output", decodeSchemaObject(t, descriptor.OutputSchema), scheduleContractSchema(t, source, contract.outputSchemaName))
 	}
 }

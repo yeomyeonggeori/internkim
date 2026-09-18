@@ -12,18 +12,20 @@ import (
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 )
 
-// Where a schedule tool is answered, and whether the schedule it writes has to
-// carry the conversation this turn is happening in. That binding is a fact the
-// runtime holds, so the model is never asked for it.
+// Where a schedule tool is answered, whether the schedule it writes has to
+// carry the conversation this turn is happening in, and whether the record has
+// to know which run asked so it can refuse a schedule that writes schedules.
+// Both are facts the runtime holds, so the model is never asked for them.
 type scheduleToolUpstream struct {
 	admindPath    string
 	bindsDelivery bool
+	namesTheRun   bool
 }
 
 var scheduleToolUpstreams = map[string]scheduleToolUpstream{
 	"schedule_list":   {admindPath: "/memory/api/schedules/tool-list"},
-	"schedule_create": {admindPath: "/memory/api/schedules/tool-create", bindsDelivery: true},
-	"schedule_update": {admindPath: "/memory/api/schedules/tool-update"},
+	"schedule_create": {admindPath: "/memory/api/schedules/tool-create", bindsDelivery: true, namesTheRun: true},
+	"schedule_update": {admindPath: "/memory/api/schedules/tool-update", namesTheRun: true},
 	"schedule_cancel": {admindPath: "/memory/api/schedules/tool-cancel"},
 }
 
@@ -70,14 +72,15 @@ func scheduleToolBody(request capabilities.ToolInvokeRequest, upstream scheduleT
 	if len(bytes.TrimSpace(input)) == 0 {
 		input = json.RawMessage("{}")
 	}
-	if !upstream.bindsDelivery {
+	runtimeFields := scheduleRuntimeFields(request.Context, upstream)
+	if len(runtimeFields) == 0 {
 		return input, nil
 	}
 	document := map[string]json.RawMessage{}
 	if errorValue := json.Unmarshal(input, &document); errorValue != nil {
 		return nil, errorValue
 	}
-	for field, value := range scheduleDeliveryBinding(request.Context) {
+	for field, value := range runtimeFields {
 		encoded, errorValue := json.Marshal(value)
 		if errorValue != nil {
 			return nil, errorValue
@@ -87,18 +90,27 @@ func scheduleToolBody(request capabilities.ToolInvokeRequest, upstream scheduleT
 	return json.Marshal(document)
 }
 
-func scheduleDeliveryBinding(toolContext capabilities.ToolInvokeContext) map[string]string {
-	binding := map[string]string{}
-	for field, value := range map[string]string{
-		"platform":       toolContext.Platform,
-		"conversationID": toolContext.ConversationID,
-		"replyTargetID":  toolContext.ReplyTargetID,
-	} {
+func scheduleRuntimeFields(toolContext capabilities.ToolInvokeContext, upstream scheduleToolUpstream) map[string]string {
+	fields := map[string]string{}
+	if upstream.bindsDelivery {
+		addNonBlankFields(fields, map[string]string{
+			"platform":       toolContext.Platform,
+			"conversationID": toolContext.ConversationID,
+			"replyTargetID":  toolContext.ReplyTargetID,
+		})
+	}
+	if upstream.namesTheRun {
+		addNonBlankFields(fields, map[string]string{"taskRunID": toolContext.TaskRunID})
+	}
+	return fields
+}
+
+func addNonBlankFields(fields map[string]string, candidates map[string]string) {
+	for field, value := range candidates {
 		trimmedValue := strings.TrimSpace(value)
 		if trimmedValue == "" {
 			continue
 		}
-		binding[field] = trimmedValue
+		fields[field] = trimmedValue
 	}
-	return binding
 }

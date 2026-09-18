@@ -25,6 +25,7 @@ type scheduleToolListInput struct {
 // is the exact body that was validated, so a field the caller left out stays
 // left out rather than arriving as a zero value the schema rejects.
 type scheduleToolCreateInput struct {
+	TaskRunID       *string `json:"taskRunID"`
 	TaskInstruction string  `json:"taskInstruction"`
 	Description     *string `json:"description"`
 	Kind            string  `json:"kind"`
@@ -41,6 +42,7 @@ type scheduleToolCreateInput struct {
 }
 
 type scheduleToolUpdateInput struct {
+	TaskRunID       *string `json:"taskRunID"`
 	ScheduleHint    string  `json:"scheduleHint"`
 	TaskInstruction *string `json:"taskInstruction"`
 	Description     *string `json:"description"`

@@ -21,6 +21,12 @@ func scheduleRequestInAConversation(toolName string, input string) capabilities.
 	return request
 }
 
+func scheduleRequestInATaskRun(toolName string, input string) capabilities.ToolInvokeRequest {
+	request := scheduleRequestInAConversation(toolName, input)
+	request.Context.TaskRunID = "run-1"
+	return request
+}
+
 func admindWritingASchedule(t *testing.T, reachedPath *string, reachedBody *string) string {
 	t.Helper()
 	return admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -133,6 +139,79 @@ func TestScheduleCancelCarriesTheCandidatesBackToTheModel(t *testing.T) {
 	}
 	if !strings.Contains(string(answer.Result), `"scheduleID":"schedule-2"`) {
 		t.Fatalf("the candidates did not reach the model: %s", answer.Result)
+	}
+}
+
+func TestScheduleWritesNameTheRunTheyWereAskedFrom(t *testing.T) {
+	for toolName, asked := range map[string]string{
+		"schedule_create": `{"taskInstruction":"주간 보고서를 정리해 올린다","kind":"cron","cronExpression":"0 9 * * 1","repeatPolicy":"unbounded"}`,
+		"schedule_update": `{"scheduleHint":"주간 보고","intervalSecond":3600}`,
+	} {
+		var reachedPath, reachedBody string
+		service := Service{Configuration: Configuration{AdmindSocketPath: admindWritingASchedule(t, &reachedPath, &reachedBody)}}
+
+		if _, errorValue := service.invokeScheduleTool(context.Background(), scheduleRequestInATaskRun(toolName, asked)); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if scheduleBodyReaching(t, reachedBody)["taskRunID"] != "run-1" {
+			t.Fatalf("%s did not name the run it was asked from: %s", toolName, reachedBody)
+		}
+	}
+}
+
+func TestScheduleWritesOutsideATaskRunNameNoRun(t *testing.T) {
+	for toolName, asked := range map[string]string{
+		"schedule_create": `{"taskInstruction":"주간 보고서를 정리해 올린다","kind":"cron","cronExpression":"0 9 * * 1","repeatPolicy":"unbounded"}`,
+		"schedule_update": `{"scheduleHint":"주간 보고","intervalSecond":3600}`,
+	} {
+		var reachedPath, reachedBody string
+		service := Service{Configuration: Configuration{AdmindSocketPath: admindWritingASchedule(t, &reachedPath, &reachedBody)}}
+
+		if _, errorValue := service.invokeScheduleTool(context.Background(), scheduleRequestInAConversation(toolName, asked)); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if _, isNamed := scheduleBodyReaching(t, reachedBody)["taskRunID"]; isNamed {
+			t.Fatalf("%s named a run it was not asked from: %s", toolName, reachedBody)
+		}
+	}
+}
+
+func TestScheduleCancelNeverNamesTheRunItWasAskedFrom(t *testing.T) {
+	var reachedBody string
+	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(request.Body)
+		reachedBody = string(body)
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"cancelled":[{"scheduleID":"schedule-1","description":"주간 보고"}]}`))
+	}))
+	service := Service{Configuration: Configuration{AdmindSocketPath: socketPath}}
+	asked := `{"scheduleHints":["주간 보고"]}`
+
+	if _, errorValue := service.invokeScheduleTool(context.Background(), scheduleRequestInATaskRun("schedule_cancel", asked)); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if reachedBody != asked {
+		t.Fatalf("schedule_cancel reached admind as %q", reachedBody)
+	}
+}
+
+func TestScheduleWriteRefusedByTheRecordAnswersNotAllowedAndIsNotRetried(t *testing.T) {
+	refusal := "a task run started by a schedule cannot create another schedule"
+	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		http.Error(responseWriter, refusal, http.StatusForbidden)
+	}))
+	service := Service{Configuration: Configuration{AdmindSocketPath: socketPath}}
+
+	answer, errorValue := service.invokeScheduleTool(context.Background(),
+		scheduleRequestInATaskRun("schedule_create", `{"taskInstruction":"주간 보고서를 정리해 올린다","kind":"once","runAt":"2026-09-21T09:00:00+09:00"}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if answer.Outcome != capabilities.ToolOutcomeFailed || answer.ErrorCode != "not_allowed" || answer.Retryable {
+		t.Fatalf("a refused schedule write answered %+v", answer)
+	}
+	if !strings.Contains(answer.Message, refusal) {
+		t.Fatalf("the refusal did not reach the model: %q", answer.Message)
 	}
 }
 

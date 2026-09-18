@@ -647,8 +647,11 @@ func TestScheduleToolWritesRefuseADocumentTheContractRefuses(t *testing.T) {
 		document string
 	}{
 		{"/memory/api/schedules/tool-create", `{"taskInstruction":"주간 보고서","kind":"once","creatorPersonID":"spoofed-person"}`},
+		{"/memory/api/schedules/tool-create", `{"taskInstruction":"주간 보고서","kind":"once","isScheduledRun":false}`},
 		{"/memory/api/schedules/tool-update", `{"scheduleHint":"주간 보고"}{"intervalSecond":3600}`},
+		{"/memory/api/schedules/tool-update", `{"scheduleHint":"주간 보고","isScheduledRun":false}`},
 		{"/memory/api/schedules/tool-cancel", `{"scheduleIDs":["schedule-1"]}`},
+		{"/memory/api/schedules/tool-cancel", `{"scheduleHints":["주간 보고"],"taskRunID":"run-1"}`},
 	} {
 		request := httptest.NewRequest(http.MethodPost, refused.path, strings.NewReader(refused.document))
 		request.Header.Set(requesterEmailHeader, "member@example.com")
@@ -656,6 +659,61 @@ func TestScheduleToolWritesRefuseADocumentTheContractRefuses(t *testing.T) {
 		service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("%s answered %d for %s", refused.path, response.Code, refused.document)
+		}
+	}
+}
+
+func TestScheduleToolWritesForwardTheTaskRunTheyName(t *testing.T) {
+	written := `{"scheduleID":"schedule-1","description":"주간 보고","taskInstruction":"주간 보고서를 정리해 올린다","timeZone":"Asia/Seoul","kind":"cron","cronExpression":"0 9 * * 1","nextRunAt":"2026-09-21T00:00:00Z","conversationID":"channel-1","replyTargetID":"message-1","agentProfileName":"internkim"}`
+	for _, named := range []struct {
+		path     string
+		upstream string
+		document string
+	}{
+		{
+			"/memory/api/schedules/tool-create",
+			"/admin/api/schedule/tool-create",
+			`{"taskRunID":"run-1","taskInstruction":"주간 보고서를 정리해 올린다","kind":"cron","cronExpression":"0 9 * * 1","repeatPolicy":"unbounded","platform":"buzz","conversationID":"channel-1","replyTargetID":"message-1"}`,
+		},
+		{
+			"/memory/api/schedules/tool-update",
+			"/admin/api/schedule/tool-update",
+			`{"taskRunID":"run-1","scheduleHint":"주간 보고","intervalSecond":3600,"repeatPolicy":"unbounded"}`,
+		},
+	} {
+		service := NewService(Configuration{
+			APIBaseURL:      "https://api.example.test",
+			BlueclawBaseURL: "http://blueclaw.local",
+			FleetIDPath:     writeTestFile(t, "device-1"),
+			FleetSecretPath: writeTestFile(t, "secret-1"),
+		})
+		holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+		seatPeopleInACompanyDirectoryForTest(t, service)
+		service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, "schedule-assertion-secret")
+		service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if isCompanyDirectoryRequest(request) {
+				return memoryDirectoryForTest().respond(t, request)
+			}
+			if request.URL.Path != named.upstream || request.Method != http.MethodPost {
+				t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+			}
+			body, errorValue := io.ReadAll(request.Body)
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			if string(body) != named.document {
+				t.Fatalf("%s forwarded %s", named.path, body)
+			}
+			return jsonResponse(http.StatusOK, written, nil), nil
+		})}
+
+		request := httptest.NewRequest(http.MethodPost, named.path, strings.NewReader(named.document))
+		request.Header.Set(requesterEmailHeader, "member@example.com")
+		response := httptest.NewRecorder()
+		service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s answered %d %s", named.path, response.Code, response.Body.String())
 		}
 	}
 }

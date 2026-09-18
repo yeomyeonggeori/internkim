@@ -208,6 +208,7 @@ type ToolInvokeContext struct {
 	RequesterName           string `json:"requesterName,omitempty"`
 	RequesterPlatformUserID string `json:"requesterPlatformUserID,omitempty"`
 	TaskSource              string `json:"taskSource,omitempty"`
+	TaskRunID               string `json:"taskRunID,omitempty"`
 	IsScheduledRun          bool   `json:"isScheduledRun,omitempty"`
 	IsApprovalContinuation  bool   `json:"isApprovalContinuation,omitempty"`
 	// The held call this invocation spends the requester's approval for. A
