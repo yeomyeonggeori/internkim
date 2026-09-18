@@ -48,10 +48,6 @@ export function toolNamesAnsweredBy(answerer: Answerer): string[] {
 	return catalog.tools.filter((tool) => tool.answeredBy === answerer).map((tool) => tool.name);
 }
 
-export function destroysSomething(descriptor: Pick<ToolDescriptor, 'sideEffectClass'>): boolean {
-	return deletingSideEffectClasses.has(descriptor.sideEffectClass);
-}
-
 export function permissionForTool(descriptor: Pick<ToolDescriptor, 'sideEffectClass'>): PublicAPIPermission {
 	if (readingSideEffectClasses.has(descriptor.sideEffectClass)) return 'read';
 	if (writingSideEffectClasses.has(descriptor.sideEffectClass)) return 'write';

@@ -80,16 +80,14 @@ func (service Service) askTheRecord(
 func recordToolFailure(toolName string, status int, answer json.RawMessage) capabilities.ToolInvokeResponse {
 	var refusal struct {
 		Error        string `json:"error"`
+		Message      string `json:"message"`
 		ErrorCode    string `json:"errorCode"`
 		FailureStage string `json:"failureStage"`
 		Retryable    *bool  `json:"retryable"`
 		SafeRetry    bool   `json:"safeRetry"`
 	}
 	json.Unmarshal(answer, &refusal)
-	message := strings.TrimSpace(refusal.Error)
-	if message == "" {
-		message = strings.TrimSpace(string(answer))
-	}
+	message := firstNonEmpty(refusal.Error, refusal.Message, string(answer))
 	return capabilities.ToolInvokeResponse{
 		Provider:        "internkim",
 		SelectedBackend: "record",
