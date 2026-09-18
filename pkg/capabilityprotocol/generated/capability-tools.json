@@ -179,6 +179,794 @@
       "worksOffline": false
     },
     {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "schedule_create",
+      "completionEvidence": {
+        "action": "write_schedule",
+        "mode": "success",
+        "targetKind": "schedule"
+      },
+      "description": "Schedule a task the agent runs later, once or repeatedly. The schedule answers in the conversation it was asked in, so it can only be created from one. Use schedule_update to change an existing schedule.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cronExpression": {
+            "description": "Five-field cron expression for a cron schedule, read in timeZone.",
+            "type": "string"
+          },
+          "description": {
+            "description": "Short name the schedule is listed under. Omit to name it after the instruction.",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "When the schedule stops running. Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00. It must be in the future.",
+            "type": "string"
+          },
+          "intervalSecond": {
+            "description": "Seconds between the runs of an interval schedule, at least 1.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kind": {
+            "description": "once runs a single time at runAt, interval runs every intervalSecond, cron runs on cronExpression.",
+            "enum": [
+              "once",
+              "interval",
+              "cron"
+            ],
+            "type": "string"
+          },
+          "maxRunCount": {
+            "description": "How many times a finite schedule runs before it stops, at least 1.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repeatPolicy": {
+            "description": "Required for interval and cron: finite stops at expiresAt or maxRunCount, unbounded keeps running.",
+            "enum": [
+              "finite",
+              "unbounded"
+            ],
+            "type": "string"
+          },
+          "runAt": {
+            "description": "When a once schedule runs. Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00.",
+            "type": "string"
+          },
+          "taskInstruction": {
+            "description": "What the agent should do each time the schedule fires, written so it can be acted on without the conversation it was asked in.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "IANA time zone the schedule is read in, such as Asia/Seoul. Omit for the company time zone.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cronExpression": {
+            "description": "Five-field cron expression for a cron schedule, read in timeZone.",
+            "type": "string"
+          },
+          "description": {
+            "description": "Short name the schedule is listed under. Omit to name it after the instruction.",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "When the schedule stops running. Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00. It must be in the future.",
+            "type": "string"
+          },
+          "intervalSecond": {
+            "description": "Seconds between the runs of an interval schedule, at least 1.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kind": {
+            "description": "once runs a single time at runAt, interval runs every intervalSecond, cron runs on cronExpression.",
+            "enum": [
+              "once",
+              "interval",
+              "cron"
+            ],
+            "type": "string"
+          },
+          "maxRunCount": {
+            "description": "How many times a finite schedule runs before it stops, at least 1.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repeatPolicy": {
+            "description": "Required for interval and cron: finite stops at expiresAt or maxRunCount, unbounded keeps running.",
+            "enum": [
+              "finite",
+              "unbounded"
+            ],
+            "type": "string"
+          },
+          "runAt": {
+            "description": "When a once schedule runs. Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00.",
+            "type": "string"
+          },
+          "taskInstruction": {
+            "description": "What the agent should do each time the schedule fires, written so it can be acted on without the conversation it was asked in.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "IANA time zone the schedule is read in, such as Asia/Seoul. Omit for the company time zone.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskInstruction",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "schedule_create",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "schedule_create",
+      "namespace": "schedule",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "agentProfileName": {
+            "type": "string"
+          },
+          "conversationID": {
+            "type": "string"
+          },
+          "cronExpression": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "intervalSecond": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "once",
+              "interval",
+              "cron"
+            ],
+            "type": "string"
+          },
+          "maxRunCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "nextRunAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "replyTargetID": {
+            "type": "string"
+          },
+          "runAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scheduleID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskInstruction": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "timeZone": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleID",
+          "description",
+          "taskInstruction",
+          "timeZone",
+          "kind",
+          "nextRunAt",
+          "conversationID",
+          "replyTargetID",
+          "agentProfileName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:schedule_create",
+      "privacyClass": "workspace_schedule",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "schedule",
+            "resultField": "scheduleID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "agentProfileName": {
+              "type": "string"
+            },
+            "conversationID": {
+              "type": "string"
+            },
+            "cronExpression": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "expiresAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "intervalSecond": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "enum": [
+                "once",
+                "interval",
+                "cron"
+              ],
+              "type": "string"
+            },
+            "maxRunCount": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "nextRunAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "replyTargetID": {
+              "type": "string"
+            },
+            "runAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "scheduleID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "taskInstruction": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            "timeZone": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scheduleID",
+            "description",
+            "taskInstruction",
+            "timeZone",
+            "kind",
+            "nextRunAt",
+            "conversationID",
+            "replyTargetID",
+            "agentProfileName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "schedule_update",
+      "completionEvidence": {
+        "action": "write_schedule",
+        "mode": "success",
+        "targetKind": "schedule"
+      },
+      "description": "Change explicit fields on a schedule the requester created. Use schedule_list first when neither the schedule ID nor its current description is known. At least one field to change is required.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cronExpression": {
+            "description": "Five-field cron expression for a cron schedule, read in timeZone.",
+            "type": "string"
+          },
+          "description": {
+            "description": "Short name the schedule is listed under. Omit to name it after the instruction.",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "When the schedule stops running. Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00. It must be in the future.",
+            "type": "string"
+          },
+          "intervalSecond": {
+            "description": "Seconds between the runs of an interval schedule, at least 1.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kind": {
+            "description": "New cadence. once runs a single time at runAt, interval runs every intervalSecond, cron runs on cronExpression.",
+            "enum": [
+              "once",
+              "interval",
+              "cron"
+            ],
+            "type": "string"
+          },
+          "maxRunCount": {
+            "description": "How many times a finite schedule runs before it stops, at least 1.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repeatPolicy": {
+            "description": "Required for interval and cron: finite stops at expiresAt or maxRunCount, unbounded keeps running.",
+            "enum": [
+              "finite",
+              "unbounded"
+            ],
+            "type": "string"
+          },
+          "runAt": {
+            "description": "When a once schedule runs. Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00.",
+            "type": "string"
+          },
+          "taskInstruction": {
+            "description": "New instruction. What the agent should do each time the schedule fires, written so it can be acted on without the conversation it was asked in.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "IANA time zone the schedule is read in, such as Asia/Seoul. Omit for the company time zone.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "minProperties": 2,
+        "properties": {
+          "cronExpression": {
+            "description": "Five-field cron expression for a cron schedule, read in timeZone.",
+            "type": "string"
+          },
+          "description": {
+            "description": "Short name the schedule is listed under. Omit to name it after the instruction.",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "When the schedule stops running. Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00. It must be in the future.",
+            "type": "string"
+          },
+          "intervalSecond": {
+            "description": "Seconds between the runs of an interval schedule, at least 1.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kind": {
+            "description": "New cadence. once runs a single time at runAt, interval runs every intervalSecond, cron runs on cronExpression.",
+            "enum": [
+              "once",
+              "interval",
+              "cron"
+            ],
+            "type": "string"
+          },
+          "maxRunCount": {
+            "description": "How many times a finite schedule runs before it stops, at least 1.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repeatPolicy": {
+            "description": "Required for interval and cron: finite stops at expiresAt or maxRunCount, unbounded keeps running.",
+            "enum": [
+              "finite",
+              "unbounded"
+            ],
+            "type": "string"
+          },
+          "runAt": {
+            "description": "When a once schedule runs. Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00.",
+            "type": "string"
+          },
+          "scheduleHint": {
+            "description": "Identifies the schedule to act on: its exact schedule ID, or the exact CURRENT description of one of your own schedules as schedule_list shows it. Never a new or intended description. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.",
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskInstruction": {
+            "description": "New instruction. What the agent should do each time the schedule fires, written so it can be acted on without the conversation it was asked in.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "timeZone": {
+            "description": "IANA time zone the schedule is read in, such as Asia/Seoul. Omit for the company time zone.",
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleHint"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "schedule_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "schedule_update",
+      "namespace": "schedule",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "agentProfileName": {
+            "type": "string"
+          },
+          "conversationID": {
+            "type": "string"
+          },
+          "cronExpression": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "intervalSecond": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "once",
+              "interval",
+              "cron"
+            ],
+            "type": "string"
+          },
+          "maxRunCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "nextRunAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "replyTargetID": {
+            "type": "string"
+          },
+          "runAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scheduleID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskInstruction": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          },
+          "timeZone": {
+            "minLength": 1,
+            "pattern": "\\S",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduleID",
+          "description",
+          "taskInstruction",
+          "timeZone",
+          "kind",
+          "nextRunAt",
+          "conversationID",
+          "replyTargetID",
+          "agentProfileName"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:schedule_update",
+      "privacyClass": "workspace_schedule",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "schedule",
+            "resultField": "scheduleID"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "agentProfileName": {
+              "type": "string"
+            },
+            "conversationID": {
+              "type": "string"
+            },
+            "cronExpression": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "expiresAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "intervalSecond": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "enum": [
+                "once",
+                "interval",
+                "cron"
+              ],
+              "type": "string"
+            },
+            "maxRunCount": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "nextRunAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "replyTargetID": {
+              "type": "string"
+            },
+            "runAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "scheduleID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "taskInstruction": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            "timeZone": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scheduleID",
+            "description",
+            "taskInstruction",
+            "timeZone",
+            "kind",
+            "nextRunAt",
+            "conversationID",
+            "replyTargetID",
+            "agentProfileName"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "schedule_cancel",
+      "completionEvidence": {
+        "action": "write_schedule",
+        "mode": "success",
+        "targetKind": "schedule"
+      },
+      "description": "Stop schedules the requester created, permanently. Use schedule_list first when neither the schedule IDs nor their current descriptions are known. Requires approval; a cancelled schedule never runs again.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "scheduleHints": {
+            "description": "The schedules to cancel. Each one is an exact schedule ID, or the exact CURRENT description of one of your own schedules as schedule_list shows it, never a new or intended description. Every hint resolves before anything is cancelled, and a hint that does not uniquely resolve fails the call with a candidates list to retry against.",
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "scheduleHints"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "schedule_cancel",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "schedule_cancel",
+      "namespace": "schedule",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cancelled": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "scheduleID": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "scheduleID",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:schedule_cancel",
+      "privacyClass": "workspace_schedule",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "cancelled": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "scheduleID": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "scheduleID",
+                  "description"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "cancelled"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
       "answeredBy": "record",
       "availability": {
         "state": "ok"

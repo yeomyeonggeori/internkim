@@ -55,6 +55,40 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"status":"failed"`)
 			},
 		},
+		"schedule_create": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(aWrittenSchedule),
+			},
+			input:   `{"taskInstruction":"주간 보고서를 정리해 올린다","kind":"cron","cronExpression":"0 9 * * 1","repeatPolicy":"unbounded"}`,
+			arrives: inAChannel,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"scheduleID":"schedule-1"`)
+			},
+		},
+		"schedule_update": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(aWrittenSchedule),
+			},
+			input: `{"scheduleHint":"주간 보고","intervalSecond":3600}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"nextRunAt":"2026-09-21T00:00:00Z"`)
+			},
+		},
+		"schedule_cancel": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"cancelled":[{"scheduleID":"schedule-1","description":"주간 보고"}]}`),
+			},
+			input: `{"scheduleHints":["주간 보고"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"scheduleID":"schedule-1"`)
+			},
+		},
 		"message_context": {
 			kind:    provesBehaviour,
 			reaches: reachingTheMessenger(answering(`{"pubkeyHex":"bot-1","name":"internkim"}`)),

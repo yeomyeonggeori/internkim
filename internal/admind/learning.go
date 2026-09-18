@@ -21,32 +21,46 @@ func (errorValue blueclawHTTPError) Error() string {
 }
 
 func (service *Service) blueclawSignedRequest(ctx context.Context, method string, path string, body []byte, readerPersonID string, responseValue any) error {
+	statusCode, answer, errorValue := service.blueclawSignedAnswer(ctx, method, path, body, readerPersonID)
+	if errorValue != nil {
+		return errorValue
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		return blueclawHTTPError{statusCode: statusCode}
+	}
+	if responseValue == nil {
+		return nil
+	}
+	return json.Unmarshal(answer, responseValue)
+}
+
+// The status and the body as Blueclaw wrote them, for a caller that has to pass
+// a refusal on rather than turn it into one of its own.
+func (service *Service) blueclawSignedAnswer(ctx context.Context, method string, path string, body []byte, readerPersonID string) (int, []byte, error) {
 	key := strings.TrimSpace(readTrimmedFile(service.Configuration.CentralPlaneAgentKeyPath))
 	if key == "" {
-		return fmt.Errorf("central plane agent key is missing")
+		return 0, nil, fmt.Errorf("central plane agent key is missing")
 	}
 	request, errorValue := http.NewRequestWithContext(ctx, method, strings.TrimRight(service.Configuration.BlueclawBaseURL, "/")+path, bytes.NewReader(body))
 	if errorValue != nil {
-		return errorValue
+		return 0, nil, errorValue
 	}
 	header, errorValue := signRequestAssertion(method, request.URL.RequestURI(), body, readerPersonID, time.Now().Add(memoryAssertionLifetime).Unix(), key)
 	if errorValue != nil {
-		return errorValue
+		return 0, nil, errorValue
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set(memoryAssertionHeader, header)
 	response, errorValue := service.httpClient().Do(request)
 	if errorValue != nil {
-		return errorValue
+		return 0, nil, errorValue
 	}
 	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return blueclawHTTPError{statusCode: response.StatusCode}
+	answer, errorValue := io.ReadAll(io.LimitReader(response.Body, 4<<20))
+	if errorValue != nil {
+		return 0, nil, errorValue
 	}
-	if responseValue == nil {
-		return nil
-	}
-	return json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(responseValue)
+	return response.StatusCode, answer, nil
 }
 
 func (service *Service) registerLearningRoutes(multiplexer *http.ServeMux) {

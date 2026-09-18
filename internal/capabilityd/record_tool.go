@@ -74,10 +74,14 @@ func (service Service) askTheRecord(
 	return json.RawMessage(answer), httpResponse.StatusCode, nil
 }
 
-// The record says why it refused in its own words, and a hint it could not
-// resolve comes back with the candidates to choose from. Both are what the
-// model needs, so they are carried rather than summarised.
 func recordToolFailure(toolName string, status int, answer json.RawMessage) capabilities.ToolInvokeResponse {
+	return capabilityToolFailure(capabilityResponseOrigin{Provider: "internkim", SelectedBackend: "record"}, toolName, status, answer)
+}
+
+// The answering side says why it refused in its own words, and a hint it could
+// not resolve comes back with the candidates to choose from. Both are what the
+// model needs, so they are carried rather than summarised.
+func capabilityToolFailure(origin capabilityResponseOrigin, toolName string, status int, answer json.RawMessage) capabilities.ToolInvokeResponse {
 	var refusal struct {
 		Error        string `json:"error"`
 		ErrorCode    string `json:"errorCode"`
@@ -91,8 +95,8 @@ func recordToolFailure(toolName string, status int, answer json.RawMessage) capa
 		message = strings.TrimSpace(string(answer))
 	}
 	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "record",
+		Provider:        origin.Provider,
+		SelectedBackend: origin.SelectedBackend,
 		ToolName:        toolName,
 		Outcome:         capabilities.ToolOutcomeFailed,
 		Status:          "error",

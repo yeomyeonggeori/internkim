@@ -582,3 +582,111 @@ func TestMemoryAPIScheduleMutationHidesDecodeFailureDetails(t *testing.T) {
 		t.Fatalf("memory schedule update body = %s", responseBody)
 	}
 }
+
+func TestScheduleToolCreateSignsTheRequesterAndForwardsTheExactDocument(t *testing.T) {
+	assertionKey := "schedule-assertion-secret"
+	written := `{"scheduleID":"schedule-1","description":"주간 보고","taskInstruction":"주간 보고서를 정리해 올린다","timeZone":"Asia/Seoul","kind":"cron","cronExpression":"0 9 * * 1","nextRunAt":"2026-09-21T00:00:00Z","conversationID":"channel-1","replyTargetID":"message-1","agentProfileName":"internkim"}`
+	asked := `{"taskInstruction":"주간 보고서를 정리해 올린다","kind":"cron","cronExpression":"0 9 * * 1","repeatPolicy":"unbounded","platform":"buzz","conversationID":"channel-1","replyTargetID":"message-1"}`
+	service := NewService(Configuration{
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
+	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, assertionKey)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
+		}
+		if request.URL.Path != "/admin/api/schedule/tool-create" || request.Method != http.MethodPost {
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		}
+		body, errorValue := io.ReadAll(request.Body)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if string(body) != asked {
+			t.Fatalf("schedule create input = %s", body)
+		}
+		assertMemoryFactSignature(t, request, body, assertionKey)
+		return jsonResponse(http.StatusOK, written, nil), nil
+	})}
+
+	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/tool-create", strings.NewReader(asked))
+	request.Header.Set(requesterEmailHeader, "member@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
+
+	if response.Code != http.StatusOK || response.Body.String() != written {
+		t.Fatalf("schedule create response = %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestScheduleToolWritesRefuseADocumentTheContractRefuses(t *testing.T) {
+	service := NewService(Configuration{
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
+	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, "schedule-assertion-secret")
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
+		}
+		t.Fatalf("a refused document reached Blueclaw: %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	for _, refused := range []struct {
+		path     string
+		document string
+	}{
+		{"/memory/api/schedules/tool-create", `{"taskInstruction":"주간 보고서","kind":"once","creatorPersonID":"spoofed-person"}`},
+		{"/memory/api/schedules/tool-update", `{"scheduleHint":"주간 보고"}{"intervalSecond":3600}`},
+		{"/memory/api/schedules/tool-cancel", `{"scheduleIDs":["schedule-1"]}`},
+	} {
+		request := httptest.NewRequest(http.MethodPost, refused.path, strings.NewReader(refused.document))
+		request.Header.Set(requesterEmailHeader, "member@example.com")
+		response := httptest.NewRecorder()
+		service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("%s answered %d for %s", refused.path, response.Code, refused.document)
+		}
+	}
+}
+
+func TestScheduleToolCancelPassesBlueclawsRefusalThrough(t *testing.T) {
+	refusal := `{"error":"주간 보고 is the description of two schedules","errorCode":"interaction_required","candidates":[{"scheduleID":"schedule-1"},{"scheduleID":"schedule-2"}]}`
+	service := NewService(Configuration{
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
+	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, "schedule-assertion-secret")
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
+		}
+		if request.URL.Path != "/admin/api/schedule/tool-cancel" || request.Method != http.MethodPost {
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		}
+		return jsonResponse(http.StatusConflict, refusal, nil), nil
+	})}
+
+	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/tool-cancel", strings.NewReader(`{"scheduleHints":["주간 보고"]}`))
+	request.Header.Set(requesterEmailHeader, "member@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
+
+	if response.Code != http.StatusConflict || response.Body.String() != refusal {
+		t.Fatalf("schedule cancel response = %d %s", response.Code, response.Body.String())
+	}
+}

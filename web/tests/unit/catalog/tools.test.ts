@@ -15,6 +15,7 @@ import {
   MessageToolName,
   SiteLifecycleStatus,
   SiteServeMode,
+  ScheduleToolName,
   SiteToolName,
   WebToolName,
   WorkspaceTaskInitialStatus,
@@ -51,6 +52,10 @@ import {
   messageSendResultSchema,
   messageUpdateInputSchema,
   messageUpdateResultSchema,
+  scheduleCancelInputSchema,
+  scheduleCreateInputSchema,
+  scheduleUpdateInputIntentSchema,
+  scheduleUpdateInputSchema,
   siteListInputSchema,
   siteListResultSchema,
   siteServeInputSchema,
@@ -173,7 +178,10 @@ describe('canonical capability tools', () => {
       'person_invite',
       'person_list',
       'person_update',
+      'schedule_cancel',
+      'schedule_create',
       'schedule_list',
+      'schedule_update',
       'site_list',
       'site_serve',
       'site_unserve',
@@ -250,6 +258,9 @@ describe('canonical capability tools', () => {
     );
 
     expect(stateChangingTools.map(tool => tool.name)).toEqual([
+      ScheduleToolName.Create,
+      ScheduleToolName.Update,
+      ScheduleToolName.Cancel,
       'task_add',
       'task_update',
       'task_delete',
@@ -590,6 +601,51 @@ describe('canonical capability tools', () => {
     expect(calendarUpdateInputIntentSchema.safeParse({ eventHint: 'event-1' }).success).toBe(false);
     expect(calendarDeleteInputIntentSchema.safeParse({}).success).toBe(true);
     expect(calendarDeleteInputIntentSchema.safeParse({ eventHint: 'event-1' }).success).toBe(false);
+  });
+
+  test('keeps schedule write contracts explicit', () => {
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const createTool = catalog.tools.find(tool => tool.name === ScheduleToolName.Create);
+    const updateTool = catalog.tools.find(tool => tool.name === ScheduleToolName.Update);
+    const cancelTool = catalog.tools.find(tool => tool.name === ScheduleToolName.Cancel);
+
+    expect(createTool?.resultContract?.effects).toEqual([
+      { objectType: 'schedule', effect: 'created', resultField: 'scheduleID', effectIdentity: ResourceEffectIdentity.ID },
+    ]);
+    expect(updateTool?.resultContract?.effects).toEqual([
+      { objectType: 'schedule', effect: 'updated', resultField: 'scheduleID', effectIdentity: ResourceEffectIdentity.ID },
+    ]);
+    expect(cancelTool?.resultContract?.effects).toEqual([]);
+    expect(createTool?.requiresApproval).toBeUndefined();
+    expect(updateTool?.requiresApproval).toBeUndefined();
+    expect(cancelTool?.requiresApproval).toBe(true);
+    expect(createTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);
+    expect(updateTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);
+    expect(cancelTool?.sideEffectClass).toBe(CapabilitySideEffect.Destructive);
+  });
+
+  test('takes an instruction, a cadence, and at least one change', () => {
+    expect(scheduleCreateInputSchema.safeParse({
+      taskInstruction: '주간 보고서를 정리해 올린다',
+      kind: 'cron',
+      cronExpression: '0 9 * * 1',
+      repeatPolicy: 'unbounded',
+    }).success).toBe(true);
+    expect(scheduleCreateInputSchema.safeParse({ kind: 'once', runAt: '2026-09-21T09:00:00+09:00' }).success).toBe(false);
+    expect(scheduleCreateInputSchema.safeParse({
+      taskInstruction: '주간 보고서를 정리해 올린다',
+      kind: 'once',
+      conversationID: 'channel-1',
+    }).success).toBe(false);
+    expect(scheduleUpdateInputSchema.safeParse({ scheduleHint: '주간 보고', intervalSecond: 3600 }).success).toBe(true);
+    expect(scheduleUpdateInputSchema.safeParse({ scheduleHint: '주간 보고' }).success).toBe(false);
+    expect(scheduleCancelInputSchema.safeParse({ scheduleHints: ['주간 보고'] }).success).toBe(true);
+    expect(scheduleCancelInputSchema.safeParse({ scheduleHints: [] }).success).toBe(false);
+  });
+
+  test('keeps the schedule a write acts on out of user intent', () => {
+    expect(scheduleUpdateInputIntentSchema.safeParse({ intervalSecond: 3600 }).success).toBe(true);
+    expect(scheduleUpdateInputIntentSchema.safeParse({ scheduleHint: 'schedule-1' }).success).toBe(false);
   });
 
   test('validates shallow message inputs', () => {
