@@ -853,7 +853,7 @@
         "mode": "success",
         "targetKind": "schedule"
       },
-      "description": "Stop schedules the requester created, permanently. Use schedule_list first when neither the schedule IDs nor their current descriptions are known. Requires approval; a cancelled schedule never runs again.",
+      "description": "Stop schedules the requester created. Use schedule_list first when neither the schedule IDs nor their current descriptions are known. A cancelled schedule never runs again; schedule_create makes a new one.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -926,7 +926,6 @@
       "outputSchemaStrict": true,
       "policyResource": "tool:schedule_cancel",
       "privacyClass": "workspace_schedule",
-      "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -961,8 +960,8 @@
           "type": "object"
         }
       },
-      "sideEffect": "destructive",
-      "sideEffectClass": "destructive",
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
       "version": "1",
       "worksOffline": false
     },

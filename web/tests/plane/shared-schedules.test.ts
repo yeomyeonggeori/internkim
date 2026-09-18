@@ -151,7 +151,6 @@ type ScheduleCall = {
 	requesterEmail: string;
 	requesterPersonID?: string;
 	taskRunID?: string;
-	approved?: boolean;
 	outcome?: string;
 };
 
@@ -170,8 +169,7 @@ async function invokeScheduleTool(call: ScheduleCall): Promise<Response> {
 				conversationID: 'plane-schedule-conversation',
 				conversationType: 'channel',
 				channelID: 'plane-schedule-conversation',
-				replyTargetID: 'plane-schedule-message',
-				isApprovalContinuation: call.approved === true
+				replyTargetID: 'plane-schedule-message'
 			}
 		})
 	});
@@ -229,20 +227,11 @@ test('a schedule is created, changed and cancelled through the shared catalog', 
 	expect(updated.result.kind).toBe('interval');
 	expect(updated.result.intervalSecond).toBe(3600);
 
-	const refused = await answerOf({
-		toolName: 'schedule_cancel',
-		requesterEmail: requester.email,
-		outcome: 'denied',
-		input: { scheduleHints: ['Weekly delivery plan'] }
-	});
-	expect(JSON.stringify(refused)).toContain('approval_required');
-
 	const cancelled = scheduleCancelAnswerSchema.parse(
 		await answerOf({
 			toolName: 'schedule_cancel',
 			requesterEmail: requester.email,
 			requesterPersonID: requester.memberID,
-			approved: true,
 			input: { scheduleHints: ['Weekly delivery plan'] }
 		})
 	);
