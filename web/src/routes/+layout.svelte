@@ -36,6 +36,7 @@
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
 	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
 	import { keepActivityTokensClaimed } from '$lib/widget/attendance-activity-tokens';
+	import { remindWhereToTurnTheLockScreenOn } from '$lib/attendance/lock-screen-reminder';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -86,6 +87,7 @@
 			keepActivityTokensClaimed().catch((failure: unknown) =>
 				console.warn('the lock screen is not following attendance', failure)
 			);
+			remindWhereToTurnTheLockScreenOn();
 		});
 	});
 	onMount(() => {
