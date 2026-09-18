@@ -174,6 +174,47 @@ export enum SiteLifecycleStatus {
   Failed = 'failed',
 }
 
+export enum ScheduleToolName {
+  List = 'schedule_list',
+}
+
+const scheduleListInputSchema = z.strictObject({
+  status: z.enum(['active', 'failed', 'expired']).optional(),
+  limit: z.int().min(1).optional(),
+});
+
+const scheduleListItemSchema = z.strictObject({
+  scheduleID: z.string().min(1),
+  taskInstruction: z.string().min(1).regex(/\S/),
+  description: z.string().optional(),
+  cadence: z.string(),
+  cronExpression: z.string().optional(),
+  runAt: z.string().meta({ format: 'date-time' }).optional(),
+  status: z.enum(['active', 'failed', 'expired']),
+  nextRunAt: z.string().meta({ format: 'date-time' }).optional(),
+  lastRunAt: z.string().meta({ format: 'date-time' }).optional(),
+});
+
+const scheduleListResultSchema = z.strictObject({
+  schedules: z.array(scheduleListItemSchema),
+});
+
+const scheduleToolDefinitions: CapabilityToolDefinition[] = [
+  {
+    name: ScheduleToolName.List,
+    namespace: 'schedule',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'workspace_schedule',
+    policyResource: 'tool:schedule_list',
+    description: 'List scheduled tasks created by the current requester. Filter by active, failed, or expired status and cap the result with limit. Use it to answer what reminders or recurring tasks are scheduled.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: scheduleListInputSchema,
+    result: { schema: scheduleListResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+];
+
 export enum CalendarReminderLeadHours {
   One = 1,
   Two = 2,
@@ -1799,6 +1840,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
 ];
 
 const capabilityToolDefinitions: CapabilityToolDefinition[] = [
+  ...scheduleToolDefinitions,
   ...taskToolDefinitions,
   ...peopleToolDefinitions,
   ...calendarToolDefinitions,

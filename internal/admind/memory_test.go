@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -113,6 +114,52 @@ func TestMemoryAPIResolvesTheSessionUserSchedules(t *testing.T) {
 	}
 	if schedules["count"] != float64(1) {
 		t.Fatalf("memory schedules response = %+v", schedules)
+	}
+}
+
+func TestScheduleToolListSignsTheActiveRequesterAndForwardsExactInput(t *testing.T) {
+	assertionKey := "schedule-assertion-secret"
+	service := NewService(Configuration{
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+		FleetIDPath:     writeTestFile(t, "device-1"),
+		FleetSecretPath: writeTestFile(t, "secret-1"),
+	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, assertionKey)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
+		}
+		if request.URL.Path != "/admin/api/schedule/tool-list" || request.Method != http.MethodPost {
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		}
+		body, errorValue := io.ReadAll(request.Body)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if string(body) != `{"status":"failed","limit":1}` {
+			t.Fatalf("schedule input = %s", body)
+		}
+		assertMemoryFactSignature(t, request, body, assertionKey)
+		return jsonResponse(http.StatusOK, `{"schedules":[{"scheduleID":"schedule-1","taskInstruction":"full instruction","cadence":"cron","status":"failed"}]}`, nil), nil
+	})}
+
+	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/tool-list", strings.NewReader(`{"status":"failed","limit":1}`))
+	request.Header.Set(requesterEmailHeader, "member@example.com")
+	response := httptest.NewRecorder()
+	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
+
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"taskInstruction":"full instruction"`) {
+		t.Fatalf("schedule list response = %d %s", response.Code, response.Body.String())
+	}
+	request = httptest.NewRequest(http.MethodPost, "/memory/api/schedules/tool-list", strings.NewReader(`{"status":"active"}{"limit":1}`))
+	request.Header.Set(requesterEmailHeader, "member@example.com")
+	response = httptest.NewRecorder()
+	service.router().ServeHTTP(response, arrivingOnTheRequesterSocket(request))
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("trailing JSON status = %d, want %d", response.Code, http.StatusBadRequest)
 	}
 }
 

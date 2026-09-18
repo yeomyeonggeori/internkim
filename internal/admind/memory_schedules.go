@@ -2,6 +2,7 @@ package admind
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -11,6 +12,11 @@ import (
 
 type memoryScheduleCancelRequest struct {
 	TaskScheduleID string `json:"taskScheduleID"`
+}
+
+type scheduleToolListInput struct {
+	Status string `json:"status"`
+	Limit  int    `json:"limit"`
 }
 
 type memoryScheduleCancelBlueclawRequest struct {
@@ -85,6 +91,37 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 		return
 	}
 	service.writeJSON(responseWriter, schedules)
+}
+
+func (service *Service) writeUserScheduleToolList(responseWriter http.ResponseWriter, request *http.Request) {
+	personID, ok := service.writeMemorySchedulePersonID(responseWriter, request)
+	if !ok {
+		return
+	}
+	var input scheduleToolListInput
+	decoder := json.NewDecoder(http.MaxBytesReader(responseWriter, request.Body, 16*1024))
+	decoder.DisallowUnknownFields()
+	if errorValue := decoder.Decode(&input); errorValue != nil {
+		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
+		return
+	}
+	if errorValue := decoder.Decode(&struct{}{}); errorValue != io.EOF {
+		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
+		return
+	}
+	body, errorValue := json.Marshal(input)
+	if errorValue != nil {
+		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
+		return
+	}
+	var output json.RawMessage
+	if errorValue := service.blueclawSignedRequest(request.Context(), http.MethodPost, "/admin/api/schedule/tool-list", body, personID, &output); errorValue != nil {
+		log.Printf("schedule tool list upstream failed: %v", errorValue)
+		http.Error(responseWriter, "schedule list unavailable", http.StatusBadGateway)
+		return
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	_, _ = responseWriter.Write(output)
 }
 
 func (service *Service) cancelUserMemorySchedule(responseWriter http.ResponseWriter, request *http.Request) {
