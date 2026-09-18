@@ -113,7 +113,7 @@ TRUNCATE TABLE
   task_artifact,
   task_wait_token,
   task_session,
-  task_schedule,
+  schedule,
   task_run,
   memory_source,
   memory_record,

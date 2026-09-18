@@ -43,8 +43,8 @@ async function seedSchedule(
 ): Promise<void> {
 	const nextRunAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 	await database`
-		INSERT INTO task_schedule (
-			task_schedule_id, creator_person_id, name, prompt, execution_mode,
+		INSERT INTO schedule (
+			schedule_id, creator_person_id, name, prompt, execution_mode,
 			agent_profile_name, schedule_kind, cron_expression, next_run_at,
 			created_at, updated_at, platform, delivery_conversation_id,
 			reply_target_id, time_zone, failure_count, last_error,
