@@ -644,30 +644,6 @@ func TestAdminUsersProxyRefusesToRemoveTheLastAdmin(t *testing.T) {
 	}
 }
 
-func TestAdminCompanionReleasesAreSameOrigin(t *testing.T) {
-	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
-	handler := service.router()
-
-	request := httptest.NewRequest(http.MethodGet, "/admin/api/companion/releases", nil)
-	request.RemoteAddr = "127.0.0.1:12345"
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("companion releases status = %d", response.Code)
-	}
-
-	var document companionReleaseResponse
-	if errorValue := json.NewDecoder(response.Body).Decode(&document); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(document.Platforms) == 0 {
-		t.Fatal("companion releases empty")
-	}
-	if document.Platforms[0].Platform != "macos" {
-		t.Fatalf("first companion release platform = %q", document.Platforms[0].Platform)
-	}
-}
-
 func TestQuickTaskRejectsUnauthenticatedRemoteCaller(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodPost, quickTaskPath, strings.NewReader(`{"prompt":"보고서"}`))
@@ -1375,6 +1351,9 @@ func TestLocalCompanionPairingCodeStoresTheOwnersPlatform(t *testing.T) {
 	}
 	if !strings.Contains(pairingCode.DeepLink, url.QueryEscape("https://device.example.com")) {
 		t.Fatalf("expected deep link device url override, got %q", pairingCode.DeepLink)
+	}
+	if pairingCode.PairCommand != "internkim-companion pair --device-url https://device.example.com --code "+pairingCode.Code {
+		t.Fatalf("pair command = %q", pairingCode.PairCommand)
 	}
 
 	pairRequest := httptest.NewRequest(http.MethodPost, "/_internkim/companion/pair", strings.NewReader(`{

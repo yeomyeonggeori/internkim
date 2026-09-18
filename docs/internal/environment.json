@@ -23,14 +23,6 @@
     "process": "relay",
     "description": "the path to the file holding the company agent key, so the key never lands in the process environment (ps eww)"
   },
-  "AGENT_BROWSER_BINARY": {
-    "process": "tools/prepare-companion-agent-browser",
-    "description": "path to a prebuilt agent-browser binary to bundle, instead of downloading or building one"
-  },
-  "AGENT_BROWSER_EXECUTABLE_PATH": {
-    "process": "companion",
-    "description": "override path to the agent-browser binary the companion's browser runtime launches"
-  },
   "ANSWER_BYTE_CEILING": {
     "process": "relay",
     "description": "maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit"
@@ -205,7 +197,7 @@
   },
   "DEVICE_BROWSER_CAPACITY": {
     "process": "host",
-    "description": "the most device browsers capabilityd runs at once, one per requester; when every one is held by a handoff the next requester is told the browser is busy; defaults to 4"
+    "description": "the most device browsers capabilityd runs at once, one per requester; the least recently used is stopped to make room, and while every one is still starting the next requester is told the browser is busy; defaults to 4"
   },
   "DEVICE_BROWSER_PORT": {
     "process": "host",
@@ -264,8 +256,8 @@
     "description": "the admin sign-in password the CRUD/delete/matrix Playwright specs use"
   },
   "INTERNKIM_AGENT_BROWSER_PATH": {
-    "process": "companion",
-    "description": "override path to the agent-browser binary; also read by internal/browser's real-Chrome test"
+    "process": "internal/browser test",
+    "description": "path to an agent-browser binary for internal/browser's real-Chrome test; the test is skipped when unset"
   },
   "INTERNKIM_APP_URL": {
     "process": "relay, host",
@@ -317,11 +309,19 @@
   },
   "INTERNKIM_BROWSER_EXTENSION_PATH": {
     "process": "companion",
-    "description": "override path to a browser extension the companion's browser runtime loads"
+    "description": "override path to a browser extension directory the companion loads instead of unpacking the embedded one next to its browser profile"
   },
   "INTERNKIM_BUZZ_KEY_SEED": {
     "process": "cli, tools/mirror-local",
     "description": "the Buzz identity seed value; internal/cli reads it as a setup-time override, tools/mirror-local writes it to the local bridge's seed file"
+  },
+  "INTERNKIM_COMPANION_BIN_DIR": {
+    "process": "companion installer",
+    "description": "the directory web/static/companion/install.sh puts the companion binary in; defaults to ~/.local/bin"
+  },
+  "INTERNKIM_COMPANION_RELEASE_URL": {
+    "process": "companion installer",
+    "description": "the release registry prefix web/static/companion/install.sh downloads the companion from; defaults to https://updates.intern.kim/companion/latest"
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli",
@@ -362,6 +362,10 @@
   "INTERNKIM_CRUD_SCREENSHOT": {
     "process": "web e2e tests",
     "description": "the file path the CRUD/delete Playwright specs save their channel screenshot to"
+  },
+  "INTERNKIM_CUA_DRIVER_PATH": {
+    "process": "companion",
+    "description": "path to the Cua Driver executable computer_task drives; when unset the companion looks on PATH and in ~/.local/bin"
   },
   "INTERNKIM_DELETE_AFTER_SHOT": {
     "process": "web e2e tests",

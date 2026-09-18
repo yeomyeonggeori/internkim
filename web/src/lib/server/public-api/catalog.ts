@@ -1,24 +1,21 @@
 import catalogDocument from '../../../../../pkg/capabilityprotocol/generated/capability-tools.json';
 import descriptorSchema from '../../../../../pkg/capabilityprotocol/generated/json-schema/capability-descriptor.schema.json';
-import { z } from 'zod';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
 import { statesAResultContract } from './catalog/contract';
-import { capabilityDescriptorSchema } from './catalog/protocol';
 
-export type ToolDescriptor = z.infer<typeof capabilityDescriptorSchema>;
+export type ToolDescriptor = {
+	name: string;
+	sideEffectClass: string;
+	description: string;
+	inputSchema: Record<string, unknown>;
+	outputSchema: Record<string, unknown>;
+};
 
-const toolCatalogSchema = z.strictObject({
-	protocolVersion: z.string().trim().min(1),
-	tools: z.array(capabilityDescriptorSchema)
-});
+type CatalogEntry = ToolDescriptor & { answeredBy: string; modelVisibility: string; resultContract?: unknown };
 
-type ToolCatalog = z.infer<typeof toolCatalogSchema>;
+type ToolCatalog = { protocolVersion: string; tools: CatalogEntry[] };
 
-export function parseToolCatalog(document: unknown): ToolCatalog {
-	return toolCatalogSchema.parse(document);
-}
-
-const catalog = parseToolCatalog(catalogDocument);
+const catalog: ToolCatalog = catalogDocument;
 
 const sideEffectClassVocabulary: string[] = descriptorSchema.properties.sideEffectClass.enum;
 
@@ -51,11 +48,7 @@ export function toolNamesAnsweredBy(answerer: Answerer): string[] {
 	return catalog.tools.filter((tool) => tool.answeredBy === answerer).map((tool) => tool.name);
 }
 
-export function destroysSomething(descriptor: { sideEffectClass: string }): boolean {
-	return deletingSideEffectClasses.has(descriptor.sideEffectClass);
-}
-
-export function permissionForTool(descriptor: { sideEffectClass: string }): PublicAPIPermission {
+export function permissionForTool(descriptor: Pick<ToolDescriptor, 'sideEffectClass'>): PublicAPIPermission {
 	if (readingSideEffectClasses.has(descriptor.sideEffectClass)) return 'read';
 	if (writingSideEffectClasses.has(descriptor.sideEffectClass)) return 'write';
 	return 'delete';

@@ -21,25 +21,6 @@ const browserFillInputSchema = z.strictObject({
 
 const browserFillInputIntentSchema = browserFillInputSchema.partial();
 
-const browserHandoffInputSchema = z.strictObject({
-  message: z.string().describe('What the person should do in the browser, in the language of the conversation.').optional(),
-  url: z.string().describe('An HTTP or HTTPS address to open in the device browser before handing it over.').optional(),
-});
-
-const browserHandoffInputIntentSchema = browserHandoffInputSchema;
-
-const browserHandoffResultSchema = z.strictObject({
-  handoffID: resourceIDSchema,
-  status: z.literal('waiting'),
-  openURL: resourceIDSchema.describe('The intern.kim address where the requester watches and controls the device browser. Share it only once page shows what they need.'),
-  expiresAt: resourceIDSchema,
-  page: z.strictObject({
-    url: resourceIDSchema.describe('The address the device browser actually shows, which may differ from the url asked for.'),
-    title: z.string().optional(),
-    text: z.string().describe('The start of the text the page shows. Read it: a not-found, error or unexpected page is what the requester would see.').optional(),
-  }).describe('What the requester sees when they open openURL.'),
-});
-
 const browserPressInputSchema = z.strictObject({
   key: z.string(),
 });
@@ -105,20 +86,6 @@ export const browserControlToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.ExternalWrite,
     requiresRequesterDevice: true,
     approvalScope: "browser",
-  },
-  {
-    name: "browser_handoff",
-    namespace: "browser",
-    answeredBy: CapabilityAnsweredBy.Local,
-    privacyClass: "device_browser",
-    policyResource: "tool:browser_handoff",
-    description: "Hand the device browser to the requester for a step only a person can do, such as signing in or passing a CAPTCHA. The requester watches and controls it live on intern.kim. Read the returned page first: if it is not the page they need, such as a not-found or error page, fix it with browser_open, since openURL shows whatever the browser shows. Then share openURL, describe the page as it is rather than as you intended, end your turn, and continue when they finish.",
-    version: "1",
-    estimatedLatency: CapabilityEstimatedLatency.Interactive,
-    inputSchema: browserHandoffInputSchema,
-    inputIntentSchema: browserHandoffInputIntentSchema,
-    result: { schema: browserHandoffResultSchema, effects: [] },
-    sideEffect: CapabilitySideEffect.Connect,
   },
   {
     name: "browser_press",

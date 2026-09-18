@@ -164,15 +164,23 @@ func RoutingCandidates() []string {
 	return capabilityprotocol.RoutingCandidates()
 }
 
-func CompanionMacOSBetaDownloadURL() string {
-	return "https://gitlab.com/eastriver/internkim/-/releases/permalink/latest/downloads/internkim-companion-beta-macos-aarch64.dmg"
+func CompanionInstallURL() string {
+	return "https://docs.intern.kim/docs/companion"
+}
+
+func CompanionInstallCommand() string {
+	return "curl -fsSL https://intern.kim/companion/install.sh | sh"
+}
+
+func CompanionServiceCommand() string {
+	return "internkim-companion service install"
 }
 
 func CompanionConnectRecovery() *RecoveryAction {
 	return &RecoveryAction{
 		Kind:           "companion_connect",
 		Delivery:       "dm_preferred",
-		DownloadURL:    CompanionMacOSBetaDownloadURL(),
+		DownloadURL:    CompanionInstallURL(),
 		ConnectCommand: "/connect",
 	}
 }

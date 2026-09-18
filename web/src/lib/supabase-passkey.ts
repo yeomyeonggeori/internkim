@@ -14,18 +14,43 @@ const refusalByCode: Record<string, PasskeyRefusal> = {
 	ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED: 'already-registered'
 };
 
+const passthroughCode = 'ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY';
+const dismissalName = 'NotAllowedError';
+
+function nameOf(value: unknown): string {
+	if (typeof value !== 'object' || value === null) return '';
+	const { name } = value as { name?: unknown };
+	return typeof name === 'string' ? name : '';
+}
+
+function isDismissal(error: object): boolean {
+	if (nameOf(error) === dismissalName) return true;
+	const { cause } = error as { cause?: unknown };
+	return nameOf(cause) === dismissalName;
+}
+
 export function refusalOf(error: unknown): PasskeyRefusal {
 	if (typeof error !== 'object' || error === null) return 'failed';
 	const { code } = error as { code?: unknown };
 	if (typeof code !== 'string') return 'failed';
+	if (code === passthroughCode) return isDismissal(error) ? 'cancelled' : 'failed';
 	return refusalByCode[code] ?? 'failed';
+}
+
+function messageOf(value: unknown): string {
+	if (typeof value !== 'object' || value === null) return '';
+	const { message } = value as { message?: unknown };
+	return typeof message === 'string' ? message.trim() : '';
 }
 
 function refusalReasonOf(error: unknown): string {
 	if (typeof error !== 'object' || error === null) return '';
-	const { code, message } = error as { code?: unknown; message?: unknown };
-	if (typeof code === 'string' && code.trim() !== '') return code;
-	return typeof message === 'string' ? message.trim() : '';
+	const { cause, code } = error as { cause?: unknown; code?: unknown };
+	const carried = code === passthroughCode ? messageOf(cause) : '';
+	if (carried !== '') return carried;
+	const stated = messageOf(error);
+	if (stated !== '') return stated;
+	return typeof code === 'string' ? code.trim() : '';
 }
 
 export function passkeyFailureText(failed: string, error: unknown): string {

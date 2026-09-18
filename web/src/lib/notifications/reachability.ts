@@ -1,6 +1,6 @@
 export type Reachability = 'unsupported' | 'unconfigured' | 'blocked' | 'off' | 'on';
 
-export const pushDeviceKinds = ['web-push', 'apns', 'fcm'] as const;
+export const pushDeviceKinds = ['web-push', 'apns', 'fcm', 'apns-activity-start', 'apns-activity'] as const;
 
 export type PushDeviceKind = (typeof pushDeviceKinds)[number];
 

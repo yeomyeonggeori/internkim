@@ -154,27 +154,6 @@ func TestAFullDeviceStopsTheLeastRecentlyUsedBrowser(t *testing.T) {
 	}
 }
 
-func TestAHeldBrowserIsNeitherEvictedNorStoppedWhenIdle(t *testing.T) {
-	browsers, host := newFakeDeviceBrowsers(1)
-
-	held := browserFor(t, browsers, "held@example.com")
-	browsers.HoldUntil("held@example.com", host.clock().Add(15*time.Minute))
-
-	_, errorValue := browsers.BrowserFor(context.Background(), "other@example.com")
-	if !errors.Is(errorValue, ErrDeviceBrowsersFull) {
-		t.Fatalf("expected a full device to refuse another member, got %v", errorValue)
-	}
-	host.advance(12 * time.Minute)
-	browsers.StopIdle()
-	if host.browserOnPort(t, 9230) == nil || held.DevtoolsURL != "http://127.0.0.1:9230" {
-		t.Fatal("expected the held browser to keep running")
-	}
-
-	host.advance(4 * time.Minute)
-	browserFor(t, browsers, "other@example.com")
-	waitUntil(t, host.launched[0].isStopped)
-}
-
 func TestAnIdleBrowserStopsAndStartsAgainWhenNeeded(t *testing.T) {
 	browsers, host := newFakeDeviceBrowsers(4)
 

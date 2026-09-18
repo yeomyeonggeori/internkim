@@ -7,7 +7,7 @@
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
-	import { appSectionPathOf, isFullScreenApp, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
+	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
 	import { routePathOf } from '$lib/company-path';
 	import BuzzIdentityGate from '$lib/components/buzz/buzz-identity-gate.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
@@ -35,6 +35,8 @@
 	import { goWhereNativeNotificationsPoint, keepNativeDeviceClaimed } from '$lib/notifications/native-device';
 	import { askToBeReachedOnce } from '$lib/notifications/ask-once';
 	import { keepWidgetSupplied } from '$lib/widget/attendance-widget-supply';
+	import { keepActivityTokensClaimed } from '$lib/widget/attendance-activity-tokens';
+	import { catchTheLockScreenUp } from '$lib/attendance/lock-screen-catch-up';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
 	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -82,6 +84,10 @@
 			keepWidgetSupplied().catch((failure: unknown) =>
 				console.warn('the widget holds no key of its own', failure)
 			);
+			keepActivityTokensClaimed().catch((failure: unknown) =>
+				console.warn('the lock screen is not following attendance', failure)
+			);
+			catchTheLockScreenUp();
 		});
 	});
 	onMount(() => {
@@ -181,7 +187,7 @@
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
-		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-svh w-full bg-background text-foreground">
+		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(100svh,100%)] min-h-0 w-full bg-background text-foreground">
 			{#if !isEmbeddedFrame()}
 				<AppRail session={data.session} />
 			{/if}
@@ -283,12 +289,6 @@
 		</Sidebar.Provider>
 		<AppCommandPalette bind:open={isCommandPaletteOpen} />
 	</Tooltip.Provider>
-{:else if isFullScreenApp(page.url.pathname)}
-	<div class="flex h-svh w-full bg-background text-foreground">
-		<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
-			{@render children()}
-		</WebAuthGate>
-	</div>
 {:else}
 	{@render children()}
 {/if}

@@ -6,13 +6,6 @@ import (
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
-func browserHandoffInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("url", jsonschema.String()),
-		jsonschema.Field("message", jsonschema.String()),
-	).RawMessage()
-}
-
 func browserFillInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("target", jsonschema.String()),

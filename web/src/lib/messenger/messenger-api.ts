@@ -237,6 +237,14 @@ export async function handOverChannel(channelID: string, newOwnerExternalID: str
 	await ask('person.channel.owner.set', { conversationID: channelID, externalID: newOwnerExternalID });
 }
 
+export async function addChannelOwner(channelID: string, externalID: string): Promise<void> {
+	await ask('person.channel.owner.add', { conversationID: channelID, externalID });
+}
+
+export async function removeChannelMember(channelID: string, externalID: string): Promise<void> {
+	await ask('person.channel.member.remove', { conversationID: channelID, externalID });
+}
+
 export async function deleteChannel(channelID: string): Promise<void> {
 	await ask('person.channel.delete', { conversationID: channelID });
 }

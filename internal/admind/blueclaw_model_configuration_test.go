@@ -44,6 +44,28 @@ func TestRefreshMigratesDeployedLegacyModelConfiguration(t *testing.T) {
 	}
 }
 
+func TestRefreshStampsTheLadderOwnedModelsIntoADeployedConfiguration(t *testing.T) {
+	document := `{"capabilities":{},"languageModel":{"capability":{"model":"vendor/current","executionMode":"auto","lowModel":"vendor/current"}}}`
+	refreshed, errorValue := refreshedBlueclawRuntimeConfiguration(document, blueclawruntime.CurrentCapabilityContract())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var result struct {
+		LanguageModel struct {
+			Capability map[string]any `json:"capability"`
+		} `json:"languageModel"`
+	}
+	if errorValue := json.Unmarshal([]byte(refreshed), &result); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if result.LanguageModel.Capability["decisionModel"] != modelladder.DecisionModel {
+		t.Fatalf("a deployed configuration without a decision model keeps starting without one: %+v", result.LanguageModel.Capability)
+	}
+	if result.LanguageModel.Capability["lowModel"] != "vendor/current" {
+		t.Fatalf("stamping the decision model rewrote a configured tier: %+v", result.LanguageModel.Capability)
+	}
+}
+
 func TestModelMigrationLeavesCurrentAndExplicitEndpointConfigurationsUntouched(t *testing.T) {
 	for _, document := range []string{
 		`{"languageModel":{"capability":{"lowModel":"vendor/only-low"}}}`,

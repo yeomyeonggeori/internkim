@@ -1,39 +1,33 @@
 #!/usr/bin/env python3
-"""Cut the Companion, docs and bot icons from the two masters in assets/.
+"""Cut the docs favicon and the bot avatar from assets/internkim.square.png.
 
 assets/internkim.icon.png is the finished app icon, drawn in Icon Composer,
-and takes the Companion Tauri set. assets/internkim.square.png is the same
-face drawn full bleed, and takes the slots a platform recuts or shrinks: the
-docs favicon, the menu-bar tray, and the bot avatar.
+and waits for a desktop wrapper. assets/internkim.square.png is the same face
+drawn full bleed, and takes the slots a platform recuts or shrinks: the docs
+favicon and the bot avatar.
 
 The web app's icons in web/static are supplied artwork, not cut from these
 masters, so this script does not write them.
 
-The tray icon is the square's white silhouette as alpha, which macOS tints as
-a template. A tab favicon is drawn at 16 to 32 pixels, and the whole square is
-unreadable there: the face lands on a dozen pixels and the frame around it
-takes the rest. The docs favicon is cut to FAVICON_FRAME instead, which fills
-the tile with the sprout, head and glasses.
+A tab favicon is drawn at 16 to 32 pixels, and the whole square is unreadable
+there: the face lands on a dozen pixels and the frame around it takes the
+rest. The docs favicon is cut to FAVICON_FRAME instead, which fills the tile
+with the sprout, head and glasses.
 
-Needs Pillow and numpy on the running Python, and bun for the Tauri set.
+Needs Pillow on the running Python.
 """
 
 import pathlib
-import subprocess
 import sys
 
 try:
-    import numpy
     from PIL import Image
 except ImportError as error:
-    sys.exit(f"tools/generate-icons needs Pillow and numpy: {error}")
+    sys.exit(f"tools/generate-icons needs Pillow: {error}")
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
-ICON_MASTER = REPOSITORY_ROOT / "assets" / "internkim.icon.png"
 SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
 FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
-TEMPLATE_DARKEST_WHITE = 150
-TEMPLATE_LIGHTEST_WHITE = 240
 MASTER_SIDE = 1024
 FAVICON_FRAME = (122, 178, 780)
 
@@ -42,16 +36,6 @@ def save(image: Image.Image, relative_path: str, size: int, mode: str) -> None:
     output = image.resize((size, size), Image.LANCZOS).convert(mode)
     output.save(REPOSITORY_ROOT / relative_path, optimize=True)
     print(relative_path, output.size, output.mode)
-
-
-def template_from_square(image: Image.Image, size: int) -> Image.Image:
-    pixels = numpy.array(image.resize((size, size), Image.LANCZOS)).astype(numpy.float32)
-    whiteness = pixels.mean(axis=2)
-    span = TEMPLATE_LIGHTEST_WHITE - TEMPLATE_DARKEST_WHITE
-    alpha = numpy.clip((whiteness - TEMPLATE_DARKEST_WHITE) / span, 0, 1) * 255
-    output = numpy.zeros((size, size, 4), numpy.uint8)
-    output[..., 3] = alpha.astype(numpy.uint8)
-    return Image.fromarray(output, "RGBA")
 
 
 def framed_face(square: Image.Image) -> Image.Image:
@@ -69,26 +53,11 @@ def write_favicon(square: Image.Image) -> None:
     print("docs/web/public/favicon.ico", FAVICON_SIZES)
 
 
-def write_tauri_set() -> None:
-    subprocess.run(
-        ["bunx", "tauri", "icon", str(ICON_MASTER)],
-        cwd=REPOSITORY_ROOT / "companion",
-        check=True,
-        stdout=subprocess.DEVNULL,
-    )
-    print("companion/src-tauri/icons/ (tauri icon)")
-
-
 def main() -> None:
     square = Image.open(SQUARE_MASTER).convert("RGB")
 
     save(square, "assets/internkim.png", 512, "RGB")
     write_favicon(square)
-
-    write_tauri_set()
-    tray = template_from_square(square, 128)
-    tray.save(REPOSITORY_ROOT / "companion/src-tauri/icons/tray-icon.png", optimize=True)
-    print("companion/src-tauri/icons/tray-icon.png", tray.size, tray.mode)
 
 
 if __name__ == "__main__":

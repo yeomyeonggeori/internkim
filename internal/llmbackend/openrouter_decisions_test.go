@@ -20,8 +20,7 @@ const decisionsAnswerDocument = `{
   "provider": "TypeSafe",
   "answers": {
     "target": {"type": "choice", "choice": "bot", "probabilities": {"bot": 0.98, "human": 0.02}, "confidence": 0.97},
-    "shouldRespond": {"type": "noul", "noul": 0},
-    "level": {"type": "score", "score": 1.4, "probabilities": {"low": 0.6, "high": 0.4}, "confidence": 0.5, "legend": {"0": "low"}}
+    "shouldRespond": {"type": "noul", "noul": 0}
   },
   "usage": {"input_tokens": 2285, "output_tokens": 826, "cost": 9.597e-05}
 }`
@@ -63,7 +62,6 @@ func decisionsProbeRequest() DecisionsRequest {
 		Questions: map[string]DecisionQuestion{
 			"target":        ChoiceQuestion("Who is the newest message directed at?", map[string]string{"bot": "the assistant", "human": "one named person"}),
 			"shouldRespond": NoulQuestion("Should the assistant reply?", nil),
-			"level":         ScoreQuestion("How much effort does this turn deserve?", []string{"low", "medium", "high"}),
 		},
 	}
 }
@@ -81,7 +79,6 @@ func TestDecideSendsTypedQuestionsToTheAlphaDecisionsRoute(t *testing.T) {
 	expectedBody := `{"model":"` + modelladder.DecisionModel + `",` +
 		`"state":{"newestMessage":{"sender":"이샘플","text":"응 진행해"}},` +
 		`"questions":{` +
-		`"level":{"type":"score","instructions":"How much effort does this turn deserve?","criteria":["low","medium","high"]},` +
 		`"shouldRespond":{"type":"noul","instructions":"Should the assistant reply?"},` +
 		`"target":{"type":"choice","instructions":"Who is the newest message directed at?","criteria":{"bot":"the assistant","human":"one named person"}}` +
 		`}}`
@@ -90,7 +87,7 @@ func TestDecideSendsTypedQuestionsToTheAlphaDecisionsRoute(t *testing.T) {
 	}
 }
 
-func TestDecideReadsChoiceNoulScoreAndCost(t *testing.T) {
+func TestDecideReadsChoiceNoulAndCost(t *testing.T) {
 	backend, _, _ := decisionsStandIn(t, http.StatusOK, decisionsAnswerDocument)
 
 	response, errorValue := backend.Decide(context.Background(), decisionsProbeRequest())
@@ -108,10 +105,6 @@ func TestDecideReadsChoiceNoulScoreAndCost(t *testing.T) {
 	noul, isNoul := response.Answers["shouldRespond"].AsNoul()
 	if !isNoul || noul.Noul != 0 {
 		t.Fatalf("a noul of zero is an answer, not a missing one: %+v", response.Answers["shouldRespond"])
-	}
-	score, isScore := response.Answers["level"].AsScore()
-	if !isScore || score.Score != 1.4 || string(score.Legend) != `{"0": "low"}` {
-		t.Fatalf("the score answer did not survive: %+v", response.Answers["level"])
 	}
 	if response.Usage.InputTokens != 2285 || response.Usage.OutputTokens != 826 || response.Usage.CostUSD != 9.597e-05 {
 		t.Fatalf("usage did not survive: %+v", response.Usage)
@@ -150,7 +143,7 @@ func TestDecisionsRouteSharesTheHostOfTheConfiguredBaseURL(t *testing.T) {
 	cases := map[string]string{
 		"https://openrouter.ai/api/v1/chat/completions": "https://openrouter.ai" + openRouterDecisionsPath,
 		"https://gateway.example/api/v1":                "https://gateway.example" + openRouterDecisionsPath,
-		"": originOf(modelladder.Endpoint) + openRouterDecisionsPath,
+		"":                                              originOf(modelladder.Endpoint) + openRouterDecisionsPath,
 	}
 	for baseURL, expectedURL := range cases {
 		backend := OpenRouterBackend{BaseURL: baseURL}

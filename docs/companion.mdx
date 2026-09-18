@@ -1,0 +1,92 @@
+---
+title: The companion
+description: One binary on your own computer that lends the agent your signed-in browser and your desktop.
+---
+
+The company computer runs the agent, but some work only makes sense on your
+own machine: a page you are signed in to, a desktop application, a browser
+profile that is yours. The companion is one binary, `internkim-companion`,
+that runs on your computer and does that work when the agent asks. Nothing
+about it needs an installer window, so an agent can set it up for you as well
+as you can yourself.
+
+A paired companion opens no inbound port. It connects out to the company
+computer and picks up jobs that were addressed to you; a job carrying another
+person's identity is never handed to it.
+
+## Install
+
+One line downloads the build for your macOS or Linux computer, checks it
+against the published checksum, and puts it in `~/.local/bin`:
+
+```bash
+curl -fsSL https://intern.kim/companion/install.sh | sh
+```
+
+Run it again to update; a running background service is restarted. From a
+checkout, `make build-companion` builds the same binary and
+`./internkim companion upgrade` installs it.
+
+The browser tools need Google Chrome on the computer; the companion drives it
+with its own Intern Kim profile and an extension embedded in the binary, so
+your everyday Chrome windows and sign-ins are untouched. Computer control
+additionally needs the [Cua Driver](https://cua.ai/driver) as `cua-driver` on
+`PATH` or in `~/.local/bin`.
+
+## Pair
+
+Open Settings → My computer in the web app and press Connect. The page shows
+the install command, a `pair` command with a ten-minute code already inside
+it, and the service command, for you to run on your own computer:
+
+```bash
+internkim-companion pair --device-url https://<your company computer> --code ABCD-1234
+```
+
+The page also offers an `internkim://pair?…` link; `pair` accepts that link
+as its only argument. Pairing creates a signing key that never leaves your
+computer (on macOS it lives in the Keychain), and the company computer keeps
+only its public half. `internkim-companion status` shows what is paired and
+what the companion can do right now; `internkim-companion disconnect` forgets
+the pairing.
+
+## Keep it running
+
+```bash
+internkim-companion service install
+```
+
+On macOS this registers a launchd agent, on Linux a systemd user unit. The
+companion starts when you log in and comes back if it stops. Flags after `--`
+become the flags of the background process:
+
+```bash
+internkim-companion service install -- --cua-driver /opt/cua/bin/cua-driver
+```
+
+`service status`, `service restart` and `service uninstall` do what they say.
+To run it in a terminal instead, `internkim-companion run`.
+
+## What it does
+
+| Tool family | On your computer |
+|---|---|
+| `browser_*` | opens, reads and acts on pages in the companion's Chrome profile, signed in as you |
+| `computer_task` | carries a goal to its end through the Cua Driver, asking the company computer to decide each step |
+| `llm_*` | serves a local model when one is configured (`run --enable-local-llm`) |
+
+A `computer_task` never holds an inference key. Each step the companion
+observes the page and lists what it could do; the company computer puts that
+list to a decision model and sends back one choice. See [the tool
+catalog](/docs/tools/catalog#computer) for what the agent sees.
+
+## Where things live
+
+| Path | Holds |
+|---|---|
+| `~/.internkim-companion/state.json` | the pairing, with a reference to the signing key |
+| `~/.config/internkim/BrowserProfile` (macOS: `~/Library/Application Support/internkim/BrowserProfile`) | the companion's own Chrome profile |
+| `browser-extension` next to that profile | the embedded extension, unpacked on first use |
+| `~/Library/LaunchAgents/kim.intern.companion.plist` | the macOS service definition |
+| `~/.config/systemd/user/internkim-companion.service` | the Linux service definition |
+| `~/Library/Logs/internkim-companion.log` | the macOS service log |
