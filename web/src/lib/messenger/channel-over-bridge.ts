@@ -34,12 +34,14 @@ type ChannelSummary = {
 	isPrivate: boolean;
 	counterpart?: MessengerPerson;
 	members?: ChannelMember[];
+	myRole?: ChannelRole;
 	description?: string;
 	platform?: string;
 	webURL?: string;
 };
 type Person = { id: string; name: string; avatarURL?: string };
-type ChannelMember = MessengerPerson & { name: string };
+type ChannelRole = 'owner' | 'admin' | 'member';
+type ChannelMember = MessengerPerson & { name: string; role: ChannelRole };
 type Participant = { id: string; name: string; avatarURL?: string; memberID?: string; externalID?: string };
 type Reaction = { emoji: string; count: number; reactedByMe: boolean; imageURL?: string; people?: Participant[] };
 // url is where the message says the file is, which names it and is what the
@@ -155,6 +157,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 			members: channel.isDirect
 				? undefined
 				: membersOf(channel, people, messengerNames, agentExternalID),
+			myRole: channel.isDirect ? undefined : roleOfViewer(channel, people, viewer),
 			description: channel.description,
 			platform: channel.platform,
 			webURL: channel.webURL
@@ -164,6 +167,16 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 function counterpartOf(channel: MessengerChannel, people: MessengerDirectory, viewer: Viewer): MessengerPerson | undefined {
 	const other = channel.participants.find((person) => !isViewer(person, people, viewer));
 	return other ? placementOf(other, people) : undefined;
+}
+
+function roleOfViewer(channel: MessengerChannel, people: MessengerDirectory, viewer: Viewer): ChannelRole {
+	const me = channel.participants.find((person) => isViewer(person, people, viewer));
+	return me ? roleOf(channel, externalIDOf(me, people)) : 'member';
+}
+
+function roleOf(channel: MessengerChannel, externalID: string): ChannelRole {
+	const role = channel.roleOfExternalID?.[externalID];
+	return role === 'owner' || role === 'admin' ? role : 'member';
 }
 
 function membersOf(
@@ -179,7 +192,7 @@ function membersOf(
 			(externalID && externalID === agentExternalID ? channelText[currentLocale.value].title : '') ||
 			messengerNames.get(externalID) ||
 			'';
-		return { ...placementOf(person, people), name };
+		return { ...placementOf(person, people), name, role: roleOf(channel, externalID) };
 	});
 }
 
