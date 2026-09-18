@@ -17,9 +17,8 @@ maintaining two of each. Svelte Native additionally has no Svelte 5 support,
 which the app is written in.
 
 Capacitor keeps the web app as the app and adds a bridge to the phone. Tauri
-does the same job for the desktop and already lives in this repository as
-`companion/`; it is the answer if a desktop shell is ever wanted, and it stays
-as it is.
+does the same job for the desktop; it is the answer if a desktop shell is ever
+wanted around the companion binary, which today ships without one.
 
 ## Shape: the shell opens the zone
 

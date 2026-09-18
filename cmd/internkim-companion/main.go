@@ -39,6 +39,9 @@ func main() {
 		case "status":
 			exit(runStatus(os.Args[2:], http.DefaultClient, companionruntime.NewDefaultSecureStore()))
 			return
+		case "service":
+			exit(runService(os.Args[2:], os.Stdout))
+			return
 		}
 	}
 	exit(runServer(os.Args[1:]))
@@ -46,7 +49,7 @@ func main() {
 
 func isCompanionSubcommand(commandName string) bool {
 	switch commandName {
-	case "pair", "run", "runtime-model", "remote-model", "disconnect", "status":
+	case "pair", "run", "runtime-model", "remote-model", "disconnect", "status", "service":
 		return true
 	default:
 		return false
@@ -63,7 +66,7 @@ func runServer(arguments []string) error {
 		return errorValue
 	}
 
-	settings := newDynamicLocalLLM(localLLMFlags.settings(http.DefaultClient))
+	settings := newLocalLLMProvider(localLLMFlags.settings(http.DefaultClient))
 
 	multiplexer := http.NewServeMux()
 	multiplexer.HandleFunc("GET /health", func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -75,7 +78,7 @@ func runServer(arguments []string) error {
 		_ = request
 		writeJSON(responseWriter, capabilities.RegistryResponse{
 			LocalOnly:    *localOnly,
-			Capabilities: companionruntime.DefaultCapabilities(*localOnly, *devMockLLM || settings.currentSettings().Enabled),
+			Capabilities: companionruntime.DefaultCapabilities(*localOnly, *devMockLLM || settings.isEnabled()),
 		})
 	})
 	multiplexer.HandleFunc("POST /v1/llm/structured", llmHandler(settings, *devMockLLM, true))
@@ -103,8 +106,6 @@ type companionStatusDocument struct {
 	Capabilities              []capabilities.Descriptor `json:"capabilities,omitempty"`
 	ExtensionAutomationStatus string                    `json:"extensionAutomationStatus,omitempty"`
 	ExtensionAutomationError  string                    `json:"extensionAutomationError,omitempty"`
-	AgentBrowserCLIStatus     string                    `json:"agentBrowserCLIStatus,omitempty"`
-	AgentBrowserCLIPath       string                    `json:"agentBrowserCLIPath,omitempty"`
 	ComputerControlStatus     string                    `json:"computerControlStatus,omitempty"`
 	CuaDriverPath             string                    `json:"cuaDriverPath,omitempty"`
 }
@@ -221,7 +222,6 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	verifyAuth := flags.Bool("verify-auth", false, "verify companion auth with the paired device")
 	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
-	agentBrowserPath := flags.String("agent-browser-path", "", "legacy agent-browser CLI path (status-only; browser automation no longer uses it)")
 	cuaDriverPath := flags.String("cua-driver", defaultCuaDriverPath(), "Cua Driver executable path; empty leaves computer control off")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
@@ -234,11 +234,9 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 		}
 		return errorValue
 	}
-	report := companionBrowserAutomationReadiness(*browserExecutablePath, *browserExtensionPath, *agentBrowserPath)
+	readiness := extensionBrowserRuntimeReadiness(*browserExecutablePath, resolveBrowserExtensionPath(*browserExtensionPath))
 	authStatus := companionAuthStatusFromState(state, *verifyAuth, *statePath, httpClient, secureStore)
-	document := companionStatusFromState(state, report.Extension, authStatus)
-	document.AgentBrowserCLIPath = report.AgentBrowserPath
-	document.AgentBrowserCLIStatus = agentBrowserCLIStatusLabel(report.AgentBrowserFound)
+	document := companionStatusFromState(state, readiness, authStatus)
 	document.CuaDriverPath = executableFilePath(*cuaDriverPath)
 	document.ComputerControlStatus = computerControlStatusLabel(document.CuaDriverPath != "")
 	document.Capabilities = companionruntime.CapabilitiesWithComputer(document.Capabilities, document.CuaDriverPath != "")
@@ -250,20 +248,12 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	return nil
 }
 
-func agentBrowserCLIStatusLabel(found bool) string {
-	if found {
-		return "found"
-	}
-	return "not_found"
-}
-
 func printCompanionStatusText(state companionruntime.State, document companionStatusDocument) {
 	fmt.Println("device: " + state.DeviceURL)
 	fmt.Println("companion: " + state.CompanionID)
 	fmt.Printf("localOnly: %t\n", state.LocalOnly)
 	fmt.Printf("capabilities: %d\n", len(state.Capabilities))
 	fmt.Println("extension automation: " + firstNonEmpty(document.ExtensionAutomationStatus, "unknown"))
-	fmt.Println("agent-browser CLI (legacy/status-only): " + document.AgentBrowserCLIStatus)
 	fmt.Println("computer control (Cua Driver): " + document.ComputerControlStatus)
 }
 
@@ -310,7 +300,6 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	statePath := registerStateFlag(flags)
 	runOnce := flags.Bool("once", false, "process one polling cycle")
 	devMockLLM := flags.Bool("dev-mock-llm", false, "serve deterministic local LLM responses")
-	controlListenAddress := flags.String("control-listen", "", "local companion shell control address")
 	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserProfilePath := flags.String("browser-profile", defaultBrowserProfilePath(), "internkim companion browser profile path")
 	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
@@ -321,7 +310,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		return errorValue
 	}
 	localLLMConfiguration := localLLMFlags.settings(httpClient)
-	localLLM := newDynamicLocalLLM(localLLMConfiguration)
+	localLLM := newLocalLLMProvider(localLLMConfiguration)
 	state, errorValue := loadStateAndMigrateSecrets(context.Background(), *statePath, secureStore)
 	if errorValue != nil {
 		return errorValue
@@ -360,13 +349,6 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		executor.BrowserRuntime = nil
 	}
 	deviceClient := companionruntime.DeviceClient{HTTPClient: httpClient, State: state, PrivateKey: privateKey}
-	controlServer, errorValue := startControlServer(*controlListenAddress, runtimeStatus, localLLM, httpClient)
-	if errorValue != nil {
-		return errorValue
-	}
-	if controlServer != nil {
-		defer controlServer.Close()
-	}
 	executor.FileUploader = companionruntime.DeviceFileUploader{DeviceClient: deviceClient}
 	if resolvedCuaDriverPath != "" {
 		executor.ComputerTasks = computer.Runner{

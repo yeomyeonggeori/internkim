@@ -10,13 +10,13 @@ import (
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
-func llmHandler(settings *dynamicLocalLLM, devMock bool, isStructured bool) http.HandlerFunc {
+func llmHandler(settings *localLLMProvider, devMock bool, isStructured bool) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, request *http.Request) {
 		if devMock {
 			respondWithDevMock(responseWriter, request, isStructured)
 			return
 		}
-		if !settings.currentSettings().Enabled {
+		if !settings.isEnabled() {
 			notImplemented(responseWriter, request)
 			return
 		}
@@ -43,7 +43,7 @@ func respondWithDevMock(responseWriter http.ResponseWriter, request *http.Reques
 	writeJSON(responseWriter, response)
 }
 
-func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
+func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request, settings *localLLMProvider) {
 	var structuredRequest llmbackend.StructuredRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&structuredRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
@@ -63,7 +63,7 @@ func handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Reque
 	writeJSON(responseWriter, response)
 }
 
-func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
+func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, settings *localLLMProvider) {
 	var textRequest llmbackend.TextRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
@@ -83,7 +83,7 @@ func handleTextLLM(responseWriter http.ResponseWriter, request *http.Request, se
 	writeJSON(responseWriter, response)
 }
 
-func embeddingHandler(settings *dynamicLocalLLM, devMock bool) http.HandlerFunc {
+func embeddingHandler(settings *localLLMProvider, devMock bool) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, request *http.Request) {
 		if devMock {
 			writeJSON(responseWriter, map[string]any{
@@ -94,7 +94,7 @@ func embeddingHandler(settings *dynamicLocalLLM, devMock bool) http.HandlerFunc 
 			})
 			return
 		}
-		if !settings.currentSettings().Enabled {
+		if !settings.isEnabled() {
 			notImplemented(responseWriter, request)
 			return
 		}
@@ -102,7 +102,7 @@ func embeddingHandler(settings *dynamicLocalLLM, devMock bool) http.HandlerFunc 
 	}
 }
 
-func handleEmbedding(responseWriter http.ResponseWriter, request *http.Request, settings *dynamicLocalLLM) {
+func handleEmbedding(responseWriter http.ResponseWriter, request *http.Request, settings *localLLMProvider) {
 	var embeddingRequest llmbackend.EmbeddingRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&embeddingRequest); errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
@@ -166,7 +166,7 @@ func reservedNotImplemented(responseWriter http.ResponseWriter, request *http.Re
 	http.Error(responseWriter, "reserved endpoint; not yet implemented", http.StatusNotImplemented)
 }
 
-func llmStreamHandler(settings *dynamicLocalLLM) http.HandlerFunc {
+func llmStreamHandler(settings *localLLMProvider) http.HandlerFunc {
 	return func(responseWriter http.ResponseWriter, request *http.Request) {
 		var textRequest llmbackend.TextRequest
 		if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {

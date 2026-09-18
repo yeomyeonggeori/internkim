@@ -6,7 +6,6 @@ import (
 	"flag"
 	"net/http"
 	"strings"
-	"sync"
 
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
@@ -17,8 +16,7 @@ type localLLMSettings struct {
 	ProviderSet   llmbackend.LocalProviderSet
 }
 
-type dynamicLocalLLM struct {
-	mutex    sync.RWMutex
+type localLLMProvider struct {
 	settings localLLMSettings
 }
 
@@ -72,31 +70,23 @@ func (localFlags localLLMFlags) settings(httpClient *http.Client) localLLMSettin
 	}
 }
 
-func newDynamicLocalLLM(settings localLLMSettings) *dynamicLocalLLM {
-	return &dynamicLocalLLM{settings: settings}
+func newLocalLLMProvider(settings localLLMSettings) *localLLMProvider {
+	return &localLLMProvider{settings: settings}
 }
 
-func (provider *dynamicLocalLLM) update(settings localLLMSettings) {
-	provider.mutex.Lock()
-	defer provider.mutex.Unlock()
-	provider.settings = settings
+func (provider *localLLMProvider) isEnabled() bool {
+	return provider.settings.Enabled
 }
 
-func (provider *dynamicLocalLLM) currentSettings() localLLMSettings {
-	provider.mutex.RLock()
-	defer provider.mutex.RUnlock()
-	return provider.settings
-}
-
-func (provider *dynamicLocalLLM) providerSetFor(providerName string, accelerator string) (llmbackend.LocalProviderSet, bool) {
-	settings := provider.currentSettings()
+func (provider *localLLMProvider) providerSetFor(providerName string, accelerator string) (llmbackend.LocalProviderSet, bool) {
+	settings := provider.settings
 	if !settings.Enabled {
 		return llmbackend.LocalProviderSet{}, false
 	}
 	return settings.providerSetFor(providerName, accelerator), true
 }
 
-func (provider *dynamicLocalLLM) CompleteStructured(ctx context.Context, request llmbackend.StructuredRequest) (llmbackend.Response, error) {
+func (provider *localLLMProvider) CompleteStructured(ctx context.Context, request llmbackend.StructuredRequest) (llmbackend.Response, error) {
 	providerSet, isEnabled := provider.providerSetFor(request.Provider, request.Accelerator)
 	if !isEnabled {
 		return llmbackend.Response{}, errors.New("companion LLM is not configured")
@@ -104,7 +94,7 @@ func (provider *dynamicLocalLLM) CompleteStructured(ctx context.Context, request
 	return providerSet.Provider.CompleteStructured(ctx, request)
 }
 
-func (provider *dynamicLocalLLM) CompleteText(ctx context.Context, request llmbackend.TextRequest) (llmbackend.Response, error) {
+func (provider *localLLMProvider) CompleteText(ctx context.Context, request llmbackend.TextRequest) (llmbackend.Response, error) {
 	providerSet, isEnabled := provider.providerSetFor(request.Provider, request.Accelerator)
 	if !isEnabled {
 		return llmbackend.Response{}, errors.New("companion LLM is not configured")
@@ -112,7 +102,7 @@ func (provider *dynamicLocalLLM) CompleteText(ctx context.Context, request llmba
 	return providerSet.Provider.CompleteText(ctx, request)
 }
 
-func (provider *dynamicLocalLLM) CreateEmbedding(ctx context.Context, request llmbackend.EmbeddingRequest) (llmbackend.EmbeddingResponse, error) {
+func (provider *localLLMProvider) CreateEmbedding(ctx context.Context, request llmbackend.EmbeddingRequest) (llmbackend.EmbeddingResponse, error) {
 	providerSet, isEnabled := provider.embeddingProviderSetFor(request.Provider)
 	if !isEnabled {
 		return llmbackend.EmbeddingResponse{}, errors.New("companion embedding is not configured")
@@ -130,8 +120,8 @@ func (settings localLLMSettings) providerSetFor(providerName string, accelerator
 	return llmbackend.BuildLocalProviderSet(configuration)
 }
 
-func (provider *dynamicLocalLLM) embeddingProviderSetFor(providerName string) (llmbackend.LocalEmbeddingProviderSet, bool) {
-	settings := provider.currentSettings()
+func (provider *localLLMProvider) embeddingProviderSetFor(providerName string) (llmbackend.LocalEmbeddingProviderSet, bool) {
+	settings := provider.settings
 	if !settings.Enabled {
 		return llmbackend.LocalEmbeddingProviderSet{}, false
 	}
