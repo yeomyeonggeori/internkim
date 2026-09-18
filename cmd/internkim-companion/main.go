@@ -17,6 +17,7 @@ import (
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	"gitlab.com/eastriver/internkim/internal/companion/computer"
 )
 
 func main() {
@@ -104,6 +105,8 @@ type companionStatusDocument struct {
 	ExtensionAutomationError  string                    `json:"extensionAutomationError,omitempty"`
 	AgentBrowserCLIStatus     string                    `json:"agentBrowserCLIStatus,omitempty"`
 	AgentBrowserCLIPath       string                    `json:"agentBrowserCLIPath,omitempty"`
+	ComputerControlStatus     string                    `json:"computerControlStatus,omitempty"`
+	CuaDriverPath             string                    `json:"cuaDriverPath,omitempty"`
 }
 
 const (
@@ -219,6 +222,7 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	browserExecutablePath := flags.String("browser-executable", defaultBrowserExecutablePath(), "browser executable path")
 	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
 	agentBrowserPath := flags.String("agent-browser-path", "", "legacy agent-browser CLI path (status-only; browser automation no longer uses it)")
+	cuaDriverPath := flags.String("cua-driver", defaultCuaDriverPath(), "Cua Driver executable path; empty leaves computer control off")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -235,6 +239,9 @@ func runStatus(arguments []string, httpClient *http.Client, secureStore companio
 	document := companionStatusFromState(state, report.Extension, authStatus)
 	document.AgentBrowserCLIPath = report.AgentBrowserPath
 	document.AgentBrowserCLIStatus = agentBrowserCLIStatusLabel(report.AgentBrowserFound)
+	document.CuaDriverPath = executableFilePath(*cuaDriverPath)
+	document.ComputerControlStatus = computerControlStatusLabel(document.CuaDriverPath != "")
+	document.Capabilities = companionruntime.CapabilitiesWithComputer(document.Capabilities, document.CuaDriverPath != "")
 	if *jsonOutput {
 		writeJSONDocument(os.Stdout, document)
 		return nil
@@ -257,6 +264,14 @@ func printCompanionStatusText(state companionruntime.State, document companionSt
 	fmt.Printf("capabilities: %d\n", len(state.Capabilities))
 	fmt.Println("extension automation: " + firstNonEmpty(document.ExtensionAutomationStatus, "unknown"))
 	fmt.Println("agent-browser CLI (legacy/status-only): " + document.AgentBrowserCLIStatus)
+	fmt.Println("computer control (Cua Driver): " + document.ComputerControlStatus)
+}
+
+func computerControlStatusLabel(isDriverFound bool) string {
+	if isDriverFound {
+		return "ready"
+	}
+	return "driver_not_found"
 }
 
 func companionAuthStatusFromState(state companionruntime.State, shouldVerify bool, statePath string, httpClient *http.Client, secureStore companionruntime.SecureStore) string {
@@ -301,6 +316,7 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	browserExtensionPath := flags.String("browser-extension-path", "", "companion browser extension directory path")
 	localLLMFlags := registerLocalLLMFlags(flags)
 	preferCompanionBrowser := flags.Bool("prefer-companion-browser", false, "ask the device to route browser tools to this companion")
+	cuaDriverPath := flags.String("cua-driver", defaultCuaDriverPath(), "Cua Driver executable path; empty leaves computer control off")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
@@ -333,6 +349,8 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 	if readiness.Status != "ready" {
 		state.Capabilities = companionruntime.CapabilitiesWithoutBrowser(state.Capabilities)
 	}
+	resolvedCuaDriverPath := executableFilePath(*cuaDriverPath)
+	state.Capabilities = companionruntime.CapabilitiesWithComputer(state.Capabilities, resolvedCuaDriverPath != "")
 	runtimeStatus := &runtimeState{}
 	if localLLMConfiguration.Enabled {
 		runtimeStatus.replaceLocalLLM(localLLMConfiguration)
@@ -350,6 +368,12 @@ func runCompanionWithStore(arguments []string, httpClient *http.Client, secureSt
 		defer controlServer.Close()
 	}
 	executor.FileUploader = companionruntime.DeviceFileUploader{DeviceClient: deviceClient}
+	if resolvedCuaDriverPath != "" {
+		executor.ComputerTasks = computer.Runner{
+			Opener:  computer.MCPDriverOpener{ExecutablePath: resolvedCuaDriverPath},
+			Chooser: companionruntime.DeviceChooser{DeviceClient: deviceClient},
+		}
+	}
 	jobRunner := companionruntime.JobRunner{
 		DeviceClient:           deviceClient,
 		Executor:               executor,

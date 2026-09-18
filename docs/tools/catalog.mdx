@@ -195,6 +195,20 @@ responses carry no cookies, profile paths, or local screenshot paths;
 `browser_screenshot` uploads to a temporary workspace-visible path instead.
 Login, MFA, and captcha steps are handed to the human.
 
+## Computer [#computer]
+
+<ToolCatalog namespace="computer" />
+
+Implemented in `internal/companion/computer`. The companion opens its own
+persistent browser profile through [Cua Driver](https://cua.ai/driver), and
+for each step asks the device to put the page and a bounded list of candidate
+actions to a decision model (`internal/capabilityd/llm_decide.go`, reached
+over `/_internkim/companion/decisions`). The decision model never sees the
+inference key and can only pick from the actions the companion listed; an
+answer outside that list ends the task. The result names its outcome honestly
+(`verified` only when a fresh observation showed the goal reached) and carries
+the final page so the agent can judge for itself.
+
 ## Artifacts [#artifact]
 
 <ToolCatalog namespace="artifact" />

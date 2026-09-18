@@ -12,6 +12,7 @@ import (
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
 )
 
 type BrowserActionFailureResult struct {
@@ -37,6 +38,7 @@ type Executor struct {
 	EmbeddingChain llmbackend.EmbeddingProvider
 	BrowserRuntime browserruntime.Runtime
 	FileUploader   FileUploader
+	ComputerTasks  ComputerTaskRunner
 }
 
 // NewExecutor builds an Executor from the dependencies known at companion
@@ -77,18 +79,19 @@ type UploadedFile struct {
 type executorToolHandler func(Executor, context.Context, JobEnvelope, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)
 
 var executorToolHandlers = map[string]executorToolHandler{
-	"llm_text":                           executorRequestHandler(Executor.executeTextLLM),
-	"llm_structured":                     executorRequestHandler(Executor.executeStructuredLLM),
-	"embedding_create":                   executorRequestHandler(Executor.executeEmbedding),
-	capabilities.AttentionTriageToolName: executorRequestHandler(Executor.executeAttentionTriage),
-	"browser_open":                       executorRequestHandler(Executor.executeBrowserNavigate),
-	"browser_snapshot":                   executorRequestHandler(Executor.executeBrowserObserve),
-	"browser_screenshot":                 Executor.executeBrowserScreenshot,
-	"browser_click":                      executorRequestHandler(Executor.executeBrowserClick),
-	"browser_fill":                       executorRequestHandler(Executor.executeBrowserFill),
-	"browser_select":                     executorRequestHandler(Executor.executeBrowserSelect),
-	"browser_press":                      executorRequestHandler(Executor.executeBrowserPress),
-	"browser_wait":                       executorRequestHandler(Executor.executeBrowserWait),
+	"llm_text":                              executorRequestHandler(Executor.executeTextLLM),
+	"llm_structured":                        executorRequestHandler(Executor.executeStructuredLLM),
+	"embedding_create":                      executorRequestHandler(Executor.executeEmbedding),
+	capabilities.AttentionTriageToolName:    executorRequestHandler(Executor.executeAttentionTriage),
+	"browser_open":                          executorRequestHandler(Executor.executeBrowserNavigate),
+	"browser_snapshot":                      executorRequestHandler(Executor.executeBrowserObserve),
+	"browser_screenshot":                    Executor.executeBrowserScreenshot,
+	"browser_click":                         executorRequestHandler(Executor.executeBrowserClick),
+	"browser_fill":                          executorRequestHandler(Executor.executeBrowserFill),
+	"browser_select":                        executorRequestHandler(Executor.executeBrowserSelect),
+	"browser_press":                         executorRequestHandler(Executor.executeBrowserPress),
+	"browser_wait":                          executorRequestHandler(Executor.executeBrowserWait),
+	capabilityprotocol.ComputerTaskToolName: executorRequestHandler(Executor.executeComputerTask),
 }
 
 func executorRequestHandler(handler func(Executor, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {

@@ -150,6 +150,8 @@ func (service *Service) handleCompanion(responseWriter http.ResponseWriter, requ
 		service.checkCompanionAuth(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/disconnect":
 		service.disconnectCompanion(responseWriter, request)
+	case request.Method == http.MethodPost && path == "/decisions":
+		service.decideForCompanion(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/jobs/next":
 		service.nextCompanionJob(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/jobs":
