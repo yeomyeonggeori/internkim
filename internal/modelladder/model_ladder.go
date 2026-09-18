@@ -9,6 +9,7 @@ const (
 	PrimaryModel   = "z-ai/glm-5.3-flash"
 	EmbeddingModel = "baai/bge-m3"
 	ImageModel     = "google/gemini-3.1-flash-lite-image"
+	DecisionModel  = "~typesafe/jev-latest"
 )
 
 var DegradedModels = []string{

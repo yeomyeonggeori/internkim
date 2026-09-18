@@ -188,6 +188,9 @@ func TestBlueclawRuntimeConfigUsesCapabilityBoundary(t *testing.T) {
 			t.Fatalf("expected the %s tier to be named here, because blueclaw has no model of its own to fall back on, got %+v", tier, capabilityLanguageModel)
 		}
 	}
+	if capabilityLanguageModel["decisionModel"] != modelladder.DecisionModel {
+		t.Fatalf("expected the decision model to be named here too, got %+v", capabilityLanguageModel)
+	}
 	if languageModel["contextWindowTokens"] != float64(BlueclawDefaultModelContextTokens) {
 		t.Fatalf("expected default runtime context window %d, got %+v", BlueclawDefaultModelContextTokens, languageModel)
 	}

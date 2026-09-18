@@ -165,6 +165,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	for tier, modelName := range modelladder.TierModelNames() {
 		capabilityLanguageModel[tier+"Model"] = modelName
 	}
+	capabilityLanguageModel["decisionModel"] = modelladder.DecisionModel
 	if strings.TrimSpace(options.ModelName) != "" {
 		modelName := strings.TrimSpace(options.ModelName)
 		capabilityLanguageModel["model"] = modelName

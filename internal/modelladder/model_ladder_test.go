@@ -53,7 +53,7 @@ func TestAnEndpointWithNoKeyPathNamesNone(t *testing.T) {
 }
 
 func TestEveryModelNameIsAProviderQualifiedIdentifier(t *testing.T) {
-	for _, modelName := range append(ModelNames(), EmbeddingModel, ImageModel) {
+	for _, modelName := range append(ModelNames(), EmbeddingModel, ImageModel, DecisionModel) {
 		if !strings.Contains(modelName, "/") {
 			t.Fatalf("%q is not a model identifier an endpoint would recognize", modelName)
 		}
