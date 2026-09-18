@@ -16,6 +16,7 @@ export type MessengerChannel = {
 	isWithTheAgent?: boolean;
 	webURL?: string;
 	description?: string;
+	roleOfExternalID?: Record<string, string>;
 };
 
 export type MessengerReaction = {
@@ -72,6 +73,7 @@ type PersonalConversation = {
 	participantExternalIDs?: string[];
 	isWithTheAgent?: boolean;
 	webURL?: string;
+	roleOfExternalID?: Record<string, string>;
 };
 type PersonalReaction = { emoji: string; imageURL?: string; byExternalIDs: string[] };
 type PersonalAttachment = {
@@ -137,7 +139,8 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		isWithTheAgent: conversation.isWithTheAgent,
 		participants: (conversation.participantExternalIDs ?? []).map((externalID) => ({ externalID })),
 		webURL: conversation.webURL,
-		description: conversation.description
+		description: conversation.description,
+		roleOfExternalID: conversation.roleOfExternalID
 	};
 }
 
@@ -228,6 +231,14 @@ export async function addChannelMembers(channelID: string, memberExternalIDs: st
 
 export async function leaveChannel(channelID: string): Promise<void> {
 	await ask('person.channel.leave', { conversationID: channelID });
+}
+
+export async function handOverChannel(channelID: string, newOwnerExternalID: string): Promise<void> {
+	await ask('person.channel.owner.set', { conversationID: channelID, externalID: newOwnerExternalID });
+}
+
+export async function deleteChannel(channelID: string): Promise<void> {
+	await ask('person.channel.delete', { conversationID: channelID });
 }
 
 export async function fetchPosts(channelID: string, before?: string): Promise<MessengerPost[]> {

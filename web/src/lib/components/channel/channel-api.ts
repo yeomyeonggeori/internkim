@@ -117,7 +117,9 @@ export function applyCustomEmoji(
 	});
 }
 
-export type ChannelMember = { memberID?: string; externalID?: string; name: string };
+export type ChannelRole = 'owner' | 'admin' | 'member';
+
+export type ChannelMember = { memberID?: string; externalID?: string; name: string; role: ChannelRole };
 
 export type ChannelSummary = {
 	id: string;
@@ -127,6 +129,7 @@ export type ChannelSummary = {
 	avatarURL?: string;
 	counterpart?: { memberID?: string; externalID?: string };
 	members?: ChannelMember[];
+	myRole?: ChannelRole;
 	description?: string;
 	platform?: string;
 	webURL?: string;
