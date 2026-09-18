@@ -27,6 +27,8 @@ link dangles for whoever clones. Check with a grep before moving one down.
 
 [`persona-and-recovery.md`](./persona-and-recovery.md) describes persona ownership,
 delivery across workspace boundaries, and evidence carried into a task retry.
+The three `harness-*.md` files record the shared plugin release: the
+identity map against Pi, the feature correspondence, and the rollback.
 
 [`dataroom-standard.md`](./dataroom-standard.md) fixes the shape of the company
 document archive: layout, metadata, clearance and what the agent generates;
