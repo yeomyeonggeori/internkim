@@ -175,6 +175,195 @@ export enum SiteLifecycleStatus {
   Failed = 'failed',
 }
 
+export enum ScheduleToolName {
+  List = 'schedule_list',
+  Create = 'schedule_create',
+  Update = 'schedule_update',
+  Cancel = 'schedule_cancel',
+}
+
+const scheduleListInputSchema = z.strictObject({
+  status: z.enum(['active', 'failed', 'expired']).optional(),
+  limit: z.int().min(1).optional(),
+});
+
+const scheduleMomentDescription = 'Written as an RFC3339 date-time carrying an offset, such as 2026-09-20T09:00:00+09:00.';
+
+const scheduleKindDescription = 'once runs a single time at runAt, interval runs every intervalSecond, cron runs on cronExpression.';
+
+const scheduleTaskInstructionDescription = 'What the agent should do each time the schedule fires, written so it can be acted on without the conversation it was asked in.';
+
+const scheduleDescriptionSchema = z.string().describe('Short name the schedule is listed under. Omit to name it after the instruction.').optional();
+
+const scheduleCadenceFields = {
+  runAt: z.string().describe(`When a once schedule runs. ${scheduleMomentDescription}`).optional(),
+  expiresAt: z.string().describe(`When the schedule stops running. ${scheduleMomentDescription} It must be in the future.`).optional(),
+  intervalSecond: z.int().min(1).describe('Seconds between the runs of an interval schedule, at least 1.').optional(),
+  cronExpression: z.string().describe('Five-field cron expression for a cron schedule, read in timeZone.').optional(),
+  timeZone: z.string().min(1).regex(/\S/).describe('IANA time zone the schedule is read in, such as Asia/Seoul. Omit for the company time zone.').optional(),
+  maxRunCount: z.int().min(1).describe('How many times a finite schedule runs before it stops, at least 1.').optional(),
+  repeatPolicy: z.enum(['finite', 'unbounded']).describe('Required for interval and cron: finite stops at expiresAt or maxRunCount, unbounded keeps running.').optional(),
+};
+
+const scheduleHintSchema = z.string().min(1).max(256).describe(
+  'Identifies the schedule to act on: its exact schedule ID, or the exact CURRENT description of one of your own schedules as schedule_list shows it. Never a new or intended description. Resolved server-side; if it does not uniquely resolve, the call fails with a candidates list to retry against.',
+);
+
+export const scheduleCreateInputSchema = z.strictObject({
+  taskInstruction: z.string().min(1).regex(/\S/).describe(scheduleTaskInstructionDescription),
+  description: scheduleDescriptionSchema,
+  kind: z.enum(['once', 'interval', 'cron']).describe(scheduleKindDescription),
+  ...scheduleCadenceFields,
+});
+
+const scheduleCreateInputIntentSchema = scheduleCreateInputSchema.partial();
+
+const scheduleUpdateObjectSchema = z.strictObject({
+  scheduleHint: scheduleHintSchema,
+  taskInstruction: z.string().min(1).regex(/\S/).describe(`New instruction. ${scheduleTaskInstructionDescription}`).optional(),
+  description: scheduleDescriptionSchema,
+  kind: z.enum(['once', 'interval', 'cron']).describe(`New cadence. ${scheduleKindDescription}`).optional(),
+  ...scheduleCadenceFields,
+});
+
+const scheduleMutableFieldNames = Object.keys(scheduleUpdateObjectSchema.shape).filter(name => name !== 'scheduleHint');
+
+function hasScheduleMutation(document: object): boolean {
+  return scheduleMutableFieldNames.some(name => Object.hasOwn(document, name));
+}
+
+export const scheduleUpdateInputSchema = scheduleUpdateObjectSchema
+  .refine(hasScheduleMutation, 'At least one schedule field must be updated.')
+  .meta({ minProperties: 2 });
+
+export const scheduleUpdateInputIntentSchema = scheduleUpdateObjectSchema.omit({ scheduleHint: true });
+
+export const scheduleCancelInputSchema = z.strictObject({
+  scheduleHints: z.array(z.string().min(1).max(256))
+    .min(1)
+    .meta({ uniqueItems: true })
+    .describe('The schedules to cancel. Each one is an exact schedule ID, or the exact CURRENT description of one of your own schedules as schedule_list shows it, never a new or intended description. Every hint resolves before anything is cancelled, and a hint that does not uniquely resolve fails the call with a candidates list to retry against.'),
+});
+
+export const scheduleCancelInputIntentSchema = z.strictObject({});
+
+export const scheduleMutationResultSchema = z.strictObject({
+  scheduleID: z.string().min(1),
+  description: z.string(),
+  taskInstruction: z.string().min(1).regex(/\S/),
+  timeZone: z.string().min(1).regex(/\S/),
+  kind: z.enum(['once', 'interval', 'cron']),
+  runAt: z.string().meta({ format: 'date-time' }).optional(),
+  intervalSecond: z.int().min(1).optional(),
+  cronExpression: z.string().optional(),
+  maxRunCount: z.int().min(1).optional(),
+  expiresAt: z.string().meta({ format: 'date-time' }).optional(),
+  nextRunAt: z.string().meta({ format: 'date-time' }),
+  conversationID: z.string(),
+  replyTargetID: z.string(),
+  agentProfileName: z.string(),
+});
+
+export const scheduleCancelResultSchema = z.strictObject({
+  cancelled: z.array(z.strictObject({
+    scheduleID: z.string().min(1),
+    description: z.string(),
+  })),
+});
+
+const scheduleListItemSchema = z.strictObject({
+  scheduleID: z.string().min(1),
+  taskInstruction: z.string().min(1).regex(/\S/),
+  description: z.string().optional(),
+  cadence: z.string(),
+  cronExpression: z.string().optional(),
+  runAt: z.string().meta({ format: 'date-time' }).optional(),
+  status: z.enum(['active', 'failed', 'expired']),
+  nextRunAt: z.string().meta({ format: 'date-time' }).optional(),
+  lastRunAt: z.string().meta({ format: 'date-time' }).optional(),
+});
+
+const scheduleListResultSchema = z.strictObject({
+  schedules: z.array(scheduleListItemSchema),
+});
+
+const scheduleToolDefinitions: CapabilityToolDefinition[] = [
+  {
+    name: ScheduleToolName.List,
+    namespace: 'schedule',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'workspace_schedule',
+    policyResource: 'tool:schedule_list',
+    description: 'List scheduled tasks created by the current requester. Filter by active, failed, or expired status and cap the result with limit. Use it to answer what reminders or recurring tasks are scheduled.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: scheduleListInputSchema,
+    result: { schema: scheduleListResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+  {
+    name: ScheduleToolName.Create,
+    namespace: 'schedule',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'workspace_schedule',
+    policyResource: 'tool:schedule_create',
+    description: 'Schedule a task the agent runs later, once or repeatedly. The schedule answers in the conversation it was asked in, so it can only be created from one. Use schedule_update to change an existing schedule.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: scheduleCreateInputSchema,
+    inputIntentSchema: scheduleCreateInputIntentSchema,
+    result: {
+      schema: scheduleMutationResultSchema,
+      effects: [{
+        objectType: 'schedule',
+        effect: ResourceMutationEffect.Created,
+        resultField: 'scheduleID',
+        effectIdentity: ResourceEffectIdentity.ID,
+      }],
+    },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    completionEvidence: { mode: 'success', action: 'write_schedule', targetKind: 'schedule' },
+  },
+  {
+    name: ScheduleToolName.Update,
+    namespace: 'schedule',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'workspace_schedule',
+    policyResource: 'tool:schedule_update',
+    description: 'Change explicit fields on a schedule the requester created. Use schedule_list first when neither the schedule ID nor its current description is known. At least one field to change is required.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: scheduleUpdateInputSchema,
+    inputIntentSchema: scheduleUpdateInputIntentSchema,
+    result: {
+      schema: scheduleMutationResultSchema,
+      effects: [{
+        objectType: 'schedule',
+        effect: ResourceMutationEffect.Updated,
+        resultField: 'scheduleID',
+        effectIdentity: ResourceEffectIdentity.ID,
+      }],
+    },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    completionEvidence: { mode: 'success', action: 'write_schedule', targetKind: 'schedule' },
+  },
+  {
+    name: ScheduleToolName.Cancel,
+    namespace: 'schedule',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'workspace_schedule',
+    policyResource: 'tool:schedule_cancel',
+    description: 'Stop schedules the requester created. Use schedule_list first when neither the schedule IDs nor their current descriptions are known. A cancelled schedule never runs again; schedule_create makes a new one.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: scheduleCancelInputSchema,
+    inputIntentSchema: scheduleCancelInputIntentSchema,
+    result: { schema: scheduleCancelResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+    completionEvidence: { mode: 'success', action: 'write_schedule', targetKind: 'schedule' },
+  },
+];
+
 export enum CalendarReminderLeadHours {
   One = 1,
   Two = 2,
@@ -1800,6 +1989,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
 ];
 
 const capabilityToolDefinitions: CapabilityToolDefinition[] = [
+  ...scheduleToolDefinitions,
   ...taskToolDefinitions,
   ...peopleToolDefinitions,
   ...calendarToolDefinitions,

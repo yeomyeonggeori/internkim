@@ -60,6 +60,22 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 		service.writeUserMemorySchedules(responseWriter, request)
 		return
 	}
+	if request.Method == http.MethodPost && path == "/schedules/tool-list" {
+		service.writeUserScheduleToolList(responseWriter, request)
+		return
+	}
+	if request.Method == http.MethodPost && path == "/schedules/tool-create" {
+		service.writeUserScheduleToolCreate(responseWriter, request)
+		return
+	}
+	if request.Method == http.MethodPost && path == "/schedules/tool-update" {
+		service.writeUserScheduleToolUpdate(responseWriter, request)
+		return
+	}
+	if request.Method == http.MethodPost && path == "/schedules/tool-cancel" {
+		service.writeUserScheduleToolCancel(responseWriter, request)
+		return
+	}
 	if request.Method == http.MethodPost && path == "/schedules/cancel" {
 		service.cancelUserMemorySchedule(responseWriter, request)
 		return

@@ -219,21 +219,23 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		return func(bool) ([]CommandPlan, error) { return build(), nil }
 	}
 	return map[string]scenarioPlanBuilder{
-		"company-plane":               always(service.companyPlaneScenarioPlans),
-		"model-configuration-upgrade": always(service.modelConfigurationUpgradeScenarioPlans),
-		"buzz-attachment":             always(service.buzzAttachmentScenarioPlans),
-		"buzz-direct-message":         always(service.buzzDirectMessageScenarioPlans),
-		"buzz-inbound-mention":        always(service.buzzInboundMentionScenarioPlans),
-		"restart-policy-survival":     always(service.restartPolicySurvivalScenarioPlans),
-		"workspace-persistence":       always(service.workspacePersistenceScenarioPlans),
-		"workspace-ownership":         always(service.workspaceOwnershipScenarioPlans),
-		"learning-settings":           always(service.learningSettingsScenarioPlans),
-		"morning-briefing":            always(service.morningBriefingScenarioPlans),
-		"memory-store":                always(service.memoryStoreScenarioPlans),
-		"personal-settings":           always(service.personalSettingsScenarioPlans),
-		"task-history-retry":          always(service.taskHistoryRetryScenarioPlans),
-		"web-backed-ui":               always(service.webBackedScenarioPlans),
-		"regression-proof":            always(service.webBackedScenarioPlans),
+		"company-plane":                always(service.companyPlaneScenarioPlans),
+		"model-configuration-upgrade":  always(service.modelConfigurationUpgradeScenarioPlans),
+		"buzz-attachment":              always(service.buzzAttachmentScenarioPlans),
+		"buzz-direct-message":          always(service.buzzDirectMessageScenarioPlans),
+		"buzz-inbound-mention":         always(service.buzzInboundMentionScenarioPlans),
+		"restart-policy-survival":      always(service.restartPolicySurvivalScenarioPlans),
+		"workspace-persistence":        always(service.workspacePersistenceScenarioPlans),
+		"workspace-ownership":          always(service.workspaceOwnershipScenarioPlans),
+		"learning-settings":            always(service.learningSettingsScenarioPlans),
+		"morning-briefing":             always(service.morningBriefingScenarioPlans),
+		"memory-store":                 always(service.memoryStoreScenarioPlans),
+		"firing-schedules-nothing":     always(service.firingSchedulesNothingScenarioPlans),
+		"schedule-through-the-catalog": always(service.scheduleThroughTheCatalogScenarioPlans),
+		"personal-settings":            always(service.personalSettingsScenarioPlans),
+		"task-history-retry":           always(service.taskHistoryRetryScenarioPlans),
+		"web-backed-ui":                always(service.webBackedScenarioPlans),
+		"regression-proof":             always(service.webBackedScenarioPlans),
 	}
 }
 

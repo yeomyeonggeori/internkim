@@ -1,7 +1,9 @@
 package admind
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -11,6 +13,49 @@ import (
 
 type memoryScheduleCancelRequest struct {
 	TaskScheduleID string `json:"taskScheduleID"`
+}
+
+type scheduleToolListInput struct {
+	Status string `json:"status"`
+	Limit  int    `json:"limit"`
+}
+
+// The shapes Blueclaw's signed schedule contract accepts. They are decoded here
+// only to refuse a document that contract would refuse anyway; what travels on
+// is the exact body that was validated, so a field the caller left out stays
+// left out rather than arriving as a zero value the schema rejects.
+type scheduleToolCreateInput struct {
+	TaskInstruction string  `json:"taskInstruction"`
+	Description     *string `json:"description"`
+	Kind            string  `json:"kind"`
+	RunAt           *string `json:"runAt"`
+	ExpiresAt       *string `json:"expiresAt"`
+	IntervalSecond  *int    `json:"intervalSecond"`
+	CronExpression  *string `json:"cronExpression"`
+	TimeZone        *string `json:"timeZone"`
+	MaxRunCount     *int    `json:"maxRunCount"`
+	RepeatPolicy    *string `json:"repeatPolicy"`
+	Platform        *string `json:"platform"`
+	ConversationID  *string `json:"conversationID"`
+	ReplyTargetID   *string `json:"replyTargetID"`
+}
+
+type scheduleToolUpdateInput struct {
+	ScheduleHint    string  `json:"scheduleHint"`
+	TaskInstruction *string `json:"taskInstruction"`
+	Description     *string `json:"description"`
+	Kind            *string `json:"kind"`
+	RunAt           *string `json:"runAt"`
+	ExpiresAt       *string `json:"expiresAt"`
+	IntervalSecond  *int    `json:"intervalSecond"`
+	CronExpression  *string `json:"cronExpression"`
+	TimeZone        *string `json:"timeZone"`
+	MaxRunCount     *int    `json:"maxRunCount"`
+	RepeatPolicy    *string `json:"repeatPolicy"`
+}
+
+type scheduleToolCancelInput struct {
+	ScheduleHints []string `json:"scheduleHints"`
 }
 
 type memoryScheduleCancelBlueclawRequest struct {
@@ -58,6 +103,7 @@ const (
 	memorySchedulesDefaultPage     = 1
 	memorySchedulesDefaultPageSize = 25
 	memorySchedulesMaxPageSize     = 100
+	scheduleToolRequestByteLimit   = 16 * 1024
 )
 
 func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWriter, request *http.Request) {
@@ -85,6 +131,97 @@ func (service *Service) writeUserMemorySchedules(responseWriter http.ResponseWri
 		return
 	}
 	service.writeJSON(responseWriter, schedules)
+}
+
+func (service *Service) writeUserScheduleToolList(responseWriter http.ResponseWriter, request *http.Request) {
+	personID, ok := service.writeMemorySchedulePersonID(responseWriter, request)
+	if !ok {
+		return
+	}
+	var input scheduleToolListInput
+	decoder := json.NewDecoder(http.MaxBytesReader(responseWriter, request.Body, 16*1024))
+	decoder.DisallowUnknownFields()
+	if errorValue := decoder.Decode(&input); errorValue != nil {
+		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
+		return
+	}
+	if errorValue := decoder.Decode(&struct{}{}); errorValue != io.EOF {
+		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
+		return
+	}
+	body, errorValue := json.Marshal(input)
+	if errorValue != nil {
+		http.Error(responseWriter, "invalid schedule list request", http.StatusBadRequest)
+		return
+	}
+	var output json.RawMessage
+	if errorValue := service.blueclawSignedRequest(request.Context(), http.MethodPost, "/admin/api/schedule/tool-list", body, personID, &output); errorValue != nil {
+		log.Printf("schedule tool list upstream failed: %v", errorValue)
+		http.Error(responseWriter, "schedule list unavailable", http.StatusBadGateway)
+		return
+	}
+	responseWriter.Header().Set("Content-Type", "application/json")
+	_, _ = responseWriter.Write(output)
+}
+
+func (service *Service) writeUserScheduleToolCreate(responseWriter http.ResponseWriter, request *http.Request) {
+	service.forwardScheduleToolWrite(responseWriter, request, "/admin/api/schedule/tool-create", &scheduleToolCreateInput{})
+}
+
+func (service *Service) writeUserScheduleToolUpdate(responseWriter http.ResponseWriter, request *http.Request) {
+	service.forwardScheduleToolWrite(responseWriter, request, "/admin/api/schedule/tool-update", &scheduleToolUpdateInput{})
+}
+
+func (service *Service) writeUserScheduleToolCancel(responseWriter http.ResponseWriter, request *http.Request) {
+	service.forwardScheduleToolWrite(responseWriter, request, "/admin/api/schedule/tool-cancel", &scheduleToolCancelInput{})
+}
+
+// Blueclaw owns what a schedule write means, including which hint resolved and
+// which did not, so its status and its body reach the caller unchanged.
+func (service *Service) forwardScheduleToolWrite(responseWriter http.ResponseWriter, request *http.Request, upstreamPath string, input any) {
+	personID, isKnown := service.writeMemorySchedulePersonID(responseWriter, request)
+	if !isKnown {
+		return
+	}
+	body, isValid := readOneScheduleToolDocument(responseWriter, request, input)
+	if !isValid {
+		return
+	}
+	statusCode, answer, errorValue := service.blueclawSignedAnswer(request.Context(), http.MethodPost, upstreamPath, body, personID)
+	if errorValue != nil {
+		log.Printf("schedule tool write upstream failed: %v", errorValue)
+		http.Error(responseWriter, "schedule write unavailable", http.StatusBadGateway)
+		return
+	}
+	responseWriter.Header().Set("Content-Type", contentTypeOfScheduleToolAnswer(answer))
+	responseWriter.WriteHeader(statusCode)
+	_, _ = responseWriter.Write(answer)
+}
+
+func readOneScheduleToolDocument(responseWriter http.ResponseWriter, request *http.Request, input any) ([]byte, bool) {
+	body, errorValue := io.ReadAll(http.MaxBytesReader(responseWriter, request.Body, scheduleToolRequestByteLimit))
+	if errorValue != nil {
+		http.Error(responseWriter, "invalid schedule request", http.StatusBadRequest)
+		return nil, false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if errorValue := decoder.Decode(input); errorValue != nil {
+		http.Error(responseWriter, "invalid schedule request", http.StatusBadRequest)
+		return nil, false
+	}
+	if errorValue := decoder.Decode(&struct{}{}); errorValue != io.EOF {
+		http.Error(responseWriter, "invalid schedule request", http.StatusBadRequest)
+		return nil, false
+	}
+	return body, true
+}
+
+func contentTypeOfScheduleToolAnswer(answer []byte) string {
+	if json.Valid(answer) {
+		return "application/json"
+	}
+	return "text/plain; charset=utf-8"
 }
 
 func (service *Service) cancelUserMemorySchedule(responseWriter http.ResponseWriter, request *http.Request) {
