@@ -1,0 +1,22 @@
+{
+  "name": "internkim",
+  "owner": {
+    "name": "Yeomyeonggeori"
+  },
+  "metadata": {
+    "description": "The InternKim agent's skills and tool server, packaged as an Agent Plugins 1.0.0 plugin."
+  },
+  "plugins": [
+    {
+      "name": "internkim",
+      "description": "Every skill from the InternKim agent, with its tool server declared for the workspace skills: office documents, calculation, weather, data room, tasks, calendar, messages, mail and sites.",
+      "source": {
+        "source": "github",
+        "repo": "yeomyeonggeori/internkim-plugin"
+      },
+      "strict": false,
+      "skills": "./skills",
+      "mcpServers": "./mcp.json"
+    }
+  ]
+}
