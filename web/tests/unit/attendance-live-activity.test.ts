@@ -74,7 +74,11 @@ describe('the Live Activity payload', () => {
 });
 
 describe("the push that refreshes a member's own widgets", () => {
-	test('wakes the app without showing anything and names the widget it is for', () => {
-		expect(widgetRefreshPayload).toEqual({ aps: { 'content-available': 1 }, widget: 'attendance' });
+	test('wakes the app without showing anything and says which clock it carries', () => {
+		expect(widgetRefreshPayload('clock_out')).toEqual({
+			aps: { 'content-available': 1 },
+			widget: 'attendance',
+			clock: 'clock_out'
+		});
 	});
 });

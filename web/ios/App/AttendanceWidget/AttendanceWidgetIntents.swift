@@ -1,4 +1,3 @@
-import ActivityKit
 import AppIntents
 import WidgetKit
 
@@ -45,12 +44,5 @@ private func clock(kind: String, location: String?) async {
         AttendanceRefusal.keep(error.localizedDescription)
     }
     WidgetCenter.shared.reloadAllTimelines()
-    if closeCards { await closeLockScreenCards() }
-}
-
-private func closeLockScreenCards() async {
-    guard #available(iOS 16.2, *) else { return }
-    for activity in Activity<AttendanceActivityAttributes>.activities {
-        await activity.end(nil, dismissalPolicy: .immediate)
-    }
+    if closeCards { await AttendanceLockScreenCards.close() }
 }

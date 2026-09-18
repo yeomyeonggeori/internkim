@@ -4,9 +4,16 @@ import { sayPushNotDelivered } from './push-diagnostics.ts';
 import type { PushKeys } from './push-keys.ts';
 import type { PushOutcome } from './push-vocabulary.ts';
 
-export const widgetRefreshPayload = { aps: { 'content-available': 1 }, widget: 'attendance' };
+export function widgetRefreshPayload(clock: string): Record<string, unknown> {
+	return { aps: { 'content-available': 1 }, widget: 'attendance', clock };
+}
 
-export async function sendWidgetRefresh(deviceToken: string, key: ApnsKey, nowInSeconds: number): Promise<PushOutcome> {
+export async function sendWidgetRefresh(
+	deviceToken: string,
+	clock: string,
+	key: ApnsKey,
+	nowInSeconds: number
+): Promise<PushOutcome> {
 	if (deviceToken === '') return 'gone';
 
 	let authorization: string;
@@ -27,7 +34,7 @@ export async function sendWidgetRefresh(deviceToken: string, key: ApnsKey, nowIn
 				'apns-priority': '5',
 				'content-type': 'application/json'
 			},
-			body: JSON.stringify(widgetRefreshPayload)
+			body: JSON.stringify(widgetRefreshPayload(clock))
 		});
 		const answered = response.ok ? null : ((await response.json().catch(() => null)) as { reason?: unknown } | null);
 		const reason = typeof answered?.reason === 'string' ? answered.reason : '';
@@ -45,6 +52,7 @@ export async function sendWidgetRefresh(deviceToken: string, key: ApnsKey, nowIn
 export async function refreshOwnWidgets(
 	record: SupabaseClient,
 	memberID: string,
+	clock: string,
 	pushKeys: PushKeys,
 	nowInSeconds: number
 ): Promise<number> {
@@ -59,7 +67,7 @@ export async function refreshOwnWidgets(
 
 	let reached = 0;
 	for (const device of data ?? []) {
-		if ((await sendWidgetRefresh(device.address, pushKeys.apns, nowInSeconds)) === 'delivered') reached += 1;
+		if ((await sendWidgetRefresh(device.address, clock, pushKeys.apns, nowInSeconds)) === 'delivered') reached += 1;
 	}
 	return reached;
 }

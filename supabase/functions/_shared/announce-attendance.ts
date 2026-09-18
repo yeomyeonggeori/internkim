@@ -43,7 +43,7 @@ export async function announceClock(
 	};
 	const ownAlert = { title: clocked.kind === 'clock_in' ? '출근' : '퇴근', body: notification.body };
 	await showClockOnOwnPhones(record, memberID, clocked, ownAlert, pushKeys, nowInSeconds);
-	await refreshOwnWidgets(record, memberID, pushKeys, nowInSeconds);
+	await refreshOwnWidgets(record, memberID, clocked.kind, pushKeys, nowInSeconds);
 	return tellEachExcept(record, announcer.company_id, memberID, 'attendance', notification, pushKeys, nowInSeconds);
 }
 

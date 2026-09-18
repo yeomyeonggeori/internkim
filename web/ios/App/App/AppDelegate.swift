@@ -52,7 +52,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return
         }
         WidgetCenter.shared.reloadAllTimelines()
-        completionHandler(.newData)
+        guard userInfo["clock"] as? String == "clock_out" else {
+            completionHandler(.newData)
+            return
+        }
+        Task {
+            await AttendanceLockScreenCards.close()
+            completionHandler(.newData)
+        }
     }
 
     func application(_ application: UIApplication,

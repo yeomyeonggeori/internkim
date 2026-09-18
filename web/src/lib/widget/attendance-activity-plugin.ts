@@ -10,6 +10,7 @@ export type AttendanceActivityPlugin = {
 	watchTokens(): Promise<void>;
 	heldTokens(): Promise<{ tokens: ActivityToken[] }>;
 	lockScreenState(): Promise<{ allowed: boolean }>;
+	closeCards(): Promise<void>;
 	addListener(event: 'token', listener: (token: ActivityToken) => void): Promise<{ remove(): Promise<void> }>;
 };
 
