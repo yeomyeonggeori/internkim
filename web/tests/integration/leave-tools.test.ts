@@ -392,8 +392,10 @@ describe('what a person is entitled to', () => {
 		expect(theOnlyBalanceIn(await asSample('leave_balance', { year: 2026 })).grantedDays).toBe(20);
 	});
 
-	test('is refused a number of days below none', async () => {
-		expect((await asAdmin('leave_grant_set', { personHint: '이샘플', days: -1 })).status).toBe(400);
+	test('is refused a number of days below none, by the record that keeps it', async () => {
+		const answered = await asAdmin('leave_grant_set', { personHint: '이샘플', days: -1 });
+		expect(answered.status).toBe(422);
+		expect((answered.body as { error: string }).error).toContain('leave days cannot be negative');
 	});
 });
 
@@ -435,5 +437,24 @@ describe('coming back from leave early', () => {
 			await asAdmin('attendance_list', { from: today, to: today, limit: 1 })
 		);
 		expect((clocked.attendance as { kind: string }[])[0].kind).toBe('clock_in');
+	});
+});
+
+describe('a call that leaves the thing it acts on blank', () => {
+	test('is told which kinds this company registers, not that a field is missing', async () => {
+		const answered = await asSample('leave_request', {
+			kind: '',
+			startsAt: '2026-10-05',
+			endsAt: '2026-10-05',
+			days: 1
+		});
+		expect(answered.status).toBe(409);
+		expect((answered.body as { registered: string[] }).registered).toContain('연차');
+	});
+
+	test('is refused by the resolver that reads every other hint', async () => {
+		const answered = await asAdmin('leave_grant_set', { personHint: '', days: 10 });
+		expect(answered.status).toBe(409);
+		expect((answered.body as { errorCode: string }).errorCode).toBe('person_not_found');
 	});
 });

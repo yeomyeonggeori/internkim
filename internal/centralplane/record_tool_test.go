@@ -12,8 +12,10 @@ import (
 // HTML page to a caller that asks for nothing (handle_fatal_error).
 func TestARecordCallAsksForARefusalItCanRead(t *testing.T) {
 	acceptedByTheCall := ""
+	acceptedBySignIn := ""
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path == "/api/agent/session" {
+			acceptedBySignIn = request.Header.Get("Accept")
 			writeJSON(writer, map[string]any{
 				"memberID":    "member-1",
 				"accessToken": "token-1",
@@ -41,5 +43,8 @@ func TestARecordCallAsksForARefusalItCanRead(t *testing.T) {
 	}
 	if acceptedByTheCall != "application/json" {
 		t.Fatalf("the call accepts %q, so a refusal comes back as a web page", acceptedByTheCall)
+	}
+	if acceptedBySignIn != "application/json" {
+		t.Fatalf("signing in accepts %q, and no request here sets that header itself", acceptedBySignIn)
 	}
 }

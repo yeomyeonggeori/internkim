@@ -19,15 +19,17 @@ export async function clockAttendance(
 ): Promise<Response | null> {
 	const payload: unknown = await request.clone().json().catch(() => null);
 	if (!payload || typeof payload !== 'object' || !('input' in payload)) return null;
+
+	const plane = planeCredentialsOf(environment);
+	if (!plane) error(500, 'the control plane is not configured');
+	const member = await memberAccessTokenOf(request, plane);
+
 	const recovered = toolInputRecovered('attendance_add', payload.input);
 	const parsed = attendanceAddInputSchema.safeParse(recovered);
 	if (!parsed.success) error(400, sentencesOfSchemaRefusal(parsed.error.issues, recovered, 'input'));
 	const input = parsed.data;
 	if (input.personHint || input.date || input.time) return null;
 
-	const plane = planeCredentialsOf(environment);
-	if (!plane) error(500, 'the control plane is not configured');
-	const member = await memberAccessTokenOf(request, plane);
 	descriptorTheTokenReaches('attendance_add', member);
 	const caller = asMember(plane, member.accessToken);
 	try {

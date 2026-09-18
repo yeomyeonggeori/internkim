@@ -83,8 +83,7 @@ export function toolInputRecovered(name: string, input: unknown): Record<string,
 export function refusalOfToolInput(name: string, input: unknown): string | null {
 	const schema = capabilityToolInputSchema(name);
 	if (!schema) return null;
-	const asked = toolInputRecovered(name, input);
-	const parsed = schema.safeParse(asked);
+	const parsed = schema.safeParse(input);
 	if (parsed.success) return null;
-	return sentencesOfSchemaRefusal(parsed.error.issues, asked, 'input');
+	return sentencesOfSchemaRefusal(parsed.error.issues, input, 'input');
 }

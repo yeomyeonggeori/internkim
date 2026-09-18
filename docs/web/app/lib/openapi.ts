@@ -1,5 +1,8 @@
 import catalog from '../../../../pkg/capabilityprotocol/generated/capability-tools.json';
-import { statesAResultContract } from '../../../../web/src/lib/server/public-api/catalog/contract';
+import {
+	statesAResultContract,
+	toolInvokeOutcomes
+} from '../../../../web/src/lib/server/public-api/catalog/contract';
 import { publicAPIPermissions } from '../../../../web/src/lib/public-api-permission';
 import { defaultZone } from '../../../../web/src/lib/server/fleet-domain';
 
@@ -56,6 +59,8 @@ type ApiCopy = {
 		| 'forbidden'
 		| 'notFound'
 		| 'conflict'
+		| 'recordGone'
+		| 'recordRefused'
 		| 'badGateway'
 		| 'aboveOwnRung'
 		| 'namesItself'
@@ -153,7 +158,7 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			previewTool: {
 				summary: '무엇을 건드릴지 미리 보기',
 				description:
-					'무언가를 없애는 도구를 부르기 전에, 그 호출이 무엇을 건드릴지 묻습니다. `input`은 부를 때와 같고 아무것도 쓰지 않습니다. 힌트는 실제 호출이 쓰는 바로 그 함수로 풀리므로, 미리 본 것과 부른 것이 다른 행일 수 없습니다. 되돌릴 수 없는 일을 사람에게 확인받는 클라이언트를 위한 것입니다. 답의 `target.inputField`와 `target.id`로 입력을 좁혀 두면 승인 뒤의 호출이 힌트를 다시 풀지 않습니다. 미리 볼 것이 없는 도구는 `target`이 `null`입니다.'
+					'호출이 힌트로 기록 하나를 가리키는 도구에 대해, 그 호출이 무엇을 건드릴지 묻습니다. `input`은 부를 때와 같고 아무것도 쓰지 않습니다. 힌트는 실제 호출이 쓰는 바로 그 함수로 풀리므로, 미리 본 것과 부른 것이 다른 행일 수 없습니다. 되돌릴 수 없는 일을 사람에게 확인받는 클라이언트를 위한 것입니다. 답의 `target.inputField`와 `target.id`로 입력을 좁혀 두면 승인 뒤의 호출이 힌트를 다시 풀지 않습니다. 미리 볼 것이 없는 도구는 `target`이 `null`입니다.'
 			}
 		},
 		errors: {
@@ -162,6 +167,8 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			forbidden: '이 토큰의 등급으로는 부를 수 없는 도구입니다',
 			notFound: '그런 도구가 없습니다',
 			conflict: '힌트가 하나로 좁혀지지 않았고, 고를 후보가 함께 옵니다',
+			recordGone: '그런 도구가 없거나, 호출이 가리킨 기록이 이미 없습니다',
+			recordRefused: '기록이 그 쓰기를 거절했습니다',
 			badGateway: '회사 안쪽 서비스가 응답하지 않았습니다',
 			aboveOwnRung: '자기보다 높은 등급의 토큰은 만들 수 없습니다',
 			namesItself: '그 이름은 이 호출을 인증한 토큰의 것입니다',
@@ -273,7 +280,7 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			previewTool: {
 				summary: 'Look at what a call would touch',
 				description:
-					'Before calling a tool that destroys something, ask what that call would touch. `input` is the same input the call takes and nothing is written. The hint resolves through the same function the call itself uses, so the row previewed and the row touched cannot differ. This is for a client that puts an irreversible action to a person first: narrow the input with the answer\'s `target.inputField` and `target.id` and the approved call will not resolve the hint again. A tool with nothing to look at answers `target: null`.'
+					'For a tool whose call names a record with a hint, ask what that call would touch. `input` is the same input the call takes and nothing is written. The hint resolves through the same function the call itself uses, so the row previewed and the row touched cannot differ. This is for a client that puts an irreversible action to a person first: narrow the input with the answer\'s `target.inputField` and `target.id` and the approved call will not resolve the hint again. A tool with nothing to look at answers `target: null`.'
 			}
 		},
 		errors: {
@@ -282,6 +289,8 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			forbidden: "This token's rung does not reach this tool",
 			notFound: 'No tool by that name',
 			conflict: 'The hint did not resolve to one thing, and the candidates come with it',
+			recordGone: 'No tool by that name, or the record the call named is no longer there',
+			recordRefused: 'The record refused the write',
 			badGateway: 'A service inside the company did not answer',
 			aboveOwnRung: 'A token may not make one that reaches past itself',
 			namesItself: 'That name belongs to the token making this call',
@@ -621,6 +630,9 @@ function invokeToolPath(copy: ApiCopy) {
 				'400': errorResponse(copy.errors.badRequest),
 				'401': errorResponse(copy.errors.unauthorized),
 				'403': errorResponse(copy.errors.forbidden),
+				'404': errorResponse(copy.errors.recordGone),
+				'409': errorResponse(copy.errors.conflict),
+				'422': errorResponse(copy.errors.recordRefused),
 				'502': errorResponse(copy.errors.badGateway)
 			}
 		}
@@ -641,6 +653,7 @@ function previewToolPath(copy: ApiCopy) {
 				'400': errorResponse(copy.errors.badRequest),
 				'401': errorResponse(copy.errors.unauthorized),
 				'403': errorResponse(copy.errors.forbidden),
+				'404': errorResponse(copy.errors.notFound),
 				'409': errorResponse(copy.errors.conflict)
 			}
 		}
@@ -780,6 +793,9 @@ function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 				'400': errorResponse(copy.errors.badRequest),
 				'401': errorResponse(copy.errors.unauthorized),
 				'403': errorResponse(copy.errors.forbidden),
+				'404': errorResponse(copy.errors.recordGone),
+				'409': errorResponse(copy.errors.conflict),
+				'422': errorResponse(copy.errors.recordRefused),
 				'502': errorResponse(copy.errors.badGateway)
 			}
 		}
@@ -962,7 +978,7 @@ function createComponents(copy: ApiCopy) {
 				required: ['toolName', 'outcome', 'result'],
 				properties: {
 					toolName: { type: 'string' },
-					outcome: { type: 'string', enum: ['succeeded', 'failed'] },
+					outcome: { type: 'string', enum: [...toolInvokeOutcomes] },
 					selectedBackend: { type: 'string' },
 					effects: {
 						type: 'array',

@@ -24,12 +24,11 @@ import {
 	oversizeRefusal,
 	sizeTheHeaderClaims,
 } from '$lib/server/public-api/files';
-import { previewToolOverTheRecord, recordRunsTheTool } from '$lib/server/public-api/record';
+import { previewToolOverTheRecord } from '$lib/server/public-api/record';
 import {
 	apiRequestCapability,
 	descriptorTheTokenReaches,
 	inputTheToolWillRead,
-	refusalOfALocalTool,
 	toolCalledByMember
 } from '$lib/server/public-api/tool-call';
 import { error, json } from '@sveltejs/kit';
@@ -69,11 +68,7 @@ export const fallback: RequestHandler = async ({ request, url, params, platform 
 	if (previewed) return previewHere(request, member, previewed);
 
 	const invoked = invokedToolName(request.method, path);
-	if (invoked) {
-		const refusal = refusalOfALocalTool(invoked);
-		if (refusal) return json(refusal.body, { status: refusal.status });
-		return runHere(request, url, environment, member, invoked);
-	}
+	if (invoked) return runHere(request, url, environment, member, invoked);
 	return carryToTheCompany(request, url, environment, member, path);
 };
 
@@ -91,9 +86,6 @@ function previewedToolName(method: string, path: string): string | null {
 
 async function previewHere(request: Request, member: CallingMember, name: string): Promise<Response> {
 	descriptorTheTokenReaches(name, member);
-	if (!recordRunsTheTool(name)) {
-		error(400, `${name} is answered on the company machine, which is where a preview of it lives`);
-	}
 
 	const payload = await payloadOf(request);
 	if (!payload) error(400, 'this call carried a body that is not a json object');

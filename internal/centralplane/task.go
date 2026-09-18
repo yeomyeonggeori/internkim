@@ -138,7 +138,6 @@ func (client *Client) DeleteTask(ctx context.Context, platform string, externalI
 // worked, so the rows it removed are asked for and an empty answer is a refusal.
 func askForWhatWasRemoved(request *http.Request) {
 	request.Header.Set("Prefer", "return=representation")
-	request.Header.Set("Accept", "application/json")
 }
 
 func confirmSomethingWasRemoved(response *http.Response, subject string) error {
