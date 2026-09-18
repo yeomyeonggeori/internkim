@@ -398,6 +398,7 @@ either way.
 cd web && bun run build:board && cd ..
 make prepare-blueclaw-payload
 ./internkim release publish
+./internkim release companion
 
 ./internkim update check --profile dawn --node 1
 ./internkim update apply --profile dawn --node 1
@@ -500,17 +501,24 @@ app around it; an agent can install it on a person's computer without anyone
 clicking through a wizard, and a desktop wrapper can come later.
 
 ```bash
-make build-companion
-./internkim-companion pair --device-url https://<deviceID>.<zone> --code ABCD-1234
-./internkim-companion service install
-./internkim-companion status
+curl -fsSL https://intern.kim/companion/install.sh | sh
+internkim-companion pair --device-url https://<deviceID>.<zone> --code ABCD-1234
+internkim-companion service install
+internkim-companion status
 ```
 
-Pairing starts from `/connect` in the messenger. A user with no admin rights
-gets a ten-minute one-time code bound to their own identity, together with the
-`pair` command carrying it and an `internkim://pair?…` deep link that `pair`
-also accepts as its only argument. A paired companion opens no inbound port
-and long-polls the device broker.
+The installer downloads the macOS or Linux build from
+`updates.<zone>/companion/latest/`, the one public prefix of the release
+registry, and verifies it against the published `SHA256SUMS`.
+`./internkim release companion` cross-compiles the four builds and publishes
+them there; `make build-companion` builds the host's own.
+
+Pairing starts from the agent: `computer_connect` issues a ten-minute one-time
+code bound to the requester's own identity and returns the install, `pair` and
+`service install` commands to relay to them in a direct message. The `pair`
+command carries the code; an `internkim://pair?…` deep link is accepted as its
+only argument too. A paired companion opens no inbound port and long-polls the
+device broker.
 
 `service install` registers a launchd agent on macOS and a systemd user unit
 on Linux, so the companion starts at login and restarts when it dies. Run

@@ -245,7 +245,7 @@ func (service *Service) createCompanionPairingCodeForOwner(request *http.Request
 	service.pairingCodes[code] = pairingCode
 	service.mutex.Unlock()
 
-	pairingDeviceURL := companionPairingDeviceURL(request, owner.DeviceURL)
+	pairingDeviceURL := companionPairingDeviceURL(request, firstNonEmpty(owner.DeviceURL, service.configuredDeviceURL()))
 	return companionPairingCodeResponse{
 		Code:        code,
 		ExpiresAt:   pairingCode.ExpiresAt,

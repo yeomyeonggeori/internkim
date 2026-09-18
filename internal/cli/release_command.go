@@ -56,13 +56,21 @@ func runRelease() {
 		if errorValue := runReleaseStatus(os.Args[3:]); errorValue != nil {
 			fatal(errorValue.Error())
 		}
+	case "companion":
+		if errorValue := runReleaseCompanion(os.Args[3:]); errorValue != nil {
+			fatal(errorValue.Error())
+		}
 	default:
 		printReleaseUsage()
 	}
 }
 
 func printReleaseUsage() {
-	fmt.Println("Usage: internkim release <publish|status>")
+	fmt.Println("Usage: internkim release <publish|status|companion>")
+	fmt.Println()
+	fmt.Println("  publish     Publish a device release to the stable channel")
+	fmt.Println("  status      Show what the channel points at")
+	fmt.Println("  companion   Build the companion for macOS and Linux and publish it under companion/latest")
 	fmt.Println()
 	fmt.Println("Environment for publish:")
 	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CLOUDFLARE_ACCOUNT_ID")

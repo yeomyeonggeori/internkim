@@ -28,7 +28,7 @@ func (service *Service) buzzMediaOrigin() string {
 }
 
 func (service *Service) buzzPublicRelayOrigin() string {
-	return relayOriginForDeviceURL(service.mediaPublicBase())
+	return relayOriginForDeviceURL(service.configuredDeviceURL())
 }
 
 func mediaRelayHost(origin string) string {
@@ -54,7 +54,7 @@ func relayOriginForDeviceURL(deviceURL string) string {
 	return scheme + host
 }
 
-func (service *Service) mediaPublicBase() string {
+func (service *Service) configuredDeviceURL() string {
 	return strings.TrimSuffix(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath)), "/")
 }
 
@@ -62,7 +62,7 @@ func (service *Service) rewriteBuzzMedia(value string) string {
 	if value == "" {
 		return value
 	}
-	replacement := service.mediaPublicBase() + mediaProxyPrefix
+	replacement := service.configuredDeviceURL() + mediaProxyPrefix
 	for _, origin := range []string{service.buzzMediaOrigin(), service.buzzPublicRelayOrigin()} {
 		if origin != "" {
 			value = strings.ReplaceAll(value, origin+"/", replacement)
