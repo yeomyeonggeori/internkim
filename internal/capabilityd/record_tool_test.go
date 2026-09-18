@@ -92,6 +92,31 @@ func TestAnUnresolvedRecordHintReachesTheModelWithItsCandidates(t *testing.T) {
 	}
 }
 
+// SvelteKit's error() words a refusal as "message" where the API's own
+// refusals word it as "error".
+func TestARefusalTheFrameworkWordedReachesTheModelToo(t *testing.T) {
+	socketPath := admindOnASocket(t, http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		responseWriter.WriteHeader(http.StatusForbidden)
+		_, _ = responseWriter.Write([]byte(`{"message":"this token may not delete"}`))
+	}))
+	service := Service{Configuration: Configuration{
+		AdmindBaseURL:    admindOnLoopbackThatFailsTheTest(t),
+		AdmindSocketPath: socketPath,
+	}}
+
+	answer, errorValue := service.invokeRecordTool(context.Background(), recordRequestOf("attendance_update", `{"corrections":[]}`))
+	if errorValue != nil {
+		t.Fatalf("attendance_update: %v", errorValue)
+	}
+	if answer.Message != "this token may not delete" || answer.Content != "this token may not delete" {
+		t.Fatalf("the refusal reached the model as %q and %q", answer.Message, answer.Content)
+	}
+	if answer.ErrorCode != "not_allowed" {
+		t.Fatalf("a forbidden call answered %s", answer.ErrorCode)
+	}
+}
+
 func TestARecordCallRefusesRatherThanSendARequesterNobodyHonours(t *testing.T) {
 	service := Service{Configuration: Configuration{AdmindBaseURL: admindOnLoopbackThatFailsTheTest(t)}}
 
