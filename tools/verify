@@ -72,15 +72,11 @@ GROUPS = [
     ),
     Group(
         "internkim-plugin",
-        [".dependency/internkim-plugin*"],
+        [".dependency/internkim-plugin*", "tools/verify-agent-plugin", "tools/tests/test_verify_agent_plugin.py"],
         [
-            BUN_INSTALL,
-            ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_generate_client_manifests.py"],
-            ["python3", "scripts/generate_client_manifests.py", "--check"],
-            ["bun", "run", "check"],
-            ["bun", "test", "tests/pi"],
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_agent_plugin.py"],
+            ["tools/verify-agent-plugin"],
         ],
-        working_directory=".dependency/internkim-plugin",
     ),
     Group(
         "skill-tool-references",

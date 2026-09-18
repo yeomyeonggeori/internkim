@@ -39,18 +39,15 @@ class VerificationPlanTests(unittest.TestCase):
     def test_internkim_plugin_changes_select_the_plugin_group(self):
         groups = verification_module().GROUPS
         plugin_group = next(group for group in groups if group.name == "internkim-plugin")
-        for changed_path in [".dependency/internkim-plugin", ".dependency/internkim-plugin/package.json"]:
+        for changed_path in [".dependency/internkim-plugin", ".dependency/internkim-plugin/mcp.json", "tools/verify-agent-plugin"]:
             selected = {group.name for group in groups if group.is_touched_by([changed_path])}
             self.assertIn("internkim-plugin", selected)
-        self.assertEqual(plugin_group.working_directory, ".dependency/internkim-plugin")
+        self.assertEqual(plugin_group.working_directory, ".")
         self.assertEqual(
             plugin_group.commands,
             [
-                ["bun", "install", "--frozen-lockfile"],
-                ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_generate_client_manifests.py"],
-                ["python3", "scripts/generate_client_manifests.py", "--check"],
-                ["bun", "run", "check"],
-                ["bun", "test", "tests/pi"],
+                ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_agent_plugin.py"],
+                ["tools/verify-agent-plugin"],
             ],
         )
 
