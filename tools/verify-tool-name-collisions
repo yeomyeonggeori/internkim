@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Fail when a service tool and a native tool answer to the same model name.
+
+Blueclaw drops a capability tool whose model name a local or kernel tool
+already holds, keeps the native one, and registers the rest. Nothing about
+that is visible from here: the catalog still lists the tool, every check that
+reads the catalog still passes, and the agent goes on calling the older twin.
+That is how a service operation can ship, be deployed, and never once run.
+
+A name may legitimately exist on both sides while it is being moved, because
+the native tool is deleted only once the service operation has parity. Those
+names are listed below, one place, and a name leaves the list when its native
+twin is deleted. An empty list is the destination.
+
+Hidden catalog entries are skipped. Bluecollar registers a hidden tool as its
+own internal one and the model never sees the catalog's, so the two names
+never compete for the model.
+"""
+
+import sys
+
+import tool_name_sources as sources
+
+TOOLS_BEING_MOVED = {
+    "schedule_list": "moving to the InternKim service catalog (internkim#1789)",
+}
+
+MINIMUM_MODEL_VISIBLE_TOOLS = 60
+MINIMUM_LOCAL_TOOLS = 8
+MINIMUM_KERNEL_TOOLS = 10
+
+
+def too_few(counted: int, minimum: int, what: str) -> bool:
+    if counted >= minimum:
+        return False
+    print(
+        f"read only {counted} {what}, so this check is reading the wrong place;"
+        f" expected at least {minimum}",
+        file=sys.stderr,
+    )
+    return True
+
+
+def collision_report(tool_name: str, native_side: str) -> str:
+    return (
+        f"{tool_name} is served by the catalog and by {native_side}, so the agent calls"
+        f" the native one and never the service operation. Either delete the native"
+        f" twin, or, when this is a deliberate step of a migration, add {tool_name} to"
+        f" TOOLS_BEING_MOVED in tools/verify-tool-name-collisions and remove it when"
+        f" the native tool goes."
+    )
+
+
+def collisions_between(
+    model_visible: set[str], local_tools: set[str], kernel_tools: set[str]
+) -> list[str]:
+    return [
+        collision_report(tool_name, native_side)
+        for native_side, native_names in (
+            ("a blueclaw local tool", local_tools),
+            ("a bluecollar kernel tool", kernel_tools),
+        )
+        for tool_name in sorted((model_visible & native_names) - TOOLS_BEING_MOVED.keys())
+    ]
+
+
+def main() -> int:
+    model_visible = sources.model_visible_catalog_names()
+    local_tools = sources.blueclaw_local_tool_names()
+    kernel_tools = sources.kernel_tool_names()
+    if too_few(len(model_visible), MINIMUM_MODEL_VISIBLE_TOOLS, "model-visible catalog tools"):
+        return 1
+    if too_few(len(local_tools), MINIMUM_LOCAL_TOOLS, "blueclaw local tools"):
+        return 1
+    if too_few(len(kernel_tools), MINIMUM_KERNEL_TOOLS, "bluecollar kernel tools"):
+        return 1
+
+    collisions = collisions_between(model_visible, local_tools, kernel_tools)
+    if collisions:
+        print("a catalog tool and a native tool answer to the same model name:", file=sys.stderr)
+        for collision in collisions:
+            print(f"  {collision}", file=sys.stderr)
+        return 1
+
+    still_moving = sorted(TOOLS_BEING_MOVED.keys() & (local_tools | kernel_tools))
+    print(
+        f"ok {len(model_visible)} model-visible catalog tools against {len(local_tools)} local"
+        f" and {len(kernel_tools)} kernel tools, {len(still_moving)} still being moved"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
