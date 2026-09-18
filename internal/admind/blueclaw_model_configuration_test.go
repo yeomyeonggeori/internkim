@@ -44,7 +44,7 @@ func TestRefreshMigratesDeployedLegacyModelConfiguration(t *testing.T) {
 	}
 }
 
-func TestRefreshStampsTheDecisionModelIntoADeployedConfiguration(t *testing.T) {
+func TestRefreshStampsTheLadderOwnedModelsIntoADeployedConfiguration(t *testing.T) {
 	document := `{"capabilities":{},"languageModel":{"capability":{"model":"vendor/current","executionMode":"auto","lowModel":"vendor/current"}}}`
 	refreshed, errorValue := refreshedBlueclawRuntimeConfiguration(document, blueclawruntime.CurrentCapabilityContract())
 	if errorValue != nil {
