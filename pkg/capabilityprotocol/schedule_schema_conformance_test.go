@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const signedScheduleContractPath = "../../.dependency/blueclaw/internal/adminapi/task_schedule_contracts.go"
+const signedScheduleContractPath = "../../.dependency/blueclaw/internal/adminapi/schedule_contracts.go"
 
 type signedScheduleContract struct {
 	inputSchemaName  string
