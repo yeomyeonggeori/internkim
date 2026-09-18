@@ -25,10 +25,9 @@ function sendingTheMessage(recipientName: string): string {
 function finishing(reply: string): string {
 	return JSON.stringify({
 		message: reply,
-		completionSummary: reply,
 		goalStatus: 'satisfied',
 		goalSatisfied: true,
-		completionEvidence: []
+		completionEvidenceIDs: []
 	});
 }
 
