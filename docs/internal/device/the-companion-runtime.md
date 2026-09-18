@@ -18,8 +18,9 @@
   freeze none is designed.
 - Browser capabilities must go through a typed browser runtime adapter; do not
   scatter raw `agent-browser`, Playwright, Chrome, or Obscura calls.
-- Companion browser support must use the bundled sidecar prepared by
-  `make build-companion` or `make deps-companion-browser`.
+- The companion is one binary with no desktop shell. Everything it needs on
+  the user's computer is embedded (the browser extension) or found on `PATH`
+  (Google Chrome, `cua-driver`); `service install` is the only supervisor.
 - Browser observe/screenshot responses must not expose cookies, CDP URLs, local
   profile paths, or local screenshot paths.
 - Keep Blueclaw provider-neutral. Blueclaw requests capabilities; internkim

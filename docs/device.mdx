@@ -58,9 +58,10 @@ into the guest as `/workspace`. The workspace's permission model is in
 
 ## The companion
 
-`internkim-companion` runs on a user's own computer and provides what needs a
-person: picking a file, approving an action. Pairing starts from `/connect` in the messenger, which hands out a
-ten-minute one-time code bound to that user's own identity. A paired
+[`internkim-companion`](/docs/companion) runs on a user's own computer and
+lends the agent that person's browser and desktop. Pairing starts from
+`/connect` in the messenger, which hands out a ten-minute one-time code bound
+to that user's own identity. A paired
 companion opens no inbound port; it long-polls the admind broker, and its
 jobs survive an admind restart through
 `/root/.internkim/state/companion-jobs.json`.

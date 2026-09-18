@@ -87,7 +87,7 @@ func TestLLMHandlerTextRoutesToOllamaBackend(t *testing.T) {
 		OllamaModel:   "gemma3:1b",
 		HTTPClient:    httpClient,
 	})
-	handler := llmHandler(newDynamicLocalLLM(settings), false, false)
+	handler := llmHandler(newLocalLLMProvider(settings), false, false)
 
 	body := `{"messages":[{"role":"user","content":"hi"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
@@ -122,7 +122,7 @@ func TestLLMHandlerHonorsRequestedProvider(t *testing.T) {
 		LlamaCppModel:   "local/gemma",
 		HTTPClient:      httpClient,
 	})
-	handler := llmHandler(newDynamicLocalLLM(settings), false, false)
+	handler := llmHandler(newLocalLLMProvider(settings), false, false)
 
 	body := `{"provider":"ollama","messages":[{"role":"user","content":"hi"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
@@ -145,7 +145,7 @@ func TestLLMHandlerStructuredEnforcesSchema(t *testing.T) {
 		LlamaCppModel:   "local/gemma",
 		HTTPClient:      httpClient,
 	})
-	handler := llmHandler(newDynamicLocalLLM(settings), false, true)
+	handler := llmHandler(newLocalLLMProvider(settings), false, true)
 
 	body := `{"messages":[{"role":"user","content":"hi"}],"structuredOutputSchema":{"name":"reply","document":{"type":"object","required":["reply"]}}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(body))
@@ -178,7 +178,7 @@ func TestLLMHandlerReturnsServiceUnavailableWhenAllBackendsFail(t *testing.T) {
 		OllamaModel:   "gemma3:1b",
 		HTTPClient:    httpClient,
 	})
-	handler := llmHandler(newDynamicLocalLLM(settings), false, false)
+	handler := llmHandler(newLocalLLMProvider(settings), false, false)
 
 	body := `{"messages":[{"role":"user","content":"hi"}]}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(body))
@@ -198,7 +198,7 @@ func TestLLMHandlerReturnsServiceUnavailableWhenAllBackendsFail(t *testing.T) {
 }
 
 func TestLLMHandlerWithoutLocalEnabledReturnsNotImplemented(t *testing.T) {
-	handler := llmHandler(newDynamicLocalLLM(localLLMSettings{}), false, false)
+	handler := llmHandler(newLocalLLMProvider(localLLMSettings{}), false, false)
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(`{}`))
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -227,7 +227,7 @@ func TestLLMStreamHandlerEmitsTokensAsSSE(t *testing.T) {
 		OllamaModel:   "gemma3:1b",
 		HTTPClient:    httpClient,
 	})
-	handler := llmStreamHandler(newDynamicLocalLLM(localLLMSettings{
+	handler := llmStreamHandler(newLocalLLMProvider(localLLMSettings{
 		Enabled:     true,
 		ProviderSet: providerSet,
 	}))
@@ -303,7 +303,7 @@ func TestLLMHandlerStructuredReturnsUnsupportedForOllamaOnly(t *testing.T) {
 	settings := newLocalLLMTestSettings(llmbackend.LocalProviderConfig{
 		ProviderOrder: []string{"ollama"},
 	})
-	handler := llmHandler(newDynamicLocalLLM(settings), false, true)
+	handler := llmHandler(newLocalLLMProvider(settings), false, true)
 
 	body := `{"messages":[{"role":"user","content":"hi"}],"structuredOutputSchema":{"name":"reply","document":{"type":"object","required":["reply"]}}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(body))
@@ -479,7 +479,6 @@ func TestDefaultBrowserExecutablePathUsesEnvironmentOverride(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	t.Setenv("INTERNKIM_BROWSER_EXECUTABLE_PATH", executablePath)
-	t.Setenv("AGENT_BROWSER_EXECUTABLE_PATH", "")
 
 	if actual := defaultBrowserExecutablePath(); actual != executablePath {
 		t.Fatalf("browser executable path = %q, want %q", actual, executablePath)
@@ -716,23 +715,24 @@ func TestCompanionStatusFiltersBrowserCapabilitiesWhenRuntimeUnavailable(t *test
 	}
 }
 
-func TestResolveAgentBrowserPathUsesFlagBeforeEnvironment(t *testing.T) {
-	t.Setenv("INTERNKIM_AGENT_BROWSER_PATH", "/env/agent-browser")
+func TestResolveBrowserExtensionPathUnpacksTheEmbeddedExtension(t *testing.T) {
+	t.Setenv("INTERNKIM_BROWSER_EXTENSION_PATH", "")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 
-	path := resolveAgentBrowserPath("/flag/agent-browser")
+	path := resolveBrowserExtensionPath("")
 
-	if path != "/flag/agent-browser" {
-		t.Fatalf("expected flag path, got %s", path)
+	if path == "" {
+		t.Fatal("no extension path")
+	}
+	if _, errorValue := os.Stat(filepath.Join(path, "manifest.json")); errorValue != nil {
+		t.Fatal(errorValue)
 	}
 }
 
-func TestResolveAgentBrowserPathUsesEnvironmentWhenFlagEmpty(t *testing.T) {
-	t.Setenv("INTERNKIM_AGENT_BROWSER_PATH", "/env/agent-browser")
-
-	path := resolveAgentBrowserPath("")
-
-	if path != "/env/agent-browser" {
-		t.Fatalf("expected environment path, got %s", path)
+func TestResolveBrowserExtensionPathPrefersTheFlag(t *testing.T) {
+	if path := resolveBrowserExtensionPath("/flag/browser-extension"); path != "/flag/browser-extension" {
+		t.Fatalf("expected flag path, got %s", path)
 	}
 }
 

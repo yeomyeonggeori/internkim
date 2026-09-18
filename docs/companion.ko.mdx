@@ -1,0 +1,89 @@
+---
+title: 컴패니언
+description: 내 컴퓨터에서 돌아가는 바이너리 하나. 로그인된 내 브라우저와 데스크탑을 에이전트에게 빌려줍니다.
+---
+
+에이전트는 회사 컴퓨터에서 돌아가지만, 어떤 일은 내 컴퓨터에서만 말이
+됩니다. 내가 로그인해 둔 페이지, 데스크탑 애플리케이션, 내 것인 브라우저
+프로필 같은 것들입니다. 컴패니언은 내 컴퓨터에서 돌아가는 바이너리 하나
+`internkim-companion`으로, 에이전트가 부탁할 때 그 일을 대신합니다. 설치
+마법사 창 같은 것이 없으므로, 내가 직접 설치하듯 에이전트가 대신 설치해 줄
+수도 있습니다.
+
+페어링된 컴패니언은 들어오는 포트를 열지 않습니다. 회사 컴퓨터로 바깥에서
+연결해 나에게 온 작업만 가져오며, 다른 사람의 신원이 실린 작업은 절대
+넘겨받지 않습니다.
+
+## 설치
+
+저장소에서 빌드해 `PATH`에 둡니다.
+
+```bash
+make build-companion
+mkdir -p ~/.local/bin && mv internkim-companion ~/.local/bin/
+```
+
+체크아웃 안에서는 `./internkim companion upgrade`가 같은 일을 한 번에 하고,
+백그라운드 서비스가 설치되어 있으면 다시 시작해 줍니다.
+
+브라우저 도구는 컴퓨터에 Google Chrome이 있어야 합니다. 컴패니언은 자기만의
+김인턴 프로필과 바이너리에 내장된 확장으로 Chrome을 움직이므로, 평소 쓰는
+Chrome 창과 로그인은 건드리지 않습니다. 컴퓨터 제어에는 추가로 [Cua
+Driver](https://cua.ai/driver)가 `cua-driver`라는 이름으로 `PATH`나
+`~/.local/bin`에 있어야 합니다.
+
+## 페어링
+
+메신저에서 `/connect`를 입력합니다. 답장은 나에게만 보이고, 10분짜리 코드가
+실행할 명령 안에 이미 들어 있습니다.
+
+```bash
+internkim-companion pair --device-url https://<회사 컴퓨터> --code ABCD-1234
+```
+
+답장에는 `internkim://pair?…` 링크도 함께 오며, `pair`는 그 링크 하나만
+인자로 받아도 됩니다. 페어링하면 내 컴퓨터를 떠나지 않는 서명 키가 만들어지고
+(macOS에서는 키체인에 보관), 회사 컴퓨터는 그 공개 절반만 가집니다.
+`internkim-companion status`는 무엇이 페어링되어 있고 지금 무엇을 할 수 있는지
+보여 주고, `internkim-companion disconnect`는 페어링을 잊습니다.
+
+## 계속 돌려 두기
+
+```bash
+internkim-companion service install
+```
+
+macOS에서는 launchd 에이전트로, Linux에서는 systemd 사용자 유닛으로
+등록됩니다. 로그인하면 컴패니언이 시작되고, 멈추면 다시 올라옵니다. `--` 뒤의
+플래그는 백그라운드 프로세스의 플래그가 됩니다.
+
+```bash
+internkim-companion service install -- --cua-driver /opt/cua/bin/cua-driver
+```
+
+`service status`, `service restart`, `service uninstall`은 이름 그대로
+동작합니다. 터미널에서 직접 돌리려면 `internkim-companion run`입니다.
+
+## 하는 일
+
+| 도구 묶음 | 내 컴퓨터에서 |
+|---|---|
+| `browser_*` | 컴패니언의 Chrome 프로필에서 나로 로그인한 채 페이지를 열고 읽고 조작합니다 |
+| `computer_task` | Cua Driver로 목표를 끝까지 수행하며, 매 단계를 회사 컴퓨터에 물어 결정합니다 |
+| `llm_*` | 로컬 모델이 설정되어 있으면(`run --enable-local-llm`) 그 모델을 제공합니다 |
+
+`computer_task`는 추론 키를 갖지 않습니다. 매 단계 컴패니언이 페이지를
+관찰하고 할 수 있는 일을 나열하면, 회사 컴퓨터가 그 목록을 결정 모델에
+넘기고 선택 하나를 돌려줍니다. 에이전트가 보는 모습은 [도구
+카탈로그](/docs/tools/catalog#computer)에 있습니다.
+
+## 파일 위치
+
+| 경로 | 내용 |
+|---|---|
+| `~/.internkim-companion/state.json` | 페어링 정보와 서명 키 참조 |
+| `~/.config/internkim/BrowserProfile` (macOS: `~/Library/Application Support/internkim/BrowserProfile`) | 컴패니언 전용 Chrome 프로필 |
+| 그 프로필 옆의 `browser-extension` | 처음 쓸 때 풀어 놓는 내장 확장 |
+| `~/Library/LaunchAgents/kim.intern.companion.plist` | macOS 서비스 정의 |
+| `~/.config/systemd/user/internkim-companion.service` | Linux 서비스 정의 |
+| `~/Library/Logs/internkim-companion.log` | macOS 서비스 로그 |
