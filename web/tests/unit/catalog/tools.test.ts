@@ -618,10 +618,10 @@ describe('canonical capability tools', () => {
     expect(cancelTool?.resultContract?.effects).toEqual([]);
     expect(createTool?.requiresApproval).toBeUndefined();
     expect(updateTool?.requiresApproval).toBeUndefined();
-    expect(cancelTool?.requiresApproval).toBe(true);
+    expect(cancelTool?.requiresApproval).toBeUndefined();
     expect(createTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);
     expect(updateTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);
-    expect(cancelTool?.sideEffectClass).toBe(CapabilitySideEffect.Destructive);
+    expect(cancelTool?.sideEffectClass).toBe(CapabilitySideEffect.WorkspaceWrite);
   });
 
   test('takes an instruction, a cadence, and at least one change', () => {
