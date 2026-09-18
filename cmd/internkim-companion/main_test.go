@@ -473,6 +473,48 @@ func TestRunOnceCompletesMockLLMJob(t *testing.T) {
 	}
 }
 
+func TestRunAdvertisesTheToolsThisBuildAnswersNotThePairingsRecord(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	state, secureStore := testCompanionState(t, true, false)
+	state.Capabilities = []capabilities.Descriptor{{Name: "browser.open", Namespace: "browser", Version: "1"}}
+	if errorValue := saveState(statePath, state); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var advertised []string
+	httpClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/_internkim/companion/heartbeat":
+			var heartbeat struct {
+				Capabilities []capabilities.Descriptor `json:"capabilities"`
+			}
+			if errorValue := json.NewDecoder(request.Body).Decode(&heartbeat); errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			for _, descriptor := range heartbeat.Capabilities {
+				advertised = append(advertised, descriptor.Name)
+			}
+			return textResponse(http.StatusOK, `{}`), nil
+		case "/_internkim/companion/jobs/next":
+			return textResponse(http.StatusOK, `{"status":"empty"}`), nil
+		default:
+			t.Fatalf("unexpected run path: %s", request.URL.Path)
+			return nil, nil
+		}
+	})}
+
+	if errorValue := runCompanionWithStore([]string{"--state", statePath, "--once"}, httpClient, secureStore); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(advertised) == 0 {
+		t.Fatal("the companion advertised nothing")
+	}
+	for _, name := range advertised {
+		if strings.Contains(name, ".") {
+			t.Fatalf("the companion still advertises the pairing's %q instead of the tools this build answers: %v", name, advertised)
+		}
+	}
+}
+
 func TestDefaultBrowserExecutablePathUsesEnvironmentOverride(t *testing.T) {
 	executablePath := filepath.Join(t.TempDir(), "chrome")
 	if errorValue := os.WriteFile(executablePath, []byte("#!/bin/sh\n"), 0o700); errorValue != nil {
