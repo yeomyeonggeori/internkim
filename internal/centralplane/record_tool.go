@@ -48,6 +48,7 @@ func (client *Client) InvokeRecordTool(
 	}
 	request.Header.Set("Authorization", "Bearer "+session.accessToken)
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
 
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {
