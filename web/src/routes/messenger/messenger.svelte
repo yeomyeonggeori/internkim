@@ -2,6 +2,9 @@
 	import Channel from '$lib/components/channel/channel.svelte';
 	import MessengerChannelList from './messenger-channel-list.svelte';
 	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
+	import MessengerChannelDetails from './messenger-channel-details.svelte';
+	import MessengerChannelHeaderActions from './messenger-channel-header-actions.svelte';
+	import MessengerChannelMembersDialog from './messenger-channel-members-dialog.svelte';
 	import MessengerNewChannelDialog from './messenger-new-channel-dialog.svelte';
 	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
 	import { toast } from 'svelte-sonner';
@@ -57,6 +60,8 @@
 	let isNewDirectMessageOpen = $state(false);
 	let isNewChannelOpen = $state(false);
 	let isBrowseChannelsOpen = $state(false);
+	let isChannelDetailsOpen = $state(false);
+	let isChannelMembersOpen = $state(false);
 	const canManageChannels = isSupabaseConfigured();
 	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
@@ -89,6 +94,27 @@
 	function openBrowseChannels() {
 		isChannelSheetOpen = false;
 		isBrowseChannelsOpen = true;
+	}
+
+	function openChannelMembers() {
+		isChannelMembersOpen = true;
+		refreshConversations('the channel list did not refresh for the member list');
+	}
+
+	function openChannelDetails() {
+		isChannelDetailsOpen = true;
+		refreshConversations('the channel list did not refresh for the channel details');
+	}
+
+	function refreshConversations(why: string) {
+		loadConversationList().catch((failure: unknown) => console.warn(why, failure));
+	}
+
+	async function leftChannel(channelID: string) {
+		conversations = conversations.filter((conversation) => conversation.id !== channelID);
+		const next = groupChannels[0] ?? conversations[0];
+		if (next) selectChannel(next.id);
+		refreshConversations('the channel list did not refresh after leaving');
 	}
 
 	async function showChannel(channelID: string) {
@@ -355,7 +381,14 @@
 					{:else if activeConversation}
 						<HashIcon class="text-muted-foreground size-5 shrink-0" />
 					{/if}
-					<span class="font-semibold">{activeConversation?.name ?? text.messenger}</span>
+					<span class="truncate font-semibold">{activeConversation?.name ?? text.messenger}</span>
+					{#if activeConversation?.kind === 'group' && activeConversation.members}
+						<MessengerChannelHeaderActions
+							memberCount={activeConversation.members.length}
+							openMembers={openChannelMembers}
+							openDetails={openChannelDetails}
+						/>
+					{/if}
 				</header>
 				{#key activeID}
 					<Channel channelId={activeID} />
@@ -365,6 +398,20 @@
 	</div>
 </Sheet.Root>
 
+{#if activeConversation?.kind === 'group'}
+	<MessengerChannelDetails
+		bind:open={isChannelDetailsOpen}
+		channel={activeConversation}
+		openMembers={() => ((isChannelDetailsOpen = false), openChannelMembers())}
+		onLeft={leftChannel}
+	/>
+	<MessengerChannelMembersDialog
+		bind:open={isChannelMembersOpen}
+		channelID={activeConversation.id}
+		members={activeConversation.members ?? []}
+		onMembersChanged={() => refreshConversations('the channel list did not refresh after adding members')}
+	/>
+{/if}
 <MessengerNewChannelDialog bind:open={isNewChannelOpen} onCreated={showChannel} />
 <MessengerBrowseChannelsDialog bind:open={isBrowseChannelsOpen} onJoined={showChannel} />
 

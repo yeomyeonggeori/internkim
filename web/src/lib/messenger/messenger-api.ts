@@ -15,6 +15,7 @@ export type MessengerChannel = {
 	participants: MessengerPerson[];
 	isWithTheAgent?: boolean;
 	webURL?: string;
+	description?: string;
 };
 
 export type MessengerReaction = {
@@ -94,10 +95,28 @@ type PersonalMessage = {
 	attachments: PersonalAttachment[];
 };
 
+export class MessengerRefusal extends Error {
+	constructor(
+		message: string,
+		readonly reason: string | undefined
+	) {
+		super(message);
+		this.name = 'MessengerRefusal';
+	}
+}
+
 async function ask<Value>(capability: string, body?: Record<string, unknown>): Promise<Value> {
 	const answer = await callCompanyApp({ capability, body });
-	if (answer.status >= 400) throw new Error(messageOf(answer.body, `the app answered ${answer.status}`));
+	if (answer.status >= 400) {
+		throw new MessengerRefusal(messageOf(answer.body, `the app answered ${answer.status}`), reasonOf(answer.body));
+	}
 	return answer.body as Value;
+}
+
+function reasonOf(body: unknown): string | undefined {
+	if (typeof body !== 'object' || body === null) return undefined;
+	const { reason } = body as { reason?: unknown };
+	return typeof reason === 'string' ? reason : undefined;
 }
 
 function messageOf(body: unknown, fallback: string): string {
@@ -117,7 +136,8 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		position,
 		isWithTheAgent: conversation.isWithTheAgent,
 		participants: (conversation.participantExternalIDs ?? []).map((externalID) => ({ externalID })),
-		webURL: conversation.webURL
+		webURL: conversation.webURL,
+		description: conversation.description
 	};
 }
 
@@ -147,9 +167,13 @@ function asPost(message: PersonalMessage): MessengerPost {
 	};
 }
 
-export async function fetchChannels(): Promise<MessengerChannel[]> {
-	const answer = await ask<{ conversations: PersonalConversation[] }>('person.conversations.list');
-	return answer.conversations.map(asChannel);
+export type MessengerChannels = { channels: MessengerChannel[]; agentExternalID?: string };
+
+export async function fetchChannels(): Promise<MessengerChannels> {
+	const answer = await ask<{ conversations: PersonalConversation[]; agentExternalID?: string }>(
+		'person.conversations.list'
+	);
+	return { channels: answer.conversations.map(asChannel), agentExternalID: answer.agentExternalID };
 }
 
 export type MessengerDirectoryPerson = { externalID: string; name: string; avatarURL?: string };
@@ -192,6 +216,18 @@ export async function fetchOpenChannels(): Promise<OpenChannel[]> {
 
 export async function joinChannel(channelID: string): Promise<void> {
 	await ask('person.channel.join', { conversationID: channelID });
+}
+
+export async function addChannelMembers(channelID: string, memberExternalIDs: string[]): Promise<string[]> {
+	const answer = await ask<{ uninvitedExternalIDs?: string[] }>('person.channel.members.add', {
+		conversationID: channelID,
+		memberExternalIDs
+	});
+	return answer.uninvitedExternalIDs ?? [];
+}
+
+export async function leaveChannel(channelID: string): Promise<void> {
+	await ask('person.channel.leave', { conversationID: channelID });
 }
 
 export async function fetchPosts(channelID: string, before?: string): Promise<MessengerPost[]> {

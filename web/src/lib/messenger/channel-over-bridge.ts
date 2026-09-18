@@ -10,6 +10,7 @@ import { emojifyText, glyphOfEmojiName } from './emoji-glyph';
 import { customEmojiNamesIn } from './custom-emoji-names';
 import {
 	fetchChannels,
+	fetchPeople,
 	fetchPosts,
 	openDirectChannel,
 	writePost,
@@ -32,10 +33,13 @@ type ChannelSummary = {
 	kind: 'dm' | 'group';
 	isPrivate: boolean;
 	counterpart?: MessengerPerson;
+	members?: ChannelMember[];
+	description?: string;
 	platform?: string;
 	webURL?: string;
 };
 type Person = { id: string; name: string; avatarURL?: string };
+type ChannelMember = MessengerPerson & { name: string };
 type Participant = { id: string; name: string; avatarURL?: string; memberID?: string; externalID?: string };
 type Reaction = { emoji: string; count: number; reactedByMe: boolean; imageURL?: string; people?: Participant[] };
 // url is where the message says the file is, which names it and is what the
@@ -130,8 +134,9 @@ function placementOf(person: MessengerPerson, people: MessengerDirectory): Messe
 }
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
-	const [channels, people] = await Promise.all([fetchChannels(), fetchMessengerDirectory()]);
-	const viewer = await whoIsReading(people);
+	const [answer, people] = await Promise.all([fetchChannels(), fetchMessengerDirectory()]);
+	const { channels, agentExternalID } = answer;
+	const [viewer, messengerNames] = await Promise.all([whoIsReading(people), messengerNamesOf(channels, people)]);
 	void personPicture.rememberExternals(channels.flatMap((channel) => channel.participants.map((person) => externalIDOf(person, people))));
 	return [...channels]
 		.sort((left, right) => left.position - right.position)
@@ -147,6 +152,10 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 			kind: channel.isDirect ? ('dm' as const) : ('group' as const),
 			isPrivate: channel.isPrivate,
 			counterpart: channel.isDirect ? counterpartOf(channel, people, viewer) : undefined,
+			members: channel.isDirect
+				? undefined
+				: membersOf(channel, people, messengerNames, agentExternalID),
+			description: channel.description,
 			platform: channel.platform,
 			webURL: channel.webURL
 		}));
@@ -155,6 +164,41 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 function counterpartOf(channel: MessengerChannel, people: MessengerDirectory, viewer: Viewer): MessengerPerson | undefined {
 	const other = channel.participants.find((person) => !isViewer(person, people, viewer));
 	return other ? placementOf(other, people) : undefined;
+}
+
+function membersOf(
+	channel: MessengerChannel,
+	people: MessengerDirectory,
+	messengerNames: Map<string, string>,
+	agentExternalID?: string
+): ChannelMember[] {
+	return channel.participants.map((person) => {
+		const externalID = externalIDOf(person, people);
+		const name =
+			personLabel(person, people, currentPersonNameLocale()) ||
+			(externalID && externalID === agentExternalID ? channelText[currentLocale.value].title : '') ||
+			messengerNames.get(externalID) ||
+			'';
+		return { ...placementOf(person, people), name };
+	});
+}
+
+async function messengerNamesOf(
+	channels: MessengerChannel[],
+	people: MessengerDirectory
+): Promise<Map<string, string>> {
+	const unknown = channels
+		.filter((channel) => !channel.isDirect)
+		.flatMap((channel) => channel.participants)
+		.filter((person) => !personLabel(person, people, currentPersonNameLocale()))
+		.map((person) => externalIDOf(person, people))
+		.filter(Boolean);
+	if (unknown.length === 0) return new Map();
+	const known = await fetchPeople().catch((failure: unknown) => {
+		console.warn('the messenger did not answer with its people', failure);
+		return [];
+	});
+	return new Map(known.map((person) => [person.externalID, person.name]));
 }
 
 export async function bridgePeople(): Promise<Person[]> {
